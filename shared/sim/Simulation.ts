@@ -10,9 +10,15 @@ import {
   TICK_SECONDS,
   UNITS,
   UNIT_CAP,
+  RESOURCE_TYPES,
+  canAfford,
+  emptyStockpile,
   type BuildingType,
+  type Cost,
+  type Stockpile,
   type UnitType,
 } from './config.ts';
+import { claimableCells, claimedBy, gatherRate } from './gathering.ts';
 import type { Command } from './commands.ts';
 import { findPath } from './pathfinding/AStar.ts';
 import { placementError } from './placement.ts';
@@ -34,7 +40,7 @@ import type {
 export interface SimulationInit {
   map: MapData;
   playerCount: number;
-  startingResources?: number;
+  startingResources?: Stockpile;
   /** Unidades iniciais por jogador. */
   startingUnits?: UnitType[];
 }
@@ -77,8 +83,8 @@ export class Simulation {
     for (let slot = 0; slot < init.playerCount; slot++) {
       this.players.push({
         slot,
-        resources: init.startingResources ?? STARTING_RESOURCES,
-        incomeRemainder: 0,
+        resources: { ...(init.startingResources ?? STARTING_RESOURCES) },
+        incomeRemainder: emptyStockpile(),
         defeated: false,
         modifiers: { ...NEUTRAL_MODIFIERS },
         stats: {
@@ -136,10 +142,61 @@ export class Simulation {
     return n;
   }
 
-  incomePerSecond(slot: Slot): number {
-    let inc = this.players[slot]?.modifiers.externalIncome ?? 0;
-    for (const b of this.buildings) if (b.owner === slot && b.progress >= 1) inc += BUILDINGS[b.type].income;
+  /** Renda por segundo de cada recurso: edifícios concluídos, coleta e logística nacional. */
+  incomePerSecond(slot: Slot): Stockpile {
+    const inc = emptyStockpile();
+    inc.supplies += this.players[slot]?.modifiers.externalIncome ?? 0;
+    for (const b of this.buildings) {
+      if (b.owner !== slot || b.progress < 1) continue;
+      const def = BUILDINGS[b.type];
+      for (const r of RESOURCE_TYPES) inc[r] += def.income[r] ?? 0;
+      if (def.gather) inc[def.gather.resource] += gatherRate(b.type, b.claims.length);
+    }
     return inc;
+  }
+
+  // ---------------------------------------------------------------- névoa de guerra
+
+  private visibility: Uint8Array[] = [];
+  private visibilityTick = -1;
+
+  /** Grade de células visíveis para o jogador (1 = visível), recalculada a cada poucos ticks. */
+  visibilityOf(slot: Slot): Uint8Array {
+    if (this.visibilityTick !== this.tick || !this.visibility[slot]) this.recomputeVisibility();
+    return this.visibility[slot] ?? new Uint8Array(this.map.width * this.map.height);
+  }
+
+  private recomputeVisibility(): void {
+    const w = this.map.width;
+    const h = this.map.height;
+    const cs = this.map.cellSize;
+    this.visibility = this.players.map(() => new Uint8Array(w * h));
+    for (const e of this.entities.values()) {
+      const grid = this.visibility[e.owner];
+      if (!grid) continue;
+      markCircle(grid, w, h, e.pos.x / cs, e.pos.y / cs, this.sightOf(e) / cs);
+    }
+    this.visibilityTick = this.tick;
+  }
+
+  /** Um ponto é visível para o jogador se estiver no raio de visão de alguma entidade sua. */
+  isVisibleTo(slot: Slot, p: Vec2): boolean {
+    const cs = this.map.cellSize;
+    const cx = Math.floor(p.x / cs);
+    const cy = Math.floor(p.y / cs);
+    if (cx < 0 || cy < 0 || cx >= this.map.width || cy >= this.map.height) return false;
+    return this.visibilityOf(slot)[cy * this.map.width + cx] === 1;
+  }
+
+  /** Entidade visível para o jogador: suas próprias, ou de outros em células visíveis (edifícios: qualquer célula). */
+  canSee(slot: Slot, e: Entity): boolean {
+    if (e.owner === slot) return true;
+    if (e.kind === 'unit') return this.isVisibleTo(slot, e.pos);
+    const vis = this.visibilityOf(slot);
+    const size = BUILDINGS[e.type].size;
+    for (let y = e.cell.cy; y < e.cell.cy + size; y++)
+      for (let x = e.cell.cx; x < e.cell.cx + size; x++) if (vis[y * this.map.width + x] === 1) return true;
+    return false;
   }
 
   entityRadius(e: Entity): number {
@@ -159,13 +216,6 @@ export class Simulation {
     return e.kind === 'unit' ? UNITS[e.type].sight : BUILDINGS[e.type].sight;
   }
 
-  /** Um ponto é visível para o jogador se estiver no raio de visão de alguma entidade sua. */
-  isVisibleTo(slot: Slot, p: Vec2): boolean {
-    for (const e of this.entities.values()) {
-      if (e.owner === slot && dist(e.pos, p) <= this.sightOf(e)) return true;
-    }
-    return false;
-  }
 
   hqOf(slot: Slot): Building | undefined {
     return this.buildings.find((b) => b.owner === slot && b.type === 'hq');
@@ -199,6 +249,8 @@ export class Simulation {
         if (units.length === 0) return 'Nenhuma unidade válida';
         const target = this.entities.get(cmd.targetId);
         if (!target || target.owner === slot) return 'Alvo inválido';
+        // unidades precisam estar à vista; edifícios inimigos já avistados podem ser alvo
+        if (target.kind === 'unit' && !this.canSee(slot, target)) return 'Alvo fora de visão';
         for (const u of units) {
           u.order = { kind: 'attack', targetId: target.id };
           u.engageId = null;
@@ -219,8 +271,7 @@ export class Simulation {
         const reason = this.placementError(slot, cmd.buildingType, cell);
         if (reason) return reason;
         const def = BUILDINGS[cmd.buildingType];
-        player.resources -= def.cost;
-        player.stats.resourcesSpent += def.cost;
+        this.spend(player, def.cost);
         const b = this.addBuilding(cmd.buildingType, slot, cell, 0);
         this.emit({ type: 'construction_started', tick: this.tick, id: b.id, owner: slot, buildingType: b.type, pos: { ...b.pos } });
         return null;
@@ -233,9 +284,8 @@ export class Simulation {
         if (def.producedBy !== b.type) return `${BUILDINGS[b.type].label} não produz ${def.label}`;
         if (b.queue.length >= PRODUCTION_QUEUE_LIMIT) return 'Fila de produção cheia';
         if (this.supplyUsed(slot) >= UNIT_CAP) return 'Limite de unidades atingido';
-        if (player.resources < def.cost) return 'Suprimentos insuficientes';
-        player.resources -= def.cost;
-        player.stats.resourcesSpent += def.cost;
+        if (!canAfford(player.resources, def.cost)) return 'Recursos insuficientes';
+        this.spend(player, def.cost);
         const ticks = Math.max(1, Math.round(def.buildSeconds * TICK_RATE * player.modifiers.productionTimeMul));
         b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks });
         return null;
@@ -245,9 +295,7 @@ export class Simulation {
         if (!b || b.kind !== 'building' || b.owner !== slot) return 'Edifício inválido';
         const item = b.queue.pop();
         if (!item) return 'Fila vazia';
-        const cost = UNITS[item.unitType].cost;
-        player.resources += cost;
-        player.stats.resourcesSpent -= cost;
+        this.spend(player, UNITS[item.unitType].cost, -1);
         return null;
       }
       case 'set_rally': {
@@ -256,6 +304,15 @@ export class Simulation {
         b.rally = this.clampToMap({ x: cmd.x, y: cmd.y });
         return null;
       }
+    }
+  }
+
+  /** Debita (sign=1) ou reembolsa (sign=−1) um custo em vários recursos. */
+  private spend(player: PlayerState, cost: Cost, sign = 1): void {
+    for (const r of RESOURCE_TYPES) {
+      const v = (cost[r] ?? 0) * sign;
+      player.resources[r] -= v;
+      player.stats.resourcesSpent += v;
     }
   }
 
@@ -305,12 +362,15 @@ export class Simulation {
   private updateEconomy(): void {
     for (const p of this.players) {
       if (p.defeated) continue;
-      p.incomeRemainder += this.incomePerSecond(p.slot) * TICK_SECONDS;
-      const whole = Math.floor(p.incomeRemainder + 1e-9);
-      if (whole > 0) {
-        p.incomeRemainder -= whole;
-        p.resources += whole;
-        p.stats.resourcesGathered += whole;
+      const inc = this.incomePerSecond(p.slot);
+      for (const r of RESOURCE_TYPES) {
+        p.incomeRemainder[r] += inc[r] * TICK_SECONDS;
+        const whole = Math.floor(p.incomeRemainder[r] + 1e-9);
+        if (whole > 0) {
+          p.incomeRemainder[r] -= whole;
+          p.resources[r] += whole;
+          p.stats.resourcesGathered += whole;
+        }
       }
     }
   }
@@ -363,7 +423,8 @@ export class Simulation {
     switch (u.order.kind) {
       case 'attack': {
         const target = this.entities.get(u.order.targetId);
-        if (!target || target.hp <= 0 || target.owner === u.owner) {
+        // alvo destruído, inválido ou unidade que sumiu na névoa: a ordem acaba
+        if (!target || target.hp <= 0 || target.owner === u.owner || (target.kind === 'unit' && !this.canSee(u.owner, target))) {
           this.setIdle(u);
           return;
         }
@@ -371,7 +432,7 @@ export class Simulation {
         return;
       }
       case 'attackMove': {
-        const target = this.validEngageTarget(u, def.sight * 1.5) ?? this.acquireTarget(u.pos, u.owner, def.sight);
+        const target = this.validEngageTarget(u, Math.max(def.sight, def.weapon.range) * 1.5) ?? this.acquireTarget(u.pos, u.owner, Math.max(def.sight, def.weapon.range));
         if (target) {
           if (u.engageId !== target.id) {
             u.engageId = target.id;
@@ -398,7 +459,7 @@ export class Simulation {
         return;
       }
       case 'idle': {
-        const target = this.validEngageTarget(u, def.sight * 1.5) ?? this.acquireTarget(u.pos, u.owner, def.sight);
+        const target = this.validEngageTarget(u, Math.max(def.sight, def.weapon.range) * 1.5) ?? this.acquireTarget(u.pos, u.owner, Math.max(def.sight, def.weapon.range));
         if (!target) {
           u.engageId = null;
           u.activity = 'idle';
@@ -418,20 +479,21 @@ export class Simulation {
   private validEngageTarget(u: Unit, leash: number): Entity | null {
     if (u.engageId === null) return null;
     const t = this.entities.get(u.engageId);
-    if (!t || t.hp <= 0 || t.owner === u.owner) return null;
+    if (!t || t.hp <= 0 || t.owner === u.owner || !this.canSee(u.owner, t)) return null;
     if (this.distanceToEdge(u.pos, t) > leash) return null;
     return t;
   }
 
   /**
-   * Seleção de alvo determinística: inimigo mais próximo dentro do raio, unidades antes de
-   * edifícios; empate resolvido pelo menor id.
+   * Seleção de alvo determinística: inimigo visível mais próximo dentro do raio, unidades antes
+   * de edifícios; empate resolvido pelo menor id. Respeita a névoa de guerra do dono.
    */
   acquireTarget(from: Vec2, owner: Slot, radius: number): Entity | null {
     let best: Entity | null = null;
     let bestScore = Infinity;
     for (const e of this.entities.values()) {
       if (e.owner === owner || e.hp <= 0) continue;
+      if (!this.canSee(owner, e)) continue;
       const d = this.distanceToEdge(from, e);
       if (d > radius) continue;
       const score = d + (e.kind === 'building' ? 1000 : 0);
@@ -499,7 +561,7 @@ export class Simulation {
     let target: Entity | null = null;
     if (b.engageId !== null) {
       const t = this.entities.get(b.engageId);
-      if (t && t.kind === 'unit' && t.hp > 0 && this.distanceToEdge(b.pos, t) - this.entityRadius(b) <= weapon.range) target = t;
+      if (t && t.kind === 'unit' && t.hp > 0 && this.canSee(b.owner, t) && this.distanceToEdge(b.pos, t) - this.entityRadius(b) <= weapon.range) target = t;
     }
     if (!target) {
       const candidate = this.acquireTarget(b.pos, b.owner, weapon.range + this.entityRadius(b));
@@ -691,10 +753,19 @@ export class Simulation {
       rally: null,
       cooldown: 0,
       engageId: null,
+      claims: def.gather ? this.claimFor(type, owner, cell) : [],
     };
     this.entities.set(b.id, b);
     this.grid.setOccupied(cell, def.size, b.id);
     return b;
+  }
+
+  /** Células de recurso que um novo edifício de coleta reivindica (petróleo: a própria jazida). */
+  private claimFor(type: BuildingType, _owner: Slot, cell: Cell): number[] {
+    const g = BUILDINGS[type].gather;
+    if (!g) return [];
+    if (g.terrain === null) return [cell.cy * this.map.width + cell.cx];
+    return claimableCells(this.map, type, cell, claimedBy(this.buildings, type));
   }
 
   /** Cria uma unidade numa célula livre ao redor do edifício. */
@@ -837,4 +908,20 @@ export class Simulation {
 
 function cellTuple(c: Cell): [number, number] {
   return [c.cx, c.cy];
+}
+
+/** Marca como visíveis as células cujo centro está no círculo (coordenadas em células). */
+function markCircle(grid: Uint8Array, w: number, h: number, cx: number, cy: number, r: number): void {
+  const r2 = r * r;
+  const y0 = Math.max(0, Math.floor(cy - r));
+  const y1 = Math.min(h - 1, Math.ceil(cy + r));
+  const x0 = Math.max(0, Math.floor(cx - r));
+  const x1 = Math.min(w - 1, Math.ceil(cx + r));
+  for (let y = y0; y <= y1; y++) {
+    const dy = y + 0.5 - cy;
+    for (let x = x0; x <= x1; x++) {
+      const dx = x + 0.5 - cx;
+      if (dx * dx + dy * dy <= r2) grid[y * w + x] = 1;
+    }
+  }
 }

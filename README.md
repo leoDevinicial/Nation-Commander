@@ -100,8 +100,8 @@ e o cliente com `VITE_ALLOW_GUESTS=true` (no `.env.local`). Partidas de convidad
 | Mover / atacar | clique direito no terreno / no inimigo |
 | Avançar atacando | `F` e clique no destino |
 | Parar | `X` |
-| Construir (com o QG selecionado) | `B` Caserna · `N` Fábrica · `J` Extrator (sobre jazida) |
-| Produzir | `I` Infantaria (Caserna) · `T` Blindado (Fábrica) · `Del` cancela o último da fila |
+| Construir (com o Centro de Comando selecionado) | `C` Fazenda · `M` Serraria · `P` Pedreira · `O` Poço de Petróleo · `B` Base Militar · `N` Fábrica de Veículos · `K` Torre de Vigilância |
+| Produzir | `I` Infantaria (Base Militar) · `V` Veículo Blindado · `T` Tanque · `R` Artilharia (Fábrica) · `Del` cancela o último da fila |
 | Ponto de reunião | clique direito com Caserna/Fábrica selecionada |
 | Grupos | `Ctrl+1…9` grava · `1…9` seleciona |
 | Câmera | `WASD`/setas · botão do meio arrasta · `Q`/`E` ou Alt+botão do meio giram · roda faz zoom · `H` centraliza no QG · clique no minimapa |
@@ -110,9 +110,31 @@ e o cliente com `VITE_ALLOW_GUESTS=true` (no `.env.local`). Partidas de convidad
 
 | Painel nacional | `G` ou botão **🏛 Nação**: visão geral, orçamento, pesquisa, diagnóstico e dados de referência |
 
-**Objetivo:** destruir o Quartel-General inimigo. O QG gera +3 suprimentos/s e tem um canhão de
-defesa; extratores sobre jazidas geram +4/s. Construções só podem ser erguidas perto das suas
-estruturas (extratores, em qualquer jazida livre). Limite de 40 unidades.
+**Objetivo:** destruir o Centro de Comando inimigo. Limite de 40 unidades.
+
+### Recursos (estilo Rise of Nations)
+
+| Recurso | Fonte | Usado em |
+| --- | --- | --- |
+| Suprimentos | Centro de Comando (+3/s) e logística nacional (orçamento de defesa) | veículos, fábrica, serraria |
+| Comida | **Fazenda** no solo fértil (marrom) | infantaria |
+| Madeira | **Serraria** junto à floresta | construções |
+| Pedra | **Pedreira** junto aos afloramentos rochosos | construções, artilharia, torres |
+| Petróleo | **Poço** sobre jazida (manchas escuras) | veículos |
+
+Cada edifício de coleta **reivindica** as células de recurso livres ao seu alcance (fazenda até 8
+de solo fértil, serraria até 10 árvores, pedreira até 8 rochas) e rende por célula — dois edifícios
+do mesmo tipo não dividem as mesmas células. Ao posicionar, o painel mostra quantas células livres
+estão ao alcance e a renda resultante. Recursos não se esgotam. Construções exigem estar perto das
+suas estruturas; poços podem ser erguidos em qualquer jazida livre.
+
+### Névoa de guerra
+
+O servidor só envia a cada jogador as unidades inimigas dentro do raio de visão das suas unidades e
+edifícios; recursos do adversário ficam ocultos. Edifícios inimigos já avistados continuam
+"lembrados" com o último estado conhecido até a área ser observada de novo. No mapa e no minimapa,
+áreas inexploradas ficam escuras e as exploradas fora de visão, esmaecidas. A artilharia (alcance 16,
+visão 9) precisa de outras unidades ou torres para enxergar seus alvos.
 
 ## Camada nacional (Fase 2)
 
@@ -158,6 +180,15 @@ Para atualizar os dados: GitHub → Actions → **Importar dados de referência*
 
 O perfil é criado por trigger em `auth.users` usando o `username` enviado no cadastro.
 
+## Gráficos e assets
+
+Unidades e edifícios são modelos low-poly procedurais (`src/game/render/models/`), montados a partir
+de primitivas e fundidos em poucas malhas por modelo (corpo com cores de vértice, detalhes na cor da
+facção e vidros). Árvores, arbustos, rochas e montanhas do horizonte vêm do **Nature Kit** do
+[Gobkit](https://github.com/Ariescar/gobkit-free-assets) (CC0, em `public/assets/models/nature/`); se
+não carregarem, o terreno usa vegetação procedural. A névoa de guerra é aplicada no shader de todos
+os materiais por posição de mundo.
+
 ## Testes e verificação
 
 ```bash
@@ -182,8 +213,6 @@ npm run build:server
 
 ## Limitações conhecidas
 
-- Sem névoa de guerra: o cliente recebe todas as unidades. A IA, porém, só reage a inimigos dentro
-  da visão das suas próprias entidades.
 - Snapshots completos (~1,6 kB a 10/s); compressão delta fica para quando houver mais unidades.
 - Salas vivem em memória de um único processo: reiniciar o servidor encerra partidas em andamento,
   e não há escala horizontal.

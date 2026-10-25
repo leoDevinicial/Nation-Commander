@@ -2,6 +2,14 @@
 
 ## Indicadores dos países
 
+Duas fontes, combinadas em `shared/strategic/reference.ts`:
+
+- **FMI — World Economic Outlook** (`shared/data/reference/imf.json`, `scripts/import-imf-data.ts`):
+  dívida bruta, saldo e (quando houver) receita/despesa do **governo geral**, e inflação, para 2025.
+  Tem precedência nesses campos. Valores de 2025 podem ser estimativas do próprio FMI.
+- **Banco Mundial — WDI** (abaixo): demais indicadores e substituto quando o FMI não tiver valor.
+
+
 Arquivo: `shared/data/reference/worldbank.json`, gerado por `scripts/import-reference-data.ts`
 (`npm run data:import`, ou o workflow manual **Importar dados de referência** no GitHub Actions).
 
@@ -21,7 +29,7 @@ Arquivo: `shared/data/reference/worldbank.json`, gerado por `scripts/import-refe
 | gdpGrowthPct | NY.GDP.MKTP.KD.ZG | BM | real, % a.a. |
 | inflationPct | FP.CPI.TOTL.ZG | FMI IFS via BM | preços ao consumidor |
 | unemploymentPct | SL.UEM.TOTL.ZS | OIT (estimativa modelada) | pode diferir da taxa nacional oficial |
-| govDebtPctGdp | GC.DOD.TOTL.GD.ZS | FMI GFS via BM | **governo central**; sem dado para ARG, DEU, FRA, JPN |
+| govDebtPctGdp | GC.DOD.TOTL.GD.ZS | FMI GFS via BM | substituído pelo FMI WEO (GGXWDG_NGDP, governo geral) |
 | govRevenuePctGdp | GC.REV.XGRT.GD.ZS | FMI GFS via BM | **governo central**; sem dado para JPN |
 | govExpensePctGdp | GC.XPN.TOTL.GD.ZS | FMI GFS via BM | **governo central** |
 | militaryPctGdp / militaryUsd | MS.MIL.XPND.GD.ZS / .CD | SIPRI | |
@@ -39,9 +47,9 @@ Arquivo: `shared/data/reference/worldbank.json`, gerado por `scripts/import-refe
 - **Governo central vs. geral:** dívida/receita/despesa do WDI cobrem só o governo central, enquanto
   saúde e educação cobrem todos os níveis. O modelo ajusta a receita inicial para preservar o
   déficit observado (`taxAdjustmentPct`, explicado no painel de orçamento).
-- **Dívida pública:** para ARG, DEU, FRA e JPN não há série no WDI; a simulação usa 60% do PIB
-  (estimativa de jogo, sinalizada). Uma próxima importação do FMI (WEO, dívida bruta do governo
-  geral) deve substituir esses campos.
+- **Dívida pública:** vem do FMI WEO (governo geral, 2025) para os 10 países.
+- **Receita/despesa:** a API do FMI não retornou receita/despesa do governo geral; usam-se as do
+  governo central (WDI) e o saldo do governo geral do FMI calibra o déficit inicial.
 
 ## Lideranças
 

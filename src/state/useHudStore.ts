@@ -20,6 +20,7 @@ export interface SelectedBuildingInfo {
   progress: number;
   queue: { unitType: UnitType; progress: number }[];
   hasRally: boolean;
+  claims: number;
 }
 
 export interface HudEvent {
@@ -31,7 +32,10 @@ export interface HudEvent {
   tone: 'info' | 'good' | 'warn' | 'bad';
 }
 
-export type PointerMode = { kind: 'normal' } | { kind: 'place'; buildingType: BuildingType; valid: boolean; reason: string | null } | { kind: 'attack_move' };
+export type PointerMode =
+  | { kind: 'normal' }
+  | { kind: 'place'; buildingType: BuildingType; valid: boolean; reason: string | null; yield: { cells: number; rate: number } | null }
+  | { kind: 'attack_move' };
 
 export interface HudState {
   tick: number;

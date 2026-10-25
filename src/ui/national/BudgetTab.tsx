@@ -22,7 +22,7 @@ export function BudgetTab({ nation, onApply, balanceMode }: { nation: NationView
 
   const preview = useMemo(() => {
     const debtPct = (nation.debtUsd / nation.gdpUsd) * 100;
-    const interestPct = interestRate(nation.inflationPct, debtPct) * (debtPct / 100);
+    const interestPct = interestRate(nation.inflationPct, debtPct, nation.baseDebtPctGdp) * (debtPct / 100);
     const spend = spendPct(draft);
     const balance = draft.taxPct - spend - interestPct;
     const gdpForTheater = balanceMode === 'parity' ? COEF.parityGdpUsd : nation.gdpUsd;
@@ -77,7 +77,7 @@ export function BudgetTab({ nation, onApply, balanceMode }: { nation: NationView
         <span className="text-right">{formatPct(draft.taxPct)}</span>
         <span className="font-sans text-ink-400">Despesas primárias</span>
         <span className="text-right">{formatPct(preview.spend)}</span>
-        <span className="font-sans text-ink-400">Juros da dívida ({formatPct(interestRate(nation.inflationPct, (nation.debtUsd / nation.gdpUsd) * 100))} a.a.)</span>
+        <span className="font-sans text-ink-400">Juros da dívida ({formatPct(interestRate(nation.inflationPct, (nation.debtUsd / nation.gdpUsd) * 100, nation.baseDebtPctGdp))} a.a.)</span>
         <span className="text-right">{formatPct(preview.interestPct)}</span>
         <span className="font-sans font-semibold text-ink-200">Saldo (− = déficit)</span>
         <span className={`text-right font-semibold ${preview.balance < 0 ? 'text-red-300' : 'text-signal-green'}`}>

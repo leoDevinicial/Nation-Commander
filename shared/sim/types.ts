@@ -1,4 +1,4 @@
-import type { BuildingType, Terrain, UnitType } from './config.ts';
+import type { BuildingType, Stockpile, Terrain, UnitType } from './config.ts';
 
 export type EntityId = number;
 /** Índice do jogador na partida (0..n-1). */
@@ -73,6 +73,8 @@ export interface Building {
   rally: Vec2 | null;
   cooldown: number;
   engageId: EntityId | null;
+  /** Células de recurso reivindicadas (índices da grade) por edifícios de coleta. */
+  claims: number[];
 }
 
 export type Entity = Unit | Building;
@@ -102,10 +104,10 @@ export interface TacticalModifiers {
 
 export interface PlayerState {
   slot: Slot;
-  resources: number;
+  resources: Stockpile;
   modifiers: TacticalModifiers;
   /** Acumulador fracionário de renda para manter inteiros em `resources`. */
-  incomeRemainder: number;
+  incomeRemainder: Stockpile;
   defeated: boolean;
   stats: PlayerStats;
 }
@@ -116,6 +118,7 @@ export interface MapData {
   cellSize: number;
   seed: number;
   terrain: Terrain[];
+  /** Jazidas de petróleo (célula âncora de um poço 2×2). */
   resourceNodes: Cell[];
   spawns: Cell[];
 }

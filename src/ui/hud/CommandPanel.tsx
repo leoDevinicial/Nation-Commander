@@ -1,13 +1,12 @@
-import { BUILDINGS, UNITS, type BuildingType, type UnitType } from '../../../shared/sim/config.ts';
+import { BUILDINGS, RESOURCE_LABELS, UNITS, canAfford, type BuildingType, type Stockpile, type UnitType } from '../../../shared/sim/config.ts';
+import { gatherRate } from '../../../shared/sim/gathering.ts';
+import { CostLabel, ResourceIcon } from '../components/Resources.tsx';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { factionColor } from '../../game/render/palette.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
 
-const BUILD_OPTIONS: { type: BuildingType; key: string }[] = [
-  { type: 'barracks', key: 'B' },
-  { type: 'factory', key: 'N' },
-  { type: 'extractor', key: 'J' },
-];
+const BUILD_OPTIONS: BuildingType[] = ['farm', 'sawmill', 'quarry', 'oil_well', 'barracks', 'factory', 'tower'];
+const EMPTY: Stockpile = { supplies: 0, food: 0, wood: 0, stone: 0, oil: 0 };
 
 const ACTIVITY: Record<string, string> = { idle: 'Parada', moving: 'Movendo', chasing: 'Perseguindo', attacking: 'Atacando' };
 
@@ -18,17 +17,30 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
   const mode = useHudStore((s) => s.mode);
   const players = useHudStore((s) => s.players);
   const mySlot = useHudStore((s) => s.mySlot);
-  const resources = players.find((p) => p.slot === mySlot)?.resources ?? 0;
+  const resources = players.find((p) => p.slot === mySlot)?.resources ?? EMPTY;
 
   return (
     <div className="panel pointer-events-auto flex h-[180px] min-w-0 flex-1 gap-4 p-3" onPointerDown={(e) => e.stopPropagation()}>
       <div className="min-w-0 flex-1 overflow-hidden">
         {mode.kind === 'place' && (
-          <ModeHint
-            title={`Posicionar ${BUILDINGS[mode.buildingType].label}`}
-            text={mode.valid ? 'Clique esquerdo para construir. Botão direito ou Esc cancela.' : `Posição inválida: ${mode.reason ?? '—'}`}
-            bad={!mode.valid}
-          />
+          <div>
+            <ModeHint
+              title={`Posicionar ${BUILDINGS[mode.buildingType].label}`}
+              text={mode.valid ? 'Clique esquerdo para construir. Botão direito ou Esc cancela.' : `Posição inválida: ${mode.reason ?? '—'}`}
+              bad={!mode.valid}
+            />
+            <div className="mt-1.5 text-xs text-ink-400">
+              Custo: <CostLabel cost={BUILDINGS[mode.buildingType].cost} have={resources} />
+            </div>
+            {mode.yield && BUILDINGS[mode.buildingType].gather && (
+              <div className="mt-1 flex items-center gap-1.5 text-xs text-ink-200">
+                <ResourceIcon type={BUILDINGS[mode.buildingType].gather!.resource} />
+                {BUILDINGS[mode.buildingType].gather!.terrain === null
+                  ? `Rende +${mode.yield.rate.toFixed(1)}/s`
+                  : `${mode.yield.cells} de ${BUILDINGS[mode.buildingType].gather!.maxCells} células livres ao alcance → +${mode.yield.rate.toFixed(1)} ${RESOURCE_LABELS[BUILDINGS[mode.buildingType].gather!.resource].toLowerCase()}/s`}
+              </div>
+            )}
+          </div>
         )}
         {mode.kind === 'attack_move' && <ModeHint title="Avançar atacando" text="Clique no destino. As unidades atacam o que encontrarem pelo caminho." />}
         {mode.kind === 'normal' && units.length > 0 && <UnitsInfo units={units} />}
@@ -46,12 +58,13 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
         {mode.kind === 'normal' && units.length === 0 && !building && !inspected && (
           <div className="text-xs leading-relaxed text-ink-400">
             <div className="mb-1 text-sm font-semibold text-ink-200">Nenhuma seleção</div>
-            Clique ou arraste para selecionar · Botão direito: mover/atacar · F: avançar atacando · X: parar · H: QG · Ctrl+1–9: grupos ·
-            WASD/setas: câmera · Q/E: girar · Roda: zoom · Espaço: pausa
+            Clique ou arraste para selecionar · Botão direito: mover/atacar · F: avançar atacando · X: parar · H: Centro de Comando ·
+            Ctrl+1–9: grupos · WASD/setas: câmera · Q/E: girar · Roda: zoom · Espaço: pausa · G: painel nacional. Selecione o Centro de
+            Comando para construir: fazendas no solo fértil, serrarias junto à floresta, pedreiras junto às rochas e poços sobre o petróleo.
           </div>
         )}
       </div>
-      <div className="grid shrink-0 grid-cols-4 content-start gap-1.5">
+      <div className="grid shrink-0 grid-cols-4 content-start gap-1.5 overflow-y-auto">
         {units.length > 0 && mode.kind === 'normal' && (
           <>
             <button className="cmd-btn" onClick={() => runtime.startAttackMove()} title="Avançar atacando (F)">
@@ -69,20 +82,19 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
         )}
         {building?.type === 'hq' &&
           mode.kind === 'normal' &&
-          BUILD_OPTIONS.map(({ type, key }) => {
+          BUILD_OPTIONS.map((type) => {
             const def = BUILDINGS[type];
             return (
               <button
                 key={type}
                 className="cmd-btn"
-                disabled={resources < def.cost}
+                disabled={!canAfford(resources, def.cost)}
                 onClick={() => runtime.startPlacement(type)}
-                title={`${def.label} — ${def.description}\nCusto: ${def.cost} · Tempo: ${def.buildSeconds}s · Vida: ${def.maxHp}`}
+                title={`${def.label} — ${def.description}\nTempo: ${def.buildSeconds}s · Vida: ${def.maxHp}`}
               >
-                <span className="hotkey">{key}</span>
+                <span className="hotkey">{def.hotkey}</span>
                 <span className="font-semibold">{def.label}</span>
-                <span className="font-mono text-brass-400">◆{def.cost}</span>
-                <span className="text-ink-400">{def.buildSeconds}s</span>
+                <CostLabel cost={def.cost} have={resources} compact />
               </button>
             );
           })}
@@ -94,7 +106,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
   );
 }
 
-function ProduceButtons({ runtime, type, resources }: { runtime: GameRuntime; type: BuildingType; resources: number }) {
+function ProduceButtons({ runtime, type, resources }: { runtime: GameRuntime; type: BuildingType; resources: Stockpile }) {
   const options = (Object.keys(UNITS) as UnitType[]).filter((u) => UNITS[u].producedBy === type);
   return (
     <>
@@ -104,14 +116,13 @@ function ProduceButtons({ runtime, type, resources }: { runtime: GameRuntime; ty
           <button
             key={u}
             className="cmd-btn"
-            disabled={resources < def.cost}
+            disabled={!canAfford(resources, def.cost)}
             onClick={() => runtime.produce(u)}
-            title={`${def.label} — ${def.description}\nCusto: ${def.cost} · Tempo: ${def.buildSeconds}s · Vida: ${def.maxHp} · Dano: ${def.weapon.damage} · Alcance: ${def.weapon.range}`}
+            title={`${def.label} — ${def.description}\nTempo: ${def.buildSeconds}s · Vida: ${def.maxHp} · Dano: ${def.weapon.damage} · Alcance: ${def.weapon.range} · Visão: ${def.sight}`}
           >
-            <span className="hotkey">{u === 'infantry' ? 'I' : 'T'}</span>
+            <span className="hotkey">{def.hotkey}</span>
             <span className="font-semibold">{def.label}</span>
-            <span className="font-mono text-brass-400">◆{def.cost}</span>
-            <span className="text-ink-400">{def.buildSeconds}s</span>
+            <CostLabel cost={def.cost} have={resources} compact />
           </button>
         );
       })}
@@ -200,7 +211,15 @@ function BuildingInfo({ b }: { b: NonNullable<ReturnType<typeof useHudStore.getS
       ) : (
         <div className="mt-2 text-xs text-ink-400">{def.description}</div>
       )}
-      {def.income > 0 && b.progress >= 1 && <div className="text-xs text-signal-green">Gera +{def.income} suprimentos/s</div>}
+      {b.progress >= 1 && def.income.supplies ? <div className="text-xs text-signal-green">Gera +{def.income.supplies} suprimentos/s</div> : null}
+      {b.progress >= 1 && def.gather && (
+        <div className="flex items-center gap-1.5 text-xs text-signal-green">
+          <ResourceIcon type={def.gather.resource} />
+          {def.gather.terrain === null
+            ? `Extrai +${gatherRate(b.type, 1).toFixed(1)} ${RESOURCE_LABELS[def.gather.resource].toLowerCase()}/s`
+            : `Explora ${b.claims} células → +${gatherRate(b.type, b.claims).toFixed(1)} ${RESOURCE_LABELS[def.gather.resource].toLowerCase()}/s`}
+        </div>
+      )}
       {b.type === 'hq' && <div className="text-xs text-ink-400">Construa dentro de {def.buildRadius} células do QG (ou 8 de outras estruturas).</div>}
       {b.queue.length > 0 && (
         <div className="mt-2 flex items-center gap-1.5">

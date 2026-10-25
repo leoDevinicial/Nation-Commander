@@ -49,6 +49,7 @@ export function generateMap(seed: number, size = MAP_SIZE): MapData {
     else if (e < 0.26) t = Terrain.Mud;
     else if (e > 0.8) t = Terrain.Rock;
     else if (m > 0.66) t = Terrain.Forest;
+    else if (m < 0.3 && e > 0.4 && e < 0.62) t = Terrain.Fertile;
     terrain[i] = t;
     terrain[size * size - 1 - i] = t; // simetria rotacional
   }
@@ -85,6 +86,21 @@ export function generateMap(seed: number, size = MAP_SIZE): MapData {
     clearArea(n, 2);
     resourceNodes.push(n);
   }
+  // Recursos garantidos perto de cada base (espelhados): rocha, floresta e solo fértil.
+  const patch = (c: Cell, r: number, t: Terrain) => {
+    for (let dy = -Math.ceil(r); dy <= Math.ceil(r); dy++)
+      for (let dx = -Math.ceil(r); dx <= Math.ceil(r); dx++) {
+        if (dx * dx + dy * dy > r * r) continue;
+        const x = c.cx + dx;
+        const y = c.cy + dy;
+        if (resourceNodes.some((n) => x >= n.cx && x <= n.cx + 1 && y >= n.cy && y <= n.cy + 1)) continue;
+        set(x, y, t);
+      }
+  };
+  patch({ cx: 2, cy: 3 }, 1.7, Terrain.Rock);
+  patch({ cx: 3, cy: 13 }, 2.6, Terrain.Forest);
+  patch({ cx: 13, cy: 3 }, 2.4, Terrain.Fertile);
+
   // As jazidas espelhadas ocupam a célula oposta; o extrator 2x2 é ancorado na célula da jazida,
   // então a cópia espelhada precisa deslocar 1 célula para ficar dentro da área limpa.
   for (const n of nodeOffsets) resourceNodes.push({ cx: size - 2 - n.cx, cy: size - 2 - n.cy });

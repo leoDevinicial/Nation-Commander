@@ -1,18 +1,36 @@
 import * as THREE from 'three';
 import { UNITS, type UnitType } from '../../../shared/sim/config.ts';
 import { HealthBar, selectionRing } from './HealthBar.ts';
-import { box, cyl, factionMaterial, mat, mesh, sphere } from './palette.ts';
+import { accentMaterial, bodyMaterial, glassMaterial } from './materials.ts';
+import type { ModelLayers } from './models/kit.ts';
+import { unitModel } from './models/unitModels.ts';
+
+function layerMeshes(l: ModelLayers, owner: number): THREE.Mesh[] {
+  const out: THREE.Mesh[] = [];
+  for (const [geo, mat] of [
+    [l.body, bodyMaterial()],
+    [l.accent, accentMaterial(owner)],
+    [l.glass, glassMaterial()],
+  ] as const) {
+    if (!geo.getAttribute('position')) continue;
+    const m = new THREE.Mesh(geo, mat);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    out.push(m);
+  }
+  return out;
+}
 
 /** Representação visual de uma unidade, ligada ao id da simulação. Sem estado de jogo próprio. */
 export class UnitVisual {
   readonly group = new THREE.Group();
   readonly body = new THREE.Group();
-  private turret: THREE.Object3D | null = null;
-  private barrel: THREE.Object3D | null = null;
+  private turret: THREE.Group | null = null;
   private readonly ring: THREE.Mesh;
   readonly hp: HealthBar;
   private recoil = 0;
   private bob = Math.random() * 10;
+  private readonly muzzleLocal: THREE.Vector3;
   /** Posição renderizada (interpolada) no plano. */
   readonly renderPos = new THREE.Vector2();
   facing = 0;
@@ -24,66 +42,22 @@ export class UnitVisual {
     readonly owner: number,
     friendly: boolean,
   ) {
+    const model = unitModel(type);
     this.group.add(this.body);
-    if (type === 'tank') this.buildTank();
-    else this.buildInfantry();
-    this.ring = selectionRing(UNITS[type].radius + 0.25, friendly ? '#8fe0a4' : '#ff8a7a');
+    for (const m of layerMeshes(model.hull, owner)) this.body.add(m);
+    if (model.turret) {
+      this.turret = new THREE.Group();
+      this.turret.position.set(...model.turretPivot);
+      for (const m of layerMeshes(model.turret, owner)) this.turret.add(m);
+      this.body.add(this.turret);
+    }
+    this.muzzleLocal = new THREE.Vector3(...model.muzzle);
+    this.ring = selectionRing(UNITS[type].radius + 0.3, friendly ? '#8fe0a4' : '#ff8a7a');
     this.group.add(this.ring);
-    this.hp = new HealthBar(type === 'tank' ? 1.8 : 1.2, type === 'tank' ? 2.2 : 2.0);
+    const vehicle = type !== 'infantry';
+    this.hp = new HealthBar(vehicle ? 1.8 : 1.2, type === 'artillery' ? 2.4 : vehicle ? 2.1 : 1.6);
     this.group.add(this.hp.group);
     this.group.userData.entityId = id;
-  }
-
-  private buildTank(): void {
-    const base = factionMaterial(this.owner);
-    const dark = factionMaterial(this.owner, 'dark');
-    const hull = mesh(box(1.9, 0.55, 1.25), base, 0, 0.55, 0);
-    const glacis = mesh(box(0.4, 0.35, 1.15), dark, 0.95, 0.5, 0);
-    glacis.rotation.z = -0.5;
-    const trackL = mesh(box(2.1, 0.45, 0.32), mat.darkMetal(), 0, 0.3, 0.62);
-    const trackR = mesh(box(2.1, 0.45, 0.32), mat.darkMetal(), 0, 0.3, -0.62);
-    this.body.add(hull, glacis, trackL, trackR);
-    for (let i = -2; i <= 2; i++) {
-      for (const side of [0.79, -0.79]) {
-        const wheel = mesh(cyl(0.17, 0.17, 0.06, 8), mat.metal(), i * 0.4, 0.25, side, false);
-        wheel.rotation.x = Math.PI / 2;
-        this.body.add(wheel);
-      }
-    }
-    const turret = new THREE.Group();
-    turret.position.set(-0.1, 0.95, 0);
-    turret.add(mesh(box(0.95, 0.4, 0.85), dark, 0, 0, 0));
-    turret.add(mesh(cyl(0.12, 0.12, 0.2, 8), mat.darkMetal(), -0.25, 0.28, 0.2));
-    const barrel = new THREE.Group();
-    const tube = mesh(cyl(0.08, 0.09, 1.4, 8), mat.metal(), 0.7, 0, 0);
-    tube.rotation.z = Math.PI / 2;
-    barrel.add(tube);
-    barrel.position.set(0.45, 0.02, 0);
-    turret.add(barrel);
-    this.body.add(turret);
-    this.turret = turret;
-    this.barrel = barrel;
-  }
-
-  private buildInfantry(): void {
-    // esquadra de três soldados para melhor leitura à distância
-    const uniform = factionMaterial(this.owner);
-    const offsets: [number, number][] = [
-      [0.2, 0],
-      [-0.2, 0.28],
-      [-0.2, -0.28],
-    ];
-    for (const [ox, oz] of offsets) {
-      const s = new THREE.Group();
-      s.position.set(ox, 0, oz);
-      s.add(mesh(box(0.14, 0.42, 0.18), mat.olive(), 0, 0.21, 0));
-      s.add(mesh(box(0.2, 0.36, 0.28), uniform, 0, 0.58, 0));
-      s.add(mesh(sphere(0.11, 8), mat.skin(), 0, 0.86, 0));
-      s.add(mesh(cyl(0.13, 0.13, 0.08, 8), mat.olive(), 0, 0.95, 0));
-      const rifle = mesh(box(0.42, 0.05, 0.05), mat.darkMetal(), 0.18, 0.6, 0.12);
-      s.add(rifle);
-      this.body.add(s);
-    }
   }
 
   setSelected(v: boolean): void {
@@ -92,6 +66,13 @@ export class UnitVisual {
 
   onFire(): void {
     this.recoil = 1;
+  }
+
+  /** Posição de mundo da boca do cano (para efeitos de disparo). */
+  muzzleWorld(out = new THREE.Vector3()): THREE.Vector3 {
+    const parent = this.turret ?? this.body;
+    parent.updateWorldMatrix(true, false);
+    return out.copy(this.muzzleLocal).applyMatrix4(parent.matrixWorld);
   }
 
   /** Atualiza transformações a cada frame. */
@@ -103,14 +84,18 @@ export class UnitVisual {
       const target = aimAngle === null ? 0 : -(aimAngle - this.facing);
       let diff = target - this.turretAngle;
       diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-      this.turretAngle += diff * Math.min(1, dt * 6);
+      this.turretAngle += diff * Math.min(1, dt * 5);
       this.turret.rotation.y = this.turretAngle;
+      this.turret.position.x = unitModel(this.type).turretPivot[0] - this.recoil * 0.08;
     }
-    if (this.barrel) this.barrel.position.x = 0.45 - this.recoil * 0.25;
     this.recoil = Math.max(0, this.recoil - dt * 4);
     if (this.type === 'infantry') {
       this.bob += dt * (moving ? 12 : 0);
-      this.body.position.y = moving ? Math.abs(Math.sin(this.bob)) * 0.06 : 0;
+      this.body.position.y = moving ? Math.abs(Math.sin(this.bob)) * 0.05 : 0;
+    } else if (moving) {
+      // leve balanço do chassi em movimento
+      this.bob += dt * 9;
+      this.body.rotation.z = Math.sin(this.bob) * 0.015;
     }
     this.hp.set(hpFraction);
     this.hp.group.visible = showHp;

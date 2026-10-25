@@ -28,12 +28,19 @@ export function Minimap({ runtime }: { runtime: GameRuntime }) {
         bctx.fillStyle = MINIMAP_COLORS[map.terrain[cy * map.width + cx]!];
         bctx.fillRect(cx * cellPx, cy * cellPx, cellPx + 0.5, cellPx + 0.5);
       }
-    bctx.fillStyle = '#46d6c4';
-    for (const n of map.resourceNodes) bctx.fillRect((n.cx + 0.5) * cellPx, (n.cy + 0.5) * cellPx, cellPx, cellPx);
+    bctx.fillStyle = '#111';
+    for (const n of map.resourceNodes) bctx.fillRect(n.cx * cellPx, n.cy * cellPx, cellPx * 2, cellPx * 2);
 
     const draw = () => {
       const d = runtime.minimapData();
       ctx.drawImage(bg, 0, 0);
+      // névoa de guerra: inexplorado escuro, explorado esmaecido
+      for (let i = 0; i < d.fog.length; i++) {
+        const f = d.fog[i];
+        if (f === 2) continue;
+        ctx.fillStyle = f === 1 ? 'rgba(8,12,17,0.5)' : 'rgba(8,12,17,0.92)';
+        ctx.fillRect((i % map.width) * cellPx, Math.floor(i / map.width) * cellPx, cellPx + 0.5, cellPx + 0.5);
+      }
       for (const b of d.buildings) {
         ctx.fillStyle = factionColor(b.owner);
         ctx.fillRect(b.cx * cellPx, b.cy * cellPx, b.size * cellPx, b.size * cellPx);

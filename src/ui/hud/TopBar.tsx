@@ -1,5 +1,6 @@
 import { GAME_SPEEDS } from '../../../shared/protocol.ts';
-import { TICK_RATE, UNIT_CAP } from '../../../shared/sim/config.ts';
+import { RESOURCE_LABELS, RESOURCE_TYPES, TICK_RATE, UNIT_CAP } from '../../../shared/sim/config.ts';
+import { ResourceIcon } from '../components/Resources.tsx';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { factionColor } from '../../game/render/palette.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
@@ -26,14 +27,14 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
   const togglePanel = useNationalStore((s) => s.setPanelOpen);
 
   return (
-    <div className="panel absolute top-3 right-3 left-3 flex h-10 items-center gap-5 px-3 text-sm">
-      <div className="flex items-center gap-2" title="Suprimentos disponíveis e renda por segundo">
-        <span className="text-brass-400" aria-hidden>
-          ◆
-        </span>
-        <span className="font-mono font-bold">{me?.resources ?? 0}</span>
-        <span className="text-xs text-signal-green">+{me?.income ?? 0}/s</span>
-      </div>
+    <div className="panel absolute top-3 right-3 left-3 flex h-10 items-center gap-4 overflow-hidden px-3 text-sm">
+      {RESOURCE_TYPES.map((r) => (
+        <div key={r} className="flex items-center gap-1.5" title={`${RESOURCE_LABELS[r]}: estoque e renda por segundo`}>
+          <ResourceIcon type={r} />
+          <span className="font-mono font-bold">{Math.floor(me?.resources?.[r] ?? 0)}</span>
+          <span className="hidden text-[11px] text-signal-green xl:inline">+{(me?.income?.[r] ?? 0).toFixed(1)}</span>
+        </div>
+      ))}
       <div className="flex items-center gap-2" title="Unidades em campo e em produção / limite">
         <span className="text-ink-400" aria-hidden>
           ▲
@@ -62,7 +63,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
           <span className={`font-mono ${nation.approval < 35 ? 'text-red-300' : 'text-ink-100'}`}>{formatPct(nation.approval, 0)}</span>
         </div>
       )}
-      <div className="hidden items-center gap-3 xl:flex">
+      <div className="hidden items-center gap-3 2xl:flex">
         {roster.map((p) => (
           <span key={p.slot} className="flex items-center gap-1.5 text-xs">
             <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: factionColor(p.slot) }} aria-hidden />

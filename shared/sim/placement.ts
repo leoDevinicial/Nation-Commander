@@ -1,4 +1,5 @@
-import { BUILDINGS, TERRAIN, UNITS, type BuildingType, type Terrain, type UnitType } from './config.ts';
+import { BUILDINGS, canAfford, TERRAIN, UNITS, type BuildingType, type Stockpile, type Terrain, type UnitType } from './config.ts';
+import { claimableCells, claimedBy } from './gathering.ts';
 import type { Cell, Slot } from './types.ts';
 
 /** Visão mínima do mundo necessária para validar uma construção (usada no servidor e no cliente). */
@@ -8,9 +9,9 @@ export interface PlacementWorld {
   cellSize: number;
   terrain: ArrayLike<Terrain>;
   resourceNodes: Cell[];
-  buildings: Iterable<{ type: BuildingType; owner: Slot; cell: Cell; progress: number }>;
+  buildings: Iterable<{ type: BuildingType; owner: Slot; cell: Cell; progress: number; claims?: number[] }>;
   units: Iterable<{ type: UnitType; pos: { x: number; y: number } }>;
-  resources: number;
+  resources: Stockpile;
 }
 
 /** Motivo pelo qual não se pode construir, ou null se a posição é válida. */
@@ -39,8 +40,9 @@ export function placementError(w: PlacementWorld, slot: Slot, type: BuildingType
     const r = UNITS[u.type].radius;
     if (u.pos.x + r > minX && u.pos.x - r < maxX && u.pos.y + r > minY && u.pos.y - r < maxY) return 'Há unidades no local';
   }
-  if (type === 'extractor') {
-    if (!w.resourceNodes.some((n) => n.cx === cell.cx && n.cy === cell.cy)) return 'Extratores precisam ser construídos sobre uma jazida';
+  const gather = def.gather;
+  if (gather && gather.terrain === null) {
+    if (!w.resourceNodes.some((n) => n.cx === cell.cx && n.cy === cell.cy)) return 'Poços de petróleo precisam ser construídos sobre uma jazida';
   } else {
     const cx = (cell.cx + def.size / 2) * cs;
     const cy = (cell.cy + def.size / 2) * cs;
@@ -53,13 +55,17 @@ export function placementError(w: PlacementWorld, slot: Slot, type: BuildingType
     });
     if (!inRange) return 'Fora da área de construção';
   }
-  if (w.resources < def.cost) return 'Suprimentos insuficientes';
+  if (gather && gather.terrain !== null) {
+    const n = claimableCells(w, type, cell, claimedBy(buildings, type)).length;
+    if (n < gather.minCells) return `Poucos recursos livres ao alcance (${n} de ${gather.minCells} necessários)`;
+  }
+  if (!canAfford(w.resources, def.cost)) return 'Recursos insuficientes';
   return null;
 }
 
 /** Célula âncora (canto superior esquerdo) para centralizar um edifício sob o cursor. */
 export function anchorForCursor(type: BuildingType, cursor: Cell, resourceNodes: Cell[]): Cell {
-  if (type === 'extractor') {
+  if (BUILDINGS[type].gather?.terrain === null) {
     // encaixa na jazida mais próxima do cursor, se houver uma a até 2 células
     let best: Cell | null = null;
     let bestD = Infinity;

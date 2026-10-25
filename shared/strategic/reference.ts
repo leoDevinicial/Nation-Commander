@@ -71,6 +71,10 @@ const rawImf = imf as RawFile;
  */
 const IMF_PREFERRED: ReferenceKey[] = ['govDebtPctGdp', 'govRevenuePctGdp', 'govExpensePctGdp', 'govBalancePctGdp', 'inflationPct'];
 
+function imfHasValues(key: ReferenceKey): boolean {
+  return Object.values(rawImf.countries ?? {}).some((c) => c[key]);
+}
+
 const labelsWb = Object.fromEntries((raw.indicators ?? []).map((i) => [i.key, i.label]));
 const labelsImf = Object.fromEntries((rawImf.indicators ?? []).map((i) => [i.key, i.label]));
 
@@ -79,7 +83,10 @@ export const REFERENCE_META = {
   imfFetchedAt: rawImf.fetchedAt ?? null,
   license: raw.license ?? null,
   /** Rótulo do indicador; o do FMI prevalece nos campos em que ele é a fonte preferida. */
-  labels: { ...labelsWb, ...Object.fromEntries(IMF_PREFERRED.filter((k) => labelsImf[k]).map((k) => [k, labelsImf[k]])) } as Partial<Record<ReferenceKey, string>>,
+  labels: {
+    ...labelsWb,
+    ...Object.fromEntries(IMF_PREFERRED.filter((k) => labelsImf[k] && imfHasValues(k)).map((k) => [k, labelsImf[k]])),
+  } as Partial<Record<ReferenceKey, string>>,
 };
 
 /** Dados de referência de um país. Campos ausentes vêm com value=null e quality='unknown'. */

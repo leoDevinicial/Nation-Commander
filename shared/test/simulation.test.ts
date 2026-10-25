@@ -113,10 +113,10 @@ describe('combate', () => {
 describe('economia, construção e produção', () => {
   it('constrói descontando o custo e conclui após o tempo de obra', () => {
     const sim = emptySim();
-    const before = sim.players[0]!.resources;
+    const before = { ...sim.players[0]!.resources };
     expect(sim.applyCommand(0, { type: 'build', buildingType: 'barracks', cx: 8, cy: 3 })).toBeNull();
-    // após a dedução, renda do QG continua entrando
-    expect(sim.players[0]!.resources).toBe(before - BUILDINGS.barracks.cost);
+    expect(sim.players[0]!.resources.wood).toBe(before.wood - BUILDINGS.barracks.cost.wood!);
+    expect(sim.players[0]!.resources.stone).toBe(before.stone - BUILDINGS.barracks.cost.stone!);
     const b = sim.buildings.find((x) => x.type === 'barracks')!;
     expect(b.progress).toBe(0);
     run(sim, BUILDINGS.barracks.buildSeconds * TICK_RATE);
@@ -134,10 +134,11 @@ describe('economia, construção e produção', () => {
     expect(sim.placementError(0, 'barracks', { cx: 7, cy: 7 })).toBe('Terreno impróprio para construção');
     expect(sim.placementError(0, 'barracks', { cx: 25, cy: 25 })).not.toBeNull(); // longe/sobre inimigo
     expect(sim.placementError(0, 'barracks', { cx: 31, cy: 31 })).toBe('Fora do mapa');
-    expect(sim.placementError(0, 'extractor', { cx: 5, cy: 9 })).toBe('Extratores precisam ser construídos sobre uma jazida');
-    expect(sim.placementError(0, 'extractor', { cx: 10, cy: 3 })).toBeNull();
-    sim.players[0]!.resources = 10;
-    expect(sim.placementError(0, 'barracks', { cx: 8, cy: 3 })).toBe('Suprimentos insuficientes');
+    expect(sim.placementError(0, 'oil_well', { cx: 5, cy: 9 })).toBe('Poços de petróleo precisam ser construídos sobre uma jazida');
+    expect(sim.placementError(0, 'oil_well', { cx: 10, cy: 3 })).toBeNull();
+    expect(sim.placementError(0, 'sawmill', { cx: 8, cy: 3 })).toMatch(/Poucos recursos/);
+    sim.players[0]!.resources.wood = 10;
+    expect(sim.placementError(0, 'barracks', { cx: 8, cy: 3 })).toBe('Recursos insuficientes');
   });
 
   it('produz unidade gastando recursos e respeita fila; cancelar reembolsa', () => {
@@ -145,13 +146,14 @@ describe('economia, construção e produção', () => {
     sim.applyCommand(0, { type: 'build', buildingType: 'barracks', cx: 8, cy: 3 });
     run(sim, BUILDINGS.barracks.buildSeconds * TICK_RATE);
     const b = sim.buildings.find((x) => x.type === 'barracks')!;
-    const r0 = sim.players[0]!.resources;
+    const food0 = sim.players[0]!.resources.food;
+    const foodCost = UNITS.infantry.cost.food!;
     expect(sim.applyCommand(0, { type: 'produce', buildingId: b.id, unitType: 'tank' })).not.toBeNull();
     expect(sim.applyCommand(0, { type: 'produce', buildingId: b.id, unitType: 'infantry' })).toBeNull();
     expect(sim.applyCommand(0, { type: 'produce', buildingId: b.id, unitType: 'infantry' })).toBeNull();
-    expect(sim.players[0]!.resources).toBe(r0 - 2 * UNITS.infantry.cost);
+    expect(sim.players[0]!.resources.food).toBe(food0 - 2 * foodCost);
     expect(sim.applyCommand(0, { type: 'cancel_production', buildingId: b.id })).toBeNull();
-    expect(sim.players[0]!.resources).toBe(r0 - UNITS.infantry.cost);
+    expect(sim.players[0]!.resources.food).toBe(food0 - foodCost);
     run(sim, UNITS.infantry.buildSeconds * TICK_RATE);
     expect(sim.units.filter((u) => u.owner === 0).length).toBe(1);
     expect(sim.players[0]!.stats.unitsProduced).toBe(1);
@@ -172,10 +174,10 @@ describe('economia, construção e produção', () => {
 
   it('o QG gera renda inteira e contabilizada', () => {
     const sim = emptySim();
-    const r0 = sim.players[0]!.resources;
+    const r0 = sim.players[0]!.resources.supplies;
     run(sim, TICK_RATE * 10);
-    expect(sim.players[0]!.resources - r0).toBe(BUILDINGS.hq.income * 10);
-    expect(sim.players[0]!.stats.resourcesGathered).toBe(BUILDINGS.hq.income * 10);
+    expect(sim.players[0]!.resources.supplies - r0).toBe(BUILDINGS.hq.income.supplies! * 10);
+    expect(sim.players[0]!.stats.resourcesGathered).toBe(BUILDINGS.hq.income.supplies! * 10);
   });
 });
 
@@ -230,9 +232,9 @@ describe('modificadores da camada nacional', () => {
   it('renda externa, dano, vida e tempos de produção/obra', () => {
     const sim = emptySim();
     sim.setModifiers(0, { externalIncome: 2.5, damageMul: 1.5, tankHpMul: 1.25, productionTimeMul: 0.5, constructionTimeMul: 0.5 });
-    const r0 = sim.players[0]!.resources;
+    const r0 = sim.players[0]!.resources.supplies;
     run(sim, TICK_RATE * 10);
-    expect(sim.players[0]!.resources - r0).toBe((BUILDINGS.hq.income + 2.5) * 10);
+    expect(sim.players[0]!.resources.supplies - r0).toBe((BUILDINGS.hq.income.supplies! + 2.5) * 10);
 
     const tank = sim.addUnit('tank', 0, { x: 30, y: 30 });
     expect(tank.maxHp).toBe(Math.round(UNITS.tank.maxHp * 1.25));
@@ -251,5 +253,104 @@ describe('modificadores da camada nacional', () => {
     run(sim, 3);
     const shot = sim.drainEvents().find((e) => e.type === 'shot' && e.attackerId === tank.id);
     expect(shot && shot.type === 'shot' ? shot.damage : 0).toBeCloseTo(UNITS.tank.weapon.damage * 1.5);
+  });
+});
+
+describe('coleta de recursos', () => {
+  const resourceMap = () =>
+    flatMap(32, (set) => {
+      for (let y = 10; y < 14; y++) for (let x = 0; x < 4; x++) set(x, y, Terrain.Forest); // 16 células de floresta
+      for (let y = 0; y < 2; y++) for (let x = 12; x < 16; x++) set(x, y, Terrain.Fertile); // 8 de solo fértil
+    });
+
+  it('serraria reivindica as árvores próximas e rende por célula; a segunda não pode reutilizá-las', () => {
+    const sim = emptySim(resourceMap());
+    expect(sim.applyCommand(0, { type: 'build', buildingType: 'sawmill', cx: 4, cy: 10 })).toBeNull();
+    const a = sim.buildings.find((b) => b.type === 'sawmill')!;
+    expect(a.claims.length).toBe(BUILDINGS.sawmill.gather!.maxCells);
+    for (const i of a.claims) expect(sim.map.terrain[i]).toBe(Terrain.Forest);
+    // sobram 6 árvores: uma segunda serraria do outro lado ainda pode explorá-las
+    expect(sim.applyCommand(0, { type: 'build', buildingType: 'sawmill', cx: 4, cy: 13 })).toBeNull();
+    const b = sim.buildings.filter((x) => x.type === 'sawmill')[1]!;
+    expect(b.claims.length).toBe(6);
+    expect(b.claims.some((i) => a.claims.includes(i))).toBe(false);
+    // uma terceira fica sem árvores livres
+    expect(sim.placementError(0, 'sawmill', { cx: 4, cy: 8 })).toMatch(/Poucos recursos/);
+
+    const wood0 = sim.players[0]!.resources.wood;
+    run(sim, BUILDINGS.sawmill.buildSeconds * TICK_RATE); // concluídas
+    const before = sim.players[0]!.resources.wood;
+    expect(before).toBe(wood0); // nada rende durante a obra
+    run(sim, TICK_RATE * 10);
+    const rate = (a.claims.length + b.claims.length) * BUILDINGS.sawmill.gather!.ratePerCell;
+    expect(sim.players[0]!.resources.wood - before).toBe(Math.floor(rate * 10 + 1e-9));
+  });
+
+  it('destruir o edifício libera as células para outro', () => {
+    const sim = emptySim(resourceMap());
+    sim.applyCommand(0, { type: 'build', buildingType: 'farm', cx: 13, cy: 2 });
+    const farm = sim.buildings.find((b) => b.type === 'farm')!;
+    expect(farm.claims.length).toBe(8);
+    expect(sim.placementError(0, 'farm', { cx: 11, cy: 2 })).toMatch(/Poucos recursos/);
+    farm.hp = 0;
+    sim.step();
+    expect(sim.placementError(0, 'farm', { cx: 11, cy: 2 })).toBeNull();
+  });
+
+  it('poço de petróleo rende valor fixo sobre a jazida', () => {
+    const sim = emptySim();
+    sim.applyCommand(0, { type: 'build', buildingType: 'oil_well', cx: 10, cy: 3 });
+    run(sim, BUILDINGS.oil_well.buildSeconds * TICK_RATE);
+    expect(sim.incomePerSecond(0).oil).toBe(BUILDINGS.oil_well.gather!.ratePerCell);
+  });
+});
+
+describe('névoa de guerra', () => {
+  it('só enxerga e ataca o que está no raio de visão', () => {
+    const sim = emptySim();
+    const a = sim.addUnit('infantry', 0, { x: 30, y: 30 });
+    const far = sim.addUnit('infantry', 1, { x: 30 + UNITS.infantry.sight + 4, y: 30 });
+    expect(sim.canSee(0, far)).toBe(false);
+    expect(sim.applyCommand(0, { type: 'attack', unitIds: [a.id], targetId: far.id })).toBe('Alvo fora de visão');
+    const near = sim.addUnit('infantry', 1, { x: 30 + UNITS.infantry.sight - 2, y: 30 });
+    sim.step();
+    expect(sim.canSee(0, near)).toBe(true);
+  });
+
+  it('snapshot filtrado esconde unidades e recursos do inimigo e lembra edifícios avistados', async () => {
+    const { makeSnapshot, FogMemory } = await import('../sim/snapshot.ts');
+    const sim = emptySim();
+    const viewer = { slot: 0, memory: new FogMemory() };
+    const enemyHq = sim.hqOf(1)!;
+    const hidden = sim.addUnit('tank', 1, { x: enemyHq.pos.x, y: enemyHq.pos.y - 6 });
+    let snap = makeSnapshot(sim, [], viewer);
+    expect(snap.units.some((u) => u.id === hidden.id)).toBe(false);
+    expect(snap.buildings.some((b) => b.id === enemyHq.id)).toBe(false);
+    expect(snap.players[1]!.resources).toBeNull();
+    expect(snap.players[0]!.resources).not.toBeNull();
+
+    // um batedor avista o QG inimigo...
+    const scout = sim.addUnit('apc', 0, { x: enemyHq.pos.x - 10, y: enemyHq.pos.y - 10 });
+    sim.step();
+    snap = makeSnapshot(sim, [], viewer);
+    expect(snap.buildings.find((b) => b.id === enemyHq.id)?.remembered).toBeUndefined();
+    // ...e ao sair, o QG continua lembrado
+    scout.pos = { x: 4, y: 4 };
+    sim.step();
+    snap = makeSnapshot(sim, [], viewer);
+    expect(snap.buildings.find((b) => b.id === enemyHq.id)?.remembered).toBe(true);
+  });
+
+  it('artilharia precisa de outra unidade para enxergar alvos além da própria visão', () => {
+    const sim = emptySim();
+    const art = sim.addUnit('artillery', 0, { x: 20, y: 30 });
+    const target = sim.addUnit('infantry', 1, { x: 20 + UNITS.artillery.sight + 4, y: 30 });
+    target.hp = 10_000;
+    run(sim, TICK_RATE * 2);
+    expect(target.hp).toBe(10_000);
+    sim.addUnit('apc', 0, { x: target.pos.x - 8, y: 30 });
+    run(sim, TICK_RATE * 6);
+    expect(target.hp).toBeLessThan(10_000);
+    expect(sim.drainEvents().some((e) => e.type === 'shot' && e.attackerId === art.id)).toBe(true);
   });
 });

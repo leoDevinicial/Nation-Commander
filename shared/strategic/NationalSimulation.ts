@@ -71,6 +71,8 @@ export interface NationState {
   estimatedFields: ReferenceKey[];
   /** Ajuste (p.p. do PIB) somado à receita do governo central para cobrir gastos subnacionais. */
   taxAdjustmentPct: number;
+  /** Dívida/PIB na data de referência. */
+  baseDebtPctGdp: number;
   history: HistoryPoint[];
   /** Linha de base (valores de referência) para medir desvios. */
   base: { inflationPct: number; growthPct: number; taxPct: number; servicesPct: number; totalSpendPct: number; deficitPctGdp: number };
@@ -282,7 +284,7 @@ export class NationalSimulation {
   private recompute(n: NationState, _dt: number): void {
     const b = n.budget;
     const debtPct = (n.debtUsd / n.gdpUsd) * 100;
-    n.interestRatePct = interestRate(n.inflationPct, debtPct);
+    n.interestRatePct = interestRate(n.inflationPct, debtPct, n.baseDebtPctGdp);
     n.revenueUsd = (b.taxPct / 100) * n.gdpUsd;
     n.spendingUsd = (spendPct(b) / 100) * n.gdpUsd;
     n.interestUsd = (n.interestRatePct / 100) * n.debtUsd;
@@ -342,7 +344,7 @@ export function createNation(slot: Slot, countryId: string): NationState {
   const researchPct = pick('researchPctGdp', FALLBACKS.researchPctGdp) * PUBLIC_RESEARCH_SHARE;
 
   // "social" fecha a despesa total de referência (descontados juros estimados e demais rubricas)
-  const interestEstimatePct = interestRate(inflation, debtPct) * (debtPct / 100);
+  const interestEstimatePct = interestRate(inflation, debtPct, debtPct) * (debtPct / 100);
   const named = defensePct + educationPct + healthPct + BASE_INFRASTRUCTURE_PCT + researchPct;
   const socialPct = clamp(expensePct - named - interestEstimatePct, 2, 40);
   const modelSpend = named + socialPct + interestEstimatePct;
@@ -402,6 +404,7 @@ export function createNation(slot: Slot, countryId: string): NationState {
     victories30d: [0],
     estimatedFields: estimated,
     taxAdjustmentPct: round2(taxAdjustmentPct),
+    baseDebtPctGdp: debtPct,
     history: [],
     base: {
       inflationPct: inflation,
@@ -415,14 +418,15 @@ export function createNation(slot: Slot, countryId: string): NationState {
 }
 
 /**
- * Juros nominais médios da dívida: base + repasse parcial da inflação (limitado, pois parte da
- * dívida é prefixada/indexada) + prêmio de risco pela dívida acima de 60% do PIB.
+ * Juros nominais médios da dívida (hipótese de jogo): base + repasse parcial da inflação (limitado,
+ * pois parte da dívida é prefixada/indexada) + prêmio de risco pelo endividamento adicional.
  */
-export function interestRate(inflationPct: number, debtPct: number): number {
+export function interestRate(inflationPct: number, debtPct: number, baseDebtPct: number): number {
+  // o mercado já precifica a dívida inicial: o prêmio incide só sobre o aumento acima dela (e de 60%)
   const r =
     COEF.baseRate +
     COEF.inflationPassThrough * clamp(inflationPct, 0, COEF.inflationPassThroughCap) +
-    COEF.riskPremiumPerPoint * Math.max(0, debtPct - 60);
+    COEF.riskPremiumPerPoint * Math.max(0, debtPct - Math.max(60, baseDebtPct));
   return Math.min(r, COEF.maxInterestRate);
 }
 

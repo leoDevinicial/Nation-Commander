@@ -17,7 +17,7 @@ import type { Command } from '../shared/sim/commands.ts';
 import { TICK_RATE } from '../shared/sim/config.ts';
 import { generateMap } from '../shared/sim/MapGen.ts';
 import { Simulation } from '../shared/sim/Simulation.ts';
-import { makeSnapshot } from '../shared/sim/snapshot.ts';
+import { FogMemory, makeSnapshot } from '../shared/sim/snapshot.ts';
 import { AI_THINK_TICKS, TacticalAI } from '../shared/sim/TacticalAI.ts';
 import type { SimEvent, Slot } from '../shared/sim/types.ts';
 import { NationalAI } from '../shared/strategic/NationalAI.ts';
@@ -61,6 +61,7 @@ export class Room {
   private pendingNational: { slot: Slot; cmd: NationalCommand; conn: Connection | null }[] = [];
   private nationalEvents: NationalEvent[] = [];
   private gdpStart = new Map<Slot, number>();
+  private fogMemory = new Map<Slot, FogMemory>();
 
   sim: Simulation | null = null;
   private ais: TacticalAI[] = [];
@@ -452,7 +453,7 @@ export class Room {
       this.sendMatchStart(p);
       this.system(`${p.name} reconectou.`);
       this.broadcastRoom();
-      conn.sendRaw(this.snapshotJson([]));
+      conn.sendRaw(this.snapshotJson([], p.slot));
       if (this.national) conn.send({ t: 'national', day: this.national.day, date: this.national.date(), nations: this.nationViews(true), events: [] });
     }
     return true;
@@ -556,10 +557,16 @@ export class Room {
 
   // ------------------------------------------------------------ envio
 
-  private snapshotJson(events: SimEvent[]): string {
+  /**
+   * Snapshot com névoa de guerra para um jogador. Ao fim da partida o mapa é revelado (sem filtro).
+   */
+  private snapshotJson(events: SimEvent[], slot: Slot): string {
+    const sim = this.sim!;
+    let memory = this.fogMemory.get(slot);
+    if (!memory) this.fogMemory.set(slot, (memory = new FogMemory()));
     return JSON.stringify({
       t: 'snapshot',
-      s: makeSnapshot(this.sim!, events),
+      s: sim.ended ? makeSnapshot(sim, events) : makeSnapshot(sim, events, { slot, memory }),
       paused: this.paused,
       speed: this.speed,
       pausedBy: this.pausedBy,
@@ -568,8 +575,13 @@ export class Room {
 
   private broadcastSnapshot(): void {
     if (!this.sim) return;
-    const json = this.snapshotJson(this.events.splice(0, this.events.length));
-    for (const p of this.players) p.conn?.sendRaw(json);
+    const events = this.events.splice(0, this.events.length);
+    // gera para todo humano (mesmo desconectado) para manter a memória da névoa atualizada
+    for (const p of this.players) {
+      if (p.isAI) continue;
+      const json = this.snapshotJson(events, p.slot);
+      p.conn?.sendRaw(json);
+    }
   }
 
   broadcast(msg: ServerMessage): void {

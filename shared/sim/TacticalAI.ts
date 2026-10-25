@@ -1,4 +1,5 @@
-import { BUILDINGS, TICK_RATE, UNITS, type BuildingType, type UnitType } from './config.ts';
+import { BUILDINGS, RESOURCE_TYPES, TICK_RATE, UNITS, canAfford, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
+import { claimableCells, claimedBy } from './gathering.ts';
 import type { Command } from './commands.ts';
 import type { Simulation } from './Simulation.ts';
 import type { Building, Cell, Entity, Slot, Vec2 } from './types.ts';
@@ -18,6 +19,7 @@ const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
  */
 export class TacticalAI {
   private waveSize = 8;
+  private produced = 0;
   private attacking = false;
 
   constructor(readonly slot: Slot) {}
@@ -27,40 +29,54 @@ export class TacticalAI {
     if (!hq || sim.ended) return [];
     const cmds: Command[] = [];
     const me = sim.players[this.slot]!;
-    let budget = me.resources;
+    const budget: Stockpile = { ...me.resources };
+    const take = (cost: Cost): boolean => {
+      if (!canAfford(budget, cost)) return false;
+      for (const r of RESOURCE_TYPES) budget[r] -= cost[r] ?? 0;
+      return true;
+    };
 
     const mine = sim.buildings.filter((b) => b.owner === this.slot);
     const army = sim.units.filter((u) => u.owner === this.slot);
     const count = (t: BuildingType) => mine.filter((b) => b.type === t).length;
     const done = (t: BuildingType) => mine.some((b) => b.type === t && b.progress >= 1);
 
-    // --- economia e construção
+    // --- economia e construção (uma obra por avaliação, na ordem de prioridade)
     const tryBuild = (type: BuildingType): boolean => {
-      const cost = BUILDINGS[type].cost;
-      if (budget < cost) return false;
-      const cell = type === 'extractor' ? this.freeNode(sim, hq) : this.findBuildSpot(sim, hq, type);
-      if (!cell) return false;
+      if (!canAfford(budget, BUILDINGS[type].cost)) return false;
+      const cell = BUILDINGS[type].gather?.terrain === null ? this.freeNode(sim, hq) : this.findBuildSpot(sim, hq, type);
+      if (!cell || !take(BUILDINGS[type].cost)) return false;
       cmds.push({ type: 'build', buildingType: type, cx: cell.cx, cy: cell.cy });
-      budget -= cost;
       return true;
     };
-    if (count('barracks') === 0) tryBuild('barracks');
-    else if (count('extractor') < 2) tryBuild('extractor');
-    else if (count('factory') === 0 && done('barracks')) tryBuild('factory');
-    else if (count('extractor') < 3 && army.length >= 6) tryBuild('extractor');
-    else if (count('barracks') < 2 && done('factory') && budget > 400) tryBuild('barracks');
+    const plan: [BuildingType, boolean][] = [
+      ['sawmill', count('sawmill') === 0],
+      ['farm', count('farm') === 0],
+      ['barracks', count('barracks') === 0],
+      ['quarry', count('quarry') === 0],
+      ['oil_well', count('oil_well') === 0],
+      ['farm', count('farm') < 2 && done('barracks')],
+      ['factory', count('factory') === 0 && done('barracks')],
+      ['oil_well', count('oil_well') < 2 && done('factory')],
+      ['farm', count('farm') < 3 && done('factory')],
+      ['tower', count('tower') < 1 && done('factory')],
+      ['factory', count('factory') < 2 && budget.supplies > 350 && budget.oil > 150],
+      ['barracks', count('barracks') < 2 && budget.food > 250],
+      ['oil_well', count('oil_well') < 3 && army.length >= 10],
+    ];
+    for (const [type, wanted] of plan) if (wanted && tryBuild(type)) break;
 
     // --- produção: mantém um item na fila de cada edifício produtor
     const supply = sim.supplyUsed(this.slot);
     let queued = 0;
+    const factoryMix: UnitType[] = ['tank', 'apc', 'tank', 'artillery'];
     for (const b of mine) {
-      if (b.progress < 1 || b.queue.length > 0) continue;
-      const unitType: UnitType | null = b.type === 'barracks' ? 'infantry' : b.type === 'factory' ? 'tank' : null;
-      if (!unitType) continue;
-      const cost = UNITS[unitType].cost;
-      if (budget < cost || supply + queued >= 40) continue;
+      if (b.progress < 1 || b.queue.length > 0 || supply + queued >= 40) continue;
+      let unitType: UnitType | null = null;
+      if (b.type === 'barracks') unitType = 'infantry';
+      else if (b.type === 'factory') unitType = factoryMix[(this.produced++ + b.id) % factoryMix.length]!;
+      if (!unitType || !take(UNITS[unitType].cost)) continue;
       cmds.push({ type: 'produce', buildingId: b.id, unitType });
-      budget -= cost;
       queued++;
     }
 
@@ -139,26 +155,35 @@ export class TacticalAI {
     const nodes = [...sim.map.resourceNodes].sort(
       (a, b) => dist(sim.grid.cellCenter(a), hq.pos) - dist(sim.grid.cellCenter(b), hq.pos),
     );
-    return nodes.find((n) => sim.placementError(this.slot, 'extractor', n) === null) ?? null;
+    return nodes.find((n) => sim.placementError(this.slot, 'oil_well', n) === null) ?? null;
   }
 
   /** Busca em espiral uma posição válida, preferindo o lado voltado ao centro do mapa. */
+  /**
+   * Busca uma posição válida. Edifícios de coleta preferem o local que reivindica mais células de
+   * recurso; os demais, posições próximas ao QG voltadas para o centro do mapa.
+   */
   private findBuildSpot(sim: Simulation, hq: Building, type: BuildingType): Cell | null {
     const mid = { x: (sim.map.width * sim.map.cellSize) / 2, y: (sim.map.height * sim.map.cellSize) / 2 };
+    const gather = BUILDINGS[type].gather;
+    const claimed = gather ? claimedBy(sim.buildings, type) : null;
+    const reach = gather ? 13 : 9;
     const candidates: { cell: Cell; score: number }[] = [];
-    for (let dy = -9; dy <= 9; dy++) {
-      for (let dx = -9; dx <= 9; dx++) {
+    for (let dy = -reach; dy <= reach; dy++) {
+      for (let dx = -reach; dx <= reach; dx++) {
         const r = Math.max(Math.abs(dx), Math.abs(dy));
-        if (r < 4) continue;
+        if (r < (gather ? 2 : 4)) continue;
         const cell = { cx: hq.cell.cx + dx, cy: hq.cell.cy + dy };
         const c = sim.grid.cellCenter(cell);
-        candidates.push({ cell, score: r * 4 + dist(c, mid) * 0.2 });
+        let score = r * 4 + dist(c, mid) * 0.2;
+        if (gather && claimed) score -= claimableCells(sim.map, type, cell, claimed).length * 12;
+        candidates.push({ cell, score });
       }
     }
     candidates.sort((a, b) => a.score - b.score || a.cell.cy - b.cell.cy || a.cell.cx - b.cell.cx);
     for (const { cell } of candidates) {
-      // deixa um corredor livre de 1 célula ao redor para as unidades circularem
       if (sim.placementError(this.slot, type, cell) !== null) continue;
+      // deixa um corredor livre de 1 célula ao redor para as unidades circularem
       if (!this.hasClearance(sim, cell, BUILDINGS[type].size)) continue;
       return cell;
     }

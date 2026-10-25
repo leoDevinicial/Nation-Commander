@@ -11,7 +11,11 @@ import { BuildingVisual, buildGhost } from './render/BuildingVisuals.ts';
 import { CameraController } from './render/CameraController.ts';
 import { Effects } from './render/Effects.ts';
 import { disposeSharedResources, mat } from './render/palette.ts';
-import { buildTerrain } from './render/TerrainFactory.ts';
+import { buildTerrain, type TerrainHandle } from './render/TerrainFactory.ts';
+import { disposeMaterials, fogUniforms } from './render/materials.ts';
+import { disposeBuildingModels } from './render/models/buildingModels.ts';
+import { disposeUnitModels } from './render/models/unitModels.ts';
+import { claimableCells, claimedBy, gatherRate } from '../../shared/sim/gathering.ts';
 import { UnitVisual } from './render/UnitVisuals.ts';
 import { describeEvent } from './eventText.ts';
 
@@ -83,6 +87,10 @@ export class GameRuntime {
   private readonly controlGroups = new Map<string, number[]>();
   private lastSelectionCount = 0;
   private readonly canControlSpeed: boolean;
+  private terrain!: TerrainHandle;
+  /** Névoa de guerra local: 0 inexplorado, 1 explorado, 2 visível (por célula). */
+  private readonly fogState: Uint8Array;
+  private readonly fogTexture: THREE.DataTexture;
 
   constructor(
     private readonly container: HTMLElement,
@@ -129,6 +137,13 @@ export class GameRuntime {
     const toMid = Math.atan2(spawn.cx - this.map.width / 2, spawn.cy - this.map.height / 2);
     this.cameraCtl.yaw = toMid;
 
+    this.fogState = new Uint8Array(this.map.width * this.map.height);
+    this.fogTexture = new THREE.DataTexture(new Uint8Array(this.map.width * this.map.height), this.map.width, this.map.height, THREE.RedFormat, THREE.UnsignedByteType);
+    this.fogTexture.magFilter = THREE.LinearFilter;
+    this.fogTexture.minFilter = THREE.LinearFilter;
+    this.fogTexture.needsUpdate = true;
+    fogUniforms.uFogMap.value = this.fogTexture;
+    fogUniforms.uFogSize.value.set(W, H);
     this.setupScene(W, H);
     this.effects = new Effects(this.scene, opts.quality);
 
@@ -170,7 +185,10 @@ export class GameRuntime {
     sc.far = 260;
     sun.shadow.bias = -0.0006;
     this.scene.add(sun, sun.target);
-    this.scene.add(buildTerrain(this.map, this.opts.quality));
+    this.terrain = buildTerrain(this.map, this.opts.quality);
+    this.scene.add(this.terrain.group);
+    // modelos do Nature Kit chegam depois; até lá, vegetação procedural
+    this.terrain.upgrade().catch((err: unknown) => console.warn('Nature Kit indisponível', err));
     // borda do mapa
     const border = new THREE.Mesh(
       new THREE.PlaneGeometry(W * 4, H * 4),
@@ -228,11 +246,17 @@ export class GameRuntime {
       if (!t) {
         const size = BUILDINGS[b.type].size;
         const center = new THREE.Vector2((b.cx + size / 2) * this.map.cellSize, (b.cy + size / 2) * this.map.cellSize);
-        const visual = new BuildingVisual(b.id, b.type, b.owner, b.owner === this.mySlot, center, this.map.cellSize);
+        const visual = new BuildingVisual(b.id, b.type, b.owner, b.owner === this.mySlot, {
+          center,
+          cellSize: this.map.cellSize,
+          mapWidth: this.map.width,
+          claims: b.claims,
+        });
         this.scene.add(visual.group, visual.rallyObject);
         t = { visual, snap: b };
         this.buildings.set(b.id, t);
       } else t.snap = b;
+      t.visual.remembered = b.remembered === true;
     }
     for (const [id, t] of this.buildings) {
       if (!seenB.has(id)) {
@@ -242,6 +266,7 @@ export class GameRuntime {
       }
     }
 
+    this.updateFog();
     for (const e of s.events) this.handleEvent(e);
     if (this.mode.kind === 'place') this.updateGhost();
   }
@@ -251,16 +276,50 @@ export class GameRuntime {
       const attacker = this.units.get(e.attackerId);
       const heavy = attacker ? attacker.visual.type === 'tank' : true;
       attacker?.visual.onFire();
-      const fromY = attacker ? (heavy ? 1 : 0.6) : 2;
       const target = this.units.get(e.targetId);
       const tp = target ? target.visual.renderPos : new THREE.Vector2(e.to.x, e.to.y);
-      const fp = attacker ? attacker.visual.renderPos : new THREE.Vector2(e.from.x, e.from.y);
-      this.effects.tracer(new THREE.Vector3(fp.x, fromY, fp.y), new THREE.Vector3(tp.x, target ? 0.7 : 1.4, tp.y), heavy);
+      const from = attacker ? attacker.visual.muzzleWorld() : new THREE.Vector3(e.from.x, 2, e.from.y);
+      this.effects.tracer(from, new THREE.Vector3(tp.x, target ? 0.7 : 1.4, tp.y), heavy);
     } else if (e.type === 'destroyed') {
       this.effects.explosion(new THREE.Vector3(e.pos.x, 0, e.pos.y), e.entity === 'building' || e.entityType === 'tank');
     }
     const text = describeEvent(e, this.mySlot);
     if (text) useHudStore.getState().pushEvent({ tick: e.tick, text: text.text, tone: text.tone });
+  }
+
+  /**
+   * Névoa de guerra do cliente, calculada a partir das próprias entidades (o servidor já filtra o
+   * que é enviado; aqui é só a representação visual: inexplorado, explorado e visível).
+   */
+  private updateFog(): void {
+    const w = this.map.width;
+    const h = this.map.height;
+    const cs = this.map.cellSize;
+    const visible = new Uint8Array(w * h);
+    const mark = (px: number, py: number, sight: number) => {
+      const cx = px / cs;
+      const cy = py / cs;
+      const r = sight / cs;
+      for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(h - 1, Math.ceil(cy + r)); y++)
+        for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(w - 1, Math.ceil(cx + r)); x++) {
+          const dx = x + 0.5 - cx;
+          const dy = y + 0.5 - cy;
+          if (dx * dx + dy * dy <= r * r) visible[y * w + x] = 1;
+        }
+    };
+    for (const t of this.units.values()) if (t.snap.owner === this.mySlot) mark(t.snap.x, t.snap.y, UNITS[t.snap.type].sight);
+    for (const t of this.buildings.values()) {
+      if (t.snap.owner !== this.mySlot) continue;
+      const size = BUILDINGS[t.snap.type].size;
+      mark((t.snap.cx + size / 2) * cs, (t.snap.cy + size / 2) * cs, BUILDINGS[t.snap.type].sight);
+    }
+    const tex = this.fogTexture.image.data as Uint8Array;
+    for (let i = 0; i < w * h; i++) {
+      if (visible[i]) this.fogState[i] = 2;
+      else if (this.fogState[i] === 2) this.fogState[i] = 1;
+      tex[i] = this.fogState[i] === 2 ? 255 : this.fogState[i] === 1 ? 115 : 0;
+    }
+    this.fogTexture.needsUpdate = true;
   }
 
   // ------------------------------------------------------------ laço de renderização
@@ -363,7 +422,7 @@ export class GameRuntime {
       const b = this.buildings.get(id);
       if (b) {
         if (b.snap.owner === this.mySlot)
-          selectedBuilding = { id, type: b.snap.type, owner: b.snap.owner, hp: b.snap.hp, progress: b.snap.progress, queue: b.snap.queue, hasRally: b.snap.rally !== null };
+          selectedBuilding = { id, type: b.snap.type, owner: b.snap.owner, hp: b.snap.hp, progress: b.snap.progress, queue: b.snap.queue, hasRally: b.snap.rally !== null, claims: b.snap.claims?.length ?? 0 };
         else inspected = { kind: 'building' as const, type: b.snap.type, owner: b.snap.owner, hp: b.snap.hp };
       }
     }
@@ -401,7 +460,7 @@ export class GameRuntime {
       [1, 1],
       [-1, 1],
     ].map(([x, y]) => this.ndcToGround(x!, y!));
-    return { units, buildings, view: corners };
+    return { units, buildings, view: corners, fog: this.fogState };
   }
 
   // ------------------------------------------------------------ comandos (HUD e entrada)
@@ -415,7 +474,7 @@ export class GameRuntime {
   }
 
   startPlacement(type: BuildingType): void {
-    this.setMode({ kind: 'place', buildingType: type, valid: false, reason: null });
+    this.setMode({ kind: 'place', buildingType: type, valid: false, reason: null, yield: null });
     if (this.ghost) this.ghost.removeFromParent();
     this.ghost = buildGhost(type, this.map.cellSize);
     this.scene.add(this.ghost);
@@ -571,19 +630,19 @@ export class GameRuntime {
       case 'Delete':
         this.cancelProduction();
         break;
-      case 'KeyB':
-      case 'KeyN':
-      case 'KeyJ': {
+      default: {
+        // atalhos de construção (com o Centro de Comando selecionado) e de produção
+        const key = e.code.replace(/^Key/, '');
         const b = this.selectedOwnBuilding();
-        if (b?.snap.type === 'hq') this.startPlacement(e.code === 'KeyB' ? 'barracks' : e.code === 'KeyN' ? 'factory' : 'extractor');
-        break;
+        if (!b || b.snap.progress < 1) break;
+        if (b.snap.type === 'hq') {
+          const type = (Object.keys(BUILDINGS) as BuildingType[]).find((t) => BUILDINGS[t].hotkey === key);
+          if (type) this.startPlacement(type);
+        } else {
+          const unit = (Object.keys(UNITS) as UnitType[]).find((u) => UNITS[u].hotkey === key && UNITS[u].producedBy === b.snap.type);
+          if (unit) this.produce(unit);
+        }
       }
-      case 'KeyI':
-        this.produce('infantry');
-        break;
-      case 'KeyT':
-        this.produce('tank');
-        break;
     }
   }
 
@@ -777,7 +836,13 @@ export class GameRuntime {
     this.ghost.position.set((cell.cx + size / 2) * cs, 0.6, (cell.cy + size / 2) * cs);
     const reason = this.localPlacementError(type, cell);
     this.ghost.material = reason ? mat.ghostBad() : mat.ghostOk();
-    if (this.mode.valid !== !reason || this.mode.reason !== reason) this.setMode({ kind: 'place', buildingType: type, valid: !reason, reason });
+    const yieldPreview = this.previewYield(type, cell);
+    if (
+      this.mode.valid !== !reason ||
+      this.mode.reason !== reason ||
+      this.mode.yield?.cells !== yieldPreview?.cells
+    )
+      this.setMode({ kind: 'place', buildingType: type, valid: !reason, reason, yield: yieldPreview });
   }
 
   private localPlacementError(type: BuildingType, cell: Cell): string | null {
@@ -790,14 +855,24 @@ export class GameRuntime {
         cellSize: this.map.cellSize,
         terrain: this.map.terrain,
         resourceNodes: this.map.resourceNodes,
-        buildings: s.buildings.map((b) => ({ type: b.type, owner: b.owner, cell: { cx: b.cx, cy: b.cy }, progress: b.progress })),
+        buildings: s.buildings.map((b) => ({ type: b.type, owner: b.owner, cell: { cx: b.cx, cy: b.cy }, progress: b.progress, claims: b.claims })),
         units: [...this.units.values()].map((t) => ({ type: t.snap.type, pos: { x: t.visual.renderPos.x, y: t.visual.renderPos.y } })),
-        resources: me?.resources ?? 0,
+        resources: me?.resources ?? { supplies: 0, food: 0, wood: 0, stone: 0, oil: 0 },
       },
       this.mySlot,
       type,
       cell,
     );
+  }
+
+  /** Prévia de rendimento de um edifício de coleta (células livres ao alcance → renda/s). */
+  private previewYield(type: BuildingType, cell: Cell): { cells: number; rate: number } | null {
+    const g = BUILDINGS[type].gather;
+    if (!g || !this.snapshot) return null;
+    if (g.terrain === null) return { cells: 1, rate: gatherRate(type, 1) };
+    const claimed = claimedBy(this.snapshot.buildings, type);
+    const cells = claimableCells(this.map, type, cell, claimed).length;
+    return { cells, rate: gatherRate(type, cells) };
   }
 
   private tryPlace(): void {
@@ -843,6 +918,12 @@ export class GameRuntime {
       }
     });
     disposeSharedResources();
+    disposeUnitModels();
+    disposeBuildingModels();
+    disposeMaterials();
+    this.terrain.dispose();
+    this.fogTexture.dispose();
+    fogUniforms.uFogMap.value = null;
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }

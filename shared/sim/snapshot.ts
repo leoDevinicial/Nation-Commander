@@ -1,4 +1,4 @@
-import type { BuildingType, UnitType } from './config.ts';
+import { BUILDINGS, type BuildingType, type Stockpile, type UnitType } from './config.ts';
 import type { Simulation } from './Simulation.ts';
 import type { EntityId, SimEvent, Slot, UnitActivity, Vec2 } from './types.ts';
 
@@ -26,13 +26,18 @@ export interface BuildingSnapshot {
   progress: number;
   queue: { unitType: UnitType; progress: number }[];
   rally: Vec2 | null;
+  /** Células de recurso reivindicadas (só para edifícios próprios de coleta). */
+  claims?: number[];
+  /** Edifício inimigo fora de visão: último estado conhecido (pode estar desatualizado). */
+  remembered?: boolean;
 }
 
 export interface PlayerSnapshot {
   slot: Slot;
-  resources: number;
-  income: number;
-  supply: number;
+  /** Recursos e renda só são enviados ao próprio jogador (null para os demais). */
+  resources: Stockpile | null;
+  income: Stockpile | null;
+  supply: number | null;
   defeated: boolean;
 }
 
@@ -44,13 +49,39 @@ export interface Snapshot {
   events: SimEvent[];
 }
 
-const r2 = (n: number) => Math.round(n * 100) / 100;
+/** Memória de um jogador sobre edifícios inimigos já avistados (névoa de guerra). */
+export class FogMemory {
+  readonly known = new Map<EntityId, BuildingSnapshot>();
+}
 
-/** Estado público serializável. Nunca inclui objetos internos (caminhos, grade etc.). */
-export function makeSnapshot(sim: Simulation, events: SimEvent[]): Snapshot {
+export interface Viewer {
+  slot: Slot;
+  memory: FogMemory;
+}
+
+const r2 = (n: number) => Math.round(n * 100) / 100;
+const roundStock = (s: Stockpile): Stockpile => ({
+  supplies: r2(s.supplies),
+  food: r2(s.food),
+  wood: r2(s.wood),
+  stone: r2(s.stone),
+  oil: r2(s.oil),
+});
+
+/**
+ * Estado serializável. Sem `viewer`, inclui tudo (testes, depuração). Com `viewer`, aplica a névoa
+ * de guerra: unidades inimigas só se visíveis; edifícios inimigos se visíveis ou lembrados;
+ * recursos dos outros jogadores ocultos; eventos filtrados ao que o jogador poderia perceber.
+ */
+export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewer): Snapshot {
   const units: UnitSnapshot[] = [];
   const buildings: BuildingSnapshot[] = [];
+  const seenBuildings = new Set<EntityId>();
+  const visible = viewer ? sim.visibilityOf(viewer.slot) : null;
+  const w = sim.map.width;
+
   for (const e of sim.entities.values()) {
+    if (viewer && !sim.canSee(viewer.slot, e)) continue;
     if (e.kind === 'unit') {
       units.push({
         id: e.id,
@@ -66,7 +97,8 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[]): Snapshot {
         targetId: e.order.kind === 'attack' ? e.order.targetId : e.engageId,
       });
     } else {
-      buildings.push({
+      const own = !viewer || e.owner === viewer.slot;
+      const snap: BuildingSnapshot = {
         id: e.id,
         type: e.type,
         owner: e.owner,
@@ -74,22 +106,61 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[]): Snapshot {
         cy: e.cell.cy,
         hp: Math.ceil(e.hp),
         progress: r2(e.progress),
-        queue: e.queue.map((q) => ({ unitType: q.unitType, progress: r2(1 - q.remainingTicks / q.totalTicks) })),
-        rally: e.rally ? { x: r2(e.rally.x), y: r2(e.rally.y) } : null,
-      });
+        // fila e ponto de reunião de edifícios inimigos não são observáveis
+        queue: own ? e.queue.map((q) => ({ unitType: q.unitType, progress: r2(1 - q.remainingTicks / q.totalTicks) })) : [],
+        rally: own && e.rally ? { x: r2(e.rally.x), y: r2(e.rally.y) } : null,
+        ...(own && e.claims.length ? { claims: e.claims } : {}),
+      };
+      buildings.push(snap);
+      seenBuildings.add(e.id);
+      if (viewer && e.owner !== viewer.slot) viewer.memory.known.set(e.id, snap);
     }
   }
+
+  if (viewer && visible) {
+    for (const [id, mem] of viewer.memory.known) {
+      if (seenBuildings.has(id)) continue;
+      // área do edifício lembrado está à vista e ele não está lá: foi destruído
+      const size = BUILDINGS[mem.type].size;
+      let inView = false;
+      for (let y = mem.cy; y < mem.cy + size && !inView; y++) for (let x = mem.cx; x < mem.cx + size; x++) if (visible[y * w + x] === 1) inView = true;
+      // área à vista e edifício ausente: foi destruído (só se descobre ao observar o local)
+      if (inView) viewer.memory.known.delete(id);
+      else buildings.push({ ...mem, remembered: true });
+    }
+  }
+
   return {
     tick: sim.tick,
     units,
     buildings,
-    players: sim.players.map((p) => ({
-      slot: p.slot,
-      resources: p.resources,
-      income: Math.round(sim.incomePerSecond(p.slot) * 100) / 100,
-      supply: sim.supplyUsed(p.slot),
-      defeated: p.defeated,
-    })),
-    events,
+    players: sim.players.map((p) => {
+      const mine = !viewer || p.slot === viewer.slot;
+      return {
+        slot: p.slot,
+        resources: mine ? roundStock(p.resources) : null,
+        income: mine ? roundStock(sim.incomePerSecond(p.slot)) : null,
+        supply: mine ? sim.supplyUsed(p.slot) : null,
+        defeated: p.defeated,
+      };
+    }),
+    events: viewer ? events.filter((ev) => eventVisible(sim, ev, viewer.slot)) : events,
   };
+}
+
+function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
+  switch (e.type) {
+    case 'shot':
+      return sim.isVisibleTo(slot, e.from) || sim.isVisibleTo(slot, e.to);
+    case 'destroyed':
+      return e.owner === slot || e.killerOwner === slot || sim.isVisibleTo(slot, e.pos);
+    case 'construction_started':
+    case 'construction_completed':
+    case 'unit_produced':
+      return e.owner === slot || sim.isVisibleTo(slot, e.pos);
+    case 'under_attack':
+      return e.owner === slot;
+    case 'player_defeated':
+      return true;
+  }
 }
