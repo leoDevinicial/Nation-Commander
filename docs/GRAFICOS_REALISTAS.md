@@ -32,3 +32,25 @@ sujeira e escorridos, juntas de concreto, variação de cor entre cópias, sombr
 ## Limitações conhecidas
 - Os modelos continuam sendo geometria low-poly; o realismo vem de texturas e iluminação, não de modelos esculpidos.
 - Meio-fio e calçadas ao longo das estradas ainda não existem.
+
+## Shader harmônico mínimo
+Um único conjunto de ajustes, barato e igual em todos os presets, injetado no material padrão do three.js:
+
+| Ajuste | Onde | Efeito |
+|---|---|---|
+| Correção de cor (`GRADE_GLSL`) | `materials.ts`, `Sky.ts` | saturação levemente contida, sombras um pouco frias e luzes quentes; céu, terreno, vegetação e modelos na mesma paleta |
+| Luz de contorno | `materials.ts` (materiais com desgaste) | borda iluminada pelo céu que separa a silhueta do chão, sem contorno preto de desenho |
+| Poeira na base | `materials.ts` | parte de baixo de veículos e paredes puxa para tom de terra (lama/poeira), em vez de só escurecer |
+
+## Detalhe dos modelos
+- **Tanque:** elos no topo da esteira, roda motriz dentada, roda tensora, roletes de retorno, saias blindadas em
+  painéis, grades do motor, cabo de reboque, galões, mira do atirador e periscópio do comandante com vidro, manga
+  térmica e evacuador no canhão, blindagem adicional na face da torre, carga no cesto traseiro.
+- **Blindado (APC):** porcas nos cubos, para-lamas, periscópios, trilhos de teto, retrovisores, grade do motor,
+  porta e lanternas traseiras, lançadores de fumaça.
+- **Artilharia:** detalhes de esteira, freio de boca, evacuador, berço do cano, telêmetro, metralhadora do teto,
+  caixas de munição e ferramentas.
+- **Infantaria:** bolsas no colete, joelheiras, carregador, luvas, faixa no capacete; um dos três é operador de rádio
+  (aparelho e antena).
+- **Construções:** peitoris e vergas em todas as janelas, calhas, platibanda e ar-condicionado no QG, tubulação na
+  fábrica, aparelhos de ar na fachada do residencial, degrau e calha na casa.

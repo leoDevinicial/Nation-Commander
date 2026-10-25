@@ -73,7 +73,7 @@ function groundMaterial(map: MapData, quality: 'low' | 'high', disposables: { di
         diffuseColor.rgb = ground * vColor.rgb * (0.86 + 0.28 * macro);`,
       );
   };
-  mat.customProgramCacheKey = () => 'nc-ground-v1';
+  mat.customProgramCacheKey = () => 'nc-ground-v2';
   return mat;
 }
 

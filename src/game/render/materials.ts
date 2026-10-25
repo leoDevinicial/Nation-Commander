@@ -17,6 +17,23 @@ export const weatherUniforms = {
   uPanes: { value: null as THREE.Texture | null },
 };
 
+/**
+ * Correção de cor única (aplicada em céu, terreno, vegetação e modelos, depois do tone mapping):
+ * saturação levemente contida, sombras um pouco frias e luzes um pouco quentes. É o que faz
+ * peças de origens diferentes parecerem pertencer à mesma foto. Custo: poucas instruções por pixel.
+ */
+export const GRADE_GLSL = /* glsl */ `
+  {
+    vec3 gc = gl_FragColor.rgb;
+    float gl = dot(gc, vec3(0.2126, 0.7152, 0.0722));
+    gc = mix(vec3(gl), gc, 0.93);
+    gc += vec3(-0.006, 0.0, 0.01) * (1.0 - gl) + vec3(0.02, 0.01, -0.012) * gl;
+    gl_FragColor.rgb = gc;
+  }`;
+
+/** Luz de contorno: o céu "abraça" as bordas dos modelos e separa a silhueta do chão. */
+const RIM = new THREE.Color('#9fb6cc');
+
 interface EnhanceOpts {
   /** Intensidade do desgaste (0 = desligado). */
   weather?: number;
@@ -54,7 +71,7 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
     let fs = shader.fragmentShader.replace(
       '#include <common>',
       '#include <common>\nuniform sampler2D uFogMap;\nuniform vec2 uFogSize;\nvarying vec2 vFogXZ;' +
-        (weather ? '\nuniform sampler2D uGrime;\nuniform float uGrimeScale;\nvarying vec3 vObjPos;\nvarying vec3 vObjNormal;\nfloat vGrimeV = 1.0;' : '') +
+        (weather ? '\nuniform sampler2D uGrime;\nuniform float uGrimeScale;\nuniform vec3 uRimColor;\nvarying vec3 vObjPos;\nvarying vec3 vObjNormal;\nfloat vGrimeV = 1.0;' : '') +
         (panes ? '\nuniform sampler2D uPanes;\nvarying vec3 vObjPos;\nvarying vec3 vObjNormal;' : ''),
     );
     if (panes) {
@@ -72,6 +89,7 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
     if (weather) {
       shader.uniforms.uGrime = weatherUniforms.uGrime;
       shader.uniforms.uGrimeScale = weatherUniforms.uGrimeScale;
+      shader.uniforms.uRimColor = { value: RIM };
       fs = fs
         .replace(
           '#include <color_fragment>',
@@ -82,9 +100,16 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
           float grime = texture2D(uGrime, gp.zy).${ch} * tw.x + texture2D(uGrime, gp.xz).${ch} * tw.y + texture2D(uGrime, gp.xy).${ch} * tw.z;
           grime = smoothstep(0.15, 1.0, grime);
           vGrimeV = grime;
-          // sujeira mais forte junto ao chão (respingos de lama)
-          float nearGround = 1.0 - smoothstep(0.0, 0.9, vObjPos.y);
-          diffuseColor.rgb *= mix(1.0, grime, ${weather.toFixed(2)}) * (1.0 - nearGround * 0.32);`,
+          // poeira e lama acumuladas na parte de baixo (rodas, esteiras, base das paredes)
+          float nearGround = 1.0 - smoothstep(0.0, 0.6, vObjPos.y);
+          diffuseColor.rgb *= mix(1.0, grime, ${weather.toFixed(2)});
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.36, 0.3, 0.22), nearGround * 0.38);`,
+        )
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+          float rimF = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 3.0);
+          totalEmissiveRadiance += uRimColor * rimF * 0.16 * (0.35 + 0.65 * diffuseColor.rgb);`,
         )
         .replace(
           '#include <roughnessmap_fragment>',
@@ -95,6 +120,7 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
     shader.fragmentShader = fs.replace(
       '#include <dithering_fragment>',
       `#include <dithering_fragment>
+        ${GRADE_GLSL}
         float fogV = texture2D(uFogMap, vFogXZ / uFogSize).r;
         vec3 fogFull = gl_FragColor.rgb;
         vec3 fogGray = vec3(dot(fogFull, vec3(0.299, 0.587, 0.114)));
@@ -105,7 +131,7 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
           : mix(fogSeen, fogFull, smoothstep(0.45, 1.0, fogV));`,
     );
   };
-  material.customProgramCacheKey = () => `nc-fog-v4-w${weather}-p${panes ? 1 : 0}-${ch}`;
+  material.customProgramCacheKey = () => `nc-fog-v5-w${weather}-p${panes ? 1 : 0}-${ch}`;
   return material;
 }
 

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GRADE_GLSL } from './materials.ts';
 
 /**
  * Céu atmosférico: gradiente do zênite ao horizonte, brilho do sol e nuvens procedurais em
@@ -60,6 +61,7 @@ export function createSky(radius: number): THREE.Mesh {
         col = mix(col, uHorizon * 0.92, smoothstep(0.02, -0.15, d.y));
         gl_FragColor = vec4(col, 1.0);
         #include <colorspace_fragment>
+        ${GRADE_GLSL}
       }`,
   });
   const sky = new THREE.Mesh(new THREE.SphereGeometry(radius, 32, 16), mat);

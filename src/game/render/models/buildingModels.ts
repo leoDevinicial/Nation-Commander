@@ -51,13 +51,34 @@ const BUILDERS: Record<BuildingType, () => BuildingModel> = {
 };
 
 /** Fileira de janelas numa fachada (normal ±x ou ±z). */
-function windows(g: PartBuilder, axis: 'x' | 'z', at: number, from: number, to: number, y: number, count: number, w = 0.28, h = 0.3): void {
+function windows(b: PartBuilder, g: PartBuilder, axis: 'x' | 'z', at: number, from: number, to: number, y: number, count: number, w = 0.28, h = 0.3): void {
   for (let i = 0; i < count; i++) {
     const t = count === 1 ? 0.5 : i / (count - 1);
     const c = from + (to - from) * t;
-    if (axis === 'z') g.box(w, h, 0.04, '#ffffff', [c, y, at]);
-    else g.box(0.04, h, w, '#ffffff', [at, y, c]);
+    // vidro, peitoril saliente e verga: o recorte de sombra dá profundidade à fachada
+    if (axis === 'z') {
+      g.box(w, h, 0.04, '#ffffff', [c, y, at]);
+      b.box(w + 0.06, 0.03, 0.09, C.concreteLight, [c, y - h / 2 - 0.015, at]);
+      b.box(w + 0.04, 0.025, 0.07, C.concreteDark, [c, y + h / 2 + 0.012, at]);
+    } else {
+      g.box(0.04, h, w, '#ffffff', [at, y, c]);
+      b.box(0.09, 0.03, w + 0.06, C.concreteLight, [at, y - h / 2 - 0.015, c]);
+      b.box(0.07, 0.025, w + 0.04, C.concreteDark, [at, y + h / 2 + 0.012, c]);
+    }
   }
+}
+
+/** Calha vertical (tubo de descida) presa à parede. */
+function downpipe(b: PartBuilder, x: number, z: number, top: number): void {
+  b.cyl(0.03, 0.03, top - 0.16, C.metalDark, [x, (top + 0.16) / 2, z], undefined, 6);
+  b.box(0.08, 0.04, 0.08, C.metalDark, [x, 0.18, z]);
+}
+
+/** Aparelho de ar-condicionado/exaustor de cobertura, com grade. */
+function rooftopUnit(b: PartBuilder, x: number, y: number, z: number): void {
+  b.box(0.42, 0.24, 0.32, C.steel, [x, y + 0.12, z]);
+  b.cyl(0.11, 0.11, 0.02, C.metalDark, [x, y + 0.25, z], undefined, 10);
+  for (let i = 0; i < 3; i++) b.box(0.02, 0.18, 0.33, C.metalDark, [x - 0.12 + i * 0.12, y + 0.12, z]);
 }
 
 function slab(b: PartBuilder, size: number): void {
@@ -115,16 +136,16 @@ function buildHq(): BuildingModel {
   // bloco principal de dois pavimentos
   b.box(4.4, 2.2, 3.4, C.concrete, [-0.2, 1.26, 0.5]);
   b.box(4.5, 0.12, 3.5, C.concreteDark, [-0.2, 2.42, 0.5]);
-  windows(g, 'z', 2.22, -2.0, 1.6, 0.9, 6);
-  windows(g, 'z', 2.22, -2.0, 1.6, 1.75, 6);
-  windows(g, 'x', 1.92, -0.8, 1.8, 0.9, 4);
-  windows(g, 'x', 1.92, -0.8, 1.8, 1.75, 4);
-  windows(g, 'x', -2.42, -0.8, 1.8, 1.75, 4);
+  windows(b, g, 'z', 2.22, -2.0, 1.6, 0.9, 6);
+  windows(b, g, 'z', 2.22, -2.0, 1.6, 1.75, 6);
+  windows(b, g, 'x', 1.92, -0.8, 1.8, 0.9, 4);
+  windows(b, g, 'x', 1.92, -0.8, 1.8, 1.75, 4);
+  windows(b, g, 'x', -2.42, -0.8, 1.8, 1.75, 4);
   // torre de comando sobre a cobertura
   b.box(1.8, 1.4, 1.6, C.concreteLight, [-1.1, 3.18, -0.2]);
   b.box(1.9, 0.1, 1.7, C.concreteDark, [-1.1, 3.93, -0.2]);
-  windows(g, 'z', 0.62, -1.7, -0.5, 3.25, 3, 0.3, 0.45);
-  windows(g, 'x', -0.18, -0.7, 0.3, 3.25, 2, 0.3, 0.45);
+  windows(b, g, 'z', 0.62, -1.7, -0.5, 3.25, 3, 0.3, 0.45);
+  windows(b, g, 'x', -0.18, -0.7, 0.3, 3.25, 2, 0.3, 0.45);
   // entrada com marquise
   b.box(1.4, 0.08, 0.7, C.concreteDark, [-0.2, 0.92, 2.5]);
   b.box(0.08, 0.9, 0.08, C.concreteDark, [-0.8, 0.46, 2.8]);
@@ -148,6 +169,14 @@ function buildHq(): BuildingModel {
   a.box(4.52, 0.12, 0.02, '#ffffff', [-0.2, 2.3, 2.24]);
   a.box(1.92, 0.1, 0.02, '#ffffff', [-1.1, 3.84, 0.62]);
   flag(b, a, 2.4, 2.4, 2.6);
+  // platibanda na cobertura, calhas e equipamentos
+  b.box(4.5, 0.14, 0.06, C.concreteDark, [-0.2, 2.55, 2.22]);
+  b.box(4.5, 0.14, 0.06, C.concreteDark, [-0.2, 2.55, -1.22]);
+  b.box(0.06, 0.14, 3.5, C.concreteDark, [2.02, 2.55, 0.5]);
+  b.box(0.06, 0.14, 3.5, C.concreteDark, [-2.42, 2.55, 0.5]);
+  downpipe(b, 1.98, 2.25, 2.42);
+  downpipe(b, -2.38, 2.25, 2.42);
+  rooftopUnit(b, 0.2, 2.48, 1.6);
   // barreiras de concreto na frente do quartel-general
   for (const x of [1.3, 2.15, -1.7, -2.5]) jersey(b, x, 2.75);
 
@@ -205,8 +234,8 @@ function buildFactory(): BuildingModel {
   // portões e janelas
   b.box(1.2, 1.1, 0.06, C.metalDark, [-0.6, 0.72, 1.48]);
   for (let i = 0; i < 5; i++) b.box(1.18, 0.02, 0.07, C.metal, [-0.6, 0.3 + i * 0.2, 1.5]);
-  windows(g, 'z', 1.47, 0.5, 1.5, 1.2, 3, 0.26, 0.32);
-  windows(g, 'x', 1.77, -1.0, 1.0, 1.2, 4, 0.28, 0.32);
+  windows(b, g, 'z', 1.47, 0.5, 1.5, 1.2, 3, 0.26, 0.32);
+  windows(b, g, 'x', 1.77, -1.0, 1.0, 1.2, 4, 0.28, 0.32);
   // chaminés listradas
   for (const [x, z, h] of [
     [1.25, -1.05, 2.6],
@@ -216,6 +245,12 @@ function buildFactory(): BuildingModel {
     b.cyl(0.165, 0.165, 0.2, C.red, [x, h - 0.1, z], undefined, 10);
     b.cyl(0.18, 0.18, 0.18, C.red, [x, h * 0.6, z], undefined, 10);
   }
+  // tubulação externa, exaustores e calhas
+  b.cyl(0.06, 0.06, 2.6, C.steel, [0, 1.35, -1.52], [0, 0, Math.PI / 2], 8);
+  for (const x of [-1.1, 0.2]) b.box(0.08, 0.1, 0.1, C.metalDark, [x, 1.35, -1.5]);
+  b.cyl(0.06, 0.06, 1.2, C.steel, [1.3, 0.75, -1.52], undefined, 8);
+  downpipe(b, -1.72, 1.48, 1.75);
+  downpipe(b, 1.72, 1.48, 1.75);
   // pátio com contêiner
   container(b, [-1.25, 0.16, -1.72], '#5b6f7e', 1.1);
   container(b, [-1.25, 0.6, -1.72], '#8a4b32', 1.1);
@@ -413,6 +448,9 @@ function buildHouse(): BuildingModel {
   g.box(0.22, 0.2, 0.04, '#ffffff', [-0.28, 0.5, 0.49]);
   g.box(0.04, 0.2, 0.22, '#ffffff', [0.59, 0.5, 0]);
   b.box(0.12, 0.35, 0.12, C.brick, [0.35, 1.15, -0.2]); // chaminé
+  b.box(0.32, 0.05, 0.14, C.concreteDark, [0.2, 0.08, 0.55]); // degrau
+  b.box(0.3, 0.03, 0.06, C.concreteLight, [0.2, 0.52, 0.49]); // verga da porta
+  downpipe(b, 0.56, 0.46, 0.8);
   a.box(0.3, 0.06, 0.02, '#ffffff', [0.2, 0.55, 0.5]);
   return { base: l.build(), moving: null, height: 1.4 };
 }
@@ -426,11 +464,15 @@ function buildResidential(): BuildingModel {
   b.box(2.7, 0.1, 1.8, C.concreteDark, [0, 2.8, -0.3]);
   for (let floor = 0; floor < 4; floor++) {
     const y = 0.5 + floor * 0.6;
-    windows(g, 'z', 0.56, -1.0, 1.0, y, 5, 0.26, 0.28);
-    windows(g, 'x', 1.31, -0.9, 0.3, y, 2, 0.26, 0.28);
+    windows(b, g, 'z', 0.56, -1.0, 1.0, y, 5, 0.26, 0.28);
+    windows(b, g, 'x', 1.31, -0.9, 0.3, y, 2, 0.26, 0.28);
     b.box(2.62, 0.05, 0.12, C.concreteDark, [0, y - 0.24, 0.6]); // sacadas
   }
   b.box(0.5, 0.3, 0.4, C.metal, [0.8, 3.0, -0.6]); // caixa d'água
+  rooftopUnit(b, -0.6, 2.85, -0.7);
+  downpipe(b, 1.28, 0.58, 2.8);
+  downpipe(b, -1.28, 0.58, 2.8);
+  for (const [x, y] of [[-0.75, 0.75], [0.5, 1.35], [-0.25, 1.95]] as const) b.box(0.18, 0.12, 0.1, C.steel, [x, y, 0.64]);
   b.box(1.4, 0.06, 0.6, '#6f7f3e', [-0.4, 0.2, 1.3]); // jardim
   a.box(2.62, 0.1, 0.02, '#ffffff', [0, 2.7, 0.56]);
   return { base: l.build(), moving: null, height: 3.2 };
