@@ -1,3 +1,4 @@
+import imf from '../data/reference/imf.json';
 import worldbank from '../data/reference/worldbank.json';
 import { LEADERS, LEADERS_REFERENCE_DATE, type LeaderRecord } from '../data/reference/leaders.ts';
 
@@ -23,6 +24,7 @@ export const REFERENCE_KEYS = [
   'govDebtPctGdp',
   'govRevenuePctGdp',
   'govExpensePctGdp',
+  'govBalancePctGdp',
   'militaryPctGdp',
   'militaryUsd',
   'armedForces',
@@ -61,19 +63,32 @@ interface RawFile {
 }
 
 const raw = worldbank as RawFile;
+const rawImf = imf as RawFile;
+
+/**
+ * Campos em que o FMI (governo geral, WEO) tem precedência sobre o Banco Mundial (governo central
+ * ou séries com defasagem maior). Sem valor do FMI, usa-se o do Banco Mundial.
+ */
+const IMF_PREFERRED: ReferenceKey[] = ['govDebtPctGdp', 'govRevenuePctGdp', 'govExpensePctGdp', 'govBalancePctGdp', 'inflationPct'];
+
+const labelsWb = Object.fromEntries((raw.indicators ?? []).map((i) => [i.key, i.label]));
+const labelsImf = Object.fromEntries((rawImf.indicators ?? []).map((i) => [i.key, i.label]));
 
 export const REFERENCE_META = {
   fetchedAt: raw.fetchedAt ?? null,
+  imfFetchedAt: rawImf.fetchedAt ?? null,
   license: raw.license ?? null,
-  labels: Object.fromEntries((raw.indicators ?? []).map((i) => [i.key, i.label])) as Partial<Record<ReferenceKey, string>>,
+  /** Rótulo do indicador; o do FMI prevalece nos campos em que ele é a fonte preferida. */
+  labels: { ...labelsWb, ...Object.fromEntries(IMF_PREFERRED.filter((k) => labelsImf[k]).map((k) => [k, labelsImf[k]])) } as Partial<Record<ReferenceKey, string>>,
 };
 
 /** Dados de referência de um país. Campos ausentes vêm com value=null e quality='unknown'. */
 export function countryReference(id: string): CountryReference {
   const entries = raw.countries?.[id] ?? {};
+  const imfEntries = rawImf.countries?.[id] ?? {};
   const values = {} as Record<ReferenceKey, SourcedValue>;
   for (const key of REFERENCE_KEYS) {
-    const e = entries[key];
+    const e = (IMF_PREFERRED.includes(key) ? imfEntries[key] : null) ?? entries[key];
     values[key] = e
       ? {
           value: e.value,

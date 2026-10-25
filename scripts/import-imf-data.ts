@@ -21,29 +21,78 @@ export const IMF_INDICATORS = [
 ] as const;
 
 const API = 'https://www.imf.org/external/datamapper/api/v1';
+const DBNOMICS = 'https://api.db.nomics.world/v22/series/IMF/WEO:latest';
 
 type Values = Record<string, Record<string, Record<string, number | null>>>;
+type Series = Record<string, Record<string, number | null>>;
 
-async function fetchIndicator(code: string, iso3: string[]): Promise<Record<string, Record<string, number | null>>> {
-  const url = `${API}/${code}/${iso3.join('/')}`;
-  for (let attempt = 1; ; attempt++) {
-    try {
-      const res = await fetch(url, { headers: { accept: 'application/json', 'user-agent': 'nation-commander-data-import' } });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const body = (await res.json()) as { values?: Values };
-      return body.values?.[code] ?? {};
-    } catch (err) {
-      if (attempt >= 4) throw new Error(`Falha ao buscar ${code}`, { cause: err });
-      await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+interface FetchResult {
+  series: Series;
+  source: 'imf' | 'dbnomics';
+  edition?: string;
+}
+
+async function getJson(url: string): Promise<unknown> {
+  const res = await fetch(url, {
+    headers: {
+      accept: 'application/json',
+      'user-agent': 'Mozilla/5.0 (compatible; nation-commander-data-import/1.0; +https://github.com/leoDevinicial/Nation-Commander)',
+    },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} em ${url}`);
+  return res.json();
+}
+
+/** API DataMapper do próprio FMI. */
+async function fromImf(code: string, iso3: string[]): Promise<FetchResult> {
+  const body = (await getJson(`${API}/${code}/${iso3.join('/')}`)) as { values?: Values };
+  return { series: body.values?.[code] ?? {}, source: 'imf' };
+}
+
+/** DBnomics: espelho aberto que republica o WEO do FMI sem alterações. */
+async function fromDbnomics(code: string, iso3: string[]): Promise<FetchResult> {
+  const dims = encodeURIComponent(JSON.stringify({ 'weo-country': iso3, 'weo-subject': [code] }));
+  const body = (await getJson(`${DBNOMICS}?dimensions=${dims}&observations=1&limit=100`)) as {
+    series?: { docs?: { series_code?: string; dimensions?: Record<string, string>; period?: string[]; value?: (number | string | null)[] }[] };
+    dataset?: { code?: string; name?: string };
+  };
+  const docs = body.series?.docs ?? [];
+  if (docs.length === 0) throw new Error(`DBnomics sem séries para ${code}`);
+  const series: Series = {};
+  for (const d of docs) {
+    const country = d.dimensions?.['weo-country'] ?? d.series_code?.split('.')[0];
+    if (!country) continue;
+    const obs: Record<string, number | null> = {};
+    (d.period ?? []).forEach((p, i) => {
+      const v = d.value?.[i];
+      obs[p.slice(0, 4)] = typeof v === 'number' && Number.isFinite(v) ? v : null;
+    });
+    series[country] = obs;
+  }
+  return { series, source: 'dbnomics', edition: body.dataset?.name ?? body.dataset?.code };
+}
+
+async function fetchIndicator(code: string, iso3: string[]): Promise<FetchResult> {
+  const errors: string[] = [];
+  for (const attempt of [fromImf, fromDbnomics]) {
+    for (let i = 1; i <= 3; i++) {
+      try {
+        return await attempt(code, iso3);
+      } catch (err) {
+        errors.push(String(err));
+        await new Promise((r) => setTimeout(r, 1000 * i));
+      }
     }
   }
+  throw new Error(`Falha ao buscar ${code}:\n${errors.join('\n')}`);
 }
 
 async function main(): Promise<void> {
   const iso3 = COUNTRIES.map((c) => c.id);
   const countries: Record<string, Record<string, unknown>> = Object.fromEntries(iso3.map((id) => [id, {}]));
   for (const ind of IMF_INDICATORS) {
-    const byCountry = await fetchIndicator(ind.code, iso3);
+    const result = await fetchIndicator(ind.code, iso3);
+    const byCountry = result.series;
     let n = 0;
     for (const id of iso3) {
       const series = byCountry[id] ?? {};
@@ -55,14 +104,17 @@ async function main(): Promise<void> {
           year: TARGET_YEAR,
           unit: ind.unit,
           indicator: ind.code,
-          sourceName: 'FMI — World Economic Outlook (DataMapper)',
+          sourceName:
+            result.source === 'imf'
+              ? 'FMI — World Economic Outlook (DataMapper)'
+              : `FMI — World Economic Outlook${result.edition ? ` (${result.edition})` : ''}, via DBnomics`,
           sourceUrl: `https://www.imf.org/external/datamapper/${ind.code}@WEO/${id}`,
         };
       } else {
         countries[id]![ind.key] = null;
       }
     }
-    console.log(`${ind.code}: ${n}/${iso3.length} países com valor em ${TARGET_YEAR}`);
+    console.log(`${ind.code} [${result.source}${result.edition ? ` ${result.edition}` : ''}]: ${n}/${iso3.length} países com valor em ${TARGET_YEAR}`);
   }
   const out = {
     generatedBy: 'scripts/import-imf-data.ts',

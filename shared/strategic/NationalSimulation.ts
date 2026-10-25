@@ -355,7 +355,9 @@ export function createNation(slot: Slot, countryId: string): NationState {
   if (estimated.includes('govRevenuePctGdp')) {
     taxPct = modelSpend - FALLBACK_DEFICIT_PCT;
   } else {
-    const observedDeficit = estimated.includes('govExpensePctGdp') ? FALLBACK_DEFICIT_PCT : expensePct - revenuePct;
+    // saldo do governo geral (FMI) quando houver; senão despesa − receita
+    const balance = countryReference(countryId).values.govBalancePctGdp.value;
+    const observedDeficit = balance !== null ? -balance : estimated.includes('govExpensePctGdp') ? FALLBACK_DEFICIT_PCT : expensePct - revenuePct;
     taxPct = modelSpend - observedDeficit;
     taxAdjustmentPct = taxPct - revenuePct;
   }
