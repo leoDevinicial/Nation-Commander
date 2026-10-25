@@ -1,8 +1,9 @@
 # Nation Commander
 
-RTS geopolítico 3D multijogador para navegador (nome de trabalho). Esta é a **Fase 1** da
-[especificação](PROJETO_RTS_GEOPOLITICO_CLAUDE.md): uma operação tática jogável, agora com servidor
-autoritativo via WebSocket, contas de jogador e estatísticas no Supabase.
+RTS geopolítico 3D multijogador para navegador (nome de trabalho). Implementa as **Fases 1 e 2** da
+[especificação](PROJETO_RTS_GEOPOLITICO_CLAUDE.md): uma operação tática jogável com servidor
+autoritativo via WebSocket, e uma camada nacional (economia, orçamento, opinião pública, pesquisa)
+que roda dentro de cada partida a partir de dados reais de 10 países.
 
 ## Arquitetura
 
@@ -20,7 +21,10 @@ autoritativo via WebSocket, contas de jogador e estatísticas no Supabase.
 
 | Pasta | Responsabilidade |
 | --- | --- |
-| `shared/` | Simulação tática determinística (mapa, A*, movimento, combate, economia, construção, IA), protocolo de rede e dados de países. Sem DOM, sem Three.js, sem rede — usada pelo servidor e pelos testes. |
+| `shared/sim/` | Simulação tática determinística (mapa, A*, movimento, combate, economia, construção, IA). Sem DOM, sem Three.js, sem rede — usada pelo servidor e pelos testes. |
+| `shared/strategic/` | Simulação nacional (PIB, inflação, desemprego, orçamento, dívida, aprovação, estabilidade, pesquisa), IA de governo e leitura dos dados de referência. |
+| `shared/data/reference/` | Dados reais importados do Banco Mundial (`worldbank.json`) e lideranças (`leaders.ts`). |
+| `scripts/` | `import-reference-data.ts`: importação dos dados de referência. |
 | `server/` | Servidor WebSocket: autenticação, salas (PvP e contra IA), laço de 20 ticks/s, validação de mensagens, reconexão, pausa/velocidade e gravação de partidas. |
 | `src/` | Cliente: telas (React + Tailwind), HUD (Zustand), cena 3D (Three.js), interpolação de snapshots e entrada do jogador. |
 | `supabase/migrations/` | Esquema do banco (perfis, partidas, participações, view de estatísticas, RLS). |
@@ -104,17 +108,50 @@ e o cliente com `VITE_ALLOW_GUESTS=true` (no `.env.local`). Partidas de convidad
 | Pausa / velocidade | `Espaço` · botões 1×/2×/4× (velocidade só contra a IA) |
 | Menu / chat | `F10` · `Enter` |
 
+| Painel nacional | `G` ou botão **🏛 Nação**: visão geral, orçamento, pesquisa, diagnóstico e dados de referência |
+
 **Objetivo:** destruir o Quartel-General inimigo. O QG gera +3 suprimentos/s e tem um canhão de
 defesa; extratores sobre jazidas geram +4/s. Construções só podem ser erguidas perto das suas
 estruturas (extratores, em qualquer jazida livre). Limite de 40 unidades.
+
+## Camada nacional (Fase 2)
+
+Cada partida simula também a nação de cada jogador a partir de 01/01/2026, **1 dia de jogo por
+segundo** (a 1×). Tudo depois dessa data é uma linha histórica alternativa.
+
+- **Dados iniciais reais** (Banco Mundial e séries que ele redistribui: OIT, SIPRI, IISS, UNESCO,
+  OMS): população, PIB, crescimento, inflação, desemprego, dívida, receita e despesa do governo,
+  gasto militar, educação, saúde, P&D. Cada número mostra ano e fonte; lacunas aparecem como "sem
+  dado confiável" e usam valores de jogo declarados. Detalhes em `docs/DATA_SOURCES.md`.
+- **Orçamento** (% do PIB): receita, defesa, educação, saúde, infraestrutura, pesquisa e
+  previdência/administração. Déficits viram dívida; a dívida gera juros com prêmio de risco.
+- **Economia:** crescimento = tendência + impulso fiscal − carga tributária + infraestrutura (com
+  acumulação) + capital humano (defasado) − dívida excessiva − instabilidade + pesquisas. Inflação
+  converge para uma âncora e reage a déficits acima do de referência; desemprego segue a lei de Okun.
+- **Opinião pública:** aprovação converge para um alvo formado por fatores visíveis no
+  **Diagnóstico** (inflação, desemprego, serviços, impostos, crescimento, baixas e vitórias militares).
+  Abaixo de 35 há risco diário de protestos, sorteado com a seed da partida e registrado com causas.
+- **Pesquisa:** seis tecnologias com efeitos táticos (logística, dano, blindagem, tempo de
+  construção/produção) ou econômicos. A velocidade depende do % do PIB investido.
+- **Ligação com o combate:** o orçamento de defesa vira suprimentos/s no teatro de operações:
+  `1,2 × log₁₀(1 + gasto de defesa anual em US$ bi)`. A regra do teatro é escolhida pelo anfitrião:
+  **paridade** (todos como se tivessem PIB de US$ 1 tri: vale a parcela do PIB investida) ou
+  **escala real** (vale o gasto real; grandes economias têm vantagem).
+- **IA de governo:** revisa o orçamento mensalmente com regras explícitas (déficit, aprovação,
+  baixas) e escolhe pesquisas — usando os mesmos comandos do jogador.
+- Todos os coeficientes estão em `shared/strategic/params.ts`; são hipóteses de jogo, não
+  estimativas econométricas.
+
+Para atualizar os dados: GitHub → Actions → **Importar dados de referência** → *Run workflow*
+(ou `npm run data:import` numa máquina com acesso a `api.worldbank.org`).
 
 ## Banco de dados
 
 | Objeto | Conteúdo | Acesso |
 | --- | --- | --- |
 | `profiles` | username (único, sem diferenciar maiúsculas), nome de exibição, país preferido | leitura pública; o dono edita nome de exibição e país |
-| `matches` | modo, seed do mapa, início/fim, duração, motivo do fim, vencedor, versão | leitura pública; escrita só pelo servidor |
-| `match_players` | estatísticas por jogador na partida (produção, abates, perdas, estruturas, recursos, dano) | idem |
+| `matches` | modo, regra do teatro, seed do mapa, início/fim, duração, motivo do fim, vencedor, versão | leitura pública; escrita só pelo servidor |
+| `match_players` | estatísticas por jogador na partida (produção, abates, perdas, estruturas, recursos, dano) e resumo nacional (`national_summary`) | idem |
 | `player_stats` (view) | agregados por jogador | leitura pública |
 | `record_match(jsonb)` | grava partida + participações numa transação | apenas `service_role` |
 | `username_available(text)` | checagem antes do cadastro | público |
@@ -139,8 +176,9 @@ npm run build:server
   página ou perder a conexão, o jogador volta à mesma partida (até 60 s; contra a IA a partida pausa
   enquanto isso). Não há saves persistentes de partidas.
 - **Pausa em PvP**: qualquer jogador pode pausar/retomar; a velocidade é fixa em 1×.
-- **Países**: perfis provisórios só de identidade da facção. Nenhum indicador é exibido nem afeta a
-  partida até a integração de dados reais (Fase 2). Ver `docs/DATA_SOURCES.md`.
+- **Camada nacional dentro da partida**: a especificação previa uma campanha estratégica separada;
+  aqui ela roda junto com cada operação tática e termina com ela (decisão do projeto para o
+  multijogador). Não há campanha persistente entre partidas.
 
 ## Limitações conhecidas
 
@@ -150,4 +188,8 @@ npm run build:server
 - Salas vivem em memória de um único processo: reiniciar o servidor encerra partidas em andamento,
   e não há escala horizontal.
 - Sem áudio, tutorial ou matchmaking automático (entrada por código de sala).
-- Camadas nacional, diplomática, mapa mundial, notícias e rankings ainda não existem (Fases 2+).
+- Dívida pública sem série no WDI para Argentina, Alemanha, França e Japão (usa 60% do PIB, sinalizado);
+  inflação da Argentina é a de 2024 (último ano no WDI). Uma importação do FMI resolveria ambos.
+- Partidas duram minutos (≈ centenas de dias simulados): efeitos de longo prazo (educação,
+  infraestrutura) aparecem pouco numa partida curta.
+- Diplomacia, mapa mundial, notícias e rankings ainda não existem (Fases 3+).

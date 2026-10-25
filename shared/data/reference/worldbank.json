@@ -49,13 +49,13 @@
     {
       "key": "govRevenuePctGdp",
       "code": "GC.REV.XGRT.GD.ZS",
-      "label": "Receita do governo (exceto doações)",
+      "label": "Receita do governo central (exceto doações)",
       "unit": "% do PIB"
     },
     {
       "key": "govExpensePctGdp",
       "code": "GC.XPN.TOTL.GD.ZS",
-      "label": "Despesa do governo",
+      "label": "Despesa do governo central",
       "unit": "% do PIB"
     },
     {

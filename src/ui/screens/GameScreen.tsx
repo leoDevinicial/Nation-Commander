@@ -10,6 +10,10 @@ import { PauseMenu } from '../hud/PauseMenu.tsx';
 import { ResultsOverlay } from '../hud/ResultsOverlay.tsx';
 import { TopBar } from '../hud/TopBar.tsx';
 import { ChatBox } from '../components/ChatBox.tsx';
+import { NationalPanel } from '../national/NationalPanel.tsx';
+import { useNationalStore } from '../../state/useNationalStore.ts';
+import { useHudStore } from '../../state/useHudStore.ts';
+import { describeNationalEvent } from '../../game/nationalText.ts';
 
 export function GameScreen() {
   const match = useAppStore((s) => s.match);
@@ -19,6 +23,25 @@ export function GameScreen() {
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const nationalOpen = useNationalStore((s) => s.panelOpen);
+  const setNationalOpen = useNationalStore((s) => s.setPanelOpen);
+
+  // eventos nacionais entram no painel de eventos da operação
+  useEffect(() => {
+    let seen = useNationalStore.getState().log.at(-1)?.id ?? 0;
+    return useNationalStore.subscribe((s) => {
+      const fresh = s.log.filter((l) => l.id > seen);
+      if (!fresh.length) return;
+      seen = fresh.at(-1)!.id;
+      const match = useAppStore.getState().match;
+      if (!match) return;
+      const countryOf = (slot: number) => match.players.find((p) => p.slot === slot)?.countryId ?? '';
+      for (const l of fresh) {
+        const d = describeNationalEvent(l.event, match.yourSlot, countryOf);
+        if (d) useHudStore.getState().pushEvent({ tick: 0, text: d.text, tone: d.tone });
+      }
+    });
+  }, []);
 
   useEffect(() => {
     if (!match || !containerRef.current) return;
@@ -52,6 +75,9 @@ export function GameScreen() {
         setMenuOpen((v) => !v);
       } else if (e.code === 'Enter' && !(e.target instanceof HTMLInputElement)) {
         setChatOpen(true);
+      } else if (e.code === 'KeyG' && !(e.target instanceof HTMLInputElement)) {
+        const st = useNationalStore.getState();
+        st.setPanelOpen(!st.panelOpen);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -81,15 +107,16 @@ export function GameScreen() {
             <Minimap runtime={runtime} />
             <CommandPanel runtime={runtime} />
           </div>
+          {nationalOpen && <NationalPanel onClose={() => setNationalOpen(false)} />}
           {chatOpen && (
-            <div className="absolute top-14 right-3 w-72">
+            <div className="absolute top-14 right-3 z-30 w-72">
               <ChatBox compact />
               <button className="mt-1 text-xs text-ink-400 hover:text-ink-100" onClick={() => setChatOpen(false)}>
                 fechar chat
               </button>
             </div>
           )}
-          {!chatOpen && (
+          {!chatOpen && !nationalOpen && (
             <button className="btn absolute top-14 right-3 px-2 py-1 text-xs" onClick={() => setChatOpen(true)} title="Chat (Enter)">
               💬 Chat
             </button>

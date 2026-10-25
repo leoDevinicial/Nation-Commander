@@ -1,6 +1,10 @@
 import type {
+  BalanceMode,
   EndReason,
   GameSpeed,
+  NationalCommand,
+  NationalSummary,
+  NationView,
   MatchEndInfo,
   MatchStartInfo,
   RoomInfo,
@@ -16,6 +20,9 @@ import { Simulation } from '../shared/sim/Simulation.ts';
 import { makeSnapshot } from '../shared/sim/snapshot.ts';
 import { AI_THINK_TICKS, TacticalAI } from '../shared/sim/TacticalAI.ts';
 import type { SimEvent, Slot } from '../shared/sim/types.ts';
+import { NationalAI } from '../shared/strategic/NationalAI.ts';
+import { NationalSimulation, type NationalEvent } from '../shared/strategic/NationalSimulation.ts';
+import { HISTORY_EVERY_DAYS, SCENARIO_START, TICKS_PER_DAY } from '../shared/strategic/params.ts';
 import type { Connection } from './Connection.ts';
 import { log } from './logger.ts';
 import type { MatchRecord } from './supabase.ts';
@@ -48,6 +55,12 @@ export class Room {
   readonly players: RoomPlayer[] = [];
   hostUserId: string;
   readonly maxPlayers = 2;
+  balanceMode: BalanceMode = 'parity';
+  national: NationalSimulation | null = null;
+  private nationalAIs: NationalAI[] = [];
+  private pendingNational: { slot: Slot; cmd: NationalCommand; conn: Connection | null }[] = [];
+  private nationalEvents: NationalEvent[] = [];
+  private gdpStart = new Map<Slot, number>();
 
   sim: Simulation | null = null;
   private ais: TacticalAI[] = [];
@@ -99,6 +112,7 @@ export class Room {
       status: this.status,
       players: this.players.map(publicPlayer),
       maxPlayers: this.maxPlayers,
+      balanceMode: this.balanceMode,
     };
   }
 
@@ -171,6 +185,8 @@ export class Room {
     if (!p || this.status !== 'lobby') return;
     p.countryId = countryId;
     p.ready = false;
+    // a IA sempre comanda um país diferente do jogador
+    for (const ai of this.players.filter((x) => x.isAI && x.countryId === countryId)) ai.countryId = countryForAI(countryId);
     this.broadcastRoom();
   }
 
@@ -178,6 +194,15 @@ export class Room {
     const p = this.playerOf(conn);
     if (!p || this.status !== 'lobby') return;
     p.ready = ready;
+    this.broadcastRoom();
+  }
+
+  setBalance(conn: Connection, mode: BalanceMode): void {
+    if (this.status !== 'lobby' || conn.user?.id !== this.hostUserId) return;
+    this.balanceMode = mode;
+    // mudar a regra exige nova confirmação dos demais
+    this.players.forEach((p) => !p.isAI && p.userId !== this.hostUserId && (p.ready = false));
+    this.system(mode === 'parity' ? 'Regra do teatro: paridade econômica.' : 'Regra do teatro: escala econômica real.');
     this.broadcastRoom();
   }
 
@@ -197,6 +222,14 @@ export class Room {
     const map = generateMap(this.seed);
     this.sim = new Simulation({ map, playerCount: this.players.length });
     this.ais = this.players.filter((p) => p.isAI).map((p) => new TacticalAI(p.slot));
+    this.national = new NationalSimulation(
+      this.players.map((p) => ({ slot: p.slot, countryId: p.countryId })),
+      this.seed,
+      this.balanceMode,
+    );
+    this.nationalAIs = this.players.filter((p) => p.isAI).map((p) => new NationalAI(p.slot));
+    for (const n of this.national.nations) this.gdpStart.set(n.slot, n.gdpUsd);
+    this.applyNationalModifiers();
     this.status = 'playing';
     this.startedAt = this.now();
     this.paused = false;
@@ -204,6 +237,7 @@ export class Room {
     for (const p of this.players) if (p.conn) this.sendMatchStart(p);
     this.broadcastRoom();
     this.broadcastSnapshot();
+    this.broadcastNational(true);
     log.info('Partida iniciada', { room: this.code, mode: this.mode, seed: this.seed });
     this.lastLoopTime = this.now();
     if (this.deps.autoLoop !== false) {
@@ -226,6 +260,9 @@ export class Room {
       tickRate: TICK_RATE,
       snapshotEvery: SNAPSHOT_EVERY,
       canControlSpeed: this.mode === 'vs_ai',
+      balanceMode: this.balanceMode,
+      scenarioStart: SCENARIO_START,
+      ticksPerDay: TICKS_PER_DAY,
     };
     p.conn?.send({ t: 'match_start', match });
   }
@@ -260,9 +297,72 @@ export class Room {
       if (err) conn?.send({ t: 'cmd_rejected', reason: err });
     }
     sim.step();
-    this.events.push(...sim.drainEvents());
+    const tickEvents = sim.drainEvents();
+    this.events.push(...tickEvents);
+    this.advanceNational(tickEvents);
     if (sim.tick % SNAPSHOT_EVERY === 0 || sim.ended) this.broadcastSnapshot();
     if (sim.ended) void this.finish(this.endReason ?? (sim.winner === null ? 'draw' : 'hq_destroyed'));
+  }
+
+  /** Camada nacional: comandos pendentes, um dia a cada TICKS_PER_DAY ticks e modificadores táticos. */
+  private advanceNational(tickEvents: SimEvent[]): void {
+    const national = this.national;
+    const sim = this.sim;
+    if (!national || !sim) return;
+    national.registerTacticalEvents(tickEvents);
+    for (const { slot, cmd, conn } of this.pendingNational.splice(0, this.pendingNational.length)) {
+      const err = cmd.type === 'set_budget' ? national.setBudget(slot, cmd.budget) : national.setResearch(slot, cmd.techId);
+      if (err) conn?.send({ t: 'cmd_rejected', reason: err });
+    }
+    if (sim.tick % TICKS_PER_DAY !== 0) return;
+    if (national.day % 30 === 0) {
+      for (const ai of this.nationalAIs) {
+        const r = ai.think(national);
+        if (r.budget) national.setBudget(ai.slot, r.budget);
+        if (r.research !== undefined) national.setResearch(ai.slot, r.research);
+      }
+    }
+    national.stepDay();
+    this.applyNationalModifiers();
+    this.broadcastNational();
+  }
+
+  private applyNationalModifiers(): void {
+    if (!this.national || !this.sim) return;
+    for (const n of this.national.nations) {
+      const fx = this.national.effects(n.slot);
+      this.sim.setModifiers(n.slot, {
+        damageMul: fx.damageMul,
+        tankHpMul: fx.tankHpMul,
+        infantryHpMul: fx.infantryHpMul,
+        constructionTimeMul: fx.constructionTimeMul,
+        productionTimeMul: fx.productionTimeMul,
+        externalIncome: n.theaterSupplyPerSec,
+      });
+    }
+  }
+
+  private broadcastNational(fullHistory = false): void {
+    if (!this.national) return;
+    this.nationalEvents.push(...this.national.drainEvents());
+    const events = this.nationalEvents.splice(0, this.nationalEvents.length);
+    const withHistory = fullHistory || this.national.day % HISTORY_EVERY_DAYS === 0;
+    this.broadcast({ t: 'national', day: this.national.day, date: this.national.date(), nations: this.nationViews(withHistory), events });
+  }
+
+  private nationViews(withHistory: boolean): NationView[] {
+    return (this.national?.nations ?? []).map(({ history, casualties30d, victories30d: _v, ...rest }) => ({
+      ...rest,
+      casualties30d: casualties30d.reduce((a, c) => a + c, 0),
+      ...(withHistory ? { history } : {}),
+    }));
+  }
+
+  nationalCommand(conn: Connection, cmd: NationalCommand): void {
+    const p = this.playerOf(conn);
+    if (!p || this.status !== 'playing' || !this.national) return;
+    if (this.pendingNational.filter((x) => x.slot === p.slot).length >= 10) return;
+    this.pendingNational.push({ slot: p.slot, cmd, conn });
   }
 
   command(conn: Connection, cmd: Command): void {
@@ -353,6 +453,7 @@ export class Room {
       this.system(`${p.name} reconectou.`);
       this.broadcastRoom();
       conn.sendRaw(this.snapshotJson([]));
+      if (this.national) conn.send({ t: 'national', day: this.national.day, date: this.national.date(), nations: this.nationViews(true), events: [] });
     }
     return true;
   }
@@ -407,7 +508,9 @@ export class Room {
             country_id: p.countryId,
             result: result(p.slot),
             stats: sim.players[p.slot]!.stats,
+            national: this.nationalSummary(p.slot),
           })),
+          balance_mode: this.balanceMode,
         });
       } catch (err) {
         log.error('Erro ao gravar partida', { err: String(err) });
@@ -419,11 +522,36 @@ export class Room {
       reason,
       durationSeconds,
       recorded,
-      players: this.players.map((p) => ({ ...publicPlayer(p), stats: { ...sim.players[p.slot]!.stats }, result: result(p.slot) })),
+      players: this.players.map((p) => ({
+        ...publicPlayer(p),
+        stats: { ...sim.players[p.slot]!.stats },
+        result: result(p.slot),
+        national: this.nationalSummary(p.slot),
+      })),
     };
     this.broadcast({ t: 'match_end', end });
     this.broadcastRoom();
     log.info('Partida encerrada', { room: this.code, reason, winnerSlot, recorded, durationSeconds });
+  }
+
+  private nationalSummary(slot: Slot): NationalSummary | null {
+    const n = this.national?.nation(slot);
+    if (!n || !this.national) return null;
+    const start = this.gdpStart.get(slot) ?? n.gdpUsd;
+
+    const avg = n.history.length > 0 ? n.history.reduce((a, h) => a + h.growthPct, 0) / n.history.length : n.realGrowthPct;
+    return {
+      countryId: n.countryId,
+      days: this.national.day,
+      gdpStartUsd: Math.round(start),
+      gdpEndUsd: Math.round(n.gdpUsd),
+      realGrowthAvgPct: Math.round(avg * 100) / 100,
+      approvalEnd: Math.round(n.approval * 10) / 10,
+      debtPctGdpEnd: Math.round((n.debtUsd / n.gdpUsd) * 1000) / 10,
+      inflationEndPct: Math.round(n.inflationPct * 10) / 10,
+      unemploymentEndPct: Math.round(n.unemploymentPct * 10) / 10,
+      researchDone: [...n.research.done],
+    };
   }
 
   // ------------------------------------------------------------ envio

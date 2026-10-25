@@ -106,6 +106,12 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
     case 'cmd':
       room?.command(conn, msg.cmd);
       return;
+    case 'national':
+      room?.nationalCommand(conn, msg.cmd);
+      return;
+    case 'set_balance':
+      room?.setBalance(conn, msg.mode);
+      return;
     case 'pause':
       room?.setPaused(conn, msg.paused);
       return;

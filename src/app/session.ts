@@ -2,6 +2,7 @@ import { DEFAULT_COUNTRY } from '../../shared/data/countries.ts';
 import { gameClient } from '../net/client.ts';
 import { supabase, type Profile } from '../lib/supabase.ts';
 import { useAppStore } from '../state/useAppStore.ts';
+import { applyNationalMessage, useNationalStore } from '../state/useNationalStore.ts';
 
 /** Liga mensagens do servidor de jogo ao estado da aplicação. Chamar uma vez. */
 export function wireGameClient(): void {
@@ -25,7 +26,11 @@ export function wireGameClient(): void {
         break;
       }
       case 'match_start':
+        if (app.match?.seed !== msg.match.seed) useNationalStore.getState().reset();
         useAppStore.setState({ match: msg.match, matchEnd: null, screen: 'game' });
+        break;
+      case 'national':
+        applyNationalMessage(msg.day, msg.date, msg.nations, msg.events);
         break;
       case 'match_end':
         useAppStore.setState({ matchEnd: msg.end });

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
 /** Moldura das telas fora da partida. */
-export function Shell({ title, children, back, wide }: { title?: string; children: ReactNode; back?: () => void; wide?: boolean }) {
+export function Shell({ title, children, back, wide }: { title?: string; children: ReactNode; back?: () => void; wide?: boolean | 'xl' }) {
   return (
     <div className="relative flex h-full w-full items-center justify-center overflow-auto bg-ink-950 p-6">
       <div
@@ -13,7 +13,7 @@ export function Shell({ title, children, back, wide }: { title?: string; childre
           backgroundSize: '40px 40px',
         }}
       />
-      <div className={`panel relative w-full ${wide ? 'max-w-4xl' : 'max-w-lg'} p-6`}>
+      <div className={`panel relative w-full ${wide === 'xl' ? 'max-w-6xl' : wide ? 'max-w-4xl' : 'max-w-lg'} p-6`}>
         {(title || back) && (
           <div className="mb-5 flex items-center justify-between gap-4">
             {title && <h1 className="text-lg font-bold tracking-wide text-ink-100">{title}</h1>}

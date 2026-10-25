@@ -1,26 +1,24 @@
 /**
- * Perfis de país disponíveis na seleção. Nesta fase eles são apenas identidade visual da
- * facção: os dados de referência (população, PIB, forças armadas...) ainda não foram
- * integrados e por isso NÃO são exibidos nem afetam a partida. Ver docs/DATA_SOURCES.md.
+ * Países jogáveis. Os dados de referência ficam em shared/data/reference/ (importados do Banco
+ * Mundial por scripts/import-reference-data.ts) e iniciam a simulação nacional.
+ * Ver docs/DATA_SOURCES.md.
  */
 export interface CountryProfile {
   id: string; // ISO 3166-1 alfa-3
   name: string;
-  /** Sempre true até a integração da Fase 2. */
-  isPlaceholder: true;
 }
 
 export const COUNTRIES: readonly CountryProfile[] = [
-  { id: 'BRA', name: 'Brasil', isPlaceholder: true },
-  { id: 'ARG', name: 'Argentina', isPlaceholder: true },
-  { id: 'USA', name: 'Estados Unidos', isPlaceholder: true },
-  { id: 'MEX', name: 'México', isPlaceholder: true },
-  { id: 'DEU', name: 'Alemanha', isPlaceholder: true },
-  { id: 'FRA', name: 'França', isPlaceholder: true },
-  { id: 'IND', name: 'Índia', isPlaceholder: true },
-  { id: 'JPN', name: 'Japão', isPlaceholder: true },
-  { id: 'ZAF', name: 'África do Sul', isPlaceholder: true },
-  { id: 'AUS', name: 'Austrália', isPlaceholder: true },
+  { id: 'BRA', name: 'Brasil' },
+  { id: 'ARG', name: 'Argentina' },
+  { id: 'USA', name: 'Estados Unidos' },
+  { id: 'MEX', name: 'México' },
+  { id: 'DEU', name: 'Alemanha' },
+  { id: 'FRA', name: 'França' },
+  { id: 'IND', name: 'Índia' },
+  { id: 'JPN', name: 'Japão' },
+  { id: 'ZAF', name: 'África do Sul' },
+  { id: 'AUS', name: 'Austrália' },
 ];
 
 export const DEFAULT_COUNTRY = 'BRA';

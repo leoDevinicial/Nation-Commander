@@ -170,4 +170,52 @@ describe('servidor de partidas', () => {
     (room as unknown as { onLoop(): void }).onLoop();
     await vi.waitFor(() => expect(a.last('match_end')?.end.reason).toBe('disconnect'));
   });
+
+  it('camada nacional: avança um dia a cada 20 ticks, aplica orçamento e grava resumo', async () => {
+    const { send, rooms, records } = setup();
+    const a = fakeConn();
+    const b = fakeConn();
+    await send(a.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-host' });
+    await send(b.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-guest' });
+    await send(a.conn, { t: 'create_room', mode: 'pvp', countryId: 'USA' });
+    const code = a.last('room')!.room!.code;
+    await send(b.conn, { t: 'join_room', code, countryId: 'ZAF' });
+    // só o anfitrião muda a regra, e isso desfaz o "pronto" dos outros
+    await send(b.conn, { t: 'set_ready', ready: true });
+    await send(b.conn, { t: 'set_balance', mode: 'realistic' });
+    expect(a.last('room')!.room!.balanceMode).toBe('parity');
+    await send(a.conn, { t: 'set_balance', mode: 'realistic' });
+    expect(a.last('room')!.room!.balanceMode).toBe('realistic');
+    expect(a.last('room')!.room!.players.find((p) => p.userId === 'guest')!.ready).toBe(false);
+    await send(b.conn, { t: 'set_ready', ready: true });
+    await send(a.conn, { t: 'start' });
+
+    const room = rooms.get(code)!;
+    const first = a.last('national')!;
+    expect(first.day).toBe(0);
+    expect(first.nations[0]!.history).toBeDefined();
+    const usa = room.national!.nation(0)!;
+    const supply = usa.theaterSupplyPerSec;
+    expect(room.sim!.players[0]!.modifiers.externalIncome).toBeCloseTo(supply);
+
+    await send(a.conn, { t: 'national', cmd: { type: 'set_budget', budget: { ...usa.budget, defensePct: 6 } } });
+    await send(a.conn, { t: 'national', cmd: { type: 'set_research', techId: 'logistics' } });
+    for (let i = 0; i < 20; i++) room.advance();
+    const msg = a.last('national')!;
+    expect(msg.day).toBe(1);
+    expect(msg.date).toBe('2026-01-02');
+    expect(msg.nations[0]!.history).toBeUndefined(); // histórico só no registro mensal
+    expect(usa.budget.defensePct).toBe(6);
+    expect(usa.research.current).toBe('logistics');
+    expect(room.sim!.players[0]!.modifiers.externalIncome).toBeGreaterThan(supply);
+    expect(msg.events.some((e) => e.type === 'budget_changed')).toBe(true);
+
+    await send(b.conn, { t: 'surrender' });
+    await vi.waitFor(() => expect(records).toHaveLength(1));
+    const rec = records[0]!;
+    expect(rec.balance_mode).toBe('realistic');
+    expect(rec.players[0]!.national?.countryId).toBe('USA');
+    expect(rec.players[0]!.national?.days).toBe(1);
+    expect(a.last('match_end')!.end.players[1]!.national?.countryId).toBe('ZAF');
+  });
 });

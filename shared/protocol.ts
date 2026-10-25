@@ -1,8 +1,33 @@
 import type { Command } from './sim/commands.ts';
+import type { BalanceMode, Budget, HistoryPoint, NationalEvent, NationState } from './strategic/NationalSimulation.ts';
+import type { TechId } from './strategic/technologies.ts';
 import type { PlayerStats, Slot } from './sim/types.ts';
 import type { Snapshot } from './sim/snapshot.ts';
 
 export type RoomMode = 'pvp' | 'vs_ai';
+export type { BalanceMode };
+
+export type NationalCommand = { type: 'set_budget'; budget: Budget } | { type: 'set_research'; techId: TechId | null };
+
+/** Estado nacional enviado ao cliente. `history` só vem quando muda (a cada registro mensal). */
+export type NationView = Omit<NationState, 'history' | 'casualties30d' | 'victories30d'> & {
+  history?: HistoryPoint[];
+  casualties30d: number;
+};
+
+/** Resumo nacional gravado ao fim da partida. */
+export interface NationalSummary {
+  countryId: string;
+  days: number;
+  gdpStartUsd: number;
+  gdpEndUsd: number;
+  realGrowthAvgPct: number;
+  approvalEnd: number;
+  debtPctGdpEnd: number;
+  inflationEndPct: number;
+  unemploymentEndPct: number;
+  researchDone: TechId[];
+}
 export type GameSpeed = 1 | 2 | 4;
 export const GAME_SPEEDS: readonly GameSpeed[] = [1, 2, 4];
 
@@ -29,6 +54,7 @@ export interface RoomInfo {
   status: 'lobby' | 'playing' | 'ended';
   players: RoomPlayerInfo[];
   maxPlayers: number;
+  balanceMode: BalanceMode;
 }
 
 export interface MatchStartInfo {
@@ -46,6 +72,9 @@ export interface MatchStartInfo {
   /** Mensagem enviada a cada N ticks de simulação. */
   snapshotEvery: number;
   canControlSpeed: boolean;
+  balanceMode: BalanceMode;
+  scenarioStart: string;
+  ticksPerDay: number;
 }
 
 export type EndReason = 'hq_destroyed' | 'forfeit' | 'disconnect' | 'draw';
@@ -54,7 +83,7 @@ export interface MatchEndInfo {
   winnerSlot: Slot | null;
   reason: EndReason;
   durationSeconds: number;
-  players: (RoomPlayerInfo & { stats: PlayerStats; result: 'win' | 'loss' | 'draw' })[];
+  players: (RoomPlayerInfo & { stats: PlayerStats; result: 'win' | 'loss' | 'draw'; national: NationalSummary | null })[];
   recorded: boolean;
 }
 
@@ -67,6 +96,8 @@ export type ClientMessage =
   | { t: 'set_ready'; ready: boolean }
   | { t: 'start' }
   | { t: 'cmd'; cmd: Command }
+  | { t: 'national'; cmd: NationalCommand }
+  | { t: 'set_balance'; mode: BalanceMode }
   | { t: 'pause'; paused: boolean }
   | { t: 'speed'; speed: GameSpeed }
   | { t: 'surrender' }
@@ -80,6 +111,7 @@ export type ServerMessage =
   | { t: 'match_start'; match: MatchStartInfo }
   | { t: 'snapshot'; s: Snapshot; paused: boolean; speed: GameSpeed; pausedBy: string | null }
   | { t: 'match_end'; end: MatchEndInfo }
+  | { t: 'national'; day: number; date: string; nations: NationView[]; events: NationalEvent[] }
   | { t: 'cmd_rejected'; reason: string }
   | { t: 'chat'; from: string; text: string; system?: boolean }
   | { t: 'pong'; n: number };

@@ -1,6 +1,8 @@
 import { isCountryId } from '../shared/data/countries.ts';
 import { GAME_SPEEDS, MAX_CHAT_LENGTH, type ClientMessage, type GameSpeed } from '../shared/protocol.ts';
 import { parseCommand } from '../shared/sim/commands.ts';
+import { BUDGET_KEYS, type Budget } from '../shared/strategic/NationalSimulation.ts';
+import { TECHNOLOGIES, type TechId } from '../shared/strategic/technologies.ts';
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const ROOM_CODE = /^[A-Z0-9]{5}$/;
@@ -43,6 +45,28 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       const cmd = parseCommand(data.cmd);
       return cmd ? { t: 'cmd', cmd } : null;
     }
+    case 'national': {
+      const cmd = isObj(data.cmd) ? data.cmd : null;
+      if (!cmd) return null;
+      if (cmd.type === 'set_budget' && isObj(cmd.budget)) {
+        const budget = {} as Budget;
+        for (const k of BUDGET_KEYS) {
+          const v = cmd.budget[k];
+          if (typeof v !== 'number' || !Number.isFinite(v)) return null;
+          budget[k] = v;
+        }
+        return { t: 'national', cmd: { type: 'set_budget', budget } };
+      }
+      if (cmd.type === 'set_research') {
+        if (cmd.techId === null) return { t: 'national', cmd: { type: 'set_research', techId: null } };
+        if (typeof cmd.techId === 'string' && Object.hasOwn(TECHNOLOGIES, cmd.techId)) {
+          return { t: 'national', cmd: { type: 'set_research', techId: cmd.techId as TechId } };
+        }
+      }
+      return null;
+    }
+    case 'set_balance':
+      return data.mode === 'parity' || data.mode === 'realistic' ? { t: 'set_balance', mode: data.mode } : null;
     case 'pause':
       return typeof data.paused === 'boolean' ? { t: 'pause', paused: data.paused } : null;
     case 'speed':

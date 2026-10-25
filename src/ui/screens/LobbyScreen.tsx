@@ -5,6 +5,7 @@ import { useAppStore } from '../../state/useAppStore.ts';
 import { factionColor } from '../../game/factions.ts';
 import { ChatBox } from '../components/ChatBox.tsx';
 import { CountrySelect } from '../components/CountrySelect.tsx';
+import { CountryCard } from '../components/CountryCard.tsx';
 import { Shell } from '../components/Shell.tsx';
 
 export function LobbyScreen() {
@@ -29,7 +30,7 @@ export function LobbyScreen() {
   };
 
   return (
-    <Shell title={room.mode === 'vs_ai' ? 'Operação contra a IA' : 'Sala multijogador'} wide>
+    <Shell title={room.mode === 'vs_ai' ? 'Operação contra a IA' : 'Sala multijogador'} wide="xl">
       <div className="grid gap-6 md:grid-cols-[1fr_280px]">
         <div>
           {room.mode === 'pvp' && (
@@ -73,10 +74,31 @@ export function LobbyScreen() {
               );
             })}
           </ul>
-          <p className="mt-3 text-xs text-ink-400">
-            ⓘ Os perfis de país ainda são provisórios: definem apenas a identidade da facção. Dados reais de referência (economia, população,
-            forças armadas) entram na Fase 2 e não afetam esta operação.
-          </p>
+          <fieldset className="mt-4 rounded border border-ink-700 p-3">
+            <legend className="label px-1">Regra do teatro de operações</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {(
+                [
+                  ['parity', 'Paridade econômica', 'A logística do teatro depende da parcela do PIB investida em defesa, como se todos tivessem a mesma escala econômica. Recomendado para disputas equilibradas.'],
+                  ['realistic', 'Escala real', 'A logística depende do gasto de defesa real de cada país. Grandes economias têm vantagem — a dificuldade emerge dos dados.'],
+                ] as const
+              ).map(([mode, title, desc]) => (
+                <label key={mode} className={`flex cursor-pointer gap-2 rounded border p-2 text-xs ${room.balanceMode === mode ? 'border-brass-400 bg-ink-850' : 'border-ink-700'} ${isHost ? '' : 'cursor-default opacity-80'}`}>
+                  <input type="radio" name="balance" className="mt-0.5 accent-[#e0b44c]" checked={room.balanceMode === mode} disabled={!isHost} onChange={() => gameClient.send({ t: 'set_balance', mode })} />
+                  <span>
+                    <span className="block font-semibold text-ink-100">{title}</span>
+                    <span className="text-ink-400">{desc}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            {!isHost && <p className="mt-1 text-[11px] text-ink-400">Só o anfitrião escolhe a regra.</p>}
+          </fieldset>
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            {room.players.map((p) => (
+              <CountryCard key={p.slot} id={p.countryId} balanceMode={room.balanceMode} />
+            ))}
+          </div>
           <div className="mt-5 flex flex-wrap gap-2">
             {isHost ? (
               <button className="btn btn-primary" disabled={!canStart} onClick={() => gameClient.send({ t: 'start' })}>

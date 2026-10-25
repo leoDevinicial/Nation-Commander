@@ -32,6 +32,8 @@ export interface Unit {
   /** Ângulo em radianos (0 = +x). */
   facing: number;
   hp: number;
+  /** Vida máxima no momento da produção (pesquisas afetam apenas unidades novas). */
+  maxHp: number;
   order: UnitOrder;
   /** Alvo adquirido automaticamente (ordem idle/attackMove). */
   engageId: EntityId | null;
@@ -65,6 +67,8 @@ export interface Building {
   /** 0..1; 1 = concluído. Derivado de `builtTicks` para evitar erro acumulado. */
   progress: number;
   builtTicks: number;
+  /** Total de ticks de obra, fixado no início (pesquisas não alteram obras em andamento). */
+  buildTicks: number;
   queue: ProductionItem[];
   rally: Vec2 | null;
   cooldown: number;
@@ -85,9 +89,21 @@ export interface PlayerStats {
   damageDealt: number;
 }
 
+/** Modificadores táticos vindos da camada nacional (pesquisas e logística). */
+export interface TacticalModifiers {
+  damageMul: number;
+  tankHpMul: number;
+  infantryHpMul: number;
+  constructionTimeMul: number;
+  productionTimeMul: number;
+  /** Suprimentos/s enviados pela logística nacional ao teatro. */
+  externalIncome: number;
+}
+
 export interface PlayerState {
   slot: Slot;
   resources: number;
+  modifiers: TacticalModifiers;
   /** Acumulador fracionário de renda para manter inteiros em `resources`. */
   incomeRemainder: number;
   defeated: boolean;

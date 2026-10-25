@@ -225,3 +225,31 @@ describe('parseCommand', () => {
     expect(parseCommand({ type: 'attack', unitIds: Array.from({ length: 100 }, (_, i) => i + 1), targetId: 1 })).toBeNull();
   });
 });
+
+describe('modificadores da camada nacional', () => {
+  it('renda externa, dano, vida e tempos de produção/obra', () => {
+    const sim = emptySim();
+    sim.setModifiers(0, { externalIncome: 2.5, damageMul: 1.5, tankHpMul: 1.25, productionTimeMul: 0.5, constructionTimeMul: 0.5 });
+    const r0 = sim.players[0]!.resources;
+    run(sim, TICK_RATE * 10);
+    expect(sim.players[0]!.resources - r0).toBe((BUILDINGS.hq.income + 2.5) * 10);
+
+    const tank = sim.addUnit('tank', 0, { x: 30, y: 30 });
+    expect(tank.maxHp).toBe(Math.round(UNITS.tank.maxHp * 1.25));
+    expect(sim.addUnit('tank', 1, { x: 60, y: 60 }).maxHp).toBe(UNITS.tank.maxHp);
+
+    sim.applyCommand(0, { type: 'build', buildingType: 'barracks', cx: 8, cy: 3 });
+    const b = sim.buildings.find((x) => x.type === 'barracks')!;
+    run(sim, (BUILDINGS.barracks.buildSeconds * TICK_RATE) / 2);
+    expect(b.progress).toBe(1);
+    sim.applyCommand(0, { type: 'produce', buildingId: b.id, unitType: 'infantry' });
+    expect(b.queue[0]!.totalTicks).toBe(UNITS.infantry.buildSeconds * TICK_RATE * 0.5);
+
+    const victim = sim.addUnit('tank', 1, { x: 30 + 4, y: 30 });
+    victim.hp = 10_000;
+    sim.applyCommand(0, { type: 'attack', unitIds: [tank.id], targetId: victim.id });
+    run(sim, 3);
+    const shot = sim.drainEvents().find((e) => e.type === 'shot' && e.attackerId === tank.id);
+    expect(shot && shot.type === 'shot' ? shot.damage : 0).toBeCloseTo(UNITS.tank.weapon.damage * 1.5);
+  });
+});

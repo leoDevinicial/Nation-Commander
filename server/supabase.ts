@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { EndReason, RoomMode } from '../shared/protocol.ts';
+import type { BalanceMode, EndReason, NationalSummary, RoomMode } from '../shared/protocol.ts';
 import type { PlayerStats } from '../shared/sim/types.ts';
 import { config } from './config.ts';
 import { log } from './logger.ts';
@@ -40,6 +40,7 @@ export interface MatchRecord {
   end_reason: EndReason;
   winner_id: string | null;
   game_version: string;
+  balance_mode: BalanceMode;
   players: {
     slot: number;
     player_id: string | null;
@@ -48,6 +49,7 @@ export interface MatchRecord {
     country_id: string;
     result: 'win' | 'loss' | 'draw';
     stats: PlayerStats;
+    national: NationalSummary | null;
   }[];
 }
 
@@ -57,8 +59,9 @@ export async function recordMatch(rec: MatchRecord): Promise<boolean> {
   if (!sb) return false;
   const payload = {
     ...rec,
-    players: rec.players.map(({ stats, ...p }) => ({
+    players: rec.players.map(({ stats, national, ...p }) => ({
       ...p,
+      national_summary: national,
       units_produced: stats.unitsProduced,
       units_lost: stats.unitsLost,
       units_killed: stats.unitsKilled,

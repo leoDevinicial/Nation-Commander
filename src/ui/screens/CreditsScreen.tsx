@@ -18,9 +18,9 @@ export function CreditsScreen() {
         <div>
           <h2 className="label">Dados de referência</h2>
           <p>
-            Ainda não há dados factuais integrados. Os países disponíveis são perfis provisórios sem indicadores. Fontes previstas (Banco
-            Mundial, FMI, ONU, SIPRI, UN Comtrade, V-Dem) serão documentadas em <code>docs/DATA_SOURCES.md</code> com licença, período e
-            metodologia quando integradas.
+            Indicadores dos países: Banco Mundial — World Development Indicators (CC BY 4.0), incluindo séries que ele redistribui da OIT
+            (desemprego), SIPRI (gasto militar), IISS (efetivo), UNESCO (educação, P&amp;D) e OMS (saúde). Cada valor mostra o ano e a série de
+            origem. Chefes de Estado e de governo: registro editorial em 01/01/2026. Detalhes em <code>docs/DATA_SOURCES.md</code>.
           </p>
         </div>
         <p className="text-xs text-ink-400">

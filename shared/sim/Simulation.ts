@@ -26,6 +26,7 @@ import type {
   PlayerState,
   SimEvent,
   Slot,
+  TacticalModifiers,
   Unit,
   Vec2,
 } from './types.ts';
@@ -37,6 +38,15 @@ export interface SimulationInit {
   /** Unidades iniciais por jogador. */
   startingUnits?: UnitType[];
 }
+
+export const NEUTRAL_MODIFIERS: TacticalModifiers = {
+  damageMul: 1,
+  tankHpMul: 1,
+  infantryHpMul: 1,
+  constructionTimeMul: 1,
+  productionTimeMul: 1,
+  externalIncome: 0,
+};
 
 const UNDER_ATTACK_ALERT_TICKS = TICK_RATE * 6;
 
@@ -70,6 +80,7 @@ export class Simulation {
         resources: init.startingResources ?? STARTING_RESOURCES,
         incomeRemainder: 0,
         defeated: false,
+        modifiers: { ...NEUTRAL_MODIFIERS },
         stats: {
           unitsProduced: 0,
           unitsLost: 0,
@@ -126,7 +137,7 @@ export class Simulation {
   }
 
   incomePerSecond(slot: Slot): number {
-    let inc = 0;
+    let inc = this.players[slot]?.modifiers.externalIncome ?? 0;
     for (const b of this.buildings) if (b.owner === slot && b.progress >= 1) inc += BUILDINGS[b.type].income;
     return inc;
   }
@@ -225,7 +236,7 @@ export class Simulation {
         if (player.resources < def.cost) return 'Suprimentos insuficientes';
         player.resources -= def.cost;
         player.stats.resourcesSpent += def.cost;
-        const ticks = Math.round(def.buildSeconds * TICK_RATE);
+        const ticks = Math.max(1, Math.round(def.buildSeconds * TICK_RATE * player.modifiers.productionTimeMul));
         b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks });
         return null;
       }
@@ -308,7 +319,7 @@ export class Simulation {
     for (const b of this.buildings) {
       if (b.progress >= 1 || b.hp <= 0) continue;
       const def = BUILDINGS[b.type];
-      const ticks = Math.max(1, def.buildSeconds * TICK_RATE);
+      const ticks = b.buildTicks;
       b.builtTicks++;
       b.progress = Math.min(1, b.builtTicks / ticks);
       b.hp = Math.min(def.maxHp, b.hp + (def.maxHp * 0.9) / ticks);
@@ -439,7 +450,7 @@ export class Simulation {
       u.activity = 'attacking';
       u.path = [];
       u.facing = Math.atan2(target.pos.y - u.pos.y, target.pos.x - u.pos.x);
-      if (u.cooldown <= 0) this.fire(u, target, weapon.damage, weapon.cooldown);
+      if (u.cooldown <= 0) this.fire(u, target, weapon.damage * this.players[u.owner]!.modifiers.damageMul, weapon.cooldown);
       return;
     }
     u.activity = 'chasing';
@@ -495,7 +506,7 @@ export class Simulation {
       target = candidate && candidate.kind === 'unit' ? candidate : null;
     }
     b.engageId = target?.id ?? null;
-    if (target) this.fire(b, target, weapon.damage, weapon.cooldown);
+    if (target) this.fire(b, target, weapon.damage * this.players[b.owner]!.modifiers.damageMul, weapon.cooldown);
   }
 
   // ---------------------------------------------------------------- movimento
@@ -675,6 +686,7 @@ export class Simulation {
       hp: progress >= 1 ? def.maxHp : def.maxHp * 0.1,
       progress,
       builtTicks: 0,
+      buildTicks: Math.max(1, Math.round(def.buildSeconds * TICK_RATE * (this.players[owner]?.modifiers.constructionTimeMul ?? 1))),
       queue: [],
       rally: null,
       cooldown: 0,
@@ -716,7 +728,8 @@ export class Simulation {
       owner,
       pos: { ...pos },
       facing: 0,
-      hp: UNITS[type].maxHp,
+      hp: this.unitMaxHp(type, owner),
+      maxHp: this.unitMaxHp(type, owner),
       order: { kind: 'idle' },
       engageId: null,
       path: [],
@@ -730,6 +743,17 @@ export class Simulation {
     };
     this.entities.set(u.id, u);
     return u;
+  }
+
+  unitMaxHp(type: UnitType, owner: Slot): number {
+    const m = this.players[owner]?.modifiers ?? NEUTRAL_MODIFIERS;
+    return Math.round(UNITS[type].maxHp * (type === 'tank' ? m.tankHpMul : m.infantryHpMul));
+  }
+
+  /** Atualiza os modificadores vindos da camada nacional. */
+  setModifiers(slot: Slot, m: Partial<TacticalModifiers>): void {
+    const p = this.players[slot];
+    if (p) p.modifiers = { ...p.modifiers, ...m };
   }
 
   private setIdle(u: Unit): void {

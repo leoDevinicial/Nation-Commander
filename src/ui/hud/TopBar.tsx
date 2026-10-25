@@ -5,7 +5,8 @@ import { factionColor } from '../../game/render/palette.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
 import { useSettingsStore } from '../../state/useSettingsStore.ts';
-import { formatDuration } from '../../lib/format.ts';
+import { formatDate, formatDuration, formatPct } from '../../lib/format.ts';
+import { useNationalStore } from '../../state/useNationalStore.ts';
 
 export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRuntime; onMenu: () => void; canControlSpeed: boolean }) {
   const players = useHudStore((s) => s.players);
@@ -19,6 +20,10 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
   const roster = useAppStore((s) => s.match?.players ?? []);
   const connStatus = useAppStore((s) => s.connStatus);
   const me = players.find((p) => p.slot === mySlot);
+  const date = useNationalStore((s) => s.date);
+  const nation = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot));
+  const panelOpen = useNationalStore((s) => s.panelOpen);
+  const togglePanel = useNationalStore((s) => s.setPanelOpen);
 
   return (
     <div className="panel absolute top-3 right-3 left-3 flex h-10 items-center gap-5 px-3 text-sm">
@@ -43,7 +48,21 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
         </span>
         <span className="font-mono">{formatDuration(Math.floor(tick / TICK_RATE))}</span>
       </div>
-      <div className="hidden items-center gap-3 md:flex">
+      {date && (
+        <div className="flex items-center gap-2" title="Data do cenário (1 dia de jogo por segundo a 1×)">
+          <span className="text-ink-400" aria-hidden>
+            📅
+          </span>
+          <span className="font-mono">{formatDate(date)}</span>
+        </div>
+      )}
+      {nation && (
+        <div className="hidden items-center gap-2 lg:flex" title="Aprovação do governo e logística nacional do teatro">
+          <span className="text-ink-400">Aprovação</span>
+          <span className={`font-mono ${nation.approval < 35 ? 'text-red-300' : 'text-ink-100'}`}>{formatPct(nation.approval, 0)}</span>
+        </div>
+      )}
+      <div className="hidden items-center gap-3 xl:flex">
         {roster.map((p) => (
           <span key={p.slot} className="flex items-center gap-1.5 text-xs">
             <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: factionColor(p.slot) }} aria-hidden />
@@ -72,6 +91,9 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
             {s}×
           </button>
         ))}
+        <button className={`btn px-2 py-1 text-xs ${panelOpen ? 'btn-primary' : ''}`} onClick={() => togglePanel(!panelOpen)} title="Painel nacional: economia, orçamento e pesquisa (G)">
+          🏛 Nação
+        </button>
         <button className="btn px-2 py-1 text-xs" onClick={onMenu} title="Menu (F10)">
           ☰ Menu
         </button>

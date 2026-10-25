@@ -10,6 +10,7 @@ export interface UnitSnapshot {
   y: number;
   facing: number;
   hp: number;
+  maxHp: number;
   activity: UnitActivity;
   order: 'idle' | 'move' | 'attackMove' | 'attack';
   targetId: EntityId | null;
@@ -59,6 +60,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[]): Snapshot {
         y: r2(e.pos.y),
         facing: r2(e.facing),
         hp: Math.ceil(e.hp),
+        maxHp: e.maxHp,
         activity: e.activity,
         order: e.order.kind,
         targetId: e.order.kind === 'attack' ? e.order.targetId : e.engageId,
@@ -84,7 +86,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[]): Snapshot {
     players: sim.players.map((p) => ({
       slot: p.slot,
       resources: p.resources,
-      income: sim.incomePerSecond(p.slot),
+      income: Math.round(sim.incomePerSecond(p.slot) * 100) / 100,
       supply: sim.supplyUsed(p.slot),
       defeated: p.defeated,
     })),

@@ -1,6 +1,7 @@
 import { countryName } from '../../../shared/data/countries.ts';
 import { gameClient } from '../../net/client.ts';
-import { formatDuration } from '../../lib/format.ts';
+import { formatDuration, formatPct, formatSigned, formatUsd } from '../../lib/format.ts';
+import { TECHNOLOGIES } from '../../../shared/strategic/technologies.ts';
 import { factionColor } from '../../game/factions.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 
@@ -60,6 +61,44 @@ export function ResultsOverlay() {
             ))}
           </tbody>
         </table>
+        {end.players.some((p) => p.national) && (
+          <>
+            <h3 className="mt-5 text-xs font-semibold tracking-wider text-ink-400 uppercase">Desempenho nacional (linha histórica alternativa)</h3>
+            <table className="mt-1 w-full text-left text-sm">
+              <thead className="text-xs text-ink-400">
+                <tr>
+                  <th className="py-1">País</th>
+                  <th>PIB final</th>
+                  <th>Variação</th>
+                  <th>Aprovação</th>
+                  <th>Dívida/PIB</th>
+                  <th>Inflação</th>
+                  <th>Pesquisas</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono">
+                {end.players.map((p) =>
+                  p.national ? (
+                    <tr key={p.slot} className="border-t border-ink-800">
+                      <td className="py-1.5 font-sans">{countryName(p.national.countryId)}</td>
+                      <td>{formatUsd(p.national.gdpEndUsd)}</td>
+                      <td>{formatSigned(((p.national.gdpEndUsd / p.national.gdpStartUsd) - 1) * 100, 1, '%')}</td>
+                      <td>{formatPct(p.national.approvalEnd, 0)}</td>
+                      <td>{formatPct(p.national.debtPctGdpEnd, 0)}</td>
+                      <td>{formatPct(p.national.inflationEndPct)}</td>
+                      <td className="font-sans text-xs" title={p.national.researchDone.map((t) => TECHNOLOGIES[t].label).join(', ')}>
+                        {p.national.researchDone.length}
+                      </td>
+                    </tr>
+                  ) : null,
+                )}
+              </tbody>
+            </table>
+            <p className="mt-1 text-[11px] text-ink-400">
+              {end.players.find((p) => p.national)?.national?.days ?? 0} dias simulados a partir de 01/01/2026.
+            </p>
+          </>
+        )}
         <p className="mt-4 text-center text-xs text-ink-400">
           {end.recorded ? '✔ Partida registrada no seu perfil.' : guest ? 'Partida de convidado: estatísticas não são salvas.' : '⚠ Não foi possível registrar esta partida.'}
         </p>
