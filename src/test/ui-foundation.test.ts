@@ -44,7 +44,8 @@ describe('presets gráficos', () => {
 
   it('configurações antigas (low/high) são migradas e valores inválidos ignorados', () => {
     expect(parseSettings(JSON.stringify({ quality: 'high', panSpeed: 2 }), base)).toMatchObject({ quality: 'high', panSpeed: 2 });
-    expect(parseSettings(JSON.stringify({ quality: 'ultra', panSpeed: 99 }), base)).toMatchObject({ quality: 'balanced', panSpeed: 1 });
+    expect(parseSettings(JSON.stringify({ quality: 'cinema', panSpeed: 99 }), base)).toMatchObject({ quality: 'balanced', panSpeed: 1 });
+    expect(parseSettings(JSON.stringify({ quality: 'ultra' }), base)).toMatchObject({ quality: 'ultra' });
     expect(parseSettings('{quebrado', base)).toEqual(base);
   });
 });
