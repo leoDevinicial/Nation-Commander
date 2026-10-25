@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
-    "typecheck": "tsc -b && tsc -p tsconfig.server.json --noEmit"
+    "typecheck": "tsc -b && tsc -p tsconfig.server.json --noEmit",
+    "data:import": "tsx scripts/import-reference-data.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
