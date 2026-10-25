@@ -11,6 +11,8 @@ export interface BuildingModel {
   /** Parte animada opcional (antena, balancim do poço, serra...). */
   moving: { layers: ModelLayers; pivot: [number, number, number]; kind: 'spin' | 'rock' | 'saw' } | null;
   height: number;
+  /** Topos de chaminé que soltam fumaça (coordenadas locais). */
+  smoke?: [number, number, number][];
 }
 
 const cache = new Map<BuildingType, BuildingModel>();
@@ -178,7 +180,15 @@ function buildFactory(): BuildingModel {
   // pátio com contêiner
   b.box(0.9, 0.4, 0.4, '#5b6f7e', [-1.4, 0.36, -1.7]);
   a.box(3.52, 0.14, 0.02, '#ffffff', [0, 1.6, 1.46]);
-  return { base: l.build(), moving: null, height: 2.8 };
+  return {
+    base: l.build(),
+    moving: null,
+    height: 2.8,
+    smoke: [
+      [1.25, 2.85, -1.05],
+      [0.7, 2.35, -1.15],
+    ],
+  };
 }
 
 // ------------------------------------------------------------------ economia

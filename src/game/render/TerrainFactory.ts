@@ -4,18 +4,130 @@ import { Terrain } from '../../../shared/sim/config.ts';
 import { Random } from '../../../shared/sim/Random.ts';
 import type { MapData } from '../../../shared/sim/types.ts';
 import { withFog } from './materials.ts';
+import { asphaltTexture, dirtTexture, grassTexture, rockTexture } from './textures.ts';
 import { C, PartBuilder } from './models/kit.ts';
 
+/** Tom aplicado sobre a textura de cada terreno (1 = textura pura). */
 const TERRAIN_COLORS: Record<Terrain, THREE.Color> = {
-  [Terrain.Plains]: new THREE.Color('#71874a'),
-  [Terrain.Road]: new THREE.Color('#a8956d'),
-  [Terrain.Forest]: new THREE.Color('#4a6236'),
-  [Terrain.Mud]: new THREE.Color('#5c4a35'),
-  [Terrain.Water]: new THREE.Color('#3b5a52'),
-  [Terrain.Rock]: new THREE.Color('#8a857a'),
-  [Terrain.Fertile]: new THREE.Color('#6d5a37'),
-  [Terrain.Ore]: new THREE.Color('#7d5a46'),
+  [Terrain.Plains]: new THREE.Color(1, 1, 1),
+  [Terrain.Road]: new THREE.Color(1, 1, 1),
+  [Terrain.Forest]: new THREE.Color(0.72, 0.8, 0.64),
+  [Terrain.Mud]: new THREE.Color(0.6, 0.53, 0.46),
+  [Terrain.Water]: new THREE.Color(0.55, 0.62, 0.6),
+  [Terrain.Rock]: new THREE.Color(1, 1, 1),
+  [Terrain.Fertile]: new THREE.Color(1.02, 0.9, 0.74),
+  [Terrain.Ore]: new THREE.Color(1.12, 0.8, 0.68),
 };
+
+/** Canal de textura de cada terreno: grama, terra, asfalto, rocha. */
+const SPLAT: Record<Terrain, [number, number, number, number]> = {
+  [Terrain.Plains]: [255, 0, 0, 0],
+  [Terrain.Forest]: [200, 55, 0, 0],
+  [Terrain.Fertile]: [30, 225, 0, 0],
+  [Terrain.Mud]: [0, 255, 0, 0],
+  [Terrain.Water]: [0, 255, 0, 0],
+  [Terrain.Road]: [0, 0, 255, 0],
+  [Terrain.Rock]: [0, 0, 0, 255],
+  [Terrain.Ore]: [0, 40, 0, 215],
+};
+
+/**
+ * Solo com texturas reais misturadas por um mapa de pesos (1 texel por célula, filtrado):
+ * transições suaves entre grama, terra, asfalto e rocha. Repetição quebrada por variação macro.
+ */
+function groundMaterial(map: MapData, quality: 'low' | 'high', disposables: { dispose: () => void }[]): THREE.MeshStandardMaterial {
+  const data = new Uint8Array(map.width * map.height * 4);
+  for (let i = 0; i < map.width * map.height; i++) data.set(SPLAT[map.terrain[i] ?? Terrain.Plains], i * 4);
+  const splat = new THREE.DataTexture(data, map.width, map.height, THREE.RGBAFormat);
+  splat.magFilter = THREE.LinearFilter;
+  splat.minFilter = THREE.LinearFilter;
+  splat.needsUpdate = true;
+  disposables.push(splat);
+  const size = quality === 'high' ? 512 : 256;
+  const tex = { uGrass: grassTexture(size), uDirt: dirtTexture(size), uAsphalt: asphaltTexture(size), uRock: rockTexture(size) };
+  const mat = withFog(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, envMapIntensity: 0.35 }));
+  const fogCompile = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader, renderer) => {
+    fogCompile.call(mat, shader, renderer);
+    shader.uniforms.uSplat = { value: splat };
+    shader.uniforms.uMapSize = { value: new THREE.Vector2(map.width * map.cellSize, map.height * map.cellSize) };
+    for (const [k, t] of Object.entries(tex)) shader.uniforms[k] = { value: t };
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nuniform sampler2D uSplat; uniform vec2 uMapSize; uniform sampler2D uGrass; uniform sampler2D uDirt; uniform sampler2D uAsphalt; uniform sampler2D uRock;',
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        vec4 sw = texture2D(uSplat, vFogXZ / uMapSize);
+        float sum = sw.r + sw.g + sw.b + sw.a + 1e-4;
+        vec2 tuv = vFogXZ * 0.12;
+        vec3 ground = texture2D(uGrass, tuv).rgb * sw.r
+          + texture2D(uDirt, tuv * 1.1).rgb * sw.g
+          + texture2D(uAsphalt, tuv * 0.8).rgb * sw.b
+          + texture2D(uRock, tuv * 0.7).rgb * sw.a;
+        ground /= sum;
+        // variação em grande escala para não denunciar a repetição
+        float macro = texture2D(uGrass, vFogXZ * 0.013 + 0.37).g;
+        diffuseColor.rgb = ground * vColor.rgb * (0.86 + 0.28 * macro);`,
+      );
+  };
+  mat.customProgramCacheKey = () => 'nc-ground-v1';
+  return mat;
+}
+
+/**
+ * Relevo além dos limites do mapa: planície que sobe em morros e montanhas, desaparecendo na
+ * neblina do horizonte. Só cenário — fora da área jogável.
+ */
+function buildSkirt(map: MapData, quality: 'low' | 'high', disposables: { dispose: () => void }[]): THREE.Mesh {
+  const W = map.width * map.cellSize;
+  const H = map.height * map.cellSize;
+  const ext = 260;
+  const seg = quality === 'high' ? 160 : 90;
+  const geo = new THREE.PlaneGeometry(W + ext * 2, H + ext * 2, seg, seg);
+  geo.rotateX(-Math.PI / 2);
+  geo.translate(W / 2, 0, H / 2);
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  const uv = geo.attributes.uv as THREE.BufferAttribute;
+  const colors = new Float32Array(pos.count * 3);
+  const rng = new Random(map.seed ^ 0x51ed);
+  const grid = Array.from({ length: 33 * 33 }, () => rng.next());
+  const n = (x: number, z: number) => {
+    const wrap = (v: number) => ((v % 32) + 32) % 32;
+    const gx = wrap(((x + ext) / (W + ext * 2)) * 32);
+    const gz = wrap(((z + ext) / (H + ext * 2)) * 32);
+    const x0 = Math.min(31, Math.floor(gx));
+    const z0 = Math.min(31, Math.floor(gz));
+    const tx = gx - x0;
+    const tz = gz - z0;
+    const v = (i: number, j: number) => grid[(z0 + j) * 33 + x0 + i]!;
+    return (v(0, 0) * (1 - tx) + v(1, 0) * tx) * (1 - tz) + (v(0, 1) * (1 - tx) + v(1, 1) * tx) * tz;
+  };
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const dx = Math.max(0, -x, x - W);
+    const dz = Math.max(0, -z, z - H);
+    const d = Math.hypot(dx, dz);
+    const rise = THREE.MathUtils.smoothstep(d, 6, 120);
+    const h = d <= 0.01 ? -1.2 : rise * (8 + 60 * n(x, z) * n(x * 1.7, z * 1.7)) + (n(x * 4, z * 4) - 0.5) * 1.5 * rise - 0.3;
+    pos.setY(i, h);
+    const rocky = THREE.MathUtils.smoothstep(h, 14, 32);
+    colors[i * 3] = 0.56 + rocky * 0.4;
+    colors[i * 3 + 1] = 0.6 + rocky * 0.3;
+    colors[i * 3 + 2] = 0.48 + rocky * 0.44;
+    uv.setXY(i, x * 0.05, z * 0.05);
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, map: grassTexture(quality === 'high' ? 512 : 256), roughness: 1, metalness: 0, envMapIntensity: 0.3 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.receiveShadow = true;
+  disposables.push(geo, mat);
+  return mesh;
+}
 
 export const MINIMAP_COLORS: Record<Terrain, string> = {
   [Terrain.Plains]: '#5d7740',
@@ -32,37 +144,6 @@ const NATURE_URL = '/assets/models/nature/';
 const TREE_MODELS = ['TreeMed001', 'TreeMed002', 'TreeMed003', 'TreeLow001', 'TreeLow002', 'TreeLow003', 'TreeLow004'];
 const ROCK_MODELS = ['Rock001', 'Rock002', 'Rock003', 'Cliff001', 'Cliff002', 'Cliff003'];
 const BUSH_MODELS = ['Bush001', 'Bush002'];
-
-/** Textura de detalhe (ruído) que dá granulação ao solo; multiplicada pelas cores de vértice. */
-function detailTexture(seed: number): THREE.CanvasTexture {
-  const size = 128;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-  const rng = new Random(seed);
-  const img = ctx.createImageData(size, size);
-  for (let i = 0; i < size * size; i++) {
-    const v = 228 + Math.floor(rng.next() * 27);
-    img.data[i * 4] = v;
-    img.data[i * 4 + 1] = v;
-    img.data[i * 4 + 2] = v;
-    img.data[i * 4 + 3] = 255;
-  }
-  ctx.putImageData(img, 0, 0);
-  // manchas maiores
-  for (let i = 0; i < 60; i++) {
-    ctx.fillStyle = `rgba(${rng.next() < 0.5 ? '255,255,255' : '0,0,0'},${0.015 + rng.next() * 0.025})`;
-    ctx.beginPath();
-    ctx.arc(rng.next() * size, rng.next() * size, 4 + rng.next() * 14, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
 
 export interface TerrainHandle {
   group: THREE.Group;
@@ -117,16 +198,16 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high'): TerrainHand
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geo.computeVertexNormals();
-  const detail = detailTexture(map.seed);
-  const groundMat = withFog(new THREE.MeshStandardMaterial({ vertexColors: true, map: detail, roughness: 0.95, metalness: 0 }));
+  const groundMat = groundMaterial(map, quality, disposables);
   const ground = new THREE.Mesh(geo, groundMat);
   ground.receiveShadow = true;
   ground.name = 'ground';
   group.add(ground);
-  disposables.push(geo, groundMat, detail);
+  disposables.push(geo, groundMat);
+  group.add(buildSkirt(map, quality, disposables));
 
   const waterGeo = new THREE.PlaneGeometry(W, H);
-  const waterMat = withFog(new THREE.MeshStandardMaterial({ color: '#2f6f86', transparent: true, opacity: 0.78, roughness: 0.12, metalness: 0.35 }));
+  const waterMat = withFog(new THREE.MeshStandardMaterial({ color: '#2c5463', transparent: true, opacity: 0.82, roughness: 0.08, metalness: 0.1, envMapIntensity: 1.2 }));
   const water = new THREE.Mesh(waterGeo, waterMat);
   water.rotation.x = -Math.PI / 2;
   water.position.set(W / 2, -0.25, H / 2);

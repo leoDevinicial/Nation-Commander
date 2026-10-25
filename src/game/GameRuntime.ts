@@ -12,7 +12,7 @@ import { CameraController } from './render/CameraController.ts';
 import { Effects } from './render/Effects.ts';
 import { disposeSharedResources, mat } from './render/palette.ts';
 import { buildTerrain, type TerrainHandle } from './render/TerrainFactory.ts';
-import { disposeMaterials, fogUniforms } from './render/materials.ts';
+import { disposeMaterials, fogUniforms, weatherUniforms } from './render/materials.ts';
 import { disposeBuildingModels } from './render/models/buildingModels.ts';
 import { disposeUnitModels } from './render/models/unitModels.ts';
 import { chooseClaims, claimedBy, gatherRate, sitesByDeposit } from '../../shared/sim/gathering.ts';
@@ -20,6 +20,8 @@ import { findDeposits, type DepositIndex } from '../../shared/sim/deposits.ts';
 import { decodeTerritory } from '../../shared/sim/territory.ts';
 import { Terrain as T } from '../../shared/sim/config.ts';
 import { TerritoryLayer } from './render/TerritoryLayer.ts';
+import { createSky, environmentFromSky, SKY } from './render/Sky.ts';
+import { disposeTextures, grimeTexture, windowTexture } from './render/textures.ts';
 import { UnitVisual } from './render/UnitVisuals.ts';
 import { describeEvent } from './eventText.ts';
 import type { GraphicsProfile } from '../lib/graphics.ts';
@@ -104,6 +106,7 @@ export class GameRuntime {
   private lastSelectionCount = 0;
   private readonly canControlSpeed: boolean;
   private terrain!: TerrainHandle;
+  private sky!: THREE.Mesh;
   /** Névoa de guerra local: 0 inexplorado, 1 explorado, 2 visível (por célula). */
   private readonly fogState: Uint8Array;
   private readonly fogTexture: THREE.DataTexture;
@@ -216,12 +219,17 @@ export class GameRuntime {
   // ------------------------------------------------------------ cena
 
   private setupScene(W: number, H: number): void {
-    const sky = new THREE.Color('#9fb7c9');
-    this.scene.background = sky;
-    this.scene.fog = new THREE.Fog(sky, 120, 260);
-    this.scene.add(new THREE.HemisphereLight('#dfe9f3', '#4a4a3a', 1.1));
-    const sun = new THREE.DirectionalLight('#fff1d6', 2.2);
-    sun.position.set(W * 0.2, 90, H * 0.1);
+    // céu com nuvens, neblina de distância no tom do horizonte e reflexos vindos do céu
+    this.sky = createSky(480);
+    this.scene.add(this.sky);
+    this.scene.background = SKY.haze;
+    this.scene.fog = new THREE.Fog(SKY.haze, 150, 470);
+    this.scene.environment = environmentFromSky(this.renderer);
+    weatherUniforms.uGrime.value = grimeTexture(this.opts.profile.terrain === 'high' ? 512 : 256);
+    weatherUniforms.uPanes.value = windowTexture();
+    this.scene.add(new THREE.HemisphereLight('#c9dcec', '#5b5340', 0.85));
+    const sun = new THREE.DirectionalLight(SKY.sunColor, 2.6);
+    sun.position.set(W / 2 + SKY.sunDir.x * 120, SKY.sunDir.y * 120, H / 2 + SKY.sunDir.z * 120);
     sun.target.position.set(W / 2, 0, H / 2);
     sun.castShadow = this.opts.shadows;
     sun.shadow.mapSize.set(this.opts.profile.shadowMapSize, this.opts.profile.shadowMapSize);
@@ -238,14 +246,6 @@ export class GameRuntime {
     this.scene.add(this.terrain.group);
     // modelos do Nature Kit chegam depois; até lá, vegetação procedural
     this.terrain.upgrade().catch((err: unknown) => console.warn('Nature Kit indisponível', err));
-    // borda do mapa
-    const border = new THREE.Mesh(
-      new THREE.PlaneGeometry(W * 4, H * 4),
-      new THREE.MeshStandardMaterial({ color: '#3d4a33', roughness: 1 }),
-    );
-    border.rotation.x = -Math.PI / 2;
-    border.position.set(W / 2, -0.8, H / 2);
-    this.scene.add(border);
   }
 
   // ------------------------------------------------------------ snapshots
@@ -317,6 +317,7 @@ export class GameRuntime {
           cellSize: this.map.cellSize,
           mapWidth: this.map.width,
           claims: b.claims,
+          effects: this.opts.profile.maxEffects > 60,
         });
         this.scene.add(visual.group, visual.rallyObject);
         t = { visual, snap: b };
@@ -423,7 +424,11 @@ export class GameRuntime {
       t.visual.update(dt, t.snap.progress, frac, selected || frac < 0.999 || t.snap.progress < 1, this.camera, rally, selected && t.snap.owner === this.mySlot);
     }
     this.effects.update(dt);
-    if (!this.suspended) this.renderer.render(this.scene, this.camera);
+    if (!this.suspended) {
+      this.sky.position.copy(this.camera.position);
+      (this.sky.material as THREE.ShaderMaterial).uniforms.uTime!.value = now / 1000;
+      this.renderer.render(this.scene, this.camera);
+    }
 
     this.frames++;
     if (now - this.fpsTime >= 1000) {
@@ -1141,6 +1146,10 @@ export class GameRuntime {
     disposeUnitModels();
     disposeBuildingModels();
     disposeMaterials();
+    disposeTextures();
+    weatherUniforms.uGrime.value = null;
+    weatherUniforms.uPanes.value = null;
+    this.scene.environment?.dispose();
     this.terrain.dispose();
     this.territoryLayer.dispose();
     this.fogTexture.dispose();

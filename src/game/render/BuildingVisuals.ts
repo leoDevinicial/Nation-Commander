@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { BUILDINGS, type BuildingType } from '../../../shared/sim/config.ts';
 import { HealthBar, selectionRing } from './HealthBar.ts';
 import { accentMaterial, bodyMaterial, glassMaterial, withFog } from './materials.ts';
+import { smokeTexture } from './textures.ts';
 import { buildingModel } from './models/buildingModels.ts';
 import { C, PartBuilder, type ModelLayers } from './models/kit.ts';
 import { box, cyl, mat, mesh, sharedMaterial } from './palette.ts';
@@ -28,6 +29,44 @@ export interface BuildingVisualOptions {
   mapWidth: number;
   /** Células de recurso reivindicadas (só para edifícios próprios de coleta). */
   claims?: number[];
+  /** Efeitos decorativos (fumaça) — desligados no preset Mobile/Baixo. */
+  effects?: boolean;
+}
+
+/** Fumaça contínua de chaminé: poucos sprites reciclados, subindo, crescendo e sumindo. */
+class Smoke {
+  readonly group = new THREE.Group();
+  private readonly puffs: { s: THREE.Sprite; phase: number; m: THREE.SpriteMaterial }[] = [];
+
+  constructor(tops: [number, number, number][]) {
+    for (const [x, y, z] of tops) {
+      for (let i = 0; i < 7; i++) {
+        const m = new THREE.SpriteMaterial({ map: smokeTexture(), color: '#8d8f90', transparent: true, depthWrite: false, opacity: 0 });
+        const sp = new THREE.Sprite(m);
+        sp.position.set(x, y, z);
+        sp.userData.origin = [x, y, z];
+        this.group.add(sp);
+        this.puffs.push({ s: sp, phase: i / 7, m });
+      }
+    }
+  }
+
+  update(dt: number): void {
+    for (const p of this.puffs) {
+      p.phase = (p.phase + dt * 0.16) % 1;
+      const t = p.phase;
+      const [x, y, z] = p.s.userData.origin as [number, number, number];
+      // sobe e é levada pelo vento, abrindo-se
+      p.s.position.set(x + t * 2.2, y + t * 3.2, z + t * 0.8);
+      const sc = 0.5 + t * 2.4;
+      p.s.scale.set(sc, sc, sc);
+      p.m.opacity = Math.sin(t * Math.PI) * 0.55;
+    }
+  }
+
+  dispose(): void {
+    for (const p of this.puffs) p.m.dispose();
+  }
 }
 
 export class BuildingVisual {
@@ -40,6 +79,7 @@ export class BuildingVisual {
   private moving: THREE.Group | null = null;
   private movingKind: 'spin' | 'rock' | 'saw' | null = null;
   private fields: THREE.Mesh | null = null;
+  private smoke: Smoke | null = null;
   private t = Math.random() * 10;
   remembered = false;
 
@@ -61,6 +101,10 @@ export class BuildingVisual {
       for (const m of layerMeshes(def.moving.layers, owner)) this.moving.add(m);
       this.model.add(this.moving);
       this.movingKind = def.moving.kind;
+    }
+    if (def.smoke && opts.effects) {
+      this.smoke = new Smoke(def.smoke);
+      this.model.add(this.smoke.group);
     }
     if (opts.claims?.length) this.fields = buildClaimMarkers(type, opts, this.group.position);
     if (this.fields) this.group.add(this.fields);
@@ -89,6 +133,10 @@ export class BuildingVisual {
     this.scaffold.visible = !done;
     this.model.scale.y = done ? 1 : 0.12 + progress * 0.88;
     if (this.fields) this.fields.visible = done;
+    if (this.smoke) {
+      this.smoke.group.visible = done && !this.remembered;
+      if (this.smoke.group.visible) this.smoke.update(dt);
+    }
     if (done && this.moving && !this.remembered) {
       if (this.movingKind === 'spin') this.moving.rotation.y += dt * 0.7;
       else if (this.movingKind === 'rock') this.moving.rotation.z = Math.sin(this.t * 2.2) * 0.32;
@@ -103,6 +151,7 @@ export class BuildingVisual {
 
   dispose(): void {
     this.hp.dispose();
+    this.smoke?.dispose();
     this.fields?.geometry.dispose();
     this.rally.removeFromParent();
     this.group.removeFromParent();
