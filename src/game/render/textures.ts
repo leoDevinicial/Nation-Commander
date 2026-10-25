@@ -288,6 +288,41 @@ export function smokeTexture(): THREE.Texture {
 }
 
 /**
+ * Fumaça volumétrica (Ultra): nuvem com volume em ruído fractal, borda irregular e sombreamento
+ * próprio — clara do lado do sol (alto/esquerda) e escura embaixo, como fumaça densa real.
+ */
+export function volumetricSmokeTexture(): THREE.Texture {
+  return cached('smoke-vol', () => {
+    const size = 128;
+    const [canvas, ctx] = canvasOf(size);
+    const n = tileableFbm(size, 4, 5, 71);
+    const img = ctx.createImageData(size, size);
+    for (let y = 0; y < size; y++)
+      for (let x = 0; x < size; x++) {
+        const i = y * size + x;
+        const dx = (x - size / 2) / (size / 2);
+        const dy = (y - size / 2) / (size / 2);
+        const r = Math.hypot(dx, dy);
+        const density = Math.max(0, n[i]! * 1.35 - 0.2 - r * r * 0.95);
+        // luz vinda de cima à esquerda: amostra a densidade deslocada em direção ao sol
+        const sx = Math.min(size - 1, Math.max(0, x - 6));
+        const sy = Math.min(size - 1, Math.max(0, y - 8));
+        const occl = Math.max(0, n[sy * size + sx]! * 1.35 - 0.2 - r * r * 0.95);
+        const light = 0.62 + 0.38 * Math.max(0, 1 - occl * 1.4) - dy * 0.12;
+        const v = Math.round(Math.min(1, light) * 255);
+        img.data[i * 4] = v;
+        img.data[i * 4 + 1] = v;
+        img.data[i * 4 + 2] = v;
+        img.data[i * 4 + 3] = Math.round(Math.min(1, density * 1.6) * 255);
+      }
+    ctx.putImageData(img, 0, 0);
+    const t = new THREE.CanvasTexture(canvas);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  });
+}
+
+/**
  * Janelas industriais: caixilhos escuros em grade, vidros com reflexo variado, alguns
  * sujos ou quebrados. Multiplicado sobre o material de vidro (aplicação triplanar).
  */

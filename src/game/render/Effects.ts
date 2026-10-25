@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { volumetricSmokeTexture } from './textures.ts';
 
 interface Effect {
   obj: THREE.Object3D;
@@ -32,6 +33,8 @@ export class Effects {
     private readonly scene: THREE.Scene,
     maxItems: number,
     dynamicLights = 0,
+    /** Ultra: fumaça de explosão volumétrica (várias partículas com volume e giro). */
+    private readonly volumetricSmoke = false,
   ) {
     this.maxItems = maxItems;
     for (let i = 0; i < dynamicLights; i++) {
@@ -97,6 +100,31 @@ export class Effects {
       fire.opacity = 1 - t;
       fire.color.setRGB(1, 0.55 - t * 0.4, 0.2 - t * 0.2);
     }, () => fire.dispose());
+    if (this.volumetricSmoke) {
+      // coluna de fumaça: partículas que sobem, abrem e escurecem/clareiam, cada uma com giro próprio
+      const n = big ? 9 : 5;
+      for (let i = 0; i < n; i++) {
+        const m = new THREE.SpriteMaterial({ map: volumetricSmokeTexture(), color: '#3c3a37', transparent: true, depthWrite: false, opacity: 0 });
+        const sp = new THREE.Sprite(m);
+        const ox = (Math.random() - 0.5) * (big ? 1.6 : 0.8);
+        const oz = (Math.random() - 0.5) * (big ? 1.6 : 0.8);
+        const spin = (Math.random() - 0.5) * 1.2;
+        const rise = (big ? 5 : 2.6) * (0.7 + Math.random() * 0.6);
+        const sz = (big ? 2.2 : 1.1) * (0.8 + Math.random() * 0.5);
+        const delay = (i / n) * 0.25;
+        sp.position.copy(at);
+        this.add(sp, big ? 4 : 2.4, (t) => {
+          const k = Math.max(0, (t - delay) / (1 - delay));
+          sp.position.set(at.x + ox * (1 + k) + k * k * 1.5, at.y + 0.6 + Math.sqrt(k) * rise, at.z + oz * (1 + k));
+          sp.scale.setScalar(sz * (0.5 + k * 1.8));
+          m.rotation += spin * 0.016;
+          const c = 0.22 + k * 0.3;
+          m.color.setRGB(c, c * 0.98, c * 0.95);
+          m.opacity = Math.min(1, k * 10) * Math.pow(1 - k, 1.4) * 0.8;
+        }, () => m.dispose());
+      }
+      return;
+    }
     const smoke = new THREE.MeshStandardMaterial({ color: '#6b6a66', transparent: true, depthWrite: false, roughness: 1 });
     const puff = new THREE.Mesh(this.sphereGeo, smoke);
     const smokeSize = big ? 1.6 : 0.7;

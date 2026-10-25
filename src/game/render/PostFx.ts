@@ -3,17 +3,28 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { hideNonSolid, LightShaftsPass, LocalExposurePass } from './UltraPasses.ts';
 
 /**
  * Oclusão de ambiente em espaço de tela (GTAO): escurece cantos, encontros com o chão e frestas,
  * o que "assenta" os modelos low-poly no terreno como numa foto. Só no preset Alto — custa uma
  * passada extra de profundidade/normais por quadro.
+ * No Ultra, entram também os feixes de luz do sol e a exposição local (ver `UltraPasses.ts`).
  */
+export interface PostFxUltra {
+  sun: THREE.DirectionalLight;
+  sunDir: THREE.Vector3;
+  sunColor: THREE.Color;
+  sunDepthSize: number;
+}
+
 export class PostFx {
   private readonly composer: EffectComposer;
   private readonly ao: GTAOPass;
 
-  constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
+  private readonly extra: { dispose: () => void }[] = [];
+
+  constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, ultra: PostFxUltra | null = null) {
     const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
     this.composer = new EffectComposer(renderer, target);
     this.composer.addPass(new RenderPass(scene, camera));
@@ -23,6 +34,14 @@ export class PostFx {
     this.ao.blendIntensity = 1;
     excludeOverlaysFromAo(this.ao, scene);
     this.composer.addPass(this.ao);
+    if (ultra) {
+      const ao = this.ao;
+      const shafts = new LightShaftsPass(scene, camera, ultra.sun, () => ao.depthTexture ?? null, ultra.sunDir, ultra.sunColor, ultra.sunDepthSize);
+      const local = new LocalExposurePass();
+      this.composer.addPass(shafts);
+      this.composer.addPass(local);
+      this.extra.push(shafts, local);
+    }
     this.composer.addPass(new OutputPass());
   }
 
@@ -36,6 +55,7 @@ export class PostFx {
   }
 
   dispose(): void {
+    for (const p of this.extra) p.dispose();
     this.ao.dispose();
     this.composer.dispose();
   }
@@ -48,17 +68,5 @@ export class PostFx {
  */
 function excludeOverlaysFromAo(pass: GTAOPass, scene: THREE.Scene): void {
   const internal = pass as unknown as { _overrideVisibility: () => void; _visibilityCache: THREE.Object3D[] };
-  internal._overrideVisibility = () => {
-    const cache = internal._visibilityCache;
-    scene.traverse((o) => {
-      if (!o.visible) return;
-      const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
-      const overlay = !!m && !Array.isArray(m) && m.transparent && !m.depthWrite;
-      const flag = o as unknown as { isPoints?: boolean; isLine?: boolean; isSprite?: boolean };
-      if (overlay || flag.isPoints || flag.isLine || flag.isSprite) {
-        o.visible = false;
-        cache.push(o);
-      }
-    });
-  };
+  internal._overrideVisibility = () => hideNonSolid(scene, internal._visibilityCache);
 }

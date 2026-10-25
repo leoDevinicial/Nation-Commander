@@ -7,6 +7,8 @@ const PRESET_DESC = {
   low: 'Resolução nativa, sem sombras nem antisserrilhado, menos vegetação e efeitos; globo sem nuvens a 30 qps. Indicado para celulares.',
   balanced: 'Sombras leves, antisserrilhado e vegetação completa com resolução moderada.',
   high: 'Resolução até 2×, sombras detalhadas e mais efeitos simultâneos. Para computadores com GPU dedicada.',
+  ultra:
+    'Tudo do Alto, mais modelos arredondados e detalhados, água com ondas e espuma, fumaça volumétrica, feixes de luz do sol e luz que se adapta às áreas em sombra. Para GPUs dedicadas recentes.',
 } as const;
 
 export function SettingsScreen() {
@@ -17,7 +19,7 @@ export function SettingsScreen() {
       <div className="space-y-4 text-sm">
         <fieldset>
           <legend className="label">Qualidade gráfica</legend>
-          <div className="grid grid-cols-3 gap-2" role="radiogroup">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup">
             {GRAPHICS_PRESETS.map((q) => (
               <button key={q} role="radio" aria-checked={s.quality === q} className={`btn px-2 ${s.quality === q ? 'btn-primary' : ''}`} onClick={() => s.update({ quality: q })}>
                 {PRESET_LABELS[q]}

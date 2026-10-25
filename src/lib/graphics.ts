@@ -2,14 +2,15 @@
  * Presets gráficos. Controlam apenas custo de renderização (resolução, sombras, efeitos,
  * vegetação, camadas decorativas do globo) — nunca regras ou resultados da simulação.
  */
-export type GraphicsPreset = 'low' | 'balanced' | 'high';
+export type GraphicsPreset = 'low' | 'balanced' | 'high' | 'ultra';
 
-export const GRAPHICS_PRESETS: readonly GraphicsPreset[] = ['low', 'balanced', 'high'];
+export const GRAPHICS_PRESETS: readonly GraphicsPreset[] = ['low', 'balanced', 'high', 'ultra'];
 
 export const PRESET_LABELS: Record<GraphicsPreset, string> = {
   low: 'Mobile/Baixo',
   balanced: 'Equilibrado',
   high: 'Alto',
+  ultra: 'Ultra',
 };
 
 export interface GraphicsProfile {
@@ -33,6 +34,12 @@ export interface GraphicsProfile {
   dynamicLights: number;
   /** Mapa de ambiente atualizado com o cenário ao redor da câmera. */
   envProbe: boolean;
+  /**
+   * Recursos só do Ultra (placas de vídeo dedicadas): modelos arredondados e com mais segmentos,
+   * água com ondas físicas e espuma, fumaça volumétrica, feixes de luz do sol na névoa e
+   * exposição local que clareia regiões em sombra.
+   */
+  ultra: boolean;
   /** Globo do menu. */
   globe: { textureWidth: number; clouds: boolean; stars: number; maxFps: number };
 }
@@ -50,6 +57,7 @@ export const PROFILES: Record<GraphicsPreset, GraphicsProfile> = {
     adaptiveExposure: false,
     dynamicLights: 0,
     envProbe: false,
+    ultra: false,
     globe: { textureWidth: 1024, clouds: false, stars: 400, maxFps: 30 },
   },
   balanced: {
@@ -64,6 +72,7 @@ export const PROFILES: Record<GraphicsPreset, GraphicsProfile> = {
     adaptiveExposure: true,
     dynamicLights: 2,
     envProbe: false,
+    ultra: false,
     globe: { textureWidth: 2048, clouds: true, stars: 1200, maxFps: 60 },
   },
   high: {
@@ -78,7 +87,23 @@ export const PROFILES: Record<GraphicsPreset, GraphicsProfile> = {
     adaptiveExposure: true,
     dynamicLights: 4,
     envProbe: true,
+    ultra: false,
     globe: { textureWidth: 4096, clouds: true, stars: 2000, maxFps: 60 },
+  },
+  ultra: {
+    pixelRatioCap: 2,
+    antialias: true,
+    shadows: true,
+    shadowMapSize: 4096,
+    terrain: 'high',
+    maxEffects: 220,
+    ao: true,
+    reflections: 'planar',
+    adaptiveExposure: true,
+    dynamicLights: 6,
+    envProbe: true,
+    ultra: true,
+    globe: { textureWidth: 4096, clouds: true, stars: 2400, maxFps: 60 },
   },
 };
 

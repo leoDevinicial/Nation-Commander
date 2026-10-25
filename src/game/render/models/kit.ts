@@ -1,5 +1,22 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+
+/**
+ * Nível de detalhe dos modelos. No Ultra, caixas ganham arestas arredondadas (que pegam luz como
+ * concreto e chapa reais) e cilindros/esferas têm o dobro de segmentos — menos "tudo quadrado".
+ * Definido antes de os modelos serem montados (os caches são limpos ao fim de cada partida).
+ */
+export type ModelDetail = 'standard' | 'ultra';
+let detail: ModelDetail = 'standard';
+export function setModelDetail(d: ModelDetail): void {
+  detail = d;
+}
+export function modelDetail(): ModelDetail {
+  return detail;
+}
+/** Peças menores que isto continuam com quinas vivas (economia de vértices sem perda visível). */
+const ROUND_MIN = 0.08;
 
 type V3 = [number, number, number];
 
@@ -45,15 +62,19 @@ export class PartBuilder {
   }
 
   box(w: number, h: number, d: number, color: THREE.ColorRepresentation, pos: V3, rot?: V3): this {
-    return this.add(new THREE.BoxGeometry(w, h, d), color, { pos, rot });
+    const m = Math.min(w, h, d);
+    const geo = detail === 'ultra' && m >= ROUND_MIN ? new RoundedBoxGeometry(w, h, d, 1, Math.min(0.06, m * 0.18)) : new THREE.BoxGeometry(w, h, d);
+    return this.add(geo, color, { pos, rot });
   }
 
   cyl(rTop: number, rBottom: number, h: number, color: THREE.ColorRepresentation, pos: V3, rot?: V3, segments = 10): this {
-    return this.add(new THREE.CylinderGeometry(rTop, rBottom, h, segments), color, { pos, rot });
+    const seg = detail === 'ultra' ? Math.min(32, segments * 2) : segments;
+    return this.add(new THREE.CylinderGeometry(rTop, rBottom, h, seg), color, { pos, rot });
   }
 
   sphere(r: number, color: THREE.ColorRepresentation, pos: V3, scale?: V3, segments = 8): this {
-    return this.add(new THREE.SphereGeometry(r, segments, Math.max(4, segments - 2)), color, { pos, scale });
+    const seg = detail === 'ultra' ? Math.min(24, segments * 2) : segments;
+    return this.add(new THREE.SphereGeometry(r, seg, Math.max(4, seg - 2)), color, { pos, scale });
   }
 
   /** Perfil lateral (x, y) extrudado ao longo de z, centrado em z = 0. */

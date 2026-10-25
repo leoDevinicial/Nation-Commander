@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BUILDINGS, type BuildingType } from '../../../shared/sim/config.ts';
 import { HealthBar, selectionRing } from './HealthBar.ts';
 import { accentMaterial, bodyMaterial, glassMaterial, withFog } from './materials.ts';
-import { smokeTexture } from './textures.ts';
+import { smokeTexture, volumetricSmokeTexture } from './textures.ts';
 import { buildingModel } from './models/buildingModels.ts';
 import { C, PartBuilder, type ModelLayers } from './models/kit.ts';
 import { box, cyl, mat, mesh, sharedMaterial } from './palette.ts';
@@ -31,36 +31,63 @@ export interface BuildingVisualOptions {
   claims?: number[];
   /** Efeitos decorativos (fumaça) — desligados no preset Mobile/Baixo. */
   effects?: boolean;
+  /** Ultra: fumaça volumétrica. */
+  ultra?: boolean;
 }
 
 /** Fumaça contínua de chaminé: poucos sprites reciclados, subindo, crescendo e sumindo. */
 class Smoke {
   readonly group = new THREE.Group();
-  private readonly puffs: { s: THREE.Sprite; phase: number; m: THREE.SpriteMaterial }[] = [];
+  private readonly puffs: { s: THREE.Sprite; phase: number; m: THREE.SpriteMaterial; spin: number; seed: number }[] = [];
 
-  constructor(tops: [number, number, number][]) {
+  /** `volumetric` (Ultra): mais partículas, textura com volume, giro e turbulência. */
+  constructor(
+    tops: [number, number, number][],
+    private readonly volumetric = false,
+  ) {
+    const count = volumetric ? 16 : 7;
     for (const [x, y, z] of tops) {
-      for (let i = 0; i < 7; i++) {
-        const m = new THREE.SpriteMaterial({ map: smokeTexture(), color: '#8d8f90', transparent: true, depthWrite: false, opacity: 0 });
+      for (let i = 0; i < count; i++) {
+        const m = new THREE.SpriteMaterial({
+          map: volumetric ? volumetricSmokeTexture() : smokeTexture(),
+          color: '#8d8f90',
+          transparent: true,
+          depthWrite: false,
+          opacity: 0,
+        });
         const sp = new THREE.Sprite(m);
         sp.position.set(x, y, z);
         sp.userData.origin = [x, y, z];
         this.group.add(sp);
-        this.puffs.push({ s: sp, phase: i / 7, m });
+        this.puffs.push({ s: sp, phase: i / count, m, spin: (Math.random() - 0.5) * 0.6, seed: Math.random() * 10 });
       }
     }
   }
 
   update(dt: number): void {
     for (const p of this.puffs) {
-      p.phase = (p.phase + dt * 0.16) % 1;
+      p.phase = (p.phase + dt * (this.volumetric ? 0.11 : 0.16)) % 1;
       const t = p.phase;
       const [x, y, z] = p.s.userData.origin as [number, number, number];
-      // sobe e é levada pelo vento, abrindo-se
-      p.s.position.set(x + t * 2.2, y + t * 3.2, z + t * 0.8);
-      const sc = 0.5 + t * 2.4;
-      p.s.scale.set(sc, sc, sc);
-      p.m.opacity = Math.sin(t * Math.PI) * 0.55;
+      if (this.volumetric) {
+        // pluma: sobe rápido na saída e é dobrada pelo vento (deriva cresce com t^1,6), com turbulência
+        const drift = Math.pow(t, 1.6);
+        const turb = Math.sin(t * 9 + p.seed) * 0.25 * t;
+        p.s.position.set(x + drift * 4.5 + turb, y + Math.sqrt(t) * 4.2, z + drift * 1.6 + Math.cos(t * 7 + p.seed) * 0.2 * t);
+        const sc = 0.45 + Math.pow(t, 0.8) * 4.2;
+        p.s.scale.set(sc, sc, sc);
+        p.m.rotation += p.spin * dt;
+        // sai escura e quente, clareia e se dissipa
+        const c = 0.38 + t * 0.32;
+        p.m.color.setRGB(c, c * 0.99, c * 0.97);
+        p.m.opacity = Math.min(1, t * 8) * Math.pow(1 - t, 1.3) * 0.85;
+      } else {
+        // sobe e é levada pelo vento, abrindo-se
+        p.s.position.set(x + t * 2.2, y + t * 3.2, z + t * 0.8);
+        const sc = 0.5 + t * 2.4;
+        p.s.scale.set(sc, sc, sc);
+        p.m.opacity = Math.sin(t * Math.PI) * 0.55;
+      }
     }
   }
 
@@ -103,7 +130,7 @@ export class BuildingVisual {
       this.movingKind = def.moving.kind;
     }
     if (def.smoke && opts.effects) {
-      this.smoke = new Smoke(def.smoke);
+      this.smoke = new Smoke(def.smoke, opts.ultra === true);
       this.model.add(this.smoke.group);
     }
     if (opts.claims?.length) this.fields = buildClaimMarkers(type, opts, this.group.position);

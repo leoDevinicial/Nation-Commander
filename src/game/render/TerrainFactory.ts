@@ -4,7 +4,7 @@ import { Terrain } from '../../../shared/sim/config.ts';
 import { Random } from '../../../shared/sim/Random.ts';
 import type { MapData } from '../../../shared/sim/types.ts';
 import { withFog } from './materials.ts';
-import { createWater, type WaterReflection } from './Water.ts';
+import { createWater, shoreDistance, type WaterReflection } from './Water.ts';
 import { asphaltTexture, dirtTexture, grassTexture, rockTexture } from './textures.ts';
 import { C, PartBuilder } from './models/kit.ts';
 
@@ -161,7 +161,7 @@ export interface TerrainHandle {
  * Representação visual do mapa. A simulação é 2D plana; a altura aqui é decorativa e baixa nas
  * áreas passáveis para que unidades e terreno continuem alinhados.
  */
-export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: WaterReflection = 'sky'): TerrainHandle {
+export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: WaterReflection = 'sky', ultra = false): TerrainHandle {
   const group = new THREE.Group();
   group.name = 'terrain';
   const W = map.width * map.cellSize;
@@ -211,7 +211,15 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
   disposables.push(geo, groundMat);
   group.add(buildSkirt(map, quality, disposables));
 
-  const water = createWater(W, H, reflection);
+  let shore: THREE.DataTexture | null = null;
+  if (ultra) {
+    shore = new THREE.DataTexture(shoreDistance(map.width, map.height, (i) => map.terrain[i] === Terrain.Water), map.width, map.height, THREE.RedFormat);
+    shore.magFilter = THREE.LinearFilter;
+    shore.minFilter = THREE.LinearFilter;
+    shore.needsUpdate = true;
+    disposables.push(shore);
+  }
+  const water = createWater(W, H, reflection, { waves: ultra, shore });
   group.add(water.mesh);
   disposables.push(water);
 
@@ -287,7 +295,8 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
         geo.computeBoundingBox();
         const height = geo.boundingBox!.max.y - geo.boundingBox!.min.y;
         const mat = withFog((mesh.material as THREE.Material).clone(), { weather });
-        if ('flatShading' in mat) (mat as THREE.MeshStandardMaterial).flatShading = true;
+        // Ultra: sombreamento suave (copas e rochas sem facetas marcadas)
+        if ('flatShading' in mat) (mat as THREE.MeshStandardMaterial).flatShading = !ultra;
         return { geo, mat, height };
       } catch {
         return null;

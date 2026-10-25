@@ -15,6 +15,7 @@ import { buildTerrain, type TerrainHandle } from './render/TerrainFactory.ts';
 import { disposeMaterials, fogUniforms, weatherUniforms } from './render/materials.ts';
 import { disposeBuildingModels } from './render/models/buildingModels.ts';
 import { disposeCitizenModel, disposeUnitModels } from './render/models/unitModels.ts';
+import { setModelDetail } from './render/models/kit.ts';
 import { chooseClaims, claimedBy, gatherRate, sitesByDeposit } from '../../shared/sim/gathering.ts';
 import { findDeposits, type DepositIndex } from '../../shared/sim/deposits.ts';
 import { decodeTerritory } from '../../shared/sim/territory.ts';
@@ -68,6 +69,7 @@ export class GameRuntime {
   readonly mySlot: number;
   private readonly renderer: THREE.WebGLRenderer;
   private postFx: PostFx | null = null;
+  private sun: THREE.DirectionalLight | null = null;
   private citizens!: CitizenLayer;
   private exposure: AdaptiveExposure | null = null;
   private probe: EnvironmentProbe | null = null;
@@ -148,6 +150,7 @@ export class GameRuntime {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.profile.pixelRatioCap));
     this.renderer.shadowMap.enabled = opts.shadows;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    setModelDetail(opts.profile.ultra ? 'ultra' : 'standard');
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
@@ -179,14 +182,20 @@ export class GameRuntime {
     fogUniforms.uFogMap.value = this.fogTexture;
     fogUniforms.uFogSize.value.set(W, H);
     this.setupScene(W, H);
-    if (opts.profile.ao) this.postFx = new PostFx(this.renderer, this.scene, this.camera);
+    if (opts.profile.ao)
+      this.postFx = new PostFx(
+        this.renderer,
+        this.scene,
+        this.camera,
+        opts.profile.ultra && this.sun ? { sun: this.sun, sunDir: SKY.sunDir, sunColor: SKY.sunColor, sunDepthSize: 1024 } : null,
+      );
     if (opts.profile.adaptiveExposure) this.exposure = new AdaptiveExposure(this.renderer, this.renderer.toneMappingExposure);
     if (opts.profile.envProbe) this.probe = new EnvironmentProbe(this.renderer, this.scene);
     this.territoryLayer = new TerritoryLayer(this.map.width, this.map.height, this.map.cellSize, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.territoryLayer.group);
     this.citizens = new CitizenLayer(this.map, this.mySlot, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.citizens.group);
-    this.effects = new Effects(this.scene, opts.profile.maxEffects, opts.profile.dynamicLights);
+    this.effects = new Effects(this.scene, opts.profile.maxEffects, opts.profile.dynamicLights, opts.profile.ultra);
 
     this.selectionBox = document.createElement('div');
     this.selectionBox.className = 'selection-box';
@@ -244,6 +253,7 @@ export class GameRuntime {
     weatherUniforms.uPanes.value = windowTexture();
     this.scene.add(new THREE.HemisphereLight('#c9dcec', '#5b5340', 0.85));
     const sun = new THREE.DirectionalLight(SKY.sunColor, 2.6);
+    this.sun = sun;
     sun.position.set(W / 2 + SKY.sunDir.x * 120, SKY.sunDir.y * 120, H / 2 + SKY.sunDir.z * 120);
     sun.target.position.set(W / 2, 0, H / 2);
     sun.castShadow = this.opts.shadows;
@@ -258,8 +268,10 @@ export class GameRuntime {
     // volume de sombra acompanha a câmera (mais nitidez onde o jogador olha)
     if (this.opts.shadows) this.shadowFollow = new ShadowFollow(sun, SKY.sunDir, Math.max(W, H) * 0.75);
     sun.shadow.bias = -0.0006;
+    // Ultra: penumbra mais suave (filtro PCF mais largo)
+    if (this.opts.profile.ultra) sun.shadow.radius = 2.5;
     this.scene.add(sun, sun.target);
-    this.terrain = buildTerrain(this.map, this.opts.profile.terrain, this.opts.profile.reflections);
+    this.terrain = buildTerrain(this.map, this.opts.profile.terrain, this.opts.profile.reflections, this.opts.profile.ultra);
     this.scene.add(this.terrain.group);
     // modelos do Nature Kit chegam depois; até lá, vegetação procedural
     this.terrain.upgrade().catch((err: unknown) => console.warn('Nature Kit indisponível', err));
@@ -335,6 +347,7 @@ export class GameRuntime {
           mapWidth: this.map.width,
           claims: b.claims,
           effects: this.opts.profile.maxEffects > 60,
+          ultra: this.opts.profile.ultra,
         });
         this.scene.add(visual.group, visual.rallyObject);
         t = { visual, snap: b };

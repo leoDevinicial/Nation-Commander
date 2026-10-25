@@ -81,3 +81,23 @@ Um único conjunto de ajustes, barato e igual em todos os presets, injetado no m
 
 Relação com a Fase 8A: a água ganhou reflexo e ondulação de superfície, mas ondas, margens e petróleo da 8A continuam
 pendentes.
+
+## Preset Ultra
+
+Para GPUs dedicadas recentes; nunca é escolhido automaticamente. Tudo do Alto, mais:
+
+| Recurso | Onde | Como funciona |
+|---|---|---|
+| Modelos menos quadrados | `models/kit.ts` (`setModelDetail`) | caixas com arestas arredondadas (`RoundedBoxGeometry`, raio até 6 cm), cilindros e esferas com o dobro de segmentos; peças < 0,08 mantêm quinas vivas para poupar vértices. Vegetação e rochas com sombreamento suave |
+| Água com ondas | `Water.ts` | malha subdividida (2 vértices por unidade) deslocada por 4 ondas de Gerstner; a frequência de cada onda segue a relação de dispersão de águas profundas ω = √(g·k), com g ajustado à escala (~3 m por unidade). Normais analíticas + ondulação fina por pixel; espelho real da cena distorcido pelas ondas |
+| Margem e espuma | `Water.ts` (`shoreDistance`) | distância de cada célula de água até a terra (busca em largura); água mais clara e transparente no raso, linha de arrebentação animada e espuma nas cristas maiores |
+| Fumaça volumétrica | `textures.ts` (`volumetricSmokeTexture`), `BuildingVisuals.ts`, `Effects.ts` | partículas com volume (ruído fractal) e sombreamento próprio, giro, turbulência, pluma dobrada pelo vento; sai escura e clareia ao subir. Chaminés com 16 partículas por saída; explosões com coluna de 5–9 partículas |
+| Feixes de luz do sol | `UltraPasses.ts` (`LightShaftsPass`) | espalhamento volumétrico numa camada de névoa baixa: 28 amostras por pixel ao longo do raio de visão, cada uma testada contra um mapa de profundidade visto do sol; trechos à sombra de prédios e árvores não espalham luz. Fase Henyey-Greenstein (g = 0,55) |
+| Luz adaptativa nas sombras | `UltraPasses.ts` (`LocalExposurePass`) | mede a luminância média por região (grade 64×36, suavizada) e clareia só as regiões escuras (ganho de até 1,5×, levemente azulado como a luz do céu), sem estourar o que está ao sol |
+| Sombras | `GameRuntime.ts` | mapa de 4096 px e filtro PCF mais largo (penumbra suave) |
+| Luzes dinâmicas | `Effects.ts` | 6 luzes de disparos e explosões |
+
+Limite honesto: a imagem de referência (base industrial com dezenas de tanques) é de um jogo AAA feito com modelos
+esculpidos e texturas fotográficas. Aqui os modelos são montados por código a partir de primitivas; o Ultra aproxima a
+iluminação, a água, a fumaça e o acabamento, mas não chega ao nível de detalhe de modelos feitos à mão por artistas.
+Testes: `src/test/ultra.test.ts`.
