@@ -7,6 +7,7 @@ import { parseClientMessage } from './messages.ts';
 import { RoomManager } from './RoomManager.ts';
 import type { MatchRecord } from './supabase.ts';
 import { PROTOCOL_VERSION } from '../shared/version.ts';
+import { PREPARATION_TICKS } from '../shared/sim/config.ts';
 
 function fakeConn() {
   const sent: ServerMessage[] = [];
@@ -266,14 +267,15 @@ describe('servidor de partidas', () => {
     room.advance();
     expect(a.last('cmd_rejected')?.reason).toMatch(/Sem estado de guerra|fora de visão/);
     let warTick = -1;
-    for (let i = 0; i < 20 * 600 && warTick < 0; i++) {
+    // período de preparo (12 min) + tempo para formar a primeira onda
+    for (let i = 0; i < 20 * 60 * 24 && warTick < 0; i++) {
       room.advance();
       if (room.national!.diplomacy.atWar(0, 1)) warTick = sim.tick;
       else expect(sim.players[1]!.stats.damageDealt).toBe(0);
     }
-    expect(warTick).toBeGreaterThan(0);
+    expect(warTick).toBeGreaterThanOrEqual(PREPARATION_TICKS);
     const msg = a.last('national')!;
     expect(msg.diplomacy.wars).toEqual([[0, 1]]);
     expect(msg.events.some((e) => e.type === 'diplomacy' && e.event.type === 'war_declared' && e.event.by === 1)).toBe(true);
-  }, 60_000);
+  }, 240_000);
 });

@@ -1,5 +1,5 @@
 import { GAME_SPEEDS } from '../../../shared/protocol.ts';
-import { POP_ABSOLUTE_CAP, RESOURCE_LABELS, RESOURCE_TYPES, STORAGE_LABEL, TICK_RATE } from '../../../shared/sim/config.ts';
+import { POP_ABSOLUTE_CAP, PREPARATION_TICKS, RESOURCE_LABELS, RESOURCE_TYPES, STORAGE_LABEL, TICK_RATE } from '../../../shared/sim/config.ts';
 import { ResourceIcon } from '../components/Resources.tsx';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { factionColor } from '../../game/render/palette.ts';
@@ -77,6 +77,16 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
           </span>
           <span className="font-mono">{formatDuration(Math.floor(tick / TICK_RATE))}</span>
         </div>
+        {tick < PREPARATION_TICKS && (
+          <div
+            className="flex shrink-0 items-center gap-1.5 text-emerald-300"
+            title="Período de preparo: os governos de IA não declaram guerra nem atacam. Use para montar a economia e as defesas."
+          >
+            <span aria-hidden>🛡</span>
+            <span className="hidden sm:inline">Preparo</span>
+            <span className="font-mono">{formatDuration(Math.ceil((PREPARATION_TICKS - tick) / TICK_RATE))}</span>
+          </div>
+        )}
         {date && (
           <div className="hidden shrink-0 items-center gap-2 lg:flex" title="Data do cenário (1 dia de jogo por segundo a 1×)">
             <span className="text-ink-400" aria-hidden>

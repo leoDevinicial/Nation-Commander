@@ -1,4 +1,4 @@
-import { BUILDINGS, CITIZEN, OIL_TANK_RANGE, POP_ABSOLUTE_CAP, RESOURCE_TYPES, TICK_RATE, UNITS, canAfford, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
+import { BUILDINGS, CITIZEN, OIL_TANK_RANGE, POP_ABSOLUTE_CAP, PREPARATION_TICKS, RESOURCE_TYPES, TICK_RATE, UNITS, canAfford, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
 import { claimableCells, claimedBy } from './gathering.ts';
 import type { Command } from './commands.ts';
 import type { Simulation } from './Simulation.ts';
@@ -7,8 +7,16 @@ import { DIPLO } from '../strategic/Diplomacy.ts';
 
 /** Com que frequência a IA reavalia a situação. */
 export const AI_THINK_TICKS = TICK_RATE;
-/** A IA não lança ofensivas antes deste momento (dá tempo ao jogador de se organizar). */
-export const AI_FIRST_ATTACK_TICK = TICK_RATE * 150;
+/** A IA não lança ofensivas antes do fim do período de preparo. */
+export const AI_FIRST_ATTACK_TICK = PREPARATION_TICKS;
+/** Intervalo mínimo entre ondas de ataque (tempo de jogo). */
+export const AI_WAVE_COOLDOWN_TICKS = TICK_RATE * 60 * 4;
+/** Tamanho máximo do exército durante o preparo (defesa da base), salvo se já estiver em guerra. */
+export const AI_PREP_GARRISON = 6;
+/** Primeira onda e crescimento por onda: a pressão sobe ao longo da partida. */
+export const AI_FIRST_WAVE = 12;
+const AI_WAVE_STEP = 3;
+const AI_MAX_WAVE = 24;
 
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
 
@@ -23,9 +31,10 @@ const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
  * pelo mesmo caminho do jogador humano.
  */
 export class TacticalAI {
-  private waveSize = 8;
+  private waveSize = AI_FIRST_WAVE;
   private produced = 0;
   private attacking = false;
+  private lastWaveTick = -Infinity;
   /** País contra o qual a IA quer declarar guerra (lido e processado pelo servidor). */
   wantsWarWith: Slot | null = null;
 
@@ -103,8 +112,11 @@ export class TacticalAI {
       cmds.push({ type: 'produce', buildingId: hq.id, unitType: 'citizen' });
     }
 
-    // --- produção militar: cada unidade precisa de um cidadão ocioso como tripulação
-    let crew = pop.idle;
+    // --- produção militar: cada unidade precisa de um cidadão ocioso como tripulação.
+    // No preparo (e sem guerra), só uma guarnição: os recursos vão para a economia.
+    const atWar = sim.players.some((p) => p.slot !== this.slot && !p.defeated && sim.hostile(this.slot, p.slot));
+    const preparing = sim.tick < AI_FIRST_ATTACK_TICK && !atWar;
+    let crew = preparing ? Math.min(pop.idle, Math.max(0, AI_PREP_GARRISON - army.length - pop.queuedMilitary)) : pop.idle;
     const factoryMix: UnitType[] = ['tank', 'apc', 'tank', 'artillery'];
     for (const b of mine) {
       if (b.progress < 1 || b.queue.length > 0 || crew <= 0 || b.workers === 0) continue;
@@ -128,7 +140,8 @@ export class TacticalAI {
 
     // --- ataque em ondas
     const idle = army.filter((u) => u.order.kind === 'idle' && u.engageId === null);
-    if (!this.attacking && idle.length >= this.waveSize && sim.tick >= AI_FIRST_ATTACK_TICK) {
+    const ready = sim.tick >= AI_FIRST_ATTACK_TICK && sim.tick - this.lastWaveTick >= AI_WAVE_COOLDOWN_TICKS;
+    if (!this.attacking && idle.length >= this.waveSize && ready) {
       const objective = this.enemyObjective(sim);
       // sem guerra formal não há ofensiva: pede a declaração e espera
       if (objective && !sim.hostile(this.slot, objective.slot)) this.wantsWarWith = objective.slot;
@@ -136,7 +149,8 @@ export class TacticalAI {
       if (target) {
         cmds.push({ type: 'attack_move', unitIds: idle.map((u) => u.id), x: target.x, y: target.y });
         this.attacking = true;
-        this.waveSize = Math.min(this.waveSize + 2, 16);
+        this.lastWaveTick = sim.tick;
+        this.waveSize = Math.min(this.waveSize + AI_WAVE_STEP, AI_MAX_WAVE);
       }
     } else if (this.attacking && army.every((u) => u.order.kind === 'idle')) {
       this.attacking = false;

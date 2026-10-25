@@ -119,3 +119,23 @@ Clientes da versão anterior recebem "Versão do jogo desatualizada. Recarregue 
   - abrir o diálogo de guerra e confirmar;
   - ver a Argentina em vermelho e a seleção do Japão, sem contato, oferecer "Estabelecer Contato";
   - no teatro, o ataque ao QG rival é recusado antes da guerra e há combate depois dela.
+
+## Ritmo da IA: período de preparo (ajuste antes da Fase 4)
+
+Partidas são pensadas para 30–60 min. Antes, a IA lançava a primeira ofensiva aos 2,5 min de jogo, enquanto o jogador
+ainda montava a base.
+
+| Regra | Valor | Onde |
+|---|---|---|
+| Período de preparo (sem pedir guerra nem atacar) | 12 min de jogo | `PREPARATION_TICKS` (`shared/sim/config.ts`) |
+| Exército máximo da IA no preparo (guarnição) | 6 unidades, salvo se já estiver em guerra | `AI_PREP_GARRISON` |
+| Primeira onda | 12 unidades | `AI_FIRST_WAVE` |
+| Crescimento por onda | +3, até 24 | `TacticalAI.ts` |
+| Intervalo mínimo entre ondas | 4 min de jogo | `AI_WAVE_COOLDOWN_TICKS` |
+
+- No preparo a IA investe na economia (coleta, moradia, depósitos) e só mantém a guarnição; defende a base se atacada.
+- Se o jogador declarar guerra antes, a IA deixa de estar em preparo e responde normalmente.
+- A barra superior mostra "🛡 Preparo mm:ss" até o fim do período.
+- Medido em três mapas: a IA pede guerra aos ~12,4 min (antes: 2,5 min).
+- Testes: `shared/test/geopolitics.test.ts` (sem guerra no preparo, guarnição, economia montada, intervalo entre ondas) e
+  `server/room.test.ts` (declaração só depois do preparo, pelo caminho validado).

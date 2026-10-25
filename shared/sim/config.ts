@@ -4,6 +4,12 @@
  */
 
 export const TICK_RATE = 20; // atualizações de simulação por segundo
+/**
+ * Período de preparo (tempo de jogo): os governos de IA não declaram guerra nem lançam ofensivas,
+ * e mantêm só uma guarnição pequena, priorizando a economia. Pensado para partidas de 30–60 min:
+ * dá tempo de montar a base antes da primeira onda. O jogador pode declarar guerra antes, se quiser.
+ */
+export const PREPARATION_TICKS = TICK_RATE * 60 * 12;
 export const TICK_SECONDS = 1 / TICK_RATE;
 
 export const MAP_SIZE = 64; // células por lado

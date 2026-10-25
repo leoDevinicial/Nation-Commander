@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { DIPLO, initialContact, warPreview } from '../strategic/Diplomacy.ts';
 import { NationalSimulation } from '../strategic/NationalSimulation.ts';
 import { Simulation } from '../sim/Simulation.ts';
-import { TacticalAI } from '../sim/TacticalAI.ts';
+import { generateMap } from '../sim/MapGen.ts';
+import { AI_FIRST_ATTACK_TICK, AI_FIRST_WAVE, AI_PREP_GARRISON, AI_WAVE_COOLDOWN_TICKS, TacticalAI } from '../sim/TacticalAI.ts';
 import { flatMap, meet, theater } from './helpers.ts';
 
 function setup() {
@@ -189,8 +190,8 @@ describe('guerra no teatro tático', () => {
   it('a IA tática não ataca sem guerra: pede a declaração e guarda a mobilização', () => {
     const sim = new Simulation({ map: flatMap(), playerCount: 2, startingUnits: [] });
     const ai = new TacticalAI(1);
-    for (let i = 0; i < 10; i++) sim.addUnit('infantry', 1, { x: 50, y: 50 });
-    sim.tick = 20 * 200;
+    for (let i = 0; i < AI_FIRST_WAVE; i++) sim.addUnit('infantry', 1, { x: 50, y: 50 });
+    sim.tick = AI_FIRST_ATTACK_TICK;
     const cmds = ai.think(sim);
     expect(cmds.some((c) => c.type === 'attack_move' || c.type === 'attack')).toBe(false);
     expect(ai.wantsWarWith).toBe(0);
@@ -201,5 +202,49 @@ describe('guerra no teatro tático', () => {
     sim.setWar(0, 1, true);
     expect(ai.think(sim).some((c) => c.type === 'attack_move')).toBe(true);
     expect(ai.wantsWarWith).toBeNull();
+  });
+
+  it('período de preparo: a IA não pede guerra nem ataca, mesmo com exército grande', () => {
+    const sim = new Simulation({ map: flatMap(), playerCount: 2, startingUnits: [] });
+    const ai = new TacticalAI(1);
+    for (let i = 0; i < 30; i++) sim.addUnit('infantry', 1, { x: 50, y: 50 });
+    sim.tick = AI_FIRST_ATTACK_TICK - 20;
+    const cmds = ai.think(sim);
+    expect(ai.wantsWarWith).toBeNull();
+    expect(cmds.some((c) => c.type === 'attack_move' || c.type === 'attack')).toBe(false);
+  });
+
+  it('no preparo a IA mantém só uma guarnição e investe na economia', () => {
+    const sim = new Simulation({ map: generateMap(5), playerCount: 2 });
+    const ai = new TacticalAI(1);
+    let maxArmy = 0;
+    for (let t = 0; t < AI_FIRST_ATTACK_TICK - 20; t++) {
+      if (t % 20 === 0) for (const c of ai.think(sim)) sim.applyCommand(1, c);
+      sim.step();
+      if (t % 200 === 0) maxArmy = Math.max(maxArmy, sim.units.filter((u) => u.owner === 1).length);
+      expect(ai.wantsWarWith).toBeNull();
+    }
+    const startArmy = 4;
+    expect(maxArmy).toBeLessThanOrEqual(Math.max(AI_PREP_GARRISON, startArmy) + 1);
+    // economia de verdade: várias construções de coleta prontas ao fim do preparo
+    const gatherers = sim.buildings.filter((b) => b.owner === 1 && b.progress >= 1 && ['farm', 'sawmill', 'quarry', 'mine', 'oil_well'].includes(b.type));
+    expect(gatherers.length).toBeGreaterThanOrEqual(4);
+  }, 60000);
+
+  it('ondas espaçadas: depois de uma ofensiva, a próxima espera o intervalo mínimo', () => {
+    const sim = new Simulation({ map: flatMap(), playerCount: 2, startingUnits: [] });
+    sim.setWar(0, 1, true);
+    const ai = new TacticalAI(1);
+    for (let i = 0; i < 40; i++) sim.addUnit('infantry', 1, { x: 50, y: 50 });
+    sim.addUnit('infantry', 0, { x: 200, y: 200 });
+    sim.tick = AI_FIRST_ATTACK_TICK;
+    expect(ai.think(sim).some((c) => c.type === 'attack_move')).toBe(true);
+    // tropas voltam a ficar paradas: a ofensiva acabou
+    for (const u of sim.units) if (u.owner === 1) u.order = { kind: 'idle' };
+    ai.think(sim);
+    sim.tick += 20 * 60;
+    expect(ai.think(sim).some((c) => c.type === 'attack_move' && c.unitIds.length >= AI_FIRST_WAVE)).toBe(false);
+    sim.tick = AI_FIRST_ATTACK_TICK + AI_WAVE_COOLDOWN_TICKS;
+    expect(ai.think(sim).some((c) => c.type === 'attack_move')).toBe(true);
   });
 });
