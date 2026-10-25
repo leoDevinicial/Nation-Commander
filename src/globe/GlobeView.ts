@@ -56,8 +56,10 @@ export type GlobeLayout = 'hero' | 'center';
 
 const RADIUS = 1;
 const DEG = Math.PI / 180;
-/** Rotação automática (rad/s): uma volta a cada ~9 min. */
-const SPIN = 0.0115;
+/** Rotação automática do globo do menu (rad/s): uma volta a cada ~80 s, visível sem distrair. */
+export const SPIN = 0.08;
+/** Com "reduzir movimento" o globo continua girando, mas a 1/4 da velocidade (~5 min por volta). */
+export const REDUCED_SPIN_FACTOR = 0.25;
 
 export function lonLatToVector(lon: number, lat: number, r = RADIUS, out = new THREE.Vector3()): THREE.Vector3 {
   // mesma convenção de UV da THREE.SphereGeometry (u = 0 em lon -180)
@@ -466,9 +468,9 @@ export class GlobeView {
         this.tilt.rotation.x = tw.from.y + (tw.to.y - tw.from.y) * e;
         if (tw.t >= 1) this.tween = null;
       }
-      if (this.clouds) this.clouds.rotation.y += SPIN * 0.35 * step;
+      if (this.clouds) this.clouds.rotation.y += SPIN * 0.05 * step;
     } else {
-      const spin = this.opts.reducedMotion ? SPIN * 0.15 : SPIN;
+      const spin = this.opts.reducedMotion ? SPIN * REDUCED_SPIN_FACTOR : SPIN;
       this.earth.rotation.y += spin * step;
       if (this.clouds) this.clouds.rotation.y += spin * 0.35 * step;
     }

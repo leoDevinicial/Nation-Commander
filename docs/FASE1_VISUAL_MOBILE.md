@@ -5,7 +5,7 @@
 | Tema | Implementação | Arquivos |
 |---|---|---|
 | Título | "Modern Geopolitical Real Strategy 3d Game" no menu, no login e na aba do navegador (`GAME_TITLE`) | `shared/version.ts`, `index.html` |
-| Globo do menu | Terra 3D com oceano, países, fronteiras e litoral em camadas separadas, halo atmosférico, nuvens (fora do preset baixo), estrelas e marcadores das capitais jogáveis. Rotação lenta (~9 min por volta). Carregado sob demanda. Sem WebGL, fica um fundo em CSS | `src/globe/`, `src/ui/components/GlobeBackdrop.tsx` |
+| Globo do menu | Terra 3D com oceano, países, fronteiras e litoral em camadas separadas, halo atmosférico, nuvens (fora do preset baixo), estrelas e marcadores das capitais jogáveis. Gira continuamente (~80 s por volta; ~5 min com "reduzir movimento"). Carregado sob demanda. Sem WebGL, fica um fundo em CSS | `src/globe/`, `src/ui/components/GlobeBackdrop.tsx` |
 | Enquadramento | Tela larga: menu à esquerda e globo à direita. Retrato estreito: horizonte planetário embaixo. Outras telas: globo esmaecido e centralizado. É sempre o mesmo globo, que não é recriado ao trocar de tela | `globeFraming()` |
 | Tokens visuais | Superfícies, metal escovado, detalhe oxidado, acento latão, sinais, estados diplomáticos e militares (aliado, amistoso, neutro, hostil, guerra, sanção, desconhecido), raios, durações e alvo de toque | `src/index.css` |
 | Botões | Gradiente metálico com textura fina, borda inferior levemente oxidada, estados hover/pressed/focus/disabled e alvos de 40 px no toque. As cantoneiras dos painéis são só detalhe | `src/index.css` (`@layer components`) |

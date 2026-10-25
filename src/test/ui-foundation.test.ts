@@ -6,7 +6,7 @@ import { COUNTRY_GEO } from '../../shared/data/geography.ts';
 import { GAME_TITLE } from '../../shared/version.ts';
 import { PROFILES, detectPreset } from '../lib/graphics.ts';
 import { parseSettings, type Settings } from '../state/useSettingsStore.ts';
-import { countryAt, facingRotation, globeFraming, lonLatToVector, vectorToLonLat } from '../globe/GlobeView.ts';
+import { countryAt, facingRotation, globeFraming, lonLatToVector, REDUCED_SPIN_FACTOR, SPIN, vectorToLonLat } from '../globe/GlobeView.ts';
 import { parseWorld } from '../globe/worldGeo.ts';
 import atlas from 'world-atlas/countries-110m.json';
 import { POLITICAL_COLORS, politicalArcs, politicalFills, politicalState } from '../globe/political.ts';
@@ -65,6 +65,14 @@ describe('globo', () => {
   it('fronteiras e litoral são camadas separadas e não vazias', () => {
     expect(world.borders.length).toBeGreaterThan(100);
     expect(world.coasts.length).toBeGreaterThan(50);
+  });
+
+  it('globo do menu gira de forma visível (uma volta entre 1 e 2 min) e mais devagar com movimento reduzido', () => {
+    const turn = (2 * Math.PI) / SPIN;
+    expect(turn).toBeGreaterThan(60);
+    expect(turn).toBeLessThan(120);
+    expect(REDUCED_SPIN_FACTOR).toBeGreaterThan(0);
+    expect(REDUCED_SPIN_FACTOR).toBeLessThan(1);
   });
 
   it('conversão lon/lat segue a convenção da esfera e a rotação põe a longitude de frente', () => {
