@@ -1,1 +1,1635 @@
-{}
+{
+  "generatedBy": "scripts/import-reference-data.ts",
+  "fetchedAt": "2026-10-25T03:52:30.964Z",
+  "license": "CC BY 4.0 — The World Bank (https://datacatalog.worldbank.org/public-licenses)",
+  "indicators": [
+    {
+      "key": "population",
+      "code": "SP.POP.TOTL",
+      "label": "População total",
+      "unit": "pessoas"
+    },
+    {
+      "key": "gdpUsd",
+      "code": "NY.GDP.MKTP.CD",
+      "label": "PIB (US$ correntes)",
+      "unit": "US$ correntes"
+    },
+    {
+      "key": "gdpPerCapitaUsd",
+      "code": "NY.GDP.PCAP.CD",
+      "label": "PIB per capita (US$ correntes)",
+      "unit": "US$ correntes"
+    },
+    {
+      "key": "gdpGrowthPct",
+      "code": "NY.GDP.MKTP.KD.ZG",
+      "label": "Crescimento do PIB real",
+      "unit": "% a.a."
+    },
+    {
+      "key": "inflationPct",
+      "code": "FP.CPI.TOTL.ZG",
+      "label": "Inflação (preços ao consumidor)",
+      "unit": "% a.a."
+    },
+    {
+      "key": "unemploymentPct",
+      "code": "SL.UEM.TOTL.ZS",
+      "label": "Desemprego (estimativa modelada da OIT)",
+      "unit": "% da força de trabalho",
+      "primarySource": "OIT (ILOSTAT)"
+    },
+    {
+      "key": "govDebtPctGdp",
+      "code": "GC.DOD.TOTL.GD.ZS",
+      "label": "Dívida do governo central",
+      "unit": "% do PIB"
+    },
+    {
+      "key": "govRevenuePctGdp",
+      "code": "GC.REV.XGRT.GD.ZS",
+      "label": "Receita do governo (exceto doações)",
+      "unit": "% do PIB"
+    },
+    {
+      "key": "govExpensePctGdp",
+      "code": "GC.XPN.TOTL.GD.ZS",
+      "label": "Despesa do governo",
+      "unit": "% do PIB"
+    },
+    {
+      "key": "militaryPctGdp",
+      "code": "MS.MIL.XPND.GD.ZS",
+      "label": "Gasto militar",
+      "unit": "% do PIB",
+      "primarySource": "SIPRI Military Expenditure Database"
+    },
+    {
+      "key": "militaryUsd",
+      "code": "MS.MIL.XPND.CD",
+      "label": "Gasto militar (US$ correntes)",
+      "unit": "US$ correntes",
+      "primarySource": "SIPRI Military Expenditure Database"
+    },
+    {
+      "key": "armedForces",
+      "code": "MS.MIL.TOTL.P1",
+      "label": "Efetivo das forças armadas",
+      "unit": "pessoas",
+      "primarySource": "IISS The Military Balance"
+    },
+    {
+      "key": "educationPctGdp",
+      "code": "SE.XPD.TOTL.GD.ZS",
+      "label": "Gasto público em educação",
+      "unit": "% do PIB",
+      "primarySource": "UNESCO UIS"
+    },
+    {
+      "key": "healthPctGdp",
+      "code": "SH.XPD.GHED.GD.ZS",
+      "label": "Gasto público doméstico em saúde",
+      "unit": "% do PIB",
+      "primarySource": "OMS (Global Health Expenditure Database)"
+    },
+    {
+      "key": "researchPctGdp",
+      "code": "GB.XPD.RSDV.GD.ZS",
+      "label": "Gasto em P&D",
+      "unit": "% do PIB",
+      "primarySource": "UNESCO UIS"
+    },
+    {
+      "key": "lifeExpectancy",
+      "code": "SP.DYN.LE00.IN",
+      "label": "Expectativa de vida ao nascer",
+      "unit": "anos"
+    },
+    {
+      "key": "electricityAccessPct",
+      "code": "EG.ELC.ACCS.ZS",
+      "label": "Acesso à eletricidade",
+      "unit": "% da população"
+    },
+    {
+      "key": "tradePctGdp",
+      "code": "NE.TRD.GNFS.ZS",
+      "label": "Comércio (exportações + importações)",
+      "unit": "% do PIB"
+    },
+    {
+      "key": "landAreaKm2",
+      "code": "AG.LND.TOTL.K2",
+      "label": "Área terrestre",
+      "unit": "km²"
+    }
+  ],
+  "countries": {
+    "BRA": {
+      "population": {
+        "value": 212812405,
+        "year": 2025,
+        "unit": "pessoas",
+        "indicator": "SP.POP.TOTL",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/SP.POP.TOTL?locations=BRA"
+      },
+      "gdpUsd": {
+        "value": 2279920092492.13,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "NY.GDP.MKTP.CD",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.MKTP.CD?locations=BRA"
+      },
+      "gdpPerCapitaUsd": {
+        "value": 10713.2856869511,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "NY.GDP.PCAP.CD",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.PCAP.CD?locations=BRA"
+      },
+      "gdpGrowthPct": {
+        "value": 2.2857464902475,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "NY.GDP.MKTP.KD.ZG",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG?locations=BRA"
+      },
+      "inflationPct": {
+        "value": 5.01675279604836,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "FP.CPI.TOTL.ZG",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/FP.CPI.TOTL.ZG?locations=BRA"
+      },
+      "unemploymentPct": {
+        "value": 5.97,
+        "year": 2025,
+        "unit": "% da força de trabalho",
+        "indicator": "SL.UEM.TOTL.ZS",
+        "sourceName": "OIT (ILOSTAT), via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SL.UEM.TOTL.ZS?locations=BRA"
+      },
+      "govDebtPctGdp": {
+        "value": 81.8554431191023,
+        "year": 2024,
+        "unit": "% do PIB",
+        "indicator": "GC.DOD.TOTL.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.DOD.TOTL.GD.ZS?locations=BRA"
+      },
+      "govRevenuePctGdp": {
+        "value": 26.4469343560674,
+        "year": 2024,
+        "unit": "% do PIB",
+        "indicator": "GC.REV.XGRT.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.REV.XGRT.GD.ZS?locations=BRA"
+      },
+      "govExpensePctGdp": {
+        "value": 32.4311004876294,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "GC.XPN.TOTL.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.XPN.TOTL.GD.ZS?locations=BRA"
+      },
+      "militaryPctGdp": {
+        "value": 1.0544932096,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "MS.MIL.XPND.GD.ZS",
+        "sourceName": "SIPRI Military Expenditure Database, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.XPND.GD.ZS?locations=BRA"
+      },
+      "militaryUsd": {
+        "value": 23949869705.5596,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "MS.MIL.XPND.CD",
+        "sourceName": "SIPRI Military Expenditure Database, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.XPND.CD?locations=BRA"
+      },
+      "armedForces": {
+        "value": 762000,
+        "year": 2020,
+        "unit": "pessoas",
+        "indicator": "MS.MIL.TOTL.P1",
+        "sourceName": "IISS The Military Balance, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.TOTL.P1?locations=BRA"
+      },
+      "educationPctGdp": {
+        "value": 5.61920976638794,
+        "year": 2022,
+        "unit": "% do PIB",
+        "indicator": "SE.XPD.TOTL.GD.ZS",
+        "sourceName": "UNESCO UIS, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SE.XPD.TOTL.GD.ZS?locations=BRA"
+      },
+      "healthPctGdp": {
+        "value": 4.29392195,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "SH.XPD.GHED.GD.ZS",
+        "sourceName": "OMS (Global Health Expenditure Database), via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SH.XPD.GHED.GD.ZS?locations=BRA"
+      },
+      "researchPctGdp": {
+        "value": 1.1938,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "GB.XPD.RSDV.GD.ZS",
+        "sourceName": "UNESCO UIS, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/GB.XPD.RSDV.GD.ZS?locations=BRA"
+      },
+      "lifeExpectancy": {
+        "value": 76.023,
+        "year": 2024,
+        "unit": "anos",
+        "indicator": "SP.DYN.LE00.IN",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/SP.DYN.LE00.IN?locations=BRA"
+      },
+      "electricityAccessPct": {
+        "value": 99.8,
+        "year": 2024,
+        "unit": "% da população",
+        "indicator": "EG.ELC.ACCS.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/EG.ELC.ACCS.ZS?locations=BRA"
+      },
+      "tradePctGdp": {
+        "value": 35.2914822615074,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "NE.TRD.GNFS.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NE.TRD.GNFS.ZS?locations=BRA"
+      },
+      "landAreaKm2": {
+        "value": 8358140,
+        "year": 2024,
+        "unit": "km²",
+        "indicator": "AG.LND.TOTL.K2",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2?locations=BRA"
+      }
+    },
+    "ARG": {
+      "population": {
+        "value": 45851378,
+        "year": 2025,
+        "unit": "pessoas",
+        "indicator": "SP.POP.TOTL",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/SP.POP.TOTL?locations=ARG"
+      },
+      "gdpUsd": {
+        "value": 683097891618.597,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "NY.GDP.MKTP.CD",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.MKTP.CD?locations=ARG"
+      },
+      "gdpPerCapitaUsd": {
+        "value": 14898.0885943842,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "NY.GDP.PCAP.CD",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.PCAP.CD?locations=ARG"
+      },
+      "gdpGrowthPct": {
+        "value": 4.36733330217022,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "NY.GDP.MKTP.KD.ZG",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG?locations=ARG"
+      },
+      "inflationPct": {
+        "value": 219.883929014578,
+        "year": 2024,
+        "unit": "% a.a.",
+        "indicator": "FP.CPI.TOTL.ZG",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/FP.CPI.TOTL.ZG?locations=ARG"
+      },
+      "unemploymentPct": {
+        "value": 7.145,
+        "year": 2025,
+        "unit": "% da força de trabalho",
+        "indicator": "SL.UEM.TOTL.ZS",
+        "sourceName": "OIT (ILOSTAT), via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SL.UEM.TOTL.ZS?locations=ARG"
+      },
+      "govDebtPctGdp": null,
+      "govRevenuePctGdp": {
+        "value": 16.8606958335516,
+        "year": 2024,
+        "unit": "% do PIB",
+        "indicator": "GC.REV.XGRT.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.REV.XGRT.GD.ZS?locations=ARG"
+      },
+      "govExpensePctGdp": {
+        "value": 21.00878925888,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "GC.XPN.TOTL.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.XPN.TOTL.GD.ZS?locations=ARG"
+      },
+      "militaryPctGdp": {
+        "value": 0.5631741127,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "MS.MIL.XPND.GD.ZS",
+        "sourceName": "SIPRI Military Expenditure Database, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.XPND.GD.ZS?locations=ARG"
+      },
+      "militaryUsd": {
+        "value": 3875750072.35425,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "MS.MIL.XPND.CD",
+        "sourceName": "SIPRI Military Expenditure Database, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.XPND.CD?locations=ARG"
+      },
+      "armedForces": {
+        "value": 103000,
+        "year": 2020,
+        "unit": "pessoas",
+        "indicator": "MS.MIL.TOTL.P1",
+        "sourceName": "IISS The Military Balance, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.TOTL.P1?locations=ARG"
+      },
+      "educationPctGdp": {
+        "value": 5.00324010848999,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "SE.XPD.TOTL.GD.ZS",
+        "sourceName": "UNESCO UIS, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SE.XPD.TOTL.GD.ZS?locations=ARG"
+      },
+      "healthPctGdp": {
+        "value": 6.18493843,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "SH.XPD.GHED.GD.ZS",
+        "sourceName": "OMS (Global Health Expenditure Database), via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SH.XPD.GHED.GD.ZS?locations=ARG"
+      },
+      "researchPctGdp": {
+        "value": 0.60111,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "GB.XPD.RSDV.GD.ZS",
+        "sourceName": "UNESCO UIS, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/GB.XPD.RSDV.GD.ZS?locations=ARG"
+      },
+      "lifeExpectancy": {
+        "value": 77.543,
+        "year": 2024,
+        "unit": "anos",
+        "indicator": "SP.DYN.LE00.IN",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/SP.DYN.LE00.IN?locations=ARG"
+      },
+      "electricityAccessPct": {
+        "value": 98.4,
+        "year": 2024,
+        "unit": "% da população",
+        "indicator": "EG.ELC.ACCS.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/EG.ELC.ACCS.ZS?locations=ARG"
+      },
+      "tradePctGdp": {
+        "value": 30.364633685192,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "NE.TRD.GNFS.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NE.TRD.GNFS.ZS?locations=ARG"
+      },
+      "landAreaKm2": {
+        "value": 2736690,
+        "year": 2024,
+        "unit": "km²",
+        "indicator": "AG.LND.TOTL.K2",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2?locations=ARG"
+      }
+    },
+    "USA": {
+      "population": {
+        "value": 341784857,
+        "year": 2025,
+        "unit": "pessoas",
+        "indicator": "SP.POP.TOTL",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/SP.POP.TOTL?locations=USA"
+      },
+      "gdpUsd": {
+        "value": 30769700000000,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "NY.GDP.MKTP.CD",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.MKTP.CD?locations=USA"
+      },
+      "gdpPerCapitaUsd": {
+        "value": 90026.5163005744,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "NY.GDP.PCAP.CD",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.PCAP.CD?locations=USA"
+      },
+      "gdpGrowthPct": {
+        "value": 2.16138195623856,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "NY.GDP.MKTP.KD.ZG",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG?locations=USA"
+      },
+      "inflationPct": {
+        "value": 2.94952520485207,
+        "year": 2024,
+        "unit": "% a.a.",
+        "indicator": "FP.CPI.TOTL.ZG",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/FP.CPI.TOTL.ZG?locations=USA"
+      },
+      "unemploymentPct": {
+        "value": 4.198,
+        "year": 2025,
+        "unit": "% da força de trabalho",
+        "indicator": "SL.UEM.TOTL.ZS",
+        "sourceName": "OIT (ILOSTAT), via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SL.UEM.TOTL.ZS?locations=USA"
+      },
+      "govDebtPctGdp": {
+        "value": 115.788609964778,
+        "year": 2024,
+        "unit": "% do PIB",
+        "indicator": "GC.DOD.TOTL.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.DOD.TOTL.GD.ZS?locations=USA"
+      },
+      "govRevenuePctGdp": {
+        "value": 17.7796750243779,
+        "year": 2024,
+        "unit": "% do PIB",
+        "indicator": "GC.REV.XGRT.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.REV.XGRT.GD.ZS?locations=USA"
+      },
+      "govExpensePctGdp": {
+        "value": 24.433337455127,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "GC.XPN.TOTL.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.XPN.TOTL.GD.ZS?locations=USA"
+      },
+      "militaryPctGdp": {
+        "value": 3.1173079811,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "MS.MIL.XPND.GD.ZS",
+        "sourceName": "SIPRI Military Expenditure Database, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.XPND.GD.ZS?locations=USA"
+      },
+      "militaryUsd": {
+        "value": 954387000000,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "MS.MIL.XPND.CD",
+        "sourceName": "SIPRI Military Expenditure Database, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.XPND.CD?locations=USA"
+      },
+      "armedForces": {
+        "value": 1395000,
+        "year": 2020,
+        "unit": "pessoas",
+        "indicator": "MS.MIL.TOTL.P1",
+        "sourceName": "IISS The Military Balance, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.TOTL.P1?locations=USA"
+      },
+      "educationPctGdp": {
+        "value": 5.42038011550903,
+        "year": 2021,
+        "unit": "% do PIB",
+        "indicator": "SE.XPD.TOTL.GD.ZS",
+        "sourceName": "UNESCO UIS, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SE.XPD.TOTL.GD.ZS?locations=USA"
+      },
+      "healthPctGdp": {
+        "value": 9.00711727,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "SH.XPD.GHED.GD.ZS",
+        "sourceName": "OMS (Global Health Expenditure Database), via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SH.XPD.GHED.GD.ZS?locations=USA"
+      },
+      "researchPctGdp": {
+        "value": 3.44716,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "GB.XPD.RSDV.GD.ZS",
+        "sourceName": "UNESCO UIS, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/GB.XPD.RSDV.GD.ZS?locations=USA"
+      },
+      "lifeExpectancy": {
+        "value": 78.890243902439,
+        "year": 2024,
+        "unit": "anos",
+        "indicator": "SP.DYN.LE00.IN",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/SP.DYN.LE00.IN?locations=USA"
+      },
+      "electricityAccessPct": {
+        "value": 100,
+        "year": 2024,
+        "unit": "% da população",
+        "indicator": "EG.ELC.ACCS.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/EG.ELC.ACCS.ZS?locations=USA"
+      },
+      "tradePctGdp": {
+        "value": 25.0160172978284,
+        "year": 2024,
+        "unit": "% do PIB",
+        "indicator": "NE.TRD.GNFS.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NE.TRD.GNFS.ZS?locations=USA"
+      },
+      "landAreaKm2": {
+        "value": 9147420,
+        "year": 2024,
+        "unit": "km²",
+        "indicator": "AG.LND.TOTL.K2",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2?locations=USA"
+      }
+    },
+    "MEX": {
+      "population": {
+        "value": 131946900,
+        "year": 2025,
+        "unit": "pessoas",
+        "indicator": "SP.POP.TOTL",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/SP.POP.TOTL?locations=MEX"
+      },
+      "gdpUsd": {
+        "value": 1832641364775.52,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "NY.GDP.MKTP.CD",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.MKTP.CD?locations=MEX"
+      },
+      "gdpPerCapitaUsd": {
+        "value": 13889.2339628708,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "NY.GDP.PCAP.CD",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.PCAP.CD?locations=MEX"
+      },
+      "gdpGrowthPct": {
+        "value": 0.561683456144578,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "NY.GDP.MKTP.KD.ZG",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG?locations=MEX"
+      },
+      "inflationPct": {
+        "value": 3.80957950037393,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "FP.CPI.TOTL.ZG",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/FP.CPI.TOTL.ZG?locations=MEX"
+      },
+      "unemploymentPct": {
+        "value": 2.673,
+        "year": 2025,
+        "unit": "% da força de trabalho",
+        "indicator": "SL.UEM.TOTL.ZS",
+        "sourceName": "OIT (ILOSTAT), via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SL.UEM.TOTL.ZS?locations=MEX"
+      },
+      "govDebtPctGdp": {
+        "value": 50.270950655733,
+        "year": 2024,
+        "unit": "% do PIB",
+        "indicator": "GC.DOD.TOTL.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.DOD.TOTL.GD.ZS?locations=MEX"
+      },
+      "govRevenuePctGdp": {
+        "value": 19.4336463996755,
+        "year": 2024,
+        "unit": "% do PIB",
+        "indicator": "GC.REV.XGRT.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.REV.XGRT.GD.ZS?locations=MEX"
+      },
+      "govExpensePctGdp": {
+        "value": 22.4594139014718,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "GC.XPN.TOTL.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.XPN.TOTL.GD.ZS?locations=MEX"
+      },
+      "militaryPctGdp": {
+        "value": 0.7368094924,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "MS.MIL.XPND.GD.ZS",
+        "sourceName": "SIPRI Military Expenditure Database, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.XPND.GD.ZS?locations=MEX"
+      },
+      "militaryUsd": {
+        "value": 13647711360.1699,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "MS.MIL.XPND.CD",
+        "sourceName": "SIPRI Military Expenditure Database, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.XPND.CD?locations=MEX"
+      },
+      "armedForces": {
+        "value": 341000,
+        "year": 2020,
+        "unit": "pessoas",
+        "indicator": "MS.MIL.TOTL.P1",
+        "sourceName": "IISS The Military Balance, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.TOTL.P1?locations=MEX"
+      },
+      "educationPctGdp": {
+        "value": 4.05987977981567,
+        "year": 2022,
+        "unit": "% do PIB",
+        "indicator": "SE.XPD.TOTL.GD.ZS",
+        "sourceName": "UNESCO UIS, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SE.XPD.TOTL.GD.ZS?locations=MEX"
+      },
+      "healthPctGdp": {
+        "value": 2.67641234,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "SH.XPD.GHED.GD.ZS",
+        "sourceName": "OMS (Global Health Expenditure Database), via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SH.XPD.GHED.GD.ZS?locations=MEX"
+      },
+      "researchPctGdp": {
+        "value": 0.25372,
+        "year": 2024,
+        "unit": "% do PIB",
+        "indicator": "GB.XPD.RSDV.GD.ZS",
+        "sourceName": "UNESCO UIS, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/GB.XPD.RSDV.GD.ZS?locations=MEX"
+      },
+      "lifeExpectancy": {
+        "value": 75.264,
+        "year": 2024,
+        "unit": "anos",
+        "indicator": "SP.DYN.LE00.IN",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/SP.DYN.LE00.IN?locations=MEX"
+      },
+      "electricityAccessPct": {
+        "value": 99.8,
+        "year": 2024,
+        "unit": "% da população",
+        "indicator": "EG.ELC.ACCS.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/EG.ELC.ACCS.ZS?locations=MEX"
+      },
+      "tradePctGdp": {
+        "value": 79.9239525815655,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "NE.TRD.GNFS.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NE.TRD.GNFS.ZS?locations=MEX"
+      },
+      "landAreaKm2": {
+        "value": 1943950,
+        "year": 2024,
+        "unit": "km²",
+        "indicator": "AG.LND.TOTL.K2",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2?locations=MEX"
+      }
+    },
+    "DEU": {
+      "population": {
+        "value": 83491249,
+        "year": 2025,
+        "unit": "pessoas",
+        "indicator": "SP.POP.TOTL",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/SP.POP.TOTL?locations=DEU"
+      },
+      "gdpUsd": {
+        "value": 5050922925047.05,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "NY.GDP.MKTP.CD",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.MKTP.CD?locations=DEU"
+      },
+      "gdpPerCapitaUsd": {
+        "value": 60496.4350820414,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "NY.GDP.PCAP.CD",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.PCAP.CD?locations=DEU"
+      },
+      "gdpGrowthPct": {
+        "value": 0.239578342117881,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "NY.GDP.MKTP.KD.ZG",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG?locations=DEU"
+      },
+      "inflationPct": {
+        "value": 2.17178770949721,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "FP.CPI.TOTL.ZG",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/FP.CPI.TOTL.ZG?locations=DEU"
+      },
+      "unemploymentPct": {
+        "value": 3.711,
+        "year": 2025,
+        "unit": "% da força de trabalho",
+        "indicator": "SL.UEM.TOTL.ZS",
+        "sourceName": "OIT (ILOSTAT), via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SL.UEM.TOTL.ZS?locations=DEU"
+      },
+      "govDebtPctGdp": null,
+      "govRevenuePctGdp": {
+        "value": 29.3708896111546,
+        "year": 2024,
+        "unit": "% do PIB",
+        "indicator": "GC.REV.XGRT.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.REV.XGRT.GD.ZS?locations=DEU"
+      },
+      "govExpensePctGdp": {
+        "value": 31.174891399437,
+        "year": 2022,
+        "unit": "% do PIB",
+        "indicator": "GC.XPN.TOTL.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.XPN.TOTL.GD.ZS?locations=DEU"
+      },
+      "militaryPctGdp": {
+        "value": 2.2685109251,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "MS.MIL.XPND.GD.ZS",
+        "sourceName": "SIPRI Military Expenditure Database, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.XPND.GD.ZS?locations=DEU"
+      },
+      "militaryUsd": {
+        "value": 113585948604.562,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "MS.MIL.XPND.CD",
+        "sourceName": "SIPRI Military Expenditure Database, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.XPND.CD?locations=DEU"
+      },
+      "armedForces": {
+        "value": 183000,
+        "year": 2020,
+        "unit": "pessoas",
+        "indicator": "MS.MIL.TOTL.P1",
+        "sourceName": "IISS The Military Balance, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.TOTL.P1?locations=DEU"
+      },
+      "educationPctGdp": {
+        "value": 5.23916006088257,
+        "year": 2022,
+        "unit": "% do PIB",
+        "indicator": "SE.XPD.TOTL.GD.ZS",
+        "sourceName": "UNESCO UIS, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SE.XPD.TOTL.GD.ZS?locations=DEU"
+      },
+      "healthPctGdp": {
+        "value": 9.29177761,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "SH.XPD.GHED.GD.ZS",
+        "sourceName": "OMS (Global Health Expenditure Database), via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SH.XPD.GHED.GD.ZS?locations=DEU"
+      },
+      "researchPctGdp": {
+        "value": 3.1539,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "GB.XPD.RSDV.GD.ZS",
+        "sourceName": "UNESCO UIS, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/GB.XPD.RSDV.GD.ZS?locations=DEU"
+      },
+      "lifeExpectancy": {
+        "value": 80.7926829268293,
+        "year": 2024,
+        "unit": "anos",
+        "indicator": "SP.DYN.LE00.IN",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/SP.DYN.LE00.IN?locations=DEU"
+      },
+      "electricityAccessPct": {
+        "value": 100,
+        "year": 2024,
+        "unit": "% da população",
+        "indicator": "EG.ELC.ACCS.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/EG.ELC.ACCS.ZS?locations=DEU"
+      },
+      "tradePctGdp": {
+        "value": 78.5128112199127,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "NE.TRD.GNFS.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NE.TRD.GNFS.ZS?locations=DEU"
+      },
+      "landAreaKm2": {
+        "value": 349430,
+        "year": 2024,
+        "unit": "km²",
+        "indicator": "AG.LND.TOTL.K2",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2?locations=DEU"
+      }
+    },
+    "FRA": {
+      "population": {
+        "value": 68720337,
+        "year": 2025,
+        "unit": "pessoas",
+        "indicator": "SP.POP.TOTL",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/SP.POP.TOTL?locations=FRA"
+      },
+      "gdpUsd": {
+        "value": 3366315927447.33,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "NY.GDP.MKTP.CD",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.MKTP.CD?locations=FRA"
+      },
+      "gdpPerCapitaUsd": {
+        "value": 48985.7307807924,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "NY.GDP.PCAP.CD",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.PCAP.CD?locations=FRA"
+      },
+      "gdpGrowthPct": {
+        "value": 0.840949955479587,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "NY.GDP.MKTP.KD.ZG",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG?locations=FRA"
+      },
+      "inflationPct": {
+        "value": 0.943824761520197,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "FP.CPI.TOTL.ZG",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/FP.CPI.TOTL.ZG?locations=FRA"
+      },
+      "unemploymentPct": {
+        "value": 7.542,
+        "year": 2025,
+        "unit": "% da força de trabalho",
+        "indicator": "SL.UEM.TOTL.ZS",
+        "sourceName": "OIT (ILOSTAT), via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SL.UEM.TOTL.ZS?locations=FRA"
+      },
+      "govDebtPctGdp": null,
+      "govRevenuePctGdp": {
+        "value": 42.1079880169865,
+        "year": 2024,
+        "unit": "% do PIB",
+        "indicator": "GC.REV.XGRT.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.REV.XGRT.GD.ZS?locations=FRA"
+      },
+      "govExpensePctGdp": {
+        "value": 47.2580360132692,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "GC.XPN.TOTL.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.XPN.TOTL.GD.ZS?locations=FRA"
+      },
+      "militaryPctGdp": {
+        "value": 2.0266296921,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "MS.MIL.XPND.GD.ZS",
+        "sourceName": "SIPRI Military Expenditure Database, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.XPND.GD.ZS?locations=FRA"
+      },
+      "militaryUsd": {
+        "value": 68007580714.3018,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "MS.MIL.XPND.CD",
+        "sourceName": "SIPRI Military Expenditure Database, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.XPND.CD?locations=FRA"
+      },
+      "armedForces": {
+        "value": 304000,
+        "year": 2020,
+        "unit": "pessoas",
+        "indicator": "MS.MIL.TOTL.P1",
+        "sourceName": "IISS The Military Balance, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.TOTL.P1?locations=FRA"
+      },
+      "educationPctGdp": {
+        "value": 5.32434988021851,
+        "year": 2022,
+        "unit": "% do PIB",
+        "indicator": "SE.XPD.TOTL.GD.ZS",
+        "sourceName": "UNESCO UIS, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SE.XPD.TOTL.GD.ZS?locations=FRA"
+      },
+      "healthPctGdp": {
+        "value": 7.89331961,
+        "year": 2024,
+        "unit": "% do PIB",
+        "indicator": "SH.XPD.GHED.GD.ZS",
+        "sourceName": "OMS (Global Health Expenditure Database), via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SH.XPD.GHED.GD.ZS?locations=FRA"
+      },
+      "researchPctGdp": {
+        "value": 2.17832,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "GB.XPD.RSDV.GD.ZS",
+        "sourceName": "UNESCO UIS, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/GB.XPD.RSDV.GD.ZS?locations=FRA"
+      },
+      "lifeExpectancy": {
+        "value": 82.9804878048781,
+        "year": 2024,
+        "unit": "anos",
+        "indicator": "SP.DYN.LE00.IN",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/SP.DYN.LE00.IN?locations=FRA"
+      },
+      "electricityAccessPct": {
+        "value": 100,
+        "year": 2024,
+        "unit": "% da população",
+        "indicator": "EG.ELC.ACCS.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/EG.ELC.ACCS.ZS?locations=FRA"
+      },
+      "tradePctGdp": {
+        "value": 67.1923772838849,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "NE.TRD.GNFS.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NE.TRD.GNFS.ZS?locations=FRA"
+      },
+      "landAreaKm2": {
+        "value": 538950,
+        "year": 2024,
+        "unit": "km²",
+        "indicator": "AG.LND.TOTL.K2",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2?locations=FRA"
+      }
+    },
+    "IND": {
+      "population": {
+        "value": 1463865525,
+        "year": 2025,
+        "unit": "pessoas",
+        "indicator": "SP.POP.TOTL",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/SP.POP.TOTL?locations=IND"
+      },
+      "gdpUsd": {
+        "value": 3956067115771.63,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "NY.GDP.MKTP.CD",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.MKTP.CD?locations=IND"
+      },
+      "gdpPerCapitaUsd": {
+        "value": 2702.47987141553,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "NY.GDP.PCAP.CD",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.PCAP.CD?locations=IND"
+      },
+      "gdpGrowthPct": {
+        "value": 7.56666179284244,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "NY.GDP.MKTP.KD.ZG",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG?locations=IND"
+      },
+      "inflationPct": {
+        "value": 2.39884954182294,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "FP.CPI.TOTL.ZG",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/FP.CPI.TOTL.ZG?locations=IND"
+      },
+      "unemploymentPct": {
+        "value": 4.219,
+        "year": 2025,
+        "unit": "% da força de trabalho",
+        "indicator": "SL.UEM.TOTL.ZS",
+        "sourceName": "OIT (ILOSTAT), via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SL.UEM.TOTL.ZS?locations=IND"
+      },
+      "govDebtPctGdp": {
+        "value": 46.5224986659322,
+        "year": 2018,
+        "unit": "% do PIB",
+        "indicator": "GC.DOD.TOTL.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.DOD.TOTL.GD.ZS?locations=IND"
+      },
+      "govRevenuePctGdp": {
+        "value": 9.37969496475912,
+        "year": 2022,
+        "unit": "% do PIB",
+        "indicator": "GC.REV.XGRT.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.REV.XGRT.GD.ZS?locations=IND"
+      },
+      "govExpensePctGdp": {
+        "value": 13.7280694252264,
+        "year": 2022,
+        "unit": "% do PIB",
+        "indicator": "GC.XPN.TOTL.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.XPN.TOTL.GD.ZS?locations=IND"
+      },
+      "militaryPctGdp": {
+        "value": 2.2951791794,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "MS.MIL.XPND.GD.ZS",
+        "sourceName": "SIPRI Military Expenditure Database, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.XPND.GD.ZS?locations=IND"
+      },
+      "militaryUsd": {
+        "value": 92057013588.1601,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "MS.MIL.XPND.CD",
+        "sourceName": "SIPRI Military Expenditure Database, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.XPND.CD?locations=IND"
+      },
+      "armedForces": {
+        "value": 3068000,
+        "year": 2020,
+        "unit": "pessoas",
+        "indicator": "MS.MIL.TOTL.P1",
+        "sourceName": "IISS The Military Balance, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.TOTL.P1?locations=IND"
+      },
+      "educationPctGdp": {
+        "value": 4.09865814174589,
+        "year": 2022,
+        "unit": "% do PIB",
+        "indicator": "SE.XPD.TOTL.GD.ZS",
+        "sourceName": "UNESCO UIS, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SE.XPD.TOTL.GD.ZS?locations=IND"
+      },
+      "healthPctGdp": {
+        "value": 1.30319667,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "SH.XPD.GHED.GD.ZS",
+        "sourceName": "OMS (Global Health Expenditure Database), via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SH.XPD.GHED.GD.ZS?locations=IND"
+      },
+      "researchPctGdp": {
+        "value": 0.64558,
+        "year": 2020,
+        "unit": "% do PIB",
+        "indicator": "GB.XPD.RSDV.GD.ZS",
+        "sourceName": "UNESCO UIS, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/GB.XPD.RSDV.GD.ZS?locations=IND"
+      },
+      "lifeExpectancy": {
+        "value": 72.235,
+        "year": 2024,
+        "unit": "anos",
+        "indicator": "SP.DYN.LE00.IN",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/SP.DYN.LE00.IN?locations=IND"
+      },
+      "electricityAccessPct": {
+        "value": 99.9,
+        "year": 2024,
+        "unit": "% da população",
+        "indicator": "EG.ELC.ACCS.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/EG.ELC.ACCS.ZS?locations=IND"
+      },
+      "tradePctGdp": {
+        "value": 46.2682006859907,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "NE.TRD.GNFS.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NE.TRD.GNFS.ZS?locations=IND"
+      },
+      "landAreaKm2": {
+        "value": 2973190,
+        "year": 2024,
+        "unit": "km²",
+        "indicator": "AG.LND.TOTL.K2",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2?locations=IND"
+      }
+    },
+    "JPN": {
+      "population": {
+        "value": 123366734,
+        "year": 2025,
+        "unit": "pessoas",
+        "indicator": "SP.POP.TOTL",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/SP.POP.TOTL?locations=JPN"
+      },
+      "gdpUsd": {
+        "value": 4435162999976.94,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "NY.GDP.MKTP.CD",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.MKTP.CD?locations=JPN"
+      },
+      "gdpPerCapitaUsd": {
+        "value": 35951.0449549304,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "NY.GDP.PCAP.CD",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.PCAP.CD?locations=JPN"
+      },
+      "gdpGrowthPct": {
+        "value": 1.19311288444599,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "NY.GDP.MKTP.KD.ZG",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG?locations=JPN"
+      },
+      "inflationPct": {
+        "value": 3.17253034260247,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "FP.CPI.TOTL.ZG",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/FP.CPI.TOTL.ZG?locations=JPN"
+      },
+      "unemploymentPct": {
+        "value": 2.451,
+        "year": 2025,
+        "unit": "% da força de trabalho",
+        "indicator": "SL.UEM.TOTL.ZS",
+        "sourceName": "OIT (ILOSTAT), via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SL.UEM.TOTL.ZS?locations=JPN"
+      },
+      "govDebtPctGdp": null,
+      "govRevenuePctGdp": null,
+      "govExpensePctGdp": {
+        "value": 20.0582116003984,
+        "year": 2022,
+        "unit": "% do PIB",
+        "indicator": "GC.XPN.TOTL.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.XPN.TOTL.GD.ZS?locations=JPN"
+      },
+      "militaryPctGdp": {
+        "value": 1.4116699864,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "MS.MIL.XPND.GD.ZS",
+        "sourceName": "SIPRI Military Expenditure Database, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.XPND.GD.ZS?locations=JPN"
+      },
+      "militaryUsd": {
+        "value": 62158093812.4419,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "MS.MIL.XPND.CD",
+        "sourceName": "SIPRI Military Expenditure Database, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.XPND.CD?locations=JPN"
+      },
+      "armedForces": {
+        "value": 261000,
+        "year": 2020,
+        "unit": "pessoas",
+        "indicator": "MS.MIL.TOTL.P1",
+        "sourceName": "IISS The Military Balance, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.TOTL.P1?locations=JPN"
+      },
+      "educationPctGdp": {
+        "value": 3.33663988113403,
+        "year": 2021,
+        "unit": "% do PIB",
+        "indicator": "SE.XPD.TOTL.GD.ZS",
+        "sourceName": "UNESCO UIS, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SE.XPD.TOTL.GD.ZS?locations=JPN"
+      },
+      "healthPctGdp": {
+        "value": 9.11008263,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "SH.XPD.GHED.GD.ZS",
+        "sourceName": "OMS (Global Health Expenditure Database), via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SH.XPD.GHED.GD.ZS?locations=JPN"
+      },
+      "researchPctGdp": {
+        "value": 3.44125,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "GB.XPD.RSDV.GD.ZS",
+        "sourceName": "UNESCO UIS, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/GB.XPD.RSDV.GD.ZS?locations=JPN"
+      },
+      "lifeExpectancy": {
+        "value": 84.0363414634146,
+        "year": 2024,
+        "unit": "anos",
+        "indicator": "SP.DYN.LE00.IN",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/SP.DYN.LE00.IN?locations=JPN"
+      },
+      "electricityAccessPct": {
+        "value": 100,
+        "year": 2024,
+        "unit": "% da população",
+        "indicator": "EG.ELC.ACCS.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/EG.ELC.ACCS.ZS?locations=JPN"
+      },
+      "tradePctGdp": {
+        "value": 44.8529388577573,
+        "year": 2024,
+        "unit": "% do PIB",
+        "indicator": "NE.TRD.GNFS.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NE.TRD.GNFS.ZS?locations=JPN"
+      },
+      "landAreaKm2": {
+        "value": 364500,
+        "year": 2024,
+        "unit": "km²",
+        "indicator": "AG.LND.TOTL.K2",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2?locations=JPN"
+      }
+    },
+    "ZAF": {
+      "population": {
+        "value": 64747319,
+        "year": 2025,
+        "unit": "pessoas",
+        "indicator": "SP.POP.TOTL",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/SP.POP.TOTL?locations=ZAF"
+      },
+      "gdpUsd": {
+        "value": 427184325997.307,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "NY.GDP.MKTP.CD",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.MKTP.CD?locations=ZAF"
+      },
+      "gdpPerCapitaUsd": {
+        "value": 6597.71450918774,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "NY.GDP.PCAP.CD",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.PCAP.CD?locations=ZAF"
+      },
+      "gdpGrowthPct": {
+        "value": 1.11462608103956,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "NY.GDP.MKTP.KD.ZG",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG?locations=ZAF"
+      },
+      "inflationPct": {
+        "value": 3.20550474112603,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "FP.CPI.TOTL.ZG",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/FP.CPI.TOTL.ZG?locations=ZAF"
+      },
+      "unemploymentPct": {
+        "value": 32.391,
+        "year": 2025,
+        "unit": "% da força de trabalho",
+        "indicator": "SL.UEM.TOTL.ZS",
+        "sourceName": "OIT (ILOSTAT), via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SL.UEM.TOTL.ZS?locations=ZAF"
+      },
+      "govDebtPctGdp": {
+        "value": 82.7627080034486,
+        "year": 2024,
+        "unit": "% do PIB",
+        "indicator": "GC.DOD.TOTL.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.DOD.TOTL.GD.ZS?locations=ZAF"
+      },
+      "govRevenuePctGdp": {
+        "value": 29.3983175912785,
+        "year": 2024,
+        "unit": "% do PIB",
+        "indicator": "GC.REV.XGRT.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.REV.XGRT.GD.ZS?locations=ZAF"
+      },
+      "govExpensePctGdp": {
+        "value": 33.4243056296085,
+        "year": 2022,
+        "unit": "% do PIB",
+        "indicator": "GC.XPN.TOTL.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.XPN.TOTL.GD.ZS?locations=ZAF"
+      },
+      "militaryPctGdp": {
+        "value": 0.7373520085,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "MS.MIL.XPND.GD.ZS",
+        "sourceName": "SIPRI Military Expenditure Database, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.XPND.GD.ZS?locations=ZAF"
+      },
+      "militaryUsd": {
+        "value": 3173874329.74185,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "MS.MIL.XPND.CD",
+        "sourceName": "SIPRI Military Expenditure Database, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.XPND.CD?locations=ZAF"
+      },
+      "armedForces": {
+        "value": 89000,
+        "year": 2020,
+        "unit": "pessoas",
+        "indicator": "MS.MIL.TOTL.P1",
+        "sourceName": "IISS The Military Balance, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.TOTL.P1?locations=ZAF"
+      },
+      "educationPctGdp": {
+        "value": 6.02110004425049,
+        "year": 2024,
+        "unit": "% do PIB",
+        "indicator": "SE.XPD.TOTL.GD.ZS",
+        "sourceName": "UNESCO UIS, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SE.XPD.TOTL.GD.ZS?locations=ZAF"
+      },
+      "healthPctGdp": {
+        "value": 5.48956871,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "SH.XPD.GHED.GD.ZS",
+        "sourceName": "OMS (Global Health Expenditure Database), via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SH.XPD.GHED.GD.ZS?locations=ZAF"
+      },
+      "researchPctGdp": {
+        "value": 0.61479,
+        "year": 2022,
+        "unit": "% do PIB",
+        "indicator": "GB.XPD.RSDV.GD.ZS",
+        "sourceName": "UNESCO UIS, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/GB.XPD.RSDV.GD.ZS?locations=ZAF"
+      },
+      "lifeExpectancy": {
+        "value": 66.312,
+        "year": 2024,
+        "unit": "anos",
+        "indicator": "SP.DYN.LE00.IN",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/SP.DYN.LE00.IN?locations=ZAF"
+      },
+      "electricityAccessPct": {
+        "value": 90.2,
+        "year": 2024,
+        "unit": "% da população",
+        "indicator": "EG.ELC.ACCS.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/EG.ELC.ACCS.ZS?locations=ZAF"
+      },
+      "tradePctGdp": {
+        "value": 60.9110971393628,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "NE.TRD.GNFS.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NE.TRD.GNFS.ZS?locations=ZAF"
+      },
+      "landAreaKm2": {
+        "value": 1213090,
+        "year": 2024,
+        "unit": "km²",
+        "indicator": "AG.LND.TOTL.K2",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2?locations=ZAF"
+      }
+    },
+    "AUS": {
+      "population": {
+        "value": 27614411,
+        "year": 2025,
+        "unit": "pessoas",
+        "indicator": "SP.POP.TOTL",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/SP.POP.TOTL?locations=AUS"
+      },
+      "gdpUsd": {
+        "value": 1798518933689.21,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "NY.GDP.MKTP.CD",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.MKTP.CD?locations=AUS"
+      },
+      "gdpPerCapitaUsd": {
+        "value": 65129.7227990563,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "NY.GDP.PCAP.CD",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.PCAP.CD?locations=AUS"
+      },
+      "gdpGrowthPct": {
+        "value": 1.35039785076631,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "NY.GDP.MKTP.KD.ZG",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG?locations=AUS"
+      },
+      "inflationPct": {
+        "value": 2.87403791660173,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "FP.CPI.TOTL.ZG",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/FP.CPI.TOTL.ZG?locations=AUS"
+      },
+      "unemploymentPct": {
+        "value": 4.09,
+        "year": 2025,
+        "unit": "% da força de trabalho",
+        "indicator": "SL.UEM.TOTL.ZS",
+        "sourceName": "OIT (ILOSTAT), via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SL.UEM.TOTL.ZS?locations=AUS"
+      },
+      "govDebtPctGdp": {
+        "value": 57.8834285733848,
+        "year": 2022,
+        "unit": "% do PIB",
+        "indicator": "GC.DOD.TOTL.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.DOD.TOTL.GD.ZS?locations=AUS"
+      },
+      "govRevenuePctGdp": {
+        "value": 26.131348255083,
+        "year": 2022,
+        "unit": "% do PIB",
+        "indicator": "GC.REV.XGRT.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.REV.XGRT.GD.ZS?locations=AUS"
+      },
+      "govExpensePctGdp": {
+        "value": 27.5833132925557,
+        "year": 2022,
+        "unit": "% do PIB",
+        "indicator": "GC.XPN.TOTL.GD.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/GC.XPN.TOTL.GD.ZS?locations=AUS"
+      },
+      "militaryPctGdp": {
+        "value": 1.9178730837,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "MS.MIL.XPND.GD.ZS",
+        "sourceName": "SIPRI Military Expenditure Database, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.XPND.GD.ZS?locations=AUS"
+      },
+      "militaryUsd": {
+        "value": 35326559811.2952,
+        "year": 2025,
+        "unit": "US$ correntes",
+        "indicator": "MS.MIL.XPND.CD",
+        "sourceName": "SIPRI Military Expenditure Database, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.XPND.CD?locations=AUS"
+      },
+      "armedForces": {
+        "value": 60000,
+        "year": 2020,
+        "unit": "pessoas",
+        "indicator": "MS.MIL.TOTL.P1",
+        "sourceName": "IISS The Military Balance, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/MS.MIL.TOTL.P1?locations=AUS"
+      },
+      "educationPctGdp": {
+        "value": 5.05915021896362,
+        "year": 2022,
+        "unit": "% do PIB",
+        "indicator": "SE.XPD.TOTL.GD.ZS",
+        "sourceName": "UNESCO UIS, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SE.XPD.TOTL.GD.ZS?locations=AUS"
+      },
+      "healthPctGdp": {
+        "value": 7.65963793,
+        "year": 2023,
+        "unit": "% do PIB",
+        "indicator": "SH.XPD.GHED.GD.ZS",
+        "sourceName": "OMS (Global Health Expenditure Database), via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/SH.XPD.GHED.GD.ZS?locations=AUS"
+      },
+      "researchPctGdp": {
+        "value": 1.85783,
+        "year": 2021,
+        "unit": "% do PIB",
+        "indicator": "GB.XPD.RSDV.GD.ZS",
+        "sourceName": "UNESCO UIS, via Banco Mundial (WDI)",
+        "sourceUrl": "https://data.worldbank.org/indicator/GB.XPD.RSDV.GD.ZS?locations=AUS"
+      },
+      "lifeExpectancy": {
+        "value": 83.0512195121951,
+        "year": 2024,
+        "unit": "anos",
+        "indicator": "SP.DYN.LE00.IN",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/SP.DYN.LE00.IN?locations=AUS"
+      },
+      "electricityAccessPct": {
+        "value": 100,
+        "year": 2024,
+        "unit": "% da população",
+        "indicator": "EG.ELC.ACCS.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/EG.ELC.ACCS.ZS?locations=AUS"
+      },
+      "tradePctGdp": {
+        "value": 45.9014493880126,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "NE.TRD.GNFS.ZS",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/NE.TRD.GNFS.ZS?locations=AUS"
+      },
+      "landAreaKm2": {
+        "value": 7688287,
+        "year": 2024,
+        "unit": "km²",
+        "indicator": "AG.LND.TOTL.K2",
+        "sourceName": "Banco Mundial — World Development Indicators",
+        "sourceUrl": "https://data.worldbank.org/indicator/AG.LND.TOTL.K2?locations=AUS"
+      }
+    }
+  }
+}
