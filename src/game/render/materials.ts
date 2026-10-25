@@ -20,6 +20,8 @@ export const weatherUniforms = {
 interface EnhanceOpts {
   /** Intensidade do desgaste (0 = desligado). */
   weather?: number;
+  /** Juntas de painéis no desgaste (paredes e chapas; não em vegetação/rochas). */
+  seams?: boolean;
   /** Vidros com caixilhos (grade de janelas em vez de desgaste). */
   panes?: boolean;
 }
@@ -31,6 +33,7 @@ interface EnhanceOpts {
 export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts = {}): T {
   const weather = opts.weather ?? 0;
   const panes = opts.panes ?? false;
+  const ch = opts.seams ? 'g' : 'r';
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uFogMap = fogUniforms.uFogMap;
     shader.uniforms.uFogSize = fogUniforms.uFogSize;
@@ -76,7 +79,7 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
           vec3 tw = pow(abs(normalize(vObjNormal)), vec3(4.0));
           tw /= (tw.x + tw.y + tw.z + 1e-5);
           vec3 gp = vObjPos * uGrimeScale;
-          float grime = texture2D(uGrime, gp.zy).r * tw.x + texture2D(uGrime, gp.xz).r * tw.y + texture2D(uGrime, gp.xy).r * tw.z;
+          float grime = texture2D(uGrime, gp.zy).${ch} * tw.x + texture2D(uGrime, gp.xz).${ch} * tw.y + texture2D(uGrime, gp.xy).${ch} * tw.z;
           grime = smoothstep(0.15, 1.0, grime);
           vGrimeV = grime;
           // sujeira mais forte junto ao chão (respingos de lama)
@@ -102,7 +105,7 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
           : mix(fogSeen, fogFull, smoothstep(0.45, 1.0, fogV));`,
     );
   };
-  material.customProgramCacheKey = () => `nc-fog-v3-w${weather}-p${panes ? 1 : 0}`;
+  material.customProgramCacheKey = () => `nc-fog-v4-w${weather}-p${panes ? 1 : 0}-${ch}`;
   return material;
 }
 
@@ -119,7 +122,7 @@ function cached<T extends THREE.Material>(key: string, make: () => T, opts: Enha
 
 /** Corpo dos modelos: cores de vértice com desgaste (concreto manchado, metal sujo). */
 export const bodyMaterial = () =>
-  cached('body', () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0.12, envMapIntensity: 0.7 }), { weather: 0.9 });
+  cached('body', () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0.12, envMapIntensity: 0.7 }), { weather: 0.9, seams: true });
 
 /** Vidros escuros e reflexivos (refletem o céu pelo mapa de ambiente). */
 export const glassMaterial = () =>

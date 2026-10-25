@@ -23,6 +23,7 @@ import { TerritoryLayer } from './render/TerritoryLayer.ts';
 import { createSky, environmentFromSky, SKY } from './render/Sky.ts';
 import { disposeTextures, grimeTexture, windowTexture } from './render/textures.ts';
 import { UnitVisual } from './render/UnitVisuals.ts';
+import { PostFx } from './render/PostFx.ts';
 import { describeEvent } from './eventText.ts';
 import type { GraphicsProfile } from '../lib/graphics.ts';
 import { isTouchDevice } from '../lib/graphics.ts';
@@ -64,6 +65,7 @@ export class GameRuntime {
   readonly map: MapData;
   readonly mySlot: number;
   private readonly renderer: THREE.WebGLRenderer;
+  private postFx: PostFx | null = null;
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.PerspectiveCamera;
   readonly cameraCtl: CameraController;
@@ -170,6 +172,7 @@ export class GameRuntime {
     fogUniforms.uFogMap.value = this.fogTexture;
     fogUniforms.uFogSize.value.set(W, H);
     this.setupScene(W, H);
+    if (opts.profile.ao) this.postFx = new PostFx(this.renderer, this.scene, this.camera);
     this.territoryLayer = new TerritoryLayer(this.map.width, this.map.height, this.map.cellSize, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.territoryLayer.group);
     this.effects = new Effects(this.scene, opts.profile.maxEffects);
@@ -427,7 +430,8 @@ export class GameRuntime {
     if (!this.suspended) {
       this.sky.position.copy(this.camera.position);
       (this.sky.material as THREE.ShaderMaterial).uniforms.uTime!.value = now / 1000;
-      this.renderer.render(this.scene, this.camera);
+      if (this.postFx) this.postFx.render();
+      else this.renderer.render(this.scene, this.camera);
     }
 
     this.frames++;
@@ -1119,6 +1123,7 @@ export class GameRuntime {
     const h = this.container.clientHeight;
     if (w === 0 || h === 0) return;
     this.renderer.setSize(w, h, false);
+    this.postFx?.setSize(w, h, this.renderer.getPixelRatio());
     this.renderer.domElement.style.width = `${w}px`;
     this.renderer.domElement.style.height = `${h}px`;
     this.camera.aspect = w / h;
@@ -1133,6 +1138,7 @@ export class GameRuntime {
     for (const t of this.units.values()) t.visual.dispose();
     for (const t of this.buildings.values()) t.visual.dispose();
     this.effects.dispose();
+    this.postFx?.dispose();
     this.selectionBox.remove();
     this.scene.traverse((o) => {
       if (o instanceof THREE.Mesh || o instanceof THREE.InstancedMesh) {

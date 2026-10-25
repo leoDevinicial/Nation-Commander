@@ -23,6 +23,8 @@ export interface GraphicsProfile {
   terrain: 'low' | 'high';
   /** Máximo de efeitos simultâneos (traçantes, clarões, explosões). */
   maxEffects: number;
+  /** Oclusão de ambiente em espaço de tela (sombras de contato e cantos). */
+  ao: boolean;
   /** Globo do menu. */
   globe: { textureWidth: number; clouds: boolean; stars: number; maxFps: number };
 }
@@ -35,6 +37,7 @@ export const PROFILES: Record<GraphicsPreset, GraphicsProfile> = {
     shadowMapSize: 1024,
     terrain: 'low',
     maxEffects: 60,
+    ao: false,
     globe: { textureWidth: 1024, clouds: false, stars: 400, maxFps: 30 },
   },
   balanced: {
@@ -44,6 +47,7 @@ export const PROFILES: Record<GraphicsPreset, GraphicsProfile> = {
     shadowMapSize: 1024,
     terrain: 'high',
     maxEffects: 120,
+    ao: false,
     globe: { textureWidth: 2048, clouds: true, stars: 1200, maxFps: 60 },
   },
   high: {
@@ -53,6 +57,7 @@ export const PROFILES: Record<GraphicsPreset, GraphicsProfile> = {
     shadowMapSize: 2048,
     terrain: 'high',
     maxEffects: 160,
+    ao: true,
     globe: { textureWidth: 4096, clouds: true, stars: 2000, maxFps: 60 },
   },
 };

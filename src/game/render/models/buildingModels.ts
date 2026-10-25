@@ -64,6 +64,43 @@ function slab(b: PartBuilder, size: number): void {
   b.box(size - 0.1, 0.16, size - 0.1, C.concreteDark, [0, 0.08, 0]);
 }
 
+/** Barreira de concreto tipo "New Jersey" (perfil trapezoidal), comprimento ao longo de x. */
+function jersey(b: PartBuilder, x: number, z: number, rotY = 0, len = 0.8): void {
+  b.side(
+    [
+      [-0.16, 0],
+      [0.16, 0],
+      [0.1, 0.1],
+      [0.05, 0.42],
+      [-0.05, 0.42],
+      [-0.1, 0.1],
+    ],
+    len,
+    C.concrete,
+    [x, 0.16, z],
+    [0, Math.PI / 2 + rotY, 0],
+  );
+}
+
+/** Contêiner de carga com nervuras e portas; comprimento ao longo de x. */
+function container(b: PartBuilder, pos: [number, number, number], color: string, len = 1.0, rotY = 0): void {
+  const [x, y, z] = pos;
+  const c = Math.cos(rotY);
+  const s = Math.sin(rotY);
+  const at = (dx: number, dy: number, dz: number): [number, number, number] => [x + dx * c + dz * s, y + dy, z - dx * s + dz * c];
+  const w = 0.42;
+  const h = 0.44;
+  b.box(len, h, w, color, at(0, h / 2, 0), [0, rotY, 0]);
+  const ribs = Math.round(len / 0.12);
+  for (let i = 1; i < ribs; i++) {
+    const dx = -len / 2 + (i * len) / ribs;
+    b.box(0.03, h - 0.06, w + 0.025, color, at(dx, h / 2, 0), [0, rotY, 0]);
+  }
+  // cantoneiras e portas
+  for (const sx of [-1, 1]) b.box(0.04, h + 0.01, w + 0.02, C.metalDark, at((sx * len) / 2, h / 2, 0), [0, rotY, 0]);
+  b.box(0.02, h - 0.08, 0.02, C.metalDark, at(len / 2 + 0.02, h / 2, 0), [0, rotY, 0]);
+}
+
 function flag(b: PartBuilder, a: PartBuilder, x: number, z: number, h: number): void {
   b.cyl(0.03, 0.04, h, C.steel, [x, h / 2, z], undefined, 6);
   a.box(0.55, 0.32, 0.02, '#ffffff', [x + 0.3, h - 0.22, z]);
@@ -111,6 +148,8 @@ function buildHq(): BuildingModel {
   a.box(4.52, 0.12, 0.02, '#ffffff', [-0.2, 2.3, 2.24]);
   a.box(1.92, 0.1, 0.02, '#ffffff', [-1.1, 3.84, 0.62]);
   flag(b, a, 2.4, 2.4, 2.6);
+  // barreiras de concreto na frente do quartel-general
+  for (const x of [1.3, 2.15, -1.7, -2.5]) jersey(b, x, 2.75);
 
   // antena parabólica giratória (parte animada)
   return { base: l.build(), moving: { layers: dishLayers(), pivot: [0.9, 2.9, 1.2], kind: 'spin' }, height: 6 };
@@ -178,7 +217,9 @@ function buildFactory(): BuildingModel {
     b.cyl(0.18, 0.18, 0.18, C.red, [x, h * 0.6, z], undefined, 10);
   }
   // pátio com contêiner
-  b.box(0.9, 0.4, 0.4, '#5b6f7e', [-1.4, 0.36, -1.7]);
+  container(b, [-1.25, 0.16, -1.72], '#5b6f7e', 1.1);
+  container(b, [-1.25, 0.6, -1.72], '#8a4b32', 1.1);
+  jersey(b, 1.15, 1.78, 0, 0.75);
   a.box(3.52, 0.14, 0.02, '#ffffff', [0, 1.6, 1.46]);
   return {
     base: l.build(),

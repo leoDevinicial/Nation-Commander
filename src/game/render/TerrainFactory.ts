@@ -272,7 +272,7 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high'): TerrainHand
 
   const upgrade = async (): Promise<void> => {
     const loader = new GLTFLoader();
-    const load = async (name: string): Promise<{ geo: THREE.BufferGeometry; mat: THREE.Material; height: number } | null> => {
+    const load = async (name: string, weather: number): Promise<{ geo: THREE.BufferGeometry; mat: THREE.Material; height: number } | null> => {
       try {
         const gltf = await loader.loadAsync(`${NATURE_URL}${name}.glb`);
         let found: THREE.Mesh | null = null;
@@ -285,21 +285,21 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high'): TerrainHand
         const geo = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
         geo.computeBoundingBox();
         const height = geo.boundingBox!.max.y - geo.boundingBox!.min.y;
-        const mat = withFog((mesh.material as THREE.Material).clone());
+        const mat = withFog((mesh.material as THREE.Material).clone(), { weather });
         if ('flatShading' in mat) (mat as THREE.MeshStandardMaterial).flatShading = true;
         return { geo, mat, height };
       } catch {
         return null;
       }
     };
-    const treeKit = (await Promise.all(TREE_MODELS.map(load))).filter((x) => x !== null);
-    const rockKit = (await Promise.all(ROCK_MODELS.map(load))).filter((x) => x !== null);
-    const bushKit = (await Promise.all(BUSH_MODELS.map(load))).filter((x) => x !== null);
+    const treeKit = (await Promise.all(TREE_MODELS.map((n) => load(n, 0.45)))).filter((x) => x !== null);
+    const rockKit = (await Promise.all(ROCK_MODELS.map((n) => load(n, 0.85)))).filter((x) => x !== null);
+    const bushKit = (await Promise.all(BUSH_MODELS.map((n) => load(n, 0.4)))).filter((x) => x !== null);
     if (treeKit.length === 0 || rockKit.length === 0) return; // mantém o procedural
     decor.clear();
-    decor.add(instanced(treeKit, trees, 2.6, 0));
-    decor.add(instanced(rockKit, rocks, 1.5, -0.1));
-    if (bushKit.length) decor.add(instanced(bushKit, bushes, 0.7, 0));
+    decor.add(instanced(treeKit, trees, 2.6, 0, true, FOLIAGE_TINT));
+    decor.add(instanced(rockKit, rocks, 1.5, -0.1, true, ROCK_TINT));
+    if (bushKit.length) decor.add(instanced(bushKit, bushes, 0.7, 0, true, FOLIAGE_TINT));
     for (const k of [...treeKit, ...rockKit, ...bushKit]) disposables.push(k.geo, k.mat);
   };
 
@@ -312,6 +312,26 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high'): TerrainHand
   };
 }
 
+/** Pseudoaleatório estável por posição (mesma variação a cada partida no mesmo mapa). */
+function hash2(x: number, z: number): number {
+  const v = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453;
+  return v - Math.floor(v);
+}
+
+/**
+ * Variação natural por instância: folhagens menos saturadas e com tons diferentes (verde-oliva,
+ * seco, escuro), rochas com brilho variável. Evita a cara de "brinquedo" de cópias idênticas.
+ */
+const FOLIAGE_TINT = (h: number, out: THREE.Color): THREE.Color => {
+  const b = 0.7 + h * 0.3;
+  const dry = Math.max(0, h - 0.75) * 1.2;
+  return out.setRGB(b * (0.82 + dry), b * 0.9, b * (0.7 - dry * 0.3));
+};
+const ROCK_TINT = (h: number, out: THREE.Color): THREE.Color => {
+  const b = 0.72 + h * 0.3;
+  return out.setRGB(b, b * 0.98, b * 0.93);
+};
+
 /** Distribui instâncias de uma família de modelos entre variantes, normalizadas pela altura. */
 function instanced(
   kit: { geo: THREE.BufferGeometry; mat: THREE.Material; height: number }[],
@@ -319,6 +339,7 @@ function instanced(
   targetHeight: number,
   y: number,
   shadows = true,
+  tint?: (h: number, out: THREE.Color) => THREE.Color,
 ): THREE.Group {
   const g = new THREE.Group();
   kit.forEach((k, idx) => {
@@ -328,11 +349,13 @@ function instanced(
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
+    const color = new THREE.Color();
     mine.forEach((it, i) => {
       const sc = (targetHeight / k.height) * it.s;
       q.setFromAxisAngle(up, it.r);
       m.compose(new THREE.Vector3(it.x, y, it.z), q, new THREE.Vector3(sc, sc, sc));
       im.setMatrixAt(i, m);
+      if (tint) im.setColorAt(i, tint(hash2(it.x, it.z), color));
     });
     im.castShadow = shadows;
     im.receiveShadow = true;
@@ -348,7 +371,7 @@ function proceduralTrees(points: { x: number; z: number; s: number; r: number }[
   crown.translate(0, 2, 0);
   const trunk = new THREE.CylinderGeometry(0.12, 0.16, 1, 5);
   trunk.translate(0, 0.5, 0);
-  const crownMesh = new THREE.InstancedMesh(crown, withFog(new THREE.MeshStandardMaterial({ color: '#2f5a2e', roughness: 0.9, flatShading: true })), points.length);
+  const crownMesh = new THREE.InstancedMesh(crown, withFog(new THREE.MeshStandardMaterial({ color: '#3a5a32', roughness: 0.9, flatShading: true }), { weather: 0.45 }), points.length);
   const trunkMesh = new THREE.InstancedMesh(trunk, withFog(new THREE.MeshStandardMaterial({ color: '#5b4330', roughness: 0.9 })), points.length);
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
@@ -369,7 +392,7 @@ function proceduralRocks(points: { x: number; z: number; s: number; r: number }[
   if (points.length === 0) return g;
   const rocks = new THREE.InstancedMesh(
     new THREE.DodecahedronGeometry(1.1, 0),
-    withFog(new THREE.MeshStandardMaterial({ color: '#7a766c', roughness: 0.95, flatShading: true })),
+    withFog(new THREE.MeshStandardMaterial({ color: '#7a766c', roughness: 0.95, flatShading: true }), { weather: 0.85 }),
     points.length,
   );
   const m = new THREE.Matrix4();

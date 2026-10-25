@@ -15,11 +15,20 @@ Tudo é gerado no próprio navegador (texturas em canvas e shaders); nenhum arqu
 | Desgaste das construções | `materials.ts` (`withFog` com `weather`) | sujeira triplanar com escorridos verticais, mais escura perto do chão, e aspereza variável |
 | Janelas | `materials.ts` (`panes`) | vidros em grade com caixilhos e vidros quebrados/variados |
 | Fumaça | `BuildingVisuals.ts` | partículas nas chaminés da fábrica (desligadas no preset Baixo) |
+| Oclusão de ambiente | `src/game/render/PostFx.ts` | GTAO em espaço de tela: sombras de contato no chão, cantos e frestas (só no preset Alto) |
+| Juntas de concreto | `textures.ts` (`grimeTexture`, canal verde) | painéis de forma nas paredes e chapas; vegetação e rochas usam o canal sem linhas |
+| Vegetação e rochas | `TerrainFactory.ts` (`FOLIAGE_TINT`, `ROCK_TINT`) | cor variada por instância (verde-oliva, seco, escuro) e textura de desgaste |
+| Objetos de cena | `buildingModels.ts` (`jersey`, `container`) | barreiras de concreto "New Jersey" no QG e na fábrica, contêineres com nervuras |
+
+## Low poly com detalhe realista
+A geometria continua low poly (faces planas, poucas peças). O realismo vem do que a foto tem e o brinquedo não:
+sujeira e escorridos, juntas de concreto, variação de cor entre cópias, sombra de contato e objetos do dia a dia
+(barreiras, contêineres). Assim o estilo continua coerente e legível de longe.
 
 ## Presets
-- **Alto:** texturas 512 px, relevo externo com 160 segmentos, fumaça.
+- **Alto:** texturas 512 px, relevo externo com 160 segmentos, fumaça e oclusão de ambiente.
 - **Equilibrado/Baixo:** texturas 256 px, 90 segmentos; fumaça só quando o preset permite mais de 60 efeitos.
 
 ## Limitações conhecidas
 - Os modelos continuam sendo geometria low-poly; o realismo vem de texturas e iluminação, não de modelos esculpidos.
-- Barreiras de concreto, contêineres e meio-fio como objetos de cena ficam para uma próxima rodada visual.
+- Meio-fio e calçadas ao longo das estradas ainda não existem.

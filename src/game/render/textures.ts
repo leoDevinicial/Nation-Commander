@@ -111,6 +111,16 @@ export function grimeTexture(size = 512): THREE.Texture {
       v -= Math.max(0, s - 0.52) * 1.3;
       return [v * 255, v * 255, v * 255];
     });
+    // juntas de forma do concreto (painéis), só no canal verde: construções e veículos usam,
+    // vegetação e rochas leem o vermelho e ficam sem linhas
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = 'rgb(255,215,255)';
+    const panel = size / 4;
+    for (let k = 0; k < 4; k++) {
+      ctx.fillRect(0, k * panel, size, Math.max(1, size / 256));
+      ctx.fillRect(k * panel * 2, 0, Math.max(1, size / 256), size);
+    }
+    ctx.globalCompositeOperation = 'source-over';
     const rng = new Random(14);
     // manchas escuras e lascas
     for (let k = 0; k < 90; k++) {

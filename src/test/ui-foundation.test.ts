@@ -32,6 +32,10 @@ describe('presets gráficos', () => {
     expect(PROFILES.low.pixelRatioCap).toBeLessThan(PROFILES.balanced.pixelRatioCap);
     expect(PROFILES.balanced.pixelRatioCap).toBeLessThan(PROFILES.high.pixelRatioCap);
     expect(PROFILES.low.maxEffects).toBeLessThan(PROFILES.high.maxEffects);
+    // oclusão de ambiente custa uma passada extra: só no preset Alto
+    expect(PROFILES.low.ao).toBe(false);
+    expect(PROFILES.balanced.ao).toBe(false);
+    expect(PROFILES.high.ao).toBe(true);
   });
 
   it('configurações antigas (low/high) são migradas e valores inválidos ignorados', () => {
