@@ -6,6 +6,7 @@ import { Connection } from './Connection.ts';
 import { handleClose, handleMessage, type HandlerDeps } from './handler.ts';
 import { log } from './logger.ts';
 import { parseClientMessage } from './messages.ts';
+import { isOriginAllowed } from './origins.ts';
 import { RoomManager } from './RoomManager.ts';
 import { getSupabase, recordMatch, verifyAccessToken } from './supabase.ts';
 
@@ -37,7 +38,7 @@ const wss = new WebSocketServer({
   path: '/ws',
   maxPayload: 16 * 1024,
   verifyClient: ({ origin }, done) => {
-    if (config.allowedOrigins.length === 0 || config.allowedOrigins.includes(origin)) done(true);
+    if (isOriginAllowed(origin, config.allowedOrigins)) done(true);
     else {
       log.warn('Origem recusada', { origin });
       done(false, 403, 'Origem não permitida');

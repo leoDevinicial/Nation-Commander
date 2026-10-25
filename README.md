@@ -70,7 +70,7 @@ e o cliente com `VITE_ALLOW_GUESTS=true` (no `.env.local`). Partidas de convidad
 | `PORT` | servidor | porta HTTP/WebSocket (padrão 8787) |
 | `SUPABASE_URL` | servidor | URL do projeto Supabase |
 | `SUPABASE_SERVICE_ROLE_KEY` | servidor | **secreta**: valida sessões e grava partidas |
-| `ALLOWED_ORIGINS` | servidor | origens aceitas, separadas por vírgula (ex.: `https://seu-app.vercel.app`) |
+| `ALLOWED_ORIGINS` | servidor | origens aceitas, separadas por vírgula; `*` funciona como curinga (ex.: `https://seu-app.vercel.app,https://seu-app-*.vercel.app`) |
 | `ALLOW_GUESTS` | servidor | aceita conexões sem conta |
 | `RECONNECT_GRACE_MS` | servidor | prazo para reconectar antes de perder por abandono (padrão 60000) |
 
