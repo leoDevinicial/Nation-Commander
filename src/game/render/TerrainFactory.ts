@@ -4,6 +4,7 @@ import { Terrain } from '../../../shared/sim/config.ts';
 import { Random } from '../../../shared/sim/Random.ts';
 import type { MapData } from '../../../shared/sim/types.ts';
 import { withFog } from './materials.ts';
+import { createWater, type WaterReflection } from './Water.ts';
 import { asphaltTexture, dirtTexture, grassTexture, rockTexture } from './textures.ts';
 import { C, PartBuilder } from './models/kit.ts';
 
@@ -149,6 +150,10 @@ export interface TerrainHandle {
   group: THREE.Group;
   /** Carrega modelos do Nature Kit e substitui a vegetação procedural (assíncrono). */
   upgrade: () => Promise<void>;
+  /** Superfície da água (oculta durante a medição de exposição para não refletir duas vezes). */
+  water: THREE.Mesh;
+  /** Anima as ondulações da água (segundos). */
+  update: (time: number) => void;
   dispose: () => void;
 }
 
@@ -156,7 +161,7 @@ export interface TerrainHandle {
  * Representação visual do mapa. A simulação é 2D plana; a altura aqui é decorativa e baixa nas
  * áreas passáveis para que unidades e terreno continuem alinhados.
  */
-export function buildTerrain(map: MapData, quality: 'low' | 'high'): TerrainHandle {
+export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: WaterReflection = 'sky'): TerrainHandle {
   const group = new THREE.Group();
   group.name = 'terrain';
   const W = map.width * map.cellSize;
@@ -206,13 +211,9 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high'): TerrainHand
   disposables.push(geo, groundMat);
   group.add(buildSkirt(map, quality, disposables));
 
-  const waterGeo = new THREE.PlaneGeometry(W, H);
-  const waterMat = withFog(new THREE.MeshStandardMaterial({ color: '#2c5463', transparent: true, opacity: 0.82, roughness: 0.08, metalness: 0.1, envMapIntensity: 1.2 }));
-  const water = new THREE.Mesh(waterGeo, waterMat);
-  water.rotation.x = -Math.PI / 2;
-  water.position.set(W / 2, -0.25, H / 2);
-  group.add(water);
-  disposables.push(waterGeo, waterMat);
+  const water = createWater(W, H, reflection);
+  group.add(water.mesh);
+  disposables.push(water);
 
   // posições da vegetação e das rochas (sementes determinísticas)
   const trees: { x: number; z: number; s: number; r: number; v: number }[] = [];
@@ -306,6 +307,8 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high'): TerrainHand
   return {
     group,
     upgrade,
+    water: water.mesh,
+    update: water.update,
     dispose: () => {
       for (const d of disposables) d.dispose();
     },

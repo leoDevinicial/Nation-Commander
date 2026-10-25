@@ -36,6 +36,10 @@ describe('presets gráficos', () => {
     expect(PROFILES.low.ao).toBe(false);
     expect(PROFILES.balanced.ao).toBe(false);
     expect(PROFILES.high.ao).toBe(true);
+    // celular: sem passadas extras (reflexo só do céu, exposição fixa, sem luzes dinâmicas nem sonda)
+    expect(PROFILES.low).toMatchObject({ reflections: 'sky', adaptiveExposure: false, dynamicLights: 0, envProbe: false });
+    expect(PROFILES.high).toMatchObject({ reflections: 'planar', adaptiveExposure: true, envProbe: true });
+    expect(PROFILES.balanced.dynamicLights).toBeLessThanOrEqual(PROFILES.high.dynamicLights);
   });
 
   it('configurações antigas (low/high) são migradas e valores inválidos ignorados', () => {

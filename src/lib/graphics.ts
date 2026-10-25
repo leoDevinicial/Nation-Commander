@@ -25,6 +25,14 @@ export interface GraphicsProfile {
   maxEffects: number;
   /** Oclusão de ambiente em espaço de tela (sombras de contato e cantos). */
   ao: boolean;
+  /** Reflexo da água: espelho real da cena ('planar') ou só do céu ('sky'). */
+  reflections: 'planar' | 'sky';
+  /** Exposição que se adapta à luminosidade da tela. */
+  adaptiveExposure: boolean;
+  /** Luzes pontuais de disparos e explosões (0 = desligado). */
+  dynamicLights: number;
+  /** Mapa de ambiente atualizado com o cenário ao redor da câmera. */
+  envProbe: boolean;
   /** Globo do menu. */
   globe: { textureWidth: number; clouds: boolean; stars: number; maxFps: number };
 }
@@ -38,6 +46,10 @@ export const PROFILES: Record<GraphicsPreset, GraphicsProfile> = {
     terrain: 'low',
     maxEffects: 60,
     ao: false,
+    reflections: 'sky',
+    adaptiveExposure: false,
+    dynamicLights: 0,
+    envProbe: false,
     globe: { textureWidth: 1024, clouds: false, stars: 400, maxFps: 30 },
   },
   balanced: {
@@ -48,6 +60,10 @@ export const PROFILES: Record<GraphicsPreset, GraphicsProfile> = {
     terrain: 'high',
     maxEffects: 120,
     ao: false,
+    reflections: 'sky',
+    adaptiveExposure: true,
+    dynamicLights: 2,
+    envProbe: false,
     globe: { textureWidth: 2048, clouds: true, stars: 1200, maxFps: 60 },
   },
   high: {
@@ -58,6 +74,10 @@ export const PROFILES: Record<GraphicsPreset, GraphicsProfile> = {
     terrain: 'high',
     maxEffects: 160,
     ao: true,
+    reflections: 'planar',
+    adaptiveExposure: true,
+    dynamicLights: 4,
+    envProbe: true,
     globe: { textureWidth: 4096, clouds: true, stars: 2000, maxFps: 60 },
   },
 };

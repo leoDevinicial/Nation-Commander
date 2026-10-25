@@ -54,3 +54,30 @@ Um único conjunto de ajustes, barato e igual em todos os presets, injetado no m
   (aparelho e antena).
 - **Construções:** peitoris e vergas em todas as janelas, calhas, platibanda e ar-condicionado no QG, tubulação na
   fábrica, aparelhos de ar na fachada do residencial, degrau e calha na casa.
+
+## Reflexos e iluminação adaptativa
+
+| Recurso | Onde | Baixo | Equilibrado | Alto |
+|---|---|---|---|---|
+| Água com Fresnel, ondulações e brilho do sol | `Water.ts` | reflexo do céu | reflexo do céu | **espelho real da cena** (`Reflector`, 512 px) |
+| Exposição adaptativa (olho/câmera) | `Lighting.ts` (`AdaptiveExposure`) | — | sim | sim |
+| Sombras que acompanham a câmera | `Lighting.ts` (`ShadowFollow`) | sem sombras | sim | sim |
+| Luzes de disparos e explosões | `Effects.ts` (conjunto fixo de `PointLight`) | 0 | 2 | 4 |
+| Sonda de ambiente (reflexos do cenário real) | `Lighting.ts` (`EnvironmentProbe`) | — | — | sim |
+
+- **Exposição adaptativa:** a cada ~0,6 s a cena é desenhada numa miniatura de 32×18 e lida de forma assíncrona (sem
+  travar a GPU). A média logarítmica da luminância ignora pixels quase pretos (áreas inexploradas da névoa de guerra)
+  e a exposição se aproxima suavemente do alvo em ~1 s, aplicando só metade da correção (`ADAPT_STRENGTH = 0,5`)
+  para preservar o visual, entre 0,8 e 1,45. A referência (`EXPOSURE_KEY = 0,13`) foi medida em vistas típicas da base
+  (0,10 a 0,16). Funções puras testadas em `src/test/lighting.test.ts`.
+- **Sombras:** o volume de sombra do sol cobre só a área em volta do ponto observado e cresce com o zoom; o centro é
+  encaixado na grade de texels para a sombra não tremer.
+- **Luzes dinâmicas:** número fixo por preset (luzes apagadas não forçam recompilação de shaders); um clarão fraco não
+  rouba a luz de uma explosão que ainda está acesa.
+- **Sonda de ambiente:** a cada 2,5 s, se a câmera andou mais de 8 unidades, um cubo de 64 px do entorno vira o mapa de
+  ambiente: vidros e metais refletem o terreno e os prédios da região, não só o céu.
+- **Oclusão de ambiente:** camadas transparentes que não gravam profundidade (fronteiras, água, céu, fumaça) ficam fora
+  do passe de normais do GTAO — antes apareciam como manchas pretas nas faixas de fronteira.
+
+Relação com a Fase 8A: a água ganhou reflexo e ondulação de superfície, mas ondas, margens e petróleo da 8A continuam
+pendentes.

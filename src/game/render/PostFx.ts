@@ -21,6 +21,7 @@ export class PostFx {
     this.ao.updateGtaoMaterial({ radius: 1.6, distanceExponent: 1.5, thickness: 1.5, scale: 1.1, samples: 12 });
     this.ao.updatePdMaterial({ radius: 6, rings: 2, samples: 12 });
     this.ao.blendIntensity = 1;
+    excludeOverlaysFromAo(this.ao, scene);
     this.composer.addPass(this.ao);
     this.composer.addPass(new OutputPass());
   }
@@ -38,4 +39,26 @@ export class PostFx {
     this.ao.dispose();
     this.composer.dispose();
   }
+}
+
+/**
+ * O GTAO só deve "ver" superfícies sólidas. Camadas sobrepostas e transparentes que não gravam
+ * profundidade (fronteiras, água, céu, fumaça, barras de vida) entrariam no passe de normais e
+ * apareceriam como manchas pretas — por isso ficam de fora, junto com pontos e linhas.
+ */
+function excludeOverlaysFromAo(pass: GTAOPass, scene: THREE.Scene): void {
+  const internal = pass as unknown as { _overrideVisibility: () => void; _visibilityCache: THREE.Object3D[] };
+  internal._overrideVisibility = () => {
+    const cache = internal._visibilityCache;
+    scene.traverse((o) => {
+      if (!o.visible) return;
+      const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+      const overlay = !!m && !Array.isArray(m) && m.transparent && !m.depthWrite;
+      const flag = o as unknown as { isPoints?: boolean; isLine?: boolean; isSprite?: boolean };
+      if (overlay || flag.isPoints || flag.isLine || flag.isSprite) {
+        o.visible = false;
+        cache.push(o);
+      }
+    });
+  };
 }

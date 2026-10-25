@@ -31,6 +31,22 @@ export const GRADE_GLSL = /* glsl */ `
     gl_FragColor.rgb = gc;
   }`;
 
+/**
+ * Névoa de guerra aplicada à cor final (requer uFogMap, uFogSize e vFogXZ): inexplorado quase
+ * preto, explorado fora de visão dessaturado e escuro, visível com cor plena.
+ */
+export const FOG_GLSL = /* glsl */ `
+  {
+    float fogV = texture2D(uFogMap, vFogXZ / uFogSize).r;
+    vec3 fogFull = gl_FragColor.rgb;
+    vec3 fogGray = vec3(dot(fogFull, vec3(0.299, 0.587, 0.114)));
+    vec3 fogSeen = mix(fogGray, fogFull, 0.45) * 0.5;
+    vec3 fogHidden = fogGray * 0.12;
+    gl_FragColor.rgb = fogV < 0.45
+      ? mix(fogHidden, fogSeen, smoothstep(0.0, 0.45, fogV))
+      : mix(fogSeen, fogFull, smoothstep(0.45, 1.0, fogV));
+  }`;
+
 /** Luz de contorno: o céu "abraça" as bordas dos modelos e separa a silhueta do chão. */
 const RIM = new THREE.Color('#9fb6cc');
 
@@ -121,14 +137,7 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
       '#include <dithering_fragment>',
       `#include <dithering_fragment>
         ${GRADE_GLSL}
-        float fogV = texture2D(uFogMap, vFogXZ / uFogSize).r;
-        vec3 fogFull = gl_FragColor.rgb;
-        vec3 fogGray = vec3(dot(fogFull, vec3(0.299, 0.587, 0.114)));
-        vec3 fogSeen = mix(fogGray, fogFull, 0.45) * 0.5;
-        vec3 fogHidden = fogGray * 0.12;
-        gl_FragColor.rgb = fogV < 0.45
-          ? mix(fogHidden, fogSeen, smoothstep(0.0, 0.45, fogV))
-          : mix(fogSeen, fogFull, smoothstep(0.45, 1.0, fogV));`,
+        ${FOG_GLSL}`,
     );
   };
   material.customProgramCacheKey = () => `nc-fog-v5-w${weather}-p${panes ? 1 : 0}-${ch}`;

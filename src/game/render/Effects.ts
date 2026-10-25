@@ -8,8 +8,20 @@ interface Effect {
   dispose: () => void;
 }
 
-/** Efeitos curtos e contidos: traçantes, clarões e explosões. */
+/** Luz pontual reaproveitada (o número de luzes é fixo para não recompilar shaders). */
+interface PooledLight {
+  light: THREE.PointLight;
+  age: number;
+  life: number;
+  peak: number;
+}
+
+/**
+ * Efeitos curtos e contidos: traçantes, clarões e explosões. Disparos e explosões também acendem
+ * por um instante o entorno (luzes pontuais de um conjunto fixo, conforme o preset gráfico).
+ */
 export class Effects {
+  private readonly lights: PooledLight[] = [];
   private readonly items: Effect[] = [];
   private readonly sphereGeo = new THREE.SphereGeometry(1, 10, 8);
   private readonly lineMatLight = new THREE.LineBasicMaterial({ color: '#ffe7a3', transparent: true });
@@ -19,8 +31,31 @@ export class Effects {
   constructor(
     private readonly scene: THREE.Scene,
     maxItems: number,
+    dynamicLights = 0,
   ) {
     this.maxItems = maxItems;
+    for (let i = 0; i < dynamicLights; i++) {
+      const light = new THREE.PointLight('#ffb36b', 0, 10, 2);
+      light.castShadow = false;
+      scene.add(light);
+      this.lights.push({ light, age: 1, life: 1, peak: 0 });
+    }
+  }
+
+  /** Acende a luz mais antiga do conjunto em `at` (clarão de disparo ou explosão). */
+  private glow(at: THREE.Vector3, color: string, peak: number, range: number, life: number): void {
+    if (this.lights.length === 0) return;
+    let slot = this.lights[0]!;
+    for (const l of this.lights) if (l.age / l.life > slot.age / slot.life) slot = l;
+    // não rouba uma luz mais forte que ainda está acesa
+    if (slot.age < slot.life && slot.peak * (1 - slot.age / slot.life) > peak) return;
+    slot.light.position.copy(at).setY(at.y + 0.8);
+    slot.light.color.set(color);
+    slot.light.distance = range;
+    slot.peak = peak;
+    slot.age = 0;
+    slot.life = life;
+    slot.light.intensity = peak;
   }
 
   tracer(from: THREE.Vector3, to: THREE.Vector3, heavy: boolean): void {
@@ -33,7 +68,10 @@ export class Effects {
       material.dispose();
     });
     this.flash(from, heavy ? 0.35 : 0.16, '#fff2c0', 0.08);
-    if (heavy) this.flash(to, 0.5, '#ff9a4a', 0.22);
+    if (heavy) {
+      this.flash(to, 0.5, '#ff9a4a', 0.22);
+      this.glow(from, '#ffd59a', 25, 9, 0.12);
+    }
   }
 
   flash(at: THREE.Vector3, size: number, color: string, life: number): void {
@@ -49,6 +87,7 @@ export class Effects {
   }
 
   explosion(at: THREE.Vector3, big: boolean): void {
+    this.glow(at, '#ff8a3a', big ? 160 : 60, big ? 18 : 10, big ? 0.9 : 0.5);
     const fire = new THREE.MeshBasicMaterial({ color: '#ff8a3a', transparent: true, depthWrite: false });
     const core = new THREE.Mesh(this.sphereGeo, fire);
     core.position.copy(at).setY(at.y + 0.6);
@@ -75,6 +114,13 @@ export class Effects {
   }
 
   update(dt: number): void {
+    for (const l of this.lights) {
+      if (l.age >= l.life) continue;
+      l.age += dt;
+      const t = Math.min(1, l.age / l.life);
+      // subida instantânea e queda rápida, como um clarão
+      l.light.intensity = l.peak * (1 - t) * (1 - t);
+    }
     for (let i = this.items.length - 1; i >= 0; i--) {
       const e = this.items[i]!;
       e.age += dt;
@@ -94,6 +140,8 @@ export class Effects {
       e.dispose();
     }
     this.items.length = 0;
+    for (const l of this.lights) l.light.removeFromParent();
+    this.lights.length = 0;
     this.sphereGeo.dispose();
     this.lineMatLight.dispose();
     this.lineMatHeavy.dispose();

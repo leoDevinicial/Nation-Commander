@@ -24,6 +24,7 @@ import { createSky, environmentFromSky, SKY } from './render/Sky.ts';
 import { disposeTextures, grimeTexture, windowTexture } from './render/textures.ts';
 import { UnitVisual } from './render/UnitVisuals.ts';
 import { PostFx } from './render/PostFx.ts';
+import { AdaptiveExposure, EnvironmentProbe, ShadowFollow } from './render/Lighting.ts';
 import { describeEvent } from './eventText.ts';
 import type { GraphicsProfile } from '../lib/graphics.ts';
 import { isTouchDevice } from '../lib/graphics.ts';
@@ -66,6 +67,10 @@ export class GameRuntime {
   readonly mySlot: number;
   private readonly renderer: THREE.WebGLRenderer;
   private postFx: PostFx | null = null;
+  private exposure: AdaptiveExposure | null = null;
+  private probe: EnvironmentProbe | null = null;
+  private shadowFollow: ShadowFollow | null = null;
+  private skyEnv: THREE.Texture | null = null;
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.PerspectiveCamera;
   readonly cameraCtl: CameraController;
@@ -173,9 +178,11 @@ export class GameRuntime {
     fogUniforms.uFogSize.value.set(W, H);
     this.setupScene(W, H);
     if (opts.profile.ao) this.postFx = new PostFx(this.renderer, this.scene, this.camera);
+    if (opts.profile.adaptiveExposure) this.exposure = new AdaptiveExposure(this.renderer, this.renderer.toneMappingExposure);
+    if (opts.profile.envProbe) this.probe = new EnvironmentProbe(this.renderer, this.scene);
     this.territoryLayer = new TerritoryLayer(this.map.width, this.map.height, this.map.cellSize, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.territoryLayer.group);
-    this.effects = new Effects(this.scene, opts.profile.maxEffects);
+    this.effects = new Effects(this.scene, opts.profile.maxEffects, opts.profile.dynamicLights);
 
     this.selectionBox = document.createElement('div');
     this.selectionBox.className = 'selection-box';
@@ -227,7 +234,8 @@ export class GameRuntime {
     this.scene.add(this.sky);
     this.scene.background = SKY.haze;
     this.scene.fog = new THREE.Fog(SKY.haze, 150, 470);
-    this.scene.environment = environmentFromSky(this.renderer);
+    this.skyEnv = environmentFromSky(this.renderer);
+    this.scene.environment = this.skyEnv;
     weatherUniforms.uGrime.value = grimeTexture(this.opts.profile.terrain === 'high' ? 512 : 256);
     weatherUniforms.uPanes.value = windowTexture();
     this.scene.add(new THREE.HemisphereLight('#c9dcec', '#5b5340', 0.85));
@@ -243,9 +251,11 @@ export class GameRuntime {
     sc.bottom = -H * 0.75;
     sc.near = 10;
     sc.far = 260;
+    // volume de sombra acompanha a câmera (mais nitidez onde o jogador olha)
+    if (this.opts.shadows) this.shadowFollow = new ShadowFollow(sun, SKY.sunDir, Math.max(W, H) * 0.75);
     sun.shadow.bias = -0.0006;
     this.scene.add(sun, sun.target);
-    this.terrain = buildTerrain(this.map, this.opts.profile.terrain);
+    this.terrain = buildTerrain(this.map, this.opts.profile.terrain, this.opts.profile.reflections);
     this.scene.add(this.terrain.group);
     // modelos do Nature Kit chegam depois; até lá, vegetação procedural
     this.terrain.upgrade().catch((err: unknown) => console.warn('Nature Kit indisponível', err));
@@ -430,8 +440,13 @@ export class GameRuntime {
     if (!this.suspended) {
       this.sky.position.copy(this.camera.position);
       (this.sky.material as THREE.ShaderMaterial).uniforms.uTime!.value = now / 1000;
+      this.terrain.update(now / 1000);
+      this.shadowFollow?.update(this.cameraCtl.target, this.cameraCtl.distance);
       if (this.postFx) this.postFx.render();
       else this.renderer.render(this.scene, this.camera);
+      // medições extras depois do quadro principal (o mapa de sombra já existe e está atualizado)
+      this.probe?.update(this.cameraCtl.target, now, [this.terrain.water]);
+      this.exposure?.update(this.scene, this.camera, now, dt, [this.terrain.water]);
     }
 
     this.frames++;
@@ -1139,6 +1154,8 @@ export class GameRuntime {
     for (const t of this.buildings.values()) t.visual.dispose();
     this.effects.dispose();
     this.postFx?.dispose();
+    this.exposure?.dispose();
+    this.probe?.dispose();
     this.selectionBox.remove();
     this.scene.traverse((o) => {
       if (o instanceof THREE.Mesh || o instanceof THREE.InstancedMesh) {
@@ -1155,7 +1172,7 @@ export class GameRuntime {
     disposeTextures();
     weatherUniforms.uGrime.value = null;
     weatherUniforms.uPanes.value = null;
-    this.scene.environment?.dispose();
+    this.skyEnv?.dispose();
     this.terrain.dispose();
     this.territoryLayer.dispose();
     this.fogTexture.dispose();
