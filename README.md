@@ -1,7 +1,9 @@
-# Nation Commander
+# Modern Geopolitical Real Strategy 3d Game
 
-RTS geopolítico 3D multijogador para navegador (nome de trabalho). Implementa as **Fases 1, 2 e 3** da
-[especificação](PROJETO_RTS_GEOPOLITICO_CLAUDE.md): uma operação tática jogável com servidor
+RTS geopolítico 3D multijogador para navegador (repositório e nome de trabalho: *Nation Commander*).
+Implementa as **Fases 1, 2 e 3** da [especificação](PROJETO_RTS_GEOPOLITICO_CLAUDE.md) e, do
+[adendo v2](docs/AUDITORIA_ADENDO.md), a auditoria (Fase 0) e a identidade visual com suporte a
+celular e tablet (Fase 1, ver [docs/FASE1_VISUAL_MOBILE.md](docs/FASE1_VISUAL_MOBILE.md)): uma operação tática jogável com servidor
 autoritativo via WebSocket, e uma camada nacional (economia, orçamento, opinião pública, pesquisa)
 que roda dentro de cada partida a partir de dados reais de 10 países.
 
@@ -110,6 +112,19 @@ e o cliente com `VITE_ALLOW_GUESTS=true` (no `.env.local`). Partidas de convidad
 
 | Painel nacional | `G` ou botão **🏛 Nação**: visão geral, orçamento, pesquisa, diplomacia, diagnóstico e dados de referência |
 
+#### Toque (celular e tablet)
+
+| Ação | Gesto ou botão |
+| --- | --- |
+| Selecionar | toque curto · dois toques seleciona o mesmo tipo visível · ferramenta **Área** + arrastar seleciona em retângulo · **Somar** adiciona à seleção |
+| Mover / atacar / ponto de reunião | toque longo (~0,5 s) no destino ou no inimigo · ou ferramenta **Ordem** + toque |
+| Construir | toque no Centro de Comando → botão da construção → toque no mapa para posicionar → toque de novo no mesmo lugar ou **Confirmar** |
+| Câmera | arrastar um dedo move · pinça aproxima/afasta · girar dois dedos gira · botões **Aproximar**, **Afastar**, **Girar** e **QG** · toque no minimapa |
+| Cancelar | botão **Cancelar** (modo de construção/ataque) · **Desmarcar** limpa a seleção |
+
+Limiares contra comandos acidentais: o dedo precisa andar 10 px para virar arrasto; zoom e giro só
+começam após uma variação clara; um segundo dedo cancela o toque e o toque longo em andamento.
+
 **Objetivo:** destruir o Centro de Comando inimigo. Limite de 40 unidades.
 
 ### Recursos (estilo Rise of Nations)
@@ -213,6 +228,16 @@ facção e vidros). Árvores, arbustos e rochas vêm do **Nature Kit** do
 não carregarem, o terreno usa vegetação procedural. A névoa de guerra é aplicada no shader de todos
 os materiais por posição de mundo.
 
+O globo do menu (`src/globe/`) usa as fronteiras simplificadas do **Natural Earth 1:110m** (domínio
+público) empacotadas pelo [`world-atlas`](https://github.com/topojson/world-atlas) (ISC) e
+decodificadas com `topojson-client` (ISC). O arquivo é servido pelo próprio build — nada é baixado
+de terceiros em tempo de execução. Fronteiras, litoral, marcadores e nuvens são camadas separadas.
+
+**Presets gráficos** (Configurações): *Mobile/Baixo*, *Equilibrado* e *Alto* ajustam resolução,
+antisserrilhado, sombras, vegetação, número de efeitos e as camadas do globo (`src/lib/graphics.ts`).
+O preset inicial é escolhido pelo aparelho (toque com tela pequena, pouca memória ou poucos núcleos
+→ Mobile/Baixo). Os presets nunca alteram regras nem resultados da simulação.
+
 ## Testes e verificação
 
 ```bash
@@ -241,8 +266,7 @@ npm run build:server
 - Salas vivem em memória de um único processo: reiniciar o servidor encerra partidas em andamento,
   e não há escala horizontal.
 - Sem áudio, tutorial ou matchmaking automático (entrada por código de sala).
-- Dívida pública sem série no WDI para Argentina, Alemanha, França e Japão (usa 60% do PIB, sinalizado);
-  inflação da Argentina é a de 2024 (último ano no WDI). Uma importação do FMI resolveria ambos.
+- O estado da implementação de cada fase do adendo está em [docs/AUDITORIA_ADENDO.md](docs/AUDITORIA_ADENDO.md).
 - Partidas duram minutos (≈ centenas de dias simulados): efeitos de longo prazo (educação,
   infraestrutura) aparecem pouco numa partida curta.
 - Os governos da IA só reagem a propostas (não tomam iniciativa diplomática própria) e mantêm o

@@ -104,7 +104,7 @@ export function ResultsOverlay() {
         </p>
         <div className="mt-4 text-center">
           <button className="btn btn-primary" onClick={back}>
-            Voltar ao menu
+            Voltar ao Menu
           </button>
         </div>
       </div>

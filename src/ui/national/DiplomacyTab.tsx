@@ -101,32 +101,32 @@ export function DiplomacyTab({ me, diplomacy, day, nameOf, enemies, onAction }: 
                   {!o.enemy && (
                     <div className="flex flex-wrap gap-1.5">
                       <button className="btn px-2 py-1 text-xs" disabled={has('trade') || has('sanctions')} onClick={() => onAction({ type: 'propose', treaty: 'trade', partner: o.id })} title={`Duração ${DIPLO.tradeDays} dias. Aumenta o crescimento das duas partes.`}>
-                        Propor comércio
+                        Propor Comércio
                       </button>
                       <button className="btn px-2 py-1 text-xs" disabled={has('alliance')} onClick={() => onAction({ type: 'propose', treaty: 'alliance', partner: o.id })} title={`Duração ${DIPLO.allianceDays} dias. O aliado envia ajuda militar ao teatro; custa ${DIPLO.allianceCostPct}% do PIB/ano. Exige relação alta.`}>
-                        Propor aliança
+                        Propor Aliança
                       </button>
                       {enemies.map((e) => (
                         <button key={e} className="btn px-2 py-1 text-xs" disabled={ts.some((t) => t.type === 'sanctions' && t.a === o.id && t.b === e)} onClick={() => onAction({ type: 'request_sanctions', partner: o.id, target: e })} title="O governo avalia sua relação com você, com o alvo e o custo de sancionar.">
-                          Pedir sanções contra {nameOf(e)}
+                          Pedir Sanções contra {nameOf(e)}
                         </button>
                       ))}
                       <button className="btn px-2 py-1 text-xs" onClick={() => onAction({ type: 'set_mission', partner: o.id, active: !mission })} title={`Melhora a relação gradualmente (até +${DIPLO.missionCap}); custa ${DIPLO.missionCostPct}% do PIB/ano.`}>
-                        {mission ? 'Encerrar missão' : 'Abrir missão diplomática'}
+                        {mission ? 'Encerrar Missão' : 'Abrir Missão Diplomática'}
                       </button>
                       <button className="btn px-2 py-1 text-xs" onClick={() => onAction({ type: 'send_aid', partner: o.id, pctGdp: aidPct })} title="Pago com endividamento. O efeito sobre a relação decai com o tempo.">
-                        Enviar ajuda ({formatUsd((aidPct / 100) * me.gdpUsd)})
+                        Enviar Ajuda ({formatUsd((aidPct / 100) * me.gdpUsd)})
                       </button>
                     </div>
                   )}
                   <div className="flex flex-wrap gap-1.5">
                     {has('sanctions', mine) ? (
                       <button className="btn px-2 py-1 text-xs" onClick={() => onAction({ type: 'lift_sanctions', target: o.id })}>
-                        Retirar sanções
+                        Retirar Sanções
                       </button>
                     ) : (
                       <button className="btn btn-danger px-2 py-1 text-xs" onClick={() => onAction({ type: 'impose_sanctions', target: o.id })} title="Reduz o crescimento do alvo, custa um pouco ao seu e encerra o comércio entre as partes.">
-                        Impor sanções
+                        Impor Sanções
                       </button>
                     )}
                   </div>

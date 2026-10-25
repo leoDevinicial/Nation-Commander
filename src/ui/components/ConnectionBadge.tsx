@@ -19,7 +19,7 @@ export function ConnectionBadge() {
       <span>Servidor: {LABEL[status]}</span>
       {status === 'failed' && (
         <button className="underline hover:text-ink-100" onClick={() => gameClient.retry()}>
-          tentar de novo
+          Tentar de Novo
         </button>
       )}
     </div>

@@ -7,6 +7,7 @@ import { MenuScreen } from '../ui/screens/MenuScreen.tsx';
 import { ProfileScreen } from '../ui/screens/ProfileScreen.tsx';
 import { SettingsScreen } from '../ui/screens/SettingsScreen.tsx';
 import { Toasts } from '../ui/components/Toasts.tsx';
+import { GlobeBackdrop } from '../ui/components/GlobeBackdrop.tsx';
 
 // Three.js e a cena 3D só são carregados ao entrar numa partida
 const GameScreen = lazy(() => import('../ui/screens/GameScreen.tsx').then((m) => ({ default: m.GameScreen })));
@@ -15,6 +16,8 @@ export function App() {
   const screen = useAppStore((s) => s.screen);
   return (
     <>
+      {/* um único globo para todas as telas fora da partida: não é recriado ao navegar */}
+      {screen !== 'game' && <GlobeBackdrop layout={screen === 'menu' || screen === 'auth' ? 'hero' : 'center'} dim={screen !== 'menu' && screen !== 'auth'} />}
       {screen === 'auth' && <AuthScreen />}
       {screen === 'menu' && <MenuScreen />}
       {screen === 'lobby' && <LobbyScreen />}

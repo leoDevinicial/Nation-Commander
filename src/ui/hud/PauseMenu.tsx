@@ -11,10 +11,10 @@ export function PauseMenu({ runtime, onClose }: { runtime: GameRuntime; onClose:
       <div className="panel w-80 space-y-2 p-5" role="dialog" aria-label="Menu da partida">
         <h2 className="mb-3 text-center font-bold tracking-wide">Menu da operação</h2>
         <button className="btn w-full" onClick={onClose}>
-          Voltar ao jogo
+          Voltar ao Jogo
         </button>
         <button className="btn w-full" onClick={() => runtime.togglePause()}>
-          {runtime.isPaused ? 'Retomar simulação' : 'Pausar simulação'}
+          {runtime.isPaused ? 'Retomar Simulação' : 'Pausar Simulação'}
         </button>
         {mode === 'pvp' && <p className="text-xs text-ink-400">Em partidas multijogador, qualquer jogador pode pausar ou retomar.</p>}
         {!confirm ? (
@@ -26,7 +26,7 @@ export function PauseMenu({ runtime, onClose }: { runtime: GameRuntime; onClose:
             <p className="mb-2">Render-se conta como derrota. Confirmar?</p>
             <div className="flex gap-2">
               <button className="btn btn-danger flex-1" onClick={() => gameClient.send({ t: 'surrender' })}>
-                Sim, render-se
+                Sim, Render-se
               </button>
               <button className="btn flex-1" onClick={() => setConfirm(false)}>
                 Não

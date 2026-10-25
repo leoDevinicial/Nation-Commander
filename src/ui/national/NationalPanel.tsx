@@ -16,7 +16,7 @@ import { makeNameOf } from '../../game/nationalText.ts';
 import type { DiplomaticAction } from '../../../shared/strategic/Diplomacy.ts';
 
 const TABS = [
-  { id: 'overview', label: 'Visão geral' },
+  { id: 'overview', label: 'Visão Geral' },
   { id: 'budget', label: 'Orçamento' },
   { id: 'research', label: 'Pesquisa' },
   { id: 'diplomacy', label: 'Diplomacia' },
@@ -44,7 +44,7 @@ export function NationalPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="panel pointer-events-auto absolute top-16 right-3 bottom-[200px] z-20 flex w-[520px] max-w-[calc(100vw-24px)] flex-col"
+      className="panel pointer-events-auto absolute top-16 right-3 bottom-[200px] z-30 flex w-[520px] max-w-[calc(100vw-24px)] flex-col max-sm:inset-x-2 max-sm:top-15 max-sm:bottom-2 max-sm:w-auto max-sm:max-w-none [@media(max-height:520px)]:top-14 [@media(max-height:520px)]:bottom-2"
       onPointerDown={(e) => e.stopPropagation()}
       onWheel={(e) => e.stopPropagation()}
       role="dialog"
@@ -55,17 +55,17 @@ export function NationalPanel({ onClose }: { onClose: () => void }) {
           <div className="text-sm font-semibold">{nation ? countryName(nation.countryId) : 'Nação'}</div>
           <div className="text-[11px] text-ink-400">{date ? `${formatDate(date)} · dia ${day} do cenário` : 'Aguardando dados…'}</div>
         </div>
-        <button className="btn px-2 py-1 text-xs" onClick={onClose} title="Fechar (G)">
+        <button className="btn px-2 py-1 text-xs" onClick={onClose} title="Fechar (G)" aria-label="Fechar painel nacional">
           ✖
         </button>
       </div>
-      <div className="flex gap-1 border-b border-ink-700 px-2 pt-2" role="tablist">
+      <div className="no-scrollbar flex gap-1 overflow-x-auto border-b border-ink-700 px-2 pt-2" role="tablist">
         {TABS.map((t) => (
           <button
             key={t.id}
             role="tab"
             aria-selected={tab === t.id}
-            className={`rounded-t px-2.5 py-1.5 text-xs font-semibold ${tab === t.id ? 'bg-ink-700 text-ink-100' : 'text-ink-400 hover:text-ink-200'}`}
+            className={`shrink-0 rounded-t px-2.5 py-2 text-xs font-semibold sm:py-1.5 ${tab === t.id ? 'bg-ink-700 text-ink-100' : 'text-ink-400 hover:text-ink-200'}`}
             onClick={() => setTab(t.id)}
           >
             {t.label}

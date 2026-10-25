@@ -3,6 +3,7 @@ import { env } from '../../lib/env.ts';
 import { supabase, USERNAME_RE } from '../../lib/supabase.ts';
 import { playAsGuest } from '../../app/session.ts';
 import { Shell } from '../components/Shell.tsx';
+import { GAME_TITLE } from '../../../shared/version.ts';
 
 type Tab = 'login' | 'signup';
 
@@ -19,7 +20,7 @@ export function AuthScreen() {
   const sb = supabase;
   if (!sb) {
     return (
-      <Shell title="Nation Commander">
+      <Shell title={GAME_TITLE}>
         <p className="text-sm text-ink-200">
           O Supabase não está configurado. Defina <code>VITE_SUPABASE_URL</code> e <code>VITE_SUPABASE_ANON_KEY</code> (veja o README).
         </p>
@@ -59,11 +60,11 @@ export function AuthScreen() {
   };
 
   return (
-    <Shell>
-      <div className="mb-6 text-center">
-        <div className="text-xs font-semibold tracking-[0.3em] text-brass-400">RTS GEOPOLÍTICO 3D</div>
-        <h1 className="mt-1 text-3xl font-black tracking-wide">Nation Commander</h1>
-        <p className="mt-1 text-xs text-ink-400">Nome de trabalho · protótipo multijogador</p>
+    <Shell align="start">
+      <div className="mb-6 [@media(max-height:520px)]:mb-3">
+        <div className="font-display text-[11px] font-semibold tracking-[0.32em] text-brass-400 uppercase">Comando Estratégico · RTS 3D</div>
+        <h1 className="font-display mt-2 text-[1.7rem] leading-[1.1] font-bold tracking-wide sm:text-[2.1rem] [@media(max-height:520px)]:text-xl">{GAME_TITLE}</h1>
+        <p className="mt-2 text-xs text-ink-400">Protótipo multijogador</p>
       </div>
       <div className="mb-4 grid grid-cols-2 gap-1 rounded bg-ink-950 p-1" role="tablist">
         {(['login', 'signup'] as const).map((t) => (
@@ -77,7 +78,7 @@ export function AuthScreen() {
               setError(null);
             }}
           >
-            {t === 'login' ? 'Entrar' : 'Criar conta'}
+            {t === 'login' ? 'Entrar' : 'Criar Conta'}
           </button>
         ))}
       </div>
@@ -114,7 +115,7 @@ export function AuthScreen() {
         {error && <p className="text-sm text-red-300">⚠ {error}</p>}
         {info && <p className="text-sm text-ink-200">ℹ {info}</p>}
         <button className="btn btn-primary w-full" disabled={busy}>
-          {busy ? 'Aguarde…' : tab === 'login' ? 'Entrar' : 'Criar conta e entrar'}
+          {busy ? 'Aguarde…' : tab === 'login' ? 'Entrar' : 'Criar Conta e Entrar'}
         </button>
       </form>
       {env.allowGuests && <GuestForm name={guestName} setName={setGuestName} />}

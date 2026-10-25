@@ -101,7 +101,7 @@ export function BudgetTab({ nation, onApply, balanceMode }: { nation: NationView
             setEdited(null);
           }}
         >
-          Aplicar orçamento
+          Aplicar Orçamento
         </button>
         <button
           className="btn"

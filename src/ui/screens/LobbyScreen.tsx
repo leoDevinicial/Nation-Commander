@@ -102,15 +102,15 @@ export function LobbyScreen() {
           <div className="mt-5 flex flex-wrap gap-2">
             {isHost ? (
               <button className="btn btn-primary" disabled={!canStart} onClick={() => gameClient.send({ t: 'start' })}>
-                Iniciar operação
+                Iniciar Operação
               </button>
             ) : (
               <button className={`btn ${mine?.ready ? '' : 'btn-primary'}`} onClick={() => gameClient.send({ t: 'set_ready', ready: !mine?.ready })}>
-                {mine?.ready ? 'Cancelar pronto' : 'Estou pronto'}
+                {mine?.ready ? 'Cancelar Pronto' : 'Estou Pronto'}
               </button>
             )}
             <button className="btn btn-danger ml-auto" onClick={() => gameClient.send({ t: 'leave_room' })}>
-              Sair da sala
+              Sair da Sala
             </button>
           </div>
         </div>

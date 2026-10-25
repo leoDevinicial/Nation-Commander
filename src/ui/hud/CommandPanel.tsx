@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { BUILDINGS, RESOURCE_LABELS, UNITS, canAfford, type BuildingType, type Stockpile, type UnitType } from '../../../shared/sim/config.ts';
 import { gatherRate } from '../../../shared/sim/gathering.ts';
 import { CostLabel, ResourceIcon } from '../components/Resources.tsx';
@@ -18,15 +19,26 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
   const players = useHudStore((s) => s.players);
   const mySlot = useHudStore((s) => s.mySlot);
   const resources = players.find((p) => p.slot === mySlot)?.resources ?? EMPTY;
+  const touch = useHudStore((s) => s.touchUi);
+  const [help, setHelp] = useState(false);
 
   return (
-    <div className="panel pointer-events-auto flex h-[180px] min-w-0 flex-1 gap-4 p-3" onPointerDown={(e) => e.stopPropagation()}>
-      <div className="min-w-0 flex-1 overflow-hidden">
+    <div
+      className="panel pointer-events-auto flex min-w-0 flex-1 flex-col gap-2 p-2 sm:h-[180px] sm:flex-row sm:gap-4 sm:p-3 [@media(max-height:520px)]:h-auto [@media(max-height:520px)]:max-h-[128px] [@media(max-height:520px)]:flex-row [@media(max-height:520px)]:gap-2 [@media(max-height:520px)]:p-2"
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <div className="scroll-thin max-h-24 min-w-0 flex-1 overflow-y-auto sm:max-h-none [@media(max-height:520px)]:max-h-none">
         {mode.kind === 'place' && (
           <div>
             <ModeHint
               title={`Posicionar ${BUILDINGS[mode.buildingType].label}`}
-              text={mode.valid ? 'Clique esquerdo para construir. Botão direito ou Esc cancela.' : `Posição inválida: ${mode.reason ?? '—'}`}
+              text={
+                !mode.valid
+                  ? `Posição inválida: ${mode.reason ?? '—'}`
+                  : touch
+                    ? 'Toque no mapa para posicionar; toque de novo no mesmo lugar ou em Confirmar para construir.'
+                    : 'Clique esquerdo para construir. Botão direito ou Esc cancela.'
+              }
               bad={!mode.valid}
             />
             <div className="mt-1.5 text-xs text-ink-400">
@@ -42,7 +54,9 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             )}
           </div>
         )}
-        {mode.kind === 'attack_move' && <ModeHint title="Avançar atacando" text="Clique no destino. As unidades atacam o que encontrarem pelo caminho." />}
+        {mode.kind === 'attack_move' && (
+          <ModeHint title="Avançar atacando" text={`${touch ? 'Toque' : 'Clique'} no destino. As unidades atacam o que encontrarem pelo caminho.`} />
+        )}
         {mode.kind === 'normal' && units.length > 0 && <UnitsInfo units={units} />}
         {mode.kind === 'normal' && units.length === 0 && building && <BuildingInfo b={building} />}
         {mode.kind === 'normal' && units.length === 0 && !building && inspected && (
@@ -55,7 +69,25 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             <HpLine hp={inspected.hp} max={inspected.kind === 'unit' ? UNITS[inspected.type as UnitType].maxHp : BUILDINGS[inspected.type as BuildingType].maxHp} />
           </div>
         )}
-        {mode.kind === 'normal' && units.length === 0 && !building && !inspected && (
+        {mode.kind === 'normal' && units.length === 0 && !building && !inspected && touch && (
+          <div className="text-xs leading-relaxed text-ink-400">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-semibold text-ink-200">Nenhuma seleção</span>
+              <button className="btn min-h-7 px-2 py-0.5 text-[11px]" aria-expanded={help} onClick={() => setHelp(!help)}>
+                {help ? 'Menos Ajuda' : 'Ajuda'}
+              </button>
+            </div>
+            {help ? (
+              <>
+                Toque para selecionar · dois toques: todas do tipo · toque longo: mover/atacar · arraste: câmera · pinça: zoom · gire dois dedos:
+                rotação. Ferramentas à direita: Ordem, Área (seleção por retângulo), Somar e QG. Toque no Centro de Comando para construir.
+              </>
+            ) : (
+              'Toque: selecionar · toque longo: ordem · arraste: câmera · pinça: zoom'
+            )}
+          </div>
+        )}
+        {mode.kind === 'normal' && units.length === 0 && !building && !inspected && !touch && (
           <div className="text-xs leading-relaxed text-ink-400">
             <div className="mb-1 text-sm font-semibold text-ink-200">Nenhuma seleção</div>
             Clique ou arraste para selecionar · Botão direito: mover/atacar · F: avançar atacando · X: parar · H: Centro de Comando ·
@@ -64,19 +96,27 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           </div>
         )}
       </div>
-      <div className="grid shrink-0 grid-cols-4 content-start gap-1.5 overflow-y-auto">
+      <div className="scroll-thin flex shrink-0 gap-1.5 overflow-x-auto sm:grid sm:grid-cols-4 sm:content-start sm:overflow-x-visible sm:overflow-y-auto [@media(max-height:520px)]:grid [@media(max-height:520px)]:grid-cols-4 [@media(max-height:520px)]:content-start [@media(max-height:520px)]:overflow-y-auto">
         {units.length > 0 && mode.kind === 'normal' && (
           <>
-            <button className="cmd-btn" onClick={() => runtime.startAttackMove()} title="Avançar atacando (F)">
+            <button className="cmd-btn shrink-0" onClick={() => runtime.startAttackMove()} title="Avançar atacando (F)">
               <span className="hotkey">F</span>⚔<span>Avançar</span>
             </button>
-            <button className="cmd-btn" onClick={() => runtime.stopSelected()} title="Parar (X)">
+            <button className="cmd-btn shrink-0" onClick={() => runtime.stopSelected()} title="Parar (X)">
               <span className="hotkey">X</span>■<span>Parar</span>
             </button>
           </>
         )}
+        {mode.kind === 'place' && touch && (
+          <button className="cmd-btn shrink-0" disabled={!mode.valid} onClick={() => runtime.confirmPlacement()} title="Construir na posição marcada">
+            <span className="text-base" aria-hidden>
+              ✔
+            </span>
+            <span>Confirmar</span>
+          </button>
+        )}
         {mode.kind !== 'normal' && (
-          <button className="cmd-btn" onClick={() => runtime.cancelMode()} title="Cancelar (Esc)">
+          <button className="cmd-btn shrink-0" onClick={() => runtime.cancelMode()} title="Cancelar (Esc)">
             <span className="hotkey">Esc</span>✖<span>Cancelar</span>
           </button>
         )}
@@ -87,7 +127,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             return (
               <button
                 key={type}
-                className="cmd-btn"
+                className="cmd-btn shrink-0"
                 disabled={!canAfford(resources, def.cost)}
                 onClick={() => runtime.startPlacement(type)}
                 title={`${def.label} — ${def.description}\nTempo: ${def.buildSeconds}s · Vida: ${def.maxHp}`}
@@ -115,7 +155,7 @@ function ProduceButtons({ runtime, type, resources }: { runtime: GameRuntime; ty
         return (
           <button
             key={u}
-            className="cmd-btn"
+            className="cmd-btn shrink-0"
             disabled={!canAfford(resources, def.cost)}
             onClick={() => runtime.produce(u)}
             title={`${def.label} — ${def.description}\nTempo: ${def.buildSeconds}s · Vida: ${def.maxHp} · Dano: ${def.weapon.damage} · Alcance: ${def.weapon.range} · Visão: ${def.sight}`}
@@ -126,7 +166,7 @@ function ProduceButtons({ runtime, type, resources }: { runtime: GameRuntime; ty
           </button>
         );
       })}
-      <button className="cmd-btn" onClick={() => runtime.cancelProduction()} title="Cancelar último item da fila (Delete) — reembolso integral">
+      <button className="cmd-btn shrink-0" onClick={() => runtime.cancelProduction()} title="Cancelar último item da fila (Delete) — reembolso integral">
         <span className="hotkey">Del</span>↶<span>Cancelar</span>
       </button>
     </>

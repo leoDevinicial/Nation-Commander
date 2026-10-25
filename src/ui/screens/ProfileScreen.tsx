@@ -82,7 +82,7 @@ export function ProfileScreen() {
             <CountrySelect id="pc" value={country} onChange={setCountry} />
           </div>
           <button className="btn btn-primary w-full" disabled={saving} onClick={() => void save()}>
-            {saving ? 'Salvando…' : 'Salvar perfil'}
+            {saving ? 'Salvando…' : 'Salvar Perfil'}
           </button>
           <p className="text-xs text-ink-400">Membro desde {new Date(profile.created_at).toLocaleDateString('pt-BR')}</p>
         </div>

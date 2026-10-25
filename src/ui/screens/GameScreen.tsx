@@ -3,12 +3,14 @@ import { GameRuntime } from '../../game/GameRuntime.ts';
 import { gameClient, snapshotBuffer } from '../../net/client.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { useSettingsStore } from '../../state/useSettingsStore.ts';
+import { PROFILES } from '../../lib/graphics.ts';
 import { CommandPanel } from '../hud/CommandPanel.tsx';
 import { EventLog } from '../hud/EventLog.tsx';
 import { Minimap } from '../hud/Minimap.tsx';
 import { PauseMenu } from '../hud/PauseMenu.tsx';
 import { ResultsOverlay } from '../hud/ResultsOverlay.tsx';
 import { TopBar } from '../hud/TopBar.tsx';
+import { TouchToolbar } from '../hud/TouchToolbar.tsx';
 import { ChatBox } from '../components/ChatBox.tsx';
 import { NationalPanel } from '../national/NationalPanel.tsx';
 import { useNationalStore } from '../../state/useNationalStore.ts';
@@ -25,6 +27,7 @@ export function GameScreen() {
   const [chatOpen, setChatOpen] = useState(false);
   const nationalOpen = useNationalStore((s) => s.panelOpen);
   const setNationalOpen = useNationalStore((s) => s.setPanelOpen);
+  const touchUi = useHudStore((s) => s.touchUi);
 
   // eventos nacionais entram no painel de eventos da operação
   useEffect(() => {
@@ -52,7 +55,12 @@ export function GameScreen() {
         containerRef.current,
         match,
         gameClient,
-        { quality: settings.quality, shadows: settings.shadows, panSpeed: settings.panSpeed, edgeScroll: settings.edgeScroll },
+        {
+          profile: PROFILES[settings.quality],
+          shadows: settings.shadows && PROFILES[settings.quality].shadows,
+          panSpeed: settings.panSpeed,
+          edgeScroll: settings.edgeScroll,
+        },
         snapshotBuffer.last,
       );
       setRuntime(rt);
@@ -103,22 +111,23 @@ export function GameScreen() {
         <>
           <TopBar runtime={runtime} onMenu={() => setMenuOpen(true)} canControlSpeed={match.canControlSpeed} />
           <EventLog />
-          <div className="pointer-events-none absolute right-3 bottom-3 left-3 flex items-end gap-3">
+          <div className="pointer-events-none absolute right-2 bottom-2 left-2 flex items-end gap-2 sm:right-3 sm:bottom-3 sm:left-3 sm:gap-3">
             <Minimap runtime={runtime} />
             <CommandPanel runtime={runtime} />
           </div>
+          {touchUi && !nationalOpen && <TouchToolbar runtime={runtime} />}
           {nationalOpen && <NationalPanel onClose={() => setNationalOpen(false)} />}
           {chatOpen && (
-            <div className="absolute top-14 right-3 z-30 w-72">
+            <div className="absolute top-15 right-2 z-30 w-72 max-w-[calc(100vw-16px)] sm:top-14 sm:right-3">
               <ChatBox compact />
-              <button className="mt-1 text-xs text-ink-400 hover:text-ink-100" onClick={() => setChatOpen(false)}>
-                fechar chat
+              <button className="btn mt-1 px-2 py-1 text-xs" onClick={() => setChatOpen(false)}>
+                Fechar Chat
               </button>
             </div>
           )}
           {!chatOpen && !nationalOpen && (
-            <button className="btn absolute top-14 right-3 px-2 py-1 text-xs" onClick={() => setChatOpen(true)} title="Chat (Enter)">
-              💬 Chat
+            <button className="btn absolute top-15 right-2 px-2 py-1 text-xs sm:top-14 sm:right-3" onClick={() => setChatOpen(true)} title="Chat (Enter)" aria-label="Chat">
+              💬<span className="hidden sm:inline">Chat</span>
             </button>
           )}
           {menuOpen && !matchEnd && <PauseMenu runtime={runtime} onClose={() => setMenuOpen(false)} />}

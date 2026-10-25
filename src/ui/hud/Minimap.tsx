@@ -74,13 +74,13 @@ export function Minimap({ runtime }: { runtime: GameRuntime }) {
   };
 
   return (
-    <div className="panel pointer-events-auto shrink-0 p-1.5" onPointerDown={(e) => e.stopPropagation()}>
+    <div className="panel pointer-events-auto shrink-0 self-end p-1 sm:p-1.5" onPointerDown={(e) => e.stopPropagation()}>
       <canvas
         ref={canvasRef}
         width={SIZE}
         height={SIZE}
-        className="block cursor-pointer"
-        aria-label="Minimapa: clique para mover a câmera, botão direito para mover unidades selecionadas"
+        className="block h-auto w-[104px] cursor-pointer touch-none sm:w-[180px] [@media(max-height:520px)]:w-[112px]"
+        aria-label="Minimapa: toque ou clique para mover a câmera; botão direito move as unidades selecionadas"
         onContextMenu={(e) => e.preventDefault()}
         onPointerDown={(e) => {
           const p = toWorld(e);

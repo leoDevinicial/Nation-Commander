@@ -1,22 +1,39 @@
 import type { ReactNode } from 'react';
 
-/** Moldura das telas fora da partida. */
-export function Shell({ title, children, back, wide }: { title?: string; children: ReactNode; back?: () => void; wide?: boolean | 'xl' }) {
+/** Moldura das telas fora da partida, sobre o globo de fundo (ver GlobeBackdrop). */
+export function Shell({
+  title,
+  children,
+  back,
+  wide,
+  align = 'center',
+}: {
+  title?: string;
+  children: ReactNode;
+  back?: () => void;
+  wide?: boolean | 'xl';
+  /** 'start': painel à esquerda em telas largas, deixando o globo à vista. */
+  align?: 'center' | 'start';
+}) {
   return (
-    <div className="relative flex h-full w-full items-center justify-center overflow-auto bg-ink-950 p-6">
+    <div
+      className={`relative z-10 flex h-full w-full items-start justify-center overflow-auto px-3 py-4 sm:items-center sm:p-6 ${
+        align === 'start' ? 'hero:justify-start hero:pl-[5vw] xl:pl-[7vw]' : ''
+      }`}
+    >
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-40"
+        className="pointer-events-none fixed inset-0 opacity-30"
         style={{
           backgroundImage:
-            'linear-gradient(rgba(125,142,163,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(125,142,163,0.07) 1px, transparent 1px)',
+            'linear-gradient(rgba(125,142,163,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(125,142,163,0.06) 1px, transparent 1px)',
           backgroundSize: '40px 40px',
         }}
       />
-      <div className={`panel relative w-full ${wide === 'xl' ? 'max-w-6xl' : wide ? 'max-w-4xl' : 'max-w-lg'} p-6`}>
+      <div className={`panel panel-frame relative my-auto w-full ${wide === 'xl' ? 'max-w-6xl' : wide ? 'max-w-4xl' : 'max-w-lg'} p-4 sm:p-6`}>
         {(title || back) && (
           <div className="mb-5 flex items-center justify-between gap-4">
-            {title && <h1 className="text-lg font-bold tracking-wide text-ink-100">{title}</h1>}
+            {title && <h1 className="font-display text-lg font-bold tracking-wide text-ink-100 uppercase">{title}</h1>}
             {back && (
               <button className="btn" onClick={back}>
                 ← Voltar

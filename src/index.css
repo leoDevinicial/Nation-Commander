@@ -1,22 +1,70 @@
 @import "tailwindcss";
 
+/* mesmo critério de globeFraming(): tela larga o bastante para menu à esquerda e globo à direita */
+@custom-variant hero (@media (min-width: 768px) and (min-aspect-ratio: 6/5));
+
+/*
+ * Tokens visuais. Toda a interface deriva daqui: cores de superfície e texto, metal dos
+ * controles, acentos, estados diplomáticos/militares, raios, durações e camadas.
+ */
 @theme {
-  --color-ink-950: #080c11;
-  --color-ink-900: #0d131b;
-  --color-ink-850: #121a24;
-  --color-ink-800: #18222f;
-  --color-ink-700: #243243;
-  --color-ink-600: #344559;
-  --color-ink-400: #7d8ea3;
-  --color-ink-200: #c5d0dc;
-  --color-ink-100: #e6ecf2;
+  /* superfícies e texto */
+  --color-ink-950: #07090c;
+  --color-ink-900: #0d1116;
+  --color-ink-850: #12171e;
+  --color-ink-800: #181e26;
+  --color-ink-700: #252d37;
+  --color-ink-600: #364150;
+  --color-ink-400: #8693a2;
+  --color-ink-200: #c8d0d9;
+  --color-ink-100: #e8ecf0;
+
+  /* metal dos controles (aço escovado) e acabamento oxidado discreto */
+  --color-metal-900: #1a1f25;
+  --color-metal-800: #232a32;
+  --color-metal-700: #2f3842;
+  --color-metal-600: #45505c;
+  --color-metal-400: #7a8693;
+  --color-rust-700: #5a3420;
+  --color-rust-500: #8c5530;
+  --color-rust-400: #b07444;
+
+  /* acento de comando */
   --color-brass-400: #e0b44c;
   --color-brass-500: #c99a2e;
+
+  /* sinais e estados */
   --color-signal-blue: #4ca3e0;
   --color-signal-red: #e05a4c;
   --color-signal-green: #5cc47a;
+  --color-signal-amber: #e0a43c;
+
+  /* estados diplomáticos e militares (globo, painéis, mapa) */
+  --color-diplo-ally: #4ca3e0;
+  --color-diplo-friendly: #6fb58a;
+  --color-diplo-neutral: #8693a2;
+  --color-diplo-hostile: #e08a4c;
+  --color-diplo-war: #e05a4c;
+  --color-diplo-sanction: #b07ad8;
+  --color-diplo-unknown: #3b434d;
+
   --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Bahnschrift", "DIN Alternate", "Barlow Semi Condensed", "Arial Narrow", "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --radius-ctl: 3px;
+  --radius-panel: 5px;
+  --ease-out-quick: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+:root {
+  --dur-fast: 110ms;
+  --dur-med: 200ms;
+  /* translucidez moderada: o fundo aparece, o conteúdo continua legível */
+  --panel-alpha: 90%;
+  --touch-target: 44px;
+  /* textura de ruído (SVG inline) usada como desgaste fino no metal */
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.5  0 0 0 0 0.45  0 0 0 0 0.4  0 0 0 0.55 0'/></filter><rect width='120' height='120' filter='url(%23n)'/></svg>");
 }
 
 html,
@@ -33,6 +81,7 @@ body {
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 input,
@@ -41,34 +90,103 @@ select {
   user-select: text;
 }
 
-/* Painéis do centro de comando */
-.panel {
-  background: color-mix(in oklab, var(--color-ink-900) 94%, transparent);
-  border: 1px solid var(--color-ink-700);
-  border-radius: 6px;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+/* componentes ficam numa camada: utilitários do Tailwind (posição, espaçamento) podem sobrescrevê-los */
+@layer components {
+.font-display {
+  font-family: var(--font-display);
 }
 
+/* ------------------------------------------------------------ painéis */
+
+.panel {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.035), transparent 40%),
+    color-mix(in oklab, var(--color-ink-900) var(--panel-alpha), transparent);
+  border: 1px solid var(--color-ink-700);
+  border-radius: var(--radius-panel);
+  box-shadow:
+    0 10px 28px rgb(0 0 0 / 0.42),
+    inset 0 1px 0 rgb(255 255 255 / 0.04);
+  backdrop-filter: blur(6px);
+}
+/* cantoneiras metálicas: detalhe fino nos cantos, sem pesar o painel */
+.panel-frame::before,
+.panel-frame::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  border-color: color-mix(in oklab, var(--color-rust-400) 55%, var(--color-metal-400));
+  opacity: 0.7;
+}
+.panel-frame::before {
+  top: -1px;
+  left: -1px;
+  border-top: 2px solid;
+  border-left: 2px solid;
+  border-top-left-radius: var(--radius-panel);
+}
+.panel-frame::after {
+  right: -1px;
+  bottom: -1px;
+  border-right: 2px solid;
+  border-bottom: 2px solid;
+  border-bottom-right-radius: var(--radius-panel);
+}
+
+/* ------------------------------------------------------------ botões */
+
 .btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  padding: 0.5rem 0.9rem;
-  border-radius: 4px;
-  border: 1px solid var(--color-ink-600);
-  background: var(--color-ink-800);
+  min-height: 34px;
+  padding: 0.5rem 0.95rem;
+  border-radius: var(--radius-ctl);
+  border: 1px solid var(--color-metal-600);
+  border-bottom-color: color-mix(in oklab, var(--color-rust-700) 45%, var(--color-metal-600));
+  background:
+    var(--grain),
+    linear-gradient(180deg, color-mix(in oklab, var(--color-metal-700) 92%, transparent), color-mix(in oklab, var(--color-metal-900) 92%, transparent));
+  background-size: 120px 120px, auto;
+  background-blend-mode: soft-light, normal;
   color: var(--color-ink-100);
   font-weight: 600;
   font-size: 0.875rem;
-  transition: background 120ms, border-color 120ms;
+  letter-spacing: 0.01em;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    inset 0 -1px 0 rgb(0 0 0 / 0.35),
+    0 1px 2px rgb(0 0 0 / 0.4);
+  transition:
+    background-color var(--dur-fast),
+    border-color var(--dur-fast),
+    box-shadow var(--dur-fast),
+    transform var(--dur-fast) var(--ease-out-quick);
   cursor: pointer;
+  touch-action: manipulation;
 }
 .btn:hover:not(:disabled) {
-  background: var(--color-ink-700);
-  border-color: var(--color-ink-400);
+  border-color: var(--color-metal-400);
+  background:
+    var(--grain),
+    linear-gradient(180deg, var(--color-metal-600), var(--color-metal-800));
+  background-size: 120px 120px, auto;
+  background-blend-mode: soft-light, normal;
 }
-.btn:focus-visible {
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 2px 4px rgb(0 0 0 / 0.45),
+    inset 0 -1px 0 rgb(255 255 255 / 0.03);
+}
+.btn:focus-visible,
+.cmd-btn:focus-visible,
+[role="tab"]:focus-visible {
   outline: 2px solid var(--color-brass-400);
   outline-offset: 2px;
 }
@@ -77,31 +195,70 @@ select {
   cursor: not-allowed;
 }
 .btn-primary {
-  background: var(--color-brass-500);
-  border-color: var(--color-brass-400);
-  color: #1a1305;
+  color: #1c1406;
+  border-color: #e8c46a;
+  border-bottom-color: var(--color-rust-500);
+  background:
+    var(--grain),
+    linear-gradient(180deg, #e2b851, #b8892a);
+  background-size: 120px 120px, auto;
+  background-blend-mode: soft-light, normal;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.25);
 }
 .btn-primary:hover:not(:disabled) {
-  background: var(--color-brass-400);
   border-color: #f3d27e;
+  background:
+    var(--grain),
+    linear-gradient(180deg, #edc663, #c99a2e);
+  background-size: 120px 120px, auto;
+  background-blend-mode: soft-light, normal;
 }
 .btn-danger {
-  border-color: #8a3a32;
-  background: #3a1a17;
+  border-color: #7a352d;
+  background:
+    var(--grain),
+    linear-gradient(180deg, #45201b, #2c1411);
+  background-size: 120px 120px, auto;
+  background-blend-mode: soft-light, normal;
 }
 .btn-danger:hover:not(:disabled) {
-  background: #5a241f;
   border-color: var(--color-signal-red);
+  background:
+    var(--grain),
+    linear-gradient(180deg, #5c2822, #3a1915);
+  background-size: 120px 120px, auto;
+  background-blend-mode: soft-light, normal;
 }
+/* botão grande do menu principal */
+.btn-hero {
+  justify-content: flex-start;
+  min-height: 52px;
+  padding: 0.7rem 1rem;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  text-align: left;
+}
+
+@media (max-height: 520px) {
+  .btn-hero {
+    min-height: 42px;
+    padding-block: 0.45rem;
+  }
+}
+
+/* ------------------------------------------------------------ formulários */
 
 .field {
   width: 100%;
+  min-height: 38px;
   padding: 0.55rem 0.7rem;
-  border-radius: 4px;
+  border-radius: var(--radius-ctl);
   border: 1px solid var(--color-ink-600);
-  background: var(--color-ink-950);
+  background: color-mix(in oklab, var(--color-ink-950) 92%, transparent);
   color: var(--color-ink-100);
   font-size: 0.9rem;
+  transition: border-color var(--dur-fast);
 }
 .field:focus {
   outline: none;
@@ -118,13 +275,20 @@ select {
   margin-bottom: 0.3rem;
 }
 
+/* ------------------------------------------------------------ comando (HUD) */
+
 .cmd-btn {
   position: relative;
   width: 64px;
   height: 64px;
-  border-radius: 4px;
-  border: 1px solid var(--color-ink-600);
-  background: var(--color-ink-800);
+  border-radius: var(--radius-ctl);
+  border: 1px solid var(--color-metal-600);
+  background:
+    var(--grain),
+    linear-gradient(180deg, var(--color-metal-700), var(--color-metal-900));
+  background-size: 120px 120px, auto;
+  background-blend-mode: soft-light, normal;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -134,14 +298,26 @@ select {
   text-align: center;
   color: var(--color-ink-100);
   cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    border-color var(--dur-fast),
+    transform var(--dur-fast);
 }
 .cmd-btn:hover:not(:disabled) {
   border-color: var(--color-brass-400);
-  background: var(--color-ink-700);
+}
+.cmd-btn:active:not(:disabled) {
+  transform: translateY(1px);
 }
 .cmd-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+.cmd-btn[aria-pressed="true"] {
+  border-color: var(--color-brass-400);
+  box-shadow:
+    inset 0 0 0 1px var(--color-brass-500),
+    inset 0 2px 6px rgb(0 0 0 / 0.5);
 }
 .cmd-btn .hotkey {
   position: absolute;
@@ -151,6 +327,34 @@ select {
   font-size: 0.6rem;
   color: var(--color-brass-400);
 }
+@media (pointer: coarse) {
+  .cmd-btn .hotkey {
+    display: none;
+  }
+  .btn {
+    min-height: 40px;
+  }
+}
+
+.touch-btn {
+  width: 54px;
+  height: 48px;
+  font-size: 0.58rem;
+  gap: 2px;
+}
+@media (max-height: 520px) {
+  .touch-btn {
+    width: 44px;
+    height: 44px;
+  }
+  .touch-btn > span:last-child {
+    display: none;
+  }
+  .cmd-btn:not(.touch-btn) {
+    width: 54px;
+    height: 54px;
+  }
+}
 
 .selection-box {
   position: fixed;
@@ -158,6 +362,32 @@ select {
   background: rgb(92 196 122 / 0.12);
   pointer-events: none;
   z-index: 30;
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-600) transparent;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ------------------------------------------------------------ fundo do menu */
+
+.backdrop-atmosphere {
+  background:
+    radial-gradient(ellipse 70% 60% at 65% 50%, rgb(40 80 110 / 0.35), transparent 70%),
+    radial-gradient(ellipse 120% 80% at 50% 120%, rgb(90 60 30 / 0.18), transparent 60%),
+    linear-gradient(180deg, #06080b, #0a0e13 60%, #07090c);
+}
+.backdrop-vignette {
+  background:
+    radial-gradient(ellipse 85% 75% at 55% 50%, transparent 55%, rgb(0 0 0 / 0.55)),
+    linear-gradient(90deg, rgb(4 6 9 / 0.55), transparent 45%);
+}
 }
 
 @media (prefers-reduced-motion: reduce) {

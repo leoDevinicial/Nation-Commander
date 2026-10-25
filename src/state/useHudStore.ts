@@ -37,6 +37,9 @@ export type PointerMode =
   | { kind: 'place'; buildingType: BuildingType; valid: boolean; reason: string | null; yield: { cells: number; rate: number } | null }
   | { kind: 'attack_move' };
 
+/** Ferramenta do toque: o que um toque curto faz no mapa. */
+export type TouchTool = 'select' | 'order' | 'box';
+
 export interface HudState {
   tick: number;
   players: PlayerSnapshot[];
@@ -51,6 +54,10 @@ export interface HudState {
   mode: PointerMode;
   events: HudEvent[];
   fps: number;
+  /** Interface de toque ativa (aparelho de toque ou toque detectado nesta partida). */
+  touchUi: boolean;
+  touchTool: TouchTool;
+  touchAdditive: boolean;
   set: (patch: Partial<Omit<HudState, 'set' | 'pushEvent' | 'expireEvents'>>) => void;
   pushEvent: (e: Omit<HudEvent, 'id' | 'at'>) => void;
   expireEvents: (maxAgeMs: number) => void;
@@ -71,6 +78,9 @@ export const useHudStore = create<HudState>((set) => ({
   mode: { kind: 'normal' },
   events: [],
   fps: 0,
+  touchUi: false,
+  touchTool: 'select',
+  touchAdditive: false,
   set: (patch) => set(patch),
   pushEvent: (e) =>
     set((s) => {

@@ -18,11 +18,16 @@ import { disposeUnitModels } from './render/models/unitModels.ts';
 import { claimableCells, claimedBy, gatherRate } from '../../shared/sim/gathering.ts';
 import { UnitVisual } from './render/UnitVisuals.ts';
 import { describeEvent } from './eventText.ts';
+import type { GraphicsProfile } from '../lib/graphics.ts';
+import { isTouchDevice } from '../lib/graphics.ts';
+import { TouchGestures, type TouchPoint } from './input/TouchGestures.ts';
+import type { TouchTool } from '../state/useHudStore.ts';
 
 type SnapshotMsg = Extract<ServerMessage, { t: 'snapshot' }>;
 
 export interface RuntimeOptions {
-  quality: 'low' | 'high';
+  profile: GraphicsProfile;
+  /** Já combinado com o preset: só é verdadeiro se o preset permitir sombras. */
   shadows: boolean;
   panSpeed: number;
   edgeScroll: boolean;
@@ -74,6 +79,11 @@ export class GameRuntime {
   private keys = new Set<string>();
   private pointer = { x: 0, y: 0, inside: false };
   private drag: { x: number; y: number; active: boolean; button: number } | null = null;
+  /** Posição de tela usada para o fantasma de construção (cursor no mouse, último toque no touch). */
+  private ghostAt = { x: 0, y: 0 };
+  private readonly touch: TouchGestures;
+  private touchTool: TouchTool = 'select';
+  private touchAdditive = false;
   private selectionBox: HTMLDivElement;
   private raf = 0;
   private lastFrame = performance.now();
@@ -112,8 +122,8 @@ export class GameRuntime {
     this.canControlSpeed = match.canControlSpeed;
     this.snapshotInterval = (1000 / match.tickRate) * match.snapshotEvery;
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: opts.quality === 'high', powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.quality === 'high' ? 1.75 : 1));
+    this.renderer = new THREE.WebGLRenderer({ antialias: opts.profile.antialias, powerPreference: 'high-performance' });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.profile.pixelRatioCap));
     this.renderer.shadowMap.enabled = opts.shadows;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -145,16 +155,41 @@ export class GameRuntime {
     fogUniforms.uFogMap.value = this.fogTexture;
     fogUniforms.uFogSize.value.set(W, H);
     this.setupScene(W, H);
-    this.effects = new Effects(this.scene, opts.quality);
+    this.effects = new Effects(this.scene, opts.profile.maxEffects);
 
     this.selectionBox = document.createElement('div');
     this.selectionBox.className = 'selection-box';
     this.selectionBox.style.display = 'none';
     document.body.appendChild(this.selectionBox);
 
+    this.touch = new TouchGestures(
+      {
+        tap: (x, y, double) => this.onTouchTap(x, y, double),
+        longPress: (x, y) => this.onTouchLongPress(x, y),
+        pan: (dx, dy) => this.cameraCtl.pan(-dx * 0.08, dy * 0.08),
+        pinch: (scale, rot, dx, dy) => {
+          if (scale !== 1) this.cameraCtl.zoom(1 / scale);
+          if (rot) this.cameraCtl.rotate(rot);
+          if (dx || dy) this.cameraCtl.pan(-dx * 0.08, dy * 0.08);
+        },
+        box: (x0, y0, x1, y1, done) => this.onTouchBox(x0, y0, x1, y1, done),
+        cancel: () => (this.selectionBox.style.display = 'none'),
+      },
+      () => this.touchTool === 'box',
+    );
     this.bindInput();
     this.resize();
-    useHudStore.setState({ mySlot: this.mySlot, events: [], selectedUnits: [], selectedBuilding: null, inspected: null, mode: { kind: 'normal' } });
+    useHudStore.setState({
+      mySlot: this.mySlot,
+      events: [],
+      selectedUnits: [],
+      selectedBuilding: null,
+      inspected: null,
+      mode: { kind: 'normal' },
+      touchUi: isTouchDevice(),
+      touchTool: 'select',
+      touchAdditive: false,
+    });
 
     this.unsubscribe = client.on((msg) => {
       if (msg.t === 'snapshot') this.onSnapshot(msg);
@@ -175,7 +210,7 @@ export class GameRuntime {
     sun.position.set(W * 0.2, 90, H * 0.1);
     sun.target.position.set(W / 2, 0, H / 2);
     sun.castShadow = this.opts.shadows;
-    sun.shadow.mapSize.set(this.opts.quality === 'high' ? 2048 : 1024, this.opts.quality === 'high' ? 2048 : 1024);
+    sun.shadow.mapSize.set(this.opts.profile.shadowMapSize, this.opts.profile.shadowMapSize);
     const sc = sun.shadow.camera;
     sc.left = -W * 0.75;
     sc.right = W * 0.75;
@@ -185,7 +220,7 @@ export class GameRuntime {
     sc.far = 260;
     sun.shadow.bias = -0.0006;
     this.scene.add(sun, sun.target);
-    this.terrain = buildTerrain(this.map, this.opts.quality);
+    this.terrain = buildTerrain(this.map, this.opts.profile.terrain);
     this.scene.add(this.terrain.group);
     // modelos do Nature Kit chegam depois; até lá, vegetação procedural
     this.terrain.upgrade().catch((err: unknown) => console.warn('Nature Kit indisponível', err));
@@ -478,7 +513,39 @@ export class GameRuntime {
     if (this.ghost) this.ghost.removeFromParent();
     this.ghost = buildGhost(type, this.map.cellSize);
     this.scene.add(this.ghost);
+    if (useHudStore.getState().touchUi || (this.ghostAt.x === 0 && this.ghostAt.y === 0)) {
+      // sem cursor (toque, ou mouse ainda parado): o fantasma começa no centro da vista
+      const r = this.renderer.domElement.getBoundingClientRect();
+      this.ghostAt = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }
     this.updateGhost();
+  }
+
+  /** Confirma a construção na posição atual do fantasma (botão de confirmação no toque). */
+  confirmPlacement(): void {
+    this.tryPlace();
+  }
+
+  setTouchTool(tool: TouchTool): void {
+    this.touchTool = tool;
+    useHudStore.getState().set({ touchTool: tool });
+  }
+
+  toggleTouchAdditive(): void {
+    this.touchAdditive = !this.touchAdditive;
+    useHudStore.getState().set({ touchAdditive: this.touchAdditive });
+  }
+
+  zoomBy(factor: number): void {
+    this.cameraCtl.zoom(factor);
+  }
+
+  rotateBy(delta: number): void {
+    this.cameraCtl.rotate(delta);
+  }
+
+  clearSelection(): void {
+    this.selection.clear();
   }
 
   startAttackMove(): void {
@@ -568,10 +635,15 @@ export class GameRuntime {
       this.cleanup.push(() => target.removeEventListener(type, fn as EventListener, opts));
     };
 
+    // o jogo trata todos os gestos de toque; o navegador não deve rolar nem dar zoom na página
+    el.style.touchAction = 'none';
     on(el, 'contextmenu', (e) => e.preventDefault());
     on(el, 'pointerdown', (e) => this.onPointerDown(e));
     on(window, 'pointermove', (e) => this.onPointerMove(e));
     on(window, 'pointerup', (e) => this.onPointerUp(e));
+    on(window, 'pointercancel', (e) => {
+      if (e.pointerType === 'touch') this.touch.cancelPointer(e.pointerId);
+    });
     on(el, 'pointerenter', () => (this.pointer.inside = true));
     on(el, 'pointerleave', () => (this.pointer.inside = false));
     on(el, 'wheel', (e) => {
@@ -647,6 +719,11 @@ export class GameRuntime {
   }
 
   private onPointerDown(e: PointerEvent): void {
+    if (e.pointerType === 'touch') {
+      if (!useHudStore.getState().touchUi) useHudStore.getState().set({ touchUi: true });
+      this.touch.down(touchPoint(e));
+      return;
+    }
     this.pointer.x = e.clientX;
     this.pointer.y = e.clientY;
     if (e.button === 1) {
@@ -674,6 +751,10 @@ export class GameRuntime {
   }
 
   private onPointerMove(e: PointerEvent): void {
+    if (e.pointerType === 'touch') {
+      this.touch.move(touchPoint(e));
+      return;
+    }
     const dx = e.clientX - this.pointer.x;
     const dy = e.clientY - this.pointer.y;
     this.pointer.x = e.clientX;
@@ -696,10 +777,15 @@ export class GameRuntime {
         b.style.height = `${Math.abs(e.clientY - d.y)}px`;
       }
     }
+    this.ghostAt = { x: e.clientX, y: e.clientY };
     if (this.mode.kind === 'place') this.updateGhost();
   }
 
   private onPointerUp(e: PointerEvent): void {
+    if (e.pointerType === 'touch') {
+      this.touch.up(touchPoint(e));
+      return;
+    }
     const d = this.drag;
     this.drag = null;
     if (!d || d.button !== e.button) return;
@@ -714,8 +800,60 @@ export class GameRuntime {
       this.cancelMode();
       return;
     }
-    const p = this.groundAt(e.clientX, e.clientY);
-    if (!p) return;
+    this.orderAt(e.clientX, e.clientY);
+  }
+
+  // ------------------------------------------------------------ toque
+
+  private onTouchTap(x: number, y: number, double: boolean): void {
+    if (this.mode.kind === 'place') {
+      // primeiro toque posiciona o fantasma; tocar de novo na mesma célula confirma
+      const before = this.ghostCell;
+      this.ghostAt = { x, y };
+      this.updateGhost();
+      const after = this.ghostCell;
+      if (before && after && before.cx === after.cx && before.cy === after.cy) this.tryPlace();
+      return;
+    }
+    if (this.mode.kind === 'attack_move') {
+      const p = this.groundAt(x, y);
+      const ids = this.myUnitIds();
+      if (p && ids.length) this.send({ type: 'attack_move', unitIds: ids, x: p.x, y: p.y });
+      this.cancelMode();
+      return;
+    }
+    if (this.touchTool === 'order') {
+      this.orderAt(x, y);
+      this.setTouchTool('select');
+      return;
+    }
+    this.clickSelect(x, y, this.touchAdditive, double);
+  }
+
+  private onTouchLongPress(x: number, y: number): void {
+    if (this.mode.kind !== 'normal') return;
+    if (this.orderAt(x, y)) navigator.vibrate?.(12);
+  }
+
+  private onTouchBox(x0: number, y0: number, x1: number, y1: number, done: boolean): void {
+    const b = this.selectionBox;
+    if (done) {
+      b.style.display = 'none';
+      this.boxSelect(x0, y0, x1, y1, this.touchAdditive);
+      this.setTouchTool('select');
+      return;
+    }
+    b.style.display = 'block';
+    b.style.left = `${Math.min(x0, x1)}px`;
+    b.style.top = `${Math.min(y0, y1)}px`;
+    b.style.width = `${Math.abs(x1 - x0)}px`;
+    b.style.height = `${Math.abs(y1 - y0)}px`;
+  }
+
+  /** Ordem contextual no ponto da tela (botão direito ou toque longo). Retorna se algo foi ordenado. */
+  private orderAt(clientX: number, clientY: number): boolean {
+    const p = this.groundAt(clientX, clientY);
+    if (!p) return false;
     const ids = this.myUnitIds();
     if (ids.length > 0) {
       const hit = this.pickEntity(p);
@@ -726,12 +864,15 @@ export class GameRuntime {
         this.send({ type: 'move', unitIds: ids, x: p.x, y: p.y });
         this.effects.flash(new THREE.Vector3(p.x, 0.1, p.y), 0.35, '#8fe0a4', 0.35);
       }
-      return;
+      return true;
     }
     const b = this.selectedOwnBuilding();
     if (b && b.snap.progress >= 1 && (b.snap.type === 'barracks' || b.snap.type === 'factory')) {
       this.send({ type: 'set_rally', buildingId: b.snap.id, x: p.x, y: p.y });
+      this.effects.flash(new THREE.Vector3(p.x, 0.1, p.y), 0.35, '#e0b44c', 0.35);
+      return true;
     }
+    return false;
   }
 
   private flashTarget(id: number): void {
@@ -825,7 +966,7 @@ export class GameRuntime {
 
   private updateGhost(): void {
     if (this.mode.kind !== 'place' || !this.ghost || !this.snapshot) return;
-    const p = this.groundAt(this.pointer.x, this.pointer.y);
+    const p = this.groundAt(this.ghostAt.x, this.ghostAt.y);
     if (!p) return;
     const type = this.mode.buildingType;
     const cs = this.map.cellSize;
@@ -927,4 +1068,8 @@ export class GameRuntime {
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
+}
+
+function touchPoint(e: PointerEvent): TouchPoint {
+  return { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp };
 }

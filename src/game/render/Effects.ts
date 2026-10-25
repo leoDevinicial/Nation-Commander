@@ -18,9 +18,9 @@ export class Effects {
 
   constructor(
     private readonly scene: THREE.Scene,
-    quality: 'low' | 'high',
+    maxItems: number,
   ) {
-    this.maxItems = quality === 'high' ? 160 : 60;
+    this.maxItems = maxItems;
   }
 
   tracer(from: THREE.Vector3, to: THREE.Vector3, heavy: boolean): void {
