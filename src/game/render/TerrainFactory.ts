@@ -30,7 +30,6 @@ const NATURE_URL = '/assets/models/nature/';
 const TREE_MODELS = ['TreeMed001', 'TreeMed002', 'TreeMed003', 'TreeLow001', 'TreeLow002', 'TreeLow003', 'TreeLow004'];
 const ROCK_MODELS = ['Rock001', 'Rock002', 'Rock003', 'Cliff001', 'Cliff002', 'Cliff003'];
 const BUSH_MODELS = ['Bush001', 'Bush002'];
-const MOUNTAIN_MODELS = ['MountainFar001', 'MountainFar002', 'MountainFar003'];
 
 /** Textura de detalhe (ruído) que dá granulação ao solo; multiplicada pelas cores de vértice. */
 function detailTexture(seed: number): THREE.CanvasTexture {
@@ -197,14 +196,12 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high'): TerrainHand
     const treeKit = (await Promise.all(TREE_MODELS.map(load))).filter((x) => x !== null);
     const rockKit = (await Promise.all(ROCK_MODELS.map(load))).filter((x) => x !== null);
     const bushKit = (await Promise.all(BUSH_MODELS.map(load))).filter((x) => x !== null);
-    const mountainKit = (await Promise.all(MOUNTAIN_MODELS.map(load))).filter((x) => x !== null);
     if (treeKit.length === 0 || rockKit.length === 0) return; // mantém o procedural
     decor.clear();
     decor.add(instanced(treeKit, trees, 2.6, 0));
     decor.add(instanced(rockKit, rocks, 1.5, -0.1));
     if (bushKit.length) decor.add(instanced(bushKit, bushes, 0.7, 0));
-    if (mountainKit.length) decor.add(instanced(mountainKit, horizon(W, H, rng), 1, -0.5, false));
-    for (const k of [...treeKit, ...rockKit, ...bushKit, ...mountainKit]) disposables.push(k.geo, k.mat);
+    for (const k of [...treeKit, ...rockKit, ...bushKit]) disposables.push(k.geo, k.mat);
   };
 
   return {
@@ -243,24 +240,6 @@ function instanced(
     g.add(im);
   });
   return g;
-}
-
-/** Montanhas ao redor do mapa, fora da área jogável. */
-function horizon(W: number, H: number, rng: Random) {
-  const out: { x: number; z: number; s: number; r: number; v: number }[] = [];
-  const margin = 18;
-  for (let t = 0; t < 1; t += 0.035) {
-    const per = 2 * (W + H);
-    let d = t * per;
-    let x: number;
-    let z: number;
-    if (d < W) [x, z] = [d, -margin];
-    else if ((d -= W) < H) [x, z] = [W + margin, d];
-    else if ((d -= H) < W) [x, z] = [W - d, H + margin];
-    else [x, z] = [-margin, H - (d - W)];
-    out.push({ x: x + (rng.next() - 0.5) * 8, z: z + (rng.next() - 0.5) * 8, s: 14 + rng.next() * 10, r: rng.next() * 6.28, v: rng.next() });
-  }
-  return out;
 }
 
 function proceduralTrees(points: { x: number; z: number; s: number; r: number }[]): THREE.Group {

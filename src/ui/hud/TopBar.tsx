@@ -50,7 +50,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
         <span className="font-mono">{formatDuration(Math.floor(tick / TICK_RATE))}</span>
       </div>
       {date && (
-        <div className="flex items-center gap-2" title="Data do cenário (1 dia de jogo por segundo a 1×)">
+        <div className="hidden items-center gap-2 lg:flex" title="Data do cenário (1 dia de jogo por segundo a 1×)">
           <span className="text-ink-400" aria-hidden>
             📅
           </span>
@@ -74,11 +74,11 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
           </span>
         ))}
       </div>
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex shrink-0 items-center gap-2">
         {connStatus !== 'connected' && <span className="text-xs text-brass-400">⚠ reconectando…</span>}
         {showFps && <span className="font-mono text-xs text-ink-400">{fps} fps</span>}
         {paused && <span className="text-xs font-semibold text-brass-400">⏸ PAUSADO{pausedBy ? ` por ${pausedBy}` : ''}</span>}
-        <button className="btn px-2 py-1 text-xs" onClick={() => runtime.togglePause()} title="Pausar/retomar (Espaço)">
+        <button className="btn px-2 py-1 text-xs whitespace-nowrap" onClick={() => runtime.togglePause()} title="Pausar/retomar (Espaço)">
           {paused ? '▶ Retomar' : '⏸ Pausar'}
         </button>
         {GAME_SPEEDS.map((s) => (
@@ -92,10 +92,10 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
             {s}×
           </button>
         ))}
-        <button className={`btn px-2 py-1 text-xs ${panelOpen ? 'btn-primary' : ''}`} onClick={() => togglePanel(!panelOpen)} title="Painel nacional: economia, orçamento e pesquisa (G)">
+        <button className={`btn px-2 py-1 text-xs whitespace-nowrap ${panelOpen ? 'btn-primary' : ''}`} onClick={() => togglePanel(!panelOpen)} title="Painel nacional: economia, orçamento e pesquisa (G)">
           🏛 Nação
         </button>
-        <button className="btn px-2 py-1 text-xs" onClick={onMenu} title="Menu (F10)">
+        <button className="btn px-2 py-1 text-xs whitespace-nowrap" onClick={onMenu} title="Menu (F10)">
           ☰ Menu
         </button>
       </div>

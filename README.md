@@ -184,7 +184,7 @@ O perfil é criado por trigger em `auth.users` usando o `username` enviado no ca
 
 Unidades e edifícios são modelos low-poly procedurais (`src/game/render/models/`), montados a partir
 de primitivas e fundidos em poucas malhas por modelo (corpo com cores de vértice, detalhes na cor da
-facção e vidros). Árvores, arbustos, rochas e montanhas do horizonte vêm do **Nature Kit** do
+facção e vidros). Árvores, arbustos e rochas vêm do **Nature Kit** do
 [Gobkit](https://github.com/Ariescar/gobkit-free-assets) (CC0, em `public/assets/models/nature/`); se
 não carregarem, o terreno usa vegetação procedural. A névoa de guerra é aplicada no shader de todos
 os materiais por posição de mundo.
