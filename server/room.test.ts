@@ -218,4 +218,24 @@ describe('servidor de partidas', () => {
     expect(rec.players[0]!.national?.days).toBe(1);
     expect(a.last('match_end')!.end.players[1]!.national?.countryId).toBe('ZAF');
   });
+
+  it('diplomacia: ação validada pelo servidor e estado enviado aos clientes', async () => {
+    const { send, rooms } = setup();
+    const a = fakeConn();
+    await send(a.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-diplo' });
+    await send(a.conn, { t: 'create_room', mode: 'vs_ai', countryId: 'BRA' });
+    await send(a.conn, { t: 'start' });
+    const room = rooms.get(a.last('room')!.room!.code)!;
+    const first = a.last('national')!;
+    expect(first.diplomacy.npcs.length).toBe(8);
+    const usa = first.diplomacy.npcs.find((n) => n.countryId === 'USA')!;
+    expect(parseClientMessage(JSON.stringify({ t: 'national', cmd: { type: 'diplomacy', action: { type: 'send_aid', partner: usa.id, pctGdp: 5 } } }))).toBeNull();
+    await send(a.conn, { t: 'national', cmd: { type: 'diplomacy', action: { type: 'propose', treaty: 'trade', partner: usa.id } } });
+    for (let i = 0; i < 20; i++) room.advance();
+    const msg = a.last('national')!;
+    expect(msg.diplomacy.treaties.some((t) => t.type === 'trade' && (t.a === usa.id || t.b === usa.id))).toBe(true);
+    expect(msg.diplomacy.relations.find((r) => (r.a === 0 && r.b === usa.id) || (r.b === 0 && r.a === usa.id))!.value).toBeGreaterThan(0);
+    // relação com o adversário (IA) mostra o conflito
+    expect(msg.diplomacy.relations.find((r) => r.a === 0 && r.b === 1)!.factors[0]!.key).toBe('conflict');
+  });
 });

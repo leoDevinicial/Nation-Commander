@@ -11,11 +11,15 @@ import { DataTab } from './DataTab.tsx';
 import { DiagnosisTab } from './DiagnosisTab.tsx';
 import { OverviewTab } from './OverviewTab.tsx';
 import { ResearchTab } from './ResearchTab.tsx';
+import { DiplomacyTab } from './DiplomacyTab.tsx';
+import { makeNameOf } from '../../game/nationalText.ts';
+import type { DiplomaticAction } from '../../../shared/strategic/Diplomacy.ts';
 
 const TABS = [
   { id: 'overview', label: 'Visão geral' },
   { id: 'budget', label: 'Orçamento' },
   { id: 'research', label: 'Pesquisa' },
+  { id: 'diplomacy', label: 'Diplomacia' },
   { id: 'diagnosis', label: 'Diagnóstico' },
   { id: 'data', label: 'Dados' },
 ] as const;
@@ -30,13 +34,17 @@ export function NationalPanel({ onClose }: { onClose: () => void }) {
   const history = useNationalStore((s) => s.history[mySlot] ?? []);
   const day = useNationalStore((s) => s.day);
   const date = useNationalStore((s) => s.date);
+  const diplomacy = useNationalStore((s) => s.diplomacy);
+  const players = useAppStore((s) => s.match?.players ?? []);
 
   const applyBudget = (budget: Budget) => gameClient.send({ t: 'national', cmd: { type: 'set_budget', budget } });
   const selectResearch = (techId: TechId | null) => gameClient.send({ t: 'national', cmd: { type: 'set_research', techId } });
+  const diplomaticAction = (action: DiplomaticAction) => gameClient.send({ t: 'national', cmd: { type: 'diplomacy', action } });
+  const nameOf = makeNameOf(players, diplomacy?.npcs ?? []);
 
   return (
     <div
-      className="panel pointer-events-auto absolute top-16 right-3 bottom-[200px] z-20 flex w-[480px] max-w-[calc(100vw-24px)] flex-col"
+      className="panel pointer-events-auto absolute top-16 right-3 bottom-[200px] z-20 flex w-[520px] max-w-[calc(100vw-24px)] flex-col"
       onPointerDown={(e) => e.stopPropagation()}
       onWheel={(e) => e.stopPropagation()}
       role="dialog"
@@ -73,6 +81,19 @@ export function NationalPanel({ onClose }: { onClose: () => void }) {
           <BudgetTab nation={nation} onApply={applyBudget} balanceMode={balanceMode} />
         ) : tab === 'research' ? (
           <ResearchTab nation={nation} onSelect={selectResearch} />
+        ) : tab === 'diplomacy' ? (
+          diplomacy ? (
+            <DiplomacyTab
+              me={nation}
+              diplomacy={diplomacy}
+              day={day}
+              nameOf={nameOf}
+              enemies={players.filter((p) => p.slot !== mySlot).map((p) => p.slot)}
+              onAction={diplomaticAction}
+            />
+          ) : (
+            <p className="text-ink-400">Aguardando dados diplomáticos…</p>
+          )
         ) : tab === 'diagnosis' ? (
           <DiagnosisTab nation={nation} />
         ) : (

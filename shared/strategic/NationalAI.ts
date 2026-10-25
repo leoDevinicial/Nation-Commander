@@ -1,6 +1,7 @@
 import type { Slot } from '../sim/types.ts';
 import { spendPct, type Budget, type NationalSimulation } from './NationalSimulation.ts';
 import { TECH_IDS, type TechId } from './technologies.ts';
+import type { DiplomaticAction } from './Diplomacy.ts';
 
 /** Ordem de pesquisa da IA: primeiro o que ajuda no teatro, depois a economia. */
 const AI_RESEARCH_ORDER: TechId[] = ['logistics', 'rapid_training', 'guided_munitions', 'composite_armor', 'modular_construction', 'automation'];
@@ -13,9 +14,9 @@ export class NationalAI {
   constructor(readonly slot: Slot) {}
 
   /** Retorna o orçamento a aplicar (ou null para manter) e a pesquisa desejada. */
-  think(sim: NationalSimulation): { budget: Budget | null; research: TechId | null | undefined } {
+  think(sim: NationalSimulation): { budget: Budget | null; research: TechId | null | undefined; diplomacy: DiplomaticAction[] } {
     const n = sim.nation(this.slot);
-    if (!n) return { budget: null, research: undefined };
+    if (!n) return { budget: null, research: undefined, diplomacy: [] };
     const b: Budget = { ...n.budget };
     const ref = n.referenceBudget;
     let changed = false;
@@ -49,6 +50,26 @@ export class NationalAI {
     if (!n.research.current) {
       research = AI_RESEARCH_ORDER.find((t) => !n.research.done.includes(t)) ?? TECH_IDS.find((t) => !n.research.done.includes(t)) ?? null;
     }
-    return { budget: changed ? b : null, research };
+    return { budget: changed ? b : null, research, diplomacy: this.diplomacy(sim) };
+  }
+
+  /**
+   * Política externa: comércio com todos que aceitarem, missões com as três maiores economias,
+   * aliança quando a relação permitir e pedidos de sanção contra o adversário a quem for próximo.
+   */
+  private diplomacy(sim: NationalSimulation): DiplomaticAction[] {
+    const d = sim.diplomacy;
+    const me = this.slot;
+    const out: DiplomaticAction[] = [];
+    const npcs = [...sim.npcs].sort((a, b) => b.gdpUsd - a.gdpUsd || a.slot - b.slot);
+    const enemies = sim.nations.filter((x) => x.slot !== me && d.atWar(me, x.slot));
+    for (const [i, npc] of npcs.entries()) {
+      if (i < 3 && !d.missions.has(`${me}>${npc.slot}`)) out.push({ type: 'set_mission', partner: npc.slot, active: true });
+      if (!d.active('trade', me, npc.slot)) out.push({ type: 'propose', treaty: 'trade', partner: npc.slot });
+      const rel = d.relation(me, npc.slot);
+      if (rel >= 55 && !d.active('alliance', me, npc.slot)) out.push({ type: 'propose', treaty: 'alliance', partner: npc.slot });
+      if (rel >= 45) for (const e of enemies) if (!d.active('sanctions', npc.slot, e.slot, true)) out.push({ type: 'request_sanctions', partner: npc.slot, target: e.slot });
+    }
+    return out;
   }
 }

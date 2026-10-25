@@ -3,6 +3,11 @@ import type { SimEvent, Slot } from '../sim/types.ts';
 import { COEF, DAYS_PER_YEAR, FALLBACKS, FALLBACK_DEFICIT_PCT, HISTORY_EVERY_DAYS, HISTORY_MAX_POINTS, LIMITS, BASE_INFRASTRUCTURE_PCT, PUBLIC_RESEARCH_SHARE, SCENARIO_START } from './params.ts';
 import { countryReference, type ReferenceKey } from './reference.ts';
 import { combineEffects, TECH_IDS, TECHNOLOGIES, type TechEffects, type TechId } from './technologies.ts';
+import { COUNTRIES } from '../data/countries.ts';
+import { DIPLO, Diplomacy, type DiplomaticAction, type DiplomaticEvent, type NationId } from './Diplomacy.ts';
+
+/** Nações não jogadoras recebem ids a partir deste valor. */
+export const NPC_BASE_ID = 100;
 
 export type BalanceMode = 'parity' | 'realistic';
 
@@ -63,8 +68,10 @@ export interface NationState {
   stability: number;
   growthFactors: Factor[];
   research: { current: TechId | null; progress: Record<TechId, number>; done: TechId[] };
-  /** Suprimentos/s que a logística nacional entrega ao teatro. */
+  /** Suprimentos/s que a logística nacional entrega ao teatro (inclui ajuda de aliados). */
   theaterSupplyPerSec: number;
+  /** Parte da logística vinda de aliados por acordos de defesa. */
+  allianceAidPerSec: number;
   casualties30d: number[];
   victories30d: number[];
   /** Campos cujo valor inicial veio de estimativa de jogo por falta de dado confiável. */
@@ -82,12 +89,16 @@ export type NationalEvent =
   | { type: 'research_completed'; day: number; slot: Slot; techId: TechId }
   | { type: 'protest'; day: number; slot: Slot; approval: number; causes: Factor[] }
   | { type: 'threshold'; day: number; slot: Slot; indicator: 'debt' | 'inflation' | 'approval' | 'growth'; value: number; threshold: number; direction: 'up' | 'down' }
-  | { type: 'budget_changed'; day: number; slot: Slot; deficitPctGdp: number };
+  | { type: 'budget_changed'; day: number; slot: Slot; deficitPctGdp: number }
+  | { type: 'diplomacy'; day: number; event: DiplomaticEvent };
 
 /** Simulação nacional de cada jogador, avançando um dia por vez. Determinística dada a seed. */
 export class NationalSimulation {
   day = 0;
   readonly nations: NationState[];
+  /** Países fora da partida, governados pela IA, com economia própria e diplomacia. */
+  readonly npcs: NationState[];
+  readonly diplomacy: Diplomacy;
   private readonly rng: Random;
   private events: NationalEvent[] = [];
 
@@ -98,6 +109,16 @@ export class NationalSimulation {
   ) {
     this.rng = new Random(seed ^ 0x5bd1e995);
     this.nations = players.map((p) => createNation(p.slot, p.countryId));
+    const used = new Set(players.map((p) => p.countryId));
+    this.npcs = COUNTRIES.filter((c) => !used.has(c.id)).map((c, i) => createNation(NPC_BASE_ID + i, c.id));
+    // todos os jogadores da partida estão em conflito entre si
+    const conflicts: [NationId, NationId][] = [];
+    for (let i = 0; i < players.length; i++) for (let j = i + 1; j < players.length; j++) conflicts.push([players[i]!.slot, players[j]!.slot]);
+    this.diplomacy = new Diplomacy(() => [...this.nations, ...this.npcs], conflicts);
+    for (const n of this.npcs) {
+      this.recompute(n, 0);
+      n.base.deficitPctGdp = n.deficitPctGdp;
+    }
     for (const n of this.nations) {
       this.recompute(n, 0);
       // o déficit inicial faz parte da situação de referência; só desvios pressionam a inflação
@@ -107,7 +128,19 @@ export class NationalSimulation {
   }
 
   nation(slot: Slot): NationState | undefined {
-    return this.nations.find((n) => n.slot === slot);
+    return this.nations.find((n) => n.slot === slot) ?? this.npcs.find((n) => n.slot === slot);
+  }
+
+  isNpc(id: NationId): boolean {
+    return id >= NPC_BASE_ID;
+  }
+
+  /** Ação diplomática de um jogador (ou da IA de um jogador). */
+  diplomaticAction(slot: Slot, action: DiplomaticAction): string | null {
+    if (!this.nations.some((n) => n.slot === slot)) return 'Nação inválida';
+    const err = this.diplomacy.act(slot, action, this.day, (id) => this.isNpc(id));
+    if (!err) for (const n of [...this.nations, ...this.npcs]) this.recompute(n, 0);
+    return err;
   }
 
   effects(slot: Slot): TechEffects {
@@ -115,6 +148,7 @@ export class NationalSimulation {
   }
 
   drainEvents(): NationalEvent[] {
+    for (const ev of this.diplomacy.drainEvents()) this.events.push({ type: 'diplomacy', day: this.day, event: ev });
     const e = this.events;
     this.events = [];
     return e;
@@ -164,7 +198,9 @@ export class NationalSimulation {
 
   stepDay(): void {
     this.day++;
+    this.diplomacy.stepDay(this.day);
     for (const n of this.nations) this.stepNation(n);
+    for (const n of this.npcs) this.stepNation(n);
   }
 
   private stepNation(n: NationState): void {
@@ -173,6 +209,7 @@ export class NationalSimulation {
     const b = n.budget;
     const debtPct = (n.debtUsd / n.gdpUsd) * 100;
     const totalSpendPct = spendPct(b);
+    const diplo = this.diplomacy.growthEffects(n.slot);
 
     // --- crescimento real (efeitos anuais em p.p.)
     const growthFactors: Factor[] = [
@@ -184,6 +221,8 @@ export class NationalSimulation {
       { key: 'debt', label: 'Dívida acima de 90% do PIB', value: -COEF.debtDrag * Math.max(0, debtPct - 90) },
       { key: 'stability', label: 'Instabilidade política', value: -COEF.instabilityDrag * Math.max(0, 40 - n.stability) },
       { key: 'tech', label: 'Pesquisas concluídas', value: fx.growthBonus },
+      { key: 'trade', label: 'Acordos comerciais', value: diplo.trade },
+      { key: 'sanctions', label: 'Sanções (sofridas e aplicadas)', value: diplo.sanctions },
     ];
     const prevGrowth = n.realGrowthPct;
     n.realGrowthPct = clamp(sum(growthFactors), -15, 15);
@@ -272,6 +311,7 @@ export class NationalSimulation {
       { key: 'growth', label: 'Crescimento vs. tendência', value: clamp(COEF.approvalGrowth * (n.realGrowthPct - n.trendGrowthPct), -15, 10) },
       { key: 'casualties', label: 'Baixas militares (30 dias)', value: clamp(COEF.approvalCasualties * casualties, -15, 0) },
       { key: 'victories', label: 'Vitórias militares (30 dias)', value: clamp(COEF.approvalVictories * victories, 0, 8) },
+      { key: 'sanctions', label: 'Sanções internacionais contra o país', value: Math.max(-10, DIPLO.sanctionsApproval * this.diplomacy.sanctionsAgainst(n.slot)) },
     ];
     const target = clamp(COEF.approvalBase + sum(factors), 0, 100);
     const prev = n.approval;
@@ -286,13 +326,14 @@ export class NationalSimulation {
     const debtPct = (n.debtUsd / n.gdpUsd) * 100;
     n.interestRatePct = interestRate(n.inflationPct, debtPct, n.baseDebtPctGdp);
     n.revenueUsd = (b.taxPct / 100) * n.gdpUsd;
-    n.spendingUsd = (spendPct(b) / 100) * n.gdpUsd;
+    n.spendingUsd = ((spendPct(b) + this.diplomacy.costPct(n.slot)) / 100) * n.gdpUsd;
     n.interestUsd = (n.interestRatePct / 100) * n.debtUsd;
     n.deficitPctGdp = ((n.spendingUsd + n.interestUsd - n.revenueUsd) / n.gdpUsd) * 100;
     const fx = combineEffects(n.research.done);
-    const gdpForTheater = this.mode === 'parity' ? COEF.parityGdpUsd : n.gdpUsd;
-    const defenseBn = ((b.defensePct / 100) * gdpForTheater) / 1e9;
-    n.theaterSupplyPerSec = COEF.theaterSupplyK * Math.log10(1 + defenseBn) * fx.theaterSupplyMul;
+    const gdpFor = (x: NationState) => (this.mode === 'parity' ? COEF.parityGdpUsd : x.gdpUsd);
+    const defenseBn = ((b.defensePct / 100) * gdpFor(n)) / 1e9;
+    n.allianceAidPerSec = this.diplomacy.allianceAid(n.slot, gdpFor);
+    n.theaterSupplyPerSec = COEF.theaterSupplyK * Math.log10(1 + defenseBn) * fx.theaterSupplyMul + n.allianceAidPerSec;
   }
 
   private crossing(n: NationState, indicator: 'debt' | 'inflation' | 'approval' | 'growth', before: number, after: number, thresholds: number[]): void {
@@ -400,6 +441,7 @@ export function createNation(slot: Slot, countryId: string): NationState {
     growthFactors: [],
     research: { current: null, progress, done: [] },
     theaterSupplyPerSec: 0,
+    allianceAidPerSec: 0,
     casualties30d: [0],
     victories30d: [0],
     estimatedFields: estimated,

@@ -30,7 +30,7 @@ export function wireGameClient(): void {
         useAppStore.setState({ match: msg.match, matchEnd: null, screen: 'game' });
         break;
       case 'national':
-        applyNationalMessage(msg.day, msg.date, msg.nations, msg.events);
+        applyNationalMessage(msg.day, msg.date, msg.nations, msg.events, msg.diplomacy);
         break;
       case 'match_end':
         useAppStore.setState({ matchEnd: msg.end });

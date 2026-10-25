@@ -5,6 +5,7 @@ import type {
   NationalCommand,
   NationalSummary,
   NationView,
+  DiplomacyView,
   MatchEndInfo,
   MatchStartInfo,
   RoomInfo,
@@ -312,7 +313,12 @@ export class Room {
     if (!national || !sim) return;
     national.registerTacticalEvents(tickEvents);
     for (const { slot, cmd, conn } of this.pendingNational.splice(0, this.pendingNational.length)) {
-      const err = cmd.type === 'set_budget' ? national.setBudget(slot, cmd.budget) : national.setResearch(slot, cmd.techId);
+      const err =
+        cmd.type === 'set_budget'
+          ? national.setBudget(slot, cmd.budget)
+          : cmd.type === 'set_research'
+            ? national.setResearch(slot, cmd.techId)
+            : national.diplomaticAction(slot, cmd.action);
       if (err) conn?.send({ t: 'cmd_rejected', reason: err });
     }
     if (sim.tick % TICKS_PER_DAY !== 0) return;
@@ -321,6 +327,7 @@ export class Room {
         const r = ai.think(national);
         if (r.budget) national.setBudget(ai.slot, r.budget);
         if (r.research !== undefined) national.setResearch(ai.slot, r.research);
+        for (const action of r.diplomacy) national.diplomaticAction(ai.slot, action);
       }
     }
     national.stepDay();
@@ -348,7 +355,31 @@ export class Room {
     this.nationalEvents.push(...this.national.drainEvents());
     const events = this.nationalEvents.splice(0, this.nationalEvents.length);
     const withHistory = fullHistory || this.national.day % HISTORY_EVERY_DAYS === 0;
-    this.broadcast({ t: 'national', day: this.national.day, date: this.national.date(), nations: this.nationViews(withHistory), events });
+    this.broadcast({
+      t: 'national',
+      day: this.national.day,
+      date: this.national.date(),
+      nations: this.nationViews(withHistory),
+      events,
+      diplomacy: this.diplomacyView(),
+    });
+  }
+
+  private diplomacyView(): DiplomacyView {
+    const national = this.national!;
+    return {
+      npcs: national.npcs.map((n) => ({
+        id: n.slot,
+        countryId: n.countryId,
+        gdpUsd: Math.round(n.gdpUsd),
+        realGrowthPct: Math.round(n.realGrowthPct * 100) / 100,
+        approval: Math.round(n.approval * 10) / 10,
+        defensePct: Math.round(n.budget.defensePct * 100) / 100,
+      })),
+      relations: national.diplomacy.relationsOf(national.nations.map((n) => n.slot)),
+      treaties: [...national.diplomacy.treaties],
+      missions: [...national.diplomacy.missions],
+    };
   }
 
   private nationViews(withHistory: boolean): NationView[] {
@@ -454,7 +485,8 @@ export class Room {
       this.system(`${p.name} reconectou.`);
       this.broadcastRoom();
       conn.sendRaw(this.snapshotJson([], p.slot));
-      if (this.national) conn.send({ t: 'national', day: this.national.day, date: this.national.date(), nations: this.nationViews(true), events: [] });
+      if (this.national)
+        conn.send({ t: 'national', day: this.national.day, date: this.national.date(), nations: this.nationViews(true), events: [], diplomacy: this.diplomacyView() });
     }
     return true;
   }

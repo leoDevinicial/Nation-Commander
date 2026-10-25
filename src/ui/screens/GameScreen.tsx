@@ -13,7 +13,7 @@ import { ChatBox } from '../components/ChatBox.tsx';
 import { NationalPanel } from '../national/NationalPanel.tsx';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
-import { describeNationalEvent } from '../../game/nationalText.ts';
+import { describeNationalEvent, makeNameOf } from '../../game/nationalText.ts';
 
 export function GameScreen() {
   const match = useAppStore((s) => s.match);
@@ -35,9 +35,9 @@ export function GameScreen() {
       seen = fresh.at(-1)!.id;
       const match = useAppStore.getState().match;
       if (!match) return;
-      const countryOf = (slot: number) => match.players.find((p) => p.slot === slot)?.countryId ?? '';
+      const nameOf = makeNameOf(match.players, s.diplomacy?.npcs ?? []);
       for (const l of fresh) {
-        const d = describeNationalEvent(l.event, match.yourSlot, countryOf);
+        const d = describeNationalEvent(l.event, match.yourSlot, nameOf);
         if (d) useHudStore.getState().pushEvent({ tick: 0, text: d.text, tone: d.tone });
       }
     });

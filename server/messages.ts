@@ -3,6 +3,7 @@ import { GAME_SPEEDS, MAX_CHAT_LENGTH, type ClientMessage, type GameSpeed } from
 import { parseCommand } from '../shared/sim/commands.ts';
 import { BUDGET_KEYS, type Budget } from '../shared/strategic/NationalSimulation.ts';
 import { TECHNOLOGIES, type TechId } from '../shared/strategic/technologies.ts';
+import type { DiplomaticAction } from '../shared/strategic/Diplomacy.ts';
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const ROOM_CODE = /^[A-Z0-9]{5}$/;
@@ -57,6 +58,10 @@ export function parseClientMessage(raw: string): ClientMessage | null {
         }
         return { t: 'national', cmd: { type: 'set_budget', budget } };
       }
+      if (cmd.type === 'diplomacy') {
+        const action = parseDiplomaticAction(cmd.action);
+        return action ? { t: 'national', cmd: { type: 'diplomacy', action } } : null;
+      }
       if (cmd.type === 'set_research') {
         if (cmd.techId === null) return { t: 'national', cmd: { type: 'set_research', techId: null } };
         if (typeof cmd.techId === 'string' && Object.hasOwn(TECHNOLOGIES, cmd.techId)) {
@@ -81,6 +86,32 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     }
     case 'ping':
       return typeof data.n === 'number' ? { t: 'ping', n: data.n } : null;
+    default:
+      return null;
+  }
+}
+
+const isNationId = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) < 1000;
+
+/** Valida a forma de uma ação diplomática; regras (prazo, relação, guerra) ficam na simulação. */
+export function parseDiplomaticAction(raw: unknown): DiplomaticAction | null {
+  if (!isObj(raw)) return null;
+  switch (raw.type) {
+    case 'propose':
+      return (raw.treaty === 'trade' || raw.treaty === 'alliance') && isNationId(raw.partner) ? { type: 'propose', treaty: raw.treaty, partner: raw.partner } : null;
+    case 'request_sanctions':
+      return isNationId(raw.partner) && isNationId(raw.target) ? { type: 'request_sanctions', partner: raw.partner, target: raw.target } : null;
+    case 'impose_sanctions':
+    case 'lift_sanctions':
+      return isNationId(raw.target) ? { type: raw.type, target: raw.target } : null;
+    case 'send_aid':
+      return isNationId(raw.partner) && typeof raw.pctGdp === 'number' && Number.isFinite(raw.pctGdp) && raw.pctGdp > 0 && raw.pctGdp <= 0.5
+        ? { type: 'send_aid', partner: raw.partner, pctGdp: raw.pctGdp }
+        : null;
+    case 'set_mission':
+      return isNationId(raw.partner) && typeof raw.active === 'boolean' ? { type: 'set_mission', partner: raw.partner, active: raw.active } : null;
+    case 'cancel_treaty':
+      return Number.isInteger(raw.treatyId) && (raw.treatyId as number) > 0 ? { type: 'cancel_treaty', treatyId: raw.treatyId as number } : null;
     default:
       return null;
   }

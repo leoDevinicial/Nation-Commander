@@ -1,13 +1,36 @@
 import type { Command } from './sim/commands.ts';
 import type { BalanceMode, Budget, HistoryPoint, NationalEvent, NationState } from './strategic/NationalSimulation.ts';
 import type { TechId } from './strategic/technologies.ts';
+import type { DiplomaticAction, NationId, RelationView, Treaty } from './strategic/Diplomacy.ts';
 import type { PlayerStats, Slot } from './sim/types.ts';
 import type { Snapshot } from './sim/snapshot.ts';
 
 export type RoomMode = 'pvp' | 'vs_ai';
 export type { BalanceMode };
 
-export type NationalCommand = { type: 'set_budget'; budget: Budget } | { type: 'set_research'; techId: TechId | null };
+export type NationalCommand =
+  | { type: 'set_budget'; budget: Budget }
+  | { type: 'set_research'; techId: TechId | null }
+  | { type: 'diplomacy'; action: DiplomaticAction };
+
+/** Resumo público de uma nação governada pela IA. */
+export interface NpcView {
+  id: NationId;
+  countryId: string;
+  gdpUsd: number;
+  realGrowthPct: number;
+  approval: number;
+  defensePct: number;
+}
+
+export interface DiplomacyView {
+  npcs: NpcView[];
+  /** Relações que envolvem ao menos um jogador, com os fatores que as compõem. */
+  relations: RelationView[];
+  treaties: Treaty[];
+  /** Missões diplomáticas ativas ("de>para"). */
+  missions: string[];
+}
 
 /** Estado nacional enviado ao cliente. `history` só vem quando muda (a cada registro mensal). */
 export type NationView = Omit<NationState, 'history' | 'casualties30d' | 'victories30d'> & {
@@ -111,7 +134,7 @@ export type ServerMessage =
   | { t: 'match_start'; match: MatchStartInfo }
   | { t: 'snapshot'; s: Snapshot; paused: boolean; speed: GameSpeed; pausedBy: string | null }
   | { t: 'match_end'; end: MatchEndInfo }
-  | { t: 'national'; day: number; date: string; nations: NationView[]; events: NationalEvent[] }
+  | { t: 'national'; day: number; date: string; nations: NationView[]; events: NationalEvent[]; diplomacy: DiplomacyView }
   | { t: 'cmd_rejected'; reason: string }
   | { t: 'chat'; from: string; text: string; system?: boolean }
   | { t: 'pong'; n: number };

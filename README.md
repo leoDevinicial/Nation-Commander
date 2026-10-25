@@ -1,6 +1,6 @@
 # Nation Commander
 
-RTS geopolítico 3D multijogador para navegador (nome de trabalho). Implementa as **Fases 1 e 2** da
+RTS geopolítico 3D multijogador para navegador (nome de trabalho). Implementa as **Fases 1, 2 e 3** da
 [especificação](PROJETO_RTS_GEOPOLITICO_CLAUDE.md): uma operação tática jogável com servidor
 autoritativo via WebSocket, e uma camada nacional (economia, orçamento, opinião pública, pesquisa)
 que roda dentro de cada partida a partir de dados reais de 10 países.
@@ -108,7 +108,7 @@ e o cliente com `VITE_ALLOW_GUESTS=true` (no `.env.local`). Partidas de convidad
 | Pausa / velocidade | `Espaço` · botões 1×/2×/4× (velocidade só contra a IA) |
 | Menu / chat | `F10` · `Enter` |
 
-| Painel nacional | `G` ou botão **🏛 Nação**: visão geral, orçamento, pesquisa, diagnóstico e dados de referência |
+| Painel nacional | `G` ou botão **🏛 Nação**: visão geral, orçamento, pesquisa, diplomacia, diagnóstico e dados de referência |
 
 **Objetivo:** destruir o Centro de Comando inimigo. Limite de 40 unidades.
 
@@ -167,6 +167,30 @@ segundo** (a 1×). Tudo depois dessa data é uma linha histórica alternativa.
 Para atualizar os dados: GitHub → Actions → **Importar dados de referência** → *Run workflow*
 (ou `npm run data:import` numa máquina com acesso a `api.worldbank.org`).
 
+## Diplomacia (Fase 3)
+
+Os 8 países que nenhum jogador escolheu entram na partida como **governos da IA**, com economia
+própria simulada. Na aba **Diplomacia** do painel nacional:
+
+- **Relações** de −100 a +100, sempre explicadas pelos fatores que as compõem (acordos, sanções,
+  ajuda, missões, histórico de acordos rompidos, aliança com um adversário). Não existe base de dados
+  confiável de relações bilaterais na data de referência, então todas começam em 0 — exceto entre os
+  jogadores, em conflito nesta operação (−60). A relação A–B não determina a B–C.
+- **Acordo comercial** (360 dias): aumenta o crescimento das duas partes (escalado pela razão de PIBs).
+- **Acordo de defesa** (540 dias): o aliado envia ajuda militar ao teatro (suprimentos/s); custa
+  0,1% do PIB/ano; exige relação alta. O adversário ganha um fator negativo com esse aliado.
+- **Sanções**: impostas por você ou pedidas a um governo da IA contra o adversário; reduzem o
+  crescimento e a aprovação do alvo e encerram o comércio entre as partes.
+- **Missão diplomática** (melhora a relação aos poucos, custa 0,02% do PIB/ano) e **ajuda** (paga
+  com dívida; efeito que decai).
+- **Romper** um acordo antes do prazo custa relação com o parceiro e reputação com todos.
+- Os governos da IA **aceitam ou recusam** propostas somando fatores de interesse e risco (benefício
+  do comércio, risco de entrar numa guerra, laços com o adversário, custo de sancionar). Recusas
+  mostram os fatores contrários e impõem espera de 60 dias para repetir o pedido.
+- A IA adversária usa a mesma diplomacia: abre missões, assina acordos e pede sanções contra você.
+
+Coeficientes em `shared/strategic/Diplomacy.ts` (`DIPLO`), todos hipóteses de jogo.
+
 ## Banco de dados
 
 | Objeto | Conteúdo | Acesso |
@@ -221,4 +245,6 @@ npm run build:server
   inflação da Argentina é a de 2024 (último ano no WDI). Uma importação do FMI resolveria ambos.
 - Partidas duram minutos (≈ centenas de dias simulados): efeitos de longo prazo (educação,
   infraestrutura) aparecem pouco numa partida curta.
-- Diplomacia, mapa mundial, notícias e rankings ainda não existem (Fases 3+).
+- Os governos da IA só reagem a propostas (não tomam iniciativa diplomática própria) e mantêm o
+  orçamento de referência. Não há acordos entre jogadores nem negociação de paz.
+- Mapa mundial, notícias e rankings ainda não existem (Fases 4+).
