@@ -35,7 +35,8 @@ const http = createServer((req, res) => {
 
 const wss = new WebSocketServer({
   server: http,
-  path: '/ws',
+  // aceita /ws e também a raiz, para tolerar VITE_GAME_SERVER_URL sem o sufixo
+  path: undefined,
   maxPayload: 16 * 1024,
   verifyClient: ({ origin }, done) => {
     if (isOriginAllowed(origin, config.allowedOrigins)) done(true);
