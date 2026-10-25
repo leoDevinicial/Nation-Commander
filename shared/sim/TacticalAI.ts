@@ -5,6 +5,8 @@ import type { Building, Cell, Entity, Slot, Vec2 } from './types.ts';
 
 /** Com que frequência a IA reavalia a situação. */
 export const AI_THINK_TICKS = TICK_RATE;
+/** A IA não lança ofensivas antes deste momento (dá tempo ao jogador de se organizar). */
+export const AI_FIRST_ATTACK_TICK = TICK_RATE * 150;
 
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
 
@@ -15,7 +17,7 @@ const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
  * do QG adversário, como um jogador humano conheceria o mapa.
  */
 export class TacticalAI {
-  private waveSize = 6;
+  private waveSize = 8;
   private attacking = false;
 
   constructor(readonly slot: Slot) {}
@@ -74,12 +76,12 @@ export class TacticalAI {
 
     // --- ataque em ondas
     const idle = army.filter((u) => u.order.kind === 'idle' && u.engageId === null);
-    if (!this.attacking && idle.length >= this.waveSize) {
+    if (!this.attacking && idle.length >= this.waveSize && sim.tick >= AI_FIRST_ATTACK_TICK) {
       const target = this.enemyObjective(sim);
       if (target) {
         cmds.push({ type: 'attack_move', unitIds: idle.map((u) => u.id), x: target.x, y: target.y });
         this.attacking = true;
-        this.waveSize = Math.min(this.waveSize + 2, 14);
+        this.waveSize = Math.min(this.waveSize + 2, 16);
       }
     } else if (this.attacking && army.every((u) => u.order.kind === 'idle')) {
       this.attacking = false;

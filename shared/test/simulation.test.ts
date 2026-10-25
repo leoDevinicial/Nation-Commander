@@ -183,7 +183,7 @@ describe('determinismo e IA', () => {
   function playout(seed: number) {
     const sim = new Simulation({ map: generateMap(seed), playerCount: 2 });
     const ais = [new TacticalAI(0), new TacticalAI(1)];
-    for (let t = 0; t < TICK_RATE * 150; t++) {
+    for (let t = 0; t < TICK_RATE * 200; t++) {
       if (sim.tick % AI_THINK_TICKS === 0) for (const ai of ais) for (const c of ai.think(sim)) sim.applyCommand(ai.slot, c);
       sim.step();
     }

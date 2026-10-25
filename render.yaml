@@ -1,0 +1,18 @@
+# Blueprint do Render para o servidor de jogo (suporta WebSockets persistentes).
+services:
+  - type: web
+    name: nation-commander-server
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: SUPABASE_URL
+        value: https://vzzzfseliawtnodsysrn.supabase.co
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: ALLOW_GUESTS
+        value: "false"

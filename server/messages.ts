@@ -51,6 +51,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return { t: 'surrender' };
     case 'chat': {
       if (typeof data.text !== 'string') return null;
+      // eslint-disable-next-line no-control-regex -- remove caracteres de controle do chat
       const text = data.text.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, MAX_CHAT_LENGTH);
       return text ? { t: 'chat', text } : null;
     }

@@ -1,0 +1,168 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink-950: #080c11;
+  --color-ink-900: #0d131b;
+  --color-ink-850: #121a24;
+  --color-ink-800: #18222f;
+  --color-ink-700: #243243;
+  --color-ink-600: #344559;
+  --color-ink-400: #7d8ea3;
+  --color-ink-200: #c5d0dc;
+  --color-ink-100: #e6ecf2;
+  --color-brass-400: #e0b44c;
+  --color-brass-500: #c99a2e;
+  --color-signal-blue: #4ca3e0;
+  --color-signal-red: #e05a4c;
+  --color-signal-green: #5cc47a;
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-ink-950);
+  color: var(--color-ink-100);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+}
+
+input,
+textarea,
+select {
+  user-select: text;
+}
+
+/* Painéis do centro de comando */
+.panel {
+  background: color-mix(in oklab, var(--color-ink-900) 94%, transparent);
+  border: 1px solid var(--color-ink-700);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 4px;
+  border: 1px solid var(--color-ink-600);
+  background: var(--color-ink-800);
+  color: var(--color-ink-100);
+  font-weight: 600;
+  font-size: 0.875rem;
+  transition: background 120ms, border-color 120ms;
+  cursor: pointer;
+}
+.btn:hover:not(:disabled) {
+  background: var(--color-ink-700);
+  border-color: var(--color-ink-400);
+}
+.btn:focus-visible {
+  outline: 2px solid var(--color-brass-400);
+  outline-offset: 2px;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--color-brass-500);
+  border-color: var(--color-brass-400);
+  color: #1a1305;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-brass-400);
+  border-color: #f3d27e;
+}
+.btn-danger {
+  border-color: #8a3a32;
+  background: #3a1a17;
+}
+.btn-danger:hover:not(:disabled) {
+  background: #5a241f;
+  border-color: var(--color-signal-red);
+}
+
+.field {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border-radius: 4px;
+  border: 1px solid var(--color-ink-600);
+  background: var(--color-ink-950);
+  color: var(--color-ink-100);
+  font-size: 0.9rem;
+}
+.field:focus {
+  outline: none;
+  border-color: var(--color-brass-400);
+}
+
+.label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-400);
+  margin-bottom: 0.3rem;
+}
+
+.cmd-btn {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 4px;
+  border: 1px solid var(--color-ink-600);
+  background: var(--color-ink-800);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  line-height: 1.1;
+  text-align: center;
+  color: var(--color-ink-100);
+  cursor: pointer;
+}
+.cmd-btn:hover:not(:disabled) {
+  border-color: var(--color-brass-400);
+  background: var(--color-ink-700);
+}
+.cmd-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.cmd-btn .hotkey {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--color-brass-400);
+}
+
+.selection-box {
+  position: fixed;
+  border: 1px solid #8fe0a4;
+  background: rgb(92 196 122 / 0.12);
+  pointer-events: none;
+  z-index: 30;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

@@ -15,6 +15,7 @@ import {
 } from './config.ts';
 import type { Command } from './commands.ts';
 import { findPath } from './pathfinding/AStar.ts';
+import { placementError } from './placement.ts';
 import { Grid } from './pathfinding/Grid.ts';
 import type {
   Building,
@@ -256,41 +257,23 @@ export class Simulation {
 
   /** Motivo pelo qual não se pode construir, ou null se a posição é válida. */
   placementError(slot: Slot, type: BuildingType, cell: Cell): string | null {
-    const def = BUILDINGS[type];
     const player = this.players[slot];
     if (!player) return 'Jogador inválido';
-    if (!def.buildable) return 'Este edifício não pode ser construído';
-    for (let y = cell.cy; y < cell.cy + def.size; y++) {
-      for (let x = cell.cx; x < cell.cx + def.size; x++) {
-        if (!this.grid.inBounds(x, y)) return 'Fora do mapa';
-        if (!TERRAIN[this.grid.terrainAt(x, y)].buildable) return 'Terreno impróprio para construção';
-        if (this.grid.occupant(x, y) !== 0) return 'Local ocupado';
-      }
-    }
-    const cs = this.grid.cellSize;
-    const min = { x: cell.cx * cs, y: cell.cy * cs };
-    const max = { x: (cell.cx + def.size) * cs, y: (cell.cy + def.size) * cs };
-    for (const u of this.units) {
-      const r = UNITS[u.type].radius;
-      if (u.pos.x + r > min.x && u.pos.x - r < max.x && u.pos.y + r > min.y && u.pos.y - r < max.y) {
-        return 'Há unidades no local';
-      }
-    }
-    if (type === 'extractor') {
-      if (!this.map.resourceNodes.some((n) => n.cx === cell.cx && n.cy === cell.cy)) return 'Extratores precisam ser construídos sobre uma jazida';
-    } else {
-      const center = { x: (cell.cx + def.size / 2) * cs, y: (cell.cy + def.size / 2) * cs };
-      const inRange = this.buildings.some(
-        (b) =>
-          b.owner === slot &&
-          b.progress >= 1 &&
-          BUILDINGS[b.type].buildRadius > 0 &&
-          dist(b.pos, center) <= BUILDINGS[b.type].buildRadius * cs,
-      );
-      if (!inRange) return 'Fora da área de construção';
-    }
-    if (player.resources < def.cost) return 'Suprimentos insuficientes';
-    return null;
+    return placementError(
+      {
+        width: this.map.width,
+        height: this.map.height,
+        cellSize: this.map.cellSize,
+        terrain: this.map.terrain,
+        resourceNodes: this.map.resourceNodes,
+        buildings: this.buildings,
+        units: this.units,
+        resources: player.resources,
+      },
+      slot,
+      type,
+      cell,
+    );
   }
 
   // ---------------------------------------------------------------- passo
