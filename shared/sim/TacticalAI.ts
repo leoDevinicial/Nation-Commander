@@ -1,4 +1,4 @@
-import { BUILDINGS, CITIZEN, OIL_TANK_RANGE, POP_ABSOLUTE_CAP, PREPARATION_TICKS, RESOURCE_TYPES, TICK_RATE, UNITS, canAfford, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
+import { BUILDINGS, CITIZEN, OIL_TANK_RANGE, RECRUIT, POP_ABSOLUTE_CAP, PREPARATION_TICKS, RESOURCE_TYPES, TICK_RATE, UNITS, canAfford, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
 import { claimableCells, claimedBy } from './gathering.ts';
 import type { Command } from './commands.ts';
 import type { Simulation } from './Simulation.ts';
@@ -108,15 +108,22 @@ export class TacticalAI {
 
     // --- população: forma cidadãos para preencher postos e manter reserva para recrutamento
     const vacancies = mine.reduce((a, b) => a + (b.progress >= 1 ? Math.max(0, Math.min(b.workerTarget, BUILDINGS[b.type].workers) - b.workers) : 0), 0);
-    if (hq.queue.length < 2 && pop.total < pop.cap && pop.idle + pop.queuedCitizens < vacancies + 3 && take(CITIZEN.cost)) {
+    if (hq.queue.length < 2 && pop.total < pop.cap && pop.idle + pop.queuedCitizens < vacancies + 1 && take(CITIZEN.cost)) {
       cmds.push({ type: 'produce', buildingId: hq.id, unitType: 'citizen' });
     }
 
-    // --- produção militar: cada unidade precisa de um cidadão ocioso como tripulação.
+    // --- produção militar: cada unidade precisa de um recruta da reserva como tripulação.
     // No preparo (e sem guerra), só uma guarnição: os recursos vão para a economia.
     const atWar = sim.players.some((p) => p.slot !== this.slot && !p.defeated && sim.hostile(this.slot, p.slot));
     const preparing = sim.tick < AI_FIRST_ATTACK_TICK && !atWar;
-    let crew = preparing ? Math.min(pop.idle, Math.max(0, AI_PREP_GARRISON - army.length - pop.queuedMilitary)) : pop.idle;
+    const garrisonRoom = Math.max(0, AI_PREP_GARRISON - army.length - pop.queuedMilitary);
+    // recrutas: alistados no quartel para tripular as próximas unidades (no preparo, só a guarnição)
+    const wantRecruits = preparing ? garrisonRoom : 4;
+    const barracks = mine.find((b) => b.type === 'barracks' && b.progress >= 1 && b.queue.length < 2);
+    if (barracks && pop.total < pop.cap && pop.recruits + pop.queuedRecruits < wantRecruits && take(RECRUIT.cost)) {
+      cmds.push({ type: 'produce', buildingId: barracks.id, unitType: 'recruit' });
+    }
+    let crew = preparing ? Math.min(pop.recruits, garrisonRoom) : pop.recruits;
     const factoryMix: UnitType[] = ['tank', 'apc', 'tank', 'artillery'];
     for (const b of mine) {
       if (b.progress < 1 || b.queue.length > 0 || crew <= 0 || b.workers === 0) continue;

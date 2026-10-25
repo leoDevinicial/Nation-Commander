@@ -29,6 +29,8 @@ export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone
     }
     case 'citizen_trained':
       return e.owner === mySlot ? { text: 'Novo cidadão na força de trabalho', tone: 'good' } : null;
+    case 'recruit_trained':
+      return e.owner === mySlot ? { text: 'Novo recruta na reserva militar', tone: 'good' } : null;
     case 'production_halted':
       return e.owner === mySlot ? { text: `${BUILDINGS[e.buildingType].label}: ${HALT_TEXT[e.reason] ?? 'produção parada'}`, tone: 'warn' } : null;
     case 'deposit_depleted':

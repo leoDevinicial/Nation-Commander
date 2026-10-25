@@ -58,7 +58,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
         {me?.population && (
           <div
             className="flex shrink-0 items-center gap-1.5"
-            title={`População ${me.population.total}/${me.population.cap} (teto nacional ${POP_ABSOLUTE_CAP}). Cidadãos: ${me.population.citizens} (${me.population.employed} empregados, ${me.population.idle} ociosos) · Militares: ${me.population.military} em campo, ${me.population.queuedMilitary} em formação · Cidadãos em formação: ${me.population.queuedCitizens}`}
+            title={`População ${me.population.total}/${me.population.cap} (teto nacional ${POP_ABSOLUTE_CAP}). Cidadãos: ${me.population.citizens} (${me.population.employed} empregados, ${me.population.idle} ociosos) · Recrutas na reserva: ${me.population.recruits} (+${me.population.queuedRecruits} em alistamento no quartel) · Militares: ${me.population.military} em campo, ${me.population.queuedMilitary} em formação · Cidadãos em formação: ${me.population.queuedCitizens}`}
           >
             <span className="text-ink-400" aria-hidden>
               👥
@@ -67,7 +67,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
               {me.population.total}/{me.population.cap}
             </span>
             <span className="hidden text-[11px] text-ink-400 lg:inline">
-              · {me.population.idle} ociosos · ⚔{me.population.military}
+              · {me.population.idle} ociosos · 🎖{me.population.recruits} recrutas · ⚔{me.population.military}
             </span>
           </div>
         )}

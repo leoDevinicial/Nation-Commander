@@ -13,6 +13,8 @@ import {
   POP_ABSOLUTE_CAP,
   STARTING_CITIZENS,
   CITIZEN,
+  RECRUIT,
+  STARTING_RECRUITS,
   FOOD_UPKEEP_PER_POP,
   HUNGER_EFFICIENCY,
   OIL_TANK_RANGE,
@@ -74,6 +76,9 @@ export interface Population {
   citizens: number;
   employed: number;
   idle: number;
+  /** Recrutas na reserva (tripulação disponível para unidades militares). */
+  recruits: number;
+  queuedRecruits: number;
   /** Unidades em campo. */
   military: number;
   /** Militares em formação (já com tripulação reservada). */
@@ -136,6 +141,7 @@ export class Simulation {
         resources: start,
         oilReserve: start.oil,
         citizens: STARTING_CITIZENS,
+        recruits: STARTING_RECRUITS,
         hungry: false,
         upkeepAcc: { food: 0, supplies: 0 },
         incomeRemainder: emptyStockpile(),
@@ -253,6 +259,7 @@ export class Simulation {
     let military = 0;
     let queuedMilitary = 0;
     let queuedCitizens = 0;
+    let queuedRecruits = 0;
     for (const e of this.entities.values()) {
       if (e.owner !== slot) continue;
       if (e.kind === 'unit') {
@@ -261,18 +268,23 @@ export class Simulation {
       }
       employed += e.workers;
       if (e.progress >= 1 && !e.unpaid) housing += BUILDINGS[e.type].housing;
-      for (const q of e.queue) if (q.unitType === 'citizen') queuedCitizens++;
-      else queuedMilitary++;
+      for (const q of e.queue)
+        if (q.unitType === 'citizen') queuedCitizens++;
+        else if (q.unitType === 'recruit') queuedRecruits++;
+        else queuedMilitary++;
     }
     const citizens = p?.citizens ?? 0;
+    const recruits = p?.recruits ?? 0;
     return {
       citizens,
       employed,
       idle: Math.max(0, citizens - employed),
+      recruits,
+      queuedRecruits,
       military,
       queuedMilitary,
       queuedCitizens,
-      total: citizens + military + queuedMilitary + queuedCitizens,
+      total: citizens + recruits + military + queuedMilitary + queuedCitizens + queuedRecruits,
       cap: Math.min(POP_ABSOLUTE_CAP, housing),
       housing,
     };
@@ -554,25 +566,28 @@ export class Simulation {
         if (b.progress < 1) return 'Edifício em construção';
         if (b.queue.length >= PRODUCTION_QUEUE_LIMIT) return 'Fila de produção cheia';
         const pop = this.population(slot);
-        if (cmd.unitType === 'citizen') {
-          if (b.type !== 'hq') return 'Cidadãos são formados no Centro de Comando';
+        if (cmd.unitType === 'citizen' || cmd.unitType === 'recruit') {
+          const recruit = cmd.unitType === 'recruit';
+          if (!recruit && b.type !== 'hq') return 'Cidadãos são formados no Centro de Comando';
+          if (recruit && b.type !== 'barracks') return 'Recrutas são alistados na base militar (quartel)';
           if (pop.total >= pop.cap)
             return pop.cap >= POP_ABSOLUTE_CAP
               ? `Limite nacional de ${POP_ABSOLUTE_CAP} habitantes atingido`
               : `Sem moradia: ${pop.total}/${pop.cap}. Construa casas ou prédios residenciais (ou perca unidades) para liberar espaço`;
-          if (!canAfford(player.resources, CITIZEN.cost)) return 'Recursos insuficientes';
-          this.spend(player, CITIZEN.cost);
-          const ticks = Math.max(1, Math.round(CITIZEN.buildSeconds * TICK_RATE));
-          b.queue.push({ unitType: 'citizen', remainingTicks: ticks, totalTicks: ticks });
+          const def = recruit ? RECRUIT : CITIZEN;
+          if (!canAfford(player.resources, def.cost)) return 'Recursos insuficientes';
+          this.spend(player, def.cost);
+          const ticks = Math.max(1, Math.round(def.buildSeconds * TICK_RATE));
+          b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks });
           return null;
         }
         const def = UNITS[cmd.unitType];
         if (def.producedBy !== b.type) return `${BUILDINGS[b.type].label} não produz ${def.label}`;
-        // cada militar sai da força de trabalho: precisa de um cidadão ocioso como tripulação
-        if (pop.idle < 1) return 'Nenhum cidadão disponível: forme cidadãos no Centro de Comando ou libere trabalhadores';
+        // cada unidade militar precisa de um recruta da reserva como tripulação
+        if (player.recruits < 1) return 'Nenhum recruta disponível: aliste recrutas na base militar (quartel)';
         if (!canAfford(player.resources, def.cost)) return 'Recursos insuficientes';
         this.spend(player, def.cost);
-        player.citizens--;
+        player.recruits--;
         const ticks = Math.max(1, Math.round(def.buildSeconds * TICK_RATE * player.modifiers.productionTimeMul));
         b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks });
         return null;
@@ -582,8 +597,8 @@ export class Simulation {
         if (!b || b.kind !== 'building' || b.owner !== slot) return 'Edifício inválido';
         const item = b.queue.pop();
         if (!item) return 'Fila vazia';
-        this.refund(slot, item.unitType === 'citizen' ? CITIZEN.cost : UNITS[item.unitType].cost);
-        if (item.unitType !== 'citizen') player.citizens++; // a tripulação volta à força de trabalho
+        this.refund(slot, item.unitType === 'citizen' ? CITIZEN.cost : item.unitType === 'recruit' ? RECRUIT.cost : UNITS[item.unitType].cost);
+        if (item.unitType !== 'citizen' && item.unitType !== 'recruit') player.recruits++; // a tripulação volta à reserva
         return null;
       }
       case 'set_workers': {
@@ -888,6 +903,12 @@ export class Simulation {
         b.queue.shift();
         this.players[b.owner]!.citizens++;
         this.emit({ type: 'citizen_trained', tick: this.tick, owner: b.owner, pos: { ...b.pos } });
+        continue;
+      }
+      if (item.unitType === 'recruit') {
+        b.queue.shift();
+        this.players[b.owner]!.recruits++;
+        this.emit({ type: 'recruit_trained', tick: this.tick, owner: b.owner, pos: { ...b.pos } });
         continue;
       }
       const u = this.spawnUnitNear(b, item.unitType);

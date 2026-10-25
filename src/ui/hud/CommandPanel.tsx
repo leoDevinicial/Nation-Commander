@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   BUILDINGS,
   CITIZEN,
+  RECRUIT,
   DEPOSIT_SIZE_LABELS,
   OIL_TANK_RANGE,
   RESOURCE_LABELS,
@@ -151,7 +152,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             className="cmd-btn shrink-0"
             disabled={!canAfford(resources, CITIZEN.cost)}
             onClick={() => runtime.trainCitizen()}
-            title={`Formar cidadão — força de trabalho e base do recrutamento militar. Exige vaga de moradia.\nTempo: ${CITIZEN.buildSeconds}s`}
+            title={`Formar cidadão civil — trabalha nas construções (fazendas, poços de petróleo, serrarias, pedreiras, minas, fábricas). Exige vaga de moradia.\nTempo: ${CITIZEN.buildSeconds}s`}
           >
             <span className="hotkey">{CITIZEN.hotkey}</span>
             <span className="font-semibold">Cidadão</span>
@@ -201,17 +202,31 @@ function WarStatus({ owner, mySlot }: { owner: number; mySlot: number }) {
 
 function ProduceButtons({ runtime, type, resources }: { runtime: GameRuntime; type: BuildingType; resources: Stockpile }) {
   const options = (Object.keys(UNITS) as UnitType[]).filter((u) => UNITS[u].producedBy === type);
+  const mySlot = useHudStore((s) => s.mySlot);
+  const recruits = useHudStore((s) => s.players.find((p) => p.slot === mySlot)?.population?.recruits ?? 0);
   return (
     <>
+      {type === 'barracks' && (
+        <button
+          className="cmd-btn shrink-0"
+          disabled={!canAfford(resources, RECRUIT.cost)}
+          onClick={() => runtime.trainRecruit()}
+          title={`Alistar recruta — vai para a reserva militar e é a tripulação de qualquer unidade (infantaria, blindado, tanque, artilharia). Exige vaga de moradia.\nTempo: ${RECRUIT.buildSeconds}s · Na reserva: ${recruits}`}
+        >
+          <span className="hotkey">{RECRUIT.hotkey}</span>
+          <span className="font-semibold">Recruta</span>
+          <CostLabel cost={RECRUIT.cost} have={resources} compact />
+        </button>
+      )}
       {options.map((u) => {
         const def = UNITS[u];
         return (
           <button
             key={u}
             className="cmd-btn shrink-0"
-            disabled={!canAfford(resources, def.cost)}
+            disabled={!canAfford(resources, def.cost) || recruits < 1}
             onClick={() => runtime.produce(u)}
-            title={`${def.label} — ${def.description}\nTempo: ${def.buildSeconds}s · Vida: ${def.maxHp} · Dano: ${def.weapon.damage} · Alcance: ${def.weapon.range} · Visão: ${def.sight}`}
+            title={`${def.label} — ${def.description}${recruits < 1 ? '\nSem recrutas: aliste recrutas na base militar.' : ''}\nTripulação: 1 recruta · Tempo: ${def.buildSeconds}s · Vida: ${def.maxHp} · Dano: ${def.weapon.damage} · Alcance: ${def.weapon.range} · Visão: ${def.sight}`}
           >
             <span className="hotkey">{def.hotkey}</span>
             <span className="font-semibold">{def.label}</span>
@@ -356,8 +371,8 @@ function BuildingInfo({ b, runtime }: { b: NonNullable<ReturnType<typeof useHudS
       {b.queue.length > 0 && (
         <div className="mt-2 flex items-center gap-1.5">
           {b.queue.map((q, i) => (
-            <div key={i} className="relative h-9 w-9 overflow-hidden rounded border border-ink-600 bg-ink-850 text-center text-[10px] leading-9" title={q.unitType === 'citizen' ? CITIZEN.label : UNITS[q.unitType].label}>
-              {q.unitType === 'citizen' ? '☺' : q.unitType === 'tank' ? '▣' : '●'}
+            <div key={i} className="relative h-9 w-9 overflow-hidden rounded border border-ink-600 bg-ink-850 text-center text-[10px] leading-9" title={q.unitType === 'citizen' ? CITIZEN.label : q.unitType === 'recruit' ? RECRUIT.label : UNITS[q.unitType].label}>
+              {q.unitType === 'citizen' ? '☺' : q.unitType === 'recruit' ? '🎖' : q.unitType === 'tank' ? '▣' : '●'}
               {i === 0 && <div className="absolute bottom-0 left-0 h-1 bg-brass-400" style={{ width: `${q.progress * 100}%` }} />}
             </div>
           ))}

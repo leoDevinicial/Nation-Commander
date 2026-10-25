@@ -157,3 +157,23 @@ como um civil (macacão, capacete e colete na cor da facção), sempre no mesmo 
 - Não são selecionáveis, não ocupam espaço e não afetam o jogo; o movimento para com a pausa e acelera com a velocidade.
 - Desenho em lote (InstancedMesh, até 220 por jogador): custo baixo também no celular.
 - Só os cidadãos do próprio jogador aparecem: o servidor não envia os trabalhadores dos edifícios inimigos.
+
+## Cidadãos civis e recrutas militares
+
+Duas populações separadas, ambas ocupando moradia (teto de 200 habitantes):
+
+| | Cidadão civil | Recruta |
+|---|---|---|
+| Onde se forma | Centro de Comando (botão **Cidadão**, atalho Z) | Base militar/quartel concluído (botão **Recruta**, atalho Z com o quartel selecionado) |
+| Custo e tempo | 40 comida · 6 s | 40 comida + 25 suprimentos · 8 s (`RECRUIT`, `shared/sim/config.ts`) |
+| Função | trabalha nas construções: fazendas, poços de petróleo, serrarias, pedreiras, minas, fábricas (e, no futuro, mercados — Fase 6) | fica na reserva militar e é a tripulação de toda unidade: infantaria, blindado, tanque e artilharia |
+| No mapa | civil de macacão e capacete | soldado de uniforme treinando junto ao quartel |
+
+- Produzir uma unidade militar consome **um recruta** da reserva (não mais um cidadão ocioso); sem recrutas, o
+  pedido é recusado com "Nenhum recruta disponível: aliste recrutas na base militar". Cancelar devolve o recruta.
+- A barra superior mostra ociosos, recrutas (🎖) e militares (⚔); o detalhe aparece ao passar o mouse.
+- A IA alista recrutas no quartel conforme precisa de tripulação (no preparo, só para a guarnição de 6) e forma
+  cidadãos civis só para preencher postos de trabalho.
+- Protocolo 4 (novos campos de população e o tipo de produção `recruit`).
+- Testes: `shared/test/economy.test.ts` (alistamento só no quartel, civis só no QG, unidade consome recruta, cancelar
+  devolve) e `src/test/citizens.test.ts` (recrutas aparecem junto ao quartel).

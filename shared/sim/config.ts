@@ -21,8 +21,16 @@ export const CELL_SIZE = 2; // unidades de mundo por célula
 export const POP_ABSOLUTE_CAP = 200;
 /** Cidadãos no início da partida (além das unidades iniciais). */
 export const STARTING_CITIZENS = 8;
-/** Formação de um cidadão no Centro de Comando. */
+/** Formação de um cidadão civil no Centro de Comando: trabalha nas construções (fazendas, poços, serrarias…). */
 export const CITIZEN = { label: 'Cidadão', cost: { food: 40 } as Cost, buildSeconds: 6, hotkey: 'Z' };
+/**
+ * Recruta: cidadão alistado na base militar (quartel). Fica na reserva e é a tripulação de toda
+ * unidade militar — infantaria, blindados, tanques e artilharia. Ocupa moradia como qualquer
+ * habitante e não trabalha nas construções civis.
+ */
+export const RECRUIT = { label: 'Recruta', cost: { food: 40, supplies: 25 } as Cost, buildSeconds: 8, hotkey: 'Z' };
+/** Recrutas na reserva no início da partida (o quartel ainda precisa ser construído). */
+export const STARTING_RECRUITS = 0;
 /** Consumo de comida por habitante (cidadão ou militar), por segundo. */
 export const FOOD_UPKEEP_PER_POP = 0.02;
 /** Eficiência de produção sem comida em estoque (fome). */
@@ -157,7 +165,7 @@ export type BuildingType =
   | 'oil_tank';
 
 /** O que uma fila de produção pode produzir. */
-export type ProducibleType = UnitType | 'citizen';
+export type ProducibleType = UnitType | 'citizen' | 'recruit';
 
 export interface WeaponDef {
   damage: number;

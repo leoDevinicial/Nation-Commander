@@ -189,6 +189,7 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
       return e.owner === slot || sim.isVisibleTo(slot, e.pos);
     case 'under_attack':
     case 'citizen_trained':
+    case 'recruit_trained':
     case 'production_halted':
     case 'deposit_depleted':
     case 'storage_lost':

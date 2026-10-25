@@ -39,7 +39,7 @@ export function parseCommand(raw: unknown): Command | null {
       if (!Number.isInteger(raw.cx) || !Number.isInteger(raw.cy)) return null;
       return { type: 'build', buildingType: raw.buildingType as BuildingType, cx: raw.cx as number, cy: raw.cy as number };
     case 'produce':
-      if (!isId(raw.buildingId) || typeof raw.unitType !== 'string' || (raw.unitType !== 'citizen' && !Object.hasOwn(UNITS, raw.unitType))) return null;
+      if (!isId(raw.buildingId) || typeof raw.unitType !== 'string' || (raw.unitType !== 'citizen' && raw.unitType !== 'recruit' && !Object.hasOwn(UNITS, raw.unitType))) return null;
       return { type: 'produce', buildingId: raw.buildingId, unitType: raw.unitType as ProducibleType };
     case 'set_workers':
       if (!isId(raw.buildingId) || !Number.isInteger(raw.count) || (raw.count as number) < 0 || (raw.count as number) > 50) return null;

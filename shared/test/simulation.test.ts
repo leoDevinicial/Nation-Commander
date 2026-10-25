@@ -145,6 +145,7 @@ describe('economia, construção e produção', () => {
     sim.applyCommand(0, { type: 'build', buildingType: 'barracks', cx: 8, cy: 3 });
     run(sim, BUILDINGS.barracks.buildSeconds * TICK_RATE);
     const b = sim.buildings.find((x) => x.type === 'barracks')!;
+    sim.players[0]!.recruits = 2; // tripulação já alistada
     const food0 = sim.players[0]!.resources.food;
     const foodCost = UNITS.infantry.cost.food!;
     expect(sim.applyCommand(0, { type: 'produce', buildingId: b.id, unitType: 'tank' })).not.toBeNull();
@@ -248,6 +249,7 @@ describe('modificadores da camada nacional', () => {
     sim.applyCommand(0, { type: 'build', buildingType: 'barracks', cx: 8, cy: 3 });
     const b = sim.buildings.find((x) => x.type === 'barracks')!;
     run(sim, (BUILDINGS.barracks.buildSeconds * TICK_RATE) / 2);
+    sim.players[0]!.recruits = 3;
     expect(b.progress).toBe(1);
     sim.applyCommand(0, { type: 'produce', buildingId: b.id, unitType: 'infantry' });
     expect(b.queue[0]!.totalTicks).toBe(UNITS.infantry.buildSeconds * TICK_RATE * 0.5);

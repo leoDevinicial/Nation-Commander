@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { GameSpeed, MatchStartInfo, ServerMessage } from '../../shared/protocol.ts';
 import type { Command } from '../../shared/sim/commands.ts';
-import { BUILDINGS, CITIZEN, UNITS, type BuildingType, type Terrain, type UnitType } from '../../shared/sim/config.ts';
+import { BUILDINGS, CITIZEN, RECRUIT, UNITS, type BuildingType, type Terrain, type UnitType } from '../../shared/sim/config.ts';
 import { anchorForCursor, placementError } from '../../shared/sim/placement.ts';
 import type { BuildingSnapshot, Snapshot, UnitSnapshot } from '../../shared/sim/snapshot.ts';
 import type { Cell, MapData, SimEvent } from '../../shared/sim/types.ts';
@@ -360,6 +360,7 @@ export class GameRuntime {
       s.buildings,
       s.buildings.filter((b) => b.owner === this.mySlot && !b.remembered),
       me?.population?.idle ?? 0,
+      me?.population?.recruits ?? 0,
     );
     for (const [id, t] of this.buildings) {
       if (!seenB.has(id)) {
@@ -814,6 +815,10 @@ export class GameRuntime {
           const type = (Object.keys(BUILDINGS) as BuildingType[]).find((t) => BUILDINGS[t].hotkey === key);
           if (type) this.startPlacement(type);
         } else {
+          if (b.snap.type === 'barracks' && key === RECRUIT.hotkey) {
+            this.trainRecruit();
+            break;
+          }
           const unit = (Object.keys(UNITS) as UnitType[]).find((u) => UNITS[u].hotkey === key && UNITS[u].producedBy === b.snap.type);
           if (unit) this.produce(unit);
         }
@@ -1136,6 +1141,11 @@ export class GameRuntime {
 
   setWorkers(buildingId: number, count: number): void {
     this.send({ type: 'set_workers', buildingId, count });
+  }
+
+  trainRecruit(): void {
+    const b = this.selectedOwnBuilding();
+    if (b && b.snap.type === 'barracks') this.send({ type: 'produce', buildingId: b.snap.id, unitType: 'recruit' });
   }
 
   trainCitizen(): void {

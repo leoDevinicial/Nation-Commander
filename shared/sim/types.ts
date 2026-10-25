@@ -130,6 +130,8 @@ export interface PlayerState {
   oilReserve: number;
   /** Cidadãos (força de trabalho: empregados + ociosos). Militares não contam aqui. */
   citizens: number;
+  /** Recrutas na reserva militar (alistados no quartel, ainda sem unidade). */
+  recruits: number;
   /** Sem comida em estoque para o consumo da população. */
   hungry: boolean;
   /** Acumuladores fracionários de consumo. */
@@ -161,6 +163,7 @@ export type SimEvent =
   | { type: 'under_attack'; tick: number; id: EntityId; owner: Slot; pos: Vec2 }
   | { type: 'player_defeated'; tick: number; slot: Slot }
   | { type: 'citizen_trained'; tick: number; owner: Slot; pos: Vec2 }
+  | { type: 'recruit_trained'; tick: number; owner: Slot; pos: Vec2 }
   | { type: 'production_halted'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; reason: BuildingStatus; pos: Vec2 }
   | { type: 'deposit_depleted'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; pos: Vec2 }
   | { type: 'storage_lost'; tick: number; owner: Slot; resource: ResourceType; amount: number; reason: 'destroyed' | 'capacity' }

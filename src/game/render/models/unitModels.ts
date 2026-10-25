@@ -425,8 +425,19 @@ export function citizenModel(): ModelLayers {
   return citizenCache;
 }
 
+let recruitCache: ModelLayers | null = null;
+
+/** Recruta da reserva: um soldado de uniforme e fuzil (mesmo modelo da infantaria, sozinho). */
+export function recruitModel(): ModelLayers {
+  if (recruitCache) return recruitCache;
+  const l = layers();
+  soldier(l.body, l.accent, 0, 0, 0);
+  recruitCache = l.build();
+  return recruitCache;
+}
+
 export function disposeCitizenModel(): void {
-  if (!citizenCache) return;
-  for (const g of [citizenCache.body, citizenCache.accent, citizenCache.glass]) g.dispose();
+  for (const m of [citizenCache, recruitCache]) if (m) for (const g of [m.body, m.accent, m.glass]) g.dispose();
   citizenCache = null;
+  recruitCache = null;
 }

@@ -36,4 +36,13 @@ describe('cidadãos visíveis', () => {
     expect(dropoffFor('wood', { x: 28, y: 0 }, own)).toMatchObject({ x: 22 });
     expect(dropoffFor('oil', { x: 28, y: 0 }, own)).toMatchObject({ x: 0 });
   });
+
+  it('recrutas da reserva aparecem junto ao quartel, separados dos civis', () => {
+    const roster = citizenRoster([b(1, 'farm', 2), b(5, 'barracks', 2)], 1, 3);
+    const rec = roster.filter((j) => j.kind === 'recruit');
+    expect(rec).toHaveLength(3);
+    expect(rec.every((j) => j.buildingId === 5)).toBe(true);
+    // civis: 2 da fazenda + 2 do quartel (instrutores) + 1 ocioso
+    expect(roster.filter((j) => j.kind !== 'recruit')).toHaveLength(5);
+  });
 });

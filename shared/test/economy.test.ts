@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUILDINGS, CITIZEN, POP_ABSOLUTE_CAP, STARTING_CITIZENS, TICK_RATE, Terrain, UNITS, type BuildingType } from '../sim/config.ts';
+import { BUILDINGS, CITIZEN, POP_ABSOLUTE_CAP, RECRUIT, STARTING_CITIZENS, STARTING_RECRUITS, TICK_RATE, Terrain, UNITS, type BuildingType } from '../sim/config.ts';
 import { findDeposits, sizeClass } from '../sim/deposits.ts';
 import { Simulation } from '../sim/Simulation.ts';
 import { makeSnapshot } from '../sim/snapshot.ts';
@@ -59,21 +59,35 @@ describe('população e moradia', () => {
     expect(s.population(0).citizens).toBe(20);
   });
 
-  it('militares saem da força de trabalho: recrutar exige cidadão ocioso; cancelar devolve', () => {
+  it('recrutas: alistados só no quartel, tripulam as unidades; cidadãos civis só no QG', () => {
     const s = sim();
     const barracks = build(s, 0, 'barracks', { cx: 8, cy: 3 });
+    const hq = s.hqOf(0)!;
+    // civis no QG, recrutas no quartel — e não o contrário
+    expect(s.applyCommand(0, { type: 'produce', buildingId: barracks.id, unitType: 'citizen' })).toMatch(/Centro de Comando/);
+    expect(s.applyCommand(0, { type: 'produce', buildingId: hq.id, unitType: 'recruit' })).toMatch(/base militar/);
+    // sem recrutas na reserva, nenhuma unidade militar
+    expect(s.players[0]!.recruits).toBe(STARTING_RECRUITS);
+    expect(s.applyCommand(0, { type: 'produce', buildingId: barracks.id, unitType: 'infantry' })).toMatch(/Nenhum recruta disponível/);
+    // alistar ocupa moradia e custa recursos; ao concluir, entra na reserva
     const before = s.population(0);
-    expect(barracks.workers).toBe(BUILDINGS.barracks.workers);
+    const food0 = s.players[0]!.resources.food;
+    expect(s.applyCommand(0, { type: 'produce', buildingId: barracks.id, unitType: 'recruit' })).toBeNull();
+    expect(s.players[0]!.resources.food).toBe(food0 - RECRUIT.cost.food!);
+    expect(s.population(0).queuedRecruits).toBe(1);
+    expect(s.population(0).total).toBe(before.total + 1);
+    for (let i = 0; i < RECRUIT.buildSeconds * TICK_RATE + 5; i++) s.step();
+    expect(s.population(0).recruits).toBe(1);
+    expect(s.drainEvents().some((e) => e.type === 'recruit_trained')).toBe(true);
+    // a unidade consome o recruta, não um cidadão civil
+    const civ = s.players[0]!.citizens;
     expect(s.applyCommand(0, { type: 'produce', buildingId: barracks.id, unitType: 'infantry' })).toBeNull();
-    const after = s.population(0);
-    expect(after.citizens).toBe(before.citizens - 1);
-    expect(after.queuedMilitary).toBe(1);
-    expect(after.total).toBe(before.total);
+    expect(s.players[0]!.recruits).toBe(0);
+    expect(s.players[0]!.citizens).toBe(civ);
+    expect(s.population(0).queuedMilitary).toBe(1);
+    // cancelar devolve o recruta à reserva
     expect(s.applyCommand(0, { type: 'cancel_production', buildingId: barracks.id })).toBeNull();
-    expect(s.population(0).citizens).toBe(before.citizens);
-    // sem ociosos, o recrutamento é recusado
-    s.players[0]!.citizens = s.population(0).employed;
-    expect(s.applyCommand(0, { type: 'produce', buildingId: barracks.id, unitType: 'infantry' })).toMatch(/Nenhum cidadão disponível/);
+    expect(s.players[0]!.recruits).toBe(1);
   });
 });
 

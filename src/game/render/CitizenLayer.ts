@@ -4,7 +4,7 @@ import { findPath } from '../../../shared/sim/pathfinding/AStar.ts';
 import { Grid } from '../../../shared/sim/pathfinding/Grid.ts';
 import type { BuildingSnapshot } from '../../../shared/sim/snapshot.ts';
 import { accentMaterial, bodyMaterial } from './materials.ts';
-import { citizenModel } from './models/unitModels.ts';
+import { citizenModel, recruitModel } from './models/unitModels.ts';
 
 /**
  * Cidadãos no mapa. A simulação conta a população (trabalhadores por edifício e ociosos) e decide
@@ -14,7 +14,7 @@ import { citizenModel } from './models/unitModels.ts';
  * das casas. Não são selecionáveis e não afetam o jogo.
  */
 
-export type CitizenJobKind = 'gather' | 'staff' | 'idle';
+export type CitizenJobKind = 'gather' | 'staff' | 'idle' | 'recruit';
 
 export interface CitizenJob {
   /** Chave estável: o mesmo cidadão continua no mesmo posto entre snapshots. */
@@ -24,8 +24,11 @@ export interface CitizenJob {
   resource: ResourceType | null;
 }
 
-/** Lista de postos a partir do estado real: um por trabalhador e um por cidadão ocioso. */
-export function citizenRoster(own: readonly BuildingSnapshot[], idle: number): CitizenJob[] {
+/**
+ * Lista de postos a partir do estado real: um por trabalhador, um por cidadão ocioso e um por
+ * recruta da reserva (que treina junto ao quartel).
+ */
+export function citizenRoster(own: readonly BuildingSnapshot[], idle: number, recruits = 0): CitizenJob[] {
   const jobs: CitizenJob[] = [];
   for (const b of own) {
     const n = b.progress >= 1 ? (b.workers ?? 0) : 0;
@@ -35,6 +38,11 @@ export function citizenRoster(own: readonly BuildingSnapshot[], idle: number): C
     }
   }
   for (let i = 0; i < Math.max(0, idle); i++) jobs.push({ key: `idle:${i}`, kind: 'idle', buildingId: null, resource: null });
+  const barracks = own.filter((b) => b.type === 'barracks' && b.progress >= 1);
+  for (let i = 0; i < Math.max(0, recruits); i++) {
+    const at = barracks.length ? barracks[i % barracks.length]!.id : null;
+    jobs.push({ key: `rec:${i}`, kind: 'recruit', buildingId: at, resource: null });
+  }
   return jobs;
 }
 
@@ -94,6 +102,9 @@ export class CitizenLayer {
   private readonly body: THREE.InstancedMesh;
   private readonly accent: THREE.InstancedMesh;
   private readonly cargo: THREE.InstancedMesh;
+  /** Recrutas: modelo de soldado, desenhado em lote separado. */
+  private readonly recBody: THREE.InstancedMesh;
+  private readonly recAccent: THREE.InstancedMesh;
   private readonly cargoGeo = new THREE.BoxGeometry(0.28, 0.2, 0.22);
   private readonly cargoMat = new THREE.MeshStandardMaterial({ roughness: 0.85 });
   private agents = new Map<string, Agent>();
@@ -114,7 +125,10 @@ export class CitizenLayer {
     this.body = new THREE.InstancedMesh(model.body, bodyMaterial(), MAX);
     this.accent = new THREE.InstancedMesh(model.accent, accentMaterial(owner), MAX);
     this.cargo = new THREE.InstancedMesh(this.cargoGeo, this.cargoMat, MAX);
-    for (const im of [this.body, this.accent, this.cargo]) {
+    const rec = recruitModel();
+    this.recBody = new THREE.InstancedMesh(rec.body, bodyMaterial(), MAX);
+    this.recAccent = new THREE.InstancedMesh(rec.accent, accentMaterial(owner), MAX);
+    for (const im of [this.body, this.accent, this.cargo, this.recBody, this.recAccent]) {
       im.count = 0;
       im.castShadow = true;
       im.frustumCulled = false;
@@ -124,7 +138,7 @@ export class CitizenLayer {
   }
 
   /** Atualiza os postos com o snapshot: cria quem chegou, remove quem saiu, mantém o resto. */
-  sync(allBuildings: readonly BuildingSnapshot[], own: readonly BuildingSnapshot[], idle: number): void {
+  sync(allBuildings: readonly BuildingSnapshot[], own: readonly BuildingSnapshot[], idle: number, recruits = 0): void {
     const cs = this.map.cellSize;
     this.sites.clear();
     for (const b of own) {
@@ -138,7 +152,7 @@ export class CitizenLayer {
       this.grid = new Grid(this.map.width, this.map.height, cs, this.map.terrain);
       for (const b of allBuildings) this.grid.setOccupied({ cx: b.cx, cy: b.cy }, BUILDINGS[b.type].size, b.id);
     }
-    const jobs = citizenRoster(own, idle).slice(0, MAX);
+    const jobs = citizenRoster(own, idle, recruits).slice(0, MAX * 2);
     const next = new Map<string, Agent>();
     for (const job of jobs) {
       const a = this.agents.get(job.key);
@@ -153,7 +167,8 @@ export class CitizenLayer {
   private spawn(job: CitizenJob): Agent {
     // novos cidadãos saem de casa (QG ou moradia mais próxima do posto) e caminham até ele
     const target = job.buildingId !== null ? this.sites.get(job.buildingId) : undefined;
-    const home = this.nearestHome(target ?? null);
+    // recrutas saem do próprio quartel, onde foram alistados
+    const home = job.kind === 'recruit' && target ? target : this.nearestHome(target ?? null);
     const start = home ? this.doorPoint(home, target ?? home) : new THREE.Vector2(this.map.width, this.map.height);
     const a: Agent = { job, pos: start, path: [], wait: Math.random() * 0.8, heading: Math.random() * Math.PI * 2, carry: null, leg: 'toWork', phase: Math.random() * 10 };
     return a;
@@ -238,6 +253,7 @@ export class CitizenLayer {
   update(dt: number): void {
     this.time += dt;
     let i = 0;
+    let r = 0;
     for (const a of this.agents.values()) {
       if (a.path.length > 0) {
         const t = a.path[0]!;
@@ -262,8 +278,19 @@ export class CitizenLayer {
         a.wait -= dt;
         if (a.wait <= 0) this.plan(a);
       }
-      if (i >= MAX) continue;
       const moving = a.path.length > 0;
+      if (a.job.kind === 'recruit') {
+        if (r >= MAX) continue;
+        // recrutas em treino: marcha com passo firme
+        const yb = this.heightAt(a.pos.x, a.pos.y) + (moving ? Math.abs(Math.sin((this.time + a.phase) * 7)) * 0.05 : 0);
+        this.q.setFromEuler(new THREE.Euler(0, a.heading, 0));
+        this.m.compose(new THREE.Vector3(a.pos.x, yb, a.pos.y), this.q, new THREE.Vector3(1, 1, 1));
+        this.recBody.setMatrixAt(r, this.m);
+        this.recAccent.setMatrixAt(r, this.m);
+        r++;
+        continue;
+      }
+      if (i >= MAX) continue;
       const bob = moving ? Math.abs(Math.sin((this.time + a.phase) * 9)) * 0.06 : 0;
       const working = !moving && a.job.kind === 'gather' && a.leg === 'toDrop';
       const lean = working ? Math.sin((this.time + a.phase) * 3) * 0.18 : 0;
@@ -284,6 +311,10 @@ export class CitizenLayer {
       im.count = i;
       im.instanceMatrix.needsUpdate = true;
     }
+    for (const im of [this.recBody, this.recAccent]) {
+      im.count = r;
+      im.instanceMatrix.needsUpdate = true;
+    }
     if (this.cargo.instanceColor) this.cargo.instanceColor.needsUpdate = true;
   }
 
@@ -293,7 +324,7 @@ export class CitizenLayer {
 
   dispose(): void {
     this.group.removeFromParent();
-    for (const im of [this.body, this.accent, this.cargo]) im.dispose();
+    for (const im of [this.body, this.accent, this.cargo, this.recBody, this.recAccent]) im.dispose();
     this.cargoGeo.dispose();
     this.cargoMat.dispose();
   }
