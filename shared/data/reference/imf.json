@@ -1,1 +1,493 @@
-{}
+{
+  "generatedBy": "scripts/import-imf-data.ts",
+  "fetchedAt": "2026-10-25T04:19:46.995Z",
+  "targetYear": 2025,
+  "license": "Dados do FMI — termos de uso em https://www.imf.org/en/About/copyright-and-terms (reutilização com atribuição)",
+  "note": "Valores do ano-alvo podem ser estimativas do FMI na edição vigente do WEO.",
+  "indicators": [
+    {
+      "key": "govDebtPctGdp",
+      "code": "GGXWDG_NGDP",
+      "label": "Dívida bruta do governo geral",
+      "unit": "% do PIB"
+    },
+    {
+      "key": "govRevenuePctGdp",
+      "code": "GGR_NGDP",
+      "label": "Receita do governo geral",
+      "unit": "% do PIB"
+    },
+    {
+      "key": "govExpensePctGdp",
+      "code": "GGX_NGDP",
+      "label": "Despesa do governo geral",
+      "unit": "% do PIB"
+    },
+    {
+      "key": "govBalancePctGdp",
+      "code": "GGXCNL_NGDP",
+      "label": "Saldo do governo geral (capacidade/necessidade de financiamento)",
+      "unit": "% do PIB"
+    },
+    {
+      "key": "inflationPct",
+      "code": "PCPIPCH",
+      "label": "Inflação (preços ao consumidor, média anual)",
+      "unit": "% a.a."
+    },
+    {
+      "key": "gdpGrowthPct",
+      "code": "NGDP_RPCH",
+      "label": "Crescimento do PIB real",
+      "unit": "% a.a."
+    },
+    {
+      "key": "unemploymentPct",
+      "code": "LUR",
+      "label": "Taxa de desemprego",
+      "unit": "% da força de trabalho"
+    }
+  ],
+  "countries": {
+    "BRA": {
+      "govDebtPctGdp": {
+        "value": 93.3,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "GGXWDG_NGDP",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/GGXWDG_NGDP@WEO/BRA"
+      },
+      "govRevenuePctGdp": null,
+      "govExpensePctGdp": null,
+      "govBalancePctGdp": {
+        "value": -7.4,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "GGXCNL_NGDP",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/GGXCNL_NGDP@WEO/BRA"
+      },
+      "inflationPct": {
+        "value": 5,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "PCPIPCH",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/PCPIPCH@WEO/BRA"
+      },
+      "gdpGrowthPct": {
+        "value": 2.3,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "NGDP_RPCH",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/NGDP_RPCH@WEO/BRA"
+      },
+      "unemploymentPct": {
+        "value": 6,
+        "year": 2025,
+        "unit": "% da força de trabalho",
+        "indicator": "LUR",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/LUR@WEO/BRA"
+      }
+    },
+    "ARG": {
+      "govDebtPctGdp": {
+        "value": 80.1,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "GGXWDG_NGDP",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/GGXWDG_NGDP@WEO/ARG"
+      },
+      "govRevenuePctGdp": null,
+      "govExpensePctGdp": null,
+      "govBalancePctGdp": {
+        "value": -0.2,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "GGXCNL_NGDP",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/GGXCNL_NGDP@WEO/ARG"
+      },
+      "inflationPct": {
+        "value": 41.9,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "PCPIPCH",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/PCPIPCH@WEO/ARG"
+      },
+      "gdpGrowthPct": {
+        "value": 4.5,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "NGDP_RPCH",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/NGDP_RPCH@WEO/ARG"
+      },
+      "unemploymentPct": {
+        "value": 7.4,
+        "year": 2025,
+        "unit": "% da força de trabalho",
+        "indicator": "LUR",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/LUR@WEO/ARG"
+      }
+    },
+    "USA": {
+      "govDebtPctGdp": {
+        "value": 124.4,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "GGXWDG_NGDP",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/GGXWDG_NGDP@WEO/USA"
+      },
+      "govRevenuePctGdp": null,
+      "govExpensePctGdp": null,
+      "govBalancePctGdp": {
+        "value": -7.1,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "GGXCNL_NGDP",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/GGXCNL_NGDP@WEO/USA"
+      },
+      "inflationPct": {
+        "value": 2.7,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "PCPIPCH",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/PCPIPCH@WEO/USA"
+      },
+      "gdpGrowthPct": {
+        "value": 2.3,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "NGDP_RPCH",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/NGDP_RPCH@WEO/USA"
+      },
+      "unemploymentPct": {
+        "value": 4.3,
+        "year": 2025,
+        "unit": "% da força de trabalho",
+        "indicator": "LUR",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/LUR@WEO/USA"
+      }
+    },
+    "MEX": {
+      "govDebtPctGdp": {
+        "value": 61.7,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "GGXWDG_NGDP",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/GGXWDG_NGDP@WEO/MEX"
+      },
+      "govRevenuePctGdp": null,
+      "govExpensePctGdp": null,
+      "govBalancePctGdp": {
+        "value": -4.9,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "GGXCNL_NGDP",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/GGXCNL_NGDP@WEO/MEX"
+      },
+      "inflationPct": {
+        "value": 3.8,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "PCPIPCH",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/PCPIPCH@WEO/MEX"
+      },
+      "gdpGrowthPct": {
+        "value": 0.5,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "NGDP_RPCH",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/NGDP_RPCH@WEO/MEX"
+      },
+      "unemploymentPct": {
+        "value": 2.6,
+        "year": 2025,
+        "unit": "% da força de trabalho",
+        "indicator": "LUR",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/LUR@WEO/MEX"
+      }
+    },
+    "DEU": {
+      "govDebtPctGdp": {
+        "value": 62.7,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "GGXWDG_NGDP",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/GGXWDG_NGDP@WEO/DEU"
+      },
+      "govRevenuePctGdp": null,
+      "govExpensePctGdp": null,
+      "govBalancePctGdp": {
+        "value": -2.9,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "GGXCNL_NGDP",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/GGXCNL_NGDP@WEO/DEU"
+      },
+      "inflationPct": {
+        "value": 2.3,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "PCPIPCH",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/PCPIPCH@WEO/DEU"
+      },
+      "gdpGrowthPct": {
+        "value": 0.2,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "NGDP_RPCH",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/NGDP_RPCH@WEO/DEU"
+      },
+      "unemploymentPct": {
+        "value": 3.8,
+        "year": 2025,
+        "unit": "% da força de trabalho",
+        "indicator": "LUR",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/LUR@WEO/DEU"
+      }
+    },
+    "FRA": {
+      "govDebtPctGdp": {
+        "value": 115.5,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "GGXWDG_NGDP",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/GGXWDG_NGDP@WEO/FRA"
+      },
+      "govRevenuePctGdp": null,
+      "govExpensePctGdp": null,
+      "govBalancePctGdp": {
+        "value": -5.1,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "GGXCNL_NGDP",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/GGXCNL_NGDP@WEO/FRA"
+      },
+      "inflationPct": {
+        "value": 0.9,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "PCPIPCH",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/PCPIPCH@WEO/FRA"
+      },
+      "gdpGrowthPct": {
+        "value": 0.9,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "NGDP_RPCH",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/NGDP_RPCH@WEO/FRA"
+      },
+      "unemploymentPct": {
+        "value": 7.7,
+        "year": 2025,
+        "unit": "% da força de trabalho",
+        "indicator": "LUR",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/LUR@WEO/FRA"
+      }
+    },
+    "IND": {
+      "govDebtPctGdp": {
+        "value": 84.3,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "GGXWDG_NGDP",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/GGXWDG_NGDP@WEO/IND"
+      },
+      "govRevenuePctGdp": null,
+      "govExpensePctGdp": null,
+      "govBalancePctGdp": {
+        "value": -7.4,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "GGXCNL_NGDP",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/GGXCNL_NGDP@WEO/IND"
+      },
+      "inflationPct": {
+        "value": 2,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "PCPIPCH",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/PCPIPCH@WEO/IND"
+      },
+      "gdpGrowthPct": {
+        "value": 7.8,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "NGDP_RPCH",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/NGDP_RPCH@WEO/IND"
+      },
+      "unemploymentPct": {
+        "value": 5,
+        "year": 2025,
+        "unit": "% da força de trabalho",
+        "indicator": "LUR",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/LUR@WEO/IND"
+      }
+    },
+    "JPN": {
+      "govDebtPctGdp": {
+        "value": 204.8,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "GGXWDG_NGDP",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/GGXWDG_NGDP@WEO/JPN"
+      },
+      "govRevenuePctGdp": null,
+      "govExpensePctGdp": null,
+      "govBalancePctGdp": {
+        "value": -0.7,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "GGXCNL_NGDP",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/GGXCNL_NGDP@WEO/JPN"
+      },
+      "inflationPct": {
+        "value": 3.2,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "PCPIPCH",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/PCPIPCH@WEO/JPN"
+      },
+      "gdpGrowthPct": {
+        "value": 1.2,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "NGDP_RPCH",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/NGDP_RPCH@WEO/JPN"
+      },
+      "unemploymentPct": {
+        "value": 2.5,
+        "year": 2025,
+        "unit": "% da força de trabalho",
+        "indicator": "LUR",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/LUR@WEO/JPN"
+      }
+    },
+    "ZAF": {
+      "govDebtPctGdp": {
+        "value": 78.4,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "GGXWDG_NGDP",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/GGXWDG_NGDP@WEO/ZAF"
+      },
+      "govRevenuePctGdp": null,
+      "govExpensePctGdp": null,
+      "govBalancePctGdp": {
+        "value": -5.6,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "GGXCNL_NGDP",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/GGXCNL_NGDP@WEO/ZAF"
+      },
+      "inflationPct": {
+        "value": 3.2,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "PCPIPCH",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/PCPIPCH@WEO/ZAF"
+      },
+      "gdpGrowthPct": {
+        "value": 1.1,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "NGDP_RPCH",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/NGDP_RPCH@WEO/ZAF"
+      },
+      "unemploymentPct": {
+        "value": 32.4,
+        "year": 2025,
+        "unit": "% da força de trabalho",
+        "indicator": "LUR",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/LUR@WEO/ZAF"
+      }
+    },
+    "AUS": {
+      "govDebtPctGdp": {
+        "value": 51.9,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "GGXWDG_NGDP",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/GGXWDG_NGDP@WEO/AUS"
+      },
+      "govRevenuePctGdp": null,
+      "govExpensePctGdp": null,
+      "govBalancePctGdp": {
+        "value": -2.9,
+        "year": 2025,
+        "unit": "% do PIB",
+        "indicator": "GGXCNL_NGDP",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/GGXCNL_NGDP@WEO/AUS"
+      },
+      "inflationPct": {
+        "value": 2.8,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "PCPIPCH",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/PCPIPCH@WEO/AUS"
+      },
+      "gdpGrowthPct": {
+        "value": 2,
+        "year": 2025,
+        "unit": "% a.a.",
+        "indicator": "NGDP_RPCH",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/NGDP_RPCH@WEO/AUS"
+      },
+      "unemploymentPct": {
+        "value": 4.2,
+        "year": 2025,
+        "unit": "% da força de trabalho",
+        "indicator": "LUR",
+        "sourceName": "FMI — World Economic Outlook (DataMapper)",
+        "sourceUrl": "https://www.imf.org/external/datamapper/LUR@WEO/AUS"
+      }
+    }
+  }
+}
