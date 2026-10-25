@@ -141,3 +141,19 @@ mensagem que diz como liberar espaço.
 - **Alianças entre jogadores:** a regra de passagem já aceita aliados (`setAlliance`), mas a diplomacia ainda não permite
   aliança entre os dois jogadores do teatro.
 - **Balanceamento:** valores calibrados com partidas IA × IA; precisam de ajuste com jogadores reais.
+
+## Cidadãos visíveis no mapa
+
+A simulação continua decidindo a alocação (trabalhadores por edifício e ociosos); o cliente mostra cada cidadão real
+como um civil (macacão, capacete e colete na cor da facção), sempre no mesmo número do contador
+(`src/game/render/CitizenLayer.ts`, testes em `src/test/citizens.test.ts`).
+
+- **Coleta** (fazenda, serraria, pedreira, mina, poço): trabalha junto ao prédio e leva a carga (cor do recurso) ao
+  depósito mais próximo que a guarda — silo, armazém, tanque de petróleo ou QG — e volta. Se o depósito é vizinho,
+  trabalha no lugar.
+- **Quartel e fábrica:** circulam junto ao prédio.
+- **Ociosos:** ficam perto do QG e das casas.
+- Caminhos com o mesmo A* da simulação, desviando de prédios; novos cidadãos saem da moradia mais próxima.
+- Não são selecionáveis, não ocupam espaço e não afetam o jogo; o movimento para com a pausa e acelera com a velocidade.
+- Desenho em lote (InstancedMesh, até 220 por jogador): custo baixo também no celular.
+- Só os cidadãos do próprio jogador aparecem: o servidor não envia os trabalhadores dos edifícios inimigos.

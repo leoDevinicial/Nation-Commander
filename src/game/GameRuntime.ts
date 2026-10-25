@@ -14,7 +14,7 @@ import { disposeSharedResources, mat } from './render/palette.ts';
 import { buildTerrain, type TerrainHandle } from './render/TerrainFactory.ts';
 import { disposeMaterials, fogUniforms, weatherUniforms } from './render/materials.ts';
 import { disposeBuildingModels } from './render/models/buildingModels.ts';
-import { disposeUnitModels } from './render/models/unitModels.ts';
+import { disposeCitizenModel, disposeUnitModels } from './render/models/unitModels.ts';
 import { chooseClaims, claimedBy, gatherRate, sitesByDeposit } from '../../shared/sim/gathering.ts';
 import { findDeposits, type DepositIndex } from '../../shared/sim/deposits.ts';
 import { decodeTerritory } from '../../shared/sim/territory.ts';
@@ -24,6 +24,7 @@ import { createSky, environmentFromSky, SKY } from './render/Sky.ts';
 import { disposeTextures, grimeTexture, windowTexture } from './render/textures.ts';
 import { UnitVisual } from './render/UnitVisuals.ts';
 import { PostFx } from './render/PostFx.ts';
+import { CitizenLayer } from './render/CitizenLayer.ts';
 import { AdaptiveExposure, EnvironmentProbe, ShadowFollow } from './render/Lighting.ts';
 import { describeEvent } from './eventText.ts';
 import type { GraphicsProfile } from '../lib/graphics.ts';
@@ -67,6 +68,7 @@ export class GameRuntime {
   readonly mySlot: number;
   private readonly renderer: THREE.WebGLRenderer;
   private postFx: PostFx | null = null;
+  private citizens!: CitizenLayer;
   private exposure: AdaptiveExposure | null = null;
   private probe: EnvironmentProbe | null = null;
   private shadowFollow: ShadowFollow | null = null;
@@ -182,6 +184,8 @@ export class GameRuntime {
     if (opts.profile.envProbe) this.probe = new EnvironmentProbe(this.renderer, this.scene);
     this.territoryLayer = new TerritoryLayer(this.map.width, this.map.height, this.map.cellSize, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.territoryLayer.group);
+    this.citizens = new CitizenLayer(this.map, this.mySlot, (x, z) => this.groundHeight(x, z));
+    this.scene.add(this.citizens.group);
     this.effects = new Effects(this.scene, opts.profile.maxEffects, opts.profile.dynamicLights);
 
     this.selectionBox = document.createElement('div');
@@ -338,6 +342,12 @@ export class GameRuntime {
       } else t.snap = b;
       t.visual.remembered = b.remembered === true;
     }
+    const me = s.players.find((p) => p.slot === this.mySlot);
+    this.citizens.sync(
+      s.buildings,
+      s.buildings.filter((b) => b.owner === this.mySlot && !b.remembered),
+      me?.population?.idle ?? 0,
+    );
     for (const [id, t] of this.buildings) {
       if (!seenB.has(id)) {
         t.visual.dispose();
@@ -437,6 +447,7 @@ export class GameRuntime {
       t.visual.update(dt, t.snap.progress, frac, selected || frac < 0.999 || t.snap.progress < 1, this.camera, rally, selected && t.snap.owner === this.mySlot);
     }
     this.effects.update(dt);
+    this.citizens.update(this.paused ? 0 : dt * this.speed);
     if (!this.suspended) {
       this.sky.position.copy(this.camera.position);
       (this.sky.material as THREE.ShaderMaterial).uniforms.uTime!.value = now / 1000;
@@ -1154,6 +1165,7 @@ export class GameRuntime {
     for (const t of this.buildings.values()) t.visual.dispose();
     this.effects.dispose();
     this.postFx?.dispose();
+    this.citizens.dispose();
     this.exposure?.dispose();
     this.probe?.dispose();
     this.selectionBox.remove();
@@ -1167,6 +1179,7 @@ export class GameRuntime {
     });
     disposeSharedResources();
     disposeUnitModels();
+    disposeCitizenModel();
     disposeBuildingModels();
     disposeMaterials();
     disposeTextures();

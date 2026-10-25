@@ -390,3 +390,43 @@ function buildArtillery(): UnitModel {
   turret.accent.box(0.6, 0.08, 0.02, '#ffffff', [-0.2, 0.4, -0.483]);
   return { hull: hull.build(), turret: turret.build(), turretPivot: [-0.25, 0.62, 0], muzzle: at(2.4) };
 }
+
+// ------------------------------------------------------------------ cidadãos
+
+let citizenCache: ModelLayers | null = null;
+
+/**
+ * Civil trabalhador (frente = +x, pés em y = 0): macacão, botas e capacete na cor da facção.
+ * Um único boneco por instância — desenhado em lote (InstancedMesh) pela camada de cidadãos.
+ */
+export function citizenModel(): ModelLayers {
+  if (citizenCache) return citizenCache;
+  const l = layers();
+  const b = l.body;
+  const s = 1.25;
+  const p = (dx: number, dy: number, dz: number): [number, number, number] => [dx * s, dy * s, dz * s];
+  const overall = '#4f5e6c';
+  b.box(0.1 * s, 0.36 * s, 0.1 * s, overall, p(0, 0.22, 0.065));
+  b.box(0.1 * s, 0.36 * s, 0.1 * s, overall, p(0, 0.22, -0.065));
+  b.box(0.15 * s, 0.06 * s, 0.11 * s, C.boot, p(0.025, 0.03, 0.065));
+  b.box(0.15 * s, 0.06 * s, 0.11 * s, C.boot, p(0.025, 0.03, -0.065));
+  b.box(0.18 * s, 0.34 * s, 0.26 * s, overall, p(0, 0.56, 0));
+  b.box(0.19 * s, 0.04 * s, 0.27 * s, '#3a2f25', p(0, 0.42, 0)); // cinto
+  b.box(0.07 * s, 0.3 * s, 0.07 * s, overall, p(0, 0.56, 0.165), [0.12, 0, 0]);
+  b.box(0.07 * s, 0.3 * s, 0.07 * s, overall, p(0, 0.56, -0.165), [-0.12, 0, 0]);
+  b.box(0.06 * s, 0.06 * s, 0.06 * s, C.skin, p(0, 0.39, 0.18));
+  b.box(0.06 * s, 0.06 * s, 0.06 * s, C.skin, p(0, 0.39, -0.18));
+  b.sphere(0.085 * s, C.skin, p(0.01, 0.82, 0), undefined, 8);
+  // capacete e colete refletivo na cor da facção
+  l.accent.sphere(0.1 * s, '#ffffff', p(0, 0.87, 0), [1, 0.62, 1], 8);
+  l.accent.box(0.2 * s, 0.015 * s, 0.22 * s, '#ffffff', p(0.02, 0.84, 0));
+  l.accent.box(0.185 * s, 0.05 * s, 0.265 * s, '#ffffff', p(0, 0.62, 0));
+  citizenCache = l.build();
+  return citizenCache;
+}
+
+export function disposeCitizenModel(): void {
+  if (!citizenCache) return;
+  for (const g of [citizenCache.body, citizenCache.accent, citizenCache.glass]) g.dispose();
+  citizenCache = null;
+}
