@@ -12,7 +12,7 @@ const run = (sim: Simulation, ticks: number) => {
 };
 
 function emptySim(map = flatMap()) {
-  return new Simulation({ map, playerCount: 2, startingUnits: [] });
+  return new Simulation({ map, playerCount: 2, startingUnits: [], allAtWar: true });
 }
 
 describe('movimento', () => {
@@ -183,7 +183,7 @@ describe('economia, construção e produção', () => {
 
 describe('determinismo e IA', () => {
   function playout(seed: number) {
-    const sim = new Simulation({ map: generateMap(seed), playerCount: 2 });
+    const sim = new Simulation({ map: generateMap(seed), playerCount: 2, allAtWar: true });
     const ais = [new TacticalAI(0), new TacticalAI(1)];
     for (let t = 0; t < TICK_RATE * 200; t++) {
       if (sim.tick % AI_THINK_TICKS === 0) for (const ai of ais) for (const c of ai.think(sim)) sim.applyCommand(ai.slot, c);

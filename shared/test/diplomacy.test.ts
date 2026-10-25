@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DIPLO } from '../strategic/Diplomacy.ts';
 import { NationalSimulation, NPC_BASE_ID } from '../strategic/NationalSimulation.ts';
+import { meet, theater } from './helpers.ts';
 
 const run = (sim: NationalSimulation, days: number) => {
   for (let i = 0; i < days; i++) sim.stepDay();
@@ -20,12 +21,15 @@ function setup(mode: 'parity' | 'realistic' = 'parity') {
 }
 
 describe('diplomacia', () => {
-  it('cria as demais nações como governos da IA e começa neutra, exceto entre os adversários', () => {
+  it('cria as demais nações como governos da IA e começa neutra, exceto a rivalidade no teatro', () => {
     const { sim, npc } = setup();
     expect(sim.npcs.length).toBe(8);
     expect(sim.npcs.every((n) => n.slot >= NPC_BASE_ID)).toBe(true);
     expect(sim.diplomacy.relation(0, npc('USA').slot)).toBe(0);
-    expect(sim.diplomacy.relation(0, 1)).toBe(DIPLO.conflictBase);
+    expect(sim.diplomacy.relation(0, 1)).toBe(DIPLO.theaterRivalry);
+    expect(sim.diplomacy.factors(0, 1).map((f) => f.key)).toEqual(['rivalry']);
+    theater(sim);
+    expect(sim.diplomaticAction(0, { type: 'declare_war', target: 1 })).toBeNull();
     expect(sim.diplomacy.factors(0, 1).map((f) => f.key)).toEqual(['conflict']);
   });
 
@@ -48,6 +52,9 @@ describe('diplomacia', () => {
   it('aliança exige relação alta e, recusada, informa os motivos e impõe espera', () => {
     const { sim, npc } = setup();
     const fra = npc('FRA');
+    meet(sim, 0, fra.slot);
+    theater(sim);
+    sim.diplomaticAction(0, { type: 'declare_war', target: 1 });
     expect(sim.diplomaticAction(0, { type: 'propose', treaty: 'alliance', partner: fra.slot })).toBeNull();
     const rej = sim.drainEvents().find((e) => e.type === 'diplomacy' && e.event.type === 'proposal_rejected');
     expect(rej).toBeDefined();
@@ -58,6 +65,7 @@ describe('diplomacia', () => {
   it('missões e ajuda constroem relação até permitir uma aliança, que envia ajuda militar', () => {
     const { sim, npc } = setup();
     const ind = npc('IND');
+    meet(sim, 0, ind.slot);
     sim.diplomaticAction(0, { type: 'set_mission', partner: ind.slot, active: true });
     sim.diplomaticAction(0, { type: 'propose', treaty: 'trade', partner: ind.slot });
     run(sim, 200);
@@ -68,7 +76,9 @@ describe('diplomacia', () => {
     expect(sim.diplomacy.active('alliance', 0, ind.slot)).toBeDefined();
     expect(sim.nation(0)!.allianceAidPerSec).toBeGreaterThan(0);
     expect(sim.nation(0)!.theaterSupplyPerSec).toBeGreaterThan(supplyBefore);
-    // o adversário passa a ter um fator negativo com o aliado (não uma regra automática de inimizade)
+    // em guerra, o adversário passa a ter um fator negativo com o aliado (não uma regra automática de inimizade)
+    theater(sim);
+    sim.diplomaticAction(0, { type: 'declare_war', target: 1 });
     expect(sim.diplomacy.factors(1, ind.slot).some((f) => f.key === 'enemy_ally')).toBe(true);
   });
 
@@ -106,6 +116,8 @@ describe('diplomacia', () => {
     const { sim, npc } = setup();
     const jpn = npc('JPN');
     const deu = npc('DEU');
+    meet(sim, 0, jpn.slot);
+    meet(sim, 0, deu.slot);
     sim.diplomaticAction(0, { type: 'propose', treaty: 'trade', partner: jpn.slot });
     const t = sim.diplomacy.active('trade', 0, jpn.slot)!;
     expect(sim.diplomaticAction(0, { type: 'cancel_treaty', treatyId: t.id })).toBeNull();
@@ -115,6 +127,8 @@ describe('diplomacia', () => {
 
   it('não permite acordos com o adversário em guerra nem ações de quem não é jogador', () => {
     const { sim, npc } = setup();
+    theater(sim);
+    sim.diplomaticAction(0, { type: 'declare_war', target: 1 });
     expect(sim.diplomaticAction(0, { type: 'propose', treaty: 'trade', partner: 1 })).toMatch(/adversário/);
     expect(sim.diplomaticAction(npc('USA').slot, { type: 'impose_sanctions', target: 0 })).not.toBeNull();
   });

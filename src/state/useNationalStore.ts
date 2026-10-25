@@ -18,6 +18,14 @@ interface NationalState {
   log: NationalLogEntry[];
   panelOpen: boolean;
   setPanelOpen: (open: boolean) => void;
+  /** Globo diplomático aberto e país a centralizar (ISO alfa-3). */
+  globeOpen: boolean;
+  globeFocus: string | null;
+  openGlobe: (focus?: string | null) => void;
+  closeGlobe: () => void;
+  /** Alvo da confirmação de guerra em aberto. */
+  warTarget: number | null;
+  setWarTarget: (id: number | null) => void;
   reset: () => void;
 }
 
@@ -32,7 +40,13 @@ export const useNationalStore = create<NationalState>((set) => ({
   log: [],
   panelOpen: false,
   setPanelOpen: (panelOpen) => set({ panelOpen }),
-  reset: () => set({ day: 0, date: '', nations: [], diplomacy: null, history: {}, log: [], panelOpen: false }),
+  globeOpen: false,
+  globeFocus: null,
+  openGlobe: (focus = null) => set({ globeOpen: true, globeFocus: focus, panelOpen: false }),
+  closeGlobe: () => set({ globeOpen: false }),
+  warTarget: null,
+  setWarTarget: (warTarget) => set({ warTarget }),
+  reset: () => set({ day: 0, date: '', nations: [], diplomacy: null, history: {}, log: [], panelOpen: false, globeOpen: false, globeFocus: null, warTarget: null }),
 }));
 
 export function applyNationalMessage(day: number, date: string, nations: NationView[], events: NationalEvent[], diplomacy: DiplomacyView): void {

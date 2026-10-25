@@ -4,7 +4,41 @@ import { COEF, DAYS_PER_YEAR, FALLBACKS, FALLBACK_DEFICIT_PCT, HISTORY_EVERY_DAY
 import { countryReference, type ReferenceKey } from './reference.ts';
 import { combineEffects, TECH_IDS, TECHNOLOGIES, type TechEffects, type TechId } from './technologies.ts';
 import { COUNTRIES } from '../data/countries.ts';
-import { DIPLO, Diplomacy, type DiplomaticAction, type DiplomaticEvent, type NationId } from './Diplomacy.ts';
+import { DIPLO, Diplomacy, warPreview, type DiplomaticAction, type DiplomaticEvent, type NationId, type RelationView, type Treaty, type WarPreview } from './Diplomacy.ts';
+import type { Cost, Stockpile } from '../sim/config.ts';
+
+/**
+ * Ligação com o teatro de operações (a simulação tática). A declaração de guerra cobra
+ * suprimentos do teatro e só passa a valer no combate através daqui.
+ */
+export interface TheaterLink {
+  resources(slot: Slot): Stockpile | null;
+  spend(slot: Slot, cost: Cost): void;
+  setWar(a: Slot, b: Slot): void;
+}
+
+/** O que um país sabe de outro. `intel` só existe com missão diplomática ativa (ou para si mesmo). */
+export interface ForeignView {
+  id: NationId;
+  countryId: string;
+  isPlayer: boolean;
+  known: boolean;
+  /** Dia previsto para concluir a missão de contato do observador, se houver. */
+  contactDueDay: number | null;
+  intel: { gdpUsd: number; realGrowthPct: number; approval: number; defensePct: number; debtPctGdp: number } | null;
+}
+
+export interface GeopoliticalView {
+  /** Todos os demais países do cenário (existem para todos; dados só se houver contato). */
+  nations: ForeignView[];
+  relations: RelationView[];
+  /** Tratados públicos entre países que o observador conhece (ou dos quais participa). */
+  treaties: Treaty[];
+  /** Missões diplomáticas do observador ("de>para"). */
+  missions: string[];
+  /** Guerras entre países que o observador conhece. */
+  wars: [NationId, NationId][];
+}
 
 /** Nações não jogadoras recebem ids a partir deste valor. */
 export const NPC_BASE_ID = 100;
@@ -101,6 +135,7 @@ export class NationalSimulation {
   readonly diplomacy: Diplomacy;
   private readonly rng: Random;
   private events: NationalEvent[] = [];
+  private theater: TheaterLink | null = null;
 
   constructor(
     players: { slot: Slot; countryId: string }[],
@@ -111,10 +146,10 @@ export class NationalSimulation {
     this.nations = players.map((p) => createNation(p.slot, p.countryId));
     const used = new Set(players.map((p) => p.countryId));
     this.npcs = COUNTRIES.filter((c) => !used.has(c.id)).map((c, i) => createNation(NPC_BASE_ID + i, c.id));
-    // todos os jogadores da partida estão em conflito entre si
-    const conflicts: [NationId, NationId][] = [];
-    for (let i = 0; i < players.length; i++) for (let j = i + 1; j < players.length; j++) conflicts.push([players[i]!.slot, players[j]!.slot]);
-    this.diplomacy = new Diplomacy(() => [...this.nations, ...this.npcs], conflicts);
+    // os jogadores da partida têm forças no mesmo teatro: rivais, mas sem guerra até a declaração
+    const theaterPairs: [NationId, NationId][] = [];
+    for (let i = 0; i < players.length; i++) for (let j = i + 1; j < players.length; j++) theaterPairs.push([players[i]!.slot, players[j]!.slot]);
+    this.diplomacy = new Diplomacy(() => [...this.nations, ...this.npcs], theaterPairs);
     for (const n of this.npcs) {
       this.recompute(n, 0);
       n.base.deficitPctGdp = n.deficitPctGdp;
@@ -135,12 +170,115 @@ export class NationalSimulation {
     return id >= NPC_BASE_ID;
   }
 
+  attachTheater(link: TheaterLink): void {
+    this.theater = link;
+  }
+
   /** Ação diplomática de um jogador (ou da IA de um jogador). */
   diplomaticAction(slot: Slot, action: DiplomaticAction): string | null {
     if (!this.nations.some((n) => n.slot === slot)) return 'Nação inválida';
+    if (action.type === 'declare_war') return this.declareWar(slot, action.target);
     const err = this.diplomacy.act(slot, action, this.day, (id) => this.isNpc(id));
     if (!err) for (const n of [...this.nations, ...this.npcs]) this.recompute(n, 0);
     return err;
+  }
+
+  /** Consequências previstas de `actor` declarar guerra a `target`, com informação completa. */
+  warPreview(actor: Slot, target: NationId): WarPreview {
+    const me = this.nation(actor);
+    const d = this.diplomacy;
+    return warPreview({
+      actor,
+      target,
+      actorGdpUsd: me?.gdpUsd ?? 0,
+      actorDebtPctGdp: me ? (me.debtUsd / me.gdpUsd) * 100 : 0,
+      theaterStock: this.theater?.resources(actor) ?? null,
+      targetInTheater: !!this.nation(target) && d.inTheater(actor, target),
+      known: !!this.nation(target) && d.knows(actor, target),
+      atWar: d.atWar(actor, target),
+      treaties: d.treaties,
+      isNpc: (id) => this.isNpc(id),
+      relationWith: (id) => d.relation(actor, id),
+    });
+  }
+
+  /**
+   * Declaração formal de guerra. Validada por completo antes de qualquer efeito; se algo
+   * impedir (alvo desconhecido, fora do teatro, recursos insuficientes), nada muda. Os custos são
+   * cobrados uma única vez.
+   */
+  declareWar(actor: Slot, target: NationId): string | null {
+    const me = this.nation(actor);
+    if (!me || this.isNpc(actor)) return 'Nação inválida';
+    const preview = this.warPreview(actor, target);
+    if (preview.blockers.length) return preview.blockers[0]!;
+    this.theater!.spend(actor, { supplies: preview.costs.supplies, oil: preview.costs.oil });
+    me.debtUsd += preview.costs.usd;
+    me.approval = Math.max(0, me.approval + preview.costs.approval);
+    this.diplomacy.applyWar(actor, target, this.day, preview);
+    this.theater!.setWar(actor, target);
+    for (const n of [...this.nations, ...this.npcs]) this.recompute(n, 0);
+    return null;
+  }
+
+  /** Visão geopolítica de um país: só o que ele conhece. */
+  viewFor(viewer: NationId): GeopoliticalView {
+    const d = this.diplomacy;
+    const knows = (id: NationId) => d.knows(viewer, id);
+    const all = [...this.nations, ...this.npcs];
+    return {
+      nations: all
+        .filter((n) => n.slot !== viewer)
+        .map((n) => {
+          const known = knows(n.slot);
+          const intel = known && d.missions.has(`${viewer}>${n.slot}`);
+          return {
+            id: n.slot,
+            countryId: n.countryId,
+            isPlayer: !this.isNpc(n.slot),
+            known,
+            contactDueDay: d.pendingContacts.get(`${viewer}>${n.slot}`) ?? null,
+            intel: intel
+              ? {
+                  gdpUsd: Math.round(n.gdpUsd),
+                  realGrowthPct: round2(n.realGrowthPct),
+                  approval: Math.round(n.approval * 10) / 10,
+                  defensePct: round2(n.budget.defensePct),
+                  debtPctGdp: Math.round((n.debtUsd / n.gdpUsd) * 1000) / 10,
+                }
+              : null,
+          };
+        }),
+      relations: d.relationsOf(viewer),
+      treaties: d.treaties.filter((t) => knows(t.a) && knows(t.b)).map((t) => ({ ...t })),
+      missions: [...d.missions].filter((m) => m.startsWith(`${viewer}>`)),
+      wars: d.warPairs().filter(([a, b]) => knows(a) && knows(b)),
+    };
+  }
+
+  /** Eventos que chegam ao conhecimento de `viewer` (os próprios, e os públicos sobre quem ele conhece). */
+  eventsFor(viewer: NationId, events: NationalEvent[]): NationalEvent[] {
+    const knows = (id: NationId) => this.diplomacy.knows(viewer, id);
+    return events.filter((e) => {
+      if (e.type === 'protest') return knows(e.slot);
+      if (e.type !== 'diplomacy') return e.slot === viewer;
+      const ev = e.event;
+      switch (ev.type) {
+        case 'discovered':
+          return ev.by === viewer;
+        case 'contact_started':
+          return ev.from === viewer || ev.to === viewer;
+        case 'proposal_rejected':
+          return ev.from === viewer || ev.to === viewer;
+        case 'treaty_signed':
+        case 'treaty_ended':
+          return knows(ev.treaty.a) && knows(ev.treaty.b);
+        case 'aid_sent':
+          return knows(ev.from) && knows(ev.to);
+        case 'war_declared':
+          return knows(ev.by) && knows(ev.target);
+      }
+    });
   }
 
   effects(slot: Slot): TechEffects {

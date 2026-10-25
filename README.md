@@ -3,7 +3,8 @@
 RTS geopolítico 3D multijogador para navegador (repositório e nome de trabalho: *Nation Commander*).
 Implementa as **Fases 1, 2 e 3** da [especificação](PROJETO_RTS_GEOPOLITICO_CLAUDE.md) e, do
 [adendo v2](docs/AUDITORIA_ADENDO.md), a auditoria (Fase 0) e a identidade visual com suporte a
-celular e tablet (Fase 1, ver [docs/FASE1_VISUAL_MOBILE.md](docs/FASE1_VISUAL_MOBILE.md)): uma operação tática jogável com servidor
+celular e tablet (Fase 1, ver [docs/FASE1_VISUAL_MOBILE.md](docs/FASE1_VISUAL_MOBILE.md)) e o globo
+diplomático com contato e guerra formal (Fase 2, ver [docs/FASE2_GLOBO_GUERRA.md](docs/FASE2_GLOBO_GUERRA.md)): uma operação tática jogável com servidor
 autoritativo via WebSocket, e uma camada nacional (economia, orçamento, opinião pública, pesquisa)
 que roda dentro de cada partida a partir de dados reais de 10 países.
 
@@ -111,6 +112,7 @@ e o cliente com `VITE_ALLOW_GUESTS=true` (no `.env.local`). Partidas de convidad
 | Menu / chat | `F10` · `Enter` |
 
 | Painel nacional | `G` ou botão **🏛 Nação**: visão geral, orçamento, pesquisa, diplomacia, diagnóstico e dados de referência |
+| Globo diplomático | `Tab` ou botão **🌐 Globo**: contatos, relações, tratados, sanções e declaração de guerra |
 
 #### Toque (celular e tablet)
 
@@ -125,7 +127,8 @@ e o cliente com `VITE_ALLOW_GUESTS=true` (no `.env.local`). Partidas de convidad
 Limiares contra comandos acidentais: o dedo precisa andar 10 px para virar arrasto; zoom e giro só
 começam após uma variação clara; um segundo dedo cancela o toque e o toque longo em andamento.
 
-**Objetivo:** destruir o Centro de Comando inimigo. Limite de 40 unidades.
+**Objetivo:** destruir o Centro de Comando inimigo — depois de declarar guerra no globo (sem guerra
+formal, nenhum lado pode atacar). Limite de 40 unidades.
 
 ### Recursos (estilo Rise of Nations)
 
@@ -190,7 +193,7 @@ própria simulada. Na aba **Diplomacia** do painel nacional:
 - **Relações** de −100 a +100, sempre explicadas pelos fatores que as compõem (acordos, sanções,
   ajuda, missões, histórico de acordos rompidos, aliança com um adversário). Não existe base de dados
   confiável de relações bilaterais na data de referência, então todas começam em 0 — exceto entre os
-  jogadores, em conflito nesta operação (−60). A relação A–B não determina a B–C.
+  jogadores, rivais no mesmo teatro (−20; −60 depois de uma guerra declarada). A relação A–B não determina a B–C.
 - **Acordo comercial** (360 dias): aumenta o crescimento das duas partes (escalado pela razão de PIBs).
 - **Acordo de defesa** (540 dias): o aliado envia ajuda militar ao teatro (suprimentos/s); custa
   0,1% do PIB/ano; exige relação alta. O adversário ganha um fator negativo com esse aliado.
@@ -205,6 +208,24 @@ própria simulada. Na aba **Diplomacia** do painel nacional:
 - A IA adversária usa a mesma diplomacia: abre missões, assina acordos e pede sanções contra você.
 
 Coeficientes em `shared/strategic/Diplomacy.ts` (`DIPLO`), todos hipóteses de jogo.
+
+## Globo diplomático, contato e guerra formal (adendo, Fase 2)
+
+O **globo** (🌐 Globo ou `Tab`) é a camada política e de informação da partida; economia,
+construções, bases e combate ficam no **teatro de operações** (RTS). As duas visões leem o mesmo
+estado do servidor.
+
+- **Contato**: só se negocia com países com quem há contato (inicial: mesma região diplomática e o
+  rival do teatro; depois, missão de contato com custo e prazo, ou notícia de tratado assinado por
+  um país conhecido). Sem contato, o país aparece hachurado e não revela dados; com contato, mostra
+  indicadores públicos; dados atuais exigem missão diplomática.
+- **Guerra formal**: sem declaração, nenhum lado ataca no teatro (ordens recusadas, sem disparo
+  automático). Declarar custa 150 suprimentos, 50 de combustível, 0,2% do PIB e 3 p.p. de
+  aprovação; rompe tratados com o alvo e pode gerar sanções dos aliados dele. O diálogo mostra a
+  estimativa antes de confirmar; recursos insuficientes bloqueiam com explicação. A IA segue as
+  mesmas regras e declara pelo mesmo caminho.
+
+Detalhes, regras e testes em [docs/FASE2_GLOBO_GUERRA.md](docs/FASE2_GLOBO_GUERRA.md).
 
 ## Banco de dados
 

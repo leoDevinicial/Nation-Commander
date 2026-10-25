@@ -54,21 +54,28 @@ export class NationalAI {
   }
 
   /**
-   * Política externa: comércio com todos que aceitarem, missões com as três maiores economias,
-   * aliança quando a relação permitir e pedidos de sanção contra o adversário a quem for próximo.
+   * Política externa, sob as mesmas regras de informação do jogador: só negocia com quem conhece
+   * e abre missões de contato (com custo e prazo) para os demais. Comércio com todos que
+   * aceitarem, missões com as três maiores economias conhecidas, aliança quando a relação
+   * permitir e pedidos de sanção contra quem está em guerra com ela.
    */
   private diplomacy(sim: NationalSimulation): DiplomaticAction[] {
     const d = sim.diplomacy;
     const me = this.slot;
     const out: DiplomaticAction[] = [];
     const npcs = [...sim.npcs].sort((a, b) => b.gdpUsd - a.gdpUsd || a.slot - b.slot);
+    const known = npcs.filter((n) => d.knows(me, n.slot));
+    const pending = [...d.pendingContacts.keys()].filter((k) => k.startsWith(`${me}>`)).length;
+    for (const n of npcs.filter((x) => !d.knows(me, x.slot) && !d.pendingContacts.has(`${me}>${x.slot}`)).slice(0, Math.max(0, 2 - pending))) {
+      out.push({ type: 'establish_contact', partner: n.slot });
+    }
     const enemies = sim.nations.filter((x) => x.slot !== me && d.atWar(me, x.slot));
-    for (const [i, npc] of npcs.entries()) {
+    for (const [i, npc] of known.entries()) {
       if (i < 3 && !d.missions.has(`${me}>${npc.slot}`)) out.push({ type: 'set_mission', partner: npc.slot, active: true });
       if (!d.active('trade', me, npc.slot)) out.push({ type: 'propose', treaty: 'trade', partner: npc.slot });
       const rel = d.relation(me, npc.slot);
       if (rel >= 55 && !d.active('alliance', me, npc.slot)) out.push({ type: 'propose', treaty: 'alliance', partner: npc.slot });
-      if (rel >= 45) for (const e of enemies) if (!d.active('sanctions', npc.slot, e.slot, true)) out.push({ type: 'request_sanctions', partner: npc.slot, target: e.slot });
+      if (rel >= 45) for (const e of enemies) if (d.knows(npc.slot, e.slot) && !d.active('sanctions', npc.slot, e.slot, true)) out.push({ type: 'request_sanctions', partner: npc.slot, target: e.slot });
     }
     return out;
   }

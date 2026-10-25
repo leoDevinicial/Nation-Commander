@@ -81,10 +81,24 @@ function describeDiplomatic(
       const t = e.treaty;
       if (t.a !== mySlot && t.b !== mySlot) return null;
       const other = t.a === mySlot ? t.b : t.a;
-      return { text: `${TREATY_LABEL[t.type]} com ${nameOf(other)} ${e.reason === 'expired' ? 'expirou' : 'foi encerrado'}`, tone: 'info' };
+      const how = e.reason === 'expired' ? 'expirou' : e.reason === 'war' ? 'foi rompido pela guerra' : 'foi encerrado';
+      return { text: `${TREATY_LABEL[t.type]} com ${nameOf(other)} ${how}`, tone: e.reason === 'war' ? 'bad' : 'info' };
     }
     case 'aid_sent':
       return e.from === mySlot ? { text: `Ajuda de ${formatUsd(e.amountUsd)} enviada a ${nameOf(e.to)}`, tone: 'info' } : null;
+    case 'contact_started':
+      return e.from === mySlot
+        ? { text: `Missão de contato a caminho de ${nameOf(e.to)} (${formatUsd(e.costUsd)}; conclusão no dia ${e.dueDay})`, tone: 'info' }
+        : { text: `${nameOf(e.from)} enviou uma missão de contato ao nosso país`, tone: 'info' };
+    case 'discovered': {
+      const via = e.via === 'contato' ? 'missão de contato concluída' : e.via === 'terceiros' ? 'noticiário internacional sobre um tratado' : 'presença no teatro de operações';
+      return { text: `Contato estabelecido com ${nameOf(e.target)} (${via})`, tone: 'good' };
+    }
+    case 'war_declared': {
+      if (e.by === mySlot) return { text: `Declaramos guerra a ${nameOf(e.target)}: mobilização de ${formatUsd(e.costs.usd)}, ${e.costs.supplies} suprimentos e ${e.costs.oil} de combustível`, tone: 'bad' };
+      if (e.target === mySlot) return { text: `${nameOf(e.by)} declarou guerra ao nosso país — as forças do teatro já podem se enfrentar`, tone: 'bad' };
+      return { text: `${nameOf(e.by)} declarou guerra a ${nameOf(e.target)}`, tone: 'warn' };
+    }
   }
 }
 

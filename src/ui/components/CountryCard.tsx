@@ -5,7 +5,7 @@ import { formatCount, formatNumber, formatPct, formatUsd } from '../../lib/forma
 
 type Fmt = (v: number) => string;
 
-const MAIN_ROWS: { key: ReferenceKey; fmt: Fmt }[] = [
+export const MAIN_ROWS: { key: ReferenceKey; fmt: Fmt }[] = [
   { key: 'population', fmt: formatCount },
   { key: 'gdpUsd', fmt: formatUsd },
   { key: 'gdpPerCapitaUsd', fmt: formatUsd },

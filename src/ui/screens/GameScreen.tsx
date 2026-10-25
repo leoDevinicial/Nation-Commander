@@ -11,6 +11,8 @@ import { PauseMenu } from '../hud/PauseMenu.tsx';
 import { ResultsOverlay } from '../hud/ResultsOverlay.tsx';
 import { TopBar } from '../hud/TopBar.tsx';
 import { TouchToolbar } from '../hud/TouchToolbar.tsx';
+import { GlobePanel } from '../geo/GlobePanel.tsx';
+import { WarDialog } from '../geo/WarDialog.tsx';
 import { ChatBox } from '../components/ChatBox.tsx';
 import { NationalPanel } from '../national/NationalPanel.tsx';
 import { useNationalStore } from '../../state/useNationalStore.ts';
@@ -28,6 +30,14 @@ export function GameScreen() {
   const nationalOpen = useNationalStore((s) => s.panelOpen);
   const setNationalOpen = useNationalStore((s) => s.setPanelOpen);
   const touchUi = useHudStore((s) => s.touchUi);
+  const globeOpen = useNationalStore((s) => s.globeOpen);
+  const warTarget = useNationalStore((s) => s.warTarget);
+  // o globo só é montado na primeira abertura e depois fica pausado em segundo plano
+  const [globeMounted, setGlobeMounted] = useState(false);
+  if (globeOpen && !globeMounted) setGlobeMounted(true);
+  useEffect(() => {
+    runtime?.setSuspended(globeOpen);
+  }, [runtime, globeOpen]);
 
   // eventos nacionais entram no painel de eventos da operação
   useEffect(() => {
@@ -38,7 +48,7 @@ export function GameScreen() {
       seen = fresh.at(-1)!.id;
       const match = useAppStore.getState().match;
       if (!match) return;
-      const nameOf = makeNameOf(match.players, s.diplomacy?.npcs ?? []);
+      const nameOf = makeNameOf(match.players, s.diplomacy?.nations ?? []);
       for (const l of fresh) {
         const d = describeNationalEvent(l.event, match.yourSlot, nameOf);
         if (d) useHudStore.getState().pushEvent({ tick: 0, text: d.text, tone: d.tone });
@@ -86,6 +96,11 @@ export function GameScreen() {
       } else if (e.code === 'KeyG' && !(e.target instanceof HTMLInputElement)) {
         const st = useNationalStore.getState();
         st.setPanelOpen(!st.panelOpen);
+      } else if (e.code === 'Tab' && !(e.target instanceof HTMLInputElement)) {
+        e.preventDefault();
+        const st = useNationalStore.getState();
+        if (st.globeOpen) st.closeGlobe();
+        else st.openGlobe();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -110,12 +125,15 @@ export function GameScreen() {
       {runtime && (
         <>
           <TopBar runtime={runtime} onMenu={() => setMenuOpen(true)} canControlSpeed={match.canControlSpeed} />
+          {globeMounted && <GlobePanel visible={globeOpen} onClose={() => useNationalStore.getState().closeGlobe()} />}
           <EventLog />
-          <div className="pointer-events-none absolute right-2 bottom-2 left-2 flex items-end gap-2 sm:right-3 sm:bottom-3 sm:left-3 sm:gap-3">
-            <Minimap runtime={runtime} />
-            <CommandPanel runtime={runtime} />
-          </div>
-          {touchUi && !nationalOpen && <TouchToolbar runtime={runtime} />}
+          {!globeOpen && (
+            <div className="pointer-events-none absolute right-2 bottom-2 left-2 flex items-end gap-2 sm:right-3 sm:bottom-3 sm:left-3 sm:gap-3">
+              <Minimap runtime={runtime} />
+              <CommandPanel runtime={runtime} />
+            </div>
+          )}
+          {touchUi && !nationalOpen && !globeOpen && <TouchToolbar runtime={runtime} />}
           {nationalOpen && <NationalPanel onClose={() => setNationalOpen(false)} />}
           {chatOpen && (
             <div className="absolute top-15 right-2 z-30 w-72 max-w-[calc(100vw-16px)] sm:top-14 sm:right-3">
@@ -125,7 +143,19 @@ export function GameScreen() {
               </button>
             </div>
           )}
-          {!chatOpen && !nationalOpen && (
+          {warTarget !== null && (
+            <WarDialog
+              target={warTarget}
+              mySlot={match.yourSlot}
+              nameOf={makeNameOf(match.players, useNationalStore.getState().diplomacy?.nations ?? [])}
+              onClose={() => useNationalStore.getState().setWarTarget(null)}
+              onConfirm={() => {
+                gameClient.send({ t: 'national', cmd: { type: 'diplomacy', action: { type: 'declare_war', target: warTarget } } });
+                useNationalStore.getState().setWarTarget(null);
+              }}
+            />
+          )}
+          {!chatOpen && !nationalOpen && !globeOpen && (
             <button className="btn absolute top-15 right-2 px-2 py-1 text-xs sm:top-14 sm:right-3" onClick={() => setChatOpen(true)} title="Chat (Enter)" aria-label="Chat">
               💬<span className="hidden sm:inline">Chat</span>
             </button>

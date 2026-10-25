@@ -6,9 +6,10 @@ import { COUNTRY_GEO } from '../../shared/data/geography.ts';
 import { GAME_TITLE } from '../../shared/version.ts';
 import { PROFILES, detectPreset } from '../lib/graphics.ts';
 import { parseSettings, type Settings } from '../state/useSettingsStore.ts';
-import { facingRotation, globeFraming, lonLatToVector } from '../globe/GlobeView.ts';
+import { countryAt, facingRotation, globeFraming, lonLatToVector, vectorToLonLat } from '../globe/GlobeView.ts';
 import { parseWorld } from '../globe/worldGeo.ts';
 import atlas from 'world-atlas/countries-110m.json';
+import { POLITICAL_COLORS, politicalArcs, politicalFills, politicalState } from '../globe/political.ts';
 
 const base: Settings = { quality: 'balanced', shadows: true, panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false };
 
@@ -67,10 +68,56 @@ describe('globo', () => {
     expect(v.z).toBeGreaterThan(0.9);
   });
 
+  it('seleção por coordenada encontra o país certo (inclusive perto do antimeridiano)', () => {
+    expect(countryAt(world.countries, -47.88, -15.79)?.id).toBe('076');
+    expect(countryAt(world.countries, 139.69, 35.68)?.id).toBe('392');
+    expect(countryAt(world.countries, 150, 62)?.name).toBe('Russia');
+    expect(countryAt(world.countries, -30, 0)).toBeNull();
+    const v = lonLatToVector(28.19, -25.75);
+    expect(vectorToLonLat(v).lon).toBeCloseTo(28.19, 4);
+    expect(vectorToLonLat(v).lat).toBeCloseTo(-25.75, 4);
+  });
+
   it('enquadramento: globo à direita em telas largas, horizonte em retrato estreito', () => {
     expect(globeFraming('hero', 1440, 900).offsetX).toBeGreaterThan(0);
     expect(globeFraming('hero', 390, 844)).toMatchObject({ offsetX: 0 });
     expect(globeFraming('hero', 390, 844).offsetY).toBeGreaterThan(0);
     expect(globeFraming('center', 1440, 900)).toMatchObject({ offsetX: 0, offsetY: 0 });
+  });
+});
+
+describe('camada política do globo', () => {
+  const view = {
+    nations: [
+      { id: 1, countryId: 'ARG', isPlayer: true, known: true, contactDueDay: null, intel: null },
+      { id: 100, countryId: 'USA', isPlayer: false, known: true, contactDueDay: null, intel: null },
+      { id: 101, countryId: 'JPN', isPlayer: false, known: false, contactDueDay: null, intel: null },
+      { id: 102, countryId: 'MEX', isPlayer: false, known: true, contactDueDay: null, intel: null },
+    ],
+    relations: [
+      { a: 0, b: 1, value: -20, factors: [] },
+      { a: 0, b: 100, value: 12, factors: [] },
+      { a: 0, b: 102, value: 0, factors: [] },
+    ],
+    treaties: [{ id: 1, type: 'trade' as const, a: 0, b: 100, startDay: 0, endDay: 360 }],
+    missions: [],
+    wars: [] as [number, number][],
+  };
+
+  it('estado de cada país deriva só da visão filtrada', () => {
+    expect(politicalState(view, 0, 0)).toBe('self');
+    expect(politicalState(view, 0, 1)).toBe('hostile');
+    expect(politicalState(view, 0, 100)).toBe('trade');
+    expect(politicalState(view, 0, 101)).toBe('unknown');
+    expect(politicalState(view, 0, 102)).toBe('neutral');
+    expect(politicalState({ ...view, wars: [[0, 1]] }, 0, 1)).toBe('war');
+  });
+
+  it('país sem contato aparece hachurado; tratados e guerras viram linhas entre capitais', () => {
+    const fills = politicalFills(view, 0, 'BRA', ['250']);
+    expect(fills['392']).toMatchObject({ hatch: true });
+    expect(fills['250']!.color).toBe('#05080c');
+    expect(fills['076']!.color).toBe(POLITICAL_COLORS.self);
+    expect(politicalArcs({ ...view, wars: [[0, 1]] }, 0, 'BRA')).toHaveLength(2);
   });
 });

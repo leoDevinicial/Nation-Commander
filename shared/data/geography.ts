@@ -5,25 +5,40 @@
  * - `capital`: coordenadas aproximadas (graus decimais) da sede de governo, usadas apenas
  *   para posicionar marcadores no globo.
  */
+/** Região diplomática usada na regra de contato inicial (regra de jogo, não classificação oficial). */
+export type Region = 'americas' | 'europe' | 'asia_pacific' | 'africa';
+
+export const REGION_LABELS: Record<Region, string> = {
+  americas: 'Américas',
+  europe: 'Europa',
+  asia_pacific: 'Ásia-Pacífico',
+  africa: 'África',
+};
+
 export interface CountryGeo {
   id: string;
   isoNumeric: string;
+  region: Region;
   capital: { name: string; lat: number; lon: number };
 }
 
 export const COUNTRY_GEO: readonly CountryGeo[] = [
-  { id: 'BRA', isoNumeric: '076', capital: { name: 'Brasília', lat: -15.79, lon: -47.88 } },
-  { id: 'ARG', isoNumeric: '032', capital: { name: 'Buenos Aires', lat: -34.6, lon: -58.38 } },
-  { id: 'USA', isoNumeric: '840', capital: { name: 'Washington', lat: 38.9, lon: -77.04 } },
-  { id: 'MEX', isoNumeric: '484', capital: { name: 'Cidade do México', lat: 19.43, lon: -99.13 } },
-  { id: 'DEU', isoNumeric: '276', capital: { name: 'Berlim', lat: 52.52, lon: 13.4 } },
-  { id: 'FRA', isoNumeric: '250', capital: { name: 'Paris', lat: 48.86, lon: 2.35 } },
-  { id: 'IND', isoNumeric: '356', capital: { name: 'Nova Délhi', lat: 28.61, lon: 77.21 } },
-  { id: 'JPN', isoNumeric: '392', capital: { name: 'Tóquio', lat: 35.68, lon: 139.69 } },
-  { id: 'ZAF', isoNumeric: '710', capital: { name: 'Pretória', lat: -25.75, lon: 28.19 } },
-  { id: 'AUS', isoNumeric: '036', capital: { name: 'Camberra', lat: -35.28, lon: 149.13 } },
+  { id: 'BRA', region: 'americas', isoNumeric: '076', capital: { name: 'Brasília', lat: -15.79, lon: -47.88 } },
+  { id: 'ARG', region: 'americas', isoNumeric: '032', capital: { name: 'Buenos Aires', lat: -34.6, lon: -58.38 } },
+  { id: 'USA', region: 'americas', isoNumeric: '840', capital: { name: 'Washington', lat: 38.9, lon: -77.04 } },
+  { id: 'MEX', region: 'americas', isoNumeric: '484', capital: { name: 'Cidade do México', lat: 19.43, lon: -99.13 } },
+  { id: 'DEU', region: 'europe', isoNumeric: '276', capital: { name: 'Berlim', lat: 52.52, lon: 13.4 } },
+  { id: 'FRA', region: 'europe', isoNumeric: '250', capital: { name: 'Paris', lat: 48.86, lon: 2.35 } },
+  { id: 'IND', region: 'asia_pacific', isoNumeric: '356', capital: { name: 'Nova Délhi', lat: 28.61, lon: 77.21 } },
+  { id: 'JPN', region: 'asia_pacific', isoNumeric: '392', capital: { name: 'Tóquio', lat: 35.68, lon: 139.69 } },
+  { id: 'ZAF', region: 'africa', isoNumeric: '710', capital: { name: 'Pretória', lat: -25.75, lon: 28.19 } },
+  { id: 'AUS', region: 'asia_pacific', isoNumeric: '036', capital: { name: 'Camberra', lat: -35.28, lon: 149.13 } },
 ];
 
 export function geoOf(id: string): CountryGeo | undefined {
   return COUNTRY_GEO.find((g) => g.id === id);
+}
+
+export function regionOf(id: string): Region | undefined {
+  return geoOf(id)?.region;
 }

@@ -43,6 +43,11 @@ export interface SimulationInit {
   startingResources?: Stockpile;
   /** Unidades iniciais por jogador. */
   startingUnits?: UnitType[];
+  /**
+   * Todos os pares já começam em guerra (testes de combate). Na partida real a guerra só existe
+   * depois de uma declaração formal validada pela camada nacional (ver `setWar`).
+   */
+  allAtWar?: boolean;
 }
 
 export const NEUTRAL_MODIFIERS: TacticalModifiers = {
@@ -74,6 +79,8 @@ export class Simulation {
   private lastAlertTick: number[];
   winner: Slot | null = null;
   ended = false;
+  /** Pares em guerra formal ("a:b", a < b). Sem guerra não há disparo nem ordem de ataque. */
+  private readonly wars = new Set<string>();
 
   constructor(init: SimulationInit) {
     this.map = init.map;
@@ -106,6 +113,20 @@ export class Simulation {
       const units = init.startingUnits ?? ['infantry', 'infantry', 'infantry', 'tank'];
       for (const t of units) this.spawnUnitNear(hq, t);
     }
+    if (init.allAtWar) for (let a = 0; a < init.playerCount; a++) for (let b = a + 1; b < init.playerCount; b++) this.setWar(a, b, true);
+  }
+
+  // ---------------------------------------------------------------- guerra
+
+  setWar(a: Slot, b: Slot, atWar: boolean): void {
+    const k = a < b ? `${a}:${b}` : `${b}:${a}`;
+    if (atWar) this.wars.add(k);
+    else this.wars.delete(k);
+  }
+
+  /** Só há hostilidade entre lados em guerra formal. */
+  hostile(a: Slot, b: Slot): boolean {
+    return a !== b && this.wars.has(a < b ? `${a}:${b}` : `${b}:${a}`);
   }
 
   // ---------------------------------------------------------------- consultas
@@ -251,6 +272,7 @@ export class Simulation {
         if (!target || target.owner === slot) return 'Alvo inválido';
         // unidades precisam estar à vista; edifícios inimigos já avistados podem ser alvo
         if (target.kind === 'unit' && !this.canSee(slot, target)) return 'Alvo fora de visão';
+        if (!this.hostile(slot, target.owner)) return 'Sem estado de guerra com este país: declare guerra no globo antes de atacar';
         for (const u of units) {
           u.order = { kind: 'attack', targetId: target.id };
           u.engageId = null;
@@ -314,6 +336,14 @@ export class Simulation {
       player.resources[r] -= v;
       player.stats.resourcesSpent += v;
     }
+  }
+
+  /** Débito externo ao teatro (ex.: mobilização de uma declaração de guerra). Falha sem saldo. */
+  spendResources(slot: Slot, cost: Cost): boolean {
+    const p = this.players[slot];
+    if (!p || !canAfford(p.resources, cost)) return false;
+    this.spend(p, cost);
+    return true;
   }
 
   surrender(slot: Slot): void {
@@ -424,7 +454,7 @@ export class Simulation {
       case 'attack': {
         const target = this.entities.get(u.order.targetId);
         // alvo destruído, inválido ou unidade que sumiu na névoa: a ordem acaba
-        if (!target || target.hp <= 0 || target.owner === u.owner || (target.kind === 'unit' && !this.canSee(u.owner, target))) {
+        if (!target || target.hp <= 0 || !this.hostile(u.owner, target.owner) || (target.kind === 'unit' && !this.canSee(u.owner, target))) {
           this.setIdle(u);
           return;
         }
@@ -479,20 +509,20 @@ export class Simulation {
   private validEngageTarget(u: Unit, leash: number): Entity | null {
     if (u.engageId === null) return null;
     const t = this.entities.get(u.engageId);
-    if (!t || t.hp <= 0 || t.owner === u.owner || !this.canSee(u.owner, t)) return null;
+    if (!t || t.hp <= 0 || !this.hostile(u.owner, t.owner) || !this.canSee(u.owner, t)) return null;
     if (this.distanceToEdge(u.pos, t) > leash) return null;
     return t;
   }
 
   /**
-   * Seleção de alvo determinística: inimigo visível mais próximo dentro do raio, unidades antes
+   * Seleção de alvo determinística: inimigo (em guerra) visível mais próximo dentro do raio, unidades antes
    * de edifícios; empate resolvido pelo menor id. Respeita a névoa de guerra do dono.
    */
   acquireTarget(from: Vec2, owner: Slot, radius: number): Entity | null {
     let best: Entity | null = null;
     let bestScore = Infinity;
     for (const e of this.entities.values()) {
-      if (e.owner === owner || e.hp <= 0) continue;
+      if (e.hp <= 0 || !this.hostile(owner, e.owner)) continue;
       if (!this.canSee(owner, e)) continue;
       const d = this.distanceToEdge(from, e);
       if (d > radius) continue;
@@ -561,7 +591,7 @@ export class Simulation {
     let target: Entity | null = null;
     if (b.engageId !== null) {
       const t = this.entities.get(b.engageId);
-      if (t && t.kind === 'unit' && t.hp > 0 && this.canSee(b.owner, t) && this.distanceToEdge(b.pos, t) - this.entityRadius(b) <= weapon.range) target = t;
+      if (t && t.kind === 'unit' && t.hp > 0 && this.hostile(b.owner, t.owner) && this.canSee(b.owner, t) && this.distanceToEdge(b.pos, t) - this.entityRadius(b) <= weapon.range) target = t;
     }
     if (!target) {
       const candidate = this.acquireTarget(b.pos, b.owner, weapon.range + this.entityRadius(b));

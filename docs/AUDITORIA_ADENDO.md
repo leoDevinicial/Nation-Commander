@@ -139,6 +139,12 @@ As dependências seguem a tabela da seção 4 do adendo. Resumo dos critérios m
 | 11 | 2–7 | senha/lista de salas, dificuldade de bots, testes de rede |
 | 12 | todas | ciclo completo, desempenho e save/load |
 
-## 6. Entrega da Fase 1
+## 6. Entregas
 
-Ver `docs/FASE1_VISUAL_MOBILE.md` para o que mudou, o que foi testado e o que continua pendente.
+| Fase | Situação | Documento |
+|---|---|---|
+| 1 — Visual, menu, HUD e mobile | implementada (pendente: validação em aparelhos físicos) | `docs/FASE1_VISUAL_MOBILE.md` |
+| 2 — Globo, contato e guerra formal | implementada para os países do teatro; guerra contra governos fora do teatro e paz ficam para fases posteriores (identificado no jogo) | `docs/FASE2_GLOBO_GUERRA.md` |
+
+O livro de eventos começou na Fase 2: todos os eventos diplomáticos têm `id` sequencial e `causes`
+quando são consequência de outro (guerra → tratados rompidos e sanções; tratado → descoberta).

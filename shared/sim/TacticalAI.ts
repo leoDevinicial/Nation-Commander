@@ -3,6 +3,7 @@ import { claimableCells, claimedBy } from './gathering.ts';
 import type { Command } from './commands.ts';
 import type { Simulation } from './Simulation.ts';
 import type { Building, Cell, Entity, Slot, Vec2 } from './types.ts';
+import { DIPLO } from '../strategic/Diplomacy.ts';
 
 /** Com que frequência a IA reavalia a situação. */
 export const AI_THINK_TICKS = TICK_RATE;
@@ -16,11 +17,17 @@ const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
  * comandos que um jogador humano — sem recursos ocultos nem visão total: só reage a
  * inimigos dentro do raio de visão das próprias entidades. Conhece apenas a posição inicial
  * do QG adversário, como um jogador humano conheceria o mapa.
+ *
+ * Também obedece à regra de guerra formal: não ataca sem guerra declarada. Quando quer atacar,
+ * guarda os recursos da mobilização e pede a declaração (`wantsWarWith`), que o servidor valida
+ * pelo mesmo caminho do jogador humano.
  */
 export class TacticalAI {
   private waveSize = 8;
   private produced = 0;
   private attacking = false;
+  /** País contra o qual a IA quer declarar guerra (lido e processado pelo servidor). */
+  wantsWarWith: Slot | null = null;
 
   constructor(readonly slot: Slot) {}
 
@@ -35,6 +42,12 @@ export class TacticalAI {
       for (const r of RESOURCE_TYPES) budget[r] -= cost[r] ?? 0;
       return true;
     };
+    if (this.wantsWarWith !== null && sim.hostile(this.slot, this.wantsWarWith)) this.wantsWarWith = null;
+    // reserva a mobilização enquanto espera a declaração de guerra
+    if (this.wantsWarWith !== null) {
+      budget.supplies -= DIPLO.warSupplies;
+      budget.oil -= DIPLO.warOil;
+    }
 
     const mine = sim.buildings.filter((b) => b.owner === this.slot);
     const army = sim.units.filter((u) => u.owner === this.slot);
@@ -93,7 +106,10 @@ export class TacticalAI {
     // --- ataque em ondas
     const idle = army.filter((u) => u.order.kind === 'idle' && u.engageId === null);
     if (!this.attacking && idle.length >= this.waveSize && sim.tick >= AI_FIRST_ATTACK_TICK) {
-      const target = this.enemyObjective(sim);
+      const objective = this.enemyObjective(sim);
+      // sem guerra formal não há ofensiva: pede a declaração e espera
+      if (objective && !sim.hostile(this.slot, objective.slot)) this.wantsWarWith = objective.slot;
+      const target = objective && sim.hostile(this.slot, objective.slot) ? objective.pos : null;
       if (target) {
         cmds.push({ type: 'attack_move', unitIds: idle.map((u) => u.id), x: target.x, y: target.y });
         this.attacking = true;
@@ -114,7 +130,7 @@ export class TacticalAI {
     let best: Entity | null = null;
     let bestD = Infinity;
     for (const e of sim.units) {
-      if (e.owner === this.slot) continue;
+      if (!sim.hostile(this.slot, e.owner)) continue;
       for (const b of mine) {
         const d = dist(e.pos, b.pos);
         if (d < 22 && d < bestD && sim.isVisibleTo(this.slot, e.pos)) {
@@ -126,9 +142,9 @@ export class TacticalAI {
     return best;
   }
 
-  private enemyObjective(sim: Simulation): Vec2 | null {
+  private enemyObjective(sim: Simulation): { pos: Vec2; slot: Slot } | null {
     // posições iniciais são conhecidas; mira o QG adversário vivo mais próximo
-    let best: Vec2 | null = null;
+    let best: { pos: Vec2; slot: Slot } | null = null;
     let bestD = Infinity;
     const hq = sim.hqOf(this.slot)!;
     sim.players.forEach((p) => {
@@ -139,7 +155,7 @@ export class TacticalAI {
       const d = dist(pos, hq.pos);
       if (d < bestD) {
         bestD = d;
-        best = pos;
+        best = { pos, slot: p.slot };
       }
     });
     return best;

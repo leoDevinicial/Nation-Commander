@@ -40,7 +40,7 @@ export function NationalPanel({ onClose }: { onClose: () => void }) {
   const applyBudget = (budget: Budget) => gameClient.send({ t: 'national', cmd: { type: 'set_budget', budget } });
   const selectResearch = (techId: TechId | null) => gameClient.send({ t: 'national', cmd: { type: 'set_research', techId } });
   const diplomaticAction = (action: DiplomaticAction) => gameClient.send({ t: 'national', cmd: { type: 'diplomacy', action } });
-  const nameOf = makeNameOf(players, diplomacy?.npcs ?? []);
+  const nameOf = makeNameOf(players, diplomacy?.nations ?? []);
 
   return (
     <div
@@ -88,8 +88,9 @@ export function NationalPanel({ onClose }: { onClose: () => void }) {
               diplomacy={diplomacy}
               day={day}
               nameOf={nameOf}
-              enemies={players.filter((p) => p.slot !== mySlot).map((p) => p.slot)}
               onAction={diplomaticAction}
+              onDeclareWar={(id) => useNationalStore.getState().setWarTarget(id)}
+              onShowOnGlobe={(c) => useNationalStore.getState().openGlobe(c)}
             />
           ) : (
             <p className="text-ink-400">Aguardando dados diplomáticos…</p>

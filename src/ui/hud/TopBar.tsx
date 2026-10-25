@@ -25,10 +25,13 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
   const nation = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot));
   const panelOpen = useNationalStore((s) => s.panelOpen);
   const togglePanel = useNationalStore((s) => s.setPanelOpen);
+  const globeOpen = useNationalStore((s) => s.globeOpen);
+  const openGlobe = useNationalStore((s) => s.openGlobe);
+  const closeGlobe = useNationalStore((s) => s.closeGlobe);
   const nextSpeed = GAME_SPEEDS[(GAME_SPEEDS.indexOf(speed) + 1) % GAME_SPEEDS.length]!;
 
   return (
-    <div className="panel absolute top-2 right-2 left-2 flex h-11 items-center gap-2 px-2 text-xs sm:top-3 sm:right-3 sm:left-3 sm:h-10 sm:gap-4 sm:px-3 sm:text-sm">
+    <div className="panel absolute top-2 right-2 left-2 z-30 flex h-11 items-center gap-2 px-2 text-xs sm:top-3 sm:right-3 sm:left-3 sm:h-10 sm:gap-4 sm:px-3 sm:text-sm">
       {/* indicadores: rolam na horizontal em telas estreitas em vez de cortar */}
       <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-3 overflow-x-auto sm:gap-4">
         {RESOURCE_TYPES.map((r) => (
@@ -114,6 +117,14 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
           onClick={() => runtime.setSpeed(nextSpeed)}
         >
           {speed}×
+        </button>
+        <button
+          className={`btn min-h-8 px-2 py-1 text-xs whitespace-nowrap ${globeOpen ? 'btn-primary' : ''}`}
+          onClick={() => (globeOpen ? closeGlobe() : openGlobe())}
+          title="Globo diplomático: países, contatos, relações, tratados e guerras (Tab)"
+          aria-label="Globo"
+        >
+          🌐<span className="hidden sm:inline">Globo</span>
         </button>
         <button
           className={`btn min-h-8 px-2 py-1 text-xs whitespace-nowrap ${panelOpen ? 'btn-primary' : ''}`}

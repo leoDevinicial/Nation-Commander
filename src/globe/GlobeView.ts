@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import type { Position } from 'geojson';
 import { COUNTRY_GEO } from '../../shared/data/geography.ts';
 import type { GraphicsProfile } from '../lib/graphics.ts';
-import { loadWorldGeo, type WorldGeo } from './worldGeo.ts';
+import { loadWorldGeo, type WorldCountry, type WorldGeo } from './worldGeo.ts';
+import { TouchGestures } from '../game/input/TouchGestures.ts';
 
 /**
  * Globo 3D. A geografia (texturas e linhas) é gerada a partir dos dados de base; fronteiras,
@@ -16,9 +17,41 @@ export interface GlobeOptions {
   reducedMotion: boolean;
   /** País em destaque (ISO alfa-3). */
   highlight?: string;
+  /** Modo interativo (globo diplomático da partida): arrastar, zoom, seleção e rótulos. */
+  interactive?: {
+    /** Elemento sobreposto ao canvas onde os rótulos HTML são posicionados. */
+    labelHost: HTMLElement;
+    /** País tocado/clicado (ISO numérico do Natural Earth) ou null no oceano. */
+    onSelect: (isoNumeric: string | null) => void;
+  };
 }
 
-export type GlobeLayer = 'borders' | 'coasts' | 'markers' | 'clouds';
+/** Preenchimento político de um país (camada separada da geografia). */
+export interface PoliticalFill {
+  color: string;
+  alpha: number;
+  /** Hachura: país existente, mas sem contato. */
+  hatch?: boolean;
+}
+
+export interface GlobeLabel {
+  key: string;
+  lon: number;
+  lat: number;
+  text: string;
+  /** Mostrado só com zoom próximo. */
+  sub?: string;
+  color: string;
+}
+
+export interface GlobeArc {
+  from: { lon: number; lat: number };
+  to: { lon: number; lat: number };
+  color: string;
+  dashed?: boolean;
+}
+
+export type GlobeLayer = 'borders' | 'coasts' | 'markers' | 'clouds' | 'political' | 'arcs' | 'labels';
 export type GlobeLayout = 'hero' | 'center';
 
 const RADIUS = 1;
@@ -68,6 +101,18 @@ export class GlobeView {
   private disposed = false;
   private readonly ro: ResizeObserver;
   private readonly onVisibility = () => this.syncRunning();
+  private geo: WorldGeo | null = null;
+  private active = true;
+  /** Zoom do modo interativo (1 = enquadramento padrão). */
+  private zoom = 1;
+  private political: THREE.Mesh | null = null;
+  private politicalCanvas: HTMLCanvasElement | null = null;
+  private arcs = new THREE.Group();
+  private labels: { def: GlobeLabel; el: HTMLDivElement; sub: HTMLDivElement | null }[] = [];
+  private readonly raycaster = new THREE.Raycaster();
+  private sphere: THREE.Mesh | null = null;
+  private tween: { from: THREE.Vector2; to: THREE.Vector2; t: number; dur: number } | null = null;
+  private readonly cleanup: (() => void)[] = [];
 
   constructor(
     private readonly container: HTMLElement,
@@ -83,9 +128,12 @@ export class GlobeView {
     canvas.style.height = '100%';
     container.appendChild(canvas);
 
-    this.tilt.rotation.z = 0.32;
-    this.tilt.rotation.x = 0.18;
+    // no globo diplomático o eixo fica reto: arrastar e centralizar países fica previsível
+    this.tilt.rotation.z = opts.interactive ? 0 : 0.32;
+    this.tilt.rotation.x = opts.interactive ? 0.3 : 0.18;
     this.tilt.add(this.earth);
+    this.earth.add(this.arcs);
+    this.layers.set('arcs', this.arcs);
     this.scene.add(this.tilt);
     const focus = COUNTRY_GEO.find((g) => g.id === opts.highlight)?.capital ?? { lon: -40, lat: 0 };
     this.earth.rotation.y = facingRotation(focus.lon + 25);
@@ -101,13 +149,257 @@ export class GlobeView {
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(container);
     document.addEventListener('visibilitychange', this.onVisibility);
+    if (opts.interactive) this.bindInteraction(opts.interactive.onSelect);
     this.resize();
   }
+
+  // ------------------------------------------------------------ interação (globo diplomático)
+
+  private bindInteraction(onSelect: (iso: string | null) => void): void {
+    const el = this.renderer.domElement;
+    el.style.touchAction = 'none';
+    el.style.cursor = 'grab';
+    const gestures = new TouchGestures(
+      {
+        tap: (x, y) => onSelect(this.pick(x, y)),
+        longPress: (x, y) => onSelect(this.pick(x, y)),
+        pan: (dx, dy) => this.drag(dx, dy),
+        pinch: (scale, _rot, dx, dy) => {
+          this.zoomBy(scale);
+          this.drag(dx, dy);
+        },
+        box: () => {},
+        cancel: () => {},
+      },
+      () => false,
+    );
+    const pt = (e: PointerEvent) => ({ id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp });
+    const down = (e: PointerEvent) => {
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+      el.setPointerCapture(e.pointerId);
+      gestures.down(pt(e));
+    };
+    const move = (e: PointerEvent) => gestures.move(pt(e));
+    const up = (e: PointerEvent) => gestures.up(pt(e));
+    const cancel = (e: PointerEvent) => gestures.cancelPointer(e.pointerId);
+    const wheel = (e: WheelEvent) => {
+      e.preventDefault();
+      this.zoomBy(e.deltaY > 0 ? 1 / 1.12 : 1.12);
+    };
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', cancel);
+    el.addEventListener('wheel', wheel, { passive: false });
+    this.cleanup.push(() => {
+      el.removeEventListener('pointerdown', down);
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', cancel);
+      el.removeEventListener('wheel', wheel);
+    });
+  }
+
+  /** Arrasto em pixels: gira o globo (longitude) e inclina (latitude), proporcional ao zoom. */
+  private drag(dx: number, dy: number): void {
+    this.tween = null;
+    const k = 0.005 / this.zoom;
+    this.earth.rotation.y += dx * k;
+    this.tilt.rotation.x = THREE.MathUtils.clamp(this.tilt.rotation.x + dy * k, -1.2, 1.2);
+  }
+
+  zoomBy(factor: number): void {
+    this.zoom = THREE.MathUtils.clamp(this.zoom * factor, 0.8, 4);
+    this.resize();
+  }
+
+  /** Centraliza a coordenada; animação curta (instantânea com movimento reduzido). */
+  focus(lon: number, lat: number): void {
+    const to = new THREE.Vector2(facingRotation(lon), THREE.MathUtils.clamp(lat * DEG, -1.2, 1.2));
+    // menor caminho em longitude
+    const cur = this.earth.rotation.y;
+    to.x = cur + Math.atan2(Math.sin(to.x - cur), Math.cos(to.x - cur));
+    if (this.opts.reducedMotion) {
+      this.earth.rotation.y = to.x;
+      this.tilt.rotation.x = to.y;
+      return;
+    }
+    this.tween = { from: new THREE.Vector2(cur, this.tilt.rotation.x), to, t: 0, dur: 0.6 };
+  }
+
+  /** Posição de tela (px relativos ao canvas) de uma coordenada, ou null se estiver no lado oculto. */
+  projectToScreen(lon: number, lat: number): { x: number; y: number } | null {
+    const v = lonLatToVector(lon, lat, RADIUS);
+    this.earth.localToWorld(v);
+    const toCam = this.camera.position.clone().sub(v).normalize();
+    if (v.clone().normalize().dot(toCam) < 0.1) return null;
+    v.project(this.camera);
+    const r = this.renderer.domElement.getBoundingClientRect();
+    return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+  }
+
+  /** Pausa/retoma o desenho (o globo diplomático fica montado enquanto a partida dura). */
+  setActive(active: boolean): void {
+    this.active = active;
+    this.syncRunning();
+    if (active) this.resize();
+  }
+
+  /** Coordenada de tela → país (ISO numérico) sob o ponto, ou null. */
+  private pick(clientX: number, clientY: number): string | null {
+    if (!this.sphere || !this.geo) return null;
+    const r = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+    this.raycaster.setFromCamera(ndc, this.camera);
+    const hit = this.raycaster.intersectObject(this.sphere, false)[0];
+    if (!hit) return null;
+    const p = this.earth.worldToLocal(hit.point.clone()).normalize();
+    const { lon, lat } = vectorToLonLat(p);
+    return countryAt(this.geo.countries, lon, lat)?.id ?? null;
+  }
+
+  /** Camada política: cores por país (só estado, nunca geografia). */
+  setPolitical(fills: Record<string, PoliticalFill>, selected: string | null): void {
+    if (!this.geo) return;
+    const W = 2048;
+    const H = 1024;
+    if (!this.politicalCanvas) {
+      this.politicalCanvas = document.createElement('canvas');
+      this.politicalCanvas.width = W;
+      this.politicalCanvas.height = H;
+    }
+    const c = this.politicalCanvas.getContext('2d')!;
+    c.clearRect(0, 0, W, H);
+    const project = (p: Position): [number, number] => [((p[0]! + 180) / 360) * W, ((90 - p[1]!) / 180) * H];
+    const hatch = hatchPattern(c);
+    for (const country of this.geo.countries) {
+      const f = country.id ? fills[country.id] : undefined;
+      if (!f) continue;
+      for (const poly of country.polygons) {
+        for (const offset of [-W, 0, W]) {
+          c.beginPath();
+          for (const ring of poly) traceRing(ring, project, offset, H, c);
+          c.globalAlpha = f.alpha;
+          c.fillStyle = f.color;
+          c.fill('evenodd');
+          if (f.hatch && hatch) {
+            c.globalAlpha = 0.5;
+            c.fillStyle = hatch;
+            c.fill('evenodd');
+          }
+          if (country.id === selected) {
+            c.globalAlpha = 1;
+            c.lineWidth = 3;
+            c.strokeStyle = '#f3d27e';
+            c.stroke();
+          }
+        }
+      }
+    }
+    c.globalAlpha = 1;
+    if (!this.political) {
+      const tex = new THREE.CanvasTexture(this.politicalCanvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 4;
+      this.disposables.push(tex);
+      this.political = new THREE.Mesh(
+        new THREE.SphereGeometry(RADIUS * 1.0007, 96, 48),
+        new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }),
+      );
+      this.earth.add(this.political);
+      this.layers.set('political', this.political);
+    } else {
+      ((this.political.material as THREE.MeshBasicMaterial).map as THREE.CanvasTexture).needsUpdate = true;
+    }
+  }
+
+  /** Rótulos HTML (nomes dos países do cenário; capitais com zoom próximo). */
+  setLabels(defs: GlobeLabel[]): void {
+    const host = this.opts.interactive?.labelHost;
+    if (!host) return;
+    for (const l of this.labels) l.el.remove();
+    this.labels = defs.map((def) => {
+      const el = document.createElement('div');
+      el.className = 'globe-label';
+      el.style.color = def.color;
+      el.textContent = def.text;
+      let sub: HTMLDivElement | null = null;
+      if (def.sub) {
+        sub = document.createElement('div');
+        sub.className = 'globe-label-sub';
+        sub.textContent = def.sub;
+        el.appendChild(sub);
+      }
+      host.appendChild(el);
+      return { def, el, sub };
+    });
+  }
+
+  /** Rotas e linhas entre capitais (tratados, sanções, guerras), em arcos acima da superfície. */
+  setArcs(defs: GlobeArc[]): void {
+    for (const child of [...this.arcs.children]) {
+      const line = child as THREE.Line;
+      line.geometry.dispose();
+      (line.material as THREE.Material).dispose();
+      this.arcs.remove(line);
+    }
+    const a = new THREE.Vector3();
+    const b = new THREE.Vector3();
+    for (const d of defs) {
+      lonLatToVector(d.from.lon, d.from.lat, 1, a);
+      lonLatToVector(d.to.lon, d.to.lat, 1, b);
+      const angle = a.angleTo(b);
+      const pts: THREE.Vector3[] = [];
+      const n = Math.max(12, Math.ceil(angle * 40));
+      for (let i = 0; i <= n; i++) {
+        const t = i / n;
+        const v = new THREE.Vector3().copy(a).lerp(b, t).normalize();
+        v.multiplyScalar(RADIUS * (1.004 + Math.sin(Math.PI * t) * angle * 0.12));
+        pts.push(v);
+      }
+      const geom = new THREE.BufferGeometry().setFromPoints(pts);
+      const mat = d.dashed
+        ? new THREE.LineDashedMaterial({ color: d.color, dashSize: 0.025, gapSize: 0.02, transparent: true, opacity: 0.9 })
+        : new THREE.LineBasicMaterial({ color: d.color, transparent: true, opacity: 0.85 });
+      const line = new THREE.Line(geom, mat);
+      if (d.dashed) line.computeLineDistances();
+      this.arcs.add(line);
+    }
+  }
+
+  private updateLabels(): void {
+    if (!this.labels.length) return;
+    const show = this.layers.get('labels')?.visible !== false && this.labelsVisible;
+    const r = this.renderer.domElement.getBoundingClientRect();
+    const v = new THREE.Vector3();
+    const n = new THREE.Vector3();
+    const camDir = new THREE.Vector3();
+    const close = this.zoom >= 1.8;
+    for (const l of this.labels) {
+      lonLatToVector(l.def.lon, l.def.lat, RADIUS * 1.01, v);
+      this.earth.localToWorld(v);
+      n.copy(v).normalize();
+      camDir.copy(this.camera.position).sub(v).normalize();
+      const facing = n.dot(camDir);
+      if (!show || facing < 0.15) {
+        l.el.style.display = 'none';
+        continue;
+      }
+      v.project(this.camera);
+      l.el.style.display = 'block';
+      l.el.style.opacity = String(Math.min(1, (facing - 0.15) * 4));
+      l.el.style.transform = `translate(${((v.x + 1) / 2) * r.width}px, ${((1 - v.y) / 2) * r.height}px) translate(-50%, -130%)`;
+      if (l.sub) l.sub.style.display = close ? 'block' : 'none';
+    }
+  }
+
+  private labelsVisible = true;
 
   /** Carrega a geografia e monta a esfera e as camadas. */
   async load(): Promise<void> {
     const geo = await loadWorldGeo();
     if (this.disposed) return;
+    this.geo = geo;
     this.buildEarth(geo);
     this.buildLines(geo);
     this.buildMarkers();
@@ -116,6 +408,7 @@ export class GlobeView {
   }
 
   setLayerVisible(layer: GlobeLayer, visible: boolean): void {
+    if (layer === 'labels') this.labelsVisible = visible;
     const obj = this.layers.get(layer);
     if (obj) obj.visible = visible;
   }
@@ -129,6 +422,8 @@ export class GlobeView {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
     this.ro.disconnect();
+    this.cleanup.forEach((fn) => fn());
+    for (const l of this.labels) l.el.remove();
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.scene.traverse((o) => {
       const m = o as THREE.Mesh;
@@ -146,7 +441,7 @@ export class GlobeView {
 
   private syncRunning(): void {
     cancelAnimationFrame(this.raf);
-    if (this.disposed || document.hidden) return;
+    if (this.disposed || document.hidden || !this.active) return;
     this.last = performance.now();
     this.raf = requestAnimationFrame(this.frame);
   }
@@ -162,10 +457,23 @@ export class GlobeView {
     if (this.accum < minStep * 0.9) return;
     const step = this.accum;
     this.accum = 0;
-    const spin = this.opts.reducedMotion ? SPIN * 0.15 : SPIN;
-    this.earth.rotation.y += spin * step;
-    if (this.clouds) this.clouds.rotation.y += spin * 0.35 * step;
+    if (this.opts.interactive) {
+      const tw = this.tween;
+      if (tw) {
+        tw.t = Math.min(1, tw.t + step / tw.dur);
+        const e = 1 - (1 - tw.t) ** 3;
+        this.earth.rotation.y = tw.from.x + (tw.to.x - tw.from.x) * e;
+        this.tilt.rotation.x = tw.from.y + (tw.to.y - tw.from.y) * e;
+        if (tw.t >= 1) this.tween = null;
+      }
+      if (this.clouds) this.clouds.rotation.y += SPIN * 0.35 * step;
+    } else {
+      const spin = this.opts.reducedMotion ? SPIN * 0.15 : SPIN;
+      this.earth.rotation.y += spin * step;
+      if (this.clouds) this.clouds.rotation.y += spin * 0.35 * step;
+    }
     this.renderer.render(this.scene, this.camera);
+    this.updateLabels();
   };
 
   private resize(): void {
@@ -173,9 +481,11 @@ export class GlobeView {
     const h = Math.max(1, this.container.clientHeight);
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
-    const { radiusPx, offsetX, offsetY } = globeFraming(this.layout, w, h);
+    const framing = this.opts.interactive ? { radiusPx: 0.4 * Math.min(w, h), offsetX: 0, offsetY: 0 } : globeFraming(this.layout, w, h);
+    const { offsetX, offsetY } = framing;
+    const radiusPx = framing.radiusPx * this.zoom;
     const halfH = h / 2;
-    this.camera.position.set(0, 0, halfH / (radiusPx * Math.tan((this.camera.fov / 2) * DEG)) + 0.15);
+    this.camera.position.set(0, 0, Math.max(1.15, halfH / (radiusPx * Math.tan((this.camera.fov / 2) * DEG)) + 0.15));
     this.camera.lookAt(0, 0, 0);
     if (offsetX || offsetY) this.camera.setViewOffset(w, h, -offsetX, -offsetY, w, h);
     else this.camera.clearViewOffset();
@@ -235,6 +545,7 @@ export class GlobeView {
       new THREE.MeshPhongMaterial({ map, specularMap, specular: new THREE.Color('#41586b'), shininess: 22, emissive: new THREE.Color('#0a1520'), emissiveIntensity: 1 }),
     );
     this.earth.add(sphere);
+    this.sphere = sphere;
   }
 
   private buildLines(geo: WorldGeo): void {
@@ -514,4 +825,63 @@ function fbm(x: number, y: number, z: number): number {
     amp *= 0.5;
   }
   return sum / 0.9375;
+}
+
+export function vectorToLonLat(p: THREE.Vector3): { lon: number; lat: number } {
+  const lat = 90 - Math.acos(THREE.MathUtils.clamp(p.y, -1, 1)) / DEG;
+  let lon = Math.atan2(p.z, -p.x) / DEG - 180;
+  if (lon < -180) lon += 360;
+  return { lon, lat };
+}
+
+/** Ponto em polígono (lon/lat planas, com tolerância ao antimeridiano). */
+export function countryAt(countries: WorldCountry[], lon: number, lat: number): WorldCountry | null {
+  for (const c of countries) {
+    for (const poly of c.polygons) {
+      let inside = false;
+      for (const ring of poly) if (ringContains(ring, lon, lat)) inside = !inside;
+      if (inside) return c;
+    }
+  }
+  return null;
+}
+
+function ringContains(ring: Position[], lon: number, lat: number): boolean {
+  let inside = false;
+  const base = ring[0]![0]!;
+  // desembrulha as longitudes em torno do primeiro ponto
+  const unwrap = (x: number) => (x - base > 180 ? x - 360 : x - base < -180 ? x + 360 : x);
+  let x = unwrap(lon);
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = unwrap(ring[i]![0]!);
+    const yi = ring[i]![1]!;
+    const xj = unwrap(ring[j]![0]!);
+    const yj = ring[j]![1]!;
+    if (yi > lat !== yj > lat && x < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  if (!inside) {
+    // segunda tentativa com a longitude deslocada (anéis que cruzam o antimeridiano)
+    x = x + 360;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const xi = unwrap(ring[i]![0]!);
+      const yi = ring[i]![1]!;
+      const xj = unwrap(ring[j]![0]!);
+      const yj = ring[j]![1]!;
+      if (yi > lat !== yj > lat && x < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function hatchPattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
+  const c = document.createElement('canvas');
+  c.width = c.height = 12;
+  const g = c.getContext('2d')!;
+  g.strokeStyle = 'rgba(190,200,210,0.55)';
+  g.lineWidth = 1.5;
+  g.beginPath();
+  g.moveTo(0, 12);
+  g.lineTo(12, 0);
+  g.stroke();
+  return ctx.createPattern(c, 'repeat');
 }

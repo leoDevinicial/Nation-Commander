@@ -5,6 +5,8 @@ import { CostLabel, ResourceIcon } from '../components/Resources.tsx';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { factionColor } from '../../game/render/palette.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
+import { useNationalStore } from '../../state/useNationalStore.ts';
+import { useAppStore } from '../../state/useAppStore.ts';
 
 const BUILD_OPTIONS: BuildingType[] = ['farm', 'sawmill', 'quarry', 'oil_well', 'barracks', 'factory', 'tower'];
 const EMPTY: Stockpile = { supplies: 0, food: 0, wood: 0, stone: 0, oil: 0 };
@@ -64,9 +66,10 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             <div className="flex items-center gap-2 text-sm font-semibold">
               <span className="inline-block h-3 w-3 rounded-sm" style={{ background: factionColor(inspected.owner) }} aria-hidden />
               {inspected.kind === 'unit' ? UNITS[inspected.type as UnitType].label : BUILDINGS[inspected.type as BuildingType].label}
-              <span className="text-xs text-red-300">(inimigo)</span>
+              <span className="text-xs text-red-300">(rival)</span>
             </div>
             <HpLine hp={inspected.hp} max={inspected.kind === 'unit' ? UNITS[inspected.type as UnitType].maxHp : BUILDINGS[inspected.type as BuildingType].maxHp} />
+            <WarStatus owner={inspected.owner} mySlot={mySlot} />
           </div>
         )}
         {mode.kind === 'normal' && units.length === 0 && !building && !inspected && touch && (
@@ -142,6 +145,21 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           <ProduceButtons runtime={runtime} type={building.type} resources={resources} />
         )}
       </div>
+    </div>
+  );
+}
+
+/** Sem guerra formal não há ataque: mostra o estado e o atalho para o globo. */
+function WarStatus({ owner, mySlot }: { owner: number; mySlot: number }) {
+  const atWar = useNationalStore((s) => s.diplomacy?.wars.some(([a, b]) => (a === mySlot && b === owner) || (a === owner && b === mySlot)) ?? false);
+  const country = useAppStore((s) => s.match?.players.find((p) => p.slot === owner)?.countryId);
+  if (atWar) return <div className="mt-1.5 text-xs text-red-300">Em guerra: pode ser atacado.</div>;
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-ink-400">
+      Sem guerra declarada: nenhum dos lados pode atacar.
+      <button className="btn min-h-7 px-2 py-0.5 text-[11px]" onClick={() => useNationalStore.getState().openGlobe(country ?? null)}>
+        🌐 Abrir no Globo
+      </button>
     </div>
   );
 }

@@ -5,7 +5,6 @@ import type {
   NationalCommand,
   NationalSummary,
   NationView,
-  DiplomacyView,
   MatchEndInfo,
   MatchStartInfo,
   RoomInfo,
@@ -230,6 +229,13 @@ export class Room {
       this.balanceMode,
     );
     this.nationalAIs = this.players.filter((p) => p.isAI).map((p) => new NationalAI(p.slot));
+    const sim = this.sim;
+    // a guerra declarada na camada nacional é o que libera o combate no teatro
+    this.national.attachTheater({
+      resources: (slot) => sim.players[slot]?.resources ?? null,
+      spend: (slot, cost) => void sim.spendResources(slot, cost),
+      setWar: (a, b) => sim.setWar(a, b, true),
+    });
     for (const n of this.national.nations) this.gdpStart.set(n.slot, n.gdpUsd);
     this.applyNationalModifiers();
     this.status = 'playing';
@@ -291,7 +297,14 @@ export class Room {
     const sim = this.sim;
     if (!sim || this.status !== 'playing') return;
     if (sim.tick % AI_THINK_TICKS === 0) {
-      for (const ai of this.ais) for (const cmd of ai.think(sim)) sim.applyCommand(ai.slot, cmd);
+      for (const ai of this.ais) {
+        for (const cmd of ai.think(sim)) sim.applyCommand(ai.slot, cmd);
+        // a IA pede a guerra pelo mesmo caminho validado do jogador; se faltar algo, tenta depois
+        if (ai.wantsWarWith !== null && this.national && !this.national.diplomaticAction(ai.slot, { type: 'declare_war', target: ai.wantsWarWith })) {
+          ai.wantsWarWith = null;
+          this.broadcastNational();
+        }
+      }
     }
     const batch = this.pending.splice(0, this.pending.length);
     for (const { slot, cmd, conn } of batch) {
@@ -312,6 +325,7 @@ export class Room {
     const sim = this.sim;
     if (!national || !sim) return;
     national.registerTacticalEvents(tickEvents);
+    let diplomacyChanged = false;
     for (const { slot, cmd, conn } of this.pendingNational.splice(0, this.pendingNational.length)) {
       const err =
         cmd.type === 'set_budget'
@@ -320,8 +334,13 @@ export class Room {
             ? national.setResearch(slot, cmd.techId)
             : national.diplomaticAction(slot, cmd.action);
       if (err) conn?.send({ t: 'cmd_rejected', reason: err });
+      else if (cmd.type === 'diplomacy') diplomacyChanged = true;
     }
-    if (sim.tick % TICKS_PER_DAY !== 0) return;
+    if (sim.tick % TICKS_PER_DAY !== 0) {
+      // decisões diplomáticas (contato, guerra, tratados) aparecem na hora, sem esperar o dia virar
+      if (diplomacyChanged) this.broadcastNational();
+      return;
+    }
     if (national.day % 30 === 0) {
       for (const ai of this.nationalAIs) {
         const r = ai.think(national);
@@ -350,40 +369,29 @@ export class Room {
     }
   }
 
+  /** Relatório nacional por jogador: cada um recebe só a própria nação e o que conhece das outras. */
   private broadcastNational(fullHistory = false): void {
     if (!this.national) return;
     this.nationalEvents.push(...this.national.drainEvents());
     const events = this.nationalEvents.splice(0, this.nationalEvents.length);
     const withHistory = fullHistory || this.national.day % HISTORY_EVERY_DAYS === 0;
-    this.broadcast({
-      t: 'national',
-      day: this.national.day,
-      date: this.national.date(),
-      nations: this.nationViews(withHistory),
-      events,
-      diplomacy: this.diplomacyView(),
-    });
+    for (const p of this.players) p.conn?.send(this.nationalMessage(p.slot, events, withHistory));
   }
 
-  private diplomacyView(): DiplomacyView {
+  private nationalMessage(slot: Slot, events: NationalEvent[], withHistory: boolean): ServerMessage {
     const national = this.national!;
     return {
-      npcs: national.npcs.map((n) => ({
-        id: n.slot,
-        countryId: n.countryId,
-        gdpUsd: Math.round(n.gdpUsd),
-        realGrowthPct: Math.round(n.realGrowthPct * 100) / 100,
-        approval: Math.round(n.approval * 10) / 10,
-        defensePct: Math.round(n.budget.defensePct * 100) / 100,
-      })),
-      relations: national.diplomacy.relationsOf(national.nations.map((n) => n.slot)),
-      treaties: [...national.diplomacy.treaties],
-      missions: [...national.diplomacy.missions],
+      t: 'national',
+      day: national.day,
+      date: national.date(),
+      nations: this.nationViews(slot, withHistory),
+      events: national.eventsFor(slot, events),
+      diplomacy: national.viewFor(slot),
     };
   }
 
-  private nationViews(withHistory: boolean): NationView[] {
-    return (this.national?.nations ?? []).map(({ history, casualties30d, victories30d: _v, ...rest }) => ({
+  private nationViews(slot: Slot, withHistory: boolean): NationView[] {
+    return (this.national?.nations ?? []).filter((n) => n.slot === slot).map(({ history, casualties30d, victories30d: _v, ...rest }) => ({
       ...rest,
       casualties30d: casualties30d.reduce((a, c) => a + c, 0),
       ...(withHistory ? { history } : {}),
@@ -485,8 +493,7 @@ export class Room {
       this.system(`${p.name} reconectou.`);
       this.broadcastRoom();
       conn.sendRaw(this.snapshotJson([], p.slot));
-      if (this.national)
-        conn.send({ t: 'national', day: this.national.day, date: this.national.date(), nations: this.nationViews(true), events: [], diplomacy: this.diplomacyView() });
+      if (this.national) conn.send(this.nationalMessage(p.slot, [], true));
     }
     return true;
   }

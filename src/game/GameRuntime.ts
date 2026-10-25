@@ -92,6 +92,8 @@ export class GameRuntime {
   private fpsTime = performance.now();
   private fps = 0;
   private disposed = false;
+  /** Teatro oculto (globo aberto): a simulação e a interpolação seguem, só não se desenha. */
+  private suspended = false;
   private readonly unsubscribe: () => void;
   private readonly cleanup: (() => void)[] = [];
   private readonly controlGroups = new Map<string, number[]>();
@@ -392,7 +394,7 @@ export class GameRuntime {
       t.visual.update(dt, t.snap.progress, frac, selected || frac < 0.999 || t.snap.progress < 1, this.camera, rally, selected && t.snap.owner === this.mySlot);
     }
     this.effects.update(dt);
-    this.renderer.render(this.scene, this.camera);
+    if (!this.suspended) this.renderer.render(this.scene, this.camera);
 
     this.frames++;
     if (now - this.fpsTime >= 1000) {
@@ -519,6 +521,11 @@ export class GameRuntime {
       this.ghostAt = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
     }
     this.updateGhost();
+  }
+
+  setSuspended(suspended: boolean): void {
+    this.suspended = suspended;
+    if (suspended) this.keys.clear();
   }
 
   /** Confirma a construção na posição atual do fantasma (botão de confirmação no toque). */
@@ -665,7 +672,7 @@ export class GameRuntime {
   }
 
   private onKeyDown(e: KeyboardEvent): void {
-    if (this.isTyping(e)) return;
+    if (this.isTyping(e) || this.suspended) return;
     this.keys.add(e.code);
     const digit = /^Digit([0-9])$/.exec(e.code)?.[1];
     if (digit) {

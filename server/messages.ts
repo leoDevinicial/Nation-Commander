@@ -97,6 +97,10 @@ const isNationId = (v: unknown): v is number => Number.isInteger(v) && (v as num
 export function parseDiplomaticAction(raw: unknown): DiplomaticAction | null {
   if (!isObj(raw)) return null;
   switch (raw.type) {
+    case 'establish_contact':
+      return isNationId(raw.partner) ? { type: 'establish_contact', partner: raw.partner } : null;
+    case 'declare_war':
+      return isNationId(raw.target) ? { type: 'declare_war', target: raw.target } : null;
     case 'propose':
       return (raw.treaty === 'trade' || raw.treaty === 'alliance') && isNationId(raw.partner) ? { type: 'propose', treaty: raw.treaty, partner: raw.partner } : null;
     case 'request_sanctions':

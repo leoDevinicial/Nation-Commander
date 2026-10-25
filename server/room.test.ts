@@ -227,15 +227,53 @@ describe('servidor de partidas', () => {
     await send(a.conn, { t: 'start' });
     const room = rooms.get(a.last('room')!.room!.code)!;
     const first = a.last('national')!;
-    expect(first.diplomacy.npcs.length).toBe(8);
-    const usa = first.diplomacy.npcs.find((n) => n.countryId === 'USA')!;
+    // 9 outros países existem; os da mesma região (Américas) e o rival do teatro já têm contato
+    expect(first.diplomacy.nations.length).toBe(9);
+    const usa = first.diplomacy.nations.find((n) => n.countryId === 'USA')!;
+    expect(usa.known).toBe(true);
+    const jpn = first.diplomacy.nations.find((n) => n.countryId === 'JPN')!;
+    expect(jpn.known).toBe(false);
+    expect(jpn.intel).toBeNull();
+    // o adversário não revela o orçamento: só a própria nação vem completa
+    expect(first.nations.map((n) => n.slot)).toEqual([0]);
     expect(parseClientMessage(JSON.stringify({ t: 'national', cmd: { type: 'diplomacy', action: { type: 'send_aid', partner: usa.id, pctGdp: 5 } } }))).toBeNull();
     await send(a.conn, { t: 'national', cmd: { type: 'diplomacy', action: { type: 'propose', treaty: 'trade', partner: usa.id } } });
     for (let i = 0; i < 20; i++) room.advance();
     const msg = a.last('national')!;
     expect(msg.diplomacy.treaties.some((t) => t.type === 'trade' && (t.a === usa.id || t.b === usa.id))).toBe(true);
     expect(msg.diplomacy.relations.find((r) => (r.a === 0 && r.b === usa.id) || (r.b === 0 && r.a === usa.id))!.value).toBeGreaterThan(0);
-    // relação com o adversário (IA) mostra o conflito
-    expect(msg.diplomacy.relations.find((r) => r.a === 0 && r.b === 1)!.factors[0]!.key).toBe('conflict');
+    // sem declaração não há guerra: a relação mostra só a rivalidade no teatro
+    expect(msg.diplomacy.relations.find((r) => r.a === 0 && r.b === 1)!.factors[0]!.key).toBe('rivalry');
+    expect(msg.diplomacy.wars).toEqual([]);
+    // proposta a um país sem contato é recusada com motivo
+    await send(a.conn, { t: 'national', cmd: { type: 'diplomacy', action: { type: 'propose', treaty: 'trade', partner: jpn.id } } });
+    room.advance();
+    expect(a.last('cmd_rejected')!.reason).toMatch(/não descoberto/);
   });
+
+  it('a IA declara guerra pelo caminho validado antes de causar qualquer dano', async () => {
+    const { send, rooms } = setup();
+    const a = fakeConn();
+    await send(a.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-war' });
+    await send(a.conn, { t: 'create_room', mode: 'vs_ai', countryId: 'BRA' });
+    await send(a.conn, { t: 'start' });
+    const room = rooms.get(a.last('room')!.room!.code)!;
+    const sim = room.sim!;
+    // o jogador humano tenta atacar sem guerra: recusado
+    const mine = sim.units.find((u) => u.owner === 0)!;
+    const theirs = sim.buildings.find((b) => b.owner === 1)!;
+    await send(a.conn, { t: 'cmd', cmd: { type: 'attack', unitIds: [mine.id], targetId: theirs.id } });
+    room.advance();
+    expect(a.last('cmd_rejected')?.reason).toMatch(/Sem estado de guerra|fora de visão/);
+    let warTick = -1;
+    for (let i = 0; i < 20 * 600 && warTick < 0; i++) {
+      room.advance();
+      if (room.national!.diplomacy.atWar(0, 1)) warTick = sim.tick;
+      else expect(sim.players[1]!.stats.damageDealt).toBe(0);
+    }
+    expect(warTick).toBeGreaterThan(0);
+    const msg = a.last('national')!;
+    expect(msg.diplomacy.wars).toEqual([[0, 1]]);
+    expect(msg.events.some((e) => e.type === 'diplomacy' && e.event.type === 'war_declared' && e.event.by === 1)).toBe(true);
+  }, 60_000);
 });
