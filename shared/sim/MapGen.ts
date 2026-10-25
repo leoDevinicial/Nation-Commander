@@ -30,7 +30,8 @@ const smooth = (t: number) => t * t * (3 - 2 * t);
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 /**
- * Gera um mapa simétrico (rotação de 180°) para dois jogadores. Mesmo seed → mesmo mapa.
+ * Gera um mapa simétrico (rotação de 180°) para dois jogadores, com montanhas (rocha para pedreiras
+ * e minério de ferro para minas). Mesmo seed → mesmo mapa.
  * Garante uma estrada passável entre as bases e áreas livres ao redor das bases e jazidas.
  */
 export function generateMap(seed: number, size = MAP_SIZE): MapData {
@@ -47,7 +48,8 @@ export function generateMap(seed: number, size = MAP_SIZE): MapData {
     let t = Terrain.Plains;
     if (e < 0.2) t = Terrain.Water;
     else if (e < 0.26) t = Terrain.Mud;
-    else if (e > 0.8) t = Terrain.Rock;
+    // montanhas: formações rochosas com veios de minério no núcleo
+    else if (e > 0.78) t = detail[i]! > 0.62 && e > 0.82 ? Terrain.Ore : Terrain.Rock;
     else if (m > 0.66) t = Terrain.Forest;
     else if (m < 0.3 && e > 0.4 && e < 0.62) t = Terrain.Fertile;
     terrain[i] = t;
@@ -98,6 +100,9 @@ export function generateMap(seed: number, size = MAP_SIZE): MapData {
       }
   };
   patch({ cx: 2, cy: 3 }, 1.7, Terrain.Rock);
+  // pequena serra com veio de ferro dentro do território inicial
+  patch({ cx: 17, cy: 15 }, 2.3, Terrain.Rock);
+  patch({ cx: 17, cy: 15 }, 1.3, Terrain.Ore);
   patch({ cx: 3, cy: 13 }, 2.6, Terrain.Forest);
   patch({ cx: 13, cy: 3 }, 2.4, Terrain.Fertile);
 

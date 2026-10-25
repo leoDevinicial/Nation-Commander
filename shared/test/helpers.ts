@@ -30,7 +30,7 @@ export function meet(sim: NationalSimulation, a: number, b: number) {
 
 /** Teatro de teste: estoques táticos simples e registro das guerras ativadas no combate. */
 export function theater(sim: NationalSimulation, stock = { supplies: 1000, oil: 1000 }) {
-  const stocks = new Map([0, 1].map((s) => [s, { supplies: stock.supplies, food: 0, wood: 0, stone: 0, oil: stock.oil }]));
+  const stocks = new Map([0, 1].map((s) => [s, { supplies: stock.supplies, food: 0, wood: 0, stone: 0, iron: 0, oil: stock.oil }]));
   const wars: [number, number][] = [];
   sim.attachTheater({
     resources: (slot) => stocks.get(slot) ?? null,

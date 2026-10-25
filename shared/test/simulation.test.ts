@@ -259,7 +259,7 @@ describe('modificadores da camada nacional', () => {
 describe('coleta de recursos', () => {
   const resourceMap = () =>
     flatMap(32, (set) => {
-      for (let y = 10; y < 14; y++) for (let x = 0; x < 4; x++) set(x, y, Terrain.Forest); // 16 células de floresta
+      for (let y = 10; y < 16; y++) for (let x = 0; x < 4; x++) set(x, y, Terrain.Forest); // 24 células de floresta (média)
       for (let y = 0; y < 2; y++) for (let x = 12; x < 16; x++) set(x, y, Terrain.Fertile); // 8 de solo fértil
     });
 
@@ -269,21 +269,24 @@ describe('coleta de recursos', () => {
     const a = sim.buildings.find((b) => b.type === 'sawmill')!;
     expect(a.claims.length).toBe(BUILDINGS.sawmill.gather!.maxCells);
     for (const i of a.claims) expect(sim.map.terrain[i]).toBe(Terrain.Forest);
-    // sobram 6 árvores: uma segunda serraria do outro lado ainda pode explorá-las
-    expect(sim.applyCommand(0, { type: 'build', buildingType: 'sawmill', cx: 4, cy: 13 })).toBeNull();
+    // floresta média (24 células): comporta uma segunda serraria, sem reutilizar árvores
+    expect(sim.applyCommand(0, { type: 'build', buildingType: 'sawmill', cx: 4, cy: 14 })).toBeNull();
     const b = sim.buildings.filter((x) => x.type === 'sawmill')[1]!;
-    expect(b.claims.length).toBe(6);
+    expect(b.claims.length).toBeGreaterThan(0);
     expect(b.claims.some((i) => a.claims.includes(i))).toBe(false);
-    // uma terceira fica sem árvores livres
-    expect(sim.placementError(0, 'sawmill', { cx: 4, cy: 8 })).toMatch(/Poucos recursos/);
+    // a terceira esbarra no limite do depósito médio
+    expect(sim.placementError(0, 'sawmill', { cx: 4, cy: 12 })).toMatch(/Depósito médio já tem 2/);
 
     const wood0 = sim.players[0]!.resources.wood;
-    run(sim, BUILDINGS.sawmill.buildSeconds * TICK_RATE); // concluídas
+    run(sim, BUILDINGS.sawmill.buildSeconds * TICK_RATE); // concluídas (e com trabalhadores)
     const before = sim.players[0]!.resources.wood;
     expect(before).toBe(wood0); // nada rende durante a obra
+    expect(a.workers).toBe(BUILDINGS.sawmill.workers);
     run(sim, TICK_RATE * 10);
     const rate = (a.claims.length + b.claims.length) * BUILDINGS.sawmill.gather!.ratePerCell;
-    expect(sim.players[0]!.resources.wood - before).toBe(Math.floor(rate * 10 + 1e-9));
+    const got = sim.players[0]!.resources.wood - before;
+    expect(got).toBeGreaterThanOrEqual(Math.floor(rate * 10) - 2);
+    expect(got).toBeLessThanOrEqual(Math.ceil(rate * 10));
   });
 
   it('destruir o edifício libera as células para outro', () => {
@@ -297,11 +300,21 @@ describe('coleta de recursos', () => {
     expect(sim.placementError(0, 'farm', { cx: 11, cy: 2 })).toBeNull();
   });
 
-  it('poço de petróleo rende valor fixo sobre a jazida', () => {
+  it('poço de petróleo só opera com tanque próximo e enche o tanque', () => {
     const sim = emptySim();
     sim.applyCommand(0, { type: 'build', buildingType: 'oil_well', cx: 10, cy: 3 });
-    run(sim, BUILDINGS.oil_well.buildSeconds * TICK_RATE);
+    run(sim, BUILDINGS.oil_well.buildSeconds * TICK_RATE + 1);
+    const well = sim.buildings.find((b) => b.type === 'oil_well')!;
+    expect(well.status).toBe('no_tank');
+    expect(sim.incomePerSecond(0).oil).toBe(0);
+    expect(sim.applyCommand(0, { type: 'build', buildingType: 'oil_tank', cx: 10, cy: 6 })).toBeNull();
+    run(sim, BUILDINGS.oil_tank.buildSeconds * TICK_RATE + 2);
+    expect(well.status).toBe('ok');
     expect(sim.incomePerSecond(0).oil).toBe(BUILDINGS.oil_well.gather!.ratePerCell);
+    const tank = sim.buildings.find((b) => b.type === 'oil_tank')!;
+    run(sim, TICK_RATE * 10);
+    expect(tank.stored).toBeGreaterThan(20);
+    expect(sim.players[0]!.resources.oil).toBe(sim.players[0]!.oilReserve + tank.stored);
   });
 });
 

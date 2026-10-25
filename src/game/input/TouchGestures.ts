@@ -27,6 +27,8 @@ export interface TouchPoint {
   x: number;
   y: number;
   t: number;
+  /** Primeiro dedo de um novo gesto (PointerEvent.isPrimary). */
+  primary?: boolean;
 }
 
 export interface GestureHandlers {
@@ -72,6 +74,13 @@ export class TouchGestures {
   }
 
   down(p: TouchPoint): void {
+    // um novo dedo "primário" significa que o gesto anterior acabou, mesmo que o navegador
+    // tenha perdido algum pointerup/pointercancel: descarta pontos órfãos
+    if (p.primary && this.pts.size > 0) {
+      if (this.phase === 'box') this.h.cancel();
+      this.pts.clear();
+      this.reset();
+    }
     this.pts.set(p.id, { ...p });
     if (this.pts.size === 1) {
       this.start = { ...p };

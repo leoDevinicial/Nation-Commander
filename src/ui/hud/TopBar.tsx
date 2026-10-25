@@ -1,5 +1,5 @@
 import { GAME_SPEEDS } from '../../../shared/protocol.ts';
-import { RESOURCE_LABELS, RESOURCE_TYPES, TICK_RATE, UNIT_CAP } from '../../../shared/sim/config.ts';
+import { POP_ABSOLUTE_CAP, RESOURCE_LABELS, RESOURCE_TYPES, STORAGE_LABEL, TICK_RATE } from '../../../shared/sim/config.ts';
 import { ResourceIcon } from '../components/Resources.tsx';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { factionColor } from '../../game/render/palette.ts';
@@ -34,21 +34,43 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
     <div className="panel absolute top-2 right-2 left-2 z-30 flex h-11 items-center gap-2 px-2 text-xs sm:top-3 sm:right-3 sm:left-3 sm:h-10 sm:gap-4 sm:px-3 sm:text-sm">
       {/* indicadores: rolam na horizontal em telas estreitas em vez de cortar */}
       <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-3 overflow-x-auto sm:gap-4">
-        {RESOURCE_TYPES.map((r) => (
-          <div key={r} className="flex shrink-0 items-center gap-1" title={`${RESOURCE_LABELS[r]}: estoque e renda por segundo`}>
-            <ResourceIcon type={r} />
-            <span className="font-mono font-bold">{Math.floor(me?.resources?.[r] ?? 0)}</span>
-            <span className="hidden text-[11px] text-signal-green xl:inline">+{(me?.income?.[r] ?? 0).toFixed(1)}</span>
+        {RESOURCE_TYPES.map((r) => {
+          const have = Math.floor(me?.resources?.[r] ?? 0);
+          const cap = me?.capacity?.[r] ?? 0;
+          const net = me?.income?.[r] ?? 0;
+          const full = cap > 0 && have >= cap;
+          return (
+            <div
+              key={r}
+              className="flex shrink-0 items-center gap-1"
+              title={`${RESOURCE_LABELS[r]}: ${have} de ${cap} (guardado em: ${STORAGE_LABEL[r]}). Saldo: ${net >= 0 ? '+' : ''}${net.toFixed(2)}/s${full ? ' — CHEIO: a produção pausa' : ''}`}
+            >
+              <ResourceIcon type={r} />
+              <span className={`font-mono font-bold ${full ? 'text-brass-400' : r === 'food' && me?.hungry ? 'text-red-300' : ''}`}>{have}</span>
+              <span className="hidden font-mono text-[10px] text-ink-400 lg:inline">/{cap}</span>
+              <span className={`hidden text-[11px] xl:inline ${net < 0 ? 'text-red-300' : 'text-signal-green'}`}>
+                {net >= 0 ? '+' : ''}
+                {net.toFixed(1)}
+              </span>
+            </div>
+          );
+        })}
+        {me?.population && (
+          <div
+            className="flex shrink-0 items-center gap-1.5"
+            title={`População ${me.population.total}/${me.population.cap} (teto nacional ${POP_ABSOLUTE_CAP}). Cidadãos: ${me.population.citizens} (${me.population.employed} empregados, ${me.population.idle} ociosos) · Militares: ${me.population.military} em campo, ${me.population.queuedMilitary} em formação · Cidadãos em formação: ${me.population.queuedCitizens}`}
+          >
+            <span className="text-ink-400" aria-hidden>
+              👥
+            </span>
+            <span className={`font-mono ${me.population.total >= me.population.cap ? 'text-brass-400' : ''}`}>
+              {me.population.total}/{me.population.cap}
+            </span>
+            <span className="hidden text-[11px] text-ink-400 lg:inline">
+              · {me.population.idle} ociosos · ⚔{me.population.military}
+            </span>
           </div>
-        ))}
-        <div className="flex shrink-0 items-center gap-1.5" title="Unidades em campo e em produção / limite">
-          <span className="text-ink-400" aria-hidden>
-            ▲
-          </span>
-          <span className="font-mono">
-            {me?.supply ?? 0}/{UNIT_CAP}
-          </span>
-        </div>
+        )}
         <div className="flex shrink-0 items-center gap-1.5" title="Tempo de operação">
           <span className="text-ink-400" aria-hidden>
             ⏱

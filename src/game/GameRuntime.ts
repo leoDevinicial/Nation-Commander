@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { GameSpeed, MatchStartInfo, ServerMessage } from '../../shared/protocol.ts';
 import type { Command } from '../../shared/sim/commands.ts';
-import { BUILDINGS, UNITS, type BuildingType, type Terrain, type UnitType } from '../../shared/sim/config.ts';
+import { BUILDINGS, CITIZEN, UNITS, type BuildingType, type Terrain, type UnitType } from '../../shared/sim/config.ts';
 import { anchorForCursor, placementError } from '../../shared/sim/placement.ts';
 import type { BuildingSnapshot, Snapshot, UnitSnapshot } from '../../shared/sim/snapshot.ts';
 import type { Cell, MapData, SimEvent } from '../../shared/sim/types.ts';
@@ -15,7 +15,11 @@ import { buildTerrain, type TerrainHandle } from './render/TerrainFactory.ts';
 import { disposeMaterials, fogUniforms } from './render/materials.ts';
 import { disposeBuildingModels } from './render/models/buildingModels.ts';
 import { disposeUnitModels } from './render/models/unitModels.ts';
-import { claimableCells, claimedBy, gatherRate } from '../../shared/sim/gathering.ts';
+import { chooseClaims, claimedBy, gatherRate, sitesByDeposit } from '../../shared/sim/gathering.ts';
+import { findDeposits, type DepositIndex } from '../../shared/sim/deposits.ts';
+import { decodeTerritory } from '../../shared/sim/territory.ts';
+import { Terrain as T } from '../../shared/sim/config.ts';
+import { TerritoryLayer } from './render/TerritoryLayer.ts';
 import { UnitVisual } from './render/UnitVisuals.ts';
 import { describeEvent } from './eventText.ts';
 import type { GraphicsProfile } from '../lib/graphics.ts';
@@ -103,6 +107,10 @@ export class GameRuntime {
   /** Névoa de guerra local: 0 inexplorado, 1 explorado, 2 visível (por célula). */
   private readonly fogState: Uint8Array;
   private readonly fogTexture: THREE.DataTexture;
+  /** Dono de cada célula, como enviado pelo servidor (fronteiras são públicas). */
+  territory: Int8Array;
+  private territoryLayer!: TerritoryLayer;
+  private readonly deposits: DepositIndex;
 
   constructor(
     private readonly container: HTMLElement,
@@ -150,6 +158,8 @@ export class GameRuntime {
     this.cameraCtl.yaw = toMid;
 
     this.fogState = new Uint8Array(this.map.width * this.map.height);
+    this.territory = new Int8Array(this.map.width * this.map.height).fill(-1);
+    this.deposits = findDeposits(this.map);
     this.fogTexture = new THREE.DataTexture(new Uint8Array(this.map.width * this.map.height), this.map.width, this.map.height, THREE.RedFormat, THREE.UnsignedByteType);
     this.fogTexture.magFilter = THREE.LinearFilter;
     this.fogTexture.minFilter = THREE.LinearFilter;
@@ -157,6 +167,8 @@ export class GameRuntime {
     fogUniforms.uFogMap.value = this.fogTexture;
     fogUniforms.uFogSize.value.set(W, H);
     this.setupScene(W, H);
+    this.territoryLayer = new TerritoryLayer(this.map.width, this.map.height, this.map.cellSize, (x, z) => this.groundHeight(x, z));
+    this.scene.add(this.territoryLayer.group);
     this.effects = new Effects(this.scene, opts.profile.maxEffects);
 
     this.selectionBox = document.createElement('div');
@@ -238,9 +250,26 @@ export class GameRuntime {
 
   // ------------------------------------------------------------ snapshots
 
+  /** Altura aproximada do terreno (mesma regra do TerrainFactory, sem o ruído). */
+  private groundHeight(x: number, z: number): number {
+    const cs = this.map.cellSize;
+    const at = (px: number, pz: number) => {
+      const cx = Math.min(this.map.width - 1, Math.max(0, Math.floor(px / cs)));
+      const cy = Math.min(this.map.height - 1, Math.max(0, Math.floor(pz / cs)));
+      const t = this.map.terrain[cy * this.map.width + cx];
+      return t === T.Water ? -0.7 : t === T.Rock || t === T.Ore ? 0.9 : t === T.Mud ? -0.08 : 0;
+    };
+    const o = cs * 0.45;
+    return (at(x - o, z - o) + at(x + o, z - o) + at(x - o, z + o) + at(x + o, z + o)) / 4;
+  }
+
   private onSnapshot(msg: SnapshotMsg): void {
     const s = msg.s;
     this.snapshot = s;
+    if (s.territory) {
+      this.territory = decodeTerritory(s.territory);
+      this.territoryLayer.update(this.territory);
+    }
     this.snapshotAt = performance.now();
     this.paused = msg.paused;
     this.pausedBy = msg.pausedBy;
@@ -459,7 +488,22 @@ export class GameRuntime {
       const b = this.buildings.get(id);
       if (b) {
         if (b.snap.owner === this.mySlot)
-          selectedBuilding = { id, type: b.snap.type, owner: b.snap.owner, hp: b.snap.hp, progress: b.snap.progress, queue: b.snap.queue, hasRally: b.snap.rally !== null, claims: b.snap.claims?.length ?? 0 };
+          selectedBuilding = {
+            id,
+            type: b.snap.type,
+            owner: b.snap.owner,
+            hp: b.snap.hp,
+            progress: b.snap.progress,
+            queue: b.snap.queue,
+            hasRally: b.snap.rally !== null,
+            claims: b.snap.claims?.length ?? 0,
+            workers: b.snap.workers ?? 0,
+            workerTarget: b.snap.workerTarget ?? 0,
+            status: b.snap.status ?? 'ok',
+            rate: b.snap.rate ?? 0,
+            stored: b.snap.stored ?? null,
+            deposit: b.snap.deposit ?? null,
+          };
         else inspected = { kind: 'building' as const, type: b.snap.type, owner: b.snap.owner, hp: b.snap.hp };
       }
     }
@@ -497,7 +541,7 @@ export class GameRuntime {
       [1, 1],
       [-1, 1],
     ].map(([x, y]) => this.ndcToGround(x!, y!));
-    return { units, buildings, view: corners, fog: this.fogState };
+    return { units, buildings, view: corners, fog: this.fogState, territory: this.territory };
   }
 
   // ------------------------------------------------------------ comandos (HUD e entrada)
@@ -715,6 +759,10 @@ export class GameRuntime {
         const b = this.selectedOwnBuilding();
         if (!b || b.snap.progress < 1) break;
         if (b.snap.type === 'hq') {
+          if (key === CITIZEN.hotkey) {
+            this.trainCitizen();
+            break;
+          }
           const type = (Object.keys(BUILDINGS) as BuildingType[]).find((t) => BUILDINGS[t].hotkey === key);
           if (type) this.startPlacement(type);
         } else {
@@ -1003,9 +1051,11 @@ export class GameRuntime {
         cellSize: this.map.cellSize,
         terrain: this.map.terrain,
         resourceNodes: this.map.resourceNodes,
-        buildings: s.buildings.map((b) => ({ type: b.type, owner: b.owner, cell: { cx: b.cx, cy: b.cy }, progress: b.progress, claims: b.claims })),
+        buildings: this.placementBuildings(),
         units: [...this.units.values()].map((t) => ({ type: t.snap.type, pos: { x: t.visual.renderPos.x, y: t.visual.renderPos.y } })),
-        resources: me?.resources ?? { supplies: 0, food: 0, wood: 0, stone: 0, oil: 0 },
+        resources: me?.resources ?? { supplies: 0, food: 0, wood: 0, stone: 0, iron: 0, oil: 0 },
+        territory: this.territory,
+        deposits: this.deposits,
       },
       this.mySlot,
       type,
@@ -1013,14 +1063,36 @@ export class GameRuntime {
     );
   }
 
-  /** Prévia de rendimento de um edifício de coleta (células livres ao alcance → renda/s). */
+  /**
+   * Edifícios conhecidos com o depósito que exploram (deduzido das células reivindicadas, para os
+   * próprios). A validação final é do servidor, que conhece também o que está na névoa.
+   */
+  private placementBuildings() {
+    return (this.snapshot?.buildings ?? []).map((b) => {
+      const first = b.claims?.[0];
+      const depositId = first !== undefined ? this.deposits.cellDeposit[first]! : -1;
+      return { type: b.type, owner: b.owner, cell: { cx: b.cx, cy: b.cy }, progress: b.progress, claims: b.claims, depositId: depositId >= 0 ? depositId : null };
+    });
+  }
+
+  /** Prévia de rendimento de um edifício de coleta (células livres ao alcance → renda/s com todos os trabalhadores). */
   private previewYield(type: BuildingType, cell: Cell): { cells: number; rate: number } | null {
     const g = BUILDINGS[type].gather;
     if (!g || !this.snapshot) return null;
     if (g.terrain === null) return { cells: 1, rate: gatherRate(type, 1) };
-    const claimed = claimedBy(this.snapshot.buildings, type);
-    const cells = claimableCells(this.map, type, cell, claimed).length;
+    const list = this.placementBuildings();
+    const choice = chooseClaims(this.map, this.deposits, type, cell, claimedBy(list, type), sitesByDeposit(list), (i) => this.territory[i] === this.mySlot);
+    const cells = choice.claims.length;
     return { cells, rate: gatherRate(type, cells) };
+  }
+
+  setWorkers(buildingId: number, count: number): void {
+    this.send({ type: 'set_workers', buildingId, count });
+  }
+
+  trainCitizen(): void {
+    const b = this.selectedOwnBuilding();
+    if (b && b.snap.type === 'hq') this.send({ type: 'produce', buildingId: b.snap.id, unitType: 'citizen' });
   }
 
   private tryPlace(): void {
@@ -1070,6 +1142,7 @@ export class GameRuntime {
     disposeBuildingModels();
     disposeMaterials();
     this.terrain.dispose();
+    this.territoryLayer.dispose();
     this.fogTexture.dispose();
     fogUniforms.uFogMap.value = null;
     this.renderer.dispose();
@@ -1078,5 +1151,5 @@ export class GameRuntime {
 }
 
 function touchPoint(e: PointerEvent): TouchPoint {
-  return { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp };
+  return { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp, primary: e.isPrimary };
 }

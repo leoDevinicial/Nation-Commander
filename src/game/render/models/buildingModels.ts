@@ -40,6 +40,12 @@ const BUILDERS: Record<BuildingType, () => BuildingModel> = {
   quarry: buildQuarry,
   oil_well: buildOilWell,
   tower: buildTower,
+  mine: buildMine,
+  house: buildHouse,
+  residential: buildResidential,
+  warehouse: buildWarehouse,
+  silo: buildSilo,
+  oil_tank: buildOilTank,
 };
 
 /** Fileira de janelas numa fachada (normal ±x ou ±z). */
@@ -257,15 +263,10 @@ function buildOilWell(): BuildingModel {
   b.box(0.1, 1.2, 0.1, C.metal, [-0.2, 0.8, 0.5], [0.25, 0, 0]);
   b.box(0.1, 1.2, 0.1, C.metal, [-0.2, 0.8, 0.1], [-0.25, 0, 0]);
   b.box(0.3, 0.3, 0.3, C.metalDark, [-0.85, 0.35, 0.3]); // motor
-  // tanques de armazenamento
-  for (const [x, z] of [
-    [1.2, -1.1],
-    [0.2, -1.3],
-  ] as const) {
-    b.cyl(0.55, 0.55, 1.1, C.concreteLight, [x, 0.6, z], undefined, 14);
-    b.cyl(0.57, 0.57, 0.06, C.metal, [x, 1.17, z], undefined, 14);
-    a.cyl(0.565, 0.565, 0.12, '#ffffff', [x, 0.8, z], undefined, 14);
-  }
+  // manifold de válvulas e saída para o tanque de petróleo
+  b.box(0.5, 0.35, 0.35, C.metalDark, [1.1, 0.25, -1.1]);
+  b.cyl(0.06, 0.06, 0.5, C.red, [1.1, 0.6, -1.1], undefined, 6);
+  a.box(0.52, 0.08, 0.02, '#ffffff', [1.1, 0.35, -0.92]);
   b.box(1.6, 0.06, 0.06, C.metal, [0.5, 0.3, -0.5]); // tubulação
   b.box(0.06, 0.06, 1.0, C.metal, [1.25, 0.3, 0.0]);
   const jack = layers();
@@ -312,6 +313,129 @@ function buildTower(): BuildingModel {
   b.box(0.4, 0.04, 0.04, C.metalDark, [0.55, h + 0.45, -0.3]); // metralhadora
   a.box(1.42, 0.08, 0.02, '#ffffff', [0, h + 0.92, 0.7]);
   return { base: l.build(), moving: null, height: h + 1.3 };
+}
+
+// ------------------------------------------------------------------ população e armazenamento
+
+function buildMine(): BuildingModel {
+  const l = layers();
+  const { body: b, accent: a } = l;
+  b.box(3.9, 0.06, 3.9, '#6b625a', [0, 0.03, 0]);
+  // boca da mina escorada na encosta
+  b.side(
+    [
+      [-1.6, 0],
+      [1.6, 0],
+      [0.9, 1.2],
+      [-0.9, 1.2],
+    ],
+    1.6,
+    C.stone,
+    [0, 0.06, -1.1],
+  );
+  b.box(1.0, 0.8, 0.1, '#1b1a18', [0, 0.46, -0.28]);
+  b.box(0.12, 0.95, 0.12, C.woodDark, [-0.55, 0.53, -0.22]);
+  b.box(0.12, 0.95, 0.12, C.woodDark, [0.55, 0.53, -0.22]);
+  b.box(1.3, 0.12, 0.14, C.woodDark, [0, 1.02, -0.22]);
+  // trilhos e vagonete com minério avermelhado
+  b.box(0.06, 0.04, 2.0, C.metal, [-0.18, 0.08, 0.8]);
+  b.box(0.06, 0.04, 2.0, C.metal, [0.18, 0.08, 0.8]);
+  b.box(0.55, 0.32, 0.45, C.metalDark, [0, 0.3, 1.0]);
+  b.box(0.48, 0.1, 0.38, '#8a4b32', [0, 0.49, 1.0]);
+  // castelete de içamento
+  b.box(0.08, 1.8, 0.08, C.steel, [1.2, 0.95, 0.6], [0, 0, 0.15]);
+  b.box(0.08, 1.8, 0.08, C.steel, [1.6, 0.95, 0.6], [0, 0, -0.15]);
+  b.cyl(0.22, 0.22, 0.08, C.metalDark, [1.4, 1.85, 0.6], [Math.PI / 2, 0, 0], 12);
+  // pilha de minério
+  b.cyl(0.0, 0.6, 0.5, '#7b4630', [-1.3, 0.3, 1.2], undefined, 7);
+  a.box(0.9, 0.12, 0.02, '#ffffff', [0, 1.12, -0.14]);
+  return { base: l.build(), moving: null, height: 2.0 };
+}
+
+function buildHouse(): BuildingModel {
+  const l = layers();
+  const { body: b, accent: a, glass: g } = l;
+  b.box(1.8, 0.06, 1.8, '#7c8a52', [0, 0.03, 0]);
+  b.box(1.15, 0.75, 0.95, C.concreteLight, [0, 0.43, 0]);
+  b.gable(1.3, 1.1, 0.5, C.roofRed, [0, 0.8, 0]);
+  b.box(0.24, 0.45, 0.04, C.woodDark, [0.2, 0.28, 0.49]);
+  g.box(0.22, 0.2, 0.04, '#ffffff', [-0.28, 0.5, 0.49]);
+  g.box(0.04, 0.2, 0.22, '#ffffff', [0.59, 0.5, 0]);
+  b.box(0.12, 0.35, 0.12, C.brick, [0.35, 1.15, -0.2]); // chaminé
+  a.box(0.3, 0.06, 0.02, '#ffffff', [0.2, 0.55, 0.5]);
+  return { base: l.build(), moving: null, height: 1.4 };
+}
+
+function buildResidential(): BuildingModel {
+  const l = layers();
+  const { body: b, accent: a, glass: g } = l;
+  slab(b, 4);
+  // bloco de quatro pavimentos
+  b.box(2.6, 2.6, 1.7, C.concrete, [0, 1.46, -0.3]);
+  b.box(2.7, 0.1, 1.8, C.concreteDark, [0, 2.8, -0.3]);
+  for (let floor = 0; floor < 4; floor++) {
+    const y = 0.5 + floor * 0.6;
+    windows(g, 'z', 0.56, -1.0, 1.0, y, 5, 0.26, 0.28);
+    windows(g, 'x', 1.31, -0.9, 0.3, y, 2, 0.26, 0.28);
+    b.box(2.62, 0.05, 0.12, C.concreteDark, [0, y - 0.24, 0.6]); // sacadas
+  }
+  b.box(0.5, 0.3, 0.4, C.metal, [0.8, 3.0, -0.6]); // caixa d'água
+  b.box(1.4, 0.06, 0.6, '#6f7f3e', [-0.4, 0.2, 1.3]); // jardim
+  a.box(2.62, 0.1, 0.02, '#ffffff', [0, 2.7, 0.56]);
+  return { base: l.build(), moving: null, height: 3.2 };
+}
+
+function buildWarehouse(): BuildingModel {
+  const l = layers();
+  const { body: b, accent: a } = l;
+  slab(b, 4);
+  b.box(3.3, 1.3, 2.4, C.concreteDark, [0, 0.8, -0.3]);
+  b.gable(3.4, 2.5, 0.45, C.roof, [0, 1.45, -0.3]);
+  // docas e portões
+  for (const x of [-0.9, 0.9]) {
+    b.box(0.9, 0.85, 0.06, C.metalDark, [x, 0.6, 0.92]);
+    for (let i = 0; i < 4; i++) b.box(0.88, 0.02, 0.07, C.metal, [x, 0.3 + i * 0.18, 0.94]);
+  }
+  b.box(3.3, 0.25, 0.5, C.concrete, [0, 0.2, 1.2]);
+  // estoque visível: toras, blocos de pedra e lingotes
+  for (let i = 0; i < 3; i++) b.cyl(0.11, 0.11, 0.9, C.wood, [-1.3 + i * 0.24, 0.27, 1.65], [0, 0, Math.PI / 2], 8);
+  for (let i = 0; i < 3; i++) b.box(0.28, 0.24, 0.28, C.stone, [0.2 + i * 0.32, 0.22, 1.65]);
+  b.box(0.4, 0.14, 0.25, '#7e858c', [1.45, 0.17, 1.65]);
+  a.box(3.32, 0.12, 0.02, '#ffffff', [0, 1.2, 0.92]);
+  return { base: l.build(), moving: null, height: 2.0 };
+}
+
+function buildSilo(): BuildingModel {
+  const l = layers();
+  const { body: b, accent: a } = l;
+  b.box(1.8, 0.1, 1.8, C.concreteDark, [0, 0.05, 0]);
+  b.cyl(0.55, 0.55, 2.0, C.concreteLight, [-0.15, 1.1, -0.1], undefined, 14);
+  b.sphere(0.56, C.metal, [-0.15, 2.1, -0.1], [1, 0.55, 1], 14);
+  for (const y of [0.6, 1.2, 1.8]) b.cyl(0.57, 0.57, 0.05, C.metal, [-0.15, y, -0.1], undefined, 14);
+  b.box(0.06, 2.2, 0.06, C.steel, [0.45, 1.1, 0.35]); // escada
+  b.box(0.5, 0.35, 0.4, C.metalDark, [0.45, 0.25, 0.55]); // moega
+  a.cyl(0.565, 0.565, 0.12, '#ffffff', [-0.15, 1.5, -0.1], undefined, 14);
+  return { base: l.build(), moving: null, height: 2.4 };
+}
+
+function buildOilTank(): BuildingModel {
+  const l = layers();
+  const { body: b, accent: a } = l;
+  b.box(1.8, 0.1, 1.8, C.concreteDark, [0, 0.05, 0]);
+  // dique de contenção e tanque de teto flutuante
+  for (const [x, z, w, d] of [
+    [0, 0.85, 1.8, 0.1],
+    [0, -0.85, 1.8, 0.1],
+    [0.85, 0, 0.1, 1.8],
+    [-0.85, 0, 0.1, 1.8],
+  ] as const)
+    b.box(w, 0.25, d, C.concrete, [x, 0.2, z]);
+  b.cyl(0.65, 0.65, 1.0, C.white, [0, 0.6, 0], undefined, 16);
+  b.cyl(0.66, 0.66, 0.05, C.metal, [0, 1.12, 0], undefined, 16);
+  b.box(0.05, 1.0, 0.05, C.steel, [0.62, 0.6, 0.2]);
+  b.box(0.5, 0.06, 0.06, C.metal, [0.6, 0.3, -0.55]);
+  a.cyl(0.665, 0.665, 0.14, '#ffffff', [0, 0.85, 0], undefined, 16);
+  return { base: l.build(), moving: null, height: 1.3 };
 }
 
 /** Arco semicilíndrico achatado ao longo de z (cobertura de hangar). */

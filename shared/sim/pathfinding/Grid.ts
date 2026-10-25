@@ -9,6 +9,11 @@ export class Grid {
   readonly terrain: Terrain[];
   /** id do edifício que ocupa a célula, 0 se livre. */
   private readonly occupancy: Int32Array;
+  /**
+   * Bloqueio extra temporário (ex.: território onde a unidade não pode entrar), aplicado só
+   * durante o planejamento de um caminho.
+   */
+  blocker: ((cx: number, cy: number) => boolean) | null = null;
 
   constructor(width: number, height: number, cellSize: number, terrain: Terrain[]) {
     if (terrain.length !== width * height) throw new Error('Tamanho de terreno inválido');
@@ -37,7 +42,7 @@ export class Grid {
 
   isPassable(cx: number, cy: number): boolean {
     if (!this.inBounds(cx, cy)) return false;
-    return TERRAIN[this.terrainAt(cx, cy)].passable && this.occupant(cx, cy) === 0;
+    return TERRAIN[this.terrainAt(cx, cy)].passable && this.occupant(cx, cy) === 0 && !this.blocker?.(cx, cy);
   }
 
   pathCost(cx: number, cy: number): number {

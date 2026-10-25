@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import type { BuildingType, UnitType } from '../../shared/sim/config.ts';
+import type { BuildingType, DepositSize, ProducibleType, UnitType } from '../../shared/sim/config.ts';
 import type { GameSpeed } from '../../shared/protocol.ts';
 import type { PlayerSnapshot } from '../../shared/sim/snapshot.ts';
-import type { EntityId, UnitActivity } from '../../shared/sim/types.ts';
+import type { BuildingStatus, EntityId, UnitActivity } from '../../shared/sim/types.ts';
 
 export interface SelectedUnitInfo {
   id: EntityId;
@@ -18,9 +18,15 @@ export interface SelectedBuildingInfo {
   owner: number;
   hp: number;
   progress: number;
-  queue: { unitType: UnitType; progress: number }[];
+  queue: { unitType: ProducibleType; progress: number }[];
   hasRally: boolean;
   claims: number;
+  workers: number;
+  workerTarget: number;
+  status: BuildingStatus;
+  rate: number;
+  stored: number | null;
+  deposit: { remaining: number; initial: number; size: DepositSize; maxSites: number } | null;
 }
 
 export interface HudEvent {

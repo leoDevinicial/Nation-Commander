@@ -12,7 +12,16 @@ type SnapshotMsg = Extract<ServerMessage, { t: 'snapshot' }>;
  */
 export const snapshotBuffer: { last: SnapshotMsg | null } = { last: null };
 
+/** Fronteiras chegam só quando mudam: guarda a última grade para quem montar depois. */
+let lastTerritory: string | undefined;
+
 gameClient.on((msg) => {
-  if (msg.t === 'snapshot') snapshotBuffer.last = msg;
-  else if (msg.t === 'match_start') snapshotBuffer.last = null;
+  if (msg.t === 'snapshot') {
+    if (msg.s.territory) lastTerritory = msg.s.territory;
+    // o snapshot guardado sempre carrega a grade de território mais recente
+    snapshotBuffer.last = msg.s.territory || !lastTerritory ? msg : { ...msg, s: { ...msg.s, territory: lastTerritory } };
+  } else if (msg.t === 'match_start') {
+    snapshotBuffer.last = null;
+    lastTerritory = undefined;
+  }
 });

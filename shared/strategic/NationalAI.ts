@@ -4,7 +4,7 @@ import { TECH_IDS, type TechId } from './technologies.ts';
 import type { DiplomaticAction } from './Diplomacy.ts';
 
 /** Ordem de pesquisa da IA: primeiro o que ajuda no teatro, depois a economia. */
-const AI_RESEARCH_ORDER: TechId[] = ['logistics', 'rapid_training', 'guided_munitions', 'composite_armor', 'modular_construction', 'automation'];
+const AI_RESEARCH_ORDER: TechId[] = ['logistics', 'territorial_administration', 'rapid_training', 'guided_munitions', 'composite_armor', 'modular_construction', 'automation'];
 
 /**
  * Governo controlado pela IA. Revisa o orçamento uma vez por mês com regras explícitas e

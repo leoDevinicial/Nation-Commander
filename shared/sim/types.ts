@@ -1,4 +1,4 @@
-import type { BuildingType, Stockpile, Terrain, UnitType } from './config.ts';
+import type { BuildingType, ProducibleType, ResourceType, Stockpile, Terrain, UnitType } from './config.ts';
 
 export type EntityId = number;
 /** Índice do jogador na partida (0..n-1). */
@@ -46,10 +46,13 @@ export interface Unit {
   replans: number;
   lastProgressDist: number;
   repathTimer: number;
+  /** Sofrendo atrito em território inimigo neste momento (sem linha de suprimento). */
+  attrition: boolean;
 }
 
 export interface ProductionItem {
-  unitType: UnitType;
+  /** Unidade militar (já reservou um cidadão como tripulação) ou formação de cidadão. */
+  unitType: ProducibleType;
   remainingTicks: number;
   totalTicks: number;
 }
@@ -75,7 +78,22 @@ export interface Building {
   engageId: EntityId | null;
   /** Células de recurso reivindicadas (índices da grade) por edifícios de coleta. */
   claims: number[];
+  /** Depósito explorado (null: renovável ou não é edifício de coleta). */
+  depositId: number | null;
+  /** Trabalhadores alocados e o alvo definido pelo jogador (padrão: todos os postos). */
+  workers: number;
+  workerTarget: number;
+  /** Estoque próprio (tanques de petróleo). */
+  stored: number;
+  /** Produção fracionária acumulada (mantém inteiros no estoque, sem perda). */
+  acc: number;
+  status: BuildingStatus;
+  /** Manutenção não paga: o edifício não fornece seus benefícios. */
+  unpaid: boolean;
 }
+
+/** Por que um edifício não está produzindo (ou 'ok'). */
+export type BuildingStatus = 'ok' | 'no_workers' | 'storage_full' | 'no_tank' | 'depleted' | 'outside_territory' | 'unpaid';
 
 export type Entity = Unit | Building;
 
@@ -100,11 +118,22 @@ export interface TacticalModifiers {
   productionTimeMul: number;
   /** Suprimentos/s enviados pela logística nacional ao teatro. */
   externalIncome: number;
+  /** Multiplicador do raio de território (pesquisa de administração territorial). */
+  territoryMul: number;
 }
 
 export interface PlayerState {
   slot: Slot;
+  /** Estoque total. Para petróleo: reserva do QG + soma dos tanques. */
   resources: Stockpile;
+  /** Parte do petróleo guardada na reserva do QG (o resto está nos tanques). */
+  oilReserve: number;
+  /** Cidadãos (força de trabalho: empregados + ociosos). Militares não contam aqui. */
+  citizens: number;
+  /** Sem comida em estoque para o consumo da população. */
+  hungry: boolean;
+  /** Acumuladores fracionários de consumo. */
+  upkeepAcc: { food: number; supplies: number };
   modifiers: TacticalModifiers;
   /** Acumulador fracionário de renda para manter inteiros em `resources`. */
   incomeRemainder: Stockpile;
@@ -130,4 +159,10 @@ export type SimEvent =
   | { type: 'construction_completed'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; pos: Vec2 }
   | { type: 'unit_produced'; tick: number; id: EntityId; owner: Slot; unitType: UnitType; pos: Vec2 }
   | { type: 'under_attack'; tick: number; id: EntityId; owner: Slot; pos: Vec2 }
-  | { type: 'player_defeated'; tick: number; slot: Slot };
+  | { type: 'player_defeated'; tick: number; slot: Slot }
+  | { type: 'citizen_trained'; tick: number; owner: Slot; pos: Vec2 }
+  | { type: 'production_halted'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; reason: BuildingStatus; pos: Vec2 }
+  | { type: 'deposit_depleted'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; pos: Vec2 }
+  | { type: 'storage_lost'; tick: number; owner: Slot; resource: ResourceType; amount: number; reason: 'destroyed' | 'capacity' }
+  | { type: 'shortage'; tick: number; owner: Slot; resource: 'food' | 'supplies' }
+  | { type: 'attrition'; tick: number; owner: Slot; pos: Vec2 };

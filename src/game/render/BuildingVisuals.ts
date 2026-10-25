@@ -128,6 +128,8 @@ function buildClaimMarkers(type: BuildingType, opts: BuildingVisualOptions, orig
       b.cyl(0.11, 0.13, 0.14, C.woodDark, [x - 0.35, 0.07, z + 0.3], undefined, 6);
     } else if (type === 'quarry') {
       b.box(0.5, 0.3, 0.4, C.stone, [x, 0.15, z]);
+    } else if (type === 'mine') {
+      b.box(0.4, 0.25, 0.35, '#7b4630', [x, 0.55, z]);
     }
   }
   if (b.isEmpty) return null;

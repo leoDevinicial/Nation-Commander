@@ -118,3 +118,20 @@ describe('gestos de toque', () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe('robustez', () => {
+  it('um novo dedo primário descarta pontos órfãos de um gesto anterior', () => {
+    const calls: string[] = [];
+    const g = new TouchGestures(
+      { tap: () => calls.push('tap'), longPress() {}, pan: (dx) => calls.push(`pan ${dx}`), pinch: () => calls.push('pinch'), box() {}, cancel() {} },
+      () => false,
+      { set: () => 1, clear: () => {} },
+    );
+    g.down({ id: 1, x: 0, y: 0, t: 0, primary: true });
+    g.down({ id: 2, x: 50, y: 0, t: 0 });
+    // o navegador perdeu os pointerup; o próximo toque deve funcionar como um dedo só
+    g.down({ id: 3, x: 100, y: 100, t: 500, primary: true });
+    g.move({ id: 3, x: 140, y: 100, t: 520 });
+    expect(calls).toEqual(['pan 40']);
+  });
+});

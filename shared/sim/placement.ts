@@ -1,5 +1,6 @@
 import { BUILDINGS, canAfford, TERRAIN, UNITS, type BuildingType, type Stockpile, type Terrain, type UnitType } from './config.ts';
-import { claimableCells, claimedBy } from './gathering.ts';
+import type { DepositIndex } from './deposits.ts';
+import { chooseClaims, claimedBy, sitesByDeposit } from './gathering.ts';
 import type { Cell, Slot } from './types.ts';
 
 /** Visão mínima do mundo necessária para validar uma construção (usada no servidor e no cliente). */
@@ -9,9 +10,12 @@ export interface PlacementWorld {
   cellSize: number;
   terrain: ArrayLike<Terrain>;
   resourceNodes: Cell[];
-  buildings: Iterable<{ type: BuildingType; owner: Slot; cell: Cell; progress: number; claims?: number[] }>;
+  buildings: Iterable<{ type: BuildingType; owner: Slot; cell: Cell; progress: number; claims?: number[]; depositId?: number | null }>;
   units: Iterable<{ type: UnitType; pos: { x: number; y: number } }>;
   resources: Stockpile;
+  /** Dono de cada célula (-1 = neutro). */
+  territory: ArrayLike<number>;
+  deposits: DepositIndex;
 }
 
 /** Motivo pelo qual não se pode construir, ou null se a posição é válida. */
@@ -19,6 +23,8 @@ export function placementError(w: PlacementWorld, slot: Slot, type: BuildingType
   const def = BUILDINGS[type];
   if (!def.buildable) return 'Este edifício não pode ser construído';
   const buildings = [...w.buildings];
+  let foreign = -1;
+  let outside = false;
   for (let y = cell.cy; y < cell.cy + def.size; y++) {
     for (let x = cell.cx; x < cell.cx + def.size; x++) {
       if (x < 0 || y < 0 || x >= w.width || y >= w.height) return 'Fora do mapa';
@@ -29,8 +35,15 @@ export function placementError(w: PlacementWorld, slot: Slot, type: BuildingType
         return x >= b.cell.cx && x < b.cell.cx + s && y >= b.cell.cy && y < b.cell.cy + s;
       });
       if (occupied) return 'Local ocupado';
+      const owner = w.territory[y * w.width + x] ?? -1;
+      if (owner !== slot) {
+        outside = true;
+        if (owner >= 0) foreign = owner;
+      }
     }
   }
+  if (foreign >= 0) return 'Território de outra nação: não é possível construir aqui';
+  if (outside) return 'Fora do seu território: amplie a fronteira com casas, bases ou torres';
   const cs = w.cellSize;
   const minX = cell.cx * cs;
   const minY = cell.cy * cs;
@@ -40,24 +53,9 @@ export function placementError(w: PlacementWorld, slot: Slot, type: BuildingType
     const r = UNITS[u.type].radius;
     if (u.pos.x + r > minX && u.pos.x - r < maxX && u.pos.y + r > minY && u.pos.y - r < maxY) return 'Há unidades no local';
   }
-  const gather = def.gather;
-  if (gather && gather.terrain === null) {
-    if (!w.resourceNodes.some((n) => n.cx === cell.cx && n.cy === cell.cy)) return 'Poços de petróleo precisam ser construídos sobre uma jazida';
-  } else {
-    const cx = (cell.cx + def.size / 2) * cs;
-    const cy = (cell.cy + def.size / 2) * cs;
-    const inRange = buildings.some((b) => {
-      const bd = BUILDINGS[b.type];
-      if (b.owner !== slot || b.progress < 1 || bd.buildRadius <= 0) return false;
-      const bx = (b.cell.cx + bd.size / 2) * cs;
-      const by = (b.cell.cy + bd.size / 2) * cs;
-      return Math.hypot(bx - cx, by - cy) <= bd.buildRadius * cs;
-    });
-    if (!inRange) return 'Fora da área de construção';
-  }
-  if (gather && gather.terrain !== null) {
-    const n = claimableCells(w, type, cell, claimedBy(buildings, type)).length;
-    if (n < gather.minCells) return `Poucos recursos livres ao alcance (${n} de ${gather.minCells} necessários)`;
+  if (def.gather) {
+    const choice = chooseClaims(w, w.deposits, type, cell, claimedBy(buildings, type), sitesByDeposit(buildings), (i) => w.territory[i] === slot);
+    if (choice.error) return choice.error;
   }
   if (!canAfford(w.resources, def.cost)) return 'Recursos insuficientes';
   return null;

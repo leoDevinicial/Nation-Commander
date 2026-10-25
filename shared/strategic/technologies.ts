@@ -1,5 +1,5 @@
 /** Pesquisas disponíveis. Custo em "% do PIB × ano": investir esse percentual por um ano conclui a pesquisa. */
-export type TechId = 'logistics' | 'guided_munitions' | 'composite_armor' | 'modular_construction' | 'rapid_training' | 'automation';
+export type TechId = 'logistics' | 'guided_munitions' | 'composite_armor' | 'modular_construction' | 'rapid_training' | 'automation' | 'territorial_administration';
 
 export interface TechDef {
   id: TechId;
@@ -19,6 +19,8 @@ export interface TechEffects {
   productionTimeMul: number;
   /** Pontos percentuais adicionados ao crescimento anual. */
   growthBonus: number;
+  /** Multiplicador do raio de território das construções no teatro. */
+  territoryMul: number;
 }
 
 export const NEUTRAL_EFFECTS: TechEffects = {
@@ -29,6 +31,7 @@ export const NEUTRAL_EFFECTS: TechEffects = {
   constructionTimeMul: 1,
   productionTimeMul: 1,
   growthBonus: 0,
+  territoryMul: 1,
 };
 
 export const TECHNOLOGIES: Record<TechId, TechDef> = {
@@ -67,6 +70,13 @@ export const TECHNOLOGIES: Record<TechId, TechDef> = {
     cost: 0.25,
     effect: { tankHpMul: 1.25, infantryHpMul: 1.1 },
   },
+  territorial_administration: {
+    id: 'territorial_administration',
+    label: 'Administração territorial',
+    description: '+20% no raio de território de todas as construções no teatro (fronteiras maiores).',
+    cost: 0.15,
+    effect: { territoryMul: 1.2 },
+  },
   automation: {
     id: 'automation',
     label: 'Automação industrial',
@@ -89,6 +99,7 @@ export function combineEffects(done: TechId[]): TechEffects {
     e.constructionTimeMul *= t.constructionTimeMul ?? 1;
     e.productionTimeMul *= t.productionTimeMul ?? 1;
     e.growthBonus += t.growthBonus ?? 0;
+    e.territoryMul *= t.territoryMul ?? 1;
   }
   return e;
 }

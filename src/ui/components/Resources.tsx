@@ -9,6 +9,8 @@ const PATHS: Record<ResourceType, { d: string; color: string }> = {
   wood: { d: 'M3 6h9a2.5 2.5 0 010 5H3a2.5 2.5 0 010-5z M3 6a2.5 2.5 0 000 5', color: '#b0844f' },
   // pedra
   stone: { d: 'M3 12l2-6 4-2 4 3 1 5-4 2z', color: '#a9a49a' },
+  // lingote de ferro
+  iron: { d: 'M2 11l3-5h6l3 5z M5 6l1 2h4l1-2', color: '#9aa5b1' },
   // gota de petróleo
   oil: { d: 'M8 2c3 4 4.5 6 4.5 8a4.5 4.5 0 01-9 0C3.5 8 5 6 8 2z', color: '#8fa0b4' },
 };

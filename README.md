@@ -4,7 +4,9 @@ RTS geopolítico 3D multijogador para navegador (repositório e nome de trabalho
 Implementa as **Fases 1, 2 e 3** da [especificação](PROJETO_RTS_GEOPOLITICO_CLAUDE.md) e, do
 [adendo v2](docs/AUDITORIA_ADENDO.md), a auditoria (Fase 0) e a identidade visual com suporte a
 celular e tablet (Fase 1, ver [docs/FASE1_VISUAL_MOBILE.md](docs/FASE1_VISUAL_MOBILE.md)) e o globo
-diplomático com contato e guerra formal (Fase 2, ver [docs/FASE2_GLOBO_GUERRA.md](docs/FASE2_GLOBO_GUERRA.md)): uma operação tática jogável com servidor
+diplomático com contato e guerra formal (Fase 2, ver [docs/FASE2_GLOBO_GUERRA.md](docs/FASE2_GLOBO_GUERRA.md)) e
+população, armazenamento, depósitos finitos e fronteiras no estilo Rise of Nations (Fase 3, ver
+[docs/FASE3_POPULACAO_FRONTEIRAS.md](docs/FASE3_POPULACAO_FRONTEIRAS.md)): uma operação tática jogável com servidor
 autoritativo via WebSocket, e uma camada nacional (economia, orçamento, opinião pública, pesquisa)
 que roda dentro de cada partida a partir de dados reais de 10 países.
 
@@ -128,7 +130,13 @@ Limiares contra comandos acidentais: o dedo precisa andar 10 px para virar arras
 começam após uma variação clara; um segundo dedo cancela o toque e o toque longo em andamento.
 
 **Objetivo:** destruir o Centro de Comando inimigo — depois de declarar guerra no globo (sem guerra
-formal, nenhum lado pode atacar). Limite de 40 unidades.
+formal, nenhum lado pode atacar nem entrar no território do outro).
+
+**População e fronteiras:** cidadãos são formados no Centro de Comando (`Z`) e trabalham nos
+edifícios; cada soldado ou tripulação sai da força de trabalho. Moradia: QG 20, Casa (`U`) +10,
+Prédio Residencial (`I`) +20, teto de 200. Recursos ficam em Armazéns (`R`), Silos (`L`) e Tanques de
+Petróleo (`Y`) — poços só operam com tanque por perto; minas (`J`) extraem ferro nas montanhas.
+Só se constrói dentro do próprio território, que cresce com o QG, torres, bases, fábricas e casas.
 
 ### Recursos (estilo Rise of Nations)
 

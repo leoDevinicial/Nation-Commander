@@ -173,7 +173,7 @@ export class GlobeView {
       },
       () => false,
     );
-    const pt = (e: PointerEvent) => ({ id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp });
+    const pt = (e: PointerEvent) => ({ id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp, primary: e.isPrimary });
     const down = (e: PointerEvent) => {
       if (e.button !== 0 && e.pointerType === 'mouse') return;
       el.setPointerCapture(e.pointerId);

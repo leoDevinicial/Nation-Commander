@@ -62,6 +62,8 @@ export class Room {
   private nationalEvents: NationalEvent[] = [];
   private gdpStart = new Map<Slot, number>();
   private fogMemory = new Map<Slot, FogMemory>();
+  /** Última versão de território enviada a cada jogador (o mapa só vai quando muda). */
+  private territorySent = new Map<Slot, number>();
 
   sim: Simulation | null = null;
   private ais: TacticalAI[] = [];
@@ -365,6 +367,7 @@ export class Room {
         constructionTimeMul: fx.constructionTimeMul,
         productionTimeMul: fx.productionTimeMul,
         externalIncome: n.theaterSupplyPerSec,
+        territoryMul: fx.territoryMul,
       });
     }
   }
@@ -492,6 +495,7 @@ export class Room {
       this.sendMatchStart(p);
       this.system(`${p.name} reconectou.`);
       this.broadcastRoom();
+      this.territorySent.delete(p.slot); // reconexão: reenvia as fronteiras
       conn.sendRaw(this.snapshotJson([], p.slot));
       if (this.national) conn.send(this.nationalMessage(p.slot, [], true));
     }
@@ -603,9 +607,11 @@ export class Room {
     const sim = this.sim!;
     let memory = this.fogMemory.get(slot);
     if (!memory) this.fogMemory.set(slot, (memory = new FogMemory()));
+    const withTerritory = this.territorySent.get(slot) !== sim.territoryVersion;
+    this.territorySent.set(slot, sim.territoryVersion);
     return JSON.stringify({
       t: 'snapshot',
-      s: sim.ended ? makeSnapshot(sim, events) : makeSnapshot(sim, events, { slot, memory }),
+      s: sim.ended ? makeSnapshot(sim, events, undefined, withTerritory) : makeSnapshot(sim, events, { slot, memory }, withTerritory),
       paused: this.paused,
       speed: this.speed,
       pausedBy: this.pausedBy,

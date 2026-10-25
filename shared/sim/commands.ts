@@ -1,4 +1,4 @@
-import { BUILDINGS, UNITS, type BuildingType, type UnitType } from './config.ts';
+import { BUILDINGS, UNITS, type BuildingType, type ProducibleType } from './config.ts';
 import type { EntityId } from './types.ts';
 
 export type Command =
@@ -7,7 +7,8 @@ export type Command =
   | { type: 'attack'; unitIds: EntityId[]; targetId: EntityId }
   | { type: 'stop'; unitIds: EntityId[] }
   | { type: 'build'; buildingType: BuildingType; cx: number; cy: number }
-  | { type: 'produce'; buildingId: EntityId; unitType: UnitType }
+  | { type: 'produce'; buildingId: EntityId; unitType: ProducibleType }
+  | { type: 'set_workers'; buildingId: EntityId; count: number }
   | { type: 'cancel_production'; buildingId: EntityId }
   | { type: 'set_rally'; buildingId: EntityId; x: number; y: number };
 
@@ -38,8 +39,11 @@ export function parseCommand(raw: unknown): Command | null {
       if (!Number.isInteger(raw.cx) || !Number.isInteger(raw.cy)) return null;
       return { type: 'build', buildingType: raw.buildingType as BuildingType, cx: raw.cx as number, cy: raw.cy as number };
     case 'produce':
-      if (!isId(raw.buildingId) || typeof raw.unitType !== 'string' || !Object.hasOwn(UNITS, raw.unitType)) return null;
-      return { type: 'produce', buildingId: raw.buildingId, unitType: raw.unitType as UnitType };
+      if (!isId(raw.buildingId) || typeof raw.unitType !== 'string' || (raw.unitType !== 'citizen' && !Object.hasOwn(UNITS, raw.unitType))) return null;
+      return { type: 'produce', buildingId: raw.buildingId, unitType: raw.unitType as ProducibleType };
+    case 'set_workers':
+      if (!isId(raw.buildingId) || !Number.isInteger(raw.count) || (raw.count as number) < 0 || (raw.count as number) > 50) return null;
+      return { type: 'set_workers', buildingId: raw.buildingId, count: raw.count as number };
     case 'cancel_production':
       if (!isId(raw.buildingId)) return null;
       return { type: 'cancel_production', buildingId: raw.buildingId };

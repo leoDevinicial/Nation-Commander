@@ -9,22 +9,31 @@ import {
   TICK_RATE,
   TICK_SECONDS,
   UNITS,
-  UNIT_CAP,
   RESOURCE_TYPES,
+  POP_ABSOLUTE_CAP,
+  STARTING_CITIZENS,
+  CITIZEN,
+  FOOD_UPKEEP_PER_POP,
+  HUNGER_EFFICIENCY,
+  OIL_TANK_RANGE,
   canAfford,
   emptyStockpile,
   type BuildingType,
   type Cost,
+  type ResourceType,
   type Stockpile,
   type UnitType,
 } from './config.ts';
-import { claimableCells, claimedBy, gatherRate } from './gathering.ts';
+import { chooseClaims, claimedBy, gatherRate, sitesByDeposit } from './gathering.ts';
+import { findDeposits, type DepositIndex } from './deposits.ts';
+import { computeTerritory, NO_OWNER, type TerritorySource } from './territory.ts';
 import type { Command } from './commands.ts';
 import { findPath } from './pathfinding/AStar.ts';
 import { placementError } from './placement.ts';
 import { Grid } from './pathfinding/Grid.ts';
 import type {
   Building,
+  BuildingStatus,
   Cell,
   Entity,
   EntityId,
@@ -57,7 +66,30 @@ export const NEUTRAL_MODIFIERS: TacticalModifiers = {
   constructionTimeMul: 1,
   productionTimeMul: 1,
   externalIncome: 0,
+  territoryMul: 1,
 };
+
+/** Resumo populacional de um jogador. */
+export interface Population {
+  citizens: number;
+  employed: number;
+  idle: number;
+  /** Unidades em campo. */
+  military: number;
+  /** Militares em formação (já com tripulação reservada). */
+  queuedMilitary: number;
+  queuedCitizens: number;
+  total: number;
+  /** Capacidade efetiva: min(habitação, 200). */
+  cap: number;
+  /** Habitação somada antes do teto absoluto. */
+  housing: number;
+}
+
+/** Atrito por segundo (fração da vida máxima) em território inimigo sem linha de suprimento. */
+export const ATTRITION_PER_SECOND = 0.012;
+/** Raio (unidades de mundo) em que um blindado de transporte mantém a linha de suprimento. */
+export const SUPPLY_LINE_RADIUS = 12;
 
 const UNDER_ATTACK_ALERT_TICKS = TICK_RATE * 6;
 
@@ -81,16 +113,31 @@ export class Simulation {
   ended = false;
   /** Pares em guerra formal ("a:b", a < b). Sem guerra não há disparo nem ordem de ataque. */
   private readonly wars = new Set<string>();
+  /** Pares aliados: podem atravessar o território um do outro mesmo sem guerra. */
+  private readonly alliances = new Set<string>();
+  /** Depósitos naturais (quantidades finitas e limite de instalações). */
+  readonly deposits: DepositIndex;
+  /** Dono de cada célula (-1 = neutro), recalculado quando as fontes mudam. */
+  territory: Int8Array;
+  territoryVersion = 0;
+  private territoryDirty = true;
 
   constructor(init: SimulationInit) {
     this.map = init.map;
     this.grid = new Grid(init.map.width, init.map.height, init.map.cellSize, [...init.map.terrain]);
     this.players = [];
     this.lastAlertTick = [];
+    this.deposits = findDeposits(init.map);
+    this.territory = new Int8Array(init.map.width * init.map.height).fill(NO_OWNER);
     for (let slot = 0; slot < init.playerCount; slot++) {
+      const start = { ...(init.startingResources ?? STARTING_RESOURCES) };
       this.players.push({
         slot,
-        resources: { ...(init.startingResources ?? STARTING_RESOURCES) },
+        resources: start,
+        oilReserve: start.oil,
+        citizens: STARTING_CITIZENS,
+        hungry: false,
+        upkeepAcc: { food: 0, supplies: 0 },
         incomeRemainder: emptyStockpile(),
         defeated: false,
         modifiers: { ...NEUTRAL_MODIFIERS },
@@ -109,11 +156,29 @@ export class Simulation {
       this.lastAlertTick.push(-Infinity);
       const spawn = init.map.spawns[slot];
       if (!spawn) throw new Error(`Mapa sem ponto de partida para o jogador ${slot}`);
-      const hq = this.addBuilding('hq', slot, { cx: spawn.cx - 1, cy: spawn.cy - 1 }, 1);
+      this.addBuilding('hq', slot, { cx: spawn.cx - 1, cy: spawn.cy - 1 }, 1);
+      // o armazém inicial existe uma única vez, criado aqui no estado inicial da partida
+      const toCenter = spawn.cx < init.map.width / 2 ? 1 : -1;
+      const wh = { cx: toCenter > 0 ? spawn.cx + 3 : spawn.cx - 4, cy: spawn.cy - 1 };
+      if (this.footprintFree(wh, BUILDINGS.warehouse.size)) this.addBuilding('warehouse', slot, wh, 1);
+    }
+    this.recomputeTerritory();
+    for (let slot = 0; slot < init.playerCount; slot++) {
+      const hq = this.hqOf(slot)!;
       const units = init.startingUnits ?? ['infantry', 'infantry', 'infantry', 'tank'];
       for (const t of units) this.spawnUnitNear(hq, t);
+      // o estoque inicial respeita a capacidade de armazenamento
+      this.clampToCapacity(slot, 'capacity');
     }
     if (init.allAtWar) for (let a = 0; a < init.playerCount; a++) for (let b = a + 1; b < init.playerCount; b++) this.setWar(a, b, true);
+  }
+
+  private footprintFree(cell: Cell, size: number): boolean {
+    for (let y = cell.cy; y < cell.cy + size; y++)
+      for (let x = cell.cx; x < cell.cx + size; x++) {
+        if (!this.grid.inBounds(x, y) || !TERRAIN[this.grid.terrainAt(x, y)].buildable || this.grid.occupant(x, y) !== 0) return false;
+      }
+    return true;
   }
 
   // ---------------------------------------------------------------- guerra
@@ -127,6 +192,174 @@ export class Simulation {
   /** Só há hostilidade entre lados em guerra formal. */
   hostile(a: Slot, b: Slot): boolean {
     return a !== b && this.wars.has(a < b ? `${a}:${b}` : `${b}:${a}`);
+  }
+
+  setAlliance(a: Slot, b: Slot, allied: boolean): void {
+    const k = a < b ? `${a}:${b}` : `${b}:${a}`;
+    if (allied) this.alliances.add(k);
+    else this.alliances.delete(k);
+  }
+
+  allied(a: Slot, b: Slot): boolean {
+    return a !== b && this.alliances.has(a < b ? `${a}:${b}` : `${b}:${a}`);
+  }
+
+  // ---------------------------------------------------------------- território
+
+  territoryOwner(cx: number, cy: number): number {
+    if (!this.grid.inBounds(cx, cy)) return NO_OWNER;
+    return this.territory[cy * this.map.width + cx]!;
+  }
+
+  /** Pode entrar na célula: território neutro, próprio, de quem está em guerra com ele ou de aliado. */
+  canEnter(slot: Slot, cx: number, cy: number): boolean {
+    const o = this.territoryOwner(cx, cy);
+    return o === NO_OWNER || o === slot || this.hostile(slot, o) || this.allied(slot, o);
+  }
+
+  private canEnterWorld(slot: Slot, p: Vec2): boolean {
+    const c = this.grid.worldToCell(p);
+    return this.canEnter(slot, c.cx, c.cy);
+  }
+
+  /** Fontes de território: edifícios concluídos com raio, ajustado pela pesquisa de cada dono. */
+  territorySources(): TerritorySource[] {
+    const cs = this.map.cellSize;
+    const out: TerritorySource[] = [];
+    for (const b of this.buildings) {
+      const def = BUILDINGS[b.type];
+      if (b.progress < 1 || b.hp <= 0 || def.territoryRadius <= 0) continue;
+      const mul = this.players[b.owner]?.modifiers.territoryMul ?? 1;
+      out.push({ owner: b.owner, x: b.pos.x / cs, y: b.pos.y / cs, radius: def.territoryRadius * mul, weight: def.territoryWeight });
+    }
+    return out;
+  }
+
+  private recomputeTerritory(): void {
+    const next = computeTerritory(this.map.width, this.map.height, this.territorySources());
+    let changed = false;
+    for (let i = 0; i < next.length; i++) if (next[i] !== this.territory[i]) changed = true;
+    this.territory = next;
+    this.territoryDirty = false;
+    if (changed) this.territoryVersion++;
+  }
+
+  // ---------------------------------------------------------------- população e estoques
+
+  population(slot: Slot): Population {
+    const p = this.players[slot];
+    let employed = 0;
+    let housing = 0;
+    let military = 0;
+    let queuedMilitary = 0;
+    let queuedCitizens = 0;
+    for (const e of this.entities.values()) {
+      if (e.owner !== slot) continue;
+      if (e.kind === 'unit') {
+        military++;
+        continue;
+      }
+      employed += e.workers;
+      if (e.progress >= 1 && !e.unpaid) housing += BUILDINGS[e.type].housing;
+      for (const q of e.queue) if (q.unitType === 'citizen') queuedCitizens++;
+      else queuedMilitary++;
+    }
+    const citizens = p?.citizens ?? 0;
+    return {
+      citizens,
+      employed,
+      idle: Math.max(0, citizens - employed),
+      military,
+      queuedMilitary,
+      queuedCitizens,
+      total: citizens + military + queuedMilitary + queuedCitizens,
+      cap: Math.min(POP_ABSOLUTE_CAP, housing),
+      housing,
+    };
+  }
+
+  /** Capacidade de armazenamento por recurso (edifícios concluídos). */
+  capacity(slot: Slot): Stockpile {
+    const cap = emptyStockpile();
+    for (const b of this.buildings) {
+      if (b.owner !== slot || b.progress < 1) continue;
+      const st = BUILDINGS[b.type].storage;
+      for (const r of RESOURCE_TYPES) cap[r] += st[r] ?? 0;
+    }
+    return cap;
+  }
+
+  private tanks(slot: Slot): Building[] {
+    return this.buildings.filter((b) => b.owner === slot && b.type === 'oil_tank' && b.progress >= 1 && b.hp > 0);
+  }
+
+  /**
+   * Adiciona recurso respeitando a capacidade. Retorna o quanto entrou; o excedente não some em
+   * silêncio: quem chama decide (pausar a produção) ou registra a perda.
+   */
+  private store(slot: Slot, r: ResourceType, amount: number): number {
+    const p = this.players[slot]!;
+    if (amount <= 0) return 0;
+    if (r === 'oil') {
+      let left = amount;
+      const reserveCap = BUILDINGS.hq.storage.oil ?? 0;
+      const toReserve = Math.min(left, Math.max(0, reserveCap - p.oilReserve));
+      p.oilReserve += toReserve;
+      left -= toReserve;
+      for (const t of this.tanks(slot)) {
+        if (left <= 0) break;
+        const add = Math.min(left, (BUILDINGS.oil_tank.storage.oil ?? 0) - t.stored);
+        if (add > 0) {
+          t.stored += add;
+          left -= add;
+        }
+      }
+      const stored = amount - left;
+      p.resources.oil += stored;
+      return stored;
+    }
+    const free = Math.max(0, this.capacity(slot)[r] - p.resources[r]);
+    const add = Math.min(free, amount);
+    p.resources[r] += add;
+    return add;
+  }
+
+  /** Retira petróleo dos tanques (os mais cheios primeiro) e, por último, da reserva do QG. */
+  private takeOil(p: PlayerState, amount: number): void {
+    let left = amount;
+    const tanks = this.tanks(p.slot).sort((a, b) => b.stored - a.stored || a.id - b.id);
+    for (const t of tanks) {
+      if (left <= 0) break;
+      const take = Math.min(left, t.stored);
+      t.stored -= take;
+      left -= take;
+    }
+    const fromReserve = Math.min(left, p.oilReserve);
+    p.oilReserve -= fromReserve;
+    p.resources.oil -= amount;
+  }
+
+  /** Corta o excedente acima da capacidade, registrando a perda (nunca em silêncio). */
+  private clampToCapacity(slot: Slot, reason: 'destroyed' | 'capacity'): void {
+    const p = this.players[slot]!;
+    const cap = this.capacity(slot);
+    for (const r of RESOURCE_TYPES) {
+      if (r === 'oil') {
+        const reserveCap = this.hqOf(slot) ? (BUILDINGS.hq.storage.oil ?? 0) : 0;
+        if (p.oilReserve > reserveCap) {
+          const lost = p.oilReserve - reserveCap;
+          p.oilReserve = reserveCap;
+          this.emit({ type: 'storage_lost', tick: this.tick, owner: slot, resource: 'oil', amount: Math.round(lost), reason });
+        }
+        p.resources.oil = p.oilReserve + this.tanks(slot).reduce((a, t) => a + t.stored, 0);
+        continue;
+      }
+      if (p.resources[r] > cap[r]) {
+        const lost = p.resources[r] - cap[r];
+        p.resources[r] = cap[r];
+        this.emit({ type: 'storage_lost', tick: this.tick, owner: slot, resource: r, amount: Math.round(lost), reason });
+      }
+    }
   }
 
   // ---------------------------------------------------------------- consultas
@@ -153,26 +386,41 @@ export class Simulation {
     return ev;
   }
 
-  supplyUsed(slot: Slot): number {
-    let n = 0;
-    for (const e of this.entities.values()) {
-      if (e.owner !== slot) continue;
-      if (e.kind === 'unit') n++;
-      else n += e.queue.length;
-    }
-    return n;
+  /**
+   * Produção nominal por segundo de um edifício nas condições atuais (trabalhadores, fome,
+   * território, depósito). Não considera estoque cheio — esse caso aparece no `status`.
+   */
+  buildingRate(b: Building): number {
+    const def = BUILDINGS[b.type];
+    if (b.progress < 1 || !def.gather) return 0;
+    const p = this.players[b.owner]!;
+    const eff = this.workEfficiency(b) * (p.hungry ? HUNGER_EFFICIENCY : 1);
+    if (eff <= 0) return 0;
+    if (b.depositId !== null && (this.deposits.deposits[b.depositId]?.remaining ?? 0) <= 0) return 0;
+    const cells = def.gather.terrain === null ? 1 : b.claims.filter((i) => this.territory[i] === b.owner).length;
+    return gatherRate(b.type, cells) * eff;
   }
 
-  /** Renda por segundo de cada recurso: edifícios concluídos, coleta e logística nacional. */
+  /** Fração dos postos de trabalho ocupados (1 se o edifício não precisa de trabalhadores). */
+  workEfficiency(b: Building): number {
+    const need = BUILDINGS[b.type].workers;
+    return need > 0 ? b.workers / need : 1;
+  }
+
+  /** Saldo por segundo de cada recurso: produção ativa menos consumo da população e manutenção. */
   incomePerSecond(slot: Slot): Stockpile {
     const inc = emptyStockpile();
-    inc.supplies += this.players[slot]?.modifiers.externalIncome ?? 0;
+    const p = this.players[slot];
+    if (!p) return inc;
+    inc.supplies += p.modifiers.externalIncome;
     for (const b of this.buildings) {
       if (b.owner !== slot || b.progress < 1) continue;
       const def = BUILDINGS[b.type];
       for (const r of RESOURCE_TYPES) inc[r] += def.income[r] ?? 0;
-      if (def.gather) inc[def.gather.resource] += gatherRate(b.type, b.claims.length);
+      for (const r of RESOURCE_TYPES) inc[r] -= def.upkeep[r] ?? 0;
+      if (def.gather && b.status === 'ok') inc[def.gather.resource] += this.buildingRate(b);
     }
+    inc.food -= this.population(slot).total * FOOD_UPKEEP_PER_POP;
     return inc;
   }
 
@@ -255,7 +503,9 @@ export class Simulation {
       case 'attack_move': {
         const units = this.ownUnits(slot, cmd.unitIds);
         if (units.length === 0) return 'Nenhuma unidade válida';
-        const targets = this.formationTargets(units, { x: cmd.x, y: cmd.y });
+        const tc = this.grid.worldToCell(this.clampToMap({ x: cmd.x, y: cmd.y }));
+        if (!this.canEnter(slot, tc.cx, tc.cy)) return 'Território de outra nação: sem guerra ou aliança não é possível entrar';
+        const targets = this.formationTargets(units, { x: cmd.x, y: cmd.y }).map((t) => this.nearestEnterable(slot, t) ?? t);
         units.forEach((u, i) => {
           const target = targets[i]!;
           u.order = cmd.type === 'move' ? { kind: 'move', target } : { kind: 'attackMove', target };
@@ -302,12 +552,27 @@ export class Simulation {
         const b = this.entities.get(cmd.buildingId);
         if (!b || b.kind !== 'building' || b.owner !== slot) return 'Edifício inválido';
         if (b.progress < 1) return 'Edifício em construção';
+        if (b.queue.length >= PRODUCTION_QUEUE_LIMIT) return 'Fila de produção cheia';
+        const pop = this.population(slot);
+        if (cmd.unitType === 'citizen') {
+          if (b.type !== 'hq') return 'Cidadãos são formados no Centro de Comando';
+          if (pop.total >= pop.cap)
+            return pop.cap >= POP_ABSOLUTE_CAP
+              ? `Limite nacional de ${POP_ABSOLUTE_CAP} habitantes atingido`
+              : `Sem moradia: ${pop.total}/${pop.cap}. Construa casas ou prédios residenciais (ou perca unidades) para liberar espaço`;
+          if (!canAfford(player.resources, CITIZEN.cost)) return 'Recursos insuficientes';
+          this.spend(player, CITIZEN.cost);
+          const ticks = Math.max(1, Math.round(CITIZEN.buildSeconds * TICK_RATE));
+          b.queue.push({ unitType: 'citizen', remainingTicks: ticks, totalTicks: ticks });
+          return null;
+        }
         const def = UNITS[cmd.unitType];
         if (def.producedBy !== b.type) return `${BUILDINGS[b.type].label} não produz ${def.label}`;
-        if (b.queue.length >= PRODUCTION_QUEUE_LIMIT) return 'Fila de produção cheia';
-        if (this.supplyUsed(slot) >= UNIT_CAP) return 'Limite de unidades atingido';
+        // cada militar sai da força de trabalho: precisa de um cidadão ocioso como tripulação
+        if (pop.idle < 1) return 'Nenhum cidadão disponível: forme cidadãos no Centro de Comando ou libere trabalhadores';
         if (!canAfford(player.resources, def.cost)) return 'Recursos insuficientes';
         this.spend(player, def.cost);
+        player.citizens--;
         const ticks = Math.max(1, Math.round(def.buildSeconds * TICK_RATE * player.modifiers.productionTimeMul));
         b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks });
         return null;
@@ -317,7 +582,17 @@ export class Simulation {
         if (!b || b.kind !== 'building' || b.owner !== slot) return 'Edifício inválido';
         const item = b.queue.pop();
         if (!item) return 'Fila vazia';
-        this.spend(player, UNITS[item.unitType].cost, -1);
+        this.refund(slot, item.unitType === 'citizen' ? CITIZEN.cost : UNITS[item.unitType].cost);
+        if (item.unitType !== 'citizen') player.citizens++; // a tripulação volta à força de trabalho
+        return null;
+      }
+      case 'set_workers': {
+        const b = this.entities.get(cmd.buildingId);
+        if (!b || b.kind !== 'building' || b.owner !== slot) return 'Edifício inválido';
+        const need = BUILDINGS[b.type].workers;
+        if (need === 0) return 'Este edifício não emprega trabalhadores';
+        b.workerTarget = Math.max(0, Math.min(need, Math.floor(cmd.count)));
+        this.staff(slot);
         return null;
       }
       case 'set_rally': {
@@ -329,12 +604,26 @@ export class Simulation {
     }
   }
 
-  /** Debita (sign=1) ou reembolsa (sign=−1) um custo em vários recursos. */
-  private spend(player: PlayerState, cost: Cost, sign = 1): void {
+  /** Debita um custo (o chamador já verificou o saldo). Petróleo sai dos tanques e da reserva. */
+  private spend(player: PlayerState, cost: Cost): void {
     for (const r of RESOURCE_TYPES) {
-      const v = (cost[r] ?? 0) * sign;
-      player.resources[r] -= v;
+      const v = cost[r] ?? 0;
+      if (v <= 0) continue;
+      if (r === 'oil') this.takeOil(player, v);
+      else player.resources[r] -= v;
       player.stats.resourcesSpent += v;
+    }
+  }
+
+  /** Reembolso: respeita a capacidade; o que não couber é registrado como perda. */
+  private refund(slot: Slot, cost: Cost): void {
+    const p = this.players[slot]!;
+    for (const r of RESOURCE_TYPES) {
+      const v = cost[r] ?? 0;
+      if (v <= 0) continue;
+      const stored = this.store(slot, r, v);
+      p.stats.resourcesSpent -= stored;
+      if (stored < v) this.emit({ type: 'storage_lost', tick: this.tick, owner: slot, resource: r, amount: Math.round(v - stored), reason: 'capacity' });
     }
   }
 
@@ -367,6 +656,8 @@ export class Simulation {
         buildings: this.buildings,
         units: this.units,
         resources: player.resources,
+        territory: this.territory,
+        deposits: this.deposits,
       },
       slot,
       type,
@@ -379,28 +670,181 @@ export class Simulation {
   step(): void {
     if (this.ended) return;
     this.tick++;
+    if (this.territoryDirty) this.recomputeTerritory();
+    if (this.tick % TICK_RATE === 0) for (const p of this.players) if (!p.defeated) this.staff(p.slot);
     this.updateEconomy();
+    this.updateUpkeep();
     this.updateConstruction();
     this.updateProduction();
     for (const u of this.units) this.updateUnit(u);
+    this.updateAttrition();
+    if (this.tick % TICK_RATE === 0) this.evacuateForeignTerritory();
     for (const b of this.buildings) this.updateBuildingWeapon(b);
     this.separateUnits();
     this.removeDead();
     this.checkVictory();
   }
 
+  /**
+   * Distribui a força de trabalho: retira trabalhadores acima do alvo (ou de obras) e aloca
+   * cidadãos ociosos nos postos vagos, na ordem de construção dos edifícios.
+   */
+  staff(slot: Slot): void {
+    const p = this.players[slot]!;
+    const mine = this.buildings.filter((b) => b.owner === slot).sort((a, b) => a.id - b.id);
+    let employed = 0;
+    for (const b of mine) {
+      const limit = b.progress >= 1 && b.hp > 0 ? Math.min(b.workerTarget, BUILDINGS[b.type].workers) : 0;
+      if (b.workers > limit) b.workers = limit;
+      employed += b.workers;
+    }
+    // menos cidadãos que empregos (ex.: perdas): libera dos edifícios mais novos
+    for (let i = mine.length - 1; i >= 0 && employed > p.citizens; i--) {
+      const b = mine[i]!;
+      const cut = Math.min(b.workers, employed - p.citizens);
+      b.workers -= cut;
+      employed -= cut;
+    }
+    let idle = p.citizens - employed;
+    for (const b of mine) {
+      if (idle <= 0) break;
+      if (b.progress < 1 || b.hp <= 0) continue;
+      const want = Math.min(b.workerTarget, BUILDINGS[b.type].workers) - b.workers;
+      if (want <= 0) continue;
+      const add = Math.min(want, idle);
+      b.workers += add;
+      idle -= add;
+    }
+  }
+
+  private setStatus(b: Building, status: BuildingStatus): void {
+    if (b.status === status) return;
+    const before = b.status;
+    b.status = status;
+    if (status !== 'ok' && before === 'ok') {
+      if (status === 'depleted') this.emit({ type: 'deposit_depleted', tick: this.tick, id: b.id, owner: b.owner, buildingType: b.type, pos: { ...b.pos } });
+      else this.emit({ type: 'production_halted', tick: this.tick, id: b.id, owner: b.owner, buildingType: b.type, reason: status, pos: { ...b.pos } });
+    }
+  }
+
+  /** Tanque próprio com espaço ao alcance de um poço (ou o motivo de não haver). */
+  private tankFor(b: Building): { tank: Building | null; reason: BuildingStatus } {
+    const cs = this.map.cellSize;
+    const inRange = this.tanks(b.owner).filter((t) => dist(t.pos, b.pos) / cs <= OIL_TANK_RANGE).sort((x, y) => dist(x.pos, b.pos) - dist(y.pos, b.pos) || x.id - y.id);
+    if (!inRange.length) return { tank: null, reason: 'no_tank' };
+    const cap = BUILDINGS.oil_tank.storage.oil ?? 0;
+    const free = inRange.find((t) => t.stored < cap);
+    return free ? { tank: free, reason: 'ok' } : { tank: null, reason: 'storage_full' };
+  }
+
+  /**
+   * Produção: cada edifício de coleta rende conforme trabalhadores, território e depósito; o
+   * produto só entra se houver onde guardar. Sem espaço, a produção pausa (status) em vez de
+   * descartar. Depósitos finitos diminuem exatamente o que foi extraído.
+   */
   private updateEconomy(): void {
     for (const p of this.players) {
       if (p.defeated) continue;
-      const inc = this.incomePerSecond(p.slot);
-      for (const r of RESOURCE_TYPES) {
-        p.incomeRemainder[r] += inc[r] * TICK_SECONDS;
-        const whole = Math.floor(p.incomeRemainder[r] + 1e-9);
-        if (whole > 0) {
-          p.incomeRemainder[r] -= whole;
-          p.resources[r] += whole;
-          p.stats.resourcesGathered += whole;
+      // renda fixa (QG) e logística nacional: suprimentos, limitados pela capacidade
+      let fixed = p.modifiers.externalIncome;
+      for (const b of this.buildings) if (b.owner === p.slot && b.progress >= 1) fixed += BUILDINGS[b.type].income.supplies ?? 0;
+      p.incomeRemainder.supplies += fixed * TICK_SECONDS;
+      const whole = Math.floor(p.incomeRemainder.supplies + 1e-9);
+      if (whole > 0) {
+        const got = this.store(p.slot, 'supplies', whole);
+        p.stats.resourcesGathered += got;
+        p.incomeRemainder.supplies = got < whole ? Math.min(1, p.incomeRemainder.supplies - got) : p.incomeRemainder.supplies - whole;
+      }
+    }
+    const cap = new Map<Slot, Stockpile>();
+    for (const b of this.buildings) {
+      const def = BUILDINGS[b.type];
+      if (!def.gather || b.progress < 1 || b.hp <= 0) continue;
+      const p = this.players[b.owner]!;
+      if (p.defeated) continue;
+      const deposit = b.depositId !== null ? this.deposits.deposits[b.depositId] : undefined;
+      if (deposit && deposit.remaining <= 0) {
+        this.setStatus(b, 'depleted');
+        continue;
+      }
+      if (BUILDINGS[b.type].workers > 0 && b.workers === 0) {
+        this.setStatus(b, 'no_workers');
+        continue;
+      }
+      const rate = this.buildingRate(b);
+      if (rate <= 0) {
+        this.setStatus(b, 'outside_territory');
+        continue;
+      }
+      const r = def.gather.resource;
+      let tank: Building | null = null;
+      if (r === 'oil') {
+        const t = this.tankFor(b);
+        if (!t.tank) {
+          this.setStatus(b, t.reason);
+          continue;
         }
+        tank = t.tank;
+      } else {
+        let c = cap.get(b.owner);
+        if (!c) cap.set(b.owner, (c = this.capacity(b.owner)));
+        if (p.resources[r] >= c[r]) {
+          this.setStatus(b, 'storage_full');
+          b.acc = Math.min(b.acc, 1);
+          continue;
+        }
+      }
+      this.setStatus(b, 'ok');
+      b.acc += rate * TICK_SECONDS;
+      const whole = Math.floor(b.acc + 1e-9);
+      if (whole <= 0) continue;
+      let amount = Math.min(whole, deposit ? deposit.remaining : whole);
+      if (tank) {
+        amount = Math.min(amount, (BUILDINGS.oil_tank.storage.oil ?? 0) - tank.stored);
+        tank.stored += amount;
+        p.resources.oil += amount;
+      } else {
+        amount = this.store(b.owner, r, amount);
+      }
+      b.acc -= whole;
+      if (deposit) deposit.remaining -= amount;
+      p.stats.resourcesGathered += amount;
+    }
+  }
+
+  /** Consumo de comida pela população e manutenção dos edifícios (sem saldo negativo). */
+  private updateUpkeep(): void {
+    for (const p of this.players) {
+      if (p.defeated) continue;
+      const pop = this.population(p.slot).total;
+      p.upkeepAcc.food += pop * FOOD_UPKEEP_PER_POP * TICK_SECONDS;
+      const food = Math.floor(p.upkeepAcc.food);
+      if (food > 0) {
+        p.upkeepAcc.food -= food;
+        const eaten = Math.min(food, p.resources.food);
+        p.resources.food -= eaten;
+        const hungry = eaten < food;
+        if (hungry && !p.hungry) this.emit({ type: 'shortage', tick: this.tick, owner: p.slot, resource: 'food' });
+        p.hungry = hungry;
+      }
+      for (const b of this.buildings) {
+        const up = BUILDINGS[b.type].upkeep.supplies ?? 0;
+        if (b.owner !== p.slot || b.progress < 1 || up <= 0) continue;
+        p.upkeepAcc.supplies += up * TICK_SECONDS;
+      }
+      const sup = Math.floor(p.upkeepAcc.supplies);
+      if (sup > 0) {
+        p.upkeepAcc.supplies -= sup;
+        const paid = Math.min(sup, p.resources.supplies);
+        p.resources.supplies -= paid;
+        const unpaid = paid < sup;
+        for (const b of this.buildings) {
+          if (b.owner !== p.slot || (BUILDINGS[b.type].upkeep.supplies ?? 0) <= 0) continue;
+          if (unpaid && !b.unpaid) this.setStatus(b, 'unpaid');
+          else if (!unpaid && b.unpaid) this.setStatus(b, 'ok');
+          b.unpaid = unpaid;
+        }
+        if (unpaid) this.emit({ type: 'shortage', tick: this.tick, owner: p.slot, resource: 'supplies' });
       }
     }
   }
@@ -416,6 +860,8 @@ export class Simulation {
       if (b.progress >= 1) {
         b.progress = 1;
         this.players[b.owner]!.stats.structuresBuilt++;
+        if (def.territoryRadius > 0) this.territoryDirty = true;
+        this.staff(b.owner);
         this.emit({ type: 'construction_completed', tick: this.tick, id: b.id, owner: b.owner, buildingType: b.type, pos: { ...b.pos } });
       }
     }
@@ -426,8 +872,24 @@ export class Simulation {
       if (b.progress < 1 || b.hp <= 0) continue;
       const item = b.queue[0];
       if (!item) continue;
-      item.remainingTicks--;
+      // bases e fábricas produzem no ritmo dos trabalhadores alocados (sem nenhum, param)
+      const eff = this.workEfficiency(b) * (this.players[b.owner]!.hungry ? HUNGER_EFFICIENCY : 1);
+      if (eff <= 0) {
+        this.setStatus(b, 'no_workers');
+        continue;
+      }
+      if (BUILDINGS[b.type].workers > 0) this.setStatus(b, 'ok');
+      b.acc += eff;
+      const steps = Math.floor(b.acc + 1e-9);
+      b.acc -= steps;
+      item.remainingTicks -= steps;
       if (item.remainingTicks > 0) continue;
+      if (item.unitType === 'citizen') {
+        b.queue.shift();
+        this.players[b.owner]!.citizens++;
+        this.emit({ type: 'citizen_trained', tick: this.tick, owner: b.owner, pos: { ...b.pos } });
+        continue;
+      }
       const u = this.spawnUnitNear(b, item.unitType);
       if (!u) {
         item.remainingTicks = TICK_RATE; // sem espaço: tenta de novo em 1 s
@@ -441,6 +903,64 @@ export class Simulation {
         if (!this.planPath(u, b.rally)) u.order = { kind: 'idle' };
       }
     }
+  }
+
+  /**
+   * Atrito (como em Rise of Nations): unidades em território de um país com quem estão em guerra
+   * perdem vida aos poucos, a menos que um blindado de transporte próprio esteja por perto
+   * mantendo a linha de suprimento.
+   */
+  private updateAttrition(): void {
+    const apcs = this.units.filter((u) => u.type === 'apc');
+    for (const u of this.units) {
+      const c = this.grid.worldToCell(u.pos);
+      const owner = this.territoryOwner(c.cx, c.cy);
+      const hostileGround = owner !== NO_OWNER && owner !== u.owner && this.hostile(u.owner, owner);
+      const supplied = hostileGround && apcs.some((a) => a.owner === u.owner && dist(a.pos, u.pos) <= SUPPLY_LINE_RADIUS);
+      const was = u.attrition;
+      u.attrition = hostileGround && !supplied;
+      if (!u.attrition) continue;
+      if (!was) this.emit({ type: 'attrition', tick: this.tick, owner: u.owner, pos: { ...u.pos } });
+      u.hp -= u.maxHp * ATTRITION_PER_SECOND * TICK_SECONDS;
+      if (u.hp <= 0) this.markDestroyed(u, owner);
+    }
+  }
+
+  /** Unidades paradas em território onde não podem estar (fronteira que avançou) saem sozinhas. */
+  private evacuateForeignTerritory(): void {
+    for (const u of this.units) {
+      if (u.order.kind !== 'idle' || u.engageId !== null) continue;
+      const c = this.grid.worldToCell(u.pos);
+      if (this.canEnter(u.owner, c.cx, c.cy)) continue;
+      const exit = this.nearestEnterable(u.owner, u.pos);
+      if (!exit) continue;
+      u.order = { kind: 'move', target: exit };
+      if (!this.planPath(u, exit)) this.setIdle(u);
+    }
+  }
+
+  /** Ponto passável mais próximo onde o jogador pode estar (busca em anéis de células). */
+  nearestEnterable(slot: Slot, p: Vec2): Vec2 | null {
+    const c = this.grid.worldToCell(this.clampToMap(p));
+    if (this.grid.isPassable(c.cx, c.cy) && this.canEnter(slot, c.cx, c.cy)) return p;
+    for (let r = 1; r <= 20; r++) {
+      let best: Cell | null = null;
+      let bestD = Infinity;
+      for (let dy = -r; dy <= r; dy++)
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = c.cx + dx;
+          const y = c.cy + dy;
+          if (!this.grid.isPassable(x, y) || !this.canEnter(slot, x, y)) continue;
+          const d = dx * dx + dy * dy;
+          if (d < bestD) {
+            bestD = d;
+            best = { cx: x, cy: y };
+          }
+        }
+      if (best) return this.grid.cellCenter(best);
+    }
+    return null;
   }
 
   // ---------------------------------------------------------------- unidades
@@ -603,8 +1123,23 @@ export class Simulation {
 
   // ---------------------------------------------------------------- movimento
 
-  /** Planeja caminho até `target`. Para edifícios, mira a célula livre mais próxima ao redor. */
+  /**
+   * Planeja caminho até `target`. Para edifícios, mira a célula livre mais próxima ao redor.
+   * O caminho evita território onde a unidade não pode entrar (sem guerra nem aliança); se ela já
+   * estiver num território assim, pode atravessá-lo para sair.
+   */
   planPath(u: Unit, target: Vec2, building?: Building): boolean {
+    const g = this.grid;
+    const here = g.worldToCell(u.pos);
+    if (this.canEnter(u.owner, here.cx, here.cy)) g.blocker = (cx, cy) => !this.canEnter(u.owner, cx, cy);
+    try {
+      return this.planPathInner(u, target, building);
+    } finally {
+      g.blocker = null;
+    }
+  }
+
+  private planPathInner(u: Unit, target: Vec2, building?: Building): boolean {
     const g = this.grid;
     let start = g.worldToCell(u.pos);
     if (!g.isPassable(start.cx, start.cy)) {
@@ -684,6 +1219,11 @@ export class Simulation {
     }
     u.facing = Math.atan2(dy, dx);
     const next = { x: u.pos.x + (dx / d) * speed, y: u.pos.y + (dy / d) * speed };
+    // a fronteira pode ter avançado depois do planejamento: não cruza para território proibido
+    if (!this.canEnterWorld(u.owner, next) && this.canEnterWorld(u.owner, u.pos)) {
+      u.path = [];
+      return true;
+    }
     if (this.grid.isWorldPassable(next)) u.pos = next;
 
     // detecção de bloqueio persistente → replanejamento limitado
@@ -783,19 +1323,24 @@ export class Simulation {
       rally: null,
       cooldown: 0,
       engageId: null,
-      claims: def.gather ? this.claimFor(type, owner, cell) : [],
+      claims: [],
+      depositId: null,
+      workers: 0,
+      workerTarget: def.workers,
+      stored: 0,
+      acc: 0,
+      status: 'ok',
+      unpaid: false,
     };
+    if (def.gather) {
+      const choice = chooseClaims(this.map, this.deposits, type, cell, claimedBy(this.buildings, type), sitesByDeposit(this.buildings), (i) => this.territory[i] === owner);
+      b.claims = choice.claims;
+      b.depositId = choice.depositId;
+    }
     this.entities.set(b.id, b);
     this.grid.setOccupied(cell, def.size, b.id);
+    if (progress >= 1 && def.territoryRadius > 0) this.territoryDirty = true;
     return b;
-  }
-
-  /** Células de recurso que um novo edifício de coleta reivindica (petróleo: a própria jazida). */
-  private claimFor(type: BuildingType, _owner: Slot, cell: Cell): number[] {
-    const g = BUILDINGS[type].gather;
-    if (!g) return [];
-    if (g.terrain === null) return [cell.cy * this.map.width + cell.cx];
-    return claimableCells(this.map, type, cell, claimedBy(this.buildings, type));
   }
 
   /** Cria uma unidade numa célula livre ao redor do edifício. */
@@ -841,6 +1386,7 @@ export class Simulation {
       replans: 0,
       lastProgressDist: Infinity,
       repathTimer: 0,
+      attrition: false,
     };
     this.entities.set(u.id, u);
     return u;
@@ -854,7 +1400,9 @@ export class Simulation {
   /** Atualiza os modificadores vindos da camada nacional. */
   setModifiers(slot: Slot, m: Partial<TacticalModifiers>): void {
     const p = this.players[slot];
-    if (p) p.modifiers = { ...p.modifiers, ...m };
+    if (!p) return;
+    if (m.territoryMul !== undefined && m.territoryMul !== p.modifiers.territoryMul) this.territoryDirty = true;
+    p.modifiers = { ...p.modifiers, ...m };
   }
 
   private setIdle(u: Unit): void {
@@ -904,7 +1452,22 @@ export class Simulation {
         // destruir o edifício interrompe a fila (sem reembolso) e libera as células
         e.queue = [];
         this.grid.setOccupied(e.cell, BUILDINGS[e.type].size, 0);
-        if (e.type === 'hq') this.defeat(e.owner);
+        const def = BUILDINGS[e.type];
+        if (def.territoryRadius > 0 && e.progress >= 1) this.territoryDirty = true;
+        if (e.type === 'hq') {
+          this.defeat(e.owner);
+          continue;
+        }
+        // o petróleo de um tanque destruído se perde (exatamente o que estava nele)
+        if (e.type === 'oil_tank' && e.stored > 0) {
+          const p = this.players[e.owner]!;
+          p.resources.oil -= e.stored;
+          this.emit({ type: 'storage_lost', tick: this.tick, owner: e.owner, resource: 'oil', amount: Math.round(e.stored), reason: 'destroyed' });
+          e.stored = 0;
+        }
+        // armazém/silo destruído: o que exceder a capacidade restante se perde, com registro
+        if (e.progress >= 1 && Object.keys(def.storage).length) this.clampToCapacity(e.owner, 'destroyed');
+        if (e.workers > 0) e.workers = 0;
       }
     }
   }

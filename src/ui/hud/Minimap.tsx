@@ -34,6 +34,19 @@ export function Minimap({ runtime }: { runtime: GameRuntime }) {
     const draw = () => {
       const d = runtime.minimapData();
       ctx.drawImage(bg, 0, 0);
+      // território: tom da nação e borda mais forte onde o dono muda
+      const t = d.territory;
+      for (let i = 0; i < t.length; i++) {
+        const o = t[i]!;
+        if (o < 0) continue;
+        const x = i % map.width;
+        const y = Math.floor(i / map.width);
+        const edge = (x > 0 && t[i - 1] !== o) || (x < map.width - 1 && t[i + 1] !== o) || (y > 0 && t[i - map.width] !== o) || (y < map.height - 1 && t[i + map.width] !== o);
+        ctx.globalAlpha = edge ? 0.85 : 0.18;
+        ctx.fillStyle = factionColor(o);
+        ctx.fillRect(x * cellPx, y * cellPx, cellPx + 0.5, cellPx + 0.5);
+      }
+      ctx.globalAlpha = 1;
       // névoa de guerra: inexplorado escuro, explorado esmaecido
       for (let i = 0; i < d.fog.length; i++) {
         const f = d.fog[i];

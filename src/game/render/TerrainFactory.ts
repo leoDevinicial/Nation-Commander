@@ -14,6 +14,7 @@ const TERRAIN_COLORS: Record<Terrain, THREE.Color> = {
   [Terrain.Water]: new THREE.Color('#3b5a52'),
   [Terrain.Rock]: new THREE.Color('#8a857a'),
   [Terrain.Fertile]: new THREE.Color('#6d5a37'),
+  [Terrain.Ore]: new THREE.Color('#7d5a46'),
 };
 
 export const MINIMAP_COLORS: Record<Terrain, string> = {
@@ -24,6 +25,7 @@ export const MINIMAP_COLORS: Record<Terrain, string> = {
   [Terrain.Water]: '#24485a',
   [Terrain.Rock]: '#7a766c',
   [Terrain.Fertile]: '#7d6a3e',
+  [Terrain.Ore]: '#8a5a44',
 };
 
 const NATURE_URL = '/assets/models/nature/';
@@ -104,7 +106,7 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high'): TerrainHand
       tmp.r += TERRAIN_COLORS[t].r / 4;
       tmp.g += TERRAIN_COLORS[t].g / 4;
       tmp.b += TERRAIN_COLORS[t].b / 4;
-      height += (t === Terrain.Water ? -0.7 : t === Terrain.Rock ? 0.5 : t === Terrain.Mud ? -0.08 : 0) / 4;
+      height += (t === Terrain.Water ? -0.7 : t === Terrain.Rock || t === Terrain.Ore ? 0.9 : t === Terrain.Mud ? -0.08 : 0) / 4;
     }
     const jitter = 0.93 + rng.next() * 0.12;
     colors[i * 3] = tmp.r * jitter;
@@ -135,6 +137,7 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high'): TerrainHand
   const trees: { x: number; z: number; s: number; r: number; v: number }[] = [];
   const rocks: { x: number; z: number; s: number; r: number; v: number }[] = [];
   const bushes: { x: number; z: number; s: number; r: number; v: number }[] = [];
+  const ores: { x: number; z: number; s: number; r: number; v: number }[] = [];
   for (let cy = 0; cy < map.height; cy++) {
     for (let cx = 0; cx < map.width; cx++) {
       const t = map.terrain[cy * map.width + cx];
@@ -143,8 +146,9 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high'): TerrainHand
       if (t === Terrain.Forest) {
         const n = quality === 'high' ? 2 : 1;
         for (let k = 0; k < n; k++) trees.push({ x: bx + 0.3 + rng.next() * 1.4, z: bz + 0.3 + rng.next() * 1.4, s: 0.8 + rng.next() * 0.5, r: rng.next() * 6.28, v: rng.next() });
-      } else if (t === Terrain.Rock) {
+      } else if (t === Terrain.Rock || t === Terrain.Ore) {
         rocks.push({ x: bx + 1, z: bz + 1, s: 0.9 + rng.next() * 0.5, r: rng.next() * 6.28, v: rng.next() });
+        if (t === Terrain.Ore) ores.push({ x: bx + 0.4 + rng.next() * 1.2, z: bz + 0.4 + rng.next() * 1.2, s: 0.5 + rng.next() * 0.3, r: rng.next() * 6.28, v: rng.next() });
       } else if (t === Terrain.Plains && quality === 'high' && rng.next() < 0.025) {
         bushes.push({ x: bx + rng.next() * 2, z: bz + rng.next() * 2, s: 0.5 + rng.next() * 0.4, r: rng.next() * 6.28, v: rng.next() });
       }
@@ -155,17 +159,31 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high'): TerrainHand
   decor.add(proceduralTrees(trees), proceduralRocks(rocks));
   group.add(decor);
 
-  // jazidas de petróleo: poça escura e afloramento
+  // veios de minério: blocos ferruginosos entre as rochas da montanha
+  const ore = new PartBuilder();
+  for (const o of ores) ore.box(0.5 * o.s, 0.35 * o.s, 0.45 * o.s, o.v > 0.5 ? '#8a4b32' : '#6e3d2b', [o.x, 0.45 + 0.15 * o.s, o.z], [o.r * 0.3, o.r, 0]);
+  if (!ore.isEmpty) {
+    const m = new THREE.Mesh(ore.build(), withFog(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.35, flatShading: true })));
+    m.castShadow = true;
+    group.add(m);
+    disposables.push(m.geometry, m.material as THREE.Material);
+  }
+
+  // jazidas de petróleo (subterrâneas): solo escurecido e estacas de prospecção, sem poça à mostra
   const oil = new PartBuilder();
   for (const n of map.resourceNodes) {
     const x = (n.cx + 1) * map.cellSize;
     const z = (n.cy + 1) * map.cellSize;
-    oil.cyl(1.1, 1.1, 0.03, C.oil, [x, 0.03, z], undefined, 14);
-    oil.cyl(0.6, 0.6, 0.035, '#2b2722', [x + 0.4, 0.04, z - 0.3], undefined, 10);
-    for (let k = 0; k < 4; k++) oil.box(0.3, 0.2, 0.25, '#4a443a', [x + Math.cos(k * 1.7) * 1.3, 0.1, z + Math.sin(k * 1.7) * 1.3], [0, k, 0]);
+    oil.cyl(1.2, 1.2, 0.02, '#3d3a33', [x, 0.02, z], undefined, 9);
+    for (let k = 0; k < 4; k++) {
+      const px = x + Math.cos(k * 1.57 + 0.4) * 1.25;
+      const pz = z + Math.sin(k * 1.57 + 0.4) * 1.25;
+      oil.cyl(0.03, 0.03, 0.5, C.wood, [px, 0.25, pz], undefined, 5);
+      oil.box(0.12, 0.06, 0.02, C.yellow, [px, 0.47, pz]);
+    }
   }
   if (!oil.isEmpty) {
-    const m = new THREE.Mesh(oil.build(), withFog(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.25, metalness: 0.3, flatShading: true })));
+    const m = new THREE.Mesh(oil.build(), withFog(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, flatShading: true })));
     m.receiveShadow = true;
     group.add(m);
     disposables.push(m.geometry, m.material as THREE.Material);

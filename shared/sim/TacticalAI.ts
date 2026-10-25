@@ -1,4 +1,4 @@
-import { BUILDINGS, RESOURCE_TYPES, TICK_RATE, UNITS, canAfford, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
+import { BUILDINGS, CITIZEN, OIL_TANK_RANGE, POP_ABSOLUTE_CAP, RESOURCE_TYPES, TICK_RATE, UNITS, canAfford, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
 import { claimableCells, claimedBy } from './gathering.ts';
 import type { Command } from './commands.ts';
 import type { Simulation } from './Simulation.ts';
@@ -55,42 +55,65 @@ export class TacticalAI {
     const done = (t: BuildingType) => mine.some((b) => b.type === t && b.progress >= 1);
 
     // --- economia e construção (uma obra por avaliação, na ordem de prioridade)
+    const pop = sim.population(this.slot);
+    const cap = sim.capacity(this.slot);
+    const res = me.resources;
+    const nearlyFull = (r: 'wood' | 'stone' | 'iron' | 'food') => cap[r] > 0 && res[r] >= cap[r] * 0.8;
     const tryBuild = (type: BuildingType): boolean => {
       if (!canAfford(budget, BUILDINGS[type].cost)) return false;
-      const cell = BUILDINGS[type].gather?.terrain === null ? this.freeNode(sim, hq) : this.findBuildSpot(sim, hq, type);
+      const cell =
+        BUILDINGS[type].gather?.terrain === null ? this.freeNode(sim, hq) : type === 'oil_tank' ? this.tankSpot(sim, mine) : this.findBuildSpot(sim, hq, type);
       if (!cell || !take(BUILDINGS[type].cost)) return false;
       cmds.push({ type: 'build', buildingType: type, cx: cell.cx, cy: cell.cy });
       return true;
     };
+    const housingInProgress = mine.some((b) => (b.type === 'house' || b.type === 'residential') && b.progress < 1);
+    const wellsWithoutTank = mine.some(
+      (w) => w.type === 'oil_well' && !mine.some((t) => t.type === 'oil_tank' && dist(t.pos, w.pos) / sim.map.cellSize <= OIL_TANK_RANGE),
+    );
     const plan: [BuildingType, boolean][] = [
+      ['house', pop.total >= pop.cap - 2 && pop.cap < POP_ABSOLUTE_CAP && !housingInProgress && count('house') + count('residential') < 14],
+      ['oil_tank', wellsWithoutTank || (mine.some((b) => b.type === 'oil_well' && b.status === 'storage_full') && count('oil_tank') < 5)],
+      ['farm', res.food < 30 && done('farm') && count('farm') < 5],
+      ['warehouse', ((nearlyFull('wood') && done('sawmill')) || (nearlyFull('stone') && done('quarry')) || (nearlyFull('iron') && done('mine'))) && count('warehouse') < 4],
+      ['silo', nearlyFull('food') && done('farm') && count('silo') < 4],
       ['sawmill', count('sawmill') === 0],
       ['farm', count('farm') === 0],
       ['barracks', count('barracks') === 0],
       ['quarry', count('quarry') === 0],
+      ['sawmill', count('sawmill') < 2 && done('barracks')],
+      ['mine', count('mine') === 0],
       ['oil_well', count('oil_well') === 0],
       ['farm', count('farm') < 2 && done('barracks')],
       ['factory', count('factory') === 0 && done('barracks')],
       ['oil_well', count('oil_well') < 2 && done('factory')],
+      ['sawmill', count('sawmill') < 3 && done('factory')],
       ['farm', count('farm') < 3 && done('factory')],
       ['tower', count('tower') < 1 && done('factory')],
+      ['residential', pop.cap >= 60 && pop.total >= pop.cap - 4 && !housingInProgress && count('residential') < 4],
       ['factory', count('factory') < 2 && budget.supplies > 350 && budget.oil > 150],
       ['barracks', count('barracks') < 2 && budget.food > 250],
       ['oil_well', count('oil_well') < 3 && army.length >= 10],
     ];
     for (const [type, wanted] of plan) if (wanted && tryBuild(type)) break;
 
-    // --- produção: mantém um item na fila de cada edifício produtor
-    const supply = sim.supplyUsed(this.slot);
-    let queued = 0;
+    // --- população: forma cidadãos para preencher postos e manter reserva para recrutamento
+    const vacancies = mine.reduce((a, b) => a + (b.progress >= 1 ? Math.max(0, Math.min(b.workerTarget, BUILDINGS[b.type].workers) - b.workers) : 0), 0);
+    if (hq.queue.length < 2 && pop.total < pop.cap && pop.idle + pop.queuedCitizens < vacancies + 3 && take(CITIZEN.cost)) {
+      cmds.push({ type: 'produce', buildingId: hq.id, unitType: 'citizen' });
+    }
+
+    // --- produção militar: cada unidade precisa de um cidadão ocioso como tripulação
+    let crew = pop.idle;
     const factoryMix: UnitType[] = ['tank', 'apc', 'tank', 'artillery'];
     for (const b of mine) {
-      if (b.progress < 1 || b.queue.length > 0 || supply + queued >= 40) continue;
+      if (b.progress < 1 || b.queue.length > 0 || crew <= 0 || b.workers === 0) continue;
       let unitType: UnitType | null = null;
       if (b.type === 'barracks') unitType = 'infantry';
       else if (b.type === 'factory') unitType = factoryMix[(this.produced++ + b.id) % factoryMix.length]!;
       if (!unitType || !take(UNITS[unitType].cost)) continue;
       cmds.push({ type: 'produce', buildingId: b.id, unitType });
-      queued++;
+      crew--;
     }
 
     // --- defesa: inimigos visíveis perto da base
@@ -165,6 +188,23 @@ export class TacticalAI {
     const mid = { x: (sim.map.width * sim.map.cellSize) / 2, y: (sim.map.height * sim.map.cellSize) / 2 };
     const d = dist(hq.pos, mid);
     return { x: hq.pos.x + ((mid.x - hq.pos.x) / d) * 12, y: hq.pos.y + ((mid.y - hq.pos.y) / d) * 12 };
+  }
+
+  /** Posição para um tanque de petróleo perto de um poço que ainda não tem tanque ao alcance. */
+  private tankSpot(sim: Simulation, mine: Building[]): Cell | null {
+    const cs = sim.map.cellSize;
+    for (const w of mine) {
+      if (w.type !== 'oil_well') continue;
+      if (mine.some((t) => t.type === 'oil_tank' && dist(t.pos, w.pos) / cs <= OIL_TANK_RANGE)) continue;
+      for (let r = 2; r <= 6; r++)
+        for (let dy = -r; dy <= r; dy++)
+          for (let dx = -r; dx <= r; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+            const cell = { cx: w.cell.cx + dx, cy: w.cell.cy + dy };
+            if (sim.placementError(this.slot, 'oil_tank', cell) === null && this.hasClearance(sim, cell, 1)) return cell;
+          }
+    }
+    return null;
   }
 
   private freeNode(sim: Simulation, hq: Building): Cell | null {
