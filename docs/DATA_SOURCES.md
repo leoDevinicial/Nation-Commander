@@ -47,7 +47,7 @@ Arquivo: `shared/data/reference/worldbank.json`, gerado por `scripts/import-refe
 - **Governo central vs. geral:** dívida/receita/despesa do WDI cobrem só o governo central, enquanto
   saúde e educação cobrem todos os níveis. O modelo ajusta a receita inicial para preservar o
   déficit observado (`taxAdjustmentPct`, explicado no painel de orçamento).
-- **Dívida pública:** vem do FMI WEO (governo geral, 2025) para os 10 países.
+- **Dívida pública:** vem do FMI WEO (governo geral, 2025) para os 17 países.
 - **Receita/despesa:** a API do FMI não retornou receita/despesa do governo geral; usam-se as do
   governo central (WDI) e o saldo do governo geral do FMI calibra o déficit inicial.
 

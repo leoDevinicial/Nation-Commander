@@ -19,15 +19,6 @@ export const COUNTRIES: readonly CountryProfile[] = [
   { id: 'JPN', name: 'Japão' },
   { id: 'ZAF', name: 'África do Sul' },
   { id: 'AUS', name: 'Austrália' },
-];
-
-/**
- * Países preparados (geografia, líderes, regiões operacionais e perfil de comércio já
- * cadastrados) que entram em COUNTRIES quando os dados de referência forem importados
- * (`npm run data:import:wb -- --only=GBR,CHN,ITA,CAN,SAU,ESP,EGY` e o mesmo para o FMI).
- * Sem dados reais, a simulação usaria valores genéricos de reserva — por isso ainda não jogáveis.
- */
-export const PENDING_COUNTRIES: readonly CountryProfile[] = [
   { id: 'GBR', name: 'Reino Unido' },
   { id: 'CHN', name: 'China' },
   { id: 'ITA', name: 'Itália' },

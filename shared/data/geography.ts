@@ -34,10 +34,6 @@ export const COUNTRY_GEO: readonly CountryGeo[] = [
   { id: 'JPN', region: 'asia_pacific', isoNumeric: '392', capital: { name: 'Tóquio', lat: 35.68, lon: 139.69 } },
   { id: 'ZAF', region: 'africa', isoNumeric: '710', capital: { name: 'Pretória', lat: -25.75, lon: 28.19 } },
   { id: 'AUS', region: 'asia_pacific', isoNumeric: '036', capital: { name: 'Camberra', lat: -35.28, lon: 149.13 } },
-];
-
-/** Geografia dos países ainda sem dados de referência (ver PENDING_COUNTRIES). */
-export const PENDING_GEO: readonly CountryGeo[] = [
   { id: 'GBR', region: 'europe', isoNumeric: '826', capital: { name: 'Londres', lat: 51.51, lon: -0.13 } },
   { id: 'CHN', region: 'asia_pacific', isoNumeric: '156', capital: { name: 'Pequim', lat: 39.9, lon: 116.41 } },
   { id: 'ITA', region: 'europe', isoNumeric: '380', capital: { name: 'Roma', lat: 41.9, lon: 12.5 } },
