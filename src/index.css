@@ -501,3 +501,198 @@ select {
     animation: none;
   }
 }
+
+/* ------------------------------------------------------------------ abertura (IntroOverlay) */
+.intro-root {
+  transition:
+    opacity var(--intro-out) ease,
+    filter var(--intro-out) ease;
+}
+.intro-root.intro-out {
+  opacity: 0;
+}
+.intro-root.intro-out .intro-title {
+  transform: scale(1.06);
+  filter: blur(6px);
+  transition:
+    transform var(--intro-out) cubic-bezier(0.4, 0, 0.2, 1),
+    filter var(--intro-out) ease;
+}
+.intro-title {
+  font-size: clamp(1.55rem, 7.6vw, 4.4rem);
+  letter-spacing: 0.16em;
+  line-height: 1.15;
+  text-shadow: 0 0 24px rgb(255 255 255 / 0.18);
+}
+/* letras: surgem do desfoque, apertando o espaçamento */
+.intro-letter {
+  opacity: 0;
+  animation: intro-letter 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes intro-letter {
+  from {
+    opacity: 0;
+    filter: blur(12px);
+    transform: translateY(10px) scaleX(1.25);
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}
+/* reflexo de luz que atravessa o título */
+.intro-shine {
+  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.55) 50%, transparent 65%);
+  background-size: 250% 100%;
+  background-position: 150% 0;
+  mix-blend-mode: overlay;
+  animation: intro-shine 1300ms ease-in-out 2000ms forwards;
+}
+@keyframes intro-shine {
+  to {
+    background-position: -50% 0;
+  }
+}
+.intro-line {
+  background: linear-gradient(90deg, transparent, #e0b44c 25%, #fff3cf 50%, #e0b44c 75%, transparent);
+  transform: scaleX(0);
+  animation: intro-line 1100ms cubic-bezier(0.65, 0, 0.35, 1) 1250ms forwards;
+}
+@keyframes intro-line {
+  to {
+    transform: scaleX(1);
+  }
+}
+.intro-sub,
+.intro-hud,
+.intro-status {
+  opacity: 0;
+  animation: intro-fade 900ms ease 1700ms forwards;
+}
+.intro-hud {
+  animation-delay: 500ms;
+}
+.intro-status {
+  animation-delay: 300ms;
+}
+.intro-hint {
+  opacity: 0;
+  animation: intro-fade 700ms ease 1400ms forwards;
+}
+@keyframes intro-fade {
+  to {
+    opacity: 1;
+  }
+}
+.intro-progress {
+  width: 0;
+  background: linear-gradient(90deg, #8a6a2c, #e0b44c, #fff3cf);
+  animation-name: intro-progress;
+  animation-timing-function: cubic-bezier(0.3, 0.1, 0.3, 1);
+  animation-fill-mode: forwards;
+}
+@keyframes intro-progress {
+  to {
+    width: 100%;
+  }
+}
+/* grade tática que deriva devagar, só no centro */
+.intro-grid {
+  background-image:
+    linear-gradient(rgb(224 180 76 / 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(224 180 76 / 0.07) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse at center, black 10%, transparent 70%);
+  opacity: 0;
+  animation:
+    intro-fade 1600ms ease forwards,
+    intro-grid 12s linear infinite;
+}
+@keyframes intro-grid {
+  to {
+    background-position: 56px 28px;
+  }
+}
+/* radar: anéis finos e uma varredura girando atrás do título */
+.intro-radar {
+  width: min(90vmin, 46rem);
+  aspect-ratio: 1;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  border-radius: 9999px;
+  background: repeating-radial-gradient(circle, transparent 0 calc(16.6% - 1px), rgb(255 255 255 / 0.05) calc(16.6% - 1px) 16.6%);
+  opacity: 0;
+  animation: intro-fade 1800ms ease 200ms forwards;
+}
+.intro-sweep {
+  background: conic-gradient(from 0deg, rgb(224 180 76 / 0.18), transparent 22%, transparent);
+  animation: intro-spin 3.2s linear infinite;
+}
+@keyframes intro-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.intro-vignette {
+  background: radial-gradient(ellipse at center, transparent 30%, rgb(0 0 0 / 0.85) 100%);
+}
+/* cantoneiras de visor que "desenham" a moldura */
+.intro-corner {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border-color: rgb(255 255 255 / 0.35);
+  opacity: 0;
+  animation: intro-fade 600ms ease 400ms forwards;
+}
+.intro-corner-tl {
+  top: max(3rem, calc(env(safe-area-inset-top) + 2.5rem));
+  left: 1.25rem;
+  border-top: 1px solid;
+  border-left: 1px solid;
+}
+.intro-corner-tr {
+  top: max(3rem, calc(env(safe-area-inset-top) + 2.5rem));
+  right: 1.25rem;
+  border-top: 1px solid;
+  border-right: 1px solid;
+}
+.intro-corner-bl {
+  bottom: max(5.5rem, calc(env(safe-area-inset-bottom) + 5rem));
+  left: 1.25rem;
+  border-bottom: 1px solid;
+  border-left: 1px solid;
+}
+.intro-corner-br {
+  bottom: max(5.5rem, calc(env(safe-area-inset-bottom) + 5rem));
+  right: 1.25rem;
+  border-bottom: 1px solid;
+  border-right: 1px solid;
+}
+/* reduzir movimento: tudo aparece por opacidade, sem deslocamentos, giros ou desfoques */
+.intro-reduced .intro-letter,
+.intro-reduced .intro-line,
+.intro-reduced .intro-sub,
+.intro-reduced .intro-hud,
+.intro-reduced .intro-status,
+.intro-reduced .intro-hint,
+.intro-reduced .intro-grid,
+.intro-reduced .intro-radar,
+.intro-reduced .intro-corner {
+  animation: intro-fade 400ms ease forwards;
+  filter: none;
+  transform: none;
+}
+.intro-reduced .intro-sweep,
+.intro-reduced .intro-shine {
+  animation: none;
+}
+.intro-reduced.intro-out .intro-title {
+  transform: none;
+  filter: none;
+}

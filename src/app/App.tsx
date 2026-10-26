@@ -3,6 +3,7 @@ import { useAppStore } from '../state/useAppStore.ts';
 import { AuthScreen } from '../ui/screens/AuthScreen.tsx';
 import { CreditsScreen } from '../ui/screens/CreditsScreen.tsx';
 import { LobbyScreen } from '../ui/screens/LobbyScreen.tsx';
+import { IntroOverlay } from '../ui/screens/IntroOverlay.tsx';
 import { ManualScreen } from '../ui/screens/ManualScreen.tsx';
 import { MenuScreen } from '../ui/screens/MenuScreen.tsx';
 import { ProfileScreen } from '../ui/screens/ProfileScreen.tsx';
@@ -15,22 +16,26 @@ const GameScreen = lazy(() => import('../ui/screens/GameScreen.tsx').then((m) =>
 
 export function App() {
   const screen = useAppStore((s) => s.screen);
+  // durante a abertura as telas nem montam: o manual/menu entra junto com o fade da abertura
+  const intro = useAppStore((s) => s.intro);
+  const show = intro !== 'play';
   return (
     <>
       {/* um único globo para todas as telas fora da partida: não é recriado ao navegar */}
       {screen !== 'game' && <GlobeBackdrop layout={screen === 'menu' || screen === 'auth' ? 'hero' : 'center'} dim={screen !== 'menu' && screen !== 'auth'} />}
-      {screen === 'auth' && <AuthScreen />}
-      {screen === 'manual' && <ManualScreen />}
-      {screen === 'menu' && <MenuScreen />}
-      {screen === 'lobby' && <LobbyScreen />}
+      {screen === 'auth' && show && <AuthScreen />}
+      {screen === 'manual' && show && <ManualScreen />}
+      {screen === 'menu' && show && <MenuScreen />}
+      {screen === 'lobby' && show && <LobbyScreen />}
       {screen === 'game' && (
         <Suspense fallback={<div className="flex h-full items-center justify-center text-ink-400">Preparando o teatro de operações…</div>}>
           <GameScreen />
         </Suspense>
       )}
-      {screen === 'profile' && <ProfileScreen />}
-      {screen === 'settings' && <SettingsScreen />}
-      {screen === 'credits' && <CreditsScreen />}
+      {screen === 'profile' && show && <ProfileScreen />}
+      {screen === 'settings' && show && <SettingsScreen />}
+      {screen === 'credits' && show && <CreditsScreen />}
+      {intro !== 'off' && <IntroOverlay />}
       <Toasts />
     </>
   );

@@ -113,6 +113,25 @@ export function markManualRead(): void {
   }
 }
 
+const INTRO_KEY = 'nc.intro.v1';
+
+/** A abertura toca uma vez por sessão do navegador (não a cada volta ao menu). */
+export function introPending(): boolean {
+  try {
+    return sessionStorage.getItem(INTRO_KEY) !== 'seen';
+  } catch {
+    return true;
+  }
+}
+
+export function markIntroSeen(): void {
+  try {
+    sessionStorage.setItem(INTRO_KEY, 'seen');
+  } catch {
+    // sem armazenamento: a abertura pode tocar de novo
+  }
+}
+
 /** Tela que vem depois do login: o manual na primeira vez, o menu depois. */
 export function screenAfterLogin(): 'manual' | 'menu' {
   return manualRead() ? 'menu' : 'manual';

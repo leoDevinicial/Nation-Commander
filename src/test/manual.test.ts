@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MANUAL, manualRead, markManualRead, screenAfterLogin } from '../ui/manual.ts';
+import { MANUAL, introPending, manualRead, markIntroSeen, markManualRead, screenAfterLogin } from '../ui/manual.ts';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -45,5 +45,13 @@ describe('manual de entrada', () => {
   it('cobre o básico: objetivo, economia, população, guerra, nação/melhorias e controles', () => {
     const all = MANUAL.map((c) => [c.title, c.lead, ...c.points, c.tip ?? ''].join(' ')).join(' ');
     for (const word of ['Centro de Comando', 'recruta', 'moradia', 'guerra', 'Melhorar', 'verba', 'pinça', 'preparo']) expect(all).toContain(word);
+  });
+
+  it('a abertura toca uma vez por sessão do navegador', () => {
+    const m = new Map<string, string>();
+    vi.stubGlobal('sessionStorage', { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) });
+    expect(introPending()).toBe(true);
+    markIntroSeen();
+    expect(introPending()).toBe(false);
   });
 });

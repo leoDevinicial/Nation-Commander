@@ -86,6 +86,23 @@ Verificado em navegador headless com celular emulado (horizontal 844×390 e vert
 - saída sem o convite voltar;
 - convite com auto desligado, entrando com um toque.
 
+## Abertura (intro)
+
+Depois do login, antes do manual ou do menu, toca uma abertura no estilo RTS (`src/ui/screens/IntroOverlay.tsx`, estilos
+`.intro-*` em `src/index.css`), com cerca de 4,3 s:
+- fundo preto com grade tática que deriva devagar, radar com varredura dourada e cantoneiras de visor;
+- **NATIONS COMMANDER** em branco, fonte Michroma (OFL, embutida via `@fontsource/michroma`, sem depender de serviço
+  externo), letra a letra: cada uma sai do desfoque e aperta o espaçamento;
+- uma linha dourada se abre sob o título, um reflexo de luz o atravessa e surge "Modern Geopolitical Real Strategy";
+- barra de inicialização com mensagens de status e coordenadas "varrendo" o globo;
+- fade de 0,8 s para o manual (ou o menu), que entra por baixo com a própria animação — sem corte seco.
+
+Detalhes de comportamento:
+- toque, clique ou qualquer tecla pula;
+- toca uma vez por sessão do navegador;
+- com "reduzir movimento", é curta e só usa opacidade;
+- as telas por baixo só montam quando o fade começa.
+
 ## Manual de entrada
 
 Depois do login, antes do menu principal, aparece o **Manual de campo** (`src/ui/manual.ts`, `ManualScreen.tsx`): 7 cartões

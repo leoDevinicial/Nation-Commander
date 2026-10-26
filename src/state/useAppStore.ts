@@ -34,6 +34,11 @@ interface AppState {
   matchEnd: MatchEndInfo | null;
   chat: ChatLine[];
   toasts: Toast[];
+  /**
+   * Abertura animada depois do login: 'play' cobre tudo (as telas nem montam), 'out' é o fade para
+   * a tela seguinte (o manual ou o menu entram por baixo), 'off' sem abertura.
+   */
+  intro: 'off' | 'play' | 'out';
 
   setScreen: (s: Screen) => void;
   pushToast: (kind: Toast['kind'], text: string) => void;
@@ -57,6 +62,7 @@ export const useAppStore = create<AppState>((set) => ({
   matchEnd: null,
   chat: [],
   toasts: [],
+  intro: 'off',
 
   setScreen: (screen) => set({ screen }),
   pushToast: (kind, text) => {
