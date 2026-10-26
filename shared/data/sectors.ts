@@ -109,6 +109,36 @@ export const SECTORS: readonly SectorDef[] = [
   S('AUS', 'sudeste', 'Sudeste (Sydney e Melbourne)', -34.5, 148, 'temperate', { coast: true, mountains: true }, ['road', 'rail', 'port', 'industry', 'airfield'], 0.55),
   S('AUS', 'oeste', 'Austrália Ocidental (Pilbara)', -22, 118, 'arid', { coast: true }, ['road', 'rail', 'port', 'oil'], 0.15),
   S('AUS', 'queensland', 'Queensland', -24, 150, 'tropical', { coast: true }, ['road', 'port'], 0.12),
+
+  S('GBR', 'londres', 'Londres e Sudeste', 51.5, -0.1, 'temperate', { coast: true, river: true }, ['road', 'rail', 'port', 'industry', 'airfield'], 0.45),
+  S('GBR', 'midlands', 'Midlands e Norte (Birmingham e Manchester)', 53, -2, 'temperate', { river: true }, ['road', 'rail', 'industry'], 0.22),
+  S('GBR', 'escocia', 'Escócia e Mar do Norte', 56.5, -3.5, 'cold', { coast: true, mountains: true }, ['road', 'port', 'oil'], 0.08),
+
+  S('CHN', 'litoral', 'Litoral Leste (Xangai e Jiangsu)', 31.2, 121.5, 'temperate', { coast: true, river: true }, ['road', 'rail', 'port', 'industry', 'airfield'], 0.3),
+  S('CHN', 'sul', 'Delta do Rio das Pérolas (Guangdong)', 23.1, 113.3, 'tropical', { coast: true, river: true }, ['road', 'rail', 'port', 'industry'], 0.2),
+  S('CHN', 'norte', 'Planície do Norte (Pequim e Hebei)', 39.9, 116.4, 'temperate', {}, ['road', 'rail', 'industry', 'airfield'], 0.15),
+  S('CHN', 'oeste', 'Oeste (Sichuan e Chongqing)', 30.6, 104.1, 'temperate', { river: true, mountains: true }, ['road', 'rail', 'industry'], 0.08),
+
+  S('ITA', 'norte', 'Planície do Pó (Milão e Turim)', 45.4, 9.2, 'temperate', { river: true }, ['road', 'rail', 'industry', 'airfield'], 0.4),
+  S('ITA', 'centro', 'Centro (Roma e Toscana)', 42.5, 12, 'temperate', { coast: true, mountains: true }, ['road', 'rail', 'port'], 0.22),
+  S('ITA', 'sul', 'Sul e Sicília (Nápoles)', 40.8, 14.3, 'arid', { coast: true, mountains: true }, ['road', 'port', 'oil'], 0.15),
+
+  S('CAN', 'ontario', 'Ontário (Toronto)', 43.7, -79.4, 'temperate', { coast: true, river: true }, ['road', 'rail', 'port', 'industry', 'airfield'], 0.38),
+  S('CAN', 'quebec', 'Quebec (Montreal)', 45.5, -73.6, 'cold', { river: true }, ['road', 'rail', 'port', 'industry'], 0.2),
+  S('CAN', 'alberta', 'Alberta (areias betuminosas)', 53.5, -113.5, 'grassland', { river: true }, ['road', 'rail', 'oil'], 0.15),
+  S('CAN', 'columbia', 'Colúmbia Britânica (Vancouver)', 49.3, -123.1, 'cold', { coast: true, mountains: true }, ['road', 'port'], 0.13),
+
+  S('SAU', 'leste', 'Província Oriental (Dhahran e Ghawar)', 26.3, 50, 'arid', { coast: true }, ['road', 'port', 'oil', 'industry', 'airfield'], 0.4),
+  S('SAU', 'riad', 'Riad e Najd', 24.7, 46.7, 'arid', {}, ['road', 'rail', 'airfield'], 0.3),
+  S('SAU', 'hejaz', 'Hejaz (Jidá)', 21.5, 39.2, 'arid', { coast: true, mountains: true }, ['road', 'port'], 0.18),
+
+  S('ESP', 'madri', 'Madri e Meseta', 40.4, -3.7, 'arid', {}, ['road', 'rail', 'industry', 'airfield'], 0.3),
+  S('ESP', 'catalunha', 'Catalunha (Barcelona)', 41.4, 2.2, 'temperate', { coast: true, mountains: true }, ['road', 'rail', 'port', 'industry'], 0.25),
+  S('ESP', 'andaluzia', 'Andaluzia (Sevilha)', 37.4, -6, 'arid', { coast: true, river: true }, ['road', 'port'], 0.13),
+
+  S('EGY', 'cairo', 'Cairo e Delta do Nilo', 30.05, 31.2, 'arid', { river: true }, ['road', 'rail', 'industry', 'airfield'], 0.45),
+  S('EGY', 'suez', 'Canal de Suez', 30.6, 32.3, 'arid', { coast: true }, ['road', 'port', 'oil'], 0.2),
+  S('EGY', 'alexandria', 'Alexandria e Costa Mediterrânea', 31.2, 29.9, 'arid', { coast: true }, ['road', 'rail', 'port', 'oil'], 0.15),
 ];
 
 export function sectorsOf(countryId: string): SectorDef[] {

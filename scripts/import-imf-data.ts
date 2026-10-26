@@ -4,8 +4,9 @@
  * fechado antes de 01/01/2026 — valores desse ano podem ser estimativas do próprio FMI.
  *
  * Uso: npm run data:import:imf   (requer acesso a www.imf.org)
+ *      npm run data:import:imf -- --only=GBR,CHN   (acrescenta esses países sem mexer nos demais)
  */
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { COUNTRIES } from '../shared/data/countries.ts';
 
 const TARGET_YEAR = 2025;
@@ -88,7 +89,9 @@ async function fetchIndicator(code: string, iso3: string[]): Promise<FetchResult
 }
 
 async function main(): Promise<void> {
-  const iso3 = COUNTRIES.map((c) => c.id);
+  // --only=GBR,CHN: busca só esses países e mescla no arquivo atual (os demais ficam como estão)
+  const only = process.argv.find((x) => x.startsWith('--only='))?.slice(7).split(',').filter(Boolean) ?? null;
+  const iso3 = only ?? COUNTRIES.map((c) => c.id);
   const countries: Record<string, Record<string, unknown>> = Object.fromEntries(iso3.map((id) => [id, {}]));
   for (const ind of IMF_INDICATORS) {
     const result = await fetchIndicator(ind.code, iso3);
@@ -125,7 +128,12 @@ async function main(): Promise<void> {
     indicators: IMF_INDICATORS,
     countries,
   };
-  writeFileSync(new URL('../shared/data/reference/imf.json', import.meta.url), JSON.stringify(out, null, 2) + '\n');
+  const file = new URL('../shared/data/reference/imf.json', import.meta.url);
+  if (only) {
+    const prev = JSON.parse(readFileSync(file, 'utf8')) as typeof out;
+    out.countries = { ...prev.countries, ...countries };
+  }
+  writeFileSync(file, JSON.stringify(out, null, 2) + '\n');
   console.log('Gravado shared/data/reference/imf.json');
 }
 

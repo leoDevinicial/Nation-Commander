@@ -43,4 +43,39 @@ export const LEADERS: Record<string, LeaderRecord> = {
     headOfState: { title: 'Rei', name: 'Charles III' },
     headOfGovernment: { title: 'Primeiro-ministro', name: 'Anthony Albanese' },
   },
+  GBR: {
+    system: 'Monarquia constitucional parlamentarista',
+    headOfState: { title: 'Rei', name: 'Charles III' },
+    headOfGovernment: { title: 'Primeiro-ministro', name: 'Keir Starmer' },
+  },
+  CHN: {
+    system: 'República socialista de partido único',
+    headOfState: { title: 'Presidente', name: 'Xi Jinping' },
+    headOfGovernment: { title: 'Primeiro-ministro', name: 'Li Qiang' },
+  },
+  ITA: {
+    system: 'República parlamentarista',
+    headOfState: { title: 'Presidente', name: 'Sergio Mattarella' },
+    headOfGovernment: { title: 'Presidenta do Conselho de Ministros', name: 'Giorgia Meloni' },
+  },
+  CAN: {
+    system: 'Monarquia constitucional parlamentarista federal',
+    headOfState: { title: 'Rei', name: 'Charles III' },
+    headOfGovernment: { title: 'Primeiro-ministro', name: 'Mark Carney' },
+  },
+  SAU: {
+    system: 'Monarquia absoluta',
+    headOfState: { title: 'Rei', name: 'Salman bin Abdulaziz Al Saud' },
+    headOfGovernment: { title: 'Príncipe herdeiro e primeiro-ministro', name: 'Mohammed bin Salman' },
+  },
+  ESP: {
+    system: 'Monarquia constitucional parlamentarista',
+    headOfState: { title: 'Rei', name: 'Felipe VI' },
+    headOfGovernment: { title: 'Presidente do Governo', name: 'Pedro Sánchez' },
+  },
+  EGY: {
+    system: 'República semipresidencialista',
+    headOfState: { title: 'Presidente', name: 'Abdel Fattah el-Sisi' },
+    headOfGovernment: { title: 'Primeiro-ministro', name: 'Mostafa Madbouly' },
+  },
 };

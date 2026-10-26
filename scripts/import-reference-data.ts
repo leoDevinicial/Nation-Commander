@@ -3,9 +3,10 @@
  * jogáveis e grava `shared/data/reference/worldbank.json`. Para cada indicador guarda o valor
  * mais recente não nulo, o ano, a unidade e o código da série — nada é estimado aqui.
  *
- * Uso: npm run data:import   (requer acesso a api.worldbank.org)
+ * Uso: npm run data:import:wb   (requer acesso a api.worldbank.org)
+ *      npm run data:import:wb -- --only=GBR,CHN   (acrescenta esses países sem mexer nos demais)
  */
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { COUNTRIES } from '../shared/data/countries.ts';
 
 interface IndicatorSpec {
@@ -63,7 +64,9 @@ async function fetchIndicator(code: string, iso3: string[]): Promise<WbRow[]> {
 }
 
 async function main(): Promise<void> {
-  const iso3 = COUNTRIES.map((c) => c.id);
+  // --only=GBR,CHN: busca só esses países e mescla no arquivo atual (os demais ficam como estão)
+  const only = process.argv.find((x) => x.startsWith('--only='))?.slice(7).split(',').filter(Boolean) ?? null;
+  const iso3 = only ?? COUNTRIES.map((c) => c.id);
   const fetchedAt = new Date().toISOString();
   const countries: Record<string, Record<string, unknown>> = Object.fromEntries(iso3.map((id) => [id, {}]));
   for (const ind of INDICATORS) {
@@ -92,7 +95,12 @@ async function main(): Promise<void> {
     indicators: INDICATORS,
     countries,
   };
-  writeFileSync(new URL('../shared/data/reference/worldbank.json', import.meta.url), JSON.stringify(out, null, 2) + '\n');
+  const file = new URL('../shared/data/reference/worldbank.json', import.meta.url);
+  if (only) {
+    const prev = JSON.parse(readFileSync(file, 'utf8')) as typeof out;
+    out.countries = { ...prev.countries, ...countries };
+  }
+  writeFileSync(file, JSON.stringify(out, null, 2) + '\n');
   console.log('Gravado shared/data/reference/worldbank.json');
 }
 

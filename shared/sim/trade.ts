@@ -253,6 +253,13 @@ const PROFILE: Partial<Record<string, Partial<Record<TradeResource, number>>>> =
   JPN: { food: 0.5, oil: 0.3, iron: 0.6, wood: 0.7 },
   ZAF: { iron: 1.4, stone: 1.3 },
   AUS: { iron: 1.8, food: 1.3, stone: 1.2 },
+  GBR: { food: 0.7, oil: 0.9, iron: 0.6 },
+  CHN: { iron: 1.4, stone: 1.5, food: 0.9, oil: 0.5, wood: 0.8 },
+  ITA: { stone: 1.3, food: 0.9, oil: 0.4, iron: 0.5 },
+  CAN: { oil: 1.7, wood: 1.8, iron: 1.4, food: 1.4 },
+  SAU: { oil: 2.0, food: 0.4, wood: 0.3 },
+  ESP: { food: 1.2, stone: 1.2, oil: 0.3 },
+  EGY: { food: 0.7, oil: 1.0, stone: 1.3, wood: 0.3 },
 };
 export function npcSupplyMul(countryId: string, r: TradeResource): number {
   return PROFILE[countryId]?.[r] ?? 1;

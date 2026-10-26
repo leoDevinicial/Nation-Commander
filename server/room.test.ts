@@ -7,6 +7,7 @@ import { parseClientMessage } from './messages.ts';
 import { RoomManager } from './RoomManager.ts';
 import type { MatchRecord } from './supabase.ts';
 import { PROTOCOL_VERSION } from '../shared/version.ts';
+import { COUNTRIES } from '../shared/data/countries.ts';
 import { PREPARATION_TICKS } from '../shared/sim/config.ts';
 import { UPGRADE_CANCEL_REFUND, upgradeCost } from '../shared/sim/upgrades.ts';
 
@@ -229,8 +230,8 @@ describe('servidor de partidas', () => {
     await send(a.conn, { t: 'start' });
     const room = rooms.get(a.last('room')!.room!.code)!;
     const first = a.last('national')!;
-    // 9 outros países existem; os da mesma região (Américas) e o rival do teatro já têm contato
-    expect(first.diplomacy.nations.length).toBe(9);
+    // todos os outros países existem; os da mesma região (Américas) e o rival do teatro já têm contato
+    expect(first.diplomacy.nations.length).toBe(COUNTRIES.length - 1);
     const usa = first.diplomacy.nations.find((n) => n.countryId === 'USA')!;
     expect(usa.known).toBe(true);
     const jpn = first.diplomacy.nations.find((n) => n.countryId === 'JPN')!;

@@ -6,13 +6,14 @@
  *   para posicionar marcadores no globo.
  */
 /** Região diplomática usada na regra de contato inicial (regra de jogo, não classificação oficial). */
-export type Region = 'americas' | 'europe' | 'asia_pacific' | 'africa';
+export type Region = 'americas' | 'europe' | 'asia_pacific' | 'africa' | 'middle_east';
 
 export const REGION_LABELS: Record<Region, string> = {
   americas: 'Américas',
   europe: 'Europa',
   asia_pacific: 'Ásia-Pacífico',
   africa: 'África',
+  middle_east: 'Oriente Médio e Norte da África',
 };
 
 export interface CountryGeo {
@@ -33,6 +34,17 @@ export const COUNTRY_GEO: readonly CountryGeo[] = [
   { id: 'JPN', region: 'asia_pacific', isoNumeric: '392', capital: { name: 'Tóquio', lat: 35.68, lon: 139.69 } },
   { id: 'ZAF', region: 'africa', isoNumeric: '710', capital: { name: 'Pretória', lat: -25.75, lon: 28.19 } },
   { id: 'AUS', region: 'asia_pacific', isoNumeric: '036', capital: { name: 'Camberra', lat: -35.28, lon: 149.13 } },
+];
+
+/** Geografia dos países ainda sem dados de referência (ver PENDING_COUNTRIES). */
+export const PENDING_GEO: readonly CountryGeo[] = [
+  { id: 'GBR', region: 'europe', isoNumeric: '826', capital: { name: 'Londres', lat: 51.51, lon: -0.13 } },
+  { id: 'CHN', region: 'asia_pacific', isoNumeric: '156', capital: { name: 'Pequim', lat: 39.9, lon: 116.41 } },
+  { id: 'ITA', region: 'europe', isoNumeric: '380', capital: { name: 'Roma', lat: 41.9, lon: 12.5 } },
+  { id: 'CAN', region: 'americas', isoNumeric: '124', capital: { name: 'Ottawa', lat: 45.42, lon: -75.7 } },
+  { id: 'SAU', region: 'middle_east', isoNumeric: '682', capital: { name: 'Riad', lat: 24.71, lon: 46.68 } },
+  { id: 'ESP', region: 'europe', isoNumeric: '724', capital: { name: 'Madri', lat: 40.42, lon: -3.7 } },
+  { id: 'EGY', region: 'middle_east', isoNumeric: '818', capital: { name: 'Cairo', lat: 30.04, lon: 31.24 } },
 ];
 
 export function geoOf(id: string): CountryGeo | undefined {

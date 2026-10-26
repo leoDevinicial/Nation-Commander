@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { COUNTRIES } from '../data/countries.ts';
 import { DIPLO } from '../strategic/Diplomacy.ts';
 import { NationalSimulation, NPC_BASE_ID } from '../strategic/NationalSimulation.ts';
 import { meet, theater } from './helpers.ts';
@@ -23,7 +24,7 @@ function setup(mode: 'parity' | 'realistic' = 'parity') {
 describe('diplomacia', () => {
   it('cria as demais nações como governos da IA e começa neutra, exceto a rivalidade no teatro', () => {
     const { sim, npc } = setup();
-    expect(sim.npcs.length).toBe(8);
+    expect(sim.npcs.length).toBe(COUNTRIES.length - 2);
     expect(sim.npcs.every((n) => n.slot >= NPC_BASE_ID)).toBe(true);
     expect(sim.diplomacy.relation(0, npc('USA').slot)).toBe(0);
     expect(sim.diplomacy.relation(0, 1)).toBe(DIPLO.theaterRivalry);
