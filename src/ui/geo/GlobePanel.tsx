@@ -16,12 +16,21 @@ import { POLITICAL_COLORS, POLITICAL_LABELS, politicalArcs, politicalFills, poli
 import { MAIN_ROWS, ReferenceRow } from '../components/CountryCard.tsx';
 import { Chip, NationActions } from './NationActions.tsx';
 
-const LAYERS: { id: GlobeLayer; label: string }[] = [
-  { id: 'political', label: 'Política' },
-  { id: 'arcs', label: 'Tratados e Conflitos' },
-  { id: 'borders', label: 'Fronteiras' },
-  { id: 'labels', label: 'Nomes' },
+const LAYERS: { id: GlobeLayer; label: string; short: string }[] = [
+  { id: 'political', label: 'Política', short: 'Política' },
+  { id: 'arcs', label: 'Tratados e Conflitos', short: 'Tratados' },
+  { id: 'borders', label: 'Fronteiras', short: 'Fronteiras' },
+  { id: 'labels', label: 'Nomes', short: 'Nomes' },
 ];
+
+const LEGEND_KEY = 'nc.globe.legend';
+function legendSaved(): boolean {
+  try {
+    return localStorage.getItem(LEGEND_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 type Selection = { kind: 'scenario'; countryId: string } | { kind: 'outside'; name: string } | null;
 
@@ -38,6 +47,16 @@ export function GlobePanel({ visible, onClose }: { visible: boolean; onClose: ()
   const [failed, setFailed] = useState(false);
   const [layers, setLayers] = useState<Record<string, boolean>>({ political: true, arcs: true, borders: true, labels: true });
   const [selection, setSelection] = useState<Selection>(null);
+  // legenda recolhida por padrão: o globo fica livre; a escolha é lembrada neste aparelho
+  const [legend, setLegend] = useState(legendSaved);
+  const toggleLegend = (open: boolean) => {
+    setLegend(open);
+    try {
+      localStorage.setItem(LEGEND_KEY, open ? '1' : '0');
+    } catch {
+      // armazenamento indisponível: vale só nesta sessão
+    }
+  };
   const [outsideIso, setOutsideIso] = useState<string[]>([]);
   const [sheetOpen, setSheetOpen] = useState(true);
 
@@ -118,7 +137,11 @@ export function GlobePanel({ visible, onClose }: { visible: boolean; onClose: ()
     v.setArcs(politicalArcs(diplomacy, mySlot, myCountry));
   }, [diplomacy, ready, mySlot, myCountry, outsideIso, selectedIso]);
 
-  const labelKey = diplomacy ? politicalLabels(diplomacy, mySlot, myCountry).map((l) => `${l.key}:${l.color}`).join('|') : '';
+  const labelKey = diplomacy
+    ? politicalLabels(diplomacy, mySlot, myCountry)
+        .map((l) => `${l.key}:${l.color}`)
+        .join('|')
+    : '';
   useEffect(() => {
     const v = viewRef.current;
     if (!v || !ready || !diplomacy) return;
@@ -149,46 +172,65 @@ export function GlobePanel({ visible, onClose }: { visible: boolean; onClose: ()
 
   const diplomaticAction = (action: DiplomaticAction) => gameClient.send({ t: 'national', cmd: { type: 'diplomacy', action } });
   const selectedState: PoliticalState | null =
-    selection?.kind === 'scenario' && diplomacy ? politicalState(diplomacy, mySlot, selection.countryId === myCountry ? mySlot : (diplomacy.nations.find((n) => n.countryId === selection.countryId)?.id ?? -1)) : null;
+    selection?.kind === 'scenario' && diplomacy
+      ? politicalState(diplomacy, mySlot, selection.countryId === myCountry ? mySlot : (diplomacy.nations.find((n) => n.countryId === selection.countryId)?.id ?? -1))
+      : null;
 
   return (
     <div className={`absolute inset-0 z-20 bg-ink-950 ${visible ? '' : 'pointer-events-none invisible'}`} aria-hidden={!visible}>
       <div className="backdrop-atmosphere absolute inset-0" />
       <div ref={hostRef} className="absolute inset-0" />
       <div ref={labelRef} className="pointer-events-none absolute inset-0 overflow-hidden" />
-      {failed && <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-ink-400">Não foi possível iniciar o globo (WebGL indisponível). A diplomacia continua disponível no painel 🏛 Nação.</div>}
+      {failed && (
+        <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-ink-400">
+          Não foi possível iniciar o globo (WebGL indisponível). A diplomacia continua disponível no painel 🏛 Nação.
+        </div>
+      )}
 
-      {/* cabeçalho: título, data, camadas e legenda */}
-      <div className="pointer-events-none absolute top-15 left-2 flex max-w-[calc(100vw-16px)] flex-col gap-2 sm:top-16 sm:left-3">
-        <div className="panel pointer-events-auto px-3 py-2">
-          <div className="flex items-center gap-3">
-            <div>
-              <div className="font-display text-sm font-bold tracking-wide uppercase">Globo Diplomático</div>
-              <div className="text-[11px] text-ink-400">{date ? formatDate(date) : '—'} · camada política e de informação</div>
-            </div>
-            <button className="btn ml-auto px-2 py-1 text-xs" onClick={onClose} title="Voltar ao teatro de operações (Tab)">
-              ⚔ Voltar ao Teatro
-            </button>
+      {/* cabeçalho compacto: título e data, camadas, legenda recolhível e volta ao teatro */}
+      <div className="pointer-events-none absolute top-15 left-2 flex max-w-[calc(100vw-16px)] flex-col items-start gap-1.5 sm:top-16 sm:left-3">
+        <div className="panel pointer-events-auto flex max-w-full flex-wrap items-center gap-1 px-2 py-1">
+          <div className="mr-1 leading-tight">
+            <div className="font-display text-[11px] font-bold tracking-wide uppercase">Globo</div>
+            <div className="text-[10px] text-ink-400">{date ? formatDate(date) : '—'}</div>
           </div>
-          <div className="mt-2 flex flex-wrap gap-1" role="group" aria-label="Camadas do globo">
+          <div className="flex flex-wrap gap-1" role="group" aria-label="Camadas do globo">
             {LAYERS.map((l) => (
-              <button key={l.id} className={`btn min-h-7 px-2 py-0.5 text-[11px] ${layers[l.id] ? 'btn-primary' : ''}`} aria-pressed={layers[l.id]} onClick={() => setLayers((s) => ({ ...s, [l.id]: !s[l.id] }))}>
-                {l.label}
+              <button
+                key={l.id}
+                className={`btn min-h-6 px-1.5 py-0 text-[10px] ${layers[l.id] ? 'btn-primary' : ''}`}
+                aria-pressed={layers[l.id]}
+                title={`Camada: ${l.label}`}
+                onClick={() => setLayers((s) => ({ ...s, [l.id]: !s[l.id] }))}
+              >
+                {l.short}
               </button>
             ))}
           </div>
+          <button className="btn min-h-6 px-1.5 py-0 text-[10px]" aria-expanded={legend} onClick={() => toggleLegend(!legend)} title="Mostrar ou ocultar a legenda das cores">
+            Legenda {legend ? '▴' : '▾'}
+          </button>
+          <button className="btn min-h-6 px-1.5 py-0 text-[10px]" onClick={onClose} title="Voltar ao teatro de operações (Tab)">
+            ⚔ Teatro
+          </button>
         </div>
-        <div className="panel pointer-events-auto hidden px-3 py-2 text-[11px] sm:block">
-          <ul className="grid grid-cols-2 gap-x-3 gap-y-0.5">
-            {(Object.keys(POLITICAL_LABELS) as PoliticalState[]).map((k) => (
-              <li key={k} className="flex items-center gap-1.5">
-                <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: POLITICAL_COLORS[k], backgroundImage: k === 'unknown' ? 'repeating-linear-gradient(135deg, transparent 0 2px, rgba(190,200,210,.6) 2px 3px)' : undefined }} aria-hidden />
-                {POLITICAL_LABELS[k]}
-              </li>
-            ))}
-            <li className="col-span-2 mt-0.5 text-ink-400">Áreas escuras: fora do cenário desta versão. Linhas: tratados (tracejado = sanções) e guerras.</li>
-          </ul>
-        </div>
+        {legend && (
+          <div className="panel pointer-events-auto w-60 max-w-full px-2 py-1.5 text-[10px]">
+            <ul className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+              {(Object.keys(POLITICAL_LABELS) as PoliticalState[]).map((k) => (
+                <li key={k} className="flex items-center gap-1">
+                  <span
+                    className="inline-block h-2 w-2 shrink-0 rounded-sm"
+                    style={{ background: POLITICAL_COLORS[k], backgroundImage: k === 'unknown' ? 'repeating-linear-gradient(135deg, transparent 0 2px, rgba(190,200,210,.6) 2px 3px)' : undefined }}
+                    aria-hidden
+                  />
+                  {POLITICAL_LABELS[k]}
+                </li>
+              ))}
+              <li className="col-span-2 mt-0.5 leading-snug text-ink-400">Escuro: fora do cenário. Linhas: tratados (tracejado = sanções) e guerras.</li>
+            </ul>
+          </div>
+        )}
       </div>
 
       {/* país selecionado: painel lateral no desktop, folha inferior no celular */}
@@ -207,7 +249,9 @@ export function GlobePanel({ visible, onClose }: { visible: boolean; onClose: ()
                 <div className="flex flex-wrap items-center gap-1 text-[11px] text-ink-400">
                   {REGION_LABELS[geoOf(selection.countryId)!.region]} · capital {geoOf(selection.countryId)!.capital.name}
                   {selectedState && (
-                    <Chip tone={selectedState === 'war' || selectedState === 'sanctions' || selectedState === 'hostile' ? 'bad' : selectedState === 'ally' || selectedState === 'trade' ? 'good' : 'info'}>
+                    <Chip
+                      tone={selectedState === 'war' || selectedState === 'sanctions' || selectedState === 'hostile' ? 'bad' : selectedState === 'ally' || selectedState === 'trade' ? 'good' : 'info'}
+                    >
                       {POLITICAL_LABELS[selectedState]}
                     </Chip>
                   )}
