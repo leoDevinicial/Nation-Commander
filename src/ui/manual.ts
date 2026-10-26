@@ -75,9 +75,10 @@ export const MANUAL: ManualCard[] = [
     title: 'Nação e melhorias',
     lead: 'O governo financia a guerra.',
     points: [
-      'Painel Nação (🏛): impostos, gastos, dívida, pesquisa e aprovação. Um dia de jogo passa a cada segundo.',
+      'Painel Nação (🏛): impostos, gastos, dívida, pesquisa e aprovação. Um dia passa a cada segundo.',
       'O US$ da barra é a verba de obras: sai do orçamento de infraestrutura e paga as melhorias.',
       'Selecione um prédio e toque em ⬆ Melhorar: até 10 níveis. No nível 6 você escolhe uma especialização, e ela é permanente.',
+      'Pesquisas militares liberam modernizações: leve a tropa à base militar ou fábrica e toque no pacote.',
     ],
     tip: 'Botão apagado? Ele mostra o motivo (ex.: "sem recruta", "faltam 20 petróleo"). Toque para ver os detalhes.',
   },

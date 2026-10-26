@@ -96,7 +96,8 @@ describe('modelo nacional', () => {
     const n = sim.nation(0)!;
     sim.setBudget(0, { ...n.budget, researchPct: 1 });
     expect(sim.setResearch(0, 'logistics')).toBeNull();
-    const days = Math.ceil((TECHNOLOGIES.logistics.cost / 1) * 365);
+    // verba alta: o ritmo fica limitado pela duração mínima da pesquisa
+    const days = Math.max(TECHNOLOGIES.logistics.minDays, Math.ceil((TECHNOLOGIES.logistics.cost / 1) * 365));
     run(sim, days - 2);
     expect(n.research.done).not.toContain('logistics');
     run(sim, 3);

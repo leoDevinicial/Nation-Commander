@@ -1,3 +1,4 @@
+import { MODS } from '../../shared/sim/modernization.ts';
 import { BUILDINGS, RESOURCE_LABELS, UNITS, type BuildingType, type UnitType } from '../../shared/sim/config.ts';
 import type { BuildingStatus } from '../../shared/sim/types.ts';
 
@@ -66,6 +67,20 @@ export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone
       return e.owner === mySlot ? { text: `Obra de melhoria cancelada: ${BUILDINGS[e.buildingType].label} (devolução parcial)`, tone: 'warn' } : null;
     case 'attrition':
       return e.owner === mySlot ? { text: 'Tropas sofrendo atrito em território inimigo: leve um blindado de transporte para manter o suprimento', tone: 'warn' } : null;
+    case 'modernize_started':
+      return e.owner === mySlot ? { text: `Modernização iniciada: ${UNITS[e.unitType].label} recebendo ${MODS[e.mod].label}`, tone: 'info' } : null;
+    case 'unit_modernized':
+      return e.owner === mySlot ? { text: `${UNITS[e.unitType].label} modernizado: ${MODS[e.mod].label}`, tone: 'good' } : null;
+    case 'modernize_cancelled':
+      return e.owner === mySlot
+        ? {
+            text:
+              e.reason === 'facility_lost'
+                ? `Modernização interrompida: a instalação foi destruída (${MODS[e.mod].label}, devolução parcial)`
+                : `Modernização cancelada: ${MODS[e.mod].label} (devolução parcial)`,
+            tone: 'warn',
+          }
+        : null;
     case 'player_defeated':
       return { text: e.slot === mySlot ? 'Nosso QG caiu.' : 'Forças inimigas derrotadas!', tone: e.slot === mySlot ? 'bad' : 'good' };
     default:

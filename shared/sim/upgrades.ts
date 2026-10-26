@@ -1,4 +1,4 @@
-import type { TechId } from '../strategic/technologies.ts';
+import { TECHNOLOGIES, type TechId } from '../strategic/technologies.ts';
 import { BUILDINGS, RESOURCE_TYPES, canAfford, type BuildingType, type Cost, type ResourceType, type Stockpile } from './config.ts';
 
 /**
@@ -765,17 +765,6 @@ export interface UpgradePlan {
   risks: string[];
 }
 
-const TECH_LABELS: Record<string, string> = {
-  logistics: 'Logística integrada',
-  territorial_administration: 'Administração territorial',
-  agricultural_mechanization: 'Mecanização agrícola',
-  mechanized_extraction: 'Extração mecanizada',
-  advanced_drilling: 'Perfuração avançada',
-  modular_construction: 'Construção modular',
-  rapid_training: 'Treinamento acelerado',
-  automation: 'Automação industrial',
-  guided_munitions: 'Munição guiada',
-};
 
 const RES_NAMES: Record<ResourceType, string> = {
   supplies: 'suprimentos',
@@ -827,7 +816,7 @@ export function planUpgrade(b: UpgradeSubject, world: UpgradeWorld, chosenSpec: 
   if (b.type !== 'hq') req.push({ key: 'hq', label: `Centro de Comando no nível ${to - HQ_LEVEL_LEAD} ou mais`, met: world.hqLevel >= to - HQ_LEVEL_LEAD });
   for (const g of t.techAt ?? []) {
     if (to < g.level) continue;
-    req.push({ key: `tech:${g.tech}`, label: `Pesquisa: ${TECH_LABELS[g.tech] ?? g.tech}`, met: world.techs === null ? false : world.techs.includes(g.tech) });
+    req.push({ key: `tech:${g.tech}`, label: `Pesquisa: ${TECHNOLOGIES[g.tech].label}`, met: world.techs === null ? false : world.techs.includes(g.tech) });
   }
   if (t.storageAt && to >= t.storageAt.from) {
     const need = Math.floor(to / 2);

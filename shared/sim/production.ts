@@ -1,5 +1,6 @@
 import { BUILDINGS, CITIZEN, POP_ABSOLUTE_CAP, PRODUCTION_QUEUE_LIMIT, RECRUIT, RESOURCE_TYPES, UNITS, canAfford, type BuildingType, type Cost, type ProducibleType, type Stockpile } from './config.ts';
 import { buildingEffects, missingText, scaledCost, type SpecId } from './upgrades.ts';
+import { addCost, productionStandard, type ModId } from './modernization.ts';
 
 /**
  * Regra única de produção (cidadão, recruta e unidades militares): o servidor valida com ela e o
@@ -17,11 +18,17 @@ export interface ProduceContext {
   recruits: number;
   popTotal: number;
   popCap: number;
+  /** Pesquisas concluídas do país: definem o padrão de equipamento da linha (null = sem camada nacional). */
+  techs: readonly string[] | null;
 }
 
 export interface ProduceCheck {
-  /** Custo já com nível e especialização do edifício. */
+  /** Custo já com nível e especialização do edifício e com o equipamento do padrão vigente. */
   cost: Cost;
+  /** Pacotes de modernização com que a unidade sai da linha (vazio para cidadão e recruta). */
+  mods: ModId[];
+  /** Parte do custo que paga esses pacotes. */
+  equipmentCost: Cost;
   /** Motivo completo da recusa (o mesmo texto que o servidor devolve), ou null se pode produzir. */
   blocker: string | null;
   /** Versão curta para caber no botão ("sem recruta", "fila cheia", "faltam 20 petróleo"). */
@@ -41,8 +48,11 @@ function firstMissing(have: Stockpile, cost: Cost): string {
 export function checkProduce(unit: ProducibleType, c: ProduceContext): ProduceCheck {
   const fx = buildingEffects(c.buildingType, c.level, c.spec);
   const civil = unit === 'citizen' || unit === 'recruit';
-  const cost = unit === 'citizen' ? CITIZEN.cost : unit === 'recruit' ? scaledCost(RECRUIT.cost, fx.recruitCostMul) : scaledCost(UNITS[unit].cost, fx.unitCostMul, fx.unitOilMul);
-  const no = (blocker: string, short: string): ProduceCheck => ({ cost, blocker, short });
+  const std = civil ? { mods: [] as ModId[], extra: {} as Cost } : productionStandard(unit, c.techs);
+  const base = unit === 'citizen' ? CITIZEN.cost : unit === 'recruit' ? scaledCost(RECRUIT.cost, fx.recruitCostMul) : scaledCost(UNITS[unit].cost, fx.unitCostMul, fx.unitOilMul);
+  const cost = addCost(base, std.extra);
+  const eq = { mods: std.mods, equipmentCost: std.extra };
+  const no = (blocker: string, short: string): ProduceCheck => ({ cost, ...eq, blocker, short });
   if (c.progress < 1) return no('Edifício em construção', 'em obra');
   if (c.queueLength >= PRODUCTION_QUEUE_LIMIT) return no('Fila de produção cheia', 'fila cheia');
   if (civil) {
@@ -59,5 +69,5 @@ export function checkProduce(unit: ProducibleType, c: ProduceContext): ProduceCh
     if (c.recruits < 1) return no('Nenhum recruta disponível: aliste recrutas na base militar (quartel)', 'sem recruta');
   }
   if (!canAfford(c.resources, cost)) return no(`Recursos insuficientes: faltam ${missingText(c.resources, cost)}`, firstMissing(c.resources, cost));
-  return { cost, blocker: null, short: null };
+  return { cost, ...eq, blocker: null, short: null };
 }

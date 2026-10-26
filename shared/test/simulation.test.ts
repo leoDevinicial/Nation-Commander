@@ -235,14 +235,15 @@ describe('parseCommand', () => {
 });
 
 describe('modificadores da camada nacional', () => {
-  it('renda externa, dano, vida e tempos de produção/obra', () => {
+  it('renda externa e tempos de produção/obra; dano e vida vêm do equipamento de cada unidade', () => {
     const sim = emptySim();
-    sim.setModifiers(0, { externalIncome: 2.5, damageMul: 1.5, tankHpMul: 1.25, productionTimeMul: 0.5, constructionTimeMul: 0.5 });
+    sim.setModifiers(0, { externalIncome: 2.5, productionTimeMul: 0.5, constructionTimeMul: 0.5 });
     const r0 = sim.players[0]!.resources.supplies;
     run(sim, TICK_RATE * 10);
     expect(sim.players[0]!.resources.supplies - r0).toBe((BUILDINGS.hq.income.supplies! + 2.5) * 10);
 
-    const tank = sim.addUnit('tank', 0, { x: 30, y: 30 });
+    // pesquisa não melhora tropas sozinha: só o pacote instalado na unidade muda os números
+    const tank = sim.addUnit('tank', 0, { x: 30, y: 30 }, 1, ['composite_armor', 'guided_munitions']);
     expect(tank.maxHp).toBe(Math.round(UNITS.tank.maxHp * 1.25));
     expect(sim.addUnit('tank', 1, { x: 60, y: 60 }).maxHp).toBe(UNITS.tank.maxHp);
 
@@ -259,7 +260,7 @@ describe('modificadores da camada nacional', () => {
     sim.applyCommand(0, { type: 'attack', unitIds: [tank.id], targetId: victim.id });
     run(sim, 3);
     const shot = sim.drainEvents().find((e) => e.type === 'shot' && e.attackerId === tank.id);
-    expect(shot && shot.type === 'shot' ? shot.damage : 0).toBeCloseTo(UNITS.tank.weapon.damage * 1.5);
+    expect(shot && shot.type === 'shot' ? shot.damage : 0).toBeCloseTo(UNITS.tank.weapon.damage * 1.15);
   });
 });
 

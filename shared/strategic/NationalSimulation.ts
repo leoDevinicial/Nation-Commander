@@ -16,7 +16,7 @@ import {
   WORKS_START_FRACTION,
 } from './params.ts';
 import { countryReference, type ReferenceKey } from './reference.ts';
-import { combineEffects, TECH_IDS, TECHNOLOGIES, type TechEffects, type TechId } from './technologies.ts';
+import { combineEffects, researchBlocker, researchDailyProgress, TECH_IDS, type TechEffects, type TechId } from './technologies.ts';
 import { COUNTRIES } from '../data/countries.ts';
 import { DIPLO, Diplomacy, warPreview, type DiplomaticAction, type DiplomaticEvent, type NationId, type RelationView, type Treaty, type WarPreview } from './Diplomacy.ts';
 import type { Cost, Stockpile } from '../sim/config.ts';
@@ -105,6 +105,24 @@ export interface WorksFund {
   ledger: { day: number; usd: number; description: string }[];
 }
 
+/**
+ * Estado da pesquisa nacional (Fase 5). O orçamento de P&D é gasto todo dia (compete com as
+ * outras despesas); com um projeto ativo ele vira investimento naquele projeto, sem projeto é
+ * gasto sem retorno tecnológico (`idleUsd`). Pausar ou trocar de projeto mantém o progresso e o
+ * investido; nada é devolvido.
+ */
+export interface ResearchState {
+  current: TechId | null;
+  progress: Record<TechId, number>;
+  done: TechId[];
+  /** US$ investidos em cada projeto até agora. */
+  invested: Record<TechId, number>;
+  /** US$ do orçamento de P&D gastos sem projeto ativo. */
+  idleUsd: number;
+  /** Dia em que cada pesquisa foi concluída. */
+  doneDay: Partial<Record<TechId, number>>;
+}
+
 export interface NationState {
   slot: Slot;
   countryId: string;
@@ -130,7 +148,7 @@ export interface NationState {
   approvalFactors: Factor[];
   stability: number;
   growthFactors: Factor[];
-  research: { current: TechId | null; progress: Record<TechId, number>; done: TechId[] };
+  research: ResearchState;
   /** Verba de obras do teatro (melhorias de construções). */
   works: WorksFund;
   /** Suprimentos/s que a logística nacional entrega ao teatro (inclui ajuda de aliados). */
@@ -343,6 +361,31 @@ export class NationalSimulation {
     return combineEffects(this.nation(slot)?.research.done ?? []);
   }
 
+  /** Estado de pesquisa de todas as nações (JSON) — parte do salvar/carregar da partida. */
+  saveResearch(): Record<number, ResearchState> {
+    const out: Record<number, ResearchState> = {};
+    for (const n of [...this.nations, ...this.npcs]) out[n.slot] = JSON.parse(JSON.stringify(n.research)) as ResearchState;
+    return out;
+  }
+
+  /** Restaura o estado de pesquisa salvo (nações ausentes no salvamento ficam como estão). */
+  loadResearch(saved: Record<number, ResearchState>): void {
+    for (const n of [...this.nations, ...this.npcs]) {
+      const r = saved[n.slot];
+      if (!r) continue;
+      n.research = JSON.parse(JSON.stringify(r)) as ResearchState;
+      // salvamentos antigos (antes da Fase 5) não tinham investimento nem data de conclusão
+      n.research.invested ??= Object.fromEntries(TECH_IDS.map((id) => [id, 0])) as Record<TechId, number>;
+      n.research.idleUsd ??= 0;
+      n.research.doneDay ??= {};
+      for (const id of TECH_IDS) {
+        n.research.progress[id] ??= 0;
+        n.research.invested[id] ??= 0;
+      }
+      this.recompute(n, 0);
+    }
+  }
+
   drainEvents(): NationalEvent[] {
     for (const ev of this.diplomacy.drainEvents()) this.events.push({ type: 'diplomacy', day: this.day, event: ev });
     const e = this.events;
@@ -372,7 +415,10 @@ export class NationalSimulation {
   setResearch(slot: Slot, techId: TechId | null): string | null {
     const n = this.nation(slot);
     if (!n) return 'Nação inválida';
-    if (techId && n.research.done.includes(techId)) return 'Pesquisa já concluída';
+    if (techId) {
+      const blocker = researchBlocker(techId, n.research.done);
+      if (blocker) return blocker;
+    }
     n.research.current = techId;
     return null;
   }
@@ -473,13 +519,20 @@ export class NationalSimulation {
 
     // --- pesquisa
     const cur = n.research.current;
+    const rdUsd = (b.researchPct / 100) * n.gdpUsd * dt;
     if (cur) {
-      n.research.progress[cur] = Math.min(1, n.research.progress[cur] + (b.researchPct * dt) / TECHNOLOGIES[cur].cost);
-      if (n.research.progress[cur] >= 1) {
+      // a verba do dia vira investimento no projeto; o avanço respeita a duração mínima
+      n.research.invested[cur] = (n.research.invested[cur] ?? 0) + rdUsd;
+      n.research.progress[cur] = Math.min(1, n.research.progress[cur] + researchDailyProgress(cur, b.researchPct, DAYS_PER_YEAR).perDay);
+      if (n.research.progress[cur] >= 1 - 1e-9) {
+        n.research.progress[cur] = 1;
         n.research.done.push(cur);
+        n.research.doneDay[cur] = this.day;
         n.research.current = null;
         this.events.push({ type: 'research_completed', day: this.day, slot: n.slot, techId: cur });
       }
+    } else {
+      n.research.idleUsd += rdUsd;
     }
 
     // --- janelas de 30 dias de baixas/vitórias
@@ -640,7 +693,7 @@ export function createNation(slot: Slot, countryId: string): NationState {
     approvalFactors: [],
     stability: 60,
     growthFactors: [],
-    research: { current: null, progress, done: [] },
+    research: { current: null, progress, done: [], invested: Object.fromEntries(TECH_IDS.map((id) => [id, 0])) as Record<TechId, number>, idleUsd: 0, doneDay: {} },
     works: { fundUsd: 0, capUsd: 0, spentUsd: 0, ledger: [] },
     theaterSupplyPerSec: 0,
     allianceAidPerSec: 0,

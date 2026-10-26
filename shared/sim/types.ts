@@ -1,5 +1,6 @@
 import type { BuildingType, Cost, ProducibleType, ResourceType, Stockpile, Terrain, UnitType } from './config.ts';
 import type { SpecId } from './upgrades.ts';
+import type { ModId } from './modernization.ts';
 
 export type EntityId = number;
 /** Índice do jogador na partida (0..n-1). */
@@ -33,8 +34,12 @@ export interface Unit {
   /** Ângulo em radianos (0 = +x). */
   facing: number;
   hp: number;
-  /** Vida máxima no momento da produção (pesquisas afetam apenas unidades novas). */
+  /** Vida máxima atual: base × equipamento do edifício produtor × pacotes instalados. */
   maxHp: number;
+  /** Pacotes de modernização instalados (Fase 5): o nível de equipamento desta unidade. */
+  mods: ModId[];
+  /** Modernização em andamento numa instalação: a unidade fica parada e não dispara. */
+  refit: Refit | null;
   order: UnitOrder;
   /** Alvo adquirido automaticamente (ordem idle/attackMove). */
   engageId: EntityId | null;
@@ -51,6 +56,17 @@ export interface Unit {
   attrition: boolean;
 }
 
+export interface Refit {
+  mod: ModId;
+  /** Instalação (base militar ou fábrica) onde o pacote é instalado. */
+  facilityId: EntityId;
+  remainingTicks: number;
+  totalTicks: number;
+  /** Materiais e verba pagos — base do reembolso parcial ao cancelar. */
+  paid: Cost;
+  usd: number;
+}
+
 export interface ProductionItem {
   /** Unidade militar (já reservou um recruta como tripulação), cidadão ou recruta. */
   unitType: ProducibleType;
@@ -58,6 +74,8 @@ export interface ProductionItem {
   totalTicks: number;
   /** Custo efetivamente pago (com os efeitos do edifício), devolvido integralmente ao cancelar. */
   paid?: Cost;
+  /** Pacotes de equipamento do padrão de produção no momento do pedido (já pagos em `paid`). */
+  mods?: ModId[];
 }
 
 /** Obra de melhoria em andamento (Fase 4). */
@@ -132,9 +150,6 @@ export interface PlayerStats {
 
 /** Modificadores táticos vindos da camada nacional (pesquisas e logística). */
 export interface TacticalModifiers {
-  damageMul: number;
-  tankHpMul: number;
-  infantryHpMul: number;
   constructionTimeMul: number;
   productionTimeMul: number;
   /** Suprimentos/s enviados pela logística nacional ao teatro. */
@@ -194,4 +209,7 @@ export type SimEvent =
   | { type: 'upgrade_started'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; toLevel: number; spec: SpecId | null; usd: number; pos: Vec2 }
   | { type: 'upgrade_completed'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; level: number; spec: SpecId | null; pos: Vec2 }
   | { type: 'upgrade_cancelled'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; toLevel: number; pos: Vec2 }
-  | { type: 'attrition'; tick: number; owner: Slot; pos: Vec2 };
+  | { type: 'attrition'; tick: number; owner: Slot; pos: Vec2 }
+  | { type: 'modernize_started'; tick: number; id: EntityId; owner: Slot; unitType: UnitType; mod: ModId; usd: number; pos: Vec2 }
+  | { type: 'unit_modernized'; tick: number; id: EntityId; owner: Slot; unitType: UnitType; mod: ModId; pos: Vec2 }
+  | { type: 'modernize_cancelled'; tick: number; id: EntityId; owner: Slot; unitType: UnitType; mod: ModId; reason: 'player' | 'facility_lost'; pos: Vec2 };

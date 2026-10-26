@@ -62,11 +62,8 @@ Nenhum problema impedia validar as fases seguintes.
 Ausente na auditoria: construções tinham um único nível. Implementada depois — veja `docs/FASE4_MELHORIAS.md`.
 
 ### Fase 5 — Pesquisa e modernização
-| Item | Estado | Observação |
-|---|---|---|
-| Pesquisa com custo, duração e progresso | parcial | 6 tecnologias pagas pelo orçamento de P&D |
-| Pré-requisitos | ausente | |
-| Modernização por unidade (equipamento identificável) | ausente | hoje o efeito vale para todas as unidades ao concluir — o adendo pede o contrário |
+Ausente/parcial na auditoria: 6 tecnologias sem pré-requisitos, com efeito global em todas as unidades ao concluir.
+Implementada depois — veja `docs/FASE5_PESQUISA_MODERNIZACAO.md`.
 
 ### Fase 6 — Comércio e logística
 Parcial: acordos comerciais com governos de IA afetam o crescimento, mas não há ofertas, contratos, cargas nem rotas.
@@ -147,6 +144,7 @@ As dependências seguem a tabela da seção 4 do adendo. Resumo dos critérios m
 | 2 — Globo, contato e guerra formal | implementada para os países do teatro; guerra contra governos fora do teatro e paz ficam para fases posteriores (identificado no jogo) | `docs/FASE2_GLOBO_GUERRA.md` |
 | 3 — População, armazenamento, geologia + fronteiras | implementada; save/load, mercados/portos/bases aéreas e alianças entre jogadores pendentes | `docs/FASE3_POPULACAO_FRONTEIRAS.md` |
 | 4 — Melhorias de construções | implementada: 14 classes com até 10 níveis, custo em recursos e no fundo nacional de obras, requisitos, especializações exclusivas, evolução visual modular com LOD e serialização testada; pendentes modelos GLB finais, save/load acessível ao jogador (Fase 12) e mercados (Fase 6) | `docs/FASE4_MELHORIAS.md` |
+| 5 — Pesquisa e modernização | implementada: 13 tecnologias em 4 categorias, com pré-requisitos, duração mínima e investimento em US$ registrado; 6 pacotes de modernização por unidade (instalação, baias, materiais, verba, indisponibilidade), padrão de produção com sobrecusto, equipamento visível e origem de cada bônus; persistência de equipamento e pesquisa testada; salvamento completo para o jogador na Fase 12 | `docs/FASE5_PESQUISA_MODERNIZACAO.md` |
 
 O livro de eventos começou na Fase 2: todos os eventos diplomáticos têm `id` sequencial e `causes`
 quando são consequência de outro (guerra → tratados rompidos e sanções; tratado → descoberta).

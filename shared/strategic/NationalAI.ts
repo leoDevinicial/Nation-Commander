@@ -1,6 +1,6 @@
 import type { Slot } from '../sim/types.ts';
 import { spendPct, type Budget, type NationalSimulation } from './NationalSimulation.ts';
-import { TECH_IDS, type TechId } from './technologies.ts';
+import { researchBlocker, TECH_IDS, type TechId } from './technologies.ts';
 import type { DiplomaticAction } from './Diplomacy.ts';
 
 /** Ordem de pesquisa da IA: primeiro o que ajuda no teatro, depois a economia. */
@@ -10,11 +10,14 @@ const AI_RESEARCH_ORDER: TechId[] = [
   'territorial_administration',
   'mechanized_extraction',
   'rapid_training',
+  'digital_comms',
+  'composite_armor',
   'guided_munitions',
   'advanced_drilling',
-  'composite_armor',
   'modular_construction',
+  'sensor_optics',
   'automation',
+  'efficient_propulsion',
 ];
 
 /**
@@ -59,7 +62,9 @@ export class NationalAI {
 
     let research: TechId | null | undefined;
     if (!n.research.current) {
-      research = AI_RESEARCH_ORDER.find((t) => !n.research.done.includes(t)) ?? TECH_IDS.find((t) => !n.research.done.includes(t)) ?? null;
+      // a primeira da lista cujos pré-requisitos já estão prontos (mesma regra do jogador)
+      const ready = (t: TechId) => researchBlocker(t, n.research.done) === null;
+      research = AI_RESEARCH_ORDER.find(ready) ?? TECH_IDS.find(ready) ?? null;
     }
     return { budget: changed ? b : null, research, diplomacy: this.diplomacy(sim) };
   }

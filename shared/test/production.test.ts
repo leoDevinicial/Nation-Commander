@@ -13,6 +13,7 @@ const ctx = (over: Partial<ProduceContext> = {}): ProduceContext => ({
   recruits: 3,
   popTotal: 20,
   popCap: 40,
+  techs: null,
   ...over,
 });
 

@@ -348,6 +348,10 @@ select {
   gap: 2px;
   padding: 4px 3px 5px;
 }
+/* conteúdo do cartão nunca encolhe (o rótulo sumiria): o cartão cresce */
+.cmd-btn.cmd-card > * {
+  flex-shrink: 0;
+}
 .cmd-card-view {
   width: 100%;
   height: 46px;

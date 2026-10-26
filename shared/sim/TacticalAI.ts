@@ -2,8 +2,9 @@ import { BUILDINGS, CITIZEN, OIL_TANK_RANGE, RECRUIT, type ResourceType, POP_ABS
 import { claimableCells, claimedBy } from './gathering.ts';
 import type { Command } from './commands.ts';
 import type { Simulation } from './Simulation.ts';
-import type { Building, Cell, Entity, Slot, Vec2 } from './types.ts';
+import type { Building, Cell, Entity, Slot, Unit, Vec2 } from './types.ts';
 import type { SpecId } from './upgrades.ts';
+import { MOD_IDS, MODS, checkModernize } from './modernization.ts';
 import { DIPLO } from '../strategic/Diplomacy.ts';
 
 /** Com que frequência a IA reavalia a situação. */
@@ -167,8 +168,11 @@ export class TacticalAI {
       return cmds;
     }
 
-    // --- ataque em ondas
-    const idle = army.filter((u) => u.order.kind === 'idle' && u.engageId === null);
+    // --- modernização (Fase 5): tropas paradas perto da instalação recebem os pacotes liberados
+    if (!this.attacking) this.planModernize(sim, army, take, cmds);
+
+    // --- ataque em ondas (unidades em modernização não contam: estão indisponíveis)
+    const idle = army.filter((u) => u.order.kind === 'idle' && u.engageId === null && !u.refit);
     const ready = sim.tick >= AI_FIRST_ATTACK_TICK && sim.tick - this.lastWaveTick >= AI_WAVE_COOLDOWN_TICKS;
     if (!this.attacking && idle.length >= this.waveSize && ready) {
       const objective = this.enemyObjective(sim);
@@ -190,6 +194,24 @@ export class TacticalAI {
       if (strays.length > 0) cmds.push({ type: 'move', unitIds: strays.map((u) => u.id), x: rally.x, y: rally.y });
     }
     return cmds;
+  }
+
+  /**
+   * Moderniza até duas unidades por avaliação, com a mesma regra (`checkModernize`) e o mesmo
+   * comando do jogador. Fora do preparo, mantém metade do exército disponível.
+   */
+  private planModernize(sim: Simulation, army: Unit[], take: (c: Cost) => boolean, cmds: Command[]): void {
+    const busy = army.filter((u) => u.refit).length;
+    let room = Math.min(2, Math.floor(army.length / 2) - busy);
+    for (const u of army) {
+      if (room <= 0) return;
+      if (u.refit || u.order.kind !== 'idle' || u.engageId !== null) continue;
+      const ctx = sim.modernizeContext(u);
+      const mod = MOD_IDS.find((m) => checkModernize(m, ctx).blocker === null);
+      if (!mod || !take(MODS[mod].retrofit.cost)) continue;
+      cmds.push({ type: 'modernize', unitIds: [u.id], mod });
+      room--;
+    }
   }
 
   /**

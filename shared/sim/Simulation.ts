@@ -42,6 +42,7 @@ import { findPath } from './pathfinding/AStar.ts';
 import { placementError } from './placement.ts';
 import { Grid } from './pathfinding/Grid.ts';
 import { checkProduce } from './production.ts';
+import { MOD_CANCEL_REFUND, MODS, checkModernize, combineMods, pickRefitFacility, type FacilityPick, type ModId, type ModernizeContext } from './modernization.ts';
 import type {
   Building,
   BuildingStatus,
@@ -71,9 +72,6 @@ export interface SimulationInit {
 }
 
 export const NEUTRAL_MODIFIERS: TacticalModifiers = {
-  damageMul: 1,
-  tankHpMul: 1,
-  infantryHpMul: 1,
   constructionTimeMul: 1,
   productionTimeMul: 1,
   externalIncome: 0,
@@ -286,6 +284,11 @@ export class Simulation {
     sim.nextId = data.nextId;
     sim.players.splice(0, sim.players.length, ...data.players);
     for (const e of data.entities) {
+      // salvamentos de antes da Fase 5 não tinham equipamento por unidade
+      if (e.kind === 'unit') {
+        e.mods ??= [];
+        e.refit ??= null;
+      }
       sim.entities.set(e.id, e);
       if (e.kind === 'building') sim.grid.setOccupied(e.cell, BUILDINGS[e.type].size, e.id);
     }
@@ -662,7 +665,7 @@ export class Simulation {
   }
 
   sightOf(e: Entity): number {
-    return e.kind === 'unit' ? UNITS[e.type].sight : BUILDINGS[e.type].sight + this.fx(e).sightAdd;
+    return e.kind === 'unit' ? UNITS[e.type].sight + combineMods(e.mods).sightAdd : BUILDINGS[e.type].sight + this.fx(e).sightAdd;
   }
 
 
@@ -681,7 +684,7 @@ export class Simulation {
     switch (cmd.type) {
       case 'move':
       case 'attack_move': {
-        const units = this.ownUnits(slot, cmd.unitIds);
+        const units = this.ownUnits(slot, cmd.unitIds, true);
         if (units.length === 0) return 'Nenhuma unidade válida';
         const tc = this.grid.worldToCell(this.clampToMap({ x: cmd.x, y: cmd.y }));
         if (!this.canEnter(slot, tc.cx, tc.cy)) return 'Território de outra nação: sem guerra ou aliança não é possível entrar';
@@ -696,7 +699,7 @@ export class Simulation {
         return null;
       }
       case 'attack': {
-        const units = this.ownUnits(slot, cmd.unitIds);
+        const units = this.ownUnits(slot, cmd.unitIds, true);
         if (units.length === 0) return 'Nenhuma unidade válida';
         const target = this.entities.get(cmd.targetId);
         if (!target || target.owner === slot) return 'Alvo inválido';
@@ -713,7 +716,7 @@ export class Simulation {
         return null;
       }
       case 'stop': {
-        const units = this.ownUnits(slot, cmd.unitIds);
+        const units = this.ownUnits(slot, cmd.unitIds, true);
         if (units.length === 0) return 'Nenhuma unidade válida';
         for (const u of units) this.setIdle(u);
         return null;
@@ -743,6 +746,7 @@ export class Simulation {
           recruits: player.recruits,
           popTotal: pop.total,
           popCap: pop.cap,
+          techs: this.national ? this.national.techs(slot) : null,
         });
         if (check.blocker) return check.blocker;
         const cost = check.cost;
@@ -758,7 +762,7 @@ export class Simulation {
         const def = UNITS[cmd.unitType];
         player.recruits--;
         const ticks = Math.max(1, Math.round(def.buildSeconds * TICK_RATE * player.modifiers.productionTimeMul * bfx.productionTimeMul));
-        b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks, paid: cost });
+        b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks, paid: cost, mods: [...check.mods] });
         return null;
       }
       case 'cancel_production': {
@@ -814,6 +818,113 @@ export class Simulation {
         b.rally = this.clampToMap({ x: cmd.x, y: cmd.y });
         return null;
       }
+      case 'modernize': {
+        const units = this.ownUnits(slot, cmd.unitIds);
+        if (units.length === 0) return 'Nenhuma unidade válida';
+        // cada unidade é avaliada com o saldo que sobrou das anteriores; basta uma começar
+        let started = 0;
+        let firstError: string | null = null;
+        for (const u of units) {
+          const facility = this.refitFacility(u);
+          const check = checkModernize(cmd.mod, this.modernizeContext(u, facility));
+          if (check.blocker || !facility.ok) {
+            firstError ??= check.blocker ?? 'Sem instalação compatível';
+            continue;
+          }
+          const def = MODS[cmd.mod];
+          if (this.national && check.usd > 0 && !this.national.chargeWorks(slot, check.usd, `${UNITS[u.type].label}: ${def.label}`)) {
+            firstError ??= 'Verba de obras insuficiente no orçamento nacional';
+            continue;
+          }
+          this.spend(player, check.cost);
+          const total = Math.max(1, Math.round(check.seconds * TICK_RATE));
+          this.setIdle(u);
+          u.refit = { mod: cmd.mod, facilityId: facility.id, remainingTicks: total, totalTicks: total, paid: { ...check.cost }, usd: check.usd };
+          this.emit({ type: 'modernize_started', tick: this.tick, id: u.id, owner: slot, unitType: u.type, mod: cmd.mod, usd: check.usd, pos: { ...u.pos } });
+          started++;
+        }
+        return started > 0 ? null : (firstError ?? 'Nenhuma unidade pode receber este pacote');
+      }
+      case 'cancel_modernize': {
+        const units = this.ownUnits(slot, cmd.unitIds).filter((u) => u.refit);
+        if (units.length === 0) return 'Nenhuma modernização em andamento';
+        for (const u of units) this.cancelRefit(u, 'player');
+        return null;
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------- modernização (Fase 5)
+
+  /** Instalação compatível mais próxima com vaga livre (mesma regra do HUD), ou o motivo de não haver. */
+  refitFacility(u: Unit): FacilityPick {
+    const cs = this.grid.cellSize;
+    const facilities = this.buildings.map((b) => ({
+      id: b.id,
+      type: b.type,
+      owner: b.owner,
+      ready: b.progress >= 1 && b.hp > 0,
+      level: b.level,
+      x: b.pos.x,
+      y: b.pos.y,
+      half: (BUILDINGS[b.type].size * cs) / 2,
+    }));
+    return pickRefitFacility({ type: u.type, owner: u.owner, x: u.pos.x, y: u.pos.y }, facilities, (id) => this.refitsAt(id));
+  }
+
+  /** Modernizações em andamento numa instalação. */
+  refitsAt(facilityId: EntityId): number {
+    let n = 0;
+    for (const u of this.units) if (u.refit?.facilityId === facilityId) n++;
+    return n;
+  }
+
+  /** Contexto da regra de modernização para uma unidade (o mesmo que o HUD monta no cliente). */
+  modernizeContext(u: Unit, facility = this.refitFacility(u)): ModernizeContext {
+    const link = this.national;
+    return {
+      unitType: u.type,
+      mods: u.mods,
+      refitting: u.refit !== null,
+      techs: link ? link.techs(u.owner) : null,
+      facility,
+      resources: this.players[u.owner]!.resources,
+      fundsUsd: link ? link.worksFundUsd(u.owner) : null,
+    };
+  }
+
+  private cancelRefit(u: Unit, reason: 'player' | 'facility_lost'): void {
+    const r = u.refit;
+    if (!r) return;
+    u.refit = null;
+    const back: Cost = {};
+    for (const res of RESOURCE_TYPES) if (r.paid[res]) back[res] = Math.floor(r.paid[res]! * MOD_CANCEL_REFUND);
+    this.refund(u.owner, back);
+    if (this.national && r.usd > 0) this.national.refundWorks(u.owner, Math.floor(r.usd * MOD_CANCEL_REFUND), `${UNITS[u.type].label}: modernização cancelada`);
+    this.emit({ type: 'modernize_cancelled', tick: this.tick, id: u.id, owner: u.owner, unitType: u.type, mod: r.mod, reason, pos: { ...u.pos } });
+  }
+
+  /** Avança as modernizações; a unidade fica parada até terminar. Instalação perdida cancela a obra. */
+  private updateRefits(): void {
+    for (const u of this.units) {
+      const r = u.refit;
+      if (!r || u.hp <= 0) continue;
+      const f = this.entities.get(r.facilityId);
+      if (!f || f.kind !== 'building' || f.hp <= 0) {
+        this.cancelRefit(u, 'facility_lost');
+        continue;
+      }
+      if (--r.remainingTicks > 0) continue;
+      u.refit = null;
+      if (u.mods.includes(r.mod)) continue;
+      u.mods.push(r.mod);
+      // a vida cresce na mesma proporção da vida máxima (o pacote não "cura" a unidade)
+      const mul = MODS[r.mod].effects.hpMul ?? 1;
+      if (mul !== 1) {
+        u.maxHp = Math.round(u.maxHp * mul);
+        u.hp = Math.min(u.maxHp, u.hp * mul);
+      }
+      this.emit({ type: 'unit_modernized', tick: this.tick, id: u.id, owner: u.owner, unitType: u.type, mod: r.mod, pos: { ...u.pos } });
     }
   }
 
@@ -890,6 +1001,7 @@ export class Simulation {
     this.updateConstruction();
     this.updateUpgrades();
     this.updateProduction();
+    this.updateRefits();
     for (const u of this.units) this.updateUnit(u);
     this.updateAttrition();
     if (this.tick % TICK_RATE === 0) this.evacuateForeignTerritory();
@@ -1158,7 +1270,7 @@ export class Simulation {
         this.emit({ type: 'recruit_trained', tick: this.tick, owner: b.owner, pos: { ...b.pos } });
         continue;
       }
-      const u = this.spawnUnitNear(b, item.unitType, this.fx(b).unitHpMul);
+      const u = this.spawnUnitNear(b, item.unitType, this.fx(b).unitHpMul, item.mods ?? []);
       if (!u) {
         item.remainingTicks = TICK_RATE; // sem espaço: tenta de novo em 1 s
         continue;
@@ -1189,7 +1301,7 @@ export class Simulation {
       u.attrition = hostileGround && !supplied;
       if (!u.attrition) continue;
       if (!was) this.emit({ type: 'attrition', tick: this.tick, owner: u.owner, pos: { ...u.pos } });
-      u.hp -= u.maxHp * ATTRITION_PER_SECOND * TICK_SECONDS;
+      u.hp -= u.maxHp * ATTRITION_PER_SECOND * combineMods(u.mods).attritionMul * TICK_SECONDS;
       if (u.hp <= 0) this.markDestroyed(u, owner);
     }
   }
@@ -1236,7 +1348,14 @@ export class Simulation {
   private updateUnit(u: Unit): void {
     if (u.hp <= 0) return;
     if (u.cooldown > 0) u.cooldown--;
+    // em modernização: parada na instalação, sem disparar
+    if (u.refit) {
+      u.activity = 'idle';
+      return;
+    }
+    const fx = combineMods(u.mods);
     const def = UNITS[u.type];
+    const reach = Math.max(def.sight + fx.sightAdd, def.weapon.range + fx.rangeAdd);
 
     switch (u.order.kind) {
       case 'attack': {
@@ -1250,7 +1369,7 @@ export class Simulation {
         return;
       }
       case 'attackMove': {
-        const target = this.validEngageTarget(u, Math.max(def.sight, def.weapon.range) * 1.5) ?? this.acquireTarget(u.pos, u.owner, Math.max(def.sight, def.weapon.range));
+        const target = this.validEngageTarget(u, reach * 1.5) ?? this.acquireTarget(u.pos, u.owner, reach);
         if (target) {
           if (u.engageId !== target.id) {
             u.engageId = target.id;
@@ -1277,7 +1396,7 @@ export class Simulation {
         return;
       }
       case 'idle': {
-        const target = this.validEngageTarget(u, Math.max(def.sight, def.weapon.range) * 1.5) ?? this.acquireTarget(u.pos, u.owner, Math.max(def.sight, def.weapon.range));
+        const target = this.validEngageTarget(u, reach * 1.5) ?? this.acquireTarget(u.pos, u.owner, reach);
         if (!target) {
           u.engageId = null;
           u.activity = 'idle';
@@ -1325,12 +1444,14 @@ export class Simulation {
 
   private engage(u: Unit, target: Entity): void {
     const weapon = UNITS[u.type].weapon;
+    // armamento conforme o equipamento instalado nesta unidade
+    const fx = combineMods(u.mods);
     const d = this.distanceToEdge(u.pos, target);
-    if (d <= weapon.range) {
+    if (d <= weapon.range + fx.rangeAdd) {
       u.activity = 'attacking';
       u.path = [];
       u.facing = Math.atan2(target.pos.y - u.pos.y, target.pos.x - u.pos.x);
-      if (u.cooldown <= 0) this.fire(u, target, weapon.damage * this.players[u.owner]!.modifiers.damageMul, weapon.cooldown);
+      if (u.cooldown <= 0) this.fire(u, target, weapon.damage * fx.damageMul, weapon.cooldown * fx.cooldownMul);
       return;
     }
     u.activity = 'chasing';
@@ -1388,7 +1509,7 @@ export class Simulation {
       target = candidate && candidate.kind === 'unit' ? candidate : null;
     }
     b.engageId = target?.id ?? null;
-    if (target) this.fire(b, target, weapon.damage * this.players[b.owner]!.modifiers.damageMul, weapon.cooldown);
+    if (target) this.fire(b, target, weapon.damage, weapon.cooldown);
   }
 
   // ---------------------------------------------------------------- movimento
@@ -1476,7 +1597,7 @@ export class Simulation {
     if (!wp) return true;
     const cell = this.grid.worldToCell(u.pos);
     const terrainMul = this.grid.inBounds(cell.cx, cell.cy) ? TERRAIN[this.grid.terrainAt(cell.cx, cell.cy)].speedMultiplier : 1;
-    const speed = UNITS[u.type].speed * Math.max(terrainMul, 0.3) * TICK_SECONDS;
+    const speed = UNITS[u.type].speed * combineMods(u.mods).speedMul * Math.max(terrainMul, 0.3) * TICK_SECONDS;
     const dx = wp.x - u.pos.x;
     const dy = wp.y - u.pos.y;
     const d = Math.hypot(dx, dy);
@@ -1618,7 +1739,7 @@ export class Simulation {
   }
 
   /** Cria uma unidade numa célula livre ao redor do edifício. */
-  spawnUnitNear(b: Building, type: UnitType, hpMul = 1): Unit | null {
+  spawnUnitNear(b: Building, type: UnitType, hpMul = 1, mods: readonly ModId[] = []): Unit | null {
     const size = BUILDINGS[b.type].size;
     const occupied = new Set(this.units.map((u) => this.grid.index(...cellTuple(this.grid.worldToCell(u.pos)))));
     for (let r = 1; r <= 4; r++) {
@@ -1635,14 +1756,17 @@ export class Simulation {
       const mid = { x: (this.map.width * this.map.cellSize) / 2, y: (this.map.height * this.map.cellSize) / 2 };
       candidates.sort((a, c) => dist(this.grid.cellCenter(a), mid) - dist(this.grid.cellCenter(c), mid));
       const cell = candidates[0];
-      if (cell) return this.addUnit(type, b.owner, this.grid.cellCenter(cell), hpMul);
+      if (cell) return this.addUnit(type, b.owner, this.grid.cellCenter(cell), hpMul, mods);
     }
     return null;
   }
 
-  /** `hpMul`: equipamento do edifício que produziu (ex.: escola de elite, equipamentos avançados). */
-  addUnit(type: UnitType, owner: Slot, pos: Vec2, hpMul = 1): Unit {
-    const maxHp = Math.round(this.unitMaxHp(type, owner) * hpMul);
+  /**
+   * `hpMul`: equipamento do edifício que produziu (ex.: escola de elite, equipamentos avançados).
+   * `mods`: pacotes de modernização do padrão de produção (já pagos no pedido).
+   */
+  addUnit(type: UnitType, owner: Slot, pos: Vec2, hpMul = 1, mods: readonly ModId[] = []): Unit {
+    const maxHp = Math.round(UNITS[type].maxHp * hpMul * combineMods(mods).hpMul);
     const u: Unit = {
       kind: 'unit',
       id: this.nextId++,
@@ -1663,14 +1787,11 @@ export class Simulation {
       lastProgressDist: Infinity,
       repathTimer: 0,
       attrition: false,
+      mods: [...mods],
+      refit: null,
     };
     this.entities.set(u.id, u);
     return u;
-  }
-
-  unitMaxHp(type: UnitType, owner: Slot): number {
-    const m = this.players[owner]?.modifiers ?? NEUTRAL_MODIFIERS;
-    return Math.round(UNITS[type].maxHp * (type === 'tank' ? m.tankHpMul : m.infantryHpMul));
   }
 
   /** Atualiza os modificadores vindos da camada nacional. */
@@ -1689,11 +1810,12 @@ export class Simulation {
     u.activity = 'idle';
   }
 
-  private ownUnits(slot: Slot, ids: EntityId[]): Unit[] {
+  /** `active`: só as que podem receber ordens (fora de modernização). */
+  private ownUnits(slot: Slot, ids: EntityId[], active = false): Unit[] {
     const out: Unit[] = [];
     for (const id of ids) {
       const e = this.entities.get(id);
-      if (e && e.kind === 'unit' && e.owner === slot && e.hp > 0) out.push(e);
+      if (e && e.kind === 'unit' && e.owner === slot && e.hp > 0 && (!active || !e.refit)) out.push(e);
     }
     return out;
   }

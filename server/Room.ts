@@ -371,9 +371,6 @@ export class Room {
     for (const n of this.national.nations) {
       const fx = this.national.effects(n.slot);
       this.sim.setModifiers(n.slot, {
-        damageMul: fx.damageMul,
-        tankHpMul: fx.tankHpMul,
-        infantryHpMul: fx.infantryHpMul,
         constructionTimeMul: fx.constructionTimeMul,
         productionTimeMul: fx.productionTimeMul,
         externalIncome: n.theaterSupplyPerSec,

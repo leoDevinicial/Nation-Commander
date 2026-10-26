@@ -3,6 +3,7 @@ import type { Population, Simulation } from './Simulation.ts';
 import { encodeTerritory } from './territory.ts';
 import type { BuildingStatus, EntityId, SimEvent, Slot, UnitActivity, Vec2 } from './types.ts';
 import type { SpecId } from './upgrades.ts';
+import type { ModId } from './modernization.ts';
 
 export interface UnitSnapshot {
   id: EntityId;
@@ -18,6 +19,10 @@ export interface UnitSnapshot {
   targetId: EntityId | null;
   /** Sofrendo atrito em território inimigo. */
   attrition?: true;
+  /** Pacotes de modernização instalados (equipamento visível no próprio veículo/soldado). */
+  mods?: ModId[];
+  /** Modernização em andamento (só para o dono). */
+  refit?: { mod: ModId; progress: number; facility: EntityId };
 }
 
 export interface BuildingSnapshot {
@@ -114,6 +119,8 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         order: e.order.kind,
         targetId: e.order.kind === 'attack' ? e.order.targetId : e.engageId,
         ...(e.attrition ? { attrition: true as const } : {}),
+        ...(e.mods.length ? { mods: [...e.mods] } : {}),
+        ...(e.refit && (!viewer || e.owner === viewer.slot) ? { refit: { mod: e.refit.mod, progress: r2(1 - e.refit.remainingTicks / e.refit.totalTicks), facility: e.refit.facilityId } } : {}),
       });
     } else {
       const own = !viewer || e.owner === viewer.slot;
@@ -204,6 +211,9 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
       return e.owner === slot || sim.isVisibleTo(slot, e.pos);
     case 'upgrade_started':
     case 'upgrade_cancelled':
+    case 'modernize_started':
+    case 'unit_modernized':
+    case 'modernize_cancelled':
       return e.owner === slot;
     case 'under_attack':
     case 'citizen_trained':

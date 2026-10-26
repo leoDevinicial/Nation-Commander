@@ -16,6 +16,8 @@ import {
   type UnitType,
 } from '../../../shared/sim/config.ts';
 import { checkProduce } from '../../../shared/sim/production.ts';
+import { MODS, equipmentTag, unitStatLines, type ModId } from '../../../shared/sim/modernization.ts';
+import { TECHNOLOGIES } from '../../../shared/strategic/technologies.ts';
 import type { BuildingStatus } from '../../../shared/sim/types.ts';
 import { CostLabel, ResourceIcon } from '../components/Resources.tsx';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
@@ -146,6 +148,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           <>
             <CardButton icon="⚔" hotkey="F" label="Avançar atacando" onClick={() => runtime.startAttackMove()} title="Avançar atacando (F)" />
             <CardButton icon="■" hotkey="X" label="Parar" onClick={() => runtime.stopSelected()} title="Parar (X)" />
+            <ModernizeButtons runtime={runtime} />
           </>
         )}
         {mode.kind === 'place' && touch && (
@@ -307,6 +310,8 @@ type SelectedBuilding = NonNullable<ReturnType<typeof useHudStore.getState>['sel
  */
 function ProduceButton({ b, unit, hotkey, label, title, onRun }: { b: SelectedBuilding; unit: ProducibleType; hotkey: string; label: string; title: string; onRun: () => void }) {
   const me = useHudStore((s) => s.players.find((p) => p.slot === s.mySlot));
+  const mySlot = useHudStore((s) => s.mySlot);
+  const techs = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot)?.research.done ?? null);
   const check = checkProduce(unit, {
     buildingType: b.type,
     level: b.level,
@@ -317,6 +322,7 @@ function ProduceButton({ b, unit, hotkey, label, title, onRun }: { b: SelectedBu
     recruits: me?.population?.recruits ?? 0,
     popTotal: me?.population?.total ?? 0,
     popCap: me?.population?.cap ?? 0,
+    techs,
   });
   const queued = b.queue.filter((q) => q.unitType === unit).length;
   const thumb = useHudStore((s) => s.thumbs[unit]);
@@ -339,9 +345,10 @@ function ProduceButton({ b, unit, hotkey, label, title, onRun }: { b: SelectedBu
         }
         onRun();
       }}
-      title={`${title}${check.blocker ? `\nBloqueado: ${check.blocker}` : ''}`}
+      title={`${title}${check.mods.length ? `\nSai da linha com: ${check.mods.map((m) => MODS[m].label).join(', ')} (custo do equipamento incluído)` : ''}${check.blocker ? `\nBloqueado: ${check.blocker}` : ''}`}
     >
       <CostLabel cost={check.cost} have={me?.resources ?? emptyStockpile()} compact />
+      {check.mods.length > 0 && <span className="text-[9px] leading-tight text-signal-blue">Ger. {check.mods.length} · {check.mods.map((m) => MODS[m].short).join(' ')}</span>}
     </CardButton>
   );
 }
@@ -479,41 +486,126 @@ function HpLine({ hp, max }: { hp: number; max: number }) {
   );
 }
 
+const AREA_ICON: Record<string, string> = { Blindagem: '🛡', Precisão: '🎯', Comunicações: '📡', Detecção: '🔭', 'Mobilidade e logística': '⚙' };
+
+/**
+ * Botões de modernização da seleção (Fase 5): um por pacote liberado que alguma unidade ainda não
+ * tem. Mostra quantas podem começar agora (×N), o custo por unidade e, se nenhuma pode, o motivo
+ * curto — e um toque explica o motivo completo (pesquisa, instalação longe, baias cheias, verba).
+ */
+function ModernizeButtons({ runtime }: { runtime: GameRuntime }) {
+  // recalculado a cada publicação do HUD (seleção, posições, saldo)
+  useHudStore((s) => s.tick);
+  const units = useHudStore((s) => s.selectedUnits);
+  const me = useHudStore((s) => s.players.find((p) => p.slot === s.mySlot));
+  const options = runtime.modernizeOptions();
+  const refitting = units.filter((u) => u.refit).length;
+  return (
+    <>
+      {options.map((o) => {
+        const def = MODS[o.mod];
+        const blocked = o.readyIds.length === 0;
+        return (
+          <CardButton
+            key={o.mod}
+            icon={AREA_ICON[def.area] ?? '⬆'}
+            label={def.label}
+            blocked={blocked}
+            short={o.short}
+            badge={blocked ? undefined : `×${o.readyIds.length}`}
+            onClick={() => {
+              if (blocked) {
+                useHudStore.getState().pushEvent({ tick: useHudStore.getState().tick, text: `${def.label}: ${o.blocker ?? 'indisponível'}`, tone: 'warn' });
+                return;
+              }
+              runtime.modernize(o.mod);
+            }}
+            title={`Modernizar: ${def.label} (${def.area}) — ${def.description}\nPesquisa: ${TECHNOLOGIES[def.tech].label}\n${o.readyIds.length} de ${o.applicable} unidade(s) podem começar agora · ${o.check.seconds}s parada(s) na instalação · ${usdShort(o.check.usd)} por unidade${o.blocker ? `\nBloqueado: ${o.blocker}` : ''}`}
+          >
+            <CostLabel cost={o.check.cost} have={me?.resources ?? emptyStockpile()} compact />
+            {o.check.usd > 0 && <span className="text-[9px] text-signal-green">{usdShort(o.check.usd)}</span>}
+          </CardButton>
+        );
+      })}
+      {refitting > 0 && (
+        <CardButton icon="↶" label="Cancelar moderniz." onClick={() => runtime.cancelModernize()} title={`Cancelar a modernização de ${refitting} unidade(s) — devolve metade dos materiais e da verba`} badge={`×${refitting}`} />
+      )}
+    </>
+  );
+}
+
+/** Rótulo curto do pacote com a pesquisa de origem (dica). */
+function ModChip({ mod }: { mod: ModId }) {
+  const def = MODS[mod];
+  return (
+    <span className="rounded border border-signal-blue/40 bg-signal-blue/10 px-1 text-[10px] text-ink-100" title={`${def.label} (${def.area}) — pesquisa: ${TECHNOLOGIES[def.tech].label}`}>
+      {AREA_ICON[def.area]} {def.label}
+    </span>
+  );
+}
+
 function UnitsInfo({ units }: { units: ReturnType<typeof useHudStore.getState>['selectedUnits'] }) {
   if (units.length === 1) {
     const u = units[0]!;
     const def = UNITS[u.type];
+    // cada número com a origem do ganho: pacote instalado → pesquisa
+    const lines = unitStatLines(u.type, u.mods, u.maxHp).filter((l) => l.key !== 'hp' && (l.key !== 'attrition' || l.value !== 100));
     return (
       <div>
-        <div className="text-sm font-semibold">{def.label}</div>
+        <div className="flex flex-wrap items-baseline gap-x-2 text-sm font-semibold">
+          {def.label}
+          <span className="text-[10px] font-normal text-ink-400">{equipmentTag(u.type, u.mods)}</span>
+        </div>
         <HpLine hp={u.hp} max={u.maxHp} />
-        <dl className="mt-2 grid grid-cols-3 gap-x-4 gap-y-0.5 text-xs text-ink-400">
+        {u.refit && (
+          <div className="mt-1 text-xs text-brass-400">
+            Em modernização: {MODS[u.refit.mod].label} — {Math.round(u.refit.progress * 100)}% (parada na instalação)
+            <div className="mt-0.5 h-1 overflow-hidden rounded bg-ink-950">
+              <div className="h-full bg-brass-400" style={{ width: `${u.refit.progress * 100}%` }} />
+            </div>
+          </div>
+        )}
+        <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs text-ink-400">
           <dt>Estado</dt>
-          <dd className="col-span-2 text-ink-200">{ACTIVITY[u.activity] ?? u.activity}</dd>
-          <dt>Dano / cadência</dt>
-          <dd className="col-span-2 text-ink-200">
-            {def.weapon.damage} a cada {def.weapon.cooldown}s
-          </dd>
-          <dt>Alcance / visão</dt>
-          <dd className="col-span-2 text-ink-200">
-            {def.weapon.range} / {def.sight}
-          </dd>
+          <dd className="text-ink-200">{u.refit ? 'Em modernização' : (ACTIVITY[u.activity] ?? u.activity)}</dd>
+          {lines.map((l) => (
+            <FragmentStat key={l.key} label={l.label} base={l.base} value={l.value} unit={l.unit} sources={l.sources} />
+          ))}
         </dl>
+        {u.mods.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {u.mods.map((m) => (
+              <ModChip key={m} mod={m} />
+            ))}
+          </div>
+        )}
       </div>
     );
   }
   const counts = new Map<UnitType, number>();
   for (const u of units) counts.set(u.type, (counts.get(u.type) ?? 0) + 1);
+  const gens = new Map<number, number>();
+  for (const u of units) gens.set(u.mods.length, (gens.get(u.mods.length) ?? 0) + 1);
+  const refitting = units.filter((u) => u.refit).length;
   return (
     <div>
       <div className="text-sm font-semibold">{units.length} unidades</div>
       <div className="mt-1 text-xs text-ink-400">{[...counts].map(([t, n]) => `${n}× ${UNITS[t].label}`).join(' · ')}</div>
+      <div className="mt-0.5 text-[10px] text-ink-400">
+        Equipamento: {[...gens].sort((a, b) => a[0] - b[0]).map(([g, n]) => `${n}× ${g === 0 ? 'padrão inicial' : `ger. ${g}`}`).join(' · ')}
+        {refitting > 0 && <span className="text-brass-400"> · {refitting} em modernização</span>}
+      </div>
       <div className="mt-2 flex max-h-24 flex-wrap gap-1 overflow-hidden">
         {units.slice(0, 40).map((u) => {
           const f = u.hp / u.maxHp;
           return (
-            <div key={u.id} className="flex h-7 w-7 flex-col justify-between rounded border border-ink-600 bg-ink-850 p-0.5" title={`${UNITS[u.type].label} — ${Math.ceil(u.hp)} PV`}>
+            <div
+              key={u.id}
+              className={`relative flex h-7 w-7 flex-col justify-between rounded border bg-ink-850 p-0.5 ${u.refit ? 'border-brass-400' : 'border-ink-600'}`}
+              title={`${UNITS[u.type].label} — ${Math.ceil(u.hp)} PV — ${equipmentTag(u.type, u.mods)}${u.refit ? ' — em modernização' : ''}`}
+            >
               <span className="text-center text-[10px] leading-none">{u.type === 'tank' ? '▣' : '●'}</span>
+              {u.mods.length > 0 && <span className="absolute -top-1 -right-1 rounded bg-signal-blue px-0.5 text-[8px] leading-3 text-ink-950">{u.mods.length}</span>}
               <span
                 className="h-1 rounded"
                 style={{
@@ -526,6 +618,25 @@ function UnitsInfo({ units }: { units: ReturnType<typeof useHudStore.getState>['
         })}
       </div>
     </div>
+  );
+}
+
+/** Linha de atributo: valor atual, base e de onde veio a diferença. */
+function FragmentStat({ label, base, value, unit, sources }: { label: string; base: number; value: number; unit: string; sources: { label: string; tech: string; text: string }[] }) {
+  const fmt = (v: number) => `${String(v).replace('.', ',')}${unit}`;
+  return (
+    <>
+      <dt>{label}</dt>
+      <dd className="text-ink-200">
+        {fmt(value)}
+        {value !== base && <span className="text-ink-400"> (base {fmt(base)})</span>}
+        {sources.length > 0 && (
+          <span className="ml-1 text-[10px] text-signal-blue" title={sources.map((x) => `${x.label} ${x.text} — pesquisa: ${x.tech}`).join('\n')}>
+            {sources.map((x) => `${x.text} ${x.label}`).join(' · ')}
+          </span>
+        )}
+      </dd>
+    </>
   );
 }
 

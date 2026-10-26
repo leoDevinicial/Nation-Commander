@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import type { GameSpeed, MatchStartInfo, ServerMessage } from '../../shared/protocol.ts';
 import type { Command } from '../../shared/sim/commands.ts';
-import { BUILDINGS, CITIZEN, RECRUIT, UNITS, emptyStockpile, type BuildingType, type Terrain, type UnitType } from '../../shared/sim/config.ts';
+import { BUILDINGS, CITIZEN, RECRUIT, RESOURCE_TYPES, UNITS, emptyStockpile, type BuildingType, type Terrain, type UnitType } from '../../shared/sim/config.ts';
+import { MOD_IDS, MODS, checkModernize, pickRefitFacility, type FacilityInfo, type ModId, type ModernizeCheck } from '../../shared/sim/modernization.ts';
 import { anchorForCursor, placementError } from '../../shared/sim/placement.ts';
 import type { BuildingSnapshot, Snapshot, UnitSnapshot } from '../../shared/sim/snapshot.ts';
 import type { Cell, MapData, SimEvent } from '../../shared/sim/types.ts';
@@ -38,6 +39,20 @@ import { TouchGestures, type TouchPoint } from './input/TouchGestures.ts';
 import type { TouchTool } from '../state/useHudStore.ts';
 
 type SnapshotMsg = Extract<ServerMessage, { t: 'snapshot' }>;
+
+/** Um pacote de modernização para a seleção atual (botão do painel de comando). */
+export interface ModernizeOption {
+  mod: ModId;
+  /** Unidades selecionadas que ainda não têm o pacote. */
+  applicable: number;
+  /** As que podem começar agora (instalação, baia, saldo e verba conferidos em sequência). */
+  readyIds: number[];
+  /** Motivo quando nenhuma pode começar. */
+  blocker: string | null;
+  short: string | null;
+  /** Custo por unidade (da primeira avaliada). */
+  check: ModernizeCheck;
+}
 
 export interface RuntimeOptions {
   profile: GraphicsProfile;
@@ -355,6 +370,7 @@ export class GameRuntime {
         t.currFacing = u.facing;
         t.snap = u;
       }
+      t.visual.setEquipment(u.mods ?? [], !!u.refit);
     }
     for (const [id, t] of this.units) {
       if (!seen.has(id)) {
@@ -571,7 +587,17 @@ export class GameRuntime {
     for (const id of this.selection) {
       const u = this.units.get(id);
       if (u) {
-        if (u.snap.owner === this.mySlot) selectedUnits.push({ id, type: u.snap.type, hp: u.snap.hp, maxHp: u.snap.maxHp, activity: u.snap.activity, order: u.snap.order });
+        if (u.snap.owner === this.mySlot)
+          selectedUnits.push({
+            id,
+            type: u.snap.type,
+            hp: u.snap.hp,
+            maxHp: u.snap.maxHp,
+            activity: u.snap.activity,
+            order: u.snap.order,
+            mods: u.snap.mods ?? [],
+            refit: u.snap.refit ? { mod: u.snap.refit.mod, progress: u.snap.refit.progress } : null,
+          });
         else inspected = { kind: 'unit' as const, type: u.snap.type, owner: u.snap.owner, hp: u.snap.hp, maxHp: u.snap.maxHp, level: 1, spec: null };
         continue;
       }
@@ -713,6 +739,75 @@ export class GameRuntime {
     this.mode = m;
     this.renderer.domElement.style.cursor = m.kind === 'normal' ? 'default' : 'crosshair';
     useHudStore.getState().set({ mode: m });
+  }
+
+  // ------------------------------------------------------------ modernização (Fase 5)
+
+  /** Pesquisas concluídas do meu país (null antes do primeiro relatório nacional). */
+  myTechs(): readonly string[] | null {
+    return useNationalStore.getState().nations.find((n) => n.slot === this.mySlot)?.research.done ?? null;
+  }
+
+  /**
+   * Pacotes que se aplicam às unidades selecionadas, com quantas podem começar agora — avaliadas
+   * uma a uma com a mesma regra do servidor (`checkModernize` + `pickRefitFacility`), descontando
+   * o saldo e as baias já usadas pelas anteriores — e o motivo quando nenhuma pode.
+   */
+  modernizeOptions(): ModernizeOption[] {
+    const ids = this.myUnitIds();
+    if (ids.length === 0) return [];
+    const me = this.snapshot?.players.find((p) => p.slot === this.mySlot);
+    const nation = useNationalStore.getState().nations.find((n) => n.slot === this.mySlot);
+    const techs = this.myTechs();
+    const cs = this.map.cellSize;
+    const facilities: FacilityInfo[] = [...this.buildings.values()]
+      .filter((t) => !t.snap.remembered)
+      .map((t) => ({
+        id: t.snap.id,
+        type: t.snap.type,
+        owner: t.snap.owner,
+        ready: t.snap.progress >= 1 && t.snap.hp > 0,
+        level: t.snap.level,
+        x: (t.snap.cx + BUILDINGS[t.snap.type].size / 2) * cs,
+        y: (t.snap.cy + BUILDINGS[t.snap.type].size / 2) * cs,
+        half: (BUILDINGS[t.snap.type].size * cs) / 2,
+      }));
+    const baseBusy = new Map<number, number>();
+    for (const t of this.units.values()) if (t.snap.refit) baseBusy.set(t.snap.refit.facility, (baseBusy.get(t.snap.refit.facility) ?? 0) + 1);
+    const units = ids.map((id) => this.units.get(id)!.snap);
+    const out: ModernizeOption[] = [];
+    for (const mod of MOD_IDS) {
+      const applicable = units.filter((u) => MODS[mod].units.includes(u.type) && !(u.mods ?? []).includes(mod));
+      if (applicable.length === 0) continue;
+      const resources = { ...(me?.resources ?? emptyStockpile()) };
+      let funds = nation ? nation.works.fundUsd : null;
+      const busy = new Map(baseBusy);
+      const ready: number[] = [];
+      let first: ModernizeCheck | null = null;
+      for (const u of applicable) {
+        const facility = pickRefitFacility({ type: u.type, owner: u.owner, x: u.x, y: u.y }, facilities, (id) => busy.get(id) ?? 0);
+        const check = checkModernize(mod, { unitType: u.type, mods: u.mods ?? [], refitting: !!u.refit, techs, facility, resources, fundsUsd: funds });
+        first ??= check;
+        if (check.blocker || !facility.ok) continue;
+        ready.push(u.id);
+        for (const r of RESOURCE_TYPES) resources[r] -= check.cost[r] ?? 0;
+        if (funds !== null) funds -= check.usd;
+        busy.set(facility.id, (busy.get(facility.id) ?? 0) + 1);
+      }
+      const blocked = ready.length === 0 ? first : null;
+      out.push({ mod, applicable: applicable.length, readyIds: ready, blocker: blocked?.blocker ?? null, short: blocked?.short ?? null, check: first! });
+    }
+    return out;
+  }
+
+  modernize(mod: ModId): void {
+    const ids = this.modernizeOptions().find((o) => o.mod === mod)?.readyIds ?? [];
+    if (ids.length) this.send({ type: 'modernize', unitIds: ids, mod });
+  }
+
+  cancelModernize(): void {
+    const ids = this.myUnitIds().filter((id) => this.units.get(id)?.snap.refit);
+    if (ids.length) this.send({ type: 'cancel_modernize', unitIds: ids });
   }
 
   stopSelected(): void {

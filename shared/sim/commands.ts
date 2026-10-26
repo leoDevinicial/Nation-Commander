@@ -1,6 +1,7 @@
 import { BUILDINGS, UNITS, type BuildingType, type ProducibleType } from './config.ts';
 import type { EntityId } from './types.ts';
 import { isSpecId, type SpecId } from './upgrades.ts';
+import { isModId, type ModId } from './modernization.ts';
 
 export type Command =
   | { type: 'move'; unitIds: EntityId[]; x: number; y: number }
@@ -14,7 +15,10 @@ export type Command =
   | { type: 'set_rally'; buildingId: EntityId; x: number; y: number }
   /** Melhoria para o próximo nível; `spec` é obrigatório no nível que pede especialização. */
   | { type: 'upgrade'; buildingId: EntityId; spec?: SpecId }
-  | { type: 'cancel_upgrade'; buildingId: EntityId };
+  | { type: 'cancel_upgrade'; buildingId: EntityId }
+  /** Instala um pacote de modernização nas unidades (Fase 5); cada uma precisa estar perto de uma instalação compatível. */
+  | { type: 'modernize'; unitIds: EntityId[]; mod: ModId }
+  | { type: 'cancel_modernize'; unitIds: EntityId[] };
 
 const MAX_UNITS_PER_COMMAND = 60;
 
@@ -61,6 +65,12 @@ export function parseCommand(raw: unknown): Command | null {
     case 'cancel_upgrade':
       if (!isId(raw.buildingId)) return null;
       return { type: 'cancel_upgrade', buildingId: raw.buildingId };
+    case 'modernize':
+      if (!isIdList(raw.unitIds) || !isModId(raw.mod)) return null;
+      return { type: 'modernize', unitIds: [...new Set(raw.unitIds)], mod: raw.mod };
+    case 'cancel_modernize':
+      if (!isIdList(raw.unitIds)) return null;
+      return { type: 'cancel_modernize', unitIds: [...new Set(raw.unitIds)] };
     default:
       return null;
   }
