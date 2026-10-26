@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MANUAL, introPending, manualRead, markIntroSeen, markManualRead, screenAfterLogin } from '../ui/manual.ts';
+import { MANUAL, manualRead, markManualRead, screenAfterLogin } from '../ui/manual.ts';
+import { useAppStore } from '../state/useAppStore.ts';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -47,11 +48,7 @@ describe('manual de entrada', () => {
     for (const word of ['Centro de Comando', 'recruta', 'moradia', 'guerra', 'Melhorar', 'verba', 'pinça', 'preparo']) expect(all).toContain(word);
   });
 
-  it('a abertura toca uma vez por sessão do navegador', () => {
-    const m = new Map<string, string>();
-    vi.stubGlobal('sessionStorage', { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) });
-    expect(introPending()).toBe(true);
-    markIntroSeen();
-    expect(introPending()).toBe(false);
+  it('a abertura começa tocando sempre que o jogo é aberto (inclusive com login salvo)', () => {
+    expect(useAppStore.getState().intro).toBe('play');
   });
 });

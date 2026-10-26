@@ -100,7 +100,8 @@ Ao abrir o jogo, antes da tela de login/registro, toca uma abertura no estilo RT
 
 Detalhes de comportamento:
 - toque, clique ou qualquer tecla pula;
-- toca uma vez por sessão do navegador;
+- toca toda vez que o jogo é aberto ou recarregado, inclusive com o login já salvo (antes era uma vez por sessão, o que
+  escondia a abertura de quem mantinha a aba aberta); voltar ao menu dentro do jogo não repete;
 - com "reduzir movimento", é curta e só usa opacidade;
 - as telas por baixo só montam quando o fade começa.
 

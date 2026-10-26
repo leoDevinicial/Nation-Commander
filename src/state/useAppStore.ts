@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import type { MatchEndInfo, MatchStartInfo, PublicUser, RoomInfo } from '../../shared/protocol.ts';
 import type { ConnectionStatus } from '../net/GameClient.ts';
-import { introPending } from '../ui/manual.ts';
 import type { Profile } from '../lib/supabase.ts';
 
 export type Screen = 'auth' | 'manual' | 'menu' | 'lobby' | 'game' | 'profile' | 'settings' | 'credits';
@@ -63,8 +62,9 @@ export const useAppStore = create<AppState>((set) => ({
   matchEnd: null,
   chat: [],
   toasts: [],
-  // toca ao abrir o jogo, antes da tela de login/registro (uma vez por sessão do navegador)
-  intro: introPending() ? 'play' : 'off',
+  // toca toda vez que o jogo é aberto ou recarregado, antes do login/registro (ou da sessão
+  // restaurada); voltar ao menu dentro do jogo não repete, porque o estado vive na página
+  intro: 'play',
 
   setScreen: (screen) => set({ screen }),
   pushToast: (kind, text) => {

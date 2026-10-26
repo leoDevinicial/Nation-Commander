@@ -4,7 +4,6 @@ import { GAME_VERSION } from '../../../shared/version.ts';
 import { prefersReducedMotion } from '../../lib/graphics.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { useSettingsStore } from '../../state/useSettingsStore.ts';
-import { markIntroSeen } from '../manual.ts';
 
 const TITLE = ['NATIONS', 'COMMANDER'];
 /** Duração da abertura antes do fade (ms) e do fade para a tela seguinte. */
@@ -30,7 +29,6 @@ export function IntroOverlay() {
 
   const finish = useCallback(() => {
     if (useAppStore.getState().intro !== 'play') return;
-    markIntroSeen();
     useAppStore.setState({ intro: 'out' });
     window.setTimeout(() => useAppStore.setState({ intro: 'off' }), OUT_MS);
   }, []);
