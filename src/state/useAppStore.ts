@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { MatchEndInfo, MatchStartInfo, PublicUser, RoomInfo } from '../../shared/protocol.ts';
 import type { ConnectionStatus } from '../net/GameClient.ts';
+import { introPending } from '../ui/manual.ts';
 import type { Profile } from '../lib/supabase.ts';
 
 export type Screen = 'auth' | 'manual' | 'menu' | 'lobby' | 'game' | 'profile' | 'settings' | 'credits';
@@ -35,7 +36,7 @@ interface AppState {
   chat: ChatLine[];
   toasts: Toast[];
   /**
-   * Abertura animada depois do login: 'play' cobre tudo (as telas nem montam), 'out' é o fade para
+   * Abertura animada ao abrir o jogo, antes do login/registro: 'play' cobre tudo (as telas nem montam), 'out' é o fade para
    * a tela seguinte (o manual ou o menu entram por baixo), 'off' sem abertura.
    */
   intro: 'off' | 'play' | 'out';
@@ -62,7 +63,8 @@ export const useAppStore = create<AppState>((set) => ({
   matchEnd: null,
   chat: [],
   toasts: [],
-  intro: 'off',
+  // toca ao abrir o jogo, antes da tela de login/registro (uma vez por sessão do navegador)
+  intro: introPending() ? 'play' : 'off',
 
   setScreen: (screen) => set({ screen }),
   pushToast: (kind, text) => {

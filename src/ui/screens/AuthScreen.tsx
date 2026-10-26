@@ -20,7 +20,7 @@ export function AuthScreen() {
   const sb = supabase;
   if (!sb) {
     return (
-      <Shell title={GAME_TITLE}>
+      <Shell title={GAME_TITLE} enter>
         <p className="text-sm text-ink-200">
           O Supabase não está configurado. Defina <code>VITE_SUPABASE_URL</code> e <code>VITE_SUPABASE_ANON_KEY</code> (veja o README).
         </p>
@@ -60,7 +60,7 @@ export function AuthScreen() {
   };
 
   return (
-    <Shell align="start">
+    <Shell align="start" enter>
       <div className="mb-6 [@media(max-height:520px)]:mb-3">
         <div className="font-display text-[11px] font-semibold tracking-[0.32em] text-brass-400 uppercase">Comando Estratégico · RTS 3D</div>
         <h1 className="font-display mt-2 text-[1.7rem] leading-[1.1] font-bold tracking-wide sm:text-[2.1rem] [@media(max-height:520px)]:text-xl">{GAME_TITLE}</h1>

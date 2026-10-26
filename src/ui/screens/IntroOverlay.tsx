@@ -15,10 +15,10 @@ const OUT_MS = 800;
 const STATUS = ['Estabelecendo enlace seguro…', 'Sincronizando teatro de operações…', 'Carregando dados nacionais…', 'Comando pronto'];
 
 /**
- * Abertura no estilo RTS depois do login: fundo preto com grade tática e radar discretos, o nome
+ * Abertura no estilo RTS ao abrir o jogo, antes da tela de login/registro: fundo preto com grade tática e radar discretos, o nome
  * "NATIONS COMMANDER" surgindo letra a letra em branco (fonte Michroma), linha de destaque, reflexo
- * de luz e uma barra de "inicialização". Em seguida faz um fade para o manual (ou o menu), que
- * entra por baixo. Toque, clique ou tecla pula. Toca uma vez por sessão; com "reduzir movimento",
+ * de luz e uma barra de "inicialização". Em seguida faz um fade para a tela de login/registro (ou
+ * direto ao manual/menu, se a sessão já estava aberta), que entra por baixo. Toque, clique ou tecla pula. Toca uma vez por sessão; com "reduzir movimento",
  * é curta e sem deslocamentos.
  */
 export function IntroOverlay() {
@@ -46,7 +46,7 @@ export function IntroOverlay() {
       const m = () => String(Math.floor(Math.random() * 60)).padStart(2, '0');
       setCoords(`${String(lat).padStart(2, '0')}°${m()}′${Math.random() < 0.5 ? 'N' : 'S'} · ${String(lon).padStart(3, '0')}°${m()}′${Math.random() < 0.5 ? 'E' : 'W'}`);
     }, 120);
-    // pular: toque, clique ou tecla (ignora o próprio toque do login, nos primeiros 400 ms)
+    // pular: toque, clique ou tecla (ignora toques acidentais nos primeiros 400 ms)
     const started = performance.now();
     const skip = () => performance.now() - started > 400 && finish();
     window.addEventListener('pointerdown', skip);
