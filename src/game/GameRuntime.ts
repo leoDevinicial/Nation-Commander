@@ -65,6 +65,11 @@ export interface RuntimeOptions {
   shadows: boolean;
   panSpeed: number;
   edgeScroll: boolean;
+  /**
+   * Cena da batalha local de uma operação (Fase 8): recebe só os snapshots dessa batalha e envia
+   * as ordens com escopo de batalha. O teatro continua em outro runtime, suspenso.
+   */
+  battle?: { opId: number };
 }
 
 interface TrackedUnit {
@@ -258,8 +263,10 @@ export class GameRuntime {
       },
       () => this.touchTool === 'box',
     );
+    this.battleOp = opts.battle?.opId ?? null;
     this.bindInput();
-    this.bindAudio();
+    // o áudio (desbloqueio, ambiente e música) pertence ao teatro; a batalha só toca efeitos
+    if (this.battleOp === null) this.bindAudio();
     this.resize();
     useHudStore.setState({
       mySlot: this.mySlot,
@@ -274,8 +281,9 @@ export class GameRuntime {
     });
 
     this.unsubscribe = client.on((msg) => {
-      if (msg.t === 'snapshot' && !msg.scope) this.onSnapshot(msg);
-      else if (msg.t === 'cmd_rejected') {
+      if (msg.t === 'snapshot') {
+        if (this.battleOp === null ? !msg.scope : msg.scope === 'battle' && msg.opId === this.battleOp) this.onSnapshot(msg);
+      } else if (msg.t === 'cmd_rejected' && this.hudActive) {
         useHudStore.getState().pushEvent({ tick: this.snapshot?.tick ?? 0, text: msg.reason, tone: 'warn' });
         audio.ui('error');
       }
@@ -284,7 +292,7 @@ export class GameRuntime {
     this.raf = requestAnimationFrame(this.frame);
     // miniaturas 3D dos botões: logo depois do primeiro quadro, para não atrasar a entrada
     window.setTimeout(() => {
-      if (this.disposed) return;
+      if (this.disposed || this.battleOp !== null) return;
       try {
         useHudStore.getState().set({ thumbs: renderThumbnails(this.renderer, this.mySlot) });
       } catch (err) {
@@ -355,12 +363,12 @@ export class GameRuntime {
 
   private onSnapshot(msg: SnapshotMsg): void {
     const s = msg.s;
-    if (s.trade) {
+    if (s.trade && this.hudActive) {
       useHudStore.getState().set({ trade: s.trade });
       this.cargo.update(s.trade.shipments, this.cameraCtl.target);
     }
     if (s.air) {
-      useHudStore.getState().set({ air: s.air });
+      if (this.hudActive) useHudStore.getState().set({ air: s.air });
       this.airLayer.update(s.air);
       // passagem de jato quando uma formação entra no mapa (própria ou inimiga à vista)
       for (const f of s.air.flights)
@@ -575,8 +583,10 @@ export class GameRuntime {
     this.cargo.frame(alpha, dt);
     this.airLayer.frame(alpha, dt);
     this.updateAirTargeting();
-    audio.setListener(this.cameraCtl.target.x, this.cameraCtl.target.z, this.cameraCtl.distance, this.cameraCtl.yaw);
-    this.updateProductionSound();
+    if (this.hudActive) {
+      audio.setListener(this.cameraCtl.target.x, this.cameraCtl.target.z, this.cameraCtl.distance, this.cameraCtl.yaw);
+      this.updateProductionSound();
+    }
     this.updateRouteInspection();
     this.effects.update(dt);
     this.citizens.update(this.paused ? 0 : dt * this.speed);
@@ -657,7 +667,7 @@ export class GameRuntime {
 
   private publishHud(): void {
     const s = this.snapshot;
-    if (!s) return;
+    if (!s || !this.hudActive) return;
     const selectedUnits = [];
     let selectedBuilding = null;
     let inspected = null;
@@ -748,7 +758,51 @@ export class GameRuntime {
   // ------------------------------------------------------------ comandos (HUD e entrada)
 
   send(cmd: Command): void {
-    this.client.send({ t: 'cmd', cmd });
+    this.client.send(this.battleOp !== null ? { t: 'cmd', cmd, scope: 'battle' } : { t: 'cmd', cmd });
+  }
+
+  /** Unidades próprias no teatro (para compor a força de uma operação). */
+  myForces(): { id: number; type: UnitType; hp: number; maxHp: number; refit: boolean }[] {
+    const out = [];
+    for (const t of this.units.values()) if (t.snap.owner === this.mySlot) out.push({ id: t.snap.id, type: t.snap.type, hp: t.snap.hp, maxHp: t.snap.maxHp, refit: !!t.snap.refit });
+    return out;
+  }
+
+  /** Batalha local: unidades próprias vivas e inimigas à vista. */
+  battleForces(): { mine: number; enemy: number } {
+    let mine = 0;
+    let enemy = 0;
+    for (const t of this.units.values())
+      if (t.snap.owner === this.mySlot) mine++;
+      else enemy++;
+    return { mine, enemy };
+  }
+
+  /** Operação cuja batalha local esta cena mostra (null = teatro). */
+  readonly battleOp: number | null;
+  /** Só a cena ativa escreve no HUD, ouve o teclado e posiciona o áudio. */
+  private hudActive = true;
+
+  /** Troca de cena (teatro ↔ batalha): a ativa assume o HUD, a outra fica em segundo plano. */
+  setHudActive(active: boolean): void {
+    if (active === this.hudActive) return;
+    this.hudActive = active;
+    this.setSuspended(!active);
+    if (!active) return;
+    // a névoa de guerra é um uniform compartilhado pelos materiais: a cena ativa religa a sua
+    fogUniforms.uFogMap.value = this.fogTexture;
+    fogUniforms.uFogSize.value.set(this.map.width * this.map.cellSize, this.map.height * this.map.cellSize);
+    useHudStore.setState({
+      mySlot: this.mySlot,
+      selectedUnits: [],
+      selectedBuilding: null,
+      inspected: null,
+      mode: { kind: 'normal' },
+      air: this.snapshot?.air ?? null,
+      trade: this.snapshot?.trade ?? null,
+    });
+    this.selection.clear();
+    this.publishHud();
   }
 
   private myUnitIds(): number[] {
@@ -1250,6 +1304,7 @@ export class GameRuntime {
   }
 
   private onPointerMove(e: PointerEvent): void {
+    if (this.suspended) return;
     if (e.pointerType === 'touch') {
       this.touch.move(touchPoint(e));
       return;
@@ -1281,6 +1336,7 @@ export class GameRuntime {
   }
 
   private onPointerUp(e: PointerEvent): void {
+    if (this.suspended) return;
     if (e.pointerType === 'touch') {
       this.touch.up(touchPoint(e));
       return;
@@ -1617,6 +1673,18 @@ export class GameRuntime {
     this.exposure?.dispose();
     this.probe?.dispose();
     this.selectionBox.remove();
+    if (this.battleOp !== null) {
+      // cena da batalha: geometrias, materiais, modelos e uniforms são compartilhados com o teatro
+      // (caches de módulo) e continuam em uso por ele; só o que é desta cena é liberado
+      this.cargo.dispose();
+      this.airLayer.dispose();
+      this.terrain.dispose();
+      this.territoryLayer.dispose();
+      this.fogTexture.dispose();
+      this.renderer.dispose();
+      this.renderer.domElement.remove();
+      return;
+    }
     this.scene.traverse((o) => {
       if (o instanceof THREE.Mesh || o instanceof THREE.InstancedMesh) {
         o.geometry.dispose();

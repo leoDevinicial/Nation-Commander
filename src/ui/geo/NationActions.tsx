@@ -11,6 +11,8 @@ interface Props {
   nameOf: (id: number) => string;
   onAction: (a: DiplomaticAction) => void;
   onDeclareWar: (id: NationId) => void;
+  /** Abre o mapa operacional de um país da IA em guerra (Fase 8). */
+  onOpenOperations?: (id: NationId) => void;
 }
 
 const AID_PCT = 0.1;
@@ -37,7 +39,7 @@ export function pairInfo(view: DiplomacyView, mine: NationId, id: NationId) {
  * Ações diplomáticas sobre um país, respeitando o que o jogador conhece. Usado no globo e no
  * painel nacional, para que as duas telas executem exatamente os mesmos comandos.
  */
-export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar }: Props) {
+export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar, onOpenOperations }: Props) {
   const mine = me.slot;
   const { relation, has, atWar, mission } = pairInfo(view, mine, f.id);
   const enemies = view.wars.flatMap(([a, b]) => (a === mine ? [b] : b === mine ? [a] : []));
@@ -48,8 +50,7 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
     return (
       <div className="space-y-2 text-xs">
         <p className="text-ink-400">
-          Sem contato diplomático: o país existe, mas seu governo não tem canais com ele. Não é possível negociar, consultar dados nem declarar
-          guerra até estabelecer contato.
+          Sem contato diplomático: o país existe, mas seu governo não tem canais com ele. Não é possível negociar, consultar dados nem declarar guerra até estabelecer contato.
         </p>
         {f.contactDueDay !== null ? (
           <p className="text-ink-200">
@@ -57,7 +58,10 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
           </p>
         ) : (
           <button className="btn btn-primary px-3 py-1.5 text-xs" onClick={() => onAction({ type: 'establish_contact', partner: f.id })}>
-            Estabelecer Contato <span className="font-normal opacity-80">({formatUsd(cost)} · {DIPLO.contactDays} dias)</span>
+            Estabelecer Contato{' '}
+            <span className="font-normal opacity-80">
+              ({formatUsd(cost)} · {DIPLO.contactDays} dias)
+            </span>
           </button>
         )}
       </div>
@@ -106,28 +110,55 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
       <div className="flex flex-wrap gap-1.5">
         {!f.isPlayer && !atWar && (
           <>
-            <button className="btn px-2 py-1 text-xs" disabled={has('trade') || has('sanctions')} onClick={() => onAction({ type: 'propose', treaty: 'trade', partner: f.id })} title={`Duração ${DIPLO.tradeDays} dias. Aumenta o crescimento das duas partes.`}>
+            <button
+              className="btn px-2 py-1 text-xs"
+              disabled={has('trade') || has('sanctions')}
+              onClick={() => onAction({ type: 'propose', treaty: 'trade', partner: f.id })}
+              title={`Duração ${DIPLO.tradeDays} dias. Aumenta o crescimento das duas partes.`}
+            >
               Propor Comércio
             </button>
-            <button className="btn px-2 py-1 text-xs" disabled={has('alliance')} onClick={() => onAction({ type: 'propose', treaty: 'alliance', partner: f.id })} title={`Duração ${DIPLO.allianceDays} dias. O aliado envia ajuda militar ao teatro; custa ${DIPLO.allianceCostPct}% do PIB/ano. Exige relação alta.`}>
+            <button
+              className="btn px-2 py-1 text-xs"
+              disabled={has('alliance')}
+              onClick={() => onAction({ type: 'propose', treaty: 'alliance', partner: f.id })}
+              title={`Duração ${DIPLO.allianceDays} dias. O aliado envia ajuda militar ao teatro; custa ${DIPLO.allianceCostPct}% do PIB/ano. Exige relação alta.`}
+            >
               Propor Aliança
             </button>
             {enemies.map((e) => (
-              <button key={e} className="btn px-2 py-1 text-xs" disabled={view.treaties.some((t) => t.type === 'sanctions' && t.a === f.id && t.b === e)} onClick={() => onAction({ type: 'request_sanctions', partner: f.id, target: e })} title="O governo avalia sua relação com você, com o alvo e o custo de sancionar.">
+              <button
+                key={e}
+                className="btn px-2 py-1 text-xs"
+                disabled={view.treaties.some((t) => t.type === 'sanctions' && t.a === f.id && t.b === e)}
+                onClick={() => onAction({ type: 'request_sanctions', partner: f.id, target: e })}
+                title="O governo avalia sua relação com você, com o alvo e o custo de sancionar."
+              >
                 Pedir Sanções contra {nameOf(e)}
               </button>
             ))}
           </>
         )}
         {!atWar && (
-          <button className="btn px-2 py-1 text-xs" onClick={() => onAction({ type: 'set_mission', partner: f.id, active: !mission })} title={`Melhora a relação gradualmente (até +${DIPLO.missionCap}) e fornece dados atualizados; custa ${DIPLO.missionCostPct}% do PIB/ano.`}>
+          <button
+            className="btn px-2 py-1 text-xs"
+            onClick={() => onAction({ type: 'set_mission', partner: f.id, active: !mission })}
+            title={`Melhora a relação gradualmente (até +${DIPLO.missionCap}) e fornece dados atualizados; custa ${DIPLO.missionCostPct}% do PIB/ano.`}
+          >
             {mission ? 'Encerrar Missão' : 'Abrir Missão Diplomática'}
           </button>
         )}
-        {!f.isPlayer && !atWar && (
-          confirmAid ? (
+        {!f.isPlayer &&
+          !atWar &&
+          (confirmAid ? (
             <span className="flex gap-1">
-              <button className="btn btn-primary px-2 py-1 text-xs" onClick={() => { onAction({ type: 'send_aid', partner: f.id, pctGdp: AID_PCT }); setConfirmAid(false); }}>
+              <button
+                className="btn btn-primary px-2 py-1 text-xs"
+                onClick={() => {
+                  onAction({ type: 'send_aid', partner: f.id, pctGdp: AID_PCT });
+                  setConfirmAid(false);
+                }}
+              >
                 Confirmar {formatUsd((AID_PCT / 100) * me.gdpUsd)}
               </button>
               <button className="btn px-2 py-1 text-xs" onClick={() => setConfirmAid(false)}>
@@ -138,14 +169,17 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
             <button className="btn px-2 py-1 text-xs" onClick={() => setConfirmAid(true)} title="Pago com endividamento. O efeito sobre a relação decai com o tempo.">
               Enviar Ajuda
             </button>
-          )
-        )}
+          ))}
         {has('sanctions', mine) ? (
           <button className="btn px-2 py-1 text-xs" onClick={() => onAction({ type: 'lift_sanctions', target: f.id })}>
             Retirar Sanções
           </button>
         ) : (
-          <button className="btn btn-danger px-2 py-1 text-xs" onClick={() => onAction({ type: 'impose_sanctions', target: f.id })} title="Reduz o crescimento do alvo, custa um pouco ao seu e encerra o comércio entre as partes.">
+          <button
+            className="btn btn-danger px-2 py-1 text-xs"
+            onClick={() => onAction({ type: 'impose_sanctions', target: f.id })}
+            title="Reduz o crescimento do alvo, custa um pouco ao seu e encerra o comércio entre as partes."
+          >
             Impor Sanções
           </button>
         )}
@@ -157,8 +191,27 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
             <p className="text-red-300">Em guerra: as forças dos dois países no teatro de operações podem se enfrentar.</p>
           ) : (
             <>
+              <p className="mb-1.5 text-ink-200">As forças de {nameOf(f.id)} estão no mesmo teatro de operações, mas sem guerra formal nenhum dos lados pode atacar.</p>
+              <button className="btn btn-danger px-3 py-1.5 text-xs" onClick={() => onDeclareWar(f.id)}>
+                Declarar Guerra…
+              </button>
+            </>
+          )}
+        </div>
+      )}
+      {!f.isPlayer && f.known && (
+        <div className="rounded border border-signal-red/40 bg-[#2a1210]/60 p-2">
+          {atWar ? (
+            <>
+              <p className="mb-1.5 text-red-300">Em guerra. O país está fora do teatro: o combate é por operações expedicionárias nas regiões dele.</p>
+              <button className="btn btn-primary px-3 py-1.5 text-xs" onClick={() => onOpenOperations?.(f.id)}>
+                🗺 Abrir Mapa Operacional
+              </button>
+            </>
+          ) : (
+            <>
               <p className="mb-1.5 text-ink-200">
-                As forças de {nameOf(f.id)} estão no mesmo teatro de operações, mas sem guerra formal nenhum dos lados pode atacar.
+                {nameOf(f.id)} está fora do teatro. Em guerra, suas tropas do teatro podem ser enviadas em operações contra as regiões do país (viagem, batalha local e volta).
               </p>
               <button className="btn btn-danger px-3 py-1.5 text-xs" onClick={() => onDeclareWar(f.id)}>
                 Declarar Guerra…
@@ -167,7 +220,6 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
           )}
         </div>
       )}
-      {!f.isPlayer && <p className="text-[10px] text-ink-400">Guerra contra governos fora do teatro de operações ainda não existe nesta versão.</p>}
     </div>
   );
 }

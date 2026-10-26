@@ -1,3 +1,4 @@
+import { useOpsStore } from '../../state/useOpsStore.ts';
 import { useState } from 'react';
 import type { DiplomacyView, NationView } from '../../../shared/protocol.ts';
 import type { DiplomaticAction, NationId, Treaty } from '../../../shared/strategic/Diplomacy.ts';
@@ -21,15 +22,16 @@ export function DiplomacyTab({ me, diplomacy, day, nameOf, onAction, onDeclareWa
   const [open, setOpen] = useState<number | null>(null);
   const mine = me.slot;
   const others = [...diplomacy.nations].sort(
-    (a, b) => Number(b.known) - Number(a.known) || Number(b.isPlayer) - Number(a.isPlayer) || (pairInfo(diplomacy, mine, b.id).relation?.value ?? 0) - (pairInfo(diplomacy, mine, a.id).relation?.value ?? 0),
+    (a, b) =>
+      Number(b.known) - Number(a.known) || Number(b.isPlayer) - Number(a.isPlayer) || (pairInfo(diplomacy, mine, b.id).relation?.value ?? 0) - (pairInfo(diplomacy, mine, a.id).relation?.value ?? 0),
   );
   const myTreaties = diplomacy.treaties.filter((t) => t.a === mine || t.b === mine);
 
   return (
     <div className="space-y-3 text-xs">
       <p className="text-ink-400">
-        Relações começam neutras (não há base confiável de relações bilaterais na data de referência), exceto a rivalidade com quem tem forças
-        neste teatro. Só há negociação com países com quem há contato. A visão completa — mapa político, rotas e conflitos — está no{' '}
+        Relações começam neutras (não há base confiável de relações bilaterais na data de referência), exceto a rivalidade com quem tem forças neste teatro. Só há negociação com países com quem há
+        contato. A visão completa — mapa político, rotas e conflitos — está no{' '}
         <button className="underline decoration-dotted hover:text-ink-100" onClick={() => onShowOnGlobe(me.countryId)}>
           Globo Diplomático
         </button>
@@ -67,7 +69,16 @@ export function DiplomacyTab({ me, diplomacy, day, nameOf, onAction, onDeclareWa
               </button>
               {expanded && (
                 <div className="border-t border-ink-700 p-2">
-                  <NationActions f={o} me={me} view={diplomacy} day={day} nameOf={nameOf} onAction={onAction} onDeclareWar={onDeclareWar} />
+                  <NationActions
+                    f={o}
+                    me={me}
+                    view={diplomacy}
+                    day={day}
+                    nameOf={nameOf}
+                    onAction={onAction}
+                    onDeclareWar={onDeclareWar}
+                    onOpenOperations={(id) => useOpsStore.getState().set({ opMap: id })}
+                  />
                   <button className="mt-2 text-[11px] text-ink-400 underline decoration-dotted hover:text-ink-100" onClick={() => onShowOnGlobe(o.countryId)}>
                     Ver no globo
                   </button>

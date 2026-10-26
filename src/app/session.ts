@@ -4,6 +4,7 @@ import { supabase, type Profile } from '../lib/supabase.ts';
 import { useAppStore } from '../state/useAppStore.ts';
 import { screenAfterLogin } from '../ui/manual.ts';
 import { applyNationalMessage, useNationalStore } from '../state/useNationalStore.ts';
+import { applyOpsMessage, useOpsStore } from '../state/useOpsStore.ts';
 
 /** Liga mensagens do servidor de jogo ao estado da aplicação. Chamar uma vez. */
 export function wireGameClient(): void {
@@ -13,6 +14,7 @@ export function wireGameClient(): void {
 
   gameClient.on((msg) => {
     const app = useAppStore.getState();
+    applyOpsMessage(msg);
     switch (msg.t) {
       case 'welcome':
         useAppStore.setState({ serverUser: msg.user });
@@ -27,7 +29,10 @@ export function wireGameClient(): void {
         break;
       }
       case 'match_start':
-        if (app.match?.seed !== msg.match.seed) useNationalStore.getState().reset();
+        if (app.match?.seed !== msg.match.seed) {
+          useNationalStore.getState().reset();
+          useOpsStore.getState().reset();
+        }
         useAppStore.setState({ match: msg.match, matchEnd: null, screen: 'game' });
         break;
       case 'national':

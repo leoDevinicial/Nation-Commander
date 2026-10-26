@@ -188,7 +188,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           />
         )}
         {mode.kind !== 'normal' && <CardButton icon="✖" hotkey="Esc" label="Cancelar" onClick={() => runtime.cancelMode()} title="Cancelar (Esc)" />}
-        {building?.type === 'hq' && mode.kind === 'normal' && (
+        {building?.type === 'hq' && mode.kind === 'normal' && runtime.battleOp === null && (
           <ProduceButton
             b={building}
             unit="citizen"
@@ -200,6 +200,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
         )}
         {building?.type === 'hq' &&
           mode.kind === 'normal' &&
+          runtime.battleOp === null &&
           BUILD_OPTIONS.map((type) => {
             const def = BUILDINGS[type];
             const techMissing = def.requiresTech && !(techs as readonly string[]).includes(def.requiresTech) ? def.requiresTech : null;
@@ -227,7 +228,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
               </CardButton>
             );
           })}
-        {building && building.progress >= 1 && mode.kind === 'normal' && upgradeTrack(building.type) && <UpgradeButton runtime={runtime} b={building} />}
+        {building && building.progress >= 1 && mode.kind === 'normal' && runtime.battleOp === null && upgradeTrack(building.type) && <UpgradeButton runtime={runtime} b={building} />}
         {building && building.progress >= 1 && (building.type === 'barracks' || building.type === 'factory') && <ProduceButtons runtime={runtime} b={building} />}
         {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'airbase' && <AirbaseButtons runtime={runtime} b={building} />}
         {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'missile_silo' && <SiloButtons runtime={runtime} b={building} />}

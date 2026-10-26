@@ -8,6 +8,7 @@ import { PROFILES } from '../../lib/graphics.ts';
 import { formatDate, formatPct, formatUsd } from '../../lib/format.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { useNationalStore } from '../../state/useNationalStore.ts';
+import { useOpsStore } from '../../state/useOpsStore.ts';
 import { useSettingsStore } from '../../state/useSettingsStore.ts';
 import { makeNameOf } from '../../game/nationalText.ts';
 import type { GlobeLayer, GlobeView } from '../../globe/GlobeView.ts';
@@ -290,7 +291,16 @@ export function GlobePanel({ visible, onClose }: { visible: boolean; onClose: ()
     const ref = countryReference(countryId);
     return (
       <div className="space-y-3">
-        <NationActions f={f} me={me!} view={diplomacy!} day={day} nameOf={nameOf} onAction={diplomaticAction} onDeclareWar={(id) => useNationalStore.getState().setWarTarget(id)} />
+        <NationActions
+          f={f}
+          me={me!}
+          view={diplomacy!}
+          day={day}
+          nameOf={nameOf}
+          onAction={diplomaticAction}
+          onDeclareWar={(id) => useNationalStore.getState().setWarTarget(id)}
+          onOpenOperations={(id) => useOpsStore.getState().set({ opMap: id })}
+        />
         {f.known && (
           <details className="rounded border border-ink-700 bg-ink-950/60 p-2 text-xs">
             <summary className="cursor-pointer font-semibold text-ink-200">Indicadores públicos de referência</summary>
