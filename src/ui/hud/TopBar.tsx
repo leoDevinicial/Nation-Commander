@@ -9,6 +9,8 @@ import { useSettingsStore } from '../../state/useSettingsStore.ts';
 import { formatDate, formatDuration, formatPct } from '../../lib/format.ts';
 import { FullscreenButton } from '../components/FullscreenButton.tsx';
 import { useNationalStore } from '../../state/useNationalStore.ts';
+import { useState } from 'react';
+import { MoneyChip, MoneyPopover, ProductionChip, ProductionPopover, type TopBarPopover } from './TopBarExtras.tsx';
 
 export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRuntime; onMenu: () => void; canControlSpeed: boolean }) {
   const players = useHudStore((s) => s.players);
@@ -30,11 +32,16 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
   const openGlobe = useNationalStore((s) => s.openGlobe);
   const closeGlobe = useNationalStore((s) => s.closeGlobe);
   const nextSpeed = GAME_SPEEDS[(GAME_SPEEDS.indexOf(speed) + 1) % GAME_SPEEDS.length]!;
+  const [pop, setPop] = useState<TopBarPopover>(null);
+  const toggle = (p: Exclude<TopBarPopover, null>) => setPop((cur) => (cur === p ? null : p));
 
   return (
-    <div className="panel absolute top-2 right-2 left-2 z-30 flex h-11 items-center gap-2 px-2 text-xs sm:top-3 sm:right-3 sm:left-3 sm:h-10 sm:gap-4 sm:px-3 sm:text-sm">
+    <div className="panel absolute top-2 right-2 left-2 z-40 flex h-11 items-center gap-2 px-2 text-xs sm:top-3 sm:right-3 sm:left-3 sm:h-10 sm:gap-4 sm:px-3 sm:text-sm">
       {/* indicadores: rolam na horizontal em telas estreitas em vez de cortar */}
       <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-3 overflow-x-auto sm:gap-4">
+        {/* dinheiro e produção primeiro: ficam visíveis mesmo na tela estreita do celular */}
+        <MoneyChip open={pop === 'money'} onToggle={() => toggle('money')} />
+        <ProductionChip open={pop === 'production'} onToggle={() => toggle('production')} />
         {RESOURCE_TYPES.map((r) => {
           const have = Math.floor(me?.resources?.[r] ?? 0);
           const cap = me?.capacity?.[r] ?? 0;
@@ -172,6 +179,14 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
           ☰<span className="hidden sm:inline">Menu</span>
         </button>
       </div>
+      {pop && (
+        <>
+          <div className="fixed inset-0 z-40" onPointerDown={() => setPop(null)} aria-hidden />
+          <div className="absolute top-full left-0 z-50 mt-1">
+            {pop === 'money' ? <MoneyPopover onClose={() => setPop(null)} /> : <ProductionPopover runtime={runtime} onClose={() => setPop(null)} />}
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -287,3 +287,21 @@ Verificação visual (navegador headless, presets alto e celular):
 - **Save/load para o jogador:** só a serialização da simulação tática existe (veja acima).
 - **Balanceamento:** calibrado com partidas IA × IA (`AI_FIRST_UPGRADE_TICK`, custos em US$ dobrados após o primeiro
   teste porque o fundo não limitava). Precisa de ajuste com jogadores reais.
+
+## Clareza no HUD (feedback de jogo no celular)
+
+Retorno de um jogador após uma partida de ~10 min no celular:
+- não ficava claro de onde vem o dinheiro das melhorias, onde ver o saldo nem quanto entra;
+- faltava ver a fila de produção militar;
+- botões de tropa ficavam cinza sem motivo aparente.
+
+| Problema | Solução | Onde |
+|---|---|---|
+| Saldo invisível | **US$** na barra superior (primeiro item, visível também no celular), com a recarga por segundo na velocidade atual. Um toque abre a explicação: para que serve, de onde vem (0,3% da infraestrutura do orçamento nacional), quanto entra, como aumentar, último lançamento e o atalho **Abrir Orçamento** | `src/ui/hud/TopBarExtras.tsx` |
+| Painel de melhoria | O card da verba diz de onde ela vem e quanto entra por dia de jogo | `UpgradePanel.tsx` |
+| Fila de produção | Indicador **🏭 N** na barra (⚔ = unidades militares). Um toque lista, por edifício, o item em produção com progresso e os próximos, com atalho para ir até o edifício. No edifício selecionado: "Produzindo" com %, "Depois: …" e N/5 da fila; cada botão mostra o selo **×N** dos que já estão na fila | `TopBarExtras.tsx`, `CommandPanel.tsx` |
+| Botão cinza sem motivo | O motivo curto aparece no próprio botão: *sem recruta*, *faltam 15 comida*, *fila cheia*, *sem moradia*, *em obra*. Um toque num botão bloqueado mostra o motivo completo. O custo exibido já inclui nível e especialização. O botão do recruta mostra a reserva — "Recruta (0)" — porque a causa mais comum era a falta de recruta | `CommandPanel.tsx` |
+
+A regra de produção agora é uma só (`shared/sim/production.ts`, `checkProduce`): o servidor valida com ela e o HUD a usa
+para explicar. O motivo mostrado é, portanto, exatamente o que o servidor diria. Testes em
+`shared/test/production.test.ts`.

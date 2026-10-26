@@ -885,7 +885,7 @@ export function planUpgrade(b: UpgradeSubject, world: UpgradeWorld, chosenSpec: 
   return { ...base, toLevel: to, cost: lc.cost, usd: world.fundsUsd === null ? 0 : lc.usd, seconds, requirements: req, specChoice, blocker, gains, upkeepDelta, risks };
 }
 
-function missingText(have: Stockpile, cost: Cost): string {
+export function missingText(have: Stockpile, cost: Cost): string {
   const out: string[] = [];
   for (const r of RESOURCE_TYPES) {
     const need = (cost[r] ?? 0) - have[r];

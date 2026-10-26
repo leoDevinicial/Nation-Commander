@@ -134,6 +134,11 @@ export function UpgradePanel({ runtime }: { runtime: GameRuntime }) {
                 <div className="text-ink-400">Verba de obras (orçamento nacional)</div>
                 <div className={`mt-1 font-mono text-sm ${fund !== null && fund < plan.usd ? 'text-red-300' : 'text-ink-100'}`}>{usdShort(plan.usd)}</div>
                 <div className="text-[10px] text-ink-400">disponível: {fund === null ? '—' : usdShort(fund)}</div>
+                {nation && (
+                  <div className="mt-0.5 text-[10px] text-ink-400">
+                    Vem do orçamento do país (parte da infraestrutura): +{usdShort(nation.works.capUsd / 365)} por dia de jogo (1 s a 1×). Saldo também no US$ da barra superior.
+                  </div>
+                )}
               </div>
               <div className="rounded border border-ink-700 bg-ink-900 p-2">
                 <div className="text-ink-400">Tempo de obra</div>

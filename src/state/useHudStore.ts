@@ -52,12 +52,21 @@ export type PointerMode =
   | { kind: 'place'; buildingType: BuildingType; valid: boolean; reason: string | null; yield: { cells: number; rate: number } | null }
   | { kind: 'attack_move' };
 
+/** Fila de produção de um edifício próprio (para o resumo de produção do HUD). */
+export interface ProductionEntry {
+  id: EntityId;
+  type: BuildingType;
+  queue: { unitType: ProducibleType; progress: number }[];
+}
+
 /** Ferramenta do toque: o que um toque curto faz no mapa. */
 export type TouchTool = 'select' | 'order' | 'box';
 
 export interface HudState {
   tick: number;
   players: PlayerSnapshot[];
+  /** Edifícios próprios com algo na fila (unidades, recrutas, cidadãos). */
+  production: ProductionEntry[];
   mySlot: number;
   paused: boolean;
   pausedBy: string | null;
@@ -85,6 +94,7 @@ let seq = 1;
 export const useHudStore = create<HudState>((set) => ({
   tick: 0,
   players: [],
+  production: [],
   mySlot: 0,
   paused: false,
   pausedBy: null,

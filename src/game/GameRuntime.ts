@@ -599,9 +599,13 @@ export class GameRuntime {
       });
     }
     this.lastSelectionCount = selectedUnits.length;
+    const production = [];
+    for (const t of this.buildings.values())
+      if (t.snap.owner === this.mySlot && t.snap.queue.length > 0 && !t.snap.remembered) production.push({ id: t.snap.id, type: t.snap.type, queue: t.snap.queue });
     useHudStore.getState().set({
       tick: s.tick,
       players: s.players,
+      production,
       paused: this.paused,
       pausedBy: this.pausedBy,
       speed: this.speed,
@@ -723,6 +727,15 @@ export class GameRuntime {
       if (b && b.snap.owner === this.mySlot) return b;
     }
     return null;
+  }
+
+  /** Seleciona um edifício próprio e centraliza a câmera nele (atalho do resumo de produção). */
+  focusBuilding(id: number): void {
+    const p = this.positionOf(id);
+    if (!p) return;
+    this.selection.clear();
+    this.selection.add(id);
+    this.cameraCtl.lookAt(p.x, p.y);
   }
 
   centerOnHQ(): void {

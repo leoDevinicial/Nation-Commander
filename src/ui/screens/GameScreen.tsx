@@ -31,6 +31,7 @@ export function GameScreen() {
   const [chatOpen, setChatOpen] = useState(false);
   const nationalOpen = useNationalStore((s) => s.panelOpen);
   const setNationalOpen = useNationalStore((s) => s.setPanelOpen);
+  const nationalTab = useNationalStore((s) => s.panelTab);
   const touchUi = useHudStore((s) => s.touchUi);
   const globeOpen = useNationalStore((s) => s.globeOpen);
   const warTarget = useNationalStore((s) => s.warTarget);
@@ -138,7 +139,7 @@ export function GameScreen() {
           {touchUi && !nationalOpen && !globeOpen && <TouchToolbar runtime={runtime} />}
           {touchUi && !nationalOpen && !globeOpen && !menuOpen && <FullscreenPrompt />}
           {!globeOpen && !nationalOpen && <UpgradePanel runtime={runtime} />}
-          {nationalOpen && <NationalPanel onClose={() => setNationalOpen(false)} />}
+          {nationalOpen && <NationalPanel key={nationalTab ?? 'painel'} onClose={() => setNationalOpen(false)} />}
           {chatOpen && (
             <div className="absolute top-15 right-2 z-30 w-72 max-w-[calc(100vw-16px)] sm:top-14 sm:right-3">
               <ChatBox compact />

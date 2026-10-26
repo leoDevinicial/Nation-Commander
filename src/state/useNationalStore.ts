@@ -18,6 +18,9 @@ interface NationalState {
   log: NationalLogEntry[];
   panelOpen: boolean;
   setPanelOpen: (open: boolean) => void;
+  /** Aba pedida ao abrir o painel nacional por um atalho (ex.: o saldo da barra abre o Orçamento). */
+  panelTab: string | null;
+  openPanelAt: (tab: string) => void;
   /** Globo diplomático aberto e país a centralizar (ISO alfa-3). */
   globeOpen: boolean;
   globeFocus: string | null;
@@ -39,7 +42,9 @@ export const useNationalStore = create<NationalState>((set) => ({
   history: {},
   log: [],
   panelOpen: false,
-  setPanelOpen: (panelOpen) => set({ panelOpen }),
+  setPanelOpen: (panelOpen) => set({ panelOpen, panelTab: null }),
+  panelTab: null,
+  openPanelAt: (tab) => set({ panelOpen: true, panelTab: tab, globeOpen: false }),
   globeOpen: false,
   globeFocus: null,
   openGlobe: (focus = null) => set({ globeOpen: true, globeFocus: focus, panelOpen: false }),

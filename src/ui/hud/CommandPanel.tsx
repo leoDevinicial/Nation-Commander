@@ -7,12 +7,15 @@ import {
   OIL_TANK_RANGE,
   RESOURCE_LABELS,
   UNITS,
+  PRODUCTION_QUEUE_LIMIT,
   canAfford,
   emptyStockpile,
   type BuildingType,
+  type ProducibleType,
   type Stockpile,
   type UnitType,
 } from '../../../shared/sim/config.ts';
+import { checkProduce } from '../../../shared/sim/production.ts';
 import type { BuildingStatus } from '../../../shared/sim/types.ts';
 import { CostLabel, ResourceIcon } from '../components/Resources.tsx';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
@@ -155,16 +158,14 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           </button>
         )}
         {building?.type === 'hq' && mode.kind === 'normal' && (
-          <button
-            className="cmd-btn shrink-0"
-            disabled={!canAfford(resources, CITIZEN.cost)}
-            onClick={() => runtime.trainCitizen()}
+          <ProduceButton
+            b={building}
+            unit="citizen"
+            hotkey={CITIZEN.hotkey}
+            label="Cidadão"
+            onRun={() => runtime.trainCitizen()}
             title={`Formar cidadão civil — trabalha nas construções (fazendas, poços de petróleo, serrarias, pedreiras, minas, fábricas). Exige vaga de moradia.\nTempo: ${CITIZEN.buildSeconds}s`}
-          >
-            <span className="hotkey">{CITIZEN.hotkey}</span>
-            <span className="font-semibold">Cidadão</span>
-            <CostLabel cost={CITIZEN.cost} have={resources} compact />
-          </button>
+          />
         )}
         {building?.type === 'hq' &&
           mode.kind === 'normal' &&
@@ -188,7 +189,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           <UpgradeButton runtime={runtime} b={building} />
         )}
         {building && building.progress >= 1 && (building.type === 'barracks' || building.type === 'factory') && (
-          <ProduceButtons runtime={runtime} type={building.type} resources={resources} />
+          <ProduceButtons runtime={runtime} b={building} />
         )}
       </div>
     </div>
@@ -234,44 +235,123 @@ function UpgradeButton({ runtime, b }: { runtime: GameRuntime; b: NonNullable<Re
   );
 }
 
-function ProduceButtons({ runtime, type, resources }: { runtime: GameRuntime; type: BuildingType; resources: Stockpile }) {
-  const options = (Object.keys(UNITS) as UnitType[]).filter((u) => UNITS[u].producedBy === type);
-  const mySlot = useHudStore((s) => s.mySlot);
-  const recruits = useHudStore((s) => s.players.find((p) => p.slot === mySlot)?.population?.recruits ?? 0);
+type SelectedBuilding = NonNullable<ReturnType<typeof useHudStore.getState>['selectedBuilding']>;
+
+/**
+ * Botão de produção (cidadão, recruta ou unidade). Usa a mesma regra do servidor (`checkProduce`):
+ * mostra o custo real e, quando bloqueado, o motivo curto no próprio botão ("sem recruta",
+ * "faltam 20 petróleo", "fila cheia"). Um toque num botão bloqueado explica o motivo completo —
+ * no celular não há dica de mouse. O selo "×N" conta quantos desse tipo já estão na fila.
+ */
+function ProduceButton({ b, unit, hotkey, label, title, onRun }: { b: SelectedBuilding; unit: ProducibleType; hotkey: string; label: string; title: string; onRun: () => void }) {
+  const me = useHudStore((s) => s.players.find((p) => p.slot === s.mySlot));
+  const check = checkProduce(unit, {
+    buildingType: b.type,
+    level: b.level,
+    spec: b.spec,
+    progress: b.progress,
+    queueLength: b.queue.length,
+    resources: me?.resources ?? emptyStockpile(),
+    recruits: me?.population?.recruits ?? 0,
+    popTotal: me?.population?.total ?? 0,
+    popCap: me?.population?.cap ?? 0,
+  });
+  const queued = b.queue.filter((q) => q.unitType === unit).length;
+  const blocked = check.blocker !== null;
+  return (
+    <button
+      className={`cmd-btn relative shrink-0 ${blocked ? 'opacity-60' : ''}`}
+      aria-disabled={blocked}
+      onClick={() => {
+        if (check.blocker) {
+          useHudStore.getState().pushEvent({ tick: useHudStore.getState().tick, text: `${label}: ${check.blocker}`, tone: 'warn' });
+          return;
+        }
+        onRun();
+      }}
+      title={`${title}${check.blocker ? `\nBloqueado: ${check.blocker}` : ''}`}
+    >
+      <span className="hotkey">{hotkey}</span>
+      <span className="font-semibold">{label}</span>
+      <CostLabel cost={check.cost} have={me?.resources ?? emptyStockpile()} compact />
+      {check.short && <span className="text-[10px] leading-tight font-semibold text-red-300">{check.short}</span>}
+      {queued > 0 && (
+        <span className="absolute top-0.5 right-0.5 rounded-full bg-brass-400 px-1.5 text-[10px] leading-4 font-bold text-ink-950" aria-label={`${queued} na fila`}>
+          ×{queued}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function ProduceButtons({ runtime, b }: { runtime: GameRuntime; b: SelectedBuilding }) {
+  const options = (Object.keys(UNITS) as UnitType[]).filter((u) => UNITS[u].producedBy === b.type);
+  const recruits = useHudStore((s) => s.players.find((p) => p.slot === s.mySlot)?.population?.recruits ?? 0);
   return (
     <>
-      {type === 'barracks' && (
-        <button
-          className="cmd-btn shrink-0"
-          disabled={!canAfford(resources, RECRUIT.cost)}
-          onClick={() => runtime.trainRecruit()}
+      {b.type === 'barracks' && (
+        <ProduceButton
+          b={b}
+          unit="recruit"
+          hotkey={RECRUIT.hotkey}
+          label={`Recruta (${recruits})`}
+          onRun={() => runtime.trainRecruit()}
           title={`Alistar recruta — vai para a reserva militar e é a tripulação de qualquer unidade (infantaria, blindado, tanque, artilharia). Exige vaga de moradia.\nTempo: ${RECRUIT.buildSeconds}s · Na reserva: ${recruits}`}
-        >
-          <span className="hotkey">{RECRUIT.hotkey}</span>
-          <span className="font-semibold">Recruta</span>
-          <CostLabel cost={RECRUIT.cost} have={resources} compact />
-        </button>
+        />
       )}
       {options.map((u) => {
         const def = UNITS[u];
         return (
-          <button
+          <ProduceButton
             key={u}
-            className="cmd-btn shrink-0"
-            disabled={!canAfford(resources, def.cost) || recruits < 1}
-            onClick={() => runtime.produce(u)}
-            title={`${def.label} — ${def.description}${recruits < 1 ? '\nSem recrutas: aliste recrutas na base militar.' : ''}\nTripulação: 1 recruta · Tempo: ${def.buildSeconds}s · Vida: ${def.maxHp} · Dano: ${def.weapon.damage} · Alcance: ${def.weapon.range} · Visão: ${def.sight}`}
-          >
-            <span className="hotkey">{def.hotkey}</span>
-            <span className="font-semibold">{def.label}</span>
-            <CostLabel cost={def.cost} have={resources} compact />
-          </button>
+            b={b}
+            unit={u}
+            hotkey={def.hotkey}
+            label={def.label}
+            onRun={() => runtime.produce(u)}
+            title={`${def.label} — ${def.description}\nTripulação: 1 recruta (reserva: ${recruits}) · Tempo: ${def.buildSeconds}s · Vida: ${def.maxHp} · Dano: ${def.weapon.damage} · Alcance: ${def.weapon.range} · Visão: ${def.sight}`}
+          />
         );
       })}
-      <button className="cmd-btn shrink-0" onClick={() => runtime.cancelProduction()} title="Cancelar último item da fila (Delete) — reembolso integral">
+      <button className="cmd-btn shrink-0" disabled={b.queue.length === 0} onClick={() => runtime.cancelProduction()} title="Cancelar último item da fila (Delete) — reembolso integral">
         <span className="hotkey">Del</span>↶<span>Cancelar</span>
       </button>
     </>
+  );
+}
+
+/** Nome de um item da fila de produção. */
+export function producibleLabel(t: ProducibleType): string {
+  return t === 'citizen' ? CITIZEN.label : t === 'recruit' ? RECRUIT.label : UNITS[t].label;
+}
+
+/** Ícone curto de um item da fila (texto, para não depender de emoji do sistema). */
+export function producibleIcon(t: ProducibleType): string {
+  return t === 'citizen' ? '☺' : t === 'recruit' ? '🎖' : t === 'tank' ? '▣' : t === 'apc' ? '▤' : t === 'artillery' ? '⟋' : '●';
+}
+
+/** Fila de produção do edifício selecionado: o item em andamento com progresso e os próximos. */
+function QueueList({ queue }: { queue: SelectedBuilding['queue'] }) {
+  const [first, ...rest] = queue;
+  if (!first) return null;
+  return (
+    <div className="mt-2 rounded border border-ink-700 bg-ink-900/70 p-1.5 text-[11px]">
+      <div className="flex items-center justify-between text-ink-400">
+        <span>Produzindo</span>
+        <span className="font-mono">
+          {queue.length}/{PRODUCTION_QUEUE_LIMIT}
+        </span>
+      </div>
+      <div className="mt-0.5 flex items-center gap-2">
+        <span aria-hidden>{producibleIcon(first.unitType)}</span>
+        <span className="font-semibold text-ink-100">{producibleLabel(first.unitType)}</span>
+        <div className="h-1.5 flex-1 overflow-hidden rounded bg-ink-950">
+          <div className="h-full bg-brass-400" style={{ width: `${first.progress * 100}%` }} />
+        </div>
+        <span className="font-mono text-ink-200">{Math.round(first.progress * 100)}%</span>
+      </div>
+      {rest.length > 0 && <div className="mt-0.5 text-ink-400">Depois: {rest.map((q) => producibleLabel(q.unitType)).join(', ')}</div>}
+    </div>
   );
 }
 
@@ -427,16 +507,7 @@ function BuildingInfo({ b, runtime }: { b: NonNullable<ReturnType<typeof useHudS
       )}
       {done && fx.housing > 0 && <div className="text-[11px] text-ink-400">Moradia para {fx.housing} habitantes.</div>}
       {done && fx.territoryRadius > 0 && <div className="text-[11px] text-ink-400">Projeta fronteira num raio de {fx.territoryRadius} células.</div>}
-      {b.queue.length > 0 && (
-        <div className="mt-2 flex items-center gap-1.5">
-          {b.queue.map((q, i) => (
-            <div key={i} className="relative h-9 w-9 overflow-hidden rounded border border-ink-600 bg-ink-850 text-center text-[10px] leading-9" title={q.unitType === 'citizen' ? CITIZEN.label : q.unitType === 'recruit' ? RECRUIT.label : UNITS[q.unitType].label}>
-              {q.unitType === 'citizen' ? '☺' : q.unitType === 'recruit' ? '🎖' : q.unitType === 'tank' ? '▣' : '●'}
-              {i === 0 && <div className="absolute bottom-0 left-0 h-1 bg-brass-400" style={{ width: `${q.progress * 100}%` }} />}
-            </div>
-          ))}
-        </div>
-      )}
+      {b.queue.length > 0 && <QueueList queue={b.queue} />}
       {(b.type === 'barracks' || b.type === 'factory') && done && (
         <div className="mt-1 text-[11px] text-ink-400">Botão direito no mapa define o ponto de reunião{b.hasRally ? ' (definido)' : ''}. Cada unidade usa um recruta da reserva.</div>
       )}

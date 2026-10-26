@@ -27,7 +27,8 @@ const TABS = [
 type Tab = (typeof TABS)[number]['id'];
 
 export function NationalPanel({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<Tab>('overview');
+  const requested = useNationalStore((s) => s.panelTab);
+  const [tab, setTab] = useState<Tab>(() => TABS.find((t) => t.id === requested)?.id ?? 'overview');
   const mySlot = useAppStore((s) => s.match?.yourSlot ?? 0);
   const balanceMode = useAppStore((s) => s.match?.balanceMode ?? 'parity');
   const nation = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot));

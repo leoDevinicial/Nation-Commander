@@ -2,7 +2,6 @@ import {
   BUILDINGS,
   CHASE_REPATH_TICKS,
   MAX_REPLANS,
-  PRODUCTION_QUEUE_LIMIT,
   STARTING_RESOURCES,
   STUCK_TICKS,
   TERRAIN,
@@ -32,7 +31,6 @@ import {
   UPGRADE_WORK_EFFICIENCY,
   buildingEffects,
   planUpgrade,
-  scaledCost,
   type BuildingEffects,
   type UpgradePlan,
   type UpgradeWorld,
@@ -43,6 +41,7 @@ import type { Command } from './commands.ts';
 import { findPath } from './pathfinding/AStar.ts';
 import { placementError } from './placement.ts';
 import { Grid } from './pathfinding/Grid.ts';
+import { checkProduce } from './production.ts';
 import type {
   Building,
   BuildingStatus,
@@ -732,34 +731,31 @@ export class Simulation {
       case 'produce': {
         const b = this.entities.get(cmd.buildingId);
         if (!b || b.kind !== 'building' || b.owner !== slot) return 'Edifício inválido';
-        if (b.progress < 1) return 'Edifício em construção';
-        if (b.queue.length >= PRODUCTION_QUEUE_LIMIT) return 'Fila de produção cheia';
         const pop = this.population(slot);
+        // mesma regra que o HUD usa para mostrar o motivo de um botão bloqueado
+        const check = checkProduce(cmd.unitType, {
+          buildingType: b.type,
+          level: b.level,
+          spec: b.spec,
+          progress: b.progress,
+          queueLength: b.queue.length,
+          resources: player.resources,
+          recruits: player.recruits,
+          popTotal: pop.total,
+          popCap: pop.cap,
+        });
+        if (check.blocker) return check.blocker;
+        const cost = check.cost;
+        const bfx = this.fx(b);
+        this.spend(player, cost);
         if (cmd.unitType === 'citizen' || cmd.unitType === 'recruit') {
           const recruit = cmd.unitType === 'recruit';
-          if (!recruit && b.type !== 'hq') return 'Cidadãos são formados no Centro de Comando';
-          if (recruit && b.type !== 'barracks') return 'Recrutas são alistados na base militar (quartel)';
-          if (pop.total >= pop.cap)
-            return pop.cap >= POP_ABSOLUTE_CAP
-              ? `Limite nacional de ${POP_ABSOLUTE_CAP} habitantes atingido`
-              : `Sem moradia: ${pop.total}/${pop.cap}. Construa casas ou prédios residenciais (ou perca unidades) para liberar espaço`;
           const def = recruit ? RECRUIT : CITIZEN;
-          const bfx = this.fx(b);
-          const cost = recruit ? scaledCost(def.cost, bfx.recruitCostMul) : def.cost;
-          if (!canAfford(player.resources, cost)) return 'Recursos insuficientes';
-          this.spend(player, cost);
           const ticks = Math.max(1, Math.round(def.buildSeconds * TICK_RATE * (recruit ? bfx.recruitTimeMul : 1)));
           b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks, paid: cost });
           return null;
         }
         const def = UNITS[cmd.unitType];
-        if (def.producedBy !== b.type) return `${BUILDINGS[b.type].label} não produz ${def.label}`;
-        // cada unidade militar precisa de um recruta da reserva como tripulação
-        if (player.recruits < 1) return 'Nenhum recruta disponível: aliste recrutas na base militar (quartel)';
-        const bfx = this.fx(b);
-        const cost = scaledCost(def.cost, bfx.unitCostMul, bfx.unitOilMul);
-        if (!canAfford(player.resources, cost)) return 'Recursos insuficientes';
-        this.spend(player, cost);
         player.recruits--;
         const ticks = Math.max(1, Math.round(def.buildSeconds * TICK_RATE * player.modifiers.productionTimeMul * bfx.productionTimeMul));
         b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks, paid: cost });
