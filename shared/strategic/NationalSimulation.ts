@@ -1,4 +1,5 @@
 import { Random } from '../sim/Random.ts';
+import { decodeNonFinite, encodeNonFinite } from '../sim/json.ts';
 import type { SimEvent, Slot } from '../sim/types.ts';
 import {
   COEF,
@@ -18,7 +19,7 @@ import {
 import { countryReference, type ReferenceKey } from './reference.ts';
 import { combineEffects, researchBlocker, researchDailyProgress, TECH_IDS, type TechEffects, type TechId } from './technologies.ts';
 import { COUNTRIES } from '../data/countries.ts';
-import { DIPLO, Diplomacy, warPreview, type DiplomaticAction, type DiplomaticEvent, type NationId, type RelationView, type Treaty, type WarPreview } from './Diplomacy.ts';
+import { DIPLO, Diplomacy, warPreview, type DiplomacySave, type DiplomaticAction, type DiplomaticEvent, type NationId, type RelationView, type Treaty, type WarPreview } from './Diplomacy.ts';
 import type { Cost, Stockpile } from '../sim/config.ts';
 
 /**
@@ -193,6 +194,15 @@ export type NationalEvent =
   | { type: 'military_strike'; day: number; slot: Slot; victim: Slot; kind: 'air' | 'missile'; target: string; damage: number; oilLost: number; destroyed: number; intercepted: boolean }
   | { type: 'diplomacy'; day: number; event: DiplomaticEvent };
 
+export interface NationalSave {
+  day: number;
+  rng: number;
+  nations: NationState[];
+  npcs: NationState[];
+  events: NationalEvent[];
+  diplomacy: DiplomacySave;
+}
+
 /** Simulação nacional de cada jogador, avançando um dia por vez. Determinística dada a seed. */
 /** Fração da produção de uma região ocupada que o país perde (choque único no PIB). */
 export const OCCUPATION_GDP_LOSS = 0.3;
@@ -243,6 +253,26 @@ export class NationalSimulation {
 
   attachTheater(link: TheaterLink): void {
     this.theater = link;
+  }
+
+  /** Estado completo (JSON) para salvar a partida; o vínculo com o teatro é refeito por quem carrega. */
+  toSave(): NationalSave {
+    return JSON.parse(
+      JSON.stringify({ day: this.day, rng: this.rng.seedState, nations: this.nations, npcs: this.npcs, events: this.events, diplomacy: this.diplomacy.toSave() }, encodeNonFinite),
+      decodeNonFinite,
+    ) as NationalSave;
+  }
+
+  /** Aplica um estado salvo sobre uma simulação criada com os mesmos jogadores, seed e regra. */
+  load(s: NationalSave): void {
+    const c = JSON.parse(JSON.stringify(s, encodeNonFinite), decodeNonFinite) as NationalSave;
+    this.day = c.day;
+    (this as unknown as { rng: Random }).rng = new Random(c.rng);
+    // os vetores são os mesmos objetos vistos pela diplomacia: troca o conteúdo, não a referência
+    this.nations.splice(0, this.nations.length, ...c.nations);
+    this.npcs.splice(0, this.npcs.length, ...c.npcs);
+    this.events = c.events;
+    this.diplomacy.load(c.diplomacy);
   }
 
   /** Ação diplomática de um jogador (ou da IA de um jogador). */

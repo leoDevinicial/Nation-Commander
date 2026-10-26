@@ -51,8 +51,9 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
     }
     deps.sessions.set(conn.user.id, conn);
     conn.send({ t: 'welcome', user: conn.user, serverVersion: GAME_VERSION });
-    const room = deps.rooms.findByUser(conn.user.id);
-    if (room) room.reattach(conn);
+    // em memória ou, depois de um reinício do servidor, retomada do salvamento
+    const room = await deps.rooms.findOrRestore(conn.user.id);
+    if (room && conn.user && deps.sessions.get(conn.user.id) === conn) room.reattach(conn);
     else conn.send({ t: 'room', room: null });
     return;
   }

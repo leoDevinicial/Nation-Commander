@@ -51,6 +51,14 @@ const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
  * guarda os recursos da mobilização e pede a declaração (`wantsWarWith`), que o servidor valida
  * pelo mesmo caminho do jogador humano.
  */
+export interface TacticalAISave {
+  waveSize: number;
+  produced: number;
+  attacking: boolean;
+  lastWaveTick: number | null;
+  wantsWarWith: Slot | null;
+}
+
 export class TacticalAI {
   private waveSize = AI_FIRST_WAVE;
   private produced = 0;
@@ -60,6 +68,25 @@ export class TacticalAI {
   wantsWarWith: Slot | null = null;
 
   constructor(readonly slot: Slot) {}
+
+  /** Memória da IA (ondas e ataque em curso) para salvar a partida. */
+  toSave(): TacticalAISave {
+    return {
+      waveSize: this.waveSize,
+      produced: this.produced,
+      attacking: this.attacking,
+      lastWaveTick: Number.isFinite(this.lastWaveTick) ? this.lastWaveTick : null,
+      wantsWarWith: this.wantsWarWith,
+    };
+  }
+
+  load(s: TacticalAISave): void {
+    this.waveSize = s.waveSize;
+    this.produced = s.produced;
+    this.attacking = s.attacking;
+    this.lastWaveTick = s.lastWaveTick ?? -Infinity;
+    this.wantsWarWith = s.wantsWarWith;
+  }
 
   think(sim: Simulation): Command[] {
     const hq = sim.hqOf(this.slot);

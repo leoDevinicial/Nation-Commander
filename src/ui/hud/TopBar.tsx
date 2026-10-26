@@ -23,6 +23,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
   const showFps = useSettingsStore((s) => s.showFps);
   const roster = useAppStore((s) => s.match?.players ?? []);
   const connStatus = useAppStore((s) => s.connStatus);
+  const connDetail = useAppStore((s) => s.connDetail);
   const me = players.find((p) => p.slot === mySlot);
   const date = useNationalStore((s) => s.date);
   const nation = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot));
@@ -126,8 +127,8 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
       </div>
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
         {connStatus !== 'connected' && (
-          <span className="text-xs text-brass-400" title="Reconectando ao servidor">
-            ⚠<span className="hidden sm:inline"> Reconectando…</span>
+          <span className="text-xs text-brass-400" title={connDetail ?? 'Reconectando ao servidor'}>
+            ⚠<span className="hidden sm:inline"> {connDetail ? 'Servidor atualizando… a partida será retomada' : 'Reconectando…'}</span>
           </span>
         )}
         {showFps && <span className="hidden font-mono text-xs text-ink-400 sm:inline">{fps} qps</span>}

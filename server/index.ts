@@ -7,10 +7,14 @@ import { handleClose, handleMessage, type HandlerDeps } from './handler.ts';
 import { log } from './logger.ts';
 import { parseClientMessage } from './messages.ts';
 import { isOriginAllowed } from './origins.ts';
+import { FileMatchStore, SupabaseMatchStore, type MatchStore } from './matchStore.ts';
 import { RoomManager } from './RoomManager.ts';
 import { getSupabase, recordMatch, verifyAccessToken } from './supabase.ts';
 
-const rooms = new RoomManager({ reconnectGraceMs: config.reconnectGraceMs, record: recordMatch }, config.maxRooms);
+// partidas em andamento sobrevivem a reinícios: Supabase em produção, arquivos no desenvolvimento
+const sb = getSupabase();
+const store: MatchStore | null = sb ? new SupabaseMatchStore(sb) : config.matchStoreDir ? new FileMatchStore(config.matchStoreDir) : null;
+const rooms = new RoomManager({ reconnectGraceMs: config.reconnectGraceMs, record: recordMatch }, config.maxRooms, store);
 const deps: HandlerDeps = {
   rooms,
   allowGuests: config.allowGuests,
@@ -18,7 +22,9 @@ const deps: HandlerDeps = {
   sessions: new Map(),
 };
 
-if (!getSupabase()) {
+log.info(store ? 'Partidas em andamento são salvas' : 'Partidas em andamento NÃO são salvas (sem Supabase nem MATCH_STORE_DIR)', { store: store?.kind ?? null });
+
+if (!sb) {
   log.warn('SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes: login e gravação de partidas desativados.', {
     allowGuests: config.allowGuests,
   });
@@ -85,16 +91,29 @@ wss.on('connection', (ws) => {
 });
 
 setInterval(() => rooms.sweep(), 30_000).unref();
+let saving = false;
+setInterval(() => {
+  if (saving) return;
+  saving = true;
+  void rooms.persistAll().finally(() => (saving = false));
+}, config.saveIntervalMs).unref();
 
 http.listen(config.port, () => {
   log.info('Servidor de jogo ativo', { port: config.port, version: GAME_VERSION, origins: config.allowedOrigins });
 });
 
-const shutdown = () => {
+let shuttingDown = false;
+const shutdown = async () => {
+  if (shuttingDown) return;
+  shuttingDown = true;
   log.info('Encerrando servidor');
+  // grava o estado final de cada partida ANTES de derrubar as conexões: quando os jogadores
+  // reconectam (no servidor novo), a partida é retomada exatamente daqui
+  const saved = await Promise.race([rooms.shutdown(), new Promise<number>((r) => setTimeout(() => r(-1), 10_000))]);
+  log.info('Partidas salvas no encerramento', { saved });
   wss.clients.forEach((c) => c.close(1012, 'Servidor reiniciando'));
   http.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 3000).unref();
 };
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+process.on('SIGTERM', () => void shutdown());
+process.on('SIGINT', () => void shutdown());

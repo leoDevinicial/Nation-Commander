@@ -19,12 +19,13 @@ import { TICK_RATE } from '../shared/sim/config.ts';
 import { generateMap } from '../shared/sim/MapGen.ts';
 import { Simulation } from '../shared/sim/Simulation.ts';
 import { FogMemory, makeSnapshot } from '../shared/sim/snapshot.ts';
-import { AI_THINK_TICKS, TacticalAI } from '../shared/sim/TacticalAI.ts';
-import type { SimEvent, Slot } from '../shared/sim/types.ts';
+import { AI_THINK_TICKS, TacticalAI, type TacticalAISave } from '../shared/sim/TacticalAI.ts';
+import type { BuildingSnapshot } from '../shared/sim/snapshot.ts';
+import type { EntityId, SimEvent, Slot } from '../shared/sim/types.ts';
 import { NationalAI } from '../shared/strategic/NationalAI.ts';
-import { NationalSimulation, type NationalEvent } from '../shared/strategic/NationalSimulation.ts';
+import { NationalSimulation, type NationalEvent, type NationalSave } from '../shared/strategic/NationalSimulation.ts';
 import { HISTORY_EVERY_DAYS, SCENARIO_START, TICKS_PER_DAY } from '../shared/strategic/params.ts';
-import { OperationsSystem, operationsView, type Operation } from '../shared/strategic/operations.ts';
+import { OperationsSystem, operationsView, type Operation, type OperationsSave } from '../shared/strategic/operations.ts';
 import { sectorById } from '../shared/data/sectors.ts';
 import type { Connection } from './Connection.ts';
 import { log } from './logger.ts';
@@ -32,6 +33,33 @@ import type { MatchRecord } from './supabase.ts';
 
 export const SNAPSHOT_EVERY = 2; // 10 snapshots/s
 const MAX_COMMANDS_PER_TICK = 20;
+/** Partida retomada de um salvamento: tempo extra para os jogadores reconectarem antes do abandono. */
+export const RESTORE_GRACE_MS = 5 * 60_000;
+
+/**
+ * Estado completo de uma partida em andamento (JSON), para gravar e retomar depois de um
+ * reinício do servidor: sala, simulação tática, camada nacional, operações, IA e névoa.
+ */
+export interface RoomSave {
+  format: 1;
+  gameVersion: string;
+  savedAt: number;
+  code: string;
+  mode: RoomMode;
+  hostUserId: string;
+  balanceMode: BalanceMode;
+  seed: number;
+  startedAt: number;
+  speed: GameSpeed;
+  players: { slot: Slot; userId: string | null; name: string; countryId: string; isAI: boolean }[];
+  /** `Simulation.serialize()` (preserva ±Infinity). */
+  sim: string;
+  national: NationalSave;
+  ops: OperationsSave | null;
+  ais: { slot: Slot; state: TacticalAISave }[];
+  gdpStart: [Slot, number][];
+  fog: [Slot, [EntityId, BuildingSnapshot][]][];
+}
 
 interface RoomPlayer extends RoomPlayerInfo {
   conn: Connection | null;
@@ -42,6 +70,8 @@ export interface RoomDeps {
   reconnectGraceMs: number;
   record: (rec: MatchRecord) => Promise<boolean>;
   onEmpty: (room: Room) => void;
+  /** Partida encerrada (o salvamento em andamento deixa de valer). */
+  onEnded?: (room: Room) => void;
   now?: () => number;
   /** Seed opcional (testes). */
   seed?: number;
@@ -56,7 +86,7 @@ export interface RoomDeps {
 export class Room {
   status: 'lobby' | 'playing' | 'ended' = 'lobby';
   readonly players: RoomPlayer[] = [];
-  hostUserId: string;
+  hostUserId = '';
   readonly maxPlayers = 2;
   balanceMode: BalanceMode = 'parity';
   national: NationalSimulation | null = null;
@@ -87,17 +117,23 @@ export class Room {
   private accumulator = 0;
   private endReason: EndReason | null = null;
   private readonly now: () => number;
+  /** Até quando ninguém perde por abandono (partida retomada após reinício do servidor). */
+  private graceUntil = 0;
+  /** A pausa foi automática, pela queda da conexão (volta sozinha na reconexão). */
+  private pausedForDisconnect = false;
 
+  /** `host` nulo: sala retomada de um salvamento (ver `Room.restore`). */
   constructor(
     readonly code: string,
     readonly mode: RoomMode,
-    host: Connection,
-    countryId: string,
+    host: { conn: Connection; countryId: string } | null,
     private readonly deps: RoomDeps,
   ) {
     this.now = deps.now ?? Date.now;
-    this.hostUserId = host.user!.id;
-    this.addHuman(host, countryId);
+    if (!host) return;
+    const countryId = host.countryId;
+    this.hostUserId = host.conn.user!.id;
+    this.addHuman(host.conn, countryId);
     if (mode === 'vs_ai') {
       this.players.push({
         slot: 1,
@@ -239,15 +275,39 @@ export class Room {
       this.balanceMode,
     );
     this.nationalAIs = this.players.filter((p) => p.isAI).map((p) => new NationalAI(p.slot));
+    this.wire();
     const sim = this.sim;
+    const national = this.national;
+    // operações expedicionárias contra governos fora do teatro (Fase 8)
+    this.ops = new OperationsSystem(sim, national, this.seed);
+    for (const n of this.national.nations) this.gdpStart.set(n.slot, n.gdpUsd);
+    this.applyNationalModifiers();
+    this.status = 'playing';
+    this.startedAt = this.now();
+    this.paused = false;
+    this.speed = 1;
+    for (const p of this.players) if (p.conn) this.sendMatchStart(p);
+    this.broadcastRoom();
+    this.broadcastSnapshot();
+    this.broadcastNational(true);
+    log.info('Partida iniciada', { room: this.code, mode: this.mode, seed: this.seed });
+    this.startLoop();
+  }
+
+  /**
+   * Liga as camadas da partida (a guerra nacional libera o combate no teatro; melhorias, pesquisa,
+   * verba de obras e comércio consultam a nação). Vale para a partida nova e para a retomada.
+   */
+  private wire(): void {
+    const sim = this.sim!;
+    const national = this.national!;
     // a guerra declarada na camada nacional é o que libera o combate no teatro
-    this.national.attachTheater({
+    national.attachTheater({
       resources: (slot) => sim.players[slot]?.resources ?? null,
       spend: (slot, cost) => void sim.spendResources(slot, cost),
       setWar: (a, b) => sim.setWar(a, b, true),
     });
     // melhorias de construções consultam pesquisas, condições nacionais e a verba de obras
-    const national = this.national;
     sim.national = {
       techs: (slot) => national.nation(slot)?.research.done ?? [],
       infrastructureIndex: (slot) => national.nation(slot)?.infrastructureIndex ?? 1,
@@ -272,23 +332,96 @@ export class Room {
       pay: (slot, usd, description) => national.tradePayment(slot, usd, description.startsWith('Frete') ? 'freight' : usd >= 0 ? 'export' : 'import'),
       partnerName: (id) => countryName(national.nation(id)?.countryId ?? '') || `Jogador ${id + 1}`,
     });
-    // operações expedicionárias contra governos fora do teatro (Fase 8)
-    this.ops = new OperationsSystem(sim, national, this.seed);
-    for (const n of this.national.nations) this.gdpStart.set(n.slot, n.gdpUsd);
-    this.applyNationalModifiers();
-    this.status = 'playing';
-    this.startedAt = this.now();
-    this.paused = false;
-    this.speed = 1;
-    for (const p of this.players) if (p.conn) this.sendMatchStart(p);
-    this.broadcastRoom();
-    this.broadcastSnapshot();
-    this.broadcastNational(true);
-    log.info('Partida iniciada', { room: this.code, mode: this.mode, seed: this.seed });
+  }
+
+  private startLoop(): void {
     this.lastLoopTime = this.now();
-    if (this.deps.autoLoop !== false) {
-      this.loop = setInterval(() => this.onLoop(), 1000 / TICK_RATE / 2);
+    if (this.deps.autoLoop !== false) this.loop = setInterval(() => this.onLoop(), 1000 / TICK_RATE / 2);
+  }
+
+  // ------------------------------------------------------------ salvar e retomar
+
+  /** Ids dos jogadores humanos (para achar a partida salva quando um deles volta). */
+  userIds(): string[] {
+    return this.players.filter((p) => !p.isAI && p.userId).map((p) => p.userId!);
+  }
+
+  get tick(): number {
+    return this.sim?.tick ?? 0;
+  }
+
+  /** Estado completo da partida em andamento (null fora da partida). */
+  toSave(): RoomSave | null {
+    if (this.status !== 'playing' || !this.sim || !this.national) return null;
+    return {
+      format: 1,
+      gameVersion: GAME_VERSION,
+      savedAt: this.now(),
+      code: this.code,
+      mode: this.mode,
+      hostUserId: this.hostUserId,
+      balanceMode: this.balanceMode,
+      seed: this.seed,
+      startedAt: this.startedAt,
+      speed: this.speed,
+      players: this.players.map((p) => ({ slot: p.slot, userId: p.userId, name: p.name, countryId: p.countryId, isAI: p.isAI })),
+      sim: this.sim.serialize(),
+      national: this.national.toSave(),
+      ops: this.ops?.toSave() ?? null,
+      ais: this.ais.map((a) => ({ slot: a.slot, state: a.toSave() })),
+      gdpStart: [...this.gdpStart],
+      fog: [...this.fogMemory].map(([slot, m]) => [slot, [...m.known]]),
+    };
+  }
+
+  /**
+   * Retoma uma partida salva: todos começam desconectados; os humanos têm RESTORE_GRACE_MS para
+   * voltar (contra a IA a partida fica pausada até lá). Continuar daqui é idêntico a continuar da
+   * partida original.
+   */
+  static restore(save: RoomSave, deps: RoomDeps): Room {
+    if (save.format !== 1) throw new Error(`Formato de salvamento não suportado: ${String(save.format)}`);
+    const room = new Room(save.code, save.mode, null, deps);
+    const now = room.now();
+    room.hostUserId = save.hostUserId;
+    room.balanceMode = save.balanceMode;
+    room.seed = save.seed;
+    room.startedAt = save.startedAt;
+    room.speed = save.speed;
+    for (const p of save.players) room.players.push({ ...p, ready: true, connected: p.isAI, conn: null, disconnectedAt: p.isAI ? null : now });
+    room.players.sort((a, b) => a.slot - b.slot);
+    room.sim = Simulation.deserialize(save.sim);
+    room.national = new NationalSimulation(
+      room.players.map((p) => ({ slot: p.slot, countryId: p.countryId })),
+      save.seed,
+      save.balanceMode,
+    );
+    room.national.load(save.national);
+    room.wire();
+    room.ops = new OperationsSystem(room.sim, room.national, save.seed);
+    if (save.ops) room.ops.load(save.ops);
+    room.ais = room.players.filter((p) => p.isAI).map((p) => new TacticalAI(p.slot));
+    for (const a of room.ais) {
+      const st = save.ais.find((x) => x.slot === a.slot);
+      if (st) a.load(st.state);
     }
+    room.nationalAIs = room.players.filter((p) => p.isAI).map((p) => new NationalAI(p.slot));
+    for (const [slot, usd] of save.gdpStart) room.gdpStart.set(slot, usd);
+    for (const [slot, known] of save.fog) {
+      const m = new FogMemory();
+      for (const [id, b] of known) m.known.set(id, b);
+      room.fogMemory.set(slot, m);
+    }
+    room.applyNationalModifiers();
+    room.status = 'playing';
+    room.graceUntil = now + RESTORE_GRACE_MS;
+    if (save.mode === 'vs_ai') {
+      room.paused = true;
+      room.pausedBy = room.players.find((p) => !p.isAI)?.name ?? null;
+      room.pausedForDisconnect = true;
+    }
+    room.startLoop();
+    return room;
   }
 
   private sendMatchStart(p: RoomPlayer): void {
@@ -323,10 +456,18 @@ export class Room {
     this.accumulator += elapsed * this.speed;
     const tickMs = 1000 / TICK_RATE;
     let steps = 0;
-    while (this.accumulator >= tickMs && steps < 8 && this.status === 'playing') {
-      this.accumulator -= tickMs;
-      this.advance();
-      steps++;
+    try {
+      while (this.accumulator >= tickMs && steps < 8 && this.status === 'playing') {
+        this.accumulator -= tickMs;
+        this.advance();
+        steps++;
+      }
+    } catch (err) {
+      // um erro na simulação não pode derrubar o servidor (nem as outras partidas): congela esta
+      log.error('Erro na simulação; partida pausada', { room: this.code, tick: this.sim?.tick, err: String(err), stack: (err as Error)?.stack });
+      this.paused = true;
+      this.pausedBy = 'Servidor';
+      this.system('Erro interno na simulação: partida pausada. Ela foi salva e pode ser retomada.');
     }
   }
 
@@ -570,6 +711,7 @@ export class Room {
     if (!p || this.status !== 'playing') return;
     this.paused = paused;
     this.pausedBy = paused ? p.name : null;
+    this.pausedForDisconnect = false;
     this.system(paused ? `${p.name} pausou a partida.` : `${p.name} retomou a partida.`);
     this.broadcastSnapshot();
   }
@@ -616,9 +758,10 @@ export class Room {
     p.disconnectedAt = this.now();
     if (this.status === 'playing') {
       this.system(`${p.name} perdeu a conexão. Aguardando reconexão...`);
-      if (this.mode === 'vs_ai') {
+      if (this.mode === 'vs_ai' && !this.paused) {
         this.paused = true;
         this.pausedBy = p.name;
+        this.pausedForDisconnect = true;
       }
       this.broadcastRoom();
     }
@@ -639,6 +782,12 @@ export class Room {
     conn.roomCode = this.code;
     conn.send({ t: 'room', room: this.info() });
     if (this.status === 'playing' && this.sim) {
+      // a pausa automática da queda termina quando todos os humanos estão de volta
+      if (this.pausedForDisconnect && this.players.every((x) => x.isAI || x.connected)) {
+        this.paused = false;
+        this.pausedBy = null;
+        this.pausedForDisconnect = false;
+      }
       this.sendMatchStart(p);
       this.system(`${p.name} reconectou.`);
       this.broadcastRoom();
@@ -659,6 +808,7 @@ export class Room {
   private checkDisconnects(): void {
     if (this.status !== 'playing') return;
     const now = this.now();
+    if (now < this.graceUntil) return;
     for (const p of this.players) {
       if (!p.isAI && !p.connected && p.disconnectedAt !== null && now - p.disconnectedAt > this.deps.reconnectGraceMs) {
         p.disconnectedAt = null;
@@ -677,6 +827,7 @@ export class Room {
     this.finishing = true;
     this.status = 'ended';
     this.stopLoop();
+    this.deps.onEnded?.(this);
     const sim = this.sim;
     const winnerSlot = sim.winner;
     const endedAt = this.now();
@@ -809,6 +960,11 @@ export class Room {
   private stopLoop(): void {
     if (this.loop) clearInterval(this.loop);
     this.loop = null;
+  }
+
+  /** Congela a simulação (encerramento do servidor: o estado gravado é o último). */
+  freeze(): void {
+    this.stopLoop();
   }
 
   dispose(): void {

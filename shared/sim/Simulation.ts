@@ -1,3 +1,4 @@
+import { decodeNonFinite, encodeNonFinite } from './json.ts';
 import {
   BUILDINGS,
   CHASE_REPATH_TICKS,
@@ -109,10 +110,6 @@ export interface SimulationSave {
   detached?: number[];
   battle?: boolean;
 }
-
-/** JSON não representa ±Infinity: usados em alguns campos internos (ex.: distância inicial). */
-const encodeNonFinite = (_k: string, v: unknown) => (v === Infinity ? '+Inf' : v === -Infinity ? '-Inf' : v);
-const decodeNonFinite = (_k: string, v: unknown) => (v === '+Inf' ? Infinity : v === '-Inf' ? -Infinity : v);
 
 /** Resumo populacional de um jogador. */
 export interface Population {

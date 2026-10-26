@@ -15,6 +15,10 @@ type StatusListener = (status: ConnectionStatus, detail?: string) => void;
 
 /** Códigos de fechamento que não devem provocar reconexão automática. */
 const FATAL_CLOSE = new Set([4000, 4001, 4003]);
+/** Servidor reiniciando (atualização): a partida é gravada e retomada quando a conexão volta. */
+const RESTART_CLOSE = 1012;
+/** Tentativas de reconexão (~2 min de espera somada: cobre um servidor que acorda devagar). */
+const MAX_ATTEMPTS = 12;
 
 /**
  * Conexão WebSocket com o servidor de jogo. Reconecta com backoff exponencial e repete o
@@ -68,7 +72,7 @@ export class GameClient {
 
   private open(): void {
     if (!this.creds) return;
-    this.setStatus(this.attempts === 0 ? 'connecting' : 'reconnecting');
+    this.setStatus(this.attempts === 0 ? 'connecting' : 'reconnecting', this.lastDetail);
     let ws: WebSocket;
     try {
       ws = new WebSocket(this.url);
@@ -110,17 +114,18 @@ export class GameClient {
         this.setStatus('failed', ev.reason || 'Conexão recusada pelo servidor');
         return;
       }
-      this.scheduleReconnect();
+      if (ev.code === RESTART_CLOSE) this.attempts = 0;
+      this.scheduleReconnect(ev.code === RESTART_CLOSE ? 'Servidor atualizando: a partida será retomada' : undefined);
     };
   }
 
-  private scheduleReconnect(): void {
+  private scheduleReconnect(detail?: string): void {
     this.attempts++;
-    if (this.attempts > 8) {
+    if (this.attempts > MAX_ATTEMPTS) {
       this.setStatus('failed', 'Não foi possível alcançar o servidor de jogo.');
       return;
     }
-    this.setStatus('reconnecting');
+    this.setStatus('reconnecting', detail ?? this.lastDetail);
     const delay = Math.min(1000 * 2 ** (this.attempts - 1), 15_000);
     this.reconnectTimer = setTimeout(() => this.open(), delay);
   }
@@ -144,8 +149,12 @@ export class GameClient {
     this.pingTimer = null;
   }
 
+  /** Motivo da queda atual (mantido nas tentativas seguintes até reconectar). */
+  private lastDetail: string | undefined;
+
   private setStatus(s: ConnectionStatus, detail?: string): void {
     this.status = s;
+    this.lastDetail = s === 'reconnecting' ? detail : undefined;
     for (const l of this.statusListeners) l(s, detail);
   }
 }

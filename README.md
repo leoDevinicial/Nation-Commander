@@ -82,6 +82,8 @@ e o cliente com `VITE_ALLOW_GUESTS=true` (no `.env.local`). Partidas de convidad
 | `ALLOWED_ORIGINS` | servidor | origens aceitas, separadas por vírgula; `*` funciona como curinga (ex.: `https://seu-app.vercel.app,https://seu-app-*.vercel.app`) |
 | `ALLOW_GUESTS` | servidor | aceita conexões sem conta |
 | `RECONNECT_GRACE_MS` | servidor | prazo para reconectar antes de perder por abandono (padrão 60000) |
+| `SAVE_INTERVAL_MS` | servidor | intervalo de gravação das partidas em andamento (padrão 30000) |
+| `MATCH_STORE_DIR` | servidor | sem Supabase: diretório onde gravar as partidas em andamento (vazio = não grava) |
 
 ## Publicação
 
@@ -94,8 +96,10 @@ e o cliente com `VITE_ALLOW_GUESTS=true` (no `.env.local`). Partidas de convidad
 3. **Cliente (Vercel)** — importe o repositório; o `vercel.json` já define build e saída. Configure
    `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` e `VITE_GAME_SERVER_URL=wss://<serviço>.onrender.com/ws`.
 
-> O plano gratuito do Render hiberna após inatividade (a primeira conexão demora ~30–60 s) e
-> partidas em andamento são perdidas quando o serviço reinicia ou é publicado de novo.
+> O plano gratuito do Render hiberna após inatividade (a primeira conexão demora ~30–60 s).
+> Partidas em andamento **não se perdem** quando o serviço reinicia ou é publicado de novo: o
+> servidor grava cada partida a cada 30 s e no encerramento (tabela `active_matches`), e a retoma
+> quando o jogador reconecta — ver `docs/PARTIDAS_SALVAS.md`.
 
 ## Como jogar
 

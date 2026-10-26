@@ -205,6 +205,19 @@ interface PairState {
   mission: number;
 }
 
+export interface DiplomacySave {
+  treaties: Treaty[];
+  pairs: [string, PairState][];
+  missions: string[];
+  cooldown: [string, number][];
+  events: DiplomaticEvent[];
+  nextTreaty: number;
+  nextEvent: number;
+  known: string[];
+  pendingContacts: [string, number][];
+  wars: string[];
+}
+
 const key = (a: NationId, b: NationId) => (a < b ? `${a}:${b}` : `${b}:${a}`);
 
 export class Diplomacy {
@@ -307,6 +320,44 @@ export class Diplomacy {
     const e = this.events;
     this.events = [];
     return e;
+  }
+
+  /** Estado completo (JSON) para salvar a partida. */
+  toSave(): DiplomacySave {
+    return JSON.parse(
+      JSON.stringify({
+        treaties: this.treaties,
+        pairs: [...this.pairs],
+        missions: [...this.missions],
+        cooldown: [...this.cooldown],
+        events: this.events,
+        nextTreaty: this.nextTreaty,
+        nextEvent: this.nextEvent,
+        known: [...this.known],
+        pendingContacts: [...this.pendingContacts],
+        wars: [...this.wars],
+      }),
+    ) as DiplomacySave;
+  }
+
+  load(s: DiplomacySave): void {
+    const c = JSON.parse(JSON.stringify(s)) as DiplomacySave;
+    this.treaties.splice(0, this.treaties.length, ...c.treaties);
+    this.pairs.clear();
+    for (const [k, v] of c.pairs) this.pairs.set(k, v);
+    this.missions.clear();
+    for (const m of c.missions) this.missions.add(m);
+    this.cooldown.clear();
+    for (const [k, v] of c.cooldown) this.cooldown.set(k, v);
+    this.events = c.events;
+    this.nextTreaty = c.nextTreaty;
+    this.nextEvent = c.nextEvent;
+    this.known.clear();
+    for (const k of c.known) this.known.add(k);
+    this.pendingContacts.clear();
+    for (const [k, v] of c.pendingContacts) this.pendingContacts.set(k, v);
+    this.wars.clear();
+    for (const k of c.wars) this.wars.add(k);
   }
 
   private nation(id: NationId): NationState | undefined {
