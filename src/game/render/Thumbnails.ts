@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { BUILDINGS, UNITS, type BuildingType, type UnitType } from '../../../shared/sim/config.ts';
-import { buildingModel } from './models/buildingModels.ts';
+import { animRestPivot, buildingModel } from './models/buildingModels.ts';
 import { citizenModel, recruitModel, unitModel } from './models/unitModels.ts';
 import type { ModelLayers } from './models/kit.ts';
 import { factionColor } from './palette.ts';
@@ -85,6 +85,7 @@ export function renderThumbnails(renderer: THREE.WebGLRenderer, slot: number): P
       add(g, m.base);
       if (m.detail) add(g, m.detail);
       if (m.moving) add(g, m.moving.layers, m.moving.pivot);
+      if (m.anims) m.anims.forEach((x, i) => add(g, x.layers, animRestPivot(m.anims!, i)));
       if (m.pump) {
         add(g, m.pump.crank, m.pump.crankPivot);
         add(g, m.pump.rod, m.pump.rodPivot);

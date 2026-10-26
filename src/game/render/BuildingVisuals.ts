@@ -3,7 +3,7 @@ import { BUILDINGS, type BuildingType } from '../../../shared/sim/config.ts';
 import { HealthBar, selectionRing } from './HealthBar.ts';
 import { accentMaterial, bodyMaterial, glassMaterial, withFog } from './materials.ts';
 import { cinematicSmokeTexture, smokeTexture, volumetricSmokeTexture } from './textures.ts';
-import { buildingModel, type BuildingModel } from './models/buildingModels.ts';
+import { animRestPivot, buildingModel, type BuildingModel, type ModelAnim } from './models/buildingModels.ts';
 import { PUMP, pumpPose } from './models/pumpjack.ts';
 import { cropCell } from './models/crops.ts';
 import type { SpecId } from '../../../shared/sim/upgrades.ts';
@@ -161,6 +161,8 @@ export class BuildingVisual {
   /** Cavalo-mecânico: manivela, bielas e haste animadas com o balancim. */
   private pump: { crank: THREE.Group; pitman: THREE.Group; rod: THREE.Group; pivot: [number, number, number]; crankPivot: [number, number, number]; rodY: number } | null = null;
   private fields: THREE.Mesh | null = null;
+  /** Partes animadas genéricas (serras, toras, guindaste, polias...). */
+  private anims: { group: THREE.Group; anim: ModelAnim }[] = [];
   private smoke: Smoke | null = null;
   private smokeKey = '';
   private t = Math.random() * 10;
@@ -210,6 +212,17 @@ export class BuildingVisual {
         };
         this.posePump(0);
       }
+    }
+    if (def.anims) {
+      for (const anim of def.anims) {
+        const group = new THREE.Group();
+        group.position.set(...anim.pivot);
+        for (const m of layerMeshes(anim.layers, owner)) group.add(m);
+        const parent = anim.parent !== undefined ? this.anims[anim.parent]?.group : undefined;
+        (parent ?? this.model).add(group);
+        this.anims.push({ group, anim });
+      }
+      this.poseAnims(0);
     }
     if (opts.claims?.length) this.fields = buildClaimMarkers(type, opts, this.group.position);
     if (this.fields) this.group.add(this.fields);
@@ -304,11 +317,44 @@ export class BuildingVisual {
       else if (this.movingKind === 'saw') this.moving.rotation.z += dt * 18;
       else if (this.movingKind === 'pump') this.posePump(this.t * PUMP_SPEED);
     }
+    if (done && this.anims.length && !this.remembered) this.poseAnims(this.t);
     this.hp.set(hpFraction);
     this.hp.group.visible = showHp && !this.remembered;
     if (showHp) this.hp.face(camera);
     this.rally.visible = showRally && rally !== null;
     if (rally) this.rally.position.set(rally.x, 0, rally.y);
+  }
+
+  /** Pose de cada parte animada no instante t (s). */
+  private poseAnims(t: number): void {
+    for (const { group, anim } of this.anims) {
+      const m = anim.motion;
+      const [px, py, pz] = anim.pivot;
+      switch (m.kind) {
+        case 'spin':
+          group.rotation[m.axis] = t * m.speed;
+          break;
+        case 'swing':
+          group.rotation[m.axis] = m.amp * Math.sin(t * m.speed + (m.phase ?? 0));
+          break;
+        case 'bob':
+          group.position.y = py + m.amp * Math.sin(t * m.speed + (m.phase ?? 0));
+          break;
+        case 'slide': {
+          const f = (((t * m.speed) / m.length + (m.phase ?? 0)) % 1 + 1) % 1;
+          const d = f * m.length;
+          group.position.set(px + m.dir[0] * d, py + m.dir[1] * d, pz + m.dir[2] * d);
+          const fade = m.fade ?? 0;
+          group.scale.setScalar(fade > 0 ? Math.max(0.001, Math.min(1, f / fade, (1 - f) / fade)) : 1);
+          break;
+        }
+        case 'shuttle': {
+          const d = m.length * (0.5 - 0.5 * Math.cos(t * m.speed + (m.phase ?? 0)));
+          group.position.set(px + m.dir[0] * d, py + m.dir[1] * d, pz + m.dir[2] * d);
+          break;
+        }
+      }
+    }
   }
 
   /** Cinemática do cavalo-mecânico na fase `w` (radianos): balancim, manivela, haste e bielas juntos. */
@@ -433,6 +479,7 @@ export class PlacementGhost {
     if (model.detail) parts.push([model.detail, null]);
     if (model.moving) parts.push([model.moving.layers, model.moving.pivot]);
     if (model.pump) parts.push([model.pump.crank, model.pump.crankPivot], [model.pump.rod, model.pump.rodPivot]);
+    if (model.anims) model.anims.forEach((x, i) => parts.push([x.layers, animRestPivot(model.anims!, i)]));
     for (const [l, at] of parts)
       for (const [geo, m] of [
         [l.body, body],

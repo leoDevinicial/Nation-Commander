@@ -6,6 +6,8 @@ import { C, layers, type ModelLayers, type PartBuilder } from './kit.ts';
 import { modulesFor } from './upgradeModules.ts';
 import { pumpjack, type PumpRig } from './pumpjack.ts';
 import { tractor } from './crops.ts';
+import { barracksDetail, factoryDetail, houseDetail, oilTankDetail, siloDetail, warehouseDetail } from './details.ts';
+import { buildMineModel, buildQuarryModel, buildSawmillModel } from './industry.ts';
 
 /**
  * Modelos de edifícios centrados na origem (piso em y = 0). Concreto, vidros azulados e detalhes
@@ -19,9 +21,51 @@ export interface BuildingModel {
   moving: { layers: ModelLayers; pivot: [number, number, number]; kind: 'spin' | 'rock' | 'saw' | 'pump' } | null;
   /** Cavalo-mecânico: manivela, bielas e haste animadas junto com o balancim (`moving`, tipo 'pump'). */
   pump?: Omit<PumpRig, 'beam' | 'pivot'>;
+  /** Outras partes animadas (serras, toras na esteira, guindaste, polias, vagonetes...). */
+  anims?: ModelAnim[];
   height: number;
   /** Topos de chaminé que soltam fumaça (coordenadas locais). */
   smoke?: [number, number, number][];
+}
+
+type V3 = [number, number, number];
+
+/**
+ * Movimento de uma parte animada, em função do tempo t (s):
+ * - spin: gira sem parar em torno do eixo (rad/s);
+ * - swing: oscila amp·sen(speed·t + phase) em torno do eixo;
+ * - slide: percorre `length` ao longo de `dir` e recomeça (esteira); `fade` encolhe a peça no
+ *   início e no fim do percurso (fração do percurso), para ela "surgir" e "sumir";
+ * - shuttle: vai e volta ao longo de `dir` (vagonete, carro de ponte);
+ * - bob: sobe e desce amp·sen(speed·t + phase) (gancho de guindaste).
+ */
+export type AnimMotion =
+  | { kind: 'spin'; axis: 'x' | 'y' | 'z'; speed: number }
+  | { kind: 'swing'; axis: 'x' | 'y' | 'z'; amp: number; speed: number; phase?: number }
+  | { kind: 'slide'; dir: V3; length: number; speed: number; phase?: number; fade?: number }
+  | { kind: 'shuttle'; dir: V3; length: number; speed: number; phase?: number }
+  | { kind: 'bob'; amp: number; speed: number; phase?: number };
+
+export interface ModelAnim {
+  layers: ModelLayers;
+  /** Posição da parte (relativa ao pai, se houver). */
+  pivot: V3;
+  motion: AnimMotion;
+  /** Índice de outra parte em `anims` que a carrega (ex.: gancho preso à lança que gira). */
+  parent?: number;
+}
+
+/** Posição de repouso de uma parte animada no modelo (somando os pais). */
+export function animRestPivot(anims: ModelAnim[], i: number): V3 {
+  const a = anims[i]!;
+  const p: V3 = [...a.pivot];
+  if (a.parent !== undefined) {
+    const q = animRestPivot(anims, a.parent);
+    p[0] += q[0];
+    p[1] += q[1];
+    p[2] += q[2];
+  }
+  return p;
 }
 
 const cache = new Map<BuildingType, BuildingModel>();
@@ -86,6 +130,7 @@ export function buildingModel(type: BuildingType, level = 1, spec: SpecId | null
     detail: [detail.body, detail.accent, detail.glass].some(hasGeometry) ? detail : null,
     moving: base.moving,
     ...(base.pump ? { pump: base.pump } : {}),
+    ...(base.anims ? { anims: base.anims } : {}),
     height,
     ...(smoke.length ? { smoke } : {}),
   };
@@ -100,7 +145,8 @@ export function disposeBuildingModels(): void {
   }
   variants.clear();
   for (const m of cache.values()) {
-    for (const l of [m.base, m.moving?.layers, m.pump?.crank, m.pump?.pitman, m.pump?.rod]) if (l) for (const g of [l.body, l.accent, l.glass]) g.dispose();
+    for (const l of [m.base, m.moving?.layers, m.pump?.crank, m.pump?.pitman, m.pump?.rod, ...(m.anims ?? []).map((x) => x.layers)])
+      if (l) for (const g of [l.body, l.accent, l.glass]) g.dispose();
   }
   cache.clear();
 }
@@ -110,11 +156,11 @@ const BUILDERS: Record<BuildingType, () => Omit<BuildingModel, 'detail'>> = {
   barracks: buildBarracks,
   factory: buildFactory,
   farm: buildFarm,
-  sawmill: buildSawmill,
-  quarry: buildQuarry,
+  sawmill: buildSawmillModel,
+  quarry: buildQuarryModel,
   oil_well: buildOilWell,
   tower: buildTower,
-  mine: buildMine,
+  mine: buildMineModel,
   house: buildHouse,
   residential: buildResidential,
   warehouse: buildWarehouse,
@@ -280,6 +326,7 @@ function buildBarracks(): Omit<BuildingModel, 'detail'> {
   b.box(0.08, 0.6, 0.08, C.steel, [1.7, 0.45, 1.75]);
   a.box(1.1, 0.14, 0.02, '#ffffff', [0, 1.1, 1.23]);
   flag(b, a, 1.75, -1.6, 2.4);
+  barracksDetail(b, g);
   return { base: l.build(), moving: null, height: 2.6 };
 }
 
@@ -328,6 +375,7 @@ function buildFactory(): Omit<BuildingModel, 'detail'> {
   container(b, [-1.25, 0.6, -1.72], '#8a4b32', 1.1);
   jersey(b, 1.15, 1.78, 0, 0.75);
   a.box(3.52, 0.14, 0.02, '#ffffff', [0, 1.6, 1.46]);
+  factoryDetail(b, g);
   return {
     base: l.build(),
     moving: null,
@@ -365,50 +413,7 @@ function buildFarm(): Omit<BuildingModel, 'detail'> {
   return { base: l.build(), moving: null, height: 2.2 };
 }
 
-function buildSawmill(): Omit<BuildingModel, 'detail'> {
-  const l = layers();
-  const { body: b, accent: a } = l;
-  slab(b, 4);
-  // galpão aberto
-  for (const [x, z] of [
-    [-1.4, -0.8],
-    [1.4, -0.8],
-    [-1.4, 0.9],
-    [1.4, 0.9],
-  ] as const)
-    b.box(0.12, 1.3, 0.12, C.woodDark, [x, 0.8, z]);
-  b.gable(3.2, 2.2, 0.55, C.roof, [0, 1.45, 0.05]);
-  b.box(1.6, 0.5, 0.6, C.metal, [0, 0.42, 0]); // bancada
-  // pilhas de toras
-  for (let row = 0; row < 3; row++)
-    for (let i = 0; i < 4 - row; i++) b.cyl(0.13, 0.13, 1.4, C.wood, [-1.2 + i * 0.27 + row * 0.13, 0.28 + row * 0.23, -1.55], [Math.PI / 2, 0, Math.PI / 2], 8);
-  for (let i = 0; i < 3; i++) b.box(1.3, 0.08, 0.5, '#c2a173', [1.1, 0.24 + i * 0.09, 1.55]); // tábuas
-  a.box(0.8, 0.22, 0.02, '#ffffff', [0, 1.3, 1.0]);
-  const saw = layers();
-  saw.body.cyl(0.38, 0.38, 0.03, C.steel, [0, 0, 0], [Math.PI / 2, 0, 0], 16);
-  return { base: l.build(), moving: { layers: saw.build(), pivot: [0, 0.75, 0], kind: 'saw' }, height: 2.1 };
-}
 
-function buildQuarry(): Omit<BuildingModel, 'detail'> {
-  const l = layers();
-  const { body: b, accent: a } = l;
-  b.box(3.9, 0.06, 3.9, '#8c877c', [0, 0.03, 0]);
-  // escavadeira
-  b.box(0.9, 0.3, 0.6, C.track, [-0.4, 0.2, 0.3]);
-  b.box(0.7, 0.45, 0.55, C.yellow, [-0.4, 0.55, 0.3]);
-  b.box(0.3, 0.3, 0.4, '#2a3a44', [-0.25, 0.85, 0.3]);
-  b.box(1.2, 0.12, 0.12, C.yellow, [0.25, 1.0, 0.3], [0, 0, 0.6]);
-  b.box(0.9, 0.1, 0.1, C.yellow, [0.85, 0.85, 0.3], [0, 0, -0.9]);
-  b.box(0.3, 0.25, 0.35, C.metalDark, [1.05, 0.35, 0.3]);
-  // blocos de pedra e esteira
-  for (let i = 0; i < 5; i++) b.box(0.4, 0.3, 0.35, C.stone, [-1.4 + (i % 3) * 0.45, 0.2 + Math.floor(i / 3) * 0.3, -1.3]);
-  b.box(2.0, 0.08, 0.3, C.metalDark, [0.8, 0.6, -1.2], [0, 0, 0.35]);
-  b.box(0.12, 0.6, 0.12, C.metal, [0.2, 0.3, -1.2]);
-  b.cyl(0.0, 0.7, 0.6, C.stone, [1.6, 0.3, -1.2], undefined, 7); // monte de brita
-  b.box(0.8, 0.6, 0.6, C.concreteLight, [1.3, 0.35, 1.3]); // escritório
-  a.box(0.4, 0.25, 0.02, '#ffffff', [1.3, 0.45, 1.61]);
-  return { base: l.build(), moving: null, height: 1.4 };
-}
 
 function buildOilWell(): Omit<BuildingModel, 'detail'> {
   const l = layers();
@@ -475,40 +480,6 @@ function buildTower(): Omit<BuildingModel, 'detail'> {
 
 // ------------------------------------------------------------------ população e armazenamento
 
-function buildMine(): Omit<BuildingModel, 'detail'> {
-  const l = layers();
-  const { body: b, accent: a } = l;
-  b.box(3.9, 0.06, 3.9, '#6b625a', [0, 0.03, 0]);
-  // boca da mina escorada na encosta
-  b.side(
-    [
-      [-1.6, 0],
-      [1.6, 0],
-      [0.9, 1.2],
-      [-0.9, 1.2],
-    ],
-    1.6,
-    C.stone,
-    [0, 0.06, -1.1],
-  );
-  b.box(1.0, 0.8, 0.1, '#1b1a18', [0, 0.46, -0.28]);
-  b.box(0.12, 0.95, 0.12, C.woodDark, [-0.55, 0.53, -0.22]);
-  b.box(0.12, 0.95, 0.12, C.woodDark, [0.55, 0.53, -0.22]);
-  b.box(1.3, 0.12, 0.14, C.woodDark, [0, 1.02, -0.22]);
-  // trilhos e vagonete com minério avermelhado
-  b.box(0.06, 0.04, 2.0, C.metal, [-0.18, 0.08, 0.8]);
-  b.box(0.06, 0.04, 2.0, C.metal, [0.18, 0.08, 0.8]);
-  b.box(0.55, 0.32, 0.45, C.metalDark, [0, 0.3, 1.0]);
-  b.box(0.48, 0.1, 0.38, '#8a4b32', [0, 0.49, 1.0]);
-  // castelete de içamento
-  b.box(0.08, 1.8, 0.08, C.steel, [1.2, 0.95, 0.6], [0, 0, 0.15]);
-  b.box(0.08, 1.8, 0.08, C.steel, [1.6, 0.95, 0.6], [0, 0, -0.15]);
-  b.cyl(0.22, 0.22, 0.08, C.metalDark, [1.4, 1.85, 0.6], [Math.PI / 2, 0, 0], 12);
-  // pilha de minério
-  b.cyl(0.0, 0.6, 0.5, '#7b4630', [-1.3, 0.3, 1.2], undefined, 7);
-  a.box(0.9, 0.12, 0.02, '#ffffff', [0, 1.12, -0.14]);
-  return { base: l.build(), moving: null, height: 2.0 };
-}
 
 function buildHouse(): Omit<BuildingModel, 'detail'> {
   const l = layers();
@@ -524,6 +495,7 @@ function buildHouse(): Omit<BuildingModel, 'detail'> {
   b.box(0.3, 0.03, 0.06, C.concreteLight, [0.2, 0.52, 0.49]); // verga da porta
   downpipe(b, 0.56, 0.46, 0.8);
   a.box(0.3, 0.06, 0.02, '#ffffff', [0.2, 0.55, 0.5]);
+  houseDetail(b, g);
   return { base: l.build(), moving: null, height: 1.4 };
 }
 
@@ -567,6 +539,7 @@ function buildWarehouse(): Omit<BuildingModel, 'detail'> {
   for (let i = 0; i < 3; i++) b.box(0.28, 0.24, 0.28, C.stone, [0.2 + i * 0.32, 0.22, 1.65]);
   b.box(0.4, 0.14, 0.25, '#7e858c', [1.45, 0.17, 1.65]);
   a.box(3.32, 0.12, 0.02, '#ffffff', [0, 1.2, 0.92]);
+  warehouseDetail(b);
   return { base: l.build(), moving: null, height: 2.0 };
 }
 
@@ -580,6 +553,7 @@ function buildSilo(): Omit<BuildingModel, 'detail'> {
   b.box(0.06, 2.2, 0.06, C.steel, [0.45, 1.1, 0.35]); // escada
   b.box(0.5, 0.35, 0.4, C.metalDark, [0.45, 0.25, 0.55]); // moega
   a.cyl(0.565, 0.565, 0.12, '#ffffff', [-0.15, 1.5, -0.1], undefined, 14);
+  siloDetail(b);
   return { base: l.build(), moving: null, height: 2.4 };
 }
 
@@ -600,6 +574,7 @@ function buildOilTank(): Omit<BuildingModel, 'detail'> {
   b.box(0.05, 1.0, 0.05, C.steel, [0.62, 0.6, 0.2]);
   b.box(0.5, 0.06, 0.06, C.metal, [0.6, 0.3, -0.55]);
   a.cyl(0.665, 0.665, 0.14, '#ffffff', [0, 0.85, 0], undefined, 16);
+  oilTankDetail(b);
   return { base: l.build(), moving: null, height: 1.3 };
 }
 

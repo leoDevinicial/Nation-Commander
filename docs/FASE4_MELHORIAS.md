@@ -345,3 +345,45 @@ para explicar. O motivo mostrado é, portanto, exatamente o que o servidor diria
   - a haste sobe e desce pelo arco da cabeça.
 - **Segundo poço do nível 9:** usa o mesmo modelo, parado e em escala menor.
 - **Poça escura removida:** a mancha de petróleo sob o poço saiu (o adendo pede que a jazida não pareça um lago).
+
+## Serraria, pedreira e mina com movimento; acabamento das demais construções
+Novos modelos base em `src/game/render/models/industry.ts` e um sistema genérico de partes animadas
+(`BuildingModel.anims`), com estes movimentos:
+
+- `spin`: girar sem parar (serras, polias);
+- `swing`: oscilar (giro do guindaste);
+- `slide`: correr numa esteira e recomeçar (toras);
+- `shuttle`: ir e voltar (vagonetes);
+- `bob`: subir e descer (gancho).
+
+Uma parte pode ser carregada por outra: o gancho acompanha a lança do guindaste. As partes animadas
+aparecem paradas na prévia de construção e nas miniaturas.
+
+- **Serraria:**
+  - galpão de blocos de concreto com juntas, faixa de janelas, lanternim e chaminé da caldeira com fumaça;
+  - esteira de toras verde com corrente, berços pretos e garras vermelhas, por onde as toras correm até
+    o portão, passando pela serra circular que gira;
+  - mesa de transferência com rolos verdes e serra destopadeira, com tora em movimento;
+  - cabine do operador, pilhas de toras com as pontas claras, madeira serrada com tabiques e monte de serragem.
+- **Pedreira:**
+  - bancadas da cava em degraus de rocha clara cortada, com tons e veios variados;
+  - guindaste de base quadrada com faixa amarela, pedestal cônico e passarela circular com guarda-corpo;
+  - plataforma giratória com casa de máquinas, mastro em A, lança treliçada e cabos;
+  - a plataforma gira para um lado e para o outro, e o gancho sobe e desce com um bloco de pedra;
+  - silo de agregado com anéis, escada e faixa na cor da nação, escritório pré-fabricado, blocos no pátio e tambores.
+- **Mina:**
+  - encosta rochosa com afloramentos e topo gramado;
+  - portal de concreto com escoramento, luminárias e faixa da nação;
+  - via férrea com dormentes, em que dois vagonetes engatados saem do túnel e voltam;
+  - castelete em A com escoras e polias que giram;
+  - casa do guincho com cabos até as polias e pilha de minério.
+- **Demais construções:**
+  - base militar: costelas na cobertura em arco, pilastras, portão com réguas, portas laterais e luminárias;
+  - fábrica: pilastras, marquise sobre o portão, porta de pessoal, faixa de segurança e luminárias;
+  - armazém: chapa ondulada nas laterais e no fundo, para-choques e faixas de doca, luminárias e calhas;
+  - silo: escada marinheiro com gaiola, rosca transportadora e respiro;
+  - tanque de petróleo: escada helicoidal com corrimão, anel de reforço, bocal com válvula e placa de risco;
+  - casa: venezianas, floreira, marquise, caminho, cerca de madeira, cerca viva, caixa de correio e janela lateral.
+
+Os módulos de melhoria continuam nos mesmos lugares. As bases novas ocupam só as áreas livres de módulos,
+conferidas no nível 10 com cada especialização.
