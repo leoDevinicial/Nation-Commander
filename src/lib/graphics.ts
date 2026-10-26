@@ -70,7 +70,7 @@ export const PROFILES: Record<GraphicsPreset, GraphicsProfile> = {
     envProbe: false,
     ultra: false,
     cinematic: false,
-    globe: { textureWidth: 1024, clouds: false, stars: 400, maxFps: 30 },
+    globe: { textureWidth: 1024, clouds: false, stars: 400, maxFps: 60 },
   },
   balanced: {
     pixelRatioCap: 1.25,

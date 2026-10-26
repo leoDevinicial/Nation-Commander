@@ -3,6 +3,7 @@ import { useAppStore } from '../state/useAppStore.ts';
 import { AuthScreen } from '../ui/screens/AuthScreen.tsx';
 import { CreditsScreen } from '../ui/screens/CreditsScreen.tsx';
 import { LobbyScreen } from '../ui/screens/LobbyScreen.tsx';
+import { ManualScreen } from '../ui/screens/ManualScreen.tsx';
 import { MenuScreen } from '../ui/screens/MenuScreen.tsx';
 import { ProfileScreen } from '../ui/screens/ProfileScreen.tsx';
 import { SettingsScreen } from '../ui/screens/SettingsScreen.tsx';
@@ -19,6 +20,7 @@ export function App() {
       {/* um único globo para todas as telas fora da partida: não é recriado ao navegar */}
       {screen !== 'game' && <GlobeBackdrop layout={screen === 'menu' || screen === 'auth' ? 'hero' : 'center'} dim={screen !== 'menu' && screen !== 'auth'} />}
       {screen === 'auth' && <AuthScreen />}
+      {screen === 'manual' && <ManualScreen />}
       {screen === 'menu' && <MenuScreen />}
       {screen === 'lobby' && <LobbyScreen />}
       {screen === 'game' && (

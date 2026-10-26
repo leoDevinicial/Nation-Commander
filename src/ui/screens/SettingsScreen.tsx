@@ -6,7 +6,7 @@ import { Shell } from '../components/Shell.tsx';
 import { GRAPHICS_PRESETS, HEAVY_PRESETS, PRESET_LABELS, PROFILES, currentDeviceHints, detectPreset, isTouchDevice, type GraphicsPreset } from '../../lib/graphics.ts';
 
 const PRESET_DESC = {
-  low: 'Resolução nativa, sem sombras nem antisserrilhado, menos vegetação e efeitos; globo sem nuvens a 30 qps. Indicado para celulares.',
+  low: 'Resolução nativa, sem sombras nem antisserrilhado, menos vegetação e efeitos; globo sem nuvens (girando a 60 qps, suave). Indicado para celulares.',
   balanced: 'Sombras leves, antisserrilhado e vegetação completa com resolução moderada.',
   high: 'Resolução até 2×, sombras detalhadas e mais efeitos simultâneos. Para computadores com GPU dedicada.',
   ultra:

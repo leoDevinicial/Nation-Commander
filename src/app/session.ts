@@ -2,6 +2,7 @@ import { DEFAULT_COUNTRY } from '../../shared/data/countries.ts';
 import { gameClient } from '../net/client.ts';
 import { supabase, type Profile } from '../lib/supabase.ts';
 import { useAppStore } from '../state/useAppStore.ts';
+import { screenAfterLogin } from '../ui/manual.ts';
 import { applyNationalMessage, useNationalStore } from '../state/useNationalStore.ts';
 
 /** Liga mensagens do servidor de jogo ao estado da aplicação. Chamar uma vez. */
@@ -66,7 +67,7 @@ export async function loadProfile(userId: string): Promise<Profile | null> {
 export async function onSignedIn(userId: string, email: string | null): Promise<void> {
   const profile = await loadProfile(userId);
   useAppStore.setState({ authUserId: userId, authEmail: email, profile, guest: null });
-  if (useAppStore.getState().screen === 'auth') useAppStore.setState({ screen: 'menu' });
+  if (useAppStore.getState().screen === 'auth') useAppStore.setState({ screen: screenAfterLogin() });
   if (gameClient.status === 'idle' || gameClient.status === 'failed') gameClient.connect({ getToken: currentToken });
 }
 
@@ -78,7 +79,7 @@ export function playAsGuest(name: string): void {
   } catch {
     id = crypto.randomUUID();
   }
-  useAppStore.setState({ guest: { id, name }, screen: 'menu' });
+  useAppStore.setState({ guest: { id, name }, screen: screenAfterLogin() });
   gameClient.connect({ getToken: async () => null, guestId: id, guestName: name });
 }
 

@@ -85,3 +85,22 @@ Verificado em navegador headless com celular emulado (horizontal 844×390 e vert
 - botão de sair na barra;
 - saída sem o convite voltar;
 - convite com auto desligado, entrando com um toque.
+
+## Manual de entrada
+
+Depois do login, antes do menu principal, aparece o **Manual de campo** (`src/ui/manual.ts`, `ManualScreen.tsx`): 7 cartões
+curtos (≈2 min), um assunto por cartão.
+
+1. Missão (com o aviso dos 12 min de preparo).
+2. Primeiros minutos (ordem de abertura).
+3. Recursos e estoque.
+4. População (cidadãos, recrutas, moradia, comida).
+5. Exército e guerra.
+6. Nação e melhorias (verba de obras, especialização).
+7. Controles de computador e celular.
+
+| Aspecto | Comportamento |
+|---|---|
+| Navegação | Botões Voltar/Próximo, pontos clicáveis, setas do teclado e deslize no celular; cada cartão cabe na tela sem rolar |
+| Quando aparece | Volta a cada entrada até o jogador chegar ao último cartão e tocar em "Entendi, começar". "Pular por agora" leva ao menu, mas o manual reaparece na próxima vez. Sempre disponível pelo botão **Manual** do menu |
+| Testes | `src/test/manual.test.ts`: fluxo de leitura, falta de armazenamento, limite de tamanho dos textos (objetividade) e cobertura dos temas básicos |

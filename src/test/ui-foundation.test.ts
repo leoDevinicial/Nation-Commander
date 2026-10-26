@@ -6,7 +6,7 @@ import { COUNTRY_GEO } from '../../shared/data/geography.ts';
 import { GAME_TITLE } from '../../shared/version.ts';
 import { PROFILES, detectPreset } from '../lib/graphics.ts';
 import { parseSettings, type Settings } from '../state/useSettingsStore.ts';
-import { countryAt, facingRotation, globeFraming, lonLatToVector, REDUCED_SPIN_FACTOR, SPIN, vectorToLonLat } from '../globe/GlobeView.ts';
+import { countryAt, facingRotation, globeFraming, lonLatToVector, REDUCED_SPIN_FACTOR, SPIN, SPIN_RAMP, vectorToLonLat } from '../globe/GlobeView.ts';
 import { parseWorld } from '../globe/worldGeo.ts';
 import atlas from 'world-atlas/countries-110m.json';
 import { POLITICAL_COLORS, politicalArcs, politicalFills, politicalState } from '../globe/political.ts';
@@ -70,8 +70,10 @@ describe('globo', () => {
 
   it('globo do menu gira de forma visível (uma volta entre 1 e 2 min) e mais devagar com movimento reduzido', () => {
     const turn = (2 * Math.PI) / SPIN;
-    // 5% mais rápido que a velocidade original (0,08 rad/s)
-    expect(SPIN).toBeCloseTo(0.08 * 1.05, 6);
+    // original 0,08 rad/s, +5% e depois +10%
+    expect(SPIN).toBeCloseTo(0.08 * 1.05 * 1.1, 6);
+    expect(SPIN_RAMP).toBeGreaterThan(0);
+    expect(SPIN_RAMP).toBeLessThan(3);
     expect(turn).toBeGreaterThan(60);
     expect(turn).toBeLessThan(120);
     expect(REDUCED_SPIN_FACTOR).toBeGreaterThan(0);

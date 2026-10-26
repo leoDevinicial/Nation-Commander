@@ -56,8 +56,13 @@ export type GlobeLayout = 'hero' | 'center';
 
 const RADIUS = 1;
 const DEG = Math.PI / 180;
-/** Rotação automática do globo do menu (rad/s): 5% mais rápida que a original (0,08), uma volta a cada ~75 s. */
-export const SPIN = 0.084;
+/**
+ * Rotação automática do globo do menu (rad/s): a original (0,08) +5% e depois +10%, uma volta a
+ * cada ~68 s. Começa com aceleração suave (SPIN_RAMP) para não "dar um tranco" ao aparecer.
+ */
+export const SPIN = 0.08 * 1.05 * 1.1;
+/** Segundos até o globo atingir a velocidade de cruzeiro. */
+export const SPIN_RAMP = 1.6;
 /** Com "reduzir movimento" o globo continua girando, mas a 1/4 da velocidade (~5 min por volta). */
 export const REDUCED_SPIN_FACTOR = 0.25;
 
@@ -100,6 +105,8 @@ export class GlobeView {
   private raf = 0;
   private last = 0;
   private accum = 0;
+  /** Tempo desde que o giro automático começou (para a aceleração inicial). */
+  private spinT = 0;
   private disposed = false;
   private readonly ro: ResizeObserver;
   private readonly onVisibility = () => this.syncRunning();
@@ -470,7 +477,10 @@ export class GlobeView {
       }
       if (this.clouds) this.clouds.rotation.y += SPIN * 0.05 * step;
     } else {
-      const spin = this.opts.reducedMotion ? SPIN * REDUCED_SPIN_FACTOR : SPIN;
+      // partida suave (smoothstep) até a velocidade de cruzeiro
+      this.spinT = Math.min(SPIN_RAMP, this.spinT + step);
+      const k = this.spinT / SPIN_RAMP;
+      const spin = (this.opts.reducedMotion ? SPIN * REDUCED_SPIN_FACTOR : SPIN) * k * k * (3 - 2 * k);
       this.earth.rotation.y += spin * step;
       if (this.clouds) this.clouds.rotation.y += spin * 0.35 * step;
     }

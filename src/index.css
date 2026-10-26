@@ -432,3 +432,23 @@ select {
     animation: none !important;
   }
 }
+
+/* Manual de entrada: cada cartão entra deslizando de leve (sem animação com movimento reduzido). */
+.manual-card {
+  animation: manual-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes manual-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .manual-card {
+    animation: none;
+  }
+}

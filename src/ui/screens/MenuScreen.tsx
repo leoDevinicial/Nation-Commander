@@ -81,7 +81,10 @@ export function MenuScreen() {
         </button>
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-2">
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <button className="btn" onClick={() => setScreen('manual')} title="O básico do jogo em 7 cartões curtos">
+          Manual
+        </button>
         <button className="btn" onClick={() => setScreen('profile')} disabled={!profile} title={profile ? undefined : 'Disponível para contas registradas'}>
           Perfil
         </button>

@@ -134,5 +134,10 @@ Testes: `src/test/ultra.test.ts` (perfil, persistência da escolha e geometria m
 
 ## Globo do menu
 
-Gira 5% mais rápido que a versão original: `SPIN` = 0,084 rad/s (uma volta a cada ~75 s; com "reduzir movimento", 1/4
-disso). Teste em `src/test/ui-foundation.test.ts`.
+Velocidade: a original (0,08 rad/s) +5% e depois +10% — `SPIN` = 0,0924 rad/s, uma volta a cada ~68 s; com "reduzir
+movimento", 1/4 disso. Para o giro ficar suave e agradável:
+- começa com aceleração suave (`SPIN_RAMP` = 1,6 s, curva smoothstep) em vez de um tranco;
+- a rotação é proporcional ao tempo real, não ao número de quadros;
+- o preset Mobile/Baixo passou de 30 para 60 qps no globo (o globo é leve; a 30 qps o giro parecia "picotado").
+
+Teste em `src/test/ui-foundation.test.ts`.
