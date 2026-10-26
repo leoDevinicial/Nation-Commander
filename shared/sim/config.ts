@@ -147,7 +147,10 @@ export const OIL_DEPOSIT_AMOUNT = 2500;
 
 // ------------------------------------------------------------------ unidades
 
-export type UnitType = 'infantry' | 'apc' | 'tank' | 'artillery';
+export type UnitType = 'infantry' | 'apc' | 'tank' | 'artillery' | 'at_infantry' | 'special_forces' | 'mbt' | 'rocket_artillery' | 'mobile_aa';
+
+/** Classe de blindagem do alvo: define os bônus das armas (antitanque contra veículos, etc.). */
+export type ArmorClass = 'infantry' | 'vehicle';
 export type BuildingType =
   | 'hq'
   | 'barracks'
@@ -168,7 +171,8 @@ export type BuildingType =
   | 'rail_station'
   | 'airbase'
   | 'aa_battery'
-  | 'missile_silo';
+  | 'missile_silo'
+  | 'research_center';
 
 /** O que uma fila de produção pode produzir. */
 export type ProducibleType = UnitType | 'citizen' | 'recruit';
@@ -179,6 +183,12 @@ export interface WeaponDef {
   range: number;
   /** Segundos entre disparos. */
   cooldown: number;
+  /** Multiplicadores de dano por tipo de alvo (padrão 1): antitanque contra veículos, etc. */
+  vsInfantry?: number;
+  vsVehicle?: number;
+  vsBuilding?: number;
+  /** Raio de dano em área (foguetes): quem estiver perto do alvo recebe 60% do dano. */
+  splash?: number;
 }
 
 export interface UnitDef {
@@ -193,6 +203,11 @@ export interface UnitDef {
   producedBy: BuildingType;
   description: string;
   hotkey: string;
+  armor: ArmorClass;
+  /** Pesquisa militar (Centro de Pesquisa) que libera a produção. */
+  requires?: MilitaryResearchId;
+  /** Contribui para a defesa antiaérea por perto (aeronaves e mísseis), como uma bateria. */
+  airDefense?: boolean;
 }
 
 export const UNITS: Record<UnitType, UnitDef> = {
@@ -208,6 +223,7 @@ export const UNITS: Record<UnitType, UnitDef> = {
     producedBy: 'barracks',
     description: 'Barata e rápida de treinar. Eficaz em grupo.',
     hotkey: 'I',
+    armor: 'infantry',
   },
   apc: {
     label: 'Veículo Blindado',
@@ -221,6 +237,7 @@ export const UNITS: Record<UnitType, UnitDef> = {
     producedBy: 'factory',
     description: 'Rápido e com visão ampla: ideal para reconhecimento e para dar visão à artilharia.',
     hotkey: 'V',
+    armor: 'vehicle',
   },
   tank: {
     label: 'Tanque',
@@ -234,6 +251,7 @@ export const UNITS: Record<UnitType, UnitDef> = {
     producedBy: 'factory',
     description: 'Resistente e de bom alcance. Lento na floresta e na lama.',
     hotkey: 'T',
+    armor: 'vehicle',
   },
   artillery: {
     label: 'Artilharia',
@@ -247,8 +265,167 @@ export const UNITS: Record<UnitType, UnitDef> = {
     producedBy: 'factory',
     description: 'Alcance muito longo, mas frágil e com pouca visão: precisa de outras unidades para enxergar alvos.',
     hotkey: 'R',
+    armor: 'vehicle',
+  },
+  // ---- liberadas por pesquisa militar (Centro de Pesquisa) ----
+  at_infantry: {
+    label: 'Infantaria Antitanque',
+    cost: { food: 60, iron: 25, supplies: 20 },
+    buildSeconds: 8,
+    maxHp: 70,
+    speed: 3,
+    radius: 0.5,
+    sight: 10,
+    weapon: { damage: 16, range: 7, cooldown: 2.2, vsVehicle: 3, vsInfantry: 0.5, vsBuilding: 1.3 },
+    producedBy: 'barracks',
+    description: 'Lança-rojões: arrasa blindados e tanques (dano triplo contra veículos), mas é fraca contra infantaria.',
+    hotkey: 'N',
+    armor: 'infantry',
+    requires: 'antitank_weapons',
+  },
+  special_forces: {
+    label: 'Forças Especiais',
+    cost: { food: 90, supplies: 60, iron: 20 },
+    buildSeconds: 12,
+    maxHp: 115,
+    speed: 3.9,
+    radius: 0.5,
+    sight: 15,
+    weapon: { damage: 17, range: 7.5, cooldown: 0.85, vsVehicle: 0.8, vsBuilding: 1.4 },
+    producedBy: 'barracks',
+    description: 'Tropa de elite: rápida, com visão longa e fogo preciso. Ótima para reconhecimento e para destruir edifícios.',
+    hotkey: 'J',
+    armor: 'infantry',
+    requires: 'special_operations',
+  },
+  mbt: {
+    label: 'Tanque Moderno',
+    cost: { oil: 110, iron: 100, supplies: 80 },
+    buildSeconds: 18,
+    maxHp: 430,
+    speed: 4.8,
+    radius: 1,
+    sight: 13,
+    weapon: { damage: 48, range: 9, cooldown: 2.4 },
+    producedBy: 'factory',
+    description: 'Tanque de batalha de nova geração: blindagem e canhão muito superiores ao tanque comum. Caro.',
+    hotkey: 'M',
+    armor: 'vehicle',
+    requires: 'modern_armor',
+  },
+  rocket_artillery: {
+    label: 'Lança-Foguetes',
+    cost: { oil: 70, iron: 70, supplies: 80 },
+    buildSeconds: 16,
+    maxHp: 110,
+    speed: 3.4,
+    radius: 0.9,
+    sight: 9,
+    weapon: { damage: 32, range: 18, cooldown: 6, splash: 3.5, vsBuilding: 1.2 },
+    producedBy: 'factory',
+    description: 'Salvas de foguetes de longo alcance com dano em área: desfaz grupos de tropas. Frágil e lento para recarregar.',
+    hotkey: 'L',
+    armor: 'vehicle',
+    requires: 'rocket_systems',
+  },
+  mobile_aa: {
+    label: 'Antiaérea Móvel',
+    cost: { oil: 60, iron: 60, supplies: 50 },
+    buildSeconds: 12,
+    maxHp: 150,
+    speed: 4.6,
+    radius: 0.85,
+    sight: 14,
+    weapon: { damage: 9, range: 7, cooldown: 0.6, vsVehicle: 0.6 },
+    producedBy: 'factory',
+    description: 'Canhões e radar sobre lagartas: acompanha as tropas e derruba aeronaves e mísseis por perto (como uma bateria antiaérea).',
+    hotkey: 'Y',
+    armor: 'vehicle',
+    requires: 'mobile_air_defense',
+    airDefense: true,
   },
 };
+
+// ------------------------------------------------------------------ pesquisa militar
+
+export type MilitaryResearchId = 'antitank_weapons' | 'mobile_air_defense' | 'special_operations' | 'rocket_systems' | 'modern_armor';
+
+/**
+ * Pesquisa militar feita no Centro de Pesquisa durante a partida (fila no próprio edifício, com
+ * recursos e tempo): libera tropas novas aos poucos. O orçamento nacional de P&D acelera.
+ */
+export interface MilitaryResearchDef {
+  label: string;
+  description: string;
+  cost: Cost;
+  seconds: number;
+  prereqs: MilitaryResearchId[];
+  /** Nível mínimo do Centro de Pesquisa (níveis de melhoria). */
+  tier: 1 | 2 | 3;
+  hotkey: string;
+}
+
+export const MILITARY_RESEARCH: Record<MilitaryResearchId, MilitaryResearchDef> = {
+  antitank_weapons: {
+    label: 'Armas antitanque',
+    description: 'Lança-rojões portáteis: libera a Infantaria Antitanque.',
+    cost: { supplies: 120, iron: 80 },
+    seconds: 40,
+    prereqs: [],
+    tier: 1,
+    hotkey: 'N',
+  },
+  mobile_air_defense: {
+    label: 'Defesa antiaérea móvel',
+    description: 'Radar e canhões sobre lagartas: libera a Antiaérea Móvel.',
+    cost: { supplies: 140, iron: 100, oil: 60 },
+    seconds: 50,
+    prereqs: [],
+    tier: 1,
+    hotkey: 'Y',
+  },
+  special_operations: {
+    label: 'Operações especiais',
+    description: 'Seleção e treinamento de elite: libera as Forças Especiais.',
+    cost: { supplies: 180, food: 150, iron: 60 },
+    seconds: 60,
+    prereqs: ['antitank_weapons'],
+    tier: 2,
+    hotkey: 'J',
+  },
+  rocket_systems: {
+    label: 'Lança-foguetes múltiplos',
+    description: 'Foguetes de saturação com dano em área: libera o Lança-Foguetes.',
+    cost: { supplies: 200, iron: 140, oil: 90 },
+    seconds: 65,
+    prereqs: ['antitank_weapons'],
+    tier: 2,
+    hotkey: 'L',
+  },
+  modern_armor: {
+    label: 'Blindados de nova geração',
+    description: 'Blindagem composta, canhão de alta velocidade e controle de tiro digital: libera o Tanque Moderno.',
+    cost: { supplies: 300, iron: 240, oil: 160 },
+    seconds: 90,
+    prereqs: ['rocket_systems'],
+    tier: 3,
+    hotkey: 'M',
+  },
+};
+
+export const MILITARY_RESEARCH_IDS = Object.keys(MILITARY_RESEARCH) as MilitaryResearchId[];
+export const isMilitaryResearchId = (v: unknown): v is MilitaryResearchId => typeof v === 'string' && Object.hasOwn(MILITARY_RESEARCH, v);
+
+/** Motivo para não poder pesquisar (mesma regra no servidor e no painel), ou null. */
+export function militaryResearchBlocker(id: MilitaryResearchId, done: readonly string[], centerLevel: number): string | null {
+  const def = MILITARY_RESEARCH[id];
+  if (done.includes(id)) return 'Pesquisa já concluída';
+  const missing = def.prereqs.filter((p) => !done.includes(p));
+  if (missing.length) return `Requer: ${missing.map((m) => MILITARY_RESEARCH[m].label).join(', ')}`;
+  const level = def.tier === 3 ? 3 : def.tier === 2 ? 2 : 1;
+  if (centerLevel < level) return `Requer o Centro de Pesquisa no nível ${level}`;
+  return null;
+}
 
 // ------------------------------------------------------------------ edifícios
 
@@ -586,6 +763,23 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     upkeep: { supplies: 0.04 },
     buildable: true,
     description: 'Defesa contra aeronaves e mísseis num raio de 12: cada bateria dá 25% de chance de derrubar cada aeronave inimiga e 20% de interceptar um míssil (com teto). Não dispara contra tropas.',
+  },
+  research_center: {
+    ...NONE,
+    label: 'Centro de Pesquisa Militar',
+    cost: { wood: 120, stone: 120, iron: 60 },
+    buildSeconds: 30,
+    maxHp: 650,
+    size: 2,
+    income: {},
+    sight: 8,
+    workers: 3,
+    upkeep: { supplies: 0.08 },
+    territoryRadius: 4,
+    buildable: true,
+    description:
+      'Laboratórios e campo de provas: pesquisa armamentos que liberam tropas novas (antitanque, antiaérea móvel, forças especiais, lança-foguetes, tanque moderno). A pesquisa anda com os 3 pesquisadores e acelera com o orçamento nacional de P&D. Melhorias liberam as pesquisas mais avançadas.',
+    hotkey: 'T',
   },
   missile_silo: {
     ...NONE,

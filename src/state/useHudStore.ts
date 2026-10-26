@@ -1,7 +1,7 @@
 import type { AirView, TradeView } from '../../shared/sim/snapshot.ts';
 import type { ModId } from '../../shared/sim/modernization.ts';
 import { create } from 'zustand';
-import type { BuildingType, DepositSize, ProducibleType, UnitType } from '../../shared/sim/config.ts';
+import type { BuildingType, DepositSize, MilitaryResearchId, ProducibleType, UnitType } from '../../shared/sim/config.ts';
 import type { GameSpeed } from '../../shared/protocol.ts';
 import type { PlayerSnapshot } from '../../shared/sim/snapshot.ts';
 import type { BuildingStatus, EntityId, UnitActivity } from '../../shared/sim/types.ts';
@@ -42,6 +42,8 @@ export interface SelectedBuildingInfo {
   rate: number;
   stored: number | null;
   deposit: { remaining: number; initial: number; size: DepositSize; maxSites: number } | null;
+  /** Pesquisa militar em andamento (Centro de Pesquisa). */
+  research: { id: MilitaryResearchId; progress: number } | null;
 }
 
 export interface HudEvent {

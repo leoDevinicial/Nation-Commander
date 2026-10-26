@@ -20,6 +20,9 @@ import {
   OIL_TANK_RANGE,
   canAfford,
   emptyStockpile,
+  MILITARY_RESEARCH,
+  militaryResearchBlocker,
+  type WeaponDef,
   type BuildingType,
   type Cost,
   type ResourceType,
@@ -27,7 +30,7 @@ import {
   type UnitType,
 } from './config.ts';
 import { chooseClaims, claimedBy, gatherRate, sitesByDeposit } from './gathering.ts';
-import { UPGRADE_CANCEL_REFUND, UPGRADE_WORK_EFFICIENCY, buildingEffects, planUpgrade, type BuildingEffects, type UpgradePlan, type UpgradeWorld } from './upgrades.ts';
+import { UPGRADE_CANCEL_REFUND, UPGRADE_WORK_EFFICIENCY, buildingEffects, missingText, planUpgrade, type BuildingEffects, type UpgradePlan, type UpgradeWorld } from './upgrades.ts';
 import { findDeposits, type DepositIndex } from './deposits.ts';
 import { computeTerritory, NO_OWNER, type TerritorySource } from './territory.ts';
 import type { Command } from './commands.ts';
@@ -80,6 +83,8 @@ export interface NationalLink {
   /** Debita a verba; false se não houver saldo (nada é cobrado). */
   chargeWorks(slot: Slot, usd: number, description: string): boolean;
   refundWorks(slot: Slot, usd: number, description: string): void;
+  /** Multiplicador do ritmo da pesquisa militar pelo orçamento nacional de P&D (padrão 1). */
+  researchSpeed?(slot: Slot): number;
 }
 
 /**
@@ -137,6 +142,16 @@ export const ATTRITION_PER_SECOND = 0.012;
 export const SUPPLY_LINE_RADIUS = 12;
 
 const UNDER_ATTACK_ALERT_TICKS = TICK_RATE * 6;
+/** Fração devolvida ao cancelar uma pesquisa militar. */
+export const RESEARCH_CANCEL_REFUND = 0.75;
+/** Fração do dano que atinge quem está no raio de uma arma de área. */
+export const SPLASH_FRACTION = 0.6;
+
+/** Multiplicador de dano de uma arma contra um alvo (antitanque contra veículos, etc.). */
+export function targetMultiplier(w: WeaponDef, target: Entity): number {
+  if (target.kind === 'building') return w.vsBuilding ?? 1;
+  return UNITS[target.type].armor === 'vehicle' ? (w.vsVehicle ?? 1) : (w.vsInfantry ?? 1);
+}
 
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
 const techLabel = (id: string) => (isTechId(id) ? TECHNOLOGIES[id].label : id);
@@ -767,6 +782,7 @@ export class Simulation {
           popTotal: pop.total,
           popCap: pop.cap,
           techs: this.national ? this.national.techs(slot) : null,
+          militaryResearch: player.militaryResearch ?? [],
         });
         if (check.blocker) return check.blocker;
         const cost = check.cost;
@@ -783,6 +799,32 @@ export class Simulation {
         player.recruits--;
         const ticks = Math.max(1, Math.round(def.buildSeconds * TICK_RATE * player.modifiers.productionTimeMul * bfx.productionTimeMul));
         b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks, paid: cost, mods: [...check.mods] });
+        return null;
+      }
+      case 'military_research': {
+        const b = this.entities.get(cmd.buildingId);
+        if (!b || b.kind !== 'building' || b.owner !== slot || b.type !== 'research_center') return 'Centro de Pesquisa inválido';
+        if (b.progress < 1 || b.hp <= 0) return 'O Centro de Pesquisa ainda está em obra';
+        if (b.research) return 'Este centro já está pesquisando: aguarde ou cancele';
+        const def = MILITARY_RESEARCH[cmd.researchId];
+        const done = player.militaryResearch ?? [];
+        // a mesma pesquisa não corre em dois centros ao mesmo tempo
+        if (this.buildings.some((x) => x.owner === slot && x.research?.id === cmd.researchId)) return 'Pesquisa já em andamento em outro centro';
+        const blocker = militaryResearchBlocker(cmd.researchId, done, b.level);
+        if (blocker) return blocker;
+        if (!canAfford(player.resources, def.cost)) return `Recursos insuficientes: faltam ${missingText(player.resources, def.cost)}`;
+        this.spend(player, def.cost);
+        const ticks = def.seconds * TICK_RATE;
+        b.research = { id: cmd.researchId, remaining: ticks, total: ticks, paid: { ...def.cost } };
+        return null;
+      }
+      case 'cancel_military_research': {
+        const b = this.entities.get(cmd.buildingId);
+        if (!b || b.kind !== 'building' || b.owner !== slot || !b.research) return 'Nenhuma pesquisa em andamento';
+        const back: Cost = {};
+        for (const r of RESOURCE_TYPES) if (b.research.paid[r]) back[r] = Math.floor((b.research.paid[r] ?? 0) * RESEARCH_CANCEL_REFUND);
+        this.refund(slot, back);
+        b.research = null;
         return null;
       }
       case 'cancel_production': {
@@ -1196,6 +1238,7 @@ export class Simulation {
     this.updateConstruction();
     this.updateUpgrades();
     this.updateProduction();
+    this.updateMilitaryResearch();
     this.updateRefits();
     this.trade.step();
     this.air.step();
@@ -1487,6 +1530,34 @@ export class Simulation {
   }
 
   /**
+   * Pesquisa militar: avança no ritmo dos pesquisadores (sem nenhum, para), do nível do centro
+   * (cada nível −10% de tempo) e do orçamento nacional de P&D. Concluída, libera as tropas.
+   */
+  private updateMilitaryResearch(): void {
+    for (const b of this.buildings) {
+      const r = b.research;
+      if (!r || b.progress < 1 || b.hp <= 0) continue;
+      if (b.unpaid) {
+        this.setStatus(b, 'unpaid');
+        continue;
+      }
+      const eff = this.workEfficiency(b) * (this.players[b.owner]!.hungry ? HUNGER_EFFICIENCY : 1) * (b.upgrade ? UPGRADE_WORK_EFFICIENCY : 1);
+      if (eff <= 0) {
+        this.setStatus(b, 'no_workers');
+        continue;
+      }
+      this.setStatus(b, 'ok');
+      const speed = (this.national?.researchSpeed?.(b.owner) ?? 1) / Math.max(0.2, this.fx(b).productionTimeMul);
+      r.remaining -= eff * speed;
+      if (r.remaining > 1e-9) continue;
+      const p = this.players[b.owner]!;
+      p.militaryResearch = [...(p.militaryResearch ?? []), r.id];
+      b.research = null;
+      this.emit({ type: 'military_research_completed', tick: this.tick, owner: b.owner, researchId: r.id, pos: { ...b.pos } });
+    }
+  }
+
+  /**
    * Atrito (como em Rise of Nations): unidades em território de um país com quem estão em guerra
    * perdem vida aos poucos, a menos que um blindado de transporte próprio esteja por perto
    * mantendo a linha de suprimento.
@@ -1653,7 +1724,7 @@ export class Simulation {
       u.activity = 'attacking';
       u.path = [];
       u.facing = Math.atan2(target.pos.y - u.pos.y, target.pos.x - u.pos.x);
-      if (u.cooldown <= 0) this.fire(u, target, weapon.damage * fx.damageMul, weapon.cooldown * fx.cooldownMul);
+      if (u.cooldown <= 0) this.fire(u, target, weapon.damage * fx.damageMul * targetMultiplier(weapon, target), weapon.cooldown * fx.cooldownMul, weapon.splash ? { radius: weapon.splash, weapon, base: weapon.damage * fx.damageMul } : undefined);
       return;
     }
     u.activity = 'chasing';
@@ -1670,8 +1741,19 @@ export class Simulation {
     this.followPath(u);
   }
 
-  private fire(attacker: Unit | Building, target: Entity, damage: number, cooldownSeconds: number): void {
+  private fire(attacker: Unit | Building, target: Entity, damage: number, cooldownSeconds: number, splash?: { radius: number; weapon: WeaponDef; base: number }): void {
     if (target.hp <= 0) return;
+    // dano em área (foguetes): quem estiver perto do ponto de impacto recebe 60% do dano
+    if (splash) {
+      for (const e of [...this.entities.values()]) {
+        if (e === target || e.hp <= 0 || !this.hostile(attacker.owner, e.owner)) continue;
+        if (this.distanceToEdge(target.pos, e) > splash.radius) continue;
+        const dmg = splash.base * SPLASH_FRACTION * targetMultiplier(splash.weapon, e);
+        this.players[attacker.owner]!.stats.damageDealt += Math.min(dmg, e.hp);
+        e.hp -= dmg;
+        if (e.hp <= 0) this.markDestroyed(e, attacker.owner);
+      }
+    }
     attacker.cooldown = Math.round(cooldownSeconds * TICK_RATE);
     const dealt = Math.min(damage, target.hp);
     target.hp -= damage;
@@ -1913,6 +1995,7 @@ export class Simulation {
       level: 1,
       spec: null,
       upgrade: null,
+      research: null,
       progress,
       builtTicks: 0,
       buildTicks: Math.max(1, Math.round(def.buildSeconds * TICK_RATE * (this.players[owner]?.modifiers.constructionTimeMul ?? 1))),

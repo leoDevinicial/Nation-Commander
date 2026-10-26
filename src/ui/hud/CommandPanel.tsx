@@ -2,6 +2,9 @@ import { useState } from 'react';
 import {
   BUILDINGS,
   CITIZEN,
+  MILITARY_RESEARCH,
+  MILITARY_RESEARCH_IDS,
+  militaryResearchBlocker,
   RECRUIT,
   DEPOSIT_SIZE_LABELS,
   OIL_TANK_RANGE,
@@ -11,6 +14,7 @@ import {
   canAfford,
   emptyStockpile,
   type BuildingType,
+  type MilitaryResearchId,
   type ProducibleType,
   type Stockpile,
   type UnitType,
@@ -41,6 +45,7 @@ const BUILD_OPTIONS: BuildingType[] = [
   'silo',
   'barracks',
   'factory',
+  'research_center',
   'tower',
   'residential',
   'market',
@@ -250,6 +255,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           })}
         {building && building.progress >= 1 && mode.kind === 'normal' && runtime.battleOp === null && upgradeTrack(building.type) && <UpgradeButton runtime={runtime} b={building} />}
         {building && building.progress >= 1 && (building.type === 'barracks' || building.type === 'factory') && <ProduceButtons runtime={runtime} b={building} />}
+        {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'research_center' && runtime.battleOp === null && <ResearchButtons runtime={runtime} b={building} />}
         {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'airbase' && <AirbaseButtons runtime={runtime} b={building} />}
         {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'missile_silo' && <SiloButtons runtime={runtime} b={building} />}
       </div>
@@ -329,6 +335,7 @@ function ProduceButton({ b, unit, hotkey, label, title, onRun }: { b: SelectedBu
     popTotal: me?.population?.total ?? 0,
     popCap: me?.population?.cap ?? 0,
     techs,
+    militaryResearch: me?.militaryResearch ?? [],
   });
   const queued = b.queue.filter((q) => q.unitType === unit).length;
   const thumb = useHudStore((s) => s.thumbs[unit]);
@@ -351,9 +358,10 @@ function ProduceButton({ b, unit, hotkey, label, title, onRun }: { b: SelectedBu
         }
         onRun();
       }}
-      title={`${title}${check.mods.length ? `\nSai da linha com: ${check.mods.map((m) => MODS[m].label).join(', ')} (custo do equipamento incluído)` : ''}${check.blocker ? `\nBloqueado: ${check.blocker}` : ''}`}
+      title={`${title}${check.mods.length ? `\nSai da linha com: ${check.mods.map((m) => MODS[m].label).join(', ')} (custo do equipamento incluído)` : ''}${check.basic ? '\nSem recursos para o equipamento de linha: sai básica (modernize depois numa instalação)' : ''}${check.blocker ? `\nBloqueado: ${check.blocker}` : ''}`}
     >
       <CostLabel cost={check.cost} have={me?.resources ?? emptyStockpile()} compact />
+      {check.basic && <span className="text-[9px] leading-tight text-brass-400">sai básica</span>}
       {check.mods.length > 0 && (
         <span className="text-[9px] leading-tight text-signal-blue">
           Ger. {check.mods.length} · {check.mods.map((m) => MODS[m].short).join(' ')}
@@ -388,7 +396,7 @@ function ProduceButtons({ runtime, b }: { runtime: GameRuntime; b: SelectedBuild
             hotkey={def.hotkey}
             label={def.label}
             onRun={() => runtime.produce(u)}
-            title={`${def.label} — ${def.description}\nTripulação: 1 recruta (reserva: ${recruits}) · Tempo: ${def.buildSeconds}s · Vida: ${def.maxHp} · Dano: ${def.weapon.damage} · Alcance: ${def.weapon.range} · Visão: ${def.sight}`}
+            title={`${def.label} — ${def.description}\nTripulação: 1 recruta (reserva: ${recruits}) · Tempo: ${def.buildSeconds}s · Vida: ${def.maxHp} · Dano: ${def.weapon.damage} · Alcance: ${def.weapon.range} · Visão: ${def.sight}${counterText(u)}`}
           />
         );
       })}
@@ -404,6 +412,65 @@ function ProduceButtons({ runtime, b }: { runtime: GameRuntime; b: SelectedBuild
   );
 }
 
+/** Vantagens e fraquezas da arma (para a dica do botão). */
+function counterText(u: UnitType): string {
+  const w = UNITS[u].weapon;
+  const parts: string[] = [];
+  const fmt = (v: number) => `×${String(v).replace('.', ',')}`;
+  if (w.vsVehicle && w.vsVehicle !== 1) parts.push(`${fmt(w.vsVehicle)} contra veículos`);
+  if (w.vsInfantry && w.vsInfantry !== 1) parts.push(`${fmt(w.vsInfantry)} contra infantaria`);
+  if (w.vsBuilding && w.vsBuilding !== 1) parts.push(`${fmt(w.vsBuilding)} contra edifícios`);
+  if (w.splash) parts.push(`dano em área (raio ${String(w.splash).replace('.', ',')})`);
+  if (UNITS[u].airDefense) parts.push('defesa antiaérea por perto');
+  return parts.length ? `\nDano: ${parts.join(' · ')}` : '';
+}
+
+/**
+ * Centro de Pesquisa Militar: uma pesquisa por vez, com custo, tempo, pré-requisitos e o nível do
+ * centro; cada botão mostra o que libera e, bloqueado, o motivo. A pesquisa em andamento mostra o
+ * progresso e pode ser cancelada (devolve 75%).
+ */
+function ResearchButtons({ runtime, b }: { runtime: GameRuntime; b: SelectedBuilding }) {
+  const me = useHudStore((s) => s.players.find((p) => p.slot === s.mySlot));
+  const thumbs = useHudStore((s) => s.thumbs);
+  const done = me?.militaryResearch ?? [];
+  const resources = me?.resources ?? emptyStockpile();
+  const unlockOf = (id: MilitaryResearchId) => (Object.keys(UNITS) as UnitType[]).find((u) => UNITS[u].requires === id)!;
+  return (
+    <>
+      {MILITARY_RESEARCH_IDS.map((id) => {
+        const def = MILITARY_RESEARCH[id];
+        const unit = unlockOf(id);
+        const current = b.research?.id === id;
+        const isDone = done.includes(id);
+        const blocker = isDone ? 'Pesquisa já concluída' : b.research && !current ? 'O centro já está pesquisando outra coisa' : militaryResearchBlocker(id, done, b.level);
+        const short = isDone ? 'concluída' : current ? null : blocker ? (blocker.startsWith('Requer o Centro') ? `nível ${def.tier}` : blocker.startsWith('Requer:') ? 'pré-requisito' : 'ocupado') : null;
+        const ok = !blocker && !current && canAfford(resources, def.cost);
+        return (
+          <CardButton
+            key={id}
+            thumb={thumbs[unit]}
+            hotkey={def.hotkey}
+            label={def.label}
+            blocked={!ok && !current}
+            short={short ?? (!current && !canAfford(resources, def.cost) ? 'recursos' : null)}
+            badge={current ? `${Math.round((b.research?.progress ?? 0) * 100)}%` : isDone ? '✔' : undefined}
+            onClick={() => {
+              if (current) return runtime.cancelMilitaryResearch();
+              if (ok) return runtime.startMilitaryResearch(id);
+              useHudStore.getState().pushEvent({ tick: useHudStore.getState().tick, text: `${def.label}: ${blocker ?? 'recursos insuficientes'}`, tone: 'warn' });
+            }}
+            title={`${def.label} — ${def.description}\nLibera: ${UNITS[unit].label} (${UNITS[unit].producedBy === 'barracks' ? 'base militar' : 'fábrica'})\nTempo: ${def.seconds}s (com 3 pesquisadores; o orçamento nacional de P&D acelera)${def.prereqs.length ? `\nRequer: ${def.prereqs.map((p) => MILITARY_RESEARCH[p].label).join(', ')}` : ''}${def.tier > 1 ? `\nCentro de Pesquisa no nível ${def.tier}` : ''}${current ? '\nEm andamento — clique para cancelar (devolve 75%)' : blocker ? `\nBloqueado: ${blocker}` : ''}`}
+          >
+            {!isDone && !current && <CostLabel cost={def.cost} have={resources} compact />}
+            {current && <span className="text-[10px] text-brass-400">cancelar</span>}
+          </CardButton>
+        );
+      })}
+    </>
+  );
+}
+
 /** Nome de um item da fila de produção. */
 export function producibleLabel(t: ProducibleType): string {
   return t === 'citizen' ? CITIZEN.label : t === 'recruit' ? RECRUIT.label : UNITS[t].label;
@@ -411,7 +478,19 @@ export function producibleLabel(t: ProducibleType): string {
 
 /** Ícone curto de um item da fila (texto, para não depender de emoji do sistema). */
 export function producibleIcon(t: ProducibleType): string {
-  return t === 'citizen' ? '☺' : t === 'recruit' ? '🎖' : t === 'tank' ? '▣' : t === 'apc' ? '▤' : t === 'artillery' ? '⟋' : '●';
+  const icons: Partial<Record<ProducibleType, string>> = {
+    citizen: '☺',
+    recruit: '🎖',
+    tank: '▣',
+    mbt: '◼',
+    apc: '▤',
+    artillery: '⟋',
+    rocket_artillery: '⋰',
+    mobile_aa: '⌖',
+    at_infantry: '➹',
+    special_forces: '✦',
+  };
+  return icons[t] ?? '●';
 }
 
 /** Edifícios com fila de produção (cidadãos, recrutas, unidades). */

@@ -1,4 +1,4 @@
-import { BUILDINGS, RESOURCE_TYPES, TICK_RATE, type BuildingType, type DepositSize, type ProducibleType, type Stockpile, type UnitType } from './config.ts';
+import { BUILDINGS, RESOURCE_TYPES, TICK_RATE, type BuildingType, type DepositSize, type MilitaryResearchId, type ProducibleType, type Stockpile, type UnitType } from './config.ts';
 import type { Population, Simulation } from './Simulation.ts';
 import { encodeTerritory } from './territory.ts';
 import type { BuildingStatus, EntityId, SimEvent, Slot, UnitActivity, Vec2 } from './types.ts';
@@ -56,6 +56,8 @@ export interface BuildingSnapshot {
   deposit?: { remaining: number; initial: number; size: DepositSize; maxSites: number };
   /** Edifício inimigo fora de visão: último estado conhecido (pode estar desatualizado). */
   remembered?: boolean;
+  /** Pesquisa militar em andamento (só edifícios próprios). */
+  research?: { id: MilitaryResearchId; progress: number };
 }
 
 export interface PlayerSnapshot {
@@ -67,6 +69,8 @@ export interface PlayerSnapshot {
   population: Population | null;
   hungry: boolean | null;
   defeated: boolean;
+  /** Pesquisas militares concluídas (só para o próprio jogador). */
+  militaryResearch?: MilitaryResearchId[];
 }
 
 /** Carga em trânsito: completa para quem negocia; para os demais, só o veículo visível no mapa. */
@@ -193,6 +197,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         progress: r2(e.progress),
         level: e.level,
         spec: e.spec,
+        ...(own && e.research ? { research: { id: e.research.id, progress: r2(1 - e.research.remaining / e.research.total) } } : {}),
         ...(e.upgrade ? { upgrade: own ? { toLevel: e.upgrade.toLevel, progress: r2(e.upgrade.builtTicks / e.upgrade.totalTicks), spec: e.upgrade.spec } : { visible: true as const } } : {}),
         // fila e ponto de reunião de edifícios inimigos não são observáveis
         queue: own ? e.queue.map((q) => ({ unitType: q.unitType, progress: r2(1 - q.remainingTicks / q.totalTicks) })) : [],
@@ -233,6 +238,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         population: mine ? sim.population(p.slot) : null,
         hungry: mine ? p.hungry : null,
         defeated: p.defeated,
+        ...(mine ? { militaryResearch: [...(p.militaryResearch ?? [])] } : {}),
       };
     }),
     events: viewer ? events.filter((ev) => eventVisible(sim, ev, viewer.slot)) : events,
@@ -408,6 +414,7 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
     case 'modernize_cancelled':
       return e.owner === slot;
     case 'under_attack':
+    case 'military_research_completed':
     case 'citizen_trained':
     case 'recruit_trained':
     case 'production_halted':

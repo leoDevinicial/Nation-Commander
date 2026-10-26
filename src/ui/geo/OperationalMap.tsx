@@ -12,7 +12,7 @@ import { useHudStore } from '../../state/useHudStore.ts';
 import { enterBattle, useOpsStore } from '../../state/useOpsStore.ts';
 import { factionColor } from '../../game/render/palette.ts';
 
-const UNIT_ORDER: UnitType[] = ['infantry', 'apc', 'tank', 'artillery'];
+const UNIT_ORDER: UnitType[] = ['infantry', 'at_infantry', 'special_forces', 'apc', 'mobile_aa', 'tank', 'mbt', 'artillery', 'rocket_artillery'];
 const STATE_LABEL: Record<OperationView['state'], string> = { transit: 'A caminho', battle: 'Em combate', returning: 'Voltando ao teatro', done: 'Concluída' };
 export const OUTCOME_LABEL = { victory: 'Vitória: região ocupada', defeat: 'Derrota', retreat: 'Recuo', stalemate: 'Impasse: recuo por tempo' } as const;
 

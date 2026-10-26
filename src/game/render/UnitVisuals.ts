@@ -19,7 +19,7 @@ const box = (key: string, w: number, h: number, d: number) => sharedGeometry(`mo
  */
 function equipmentParts(type: UnitType, mods: readonly ModId[], radius: number, turretTop: [number, number, number] | null): THREE.Object3D[] {
   const out: THREE.Object3D[] = [];
-  const vehicle = type !== 'infantry';
+  const vehicle = UNITS[type].armor === 'vehicle';
   const add = (geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number) => {
     const m = new THREE.Mesh(geo, mat);
     m.position.set(x, y, z);
@@ -107,8 +107,8 @@ export class UnitVisual {
     this.refitRing = selectionRing(UNITS[type].radius + 0.55, '#f0b84a');
     this.group.add(this.refitRing);
     this.body.add(this.equipment);
-    const vehicle = type !== 'infantry';
-    this.hp = new HealthBar(vehicle ? 1.8 : 1.2, type === 'artillery' ? 2.4 : vehicle ? 2.1 : 1.6);
+    const vehicle = UNITS[type].armor === 'vehicle';
+    this.hp = new HealthBar(vehicle ? 1.8 : 1.2, type === 'artillery' || type === 'rocket_artillery' ? 2.4 : type === 'mbt' ? 2.3 : vehicle ? 2.1 : 1.6);
     this.group.add(this.hp.group);
     this.group.userData.entityId = id;
   }
@@ -158,7 +158,7 @@ export class UnitVisual {
       this.refitPulse += dt * 3;
       (this.refitRing.material as THREE.MeshBasicMaterial).opacity = 0.55 + 0.35 * Math.sin(this.refitPulse);
     }
-    if (this.type === 'infantry') {
+    if (UNITS[this.type].armor === 'infantry') {
       this.bob += dt * (moving ? 12 : 0);
       this.body.position.y = moving ? Math.abs(Math.sin(this.bob)) * 0.05 : 0;
     } else if (moving) {

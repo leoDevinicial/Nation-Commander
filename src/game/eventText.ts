@@ -1,6 +1,6 @@
 import { MODS } from '../../shared/sim/modernization.ts';
 import { AIRCRAFT, type AircraftType } from '../../shared/sim/air.ts';
-import { BUILDINGS, RESOURCE_LABELS, UNITS, type BuildingType, type UnitType } from '../../shared/sim/config.ts';
+import { BUILDINGS, MILITARY_RESEARCH, RESOURCE_LABELS, UNITS, type BuildingType, type UnitType } from '../../shared/sim/config.ts';
 import type { BuildingStatus } from '../../shared/sim/types.ts';
 
 const HALT_TEXT: Partial<Record<BuildingStatus, string>> = {
@@ -64,6 +64,11 @@ export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone
       return e.owner === mySlot
         ? { text: `Melhoria concluída: ${BUILDINGS[e.buildingType].label} agora no nível ${e.level}${e.spec ? ` · ${specLabel(e.buildingType, e.spec)}` : ''}`, tone: 'good' }
         : null;
+    case 'military_research_completed': {
+      if (e.owner !== mySlot) return null;
+      const unit = (Object.keys(UNITS) as UnitType[]).find((u) => UNITS[u].requires === e.researchId);
+      return { text: `Pesquisa militar concluída: ${MILITARY_RESEARCH[e.researchId].label}${unit ? ` — ${UNITS[unit].label} liberado` : ''}`, tone: 'good' };
+    }
     case 'upgrade_cancelled':
       return e.owner === mySlot ? { text: `Obra de melhoria cancelada: ${BUILDINGS[e.buildingType].label} (devolução parcial)`, tone: 'warn' } : null;
     case 'attrition':

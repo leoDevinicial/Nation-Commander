@@ -111,10 +111,11 @@ describe('Fase 5 — árvore de pesquisa', () => {
     sim.setBudget(0, { ...n.budget, researchPct: 2 });
     expect(researchDailyProgress('automation', 2).capped).toBe(true);
     sim.setResearch(0, 'modular_construction');
-    runDays(sim, 20);
+    const half = Math.floor(TECHNOLOGIES.modular_construction.minDays / 2);
+    runDays(sim, half);
     const p = n.research.progress.modular_construction;
     const inv = n.research.invested.modular_construction;
-    expect(p).toBeCloseTo(20 / TECHNOLOGIES.modular_construction.minDays, 6);
+    expect(p).toBeCloseTo(half / TECHNOLOGIES.modular_construction.minDays, 6);
     sim.setResearch(0, null);
     runDays(sim, 15);
     expect(n.research.progress.modular_construction).toBe(p);
@@ -148,7 +149,7 @@ describe('Fase 5 — árvore de pesquisa', () => {
   it('estado da pesquisa persiste no salvar/carregar', () => {
     const a = new NationalSimulation([{ slot: 0, countryId: 'BRA' }], 1, 'realistic');
     a.setResearch(0, 'digital_comms');
-    runDays(a, 40);
+    runDays(a, 5);
     const saved = JSON.parse(JSON.stringify(a.saveResearch()));
     const b = new NationalSimulation([{ slot: 0, countryId: 'BRA' }], 1, 'realistic');
     b.loadResearch(saved);

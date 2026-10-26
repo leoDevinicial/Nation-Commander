@@ -124,7 +124,7 @@ export function garrisonUnits(count: number, sector: SectorDef): UnitType[] {
   const tankShare = sector.mountains || sector.biome === 'tropical' ? 0.15 : 0.3;
   for (let i = 0; i < count; i++) {
     const k = (i + 0.5) / count;
-    out.push(k < tankShare ? 'tank' : k < tankShare + 0.15 ? 'apc' : k < tankShare + 0.25 ? 'artillery' : 'infantry');
+    out.push(k < tankShare ? 'tank' : k < tankShare + 0.15 ? 'apc' : k < tankShare + 0.25 ? 'artillery' : k < tankShare + 0.4 && count >= 6 ? 'at_infantry' : 'infantry');
   }
   return out;
 }
@@ -138,7 +138,7 @@ export function travelDays(fromCountry: string, sector: SectorDef): number {
 export function operationCost(fromCountry: string, sector: SectorDef, types: readonly UnitType[]): { usd: number; supplies: number; oil: number; days: number; km: number } {
   const from = geoOf(fromCountry)?.capital;
   const km = from ? distanceKm(from, sector) : 3000;
-  const vehicles = types.filter((t) => t !== 'infantry').length;
+  const vehicles = types.filter((t) => UNITS[t].armor === 'vehicle').length;
   return {
     usd: Math.round(types.length * (OPS.usdPerUnit + (OPS.usdPerUnitPer1000Km * km) / 1000)),
     supplies: OPS.suppliesPerUnit * types.length,

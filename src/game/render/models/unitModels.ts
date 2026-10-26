@@ -37,6 +37,11 @@ const BUILDERS: Record<UnitType, () => UnitModel> = {
   apc: buildApc,
   tank: buildTank,
   artillery: buildArtillery,
+  at_infantry: buildAtInfantry,
+  special_forces: buildSpecialForces,
+  mbt: buildMbt,
+  rocket_artillery: buildRocketArtillery,
+  mobile_aa: buildMobileAa,
 };
 
 // ------------------------------------------------------------------ infantaria
@@ -81,6 +86,67 @@ function soldier(b: PartBuilder, a: PartBuilder, x: number, z: number, variant: 
   // insígnia da facção nos ombros
   a.box(0.06 * s, 0.07 * s, 0.03 * s, '#ffffff', p(0, 0.66, 0.15));
   a.box(0.06 * s, 0.07 * s, 0.03 * s, '#ffffff', p(0, 0.66, -0.15));
+}
+
+/** Lança-rojão no ombro direito (tubo, ogiva e mira), para a infantaria antitanque. */
+function launcher(b: PartBuilder, x: number, z: number): void {
+  const s = 1.25;
+  const y = 0.78 * s;
+  b.cyl(0.05 * s, 0.05 * s, 0.95 * s, C.oliveDark, [x + 0.08 * s, y, z + 0.11 * s], [0, 0, Math.PI / 2 - 0.08], 8);
+  b.cyl(0.075 * s, 0.075 * s, 0.12 * s, C.oliveDark, [x + 0.52 * s, y + 0.04 * s, z + 0.11 * s], [0, 0, Math.PI / 2 - 0.08], 8);
+  b.cyl(0, 0.07 * s, 0.16 * s, '#6b6a3c', [x + 0.66 * s, y + 0.05 * s, z + 0.11 * s], [0, 0, -Math.PI / 2 - 0.08], 8);
+  b.box(0.08 * s, 0.07 * s, 0.05 * s, C.metalDark, [x + 0.1 * s, y + 0.08 * s, z + 0.17 * s]);
+  b.box(0.05 * s, 0.12 * s, 0.04 * s, C.metalDark, [x + 0.02 * s, y - 0.08 * s, z + 0.11 * s]);
+}
+
+/** Operador de forças especiais: uniforme escuro, colete tático, óculos de visão noturna e fuzil com supressor. */
+function operator(b: PartBuilder, a: PartBuilder, x: number, z: number, variant: number): void {
+  const s = 1.25;
+  const p = (dx: number, dy: number, dz: number): [number, number, number] => [x + dx * s, dy * s, z + dz * s];
+  const cloth = '#2f3436';
+  const gear = '#3d3a2e';
+  b.box(0.1 * s, 0.36 * s, 0.1 * s, cloth, p(0, 0.22, 0.065));
+  b.box(0.1 * s, 0.36 * s, 0.1 * s, cloth, p(variant ? 0.05 : -0.02, 0.22, -0.065));
+  b.box(0.16 * s, 0.06 * s, 0.11 * s, C.boot, p(0.03, 0.03, 0.065));
+  b.box(0.16 * s, 0.06 * s, 0.11 * s, C.boot, p(0.03, 0.03, -0.065));
+  b.box(0.2 * s, 0.32 * s, 0.27 * s, cloth, p(0, 0.56, 0));
+  b.box(0.24 * s, 0.24 * s, 0.3 * s, gear, p(0.01, 0.6, 0));
+  for (const dz of [-0.08, 0, 0.08]) b.box(0.05 * s, 0.09 * s, 0.06 * s, '#4a4636', p(0.135, 0.56, dz));
+  b.box(0.1 * s, 0.18 * s, 0.18 * s, gear, p(-0.17, 0.62, 0));
+  b.box(0.26 * s, 0.07 * s, 0.07 * s, cloth, p(0.12, 0.64, 0.13), [0, 0.35, -0.2]);
+  b.box(0.24 * s, 0.07 * s, 0.07 * s, cloth, p(0.14, 0.62, -0.1), [0, -0.6, -0.15]);
+  // balaclava, capacete de alto corte e óculos de visão noturna levantados
+  b.sphere(0.085 * s, '#1f2224', p(0.01, 0.8, 0), undefined, 8);
+  b.sphere(0.1 * s, gear, p(0, 0.86, 0), [1, 0.62, 1], 8);
+  b.box(0.06 * s, 0.05 * s, 0.1 * s, C.metalDark, p(0.1, 0.9, 0));
+  b.cyl(0.018 * s, 0.018 * s, 0.05 * s, C.metalDark, p(0.13, 0.9, 0.03), [0, 0, Math.PI / 2], 6);
+  b.cyl(0.018 * s, 0.018 * s, 0.05 * s, C.metalDark, p(0.13, 0.9, -0.03), [0, 0, Math.PI / 2], 6);
+  // fuzil curto com supressor e mira
+  b.box(0.42 * s, 0.045 * s, 0.045 * s, '#1f2124', p(0.22, 0.66, 0.04), [0, 0, 0.08]);
+  b.cyl(0.03 * s, 0.03 * s, 0.16 * s, '#1f2124', p(0.5, 0.685, 0.04), [0, 0, Math.PI / 2 + 0.08], 6);
+  b.box(0.08 * s, 0.05 * s, 0.04 * s, C.metalDark, p(0.2, 0.71, 0.04));
+  a.box(0.06 * s, 0.07 * s, 0.03 * s, '#ffffff', p(0, 0.66, 0.16));
+  a.box(0.06 * s, 0.07 * s, 0.03 * s, '#ffffff', p(0, 0.66, -0.16));
+}
+
+function buildAtInfantry(): UnitModel {
+  const l = layers();
+  soldier(l.body, l.accent, 0.26, 0, 0);
+  launcher(l.body, 0.26, 0);
+  soldier(l.body, l.accent, -0.24, 0.36, 0);
+  launcher(l.body, -0.24, 0.36);
+  // municiador: carrega rojões extras nas costas
+  soldier(l.body, l.accent, -0.24, -0.36, 0);
+  for (const dz of [-0.06, 0.06]) l.body.cyl(0.05, 0.05, 0.5, '#6b6a3c', [-0.48, 0.85, -0.36 + dz], [0.15, 0, 0], 6);
+  return { hull: l.build(), turret: null, turretPivot: [0, 0, 0], muzzle: [0.95, 1.05, 0.14] };
+}
+
+function buildSpecialForces(): UnitModel {
+  const l = layers();
+  operator(l.body, l.accent, 0.3, 0.05, 0);
+  operator(l.body, l.accent, -0.2, 0.38, 1);
+  operator(l.body, l.accent, -0.25, -0.32, 0);
+  return { hull: l.build(), turret: null, turretPivot: [0, 0, 0], muzzle: [0.75, 0.86, 0.05] };
 }
 
 function buildInfantry(): UnitModel {
@@ -389,6 +455,191 @@ function buildArtillery(): UnitModel {
   turret.accent.box(0.6, 0.08, 0.02, '#ffffff', [-0.2, 0.4, 0.483]);
   turret.accent.box(0.6, 0.08, 0.02, '#ffffff', [-0.2, 0.4, -0.483]);
   return { hull: hull.build(), turret: turret.build(), turretPivot: [-0.25, 0.62, 0], muzzle: at(2.4) };
+}
+
+// ------------------------------------------------------------------ veículos liberados por pesquisa
+
+/** Tanque de batalha moderno: casco mais longo, torre em cunha com blindagem reativa e canhão longo. */
+function buildMbt(): UnitModel {
+  const hull = layers();
+  const b = hull.body;
+  const green = '#565f3e';
+  b.side(
+    [
+      [-1.25, 0.3],
+      [1.12, 0.3],
+      [1.34, 0.5],
+      [1.05, 0.74],
+      [-1.18, 0.74],
+      [-1.3, 0.55],
+    ],
+    1.12,
+    green,
+  );
+  tracks(b, 2.4, 0.66, 0.5, 0.32);
+  tracks(b, 2.4, -0.66, 0.5, 0.32);
+  roadWheels(b, [-0.9, -0.54, -0.18, 0.18, 0.54, 0.9], 0.2, 0.83, 0.16, 0.06, C.rubber);
+  roadWheels(b, [-0.9, -0.54, -0.18, 0.18, 0.54, 0.9], 0.2, -0.83, 0.16, 0.06, C.rubber);
+  trackDetail(b, 2.4, 0.66, 0.5, 0.32);
+  trackDetail(b, 2.4, -0.66, 0.5, 0.32);
+  skirts(b, 2.0, 0.86, 0.4, 0.26, 6);
+  skirts(b, 2.0, -0.86, 0.4, 0.26, 6);
+  // blocos de blindagem reativa sobre as saias e no glacis
+  for (let i = 0; i < 6; i++) for (const z of [0.885, -0.885]) b.box(0.26, 0.12, 0.04, C.oliveDark, [-0.85 + i * 0.34, 0.45, z]);
+  for (let i = 0; i < 4; i++) b.box(0.14, 0.04, 0.22, C.oliveDark, [1.12, 0.62, -0.36 + i * 0.24], [0, 0, -0.9]);
+  for (let i = 0; i < 6; i++) b.box(0.05, 0.012, 0.8, C.metalDark, [-0.6 - i * 0.09, 0.746, 0]);
+  b.box(0.12, 0.12, 0.6, C.metalDark, [-1.25, 0.62, 0]);
+  b.box(0.05, 0.06, 0.1, C.steel, [1.2, 0.64, 0.42]);
+  b.box(0.05, 0.06, 0.1, C.steel, [1.2, 0.64, -0.42]);
+  b.box(0.55, 0.012, 0.4, '#6f7652', [0.4, 0.746, 0.2], [0, 0.4, 0]);
+  hull.accent.box(0.32, 0.12, 0.02, '#ffffff', [-0.95, 0.62, 0.563]);
+  hull.accent.box(0.32, 0.12, 0.02, '#ffffff', [-0.95, 0.62, -0.563]);
+
+  const turret = layers();
+  const t = turret.body;
+  // torre baixa em cunha (frente em flecha)
+  t.plan(
+    [
+      [0.85, 0],
+      [0.35, 0.5],
+      [-0.6, 0.52],
+      [-0.85, 0.32],
+      [-0.85, -0.32],
+      [-0.6, -0.52],
+      [0.35, -0.5],
+    ],
+    0.3,
+    green,
+  );
+  t.box(0.26, 0.2, 0.3, C.oliveDark, [0.72, 0.15, 0]);
+  t.cyl(0.06, 0.07, 1.9, C.oliveDark, [1.7, 0.16, 0], [0, 0, Math.PI / 2], 10);
+  t.cyl(0.085, 0.085, 0.3, C.olive, [1.25, 0.16, 0], [0, 0, Math.PI / 2], 10);
+  for (const x of [1.0, 1.55, 2.2]) t.cyl(0.072, 0.072, 0.05, green, [x, 0.16, 0], [0, 0, Math.PI / 2], 8);
+  t.cyl(0.075, 0.075, 0.1, C.metalDark, [2.62, 0.16, 0], [0, 0, Math.PI / 2], 8);
+  // visor do comandante independente, mira térmica e estação de armas remota
+  t.cyl(0.1, 0.11, 0.18, C.oliveDark, [-0.25, 0.39, 0.25], undefined, 8);
+  turret.glass.box(0.02, 0.06, 0.12, '#ffffff', [-0.15, 0.44, 0.25]);
+  t.box(0.24, 0.16, 0.18, C.oliveDark, [0.28, 0.38, -0.3]);
+  turret.glass.box(0.02, 0.09, 0.12, '#ffffff', [0.405, 0.39, -0.3]);
+  t.box(0.2, 0.1, 0.14, C.metalDark, [-0.3, 0.38, -0.2]);
+  t.box(0.36, 0.035, 0.035, C.metalDark, [-0.1, 0.44, -0.2]);
+  t.box(0.36, 0.16, 0.8, C.oliveDark, [-0.98, 0.16, 0]);
+  for (const z of [0.42, -0.42]) for (const dx of [0, 0.08, 0.16]) t.cyl(0.028, 0.028, 0.13, C.metalDark, [0.1 + dx, 0.32, z], [0, 0, 1.0], 6);
+  t.cyl(0.012, 0.012, 0.8, C.metalDark, [-0.7, 0.7, 0.35], [0, 0, -0.2], 4);
+  turret.accent.box(0.55, 0.08, 0.02, '#ffffff', [-0.2, 0.17, 0.515]);
+  turret.accent.box(0.55, 0.08, 0.02, '#ffffff', [-0.2, 0.17, -0.515]);
+  return { hull: hull.build(), turret: turret.build(), turretPivot: [-0.05, 0.74, 0], muzzle: [2.7, 0.16, 0] };
+}
+
+/** Lança-foguetes sobre caminhão 6×6: cabine, chassi e casulo de tubos elevado (gira como torre). */
+function buildRocketArtillery(): UnitModel {
+  const hull = layers();
+  const b = hull.body;
+  b.box(2.3, 0.18, 0.86, C.oliveDark, [-0.1, 0.5, 0]); // chassi
+  for (const x of [-0.85, -0.35, 0.8])
+    for (const z of [0.46, -0.46]) {
+      b.cyl(0.25, 0.25, 0.2, C.rubber, [x, 0.26, z], [Math.PI / 2, 0, 0], 12);
+      b.cyl(0.11, 0.11, 0.22, C.metal, [x, 0.26, z], [Math.PI / 2, 0, 0], 8);
+    }
+  // cabine blindada com para-brisa
+  b.side(
+    [
+      [0.55, 0.58],
+      [1.2, 0.58],
+      [1.22, 0.9],
+      [1.05, 1.18],
+      [0.55, 1.18],
+    ],
+    0.9,
+    C.olive,
+  );
+  hull.glass.box(0.02, 0.2, 0.7, '#ffffff', [1.14, 1.0, 0], [0, 0, 0.55]);
+  for (const z of [0.452, -0.452]) hull.glass.box(0.28, 0.16, 0.01, '#ffffff', [0.85, 1.0, z]);
+  b.box(0.06, 0.08, 0.12, C.steel, [1.22, 0.7, 0.32]);
+  b.box(0.06, 0.08, 0.12, C.steel, [1.22, 0.7, -0.32]);
+  // para-lamas, tanque de combustível, macacos estabilizadores
+  for (const x of [-0.85, -0.35, 0.8]) for (const z of [0.47, -0.47]) b.box(0.52, 0.04, 0.24, C.olive, [x, 0.55, z]);
+  b.box(0.4, 0.2, 0.14, C.metalDark, [0.25, 0.48, 0.46]);
+  for (const z of [0.4, -0.4]) b.box(0.08, 0.36, 0.08, C.metalDark, [-1.15, 0.3, z]);
+  b.box(0.7, 0.012, 0.5, C.oliveLight, [-0.3, 0.6, 0.1], [0, 0.5, 0]);
+  hull.accent.box(0.3, 0.14, 0.02, '#ffffff', [0.85, 0.75, 0.453]);
+  hull.accent.box(0.3, 0.14, 0.02, '#ffffff', [0.85, 0.75, -0.453]);
+
+  const turret = layers();
+  const t = turret.body;
+  // base giratória e casulo de 12 tubos elevado ~30°
+  t.cyl(0.32, 0.36, 0.14, C.oliveDark, [0, 0.07, 0], undefined, 10);
+  const elev = 0.5;
+  const rot: [number, number, number] = [0, 0, elev];
+  t.box(1.5, 0.56, 0.74, C.olive, [0.15, 0.55, 0], rot);
+  const cx = 0.15 + Math.cos(elev) * 0.76;
+  const cy = 0.55 + Math.sin(elev) * 0.76;
+  for (let r = 0; r < 3; r++)
+    for (let c = 0; c < 4; c++) {
+      const dy = (r - 1) * 0.16;
+      const dz = (c - 1.5) * 0.16;
+      t.cyl(0.055, 0.055, 0.04, '#1c1d1b', [cx - Math.sin(elev) * dy, cy + Math.cos(elev) * dy, dz], [0, 0, -(Math.PI / 2 - elev)], 8);
+    }
+  t.box(0.2, 0.6, 0.06, C.metalDark, [-0.2, 0.35, 0.4], [0, 0, elev]);
+  t.box(0.2, 0.6, 0.06, C.metalDark, [-0.2, 0.35, -0.4], [0, 0, elev]);
+  turret.accent.box(0.6, 0.1, 0.02, '#ffffff', [0.15, 0.55, 0.375], rot);
+  turret.accent.box(0.6, 0.1, 0.02, '#ffffff', [0.15, 0.55, -0.375], rot);
+  return { hull: hull.build(), turret: turret.build(), turretPivot: [-0.55, 0.6, 0], muzzle: [cx + 0.1, cy, 0] };
+}
+
+/** Antiaérea autopropulsada: chassi de lagartas, torre com dois canhões e radar de busca. */
+function buildMobileAa(): UnitModel {
+  const hull = layers();
+  const b = hull.body;
+  b.side(
+    [
+      [-1.08, 0.3],
+      [0.95, 0.3],
+      [1.12, 0.46],
+      [0.92, 0.66],
+      [-1.05, 0.66],
+    ],
+    1.0,
+    C.olive,
+  );
+  tracks(b, 2.05, 0.58, 0.44, 0.28);
+  tracks(b, 2.05, -0.58, 0.44, 0.28);
+  roadWheels(b, [-0.75, -0.38, 0, 0.38, 0.75], 0.19, 0.73, 0.15, 0.06, C.rubber);
+  roadWheels(b, [-0.75, -0.38, 0, 0.38, 0.75], 0.19, -0.73, 0.15, 0.06, C.rubber);
+  trackDetail(b, 2.05, 0.58, 0.44, 0.28);
+  trackDetail(b, 2.05, -0.58, 0.44, 0.28);
+  b.box(2.1, 0.05, 0.3, C.oliveDark, [0, 0.47, 0.58]);
+  b.box(2.1, 0.05, 0.3, C.oliveDark, [0, 0.47, -0.58]);
+  for (let i = 0; i < 4; i++) b.box(0.05, 0.012, 0.6, C.metalDark, [-0.6 - i * 0.09, 0.666, 0]);
+  b.box(0.05, 0.06, 0.1, C.steel, [1.04, 0.56, 0.36]);
+  b.box(0.05, 0.06, 0.1, C.steel, [1.04, 0.56, -0.36]);
+  hull.accent.box(0.3, 0.1, 0.02, '#ffffff', [-0.7, 0.5, 0.503]);
+  hull.accent.box(0.3, 0.1, 0.02, '#ffffff', [-0.7, 0.5, -0.503]);
+
+  const turret = layers();
+  const t = turret.body;
+  t.box(0.9, 0.5, 0.86, C.olive, [0, 0.25, 0]);
+  t.box(0.3, 0.3, 0.86, C.oliveDark, [0.45, 0.22, 0], [0, 0, -0.5]);
+  // dois canhões de tiro rápido elevados nas laterais
+  const elev = 0.45;
+  for (const z of [0.52, -0.52]) {
+    t.box(0.34, 0.3, 0.18, C.oliveDark, [0.15, 0.32, z]);
+    t.cyl(0.035, 0.045, 1.3, C.metalDark, [0.15 + Math.cos(elev) * 0.75, 0.32 + Math.sin(elev) * 0.75, z], [0, 0, -(Math.PI / 2 - elev)], 8);
+    t.cyl(0.06, 0.06, 0.14, C.metalDark, [0.15 + Math.cos(elev) * 1.35, 0.32 + Math.sin(elev) * 1.35, z], [0, 0, -(Math.PI / 2 - elev)], 8);
+  }
+  // radar de busca (prato) atrás e radar de tiro na frente
+  t.cyl(0.04, 0.04, 0.3, C.metalDark, [-0.3, 0.65, 0], undefined, 6);
+  t.cyl(0.36, 0.3, 0.05, C.steel, [-0.3, 0.82, 0], [0.35, 0, Math.PI / 2], 14);
+  t.sphere(0.13, C.steel, [0.42, 0.42, 0], [0.6, 1, 1], 10);
+  turret.glass.box(0.02, 0.06, 0.12, '#ffffff', [0.46, 0.4, 0.25]);
+  turret.accent.box(0.5, 0.08, 0.02, '#ffffff', [-0.1, 0.3, 0.435]);
+  turret.accent.box(0.5, 0.08, 0.02, '#ffffff', [-0.1, 0.3, -0.435]);
+  return {
+    hull: hull.build(),
+    turret: turret.build(),
+    turretPivot: [-0.1, 0.66, 0],
+    muzzle: [0.15 + Math.cos(elev) * 1.42, 0.32 + Math.sin(elev) * 1.42, 0.52],
+  };
 }
 
 // ------------------------------------------------------------------ cidadãos

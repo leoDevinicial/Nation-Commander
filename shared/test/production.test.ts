@@ -14,6 +14,7 @@ const ctx = (over: Partial<ProduceContext> = {}): ProduceContext => ({
   popTotal: 20,
   popCap: 40,
   techs: null,
+  militaryResearch: [],
   ...over,
 });
 

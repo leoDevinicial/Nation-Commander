@@ -186,6 +186,8 @@ segundo** (a 1×). Tudo depois dessa data é uma linha histórica alternativa.
 - **Pesquisa:** 13 tecnologias em árvore, com pré-requisitos, duração mínima e investimento em US$
   registrado. A velocidade depende do % do PIB investido. As militares liberam pacotes de modernização,
   instalados unidade por unidade numa base militar ou fábrica (ver `docs/FASE5_PESQUISA_MODERNIZACAO.md`).
+- Dentro da partida, o **Centro de Pesquisa Militar** libera tropas novas (antitanque, forças especiais, antiaérea
+  móvel, lança-foguetes e tanque moderno), com contras por tipo de alvo (ver `docs/PROGRESSAO_MILITAR.md`).
 - **Ligação com o combate:** o orçamento de defesa vira suprimentos/s no teatro de operações:
   `1,2 × log₁₀(1 + gasto de defesa anual em US$ bi)`. A regra do teatro é escolhida pelo anfitrião:
   **paridade** (todos como se tivessem PIB de US$ 1 tri: vale a parcela do PIB investida) ou

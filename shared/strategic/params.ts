@@ -116,3 +116,11 @@ export const COEF = {
   /** PIB usado no modo paridade (todos os países com a mesma escala econômica). */
   parityGdpUsd: 1e12,
 } as const;
+
+/**
+ * Ritmo da pesquisa militar (Centro de Pesquisa) pelo orçamento nacional de P&D (% do PIB):
+ * ×0,8 sem verba, ×1 com ~0,35% (Brasil), até ×2 com 2% ou mais (Coreia do Sul, EUA no máximo).
+ */
+export function militaryResearchSpeed(researchPct: number): number {
+  return Math.max(0.8, Math.min(2, 0.8 + researchPct * 0.6));
+}

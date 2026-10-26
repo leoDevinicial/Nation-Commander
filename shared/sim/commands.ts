@@ -1,4 +1,4 @@
-import { BUILDINGS, UNITS, type BuildingType, type ProducibleType } from './config.ts';
+import { BUILDINGS, UNITS, isMilitaryResearchId, type BuildingType, type MilitaryResearchId, type ProducibleType } from './config.ts';
 import type { EntityId } from './types.ts';
 import { isSpecId, type SpecId } from './upgrades.ts';
 import { isModId, type ModId } from './modernization.ts';
@@ -19,6 +19,9 @@ export type Command =
    */
   | { type: 'assign_workers'; buildingId: EntityId; sources: number[] }
   | { type: 'cancel_production'; buildingId: EntityId }
+  /** Pesquisa militar no Centro de Pesquisa (uma por vez por centro) e cancelamento (devolve 75%). */
+  | { type: 'military_research'; buildingId: EntityId; researchId: MilitaryResearchId }
+  | { type: 'cancel_military_research'; buildingId: EntityId }
   | { type: 'set_rally'; buildingId: EntityId; x: number; y: number }
   /** Melhoria para o próximo nível; `spec` é obrigatório no nível que pede especialização. */
   | { type: 'upgrade'; buildingId: EntityId; spec?: SpecId }
@@ -77,6 +80,12 @@ export function parseCommand(raw: unknown): Command | null {
       if (!isId(raw.buildingId) || !Array.isArray(raw.sources) || raw.sources.length === 0 || raw.sources.length > MAX_UNITS_PER_COMMAND) return null;
       if (!raw.sources.every((v) => v === 0 || isId(v))) return null;
       return { type: 'assign_workers', buildingId: raw.buildingId, sources: raw.sources as number[] };
+    case 'military_research':
+      if (!isId(raw.buildingId) || !isMilitaryResearchId(raw.researchId)) return null;
+      return { type: 'military_research', buildingId: raw.buildingId, researchId: raw.researchId };
+    case 'cancel_military_research':
+      if (!isId(raw.buildingId)) return null;
+      return { type: 'cancel_military_research', buildingId: raw.buildingId };
     case 'cancel_production':
       if (!isId(raw.buildingId)) return null;
       return { type: 'cancel_production', buildingId: raw.buildingId };

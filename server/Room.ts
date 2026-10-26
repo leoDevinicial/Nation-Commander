@@ -24,7 +24,7 @@ import type { BuildingSnapshot } from '../shared/sim/snapshot.ts';
 import type { EntityId, SimEvent, Slot } from '../shared/sim/types.ts';
 import { NationalAI } from '../shared/strategic/NationalAI.ts';
 import { NationalSimulation, type NationalEvent, type NationalSave } from '../shared/strategic/NationalSimulation.ts';
-import { HISTORY_EVERY_DAYS, SCENARIO_START, TICKS_PER_DAY } from '../shared/strategic/params.ts';
+import { HISTORY_EVERY_DAYS, SCENARIO_START, TICKS_PER_DAY, militaryResearchSpeed } from '../shared/strategic/params.ts';
 import { OperationsSystem, operationsView, type Operation, type OperationsSave } from '../shared/strategic/operations.ts';
 import { sectorById } from '../shared/data/sectors.ts';
 import type { Connection } from './Connection.ts';
@@ -315,6 +315,7 @@ export class Room {
       worksFundUsd: (slot) => national.nation(slot)?.works.fundUsd ?? 0,
       chargeWorks: (slot, usd, description) => national.chargeWorks(slot, usd, description),
       refundWorks: (slot, usd, description) => national.refundWorks(slot, usd, description),
+      researchSpeed: (slot) => militaryResearchSpeed(national.nation(slot)?.budget.researchPct ?? 0),
     };
     // comércio internacional: diplomacia, países da IA e tesouro nacional
     const d = national.diplomacy;

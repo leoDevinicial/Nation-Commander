@@ -263,3 +263,56 @@ function cylHalf(r: number, len: number): THREE.BufferGeometry {
   g.translate(0, 0, -len / 2);
   return g;
 }
+
+// ------------------------------------------------------------------ centro de pesquisa militar
+
+/**
+ * Centro de Pesquisa Militar (2×2): bloco de laboratórios em concreto com fachada envidraçada,
+ * domo de ensaios, antena parabólica girando, campo de provas com alvos e uma peça em teste.
+ */
+export function buildResearchCenterModel(): Built {
+  const l = layers();
+  const { body: b, accent: a, glass: g } = l;
+  b.box(3.9, 0.06, 3.9, '#8a877e', [0, 0.03, 0]);
+  // bloco principal de laboratórios (dois andares) com faixa de janelas contínua
+  b.box(2.2, 1.2, 1.3, C.concreteLight, [-0.65, 0.66, -1.05]);
+  for (const y of [0.45, 0.95]) g.box(2.0, 0.26, 0.02, '#ffffff', [-0.65, y, -0.39]);
+  for (const y of [0.3, 0.8]) b.box(2.24, 0.04, 0.08, C.concreteDark, [-0.65, y, -0.38]);
+  for (let i = 0; i < 5; i++) b.box(0.04, 1.1, 0.06, C.concreteDark, [-1.65 + i * 0.5, 0.66, -0.38]);
+  b.box(2.3, 0.08, 1.4, C.roof, [-0.65, 1.3, -1.05]);
+  // equipamentos no telhado: chillers e duto
+  for (const x of [-1.3, -0.9]) b.box(0.3, 0.22, 0.4, C.steel, [x, 1.45, -1.15]);
+  b.cyl(0.07, 0.07, 1.0, C.metal, [-0.2, 1.42, -1.3], [0, 0, Math.PI / 2], 8);
+  // entrada com marquise e placa
+  b.box(0.7, 0.05, 0.4, C.metalDark, [-0.65, 0.62, -0.2]);
+  for (const x of [-0.95, -0.35]) b.cyl(0.03, 0.03, 0.6, C.metalDark, [x, 0.3, -0.05], undefined, 6);
+  g.box(0.5, 0.45, 0.02, '#ffffff', [-0.65, 0.3, -0.385]);
+  a.box(1.2, 0.16, 0.02, '#ffffff', [-0.65, 1.17, -0.385]);
+  // domo de ensaios (meia esfera) sobre base cilíndrica
+  b.cyl(0.62, 0.66, 0.5, C.concrete, [1.1, 0.28, -1.0], undefined, 18);
+  b.sphere(0.62, '#d7d9d4', [1.1, 0.52, -1.0], [1, 0.75, 1], 16);
+  b.box(0.08, 0.5, 0.5, '#5f6467', [1.1, 0.75, -0.42], [0.25, 0, 0]);
+  // campo de provas: pista, banquetas de concreto e alvos de chapa
+  b.box(2.6, 0.02, 0.7, '#6f6a5d', [0.15, 0.06, 1.2]);
+  for (let i = 0; i < 6; i++) b.box(0.2, 0.012, 0.04, '#d9d8d0', [-1.0 + i * 0.45, 0.075, 1.2]);
+  for (const x of [1.25, 1.6]) {
+    b.box(0.08, 0.5, 0.36, '#7a7d80', [x, 0.31, 1.2]);
+    a.box(0.02, 0.2, 0.2, '#ffffff', [x - 0.05, 0.36, 1.2]);
+  }
+  for (let i = 0; i < 5; i++) b.box(0.3, 0.18, 0.2, C.concrete, [-1.5 + i * 0.32, 0.12, 0.62]);
+  // peça em teste: lançador sobre reboque, apontando para os alvos
+  b.box(0.7, 0.08, 0.36, C.oliveDark, [-0.6, 0.22, 1.2]);
+  for (const x of [-0.85, -0.4]) for (const z of [1.05, 1.35]) b.cyl(0.1, 0.1, 0.06, C.rubber, [x, 0.12, z], [Math.PI / 2, 0, 0], 10);
+  b.cyl(0.06, 0.06, 0.9, C.olive, [-0.45, 0.42, 1.2], [0, 0, -Math.PI / 2 + 0.25], 8);
+  // biruta e sensores meteorológicos
+  strut(b, [1.6, 0.06, 0.3], [1.6, 1.1, 0.3], 0.025, C.steel);
+  b.cyl(0.02, 0.07, 0.3, '#d9772e', [1.75, 1.05, 0.3], [0, 0, Math.PI / 2], 8);
+  // antena parabólica (gira devagar acompanhando ensaios)
+  b.cyl(0.08, 0.1, 0.3, C.metal, [0.95, 0.2, 0.25], undefined, 8);
+  const dish = layers();
+  dish.body.cyl(0.03, 0.03, 0.35, C.metalDark, [0, 0.17, 0], undefined, 6);
+  dish.body.cyl(0.42, 0.32, 0.06, '#e2e3df', [0.05, 0.42, 0], [0, 0, Math.PI / 2 + 0.5], 16);
+  dish.body.cyl(0.015, 0.015, 0.35, C.metalDark, [0.2, 0.5, 0], [0, 0, Math.PI / 2 + 0.5], 4);
+  const anims: ModelAnim[] = [{ layers: dish.build(), pivot: [0.95, 0.35, 0.25], motion: { kind: 'spin', axis: 'y', speed: 0.35 } }];
+  return { base: l.build(), moving: null, anims, height: 1.6 };
+}

@@ -43,8 +43,9 @@ export interface ModDef {
   description: string;
 }
 
-const VEHICLES: UnitType[] = ['apc', 'tank', 'artillery'];
-const ALL: UnitType[] = ['infantry', 'apc', 'tank', 'artillery'];
+const ALL = Object.keys(UNITS) as UnitType[];
+const VEHICLES: UnitType[] = ALL.filter((u) => UNITS[u].armor === 'vehicle');
+const FOOT: UnitType[] = ALL.filter((u) => UNITS[u].armor === 'infantry');
 
 export const MODS: Record<ModId, ModDef> = {
   body_armor: {
@@ -53,7 +54,7 @@ export const MODS: Record<ModId, ModDef> = {
     short: 'CB',
     area: 'Blindagem',
     tech: 'composite_armor',
-    units: ['infantry'],
+    units: FOOT,
     effects: { hpMul: 1.15 },
     retrofit: { cost: { iron: 10, supplies: 10 }, usd: 300_000, seconds: 12 },
     lineCost: { iron: 5 },

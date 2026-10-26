@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { GameSpeed, MatchStartInfo, ServerMessage } from '../../shared/protocol.ts';
 import type { Command } from '../../shared/sim/commands.ts';
-import { BUILDINGS, CITIZEN, RECRUIT, RESOURCE_TYPES, UNITS, emptyStockpile, type BuildingType, type Terrain, type UnitType } from '../../shared/sim/config.ts';
+import { BUILDINGS, CITIZEN, MILITARY_RESEARCH, MILITARY_RESEARCH_IDS, RECRUIT, RESOURCE_TYPES, UNITS, emptyStockpile, type BuildingType, type MilitaryResearchId, type Terrain, type UnitType } from '../../shared/sim/config.ts';
 import { MOD_IDS, MODS, checkModernize, pickRefitFacility, type FacilityInfo, type ModId, type ModernizeCheck } from '../../shared/sim/modernization.ts';
 import { anchorForCursor, placementError } from '../../shared/sim/placement.ts';
 import type { BuildingSnapshot, Snapshot, UnitSnapshot } from '../../shared/sim/snapshot.ts';
@@ -724,6 +724,7 @@ export class GameRuntime {
             rate: b.snap.rate ?? 0,
             stored: b.snap.stored ?? null,
             deposit: b.snap.deposit ?? null,
+            research: b.snap.research ?? null,
           };
         else inspected = { kind: 'building' as const, type: b.snap.type, owner: b.snap.owner, hp: b.snap.hp, maxHp: b.snap.maxHp, level: b.snap.level, spec: b.snap.spec };
       }
@@ -1042,6 +1043,17 @@ export class GameRuntime {
     if (ids.length) this.send({ type: 'stop', unitIds: ids });
   }
 
+  /** Pesquisa militar no Centro de Pesquisa selecionado. */
+  startMilitaryResearch(researchId: MilitaryResearchId): void {
+    const b = this.selectedOwnBuilding();
+    if (b && b.snap.type === 'research_center') this.send({ type: 'military_research', buildingId: b.snap.id, researchId });
+  }
+
+  cancelMilitaryResearch(): void {
+    const b = this.selectedOwnBuilding();
+    if (b && b.snap.research) this.send({ type: 'cancel_military_research', buildingId: b.snap.id });
+  }
+
   produce(unitType: UnitType): void {
     const b = this.selectedOwnBuilding();
     if (b) this.send({ type: 'produce', buildingId: b.snap.id, unitType });
@@ -1140,7 +1152,7 @@ export class GameRuntime {
     switch (e.type) {
       case 'shot': {
         const attacker = this.units.get(e.attackerId);
-        const sound = attacker ? (attacker.visual.type === 'tank' || attacker.visual.type === 'artillery' ? 'cannon' : 'rifle') : 'tower';
+        const sound = attacker ? (['tank', 'mbt', 'artillery', 'rocket_artillery', 'mobile_aa'].includes(attacker.visual.type) ? 'cannon' : 'rifle') : 'tower';
         audio.playAt(sound, e.from.x, e.from.y);
         break;
       }
@@ -1160,6 +1172,7 @@ export class GameRuntime {
         break;
       case 'construction_completed':
       case 'upgrade_completed':
+      case 'military_research_completed':
         if (mine(e.owner)) audio.ui('success');
         break;
       case 'missile': {
@@ -1282,6 +1295,9 @@ export class GameRuntime {
           }
           const type = (Object.keys(BUILDINGS) as BuildingType[]).find((t) => BUILDINGS[t].hotkey === key);
           if (type) this.startPlacement(type);
+        } else if (b.snap.type === 'research_center') {
+          const r = MILITARY_RESEARCH_IDS.find((id) => MILITARY_RESEARCH[id].hotkey === key);
+          if (r) this.startMilitaryResearch(r);
         } else {
           if (b.snap.type === 'barracks' && key === RECRUIT.hotkey) {
             this.trainRecruit();

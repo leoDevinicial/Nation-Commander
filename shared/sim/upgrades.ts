@@ -567,6 +567,19 @@ export const UPGRADES: Partial<Record<BuildingType, UpgradeTrack>> = {
     perLevel: { damageMul: 0.12, rangeAdd: 0.6, sightAdd: 1, hpMul: 0.1, upkeepSupplies: 0.02, territory: 0.5 },
     techAt: [{ level: 4, tech: 'guided_munitions' }],
   },
+  research_center: {
+    // laboratórios: o nível 2 libera as pesquisas de segundo escalão e o 3 os blindados de nova
+    // geração; cada nível pesquisa 10% mais rápido e o 4 abre mais um posto de pesquisador
+    maxLevel: 5,
+    cost: { stone: 120, iron: 80, supplies: 80 },
+    costGrowth: 1.35,
+    usdM: 8,
+    usdGrowth: 1.3,
+    seconds: 25,
+    timeGrowth: 1.15,
+    perLevel: { productionTimeMul: -0.1, hpMul: 0.1, upkeepSupplies: 0.03 },
+    workersAt: [4],
+  },
 };
 
 export function upgradeTrack(type: BuildingType): UpgradeTrack | undefined {

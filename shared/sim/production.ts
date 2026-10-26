@@ -1,4 +1,4 @@
-import { BUILDINGS, CITIZEN, POP_ABSOLUTE_CAP, PRODUCTION_QUEUE_LIMIT, RECRUIT, RESOURCE_TYPES, UNITS, canAfford, type BuildingType, type Cost, type ProducibleType, type Stockpile } from './config.ts';
+import { BUILDINGS, MILITARY_RESEARCH, CITIZEN, POP_ABSOLUTE_CAP, PRODUCTION_QUEUE_LIMIT, RECRUIT, RESOURCE_TYPES, UNITS, canAfford, type BuildingType, type Cost, type ProducibleType, type Stockpile } from './config.ts';
 import { buildingEffects, missingText, scaledCost, type SpecId } from './upgrades.ts';
 import { addCost, productionStandard, type ModId } from './modernization.ts';
 
@@ -20,6 +20,8 @@ export interface ProduceContext {
   popCap: number;
   /** Pesquisas concluídas do país: definem o padrão de equipamento da linha (null = sem camada nacional). */
   techs: readonly string[] | null;
+  /** Pesquisas militares concluídas no Centro de Pesquisa (liberam tropas novas). */
+  militaryResearch: readonly string[];
 }
 
 export interface ProduceCheck {
@@ -33,6 +35,11 @@ export interface ProduceCheck {
   blocker: string | null;
   /** Versão curta para caber no botão ("sem recruta", "fila cheia", "faltam 20 petróleo"). */
   short: string | null;
+  /**
+   * A unidade sai sem a modernização de linha porque os recursos não cobrem o equipamento
+   * (dá para instalar depois numa instalação compatível). Evita travar a produção sem ferro.
+   */
+  basic: boolean;
 }
 
 const SHORT_RES: Record<string, string> = { supplies: 'supr.', food: 'comida', wood: 'madeira', stone: 'pedra', iron: 'ferro', oil: 'petróleo' };
@@ -50,9 +57,16 @@ export function checkProduce(unit: ProducibleType, c: ProduceContext): ProduceCh
   const civil = unit === 'citizen' || unit === 'recruit';
   const std = civil ? { mods: [] as ModId[], extra: {} as Cost } : productionStandard(unit, c.techs);
   const base = unit === 'citizen' ? CITIZEN.cost : unit === 'recruit' ? scaledCost(RECRUIT.cost, fx.recruitCostMul) : scaledCost(UNITS[unit].cost, fx.unitCostMul, fx.unitOilMul);
-  const cost = addCost(base, std.extra);
-  const eq = { mods: std.mods, equipmentCost: std.extra };
-  const no = (blocker: string, short: string): ProduceCheck => ({ cost, ...eq, blocker, short });
+  let cost = addCost(base, std.extra);
+  let eq = { mods: std.mods, equipmentCost: std.extra };
+  let basic = false;
+  // sem recursos para o equipamento, mas com o bastante para a unidade básica: sai sem ele
+  if (std.mods.length && !canAfford(c.resources, cost) && canAfford(c.resources, base)) {
+    cost = base;
+    eq = { mods: [], equipmentCost: {} };
+    basic = true;
+  }
+  const no = (blocker: string, short: string): ProduceCheck => ({ cost, ...eq, blocker, short, basic });
   if (c.progress < 1) return no('Edifício em construção', 'em obra');
   if (c.queueLength >= PRODUCTION_QUEUE_LIMIT) return no('Fila de produção cheia', 'fila cheia');
   if (civil) {
@@ -65,9 +79,11 @@ export function checkProduce(unit: ProducibleType, c: ProduceContext): ProduceCh
   } else {
     const def = UNITS[unit];
     if (def.producedBy !== c.buildingType) return no(`${BUILDINGS[c.buildingType].label} não produz ${def.label}`, 'outro edifício');
+    if (def.requires && !c.militaryResearch.includes(def.requires))
+      return no(`Requer a pesquisa "${MILITARY_RESEARCH[def.requires].label}" no Centro de Pesquisa Militar`, 'pesquisar');
     // cada unidade militar precisa de um recruta da reserva como tripulação
     if (c.recruits < 1) return no('Nenhum recruta disponível: aliste recrutas na base militar (quartel)', 'sem recruta');
   }
   if (!canAfford(c.resources, cost)) return no(`Recursos insuficientes: faltam ${missingText(c.resources, cost)}`, firstMissing(c.resources, cost));
-  return { cost, ...eq, blocker: null, short: null };
+  return { cost, ...eq, blocker: null, short: null, basic };
 }

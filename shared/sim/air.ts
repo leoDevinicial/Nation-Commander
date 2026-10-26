@@ -1,4 +1,4 @@
-import { BUILDINGS, TICK_RATE, canAfford, type Cost } from './config.ts';
+import { BUILDINGS, TICK_RATE, UNITS, canAfford, type Cost } from './config.ts';
 import { missingText } from './upgrades.ts';
 import type { Simulation } from './Simulation.ts';
 import type { Building, EntityId, Slot, Vec2 } from './types.ts';
@@ -101,6 +101,9 @@ export const AIR = {
   /** Pesquisa exigida para atacar infraestrutura. */
   strikeTech: 'guided_munitions',
 };
+
+/** Eficácia da antiaérea móvel em relação a uma bateria fixa. */
+export const MOBILE_AA_FACTOR = 0.8;
 
 export const MISSILE = {
   tech: 'ballistic_missiles',
@@ -403,6 +406,8 @@ export class AirSystem {
       else if (b.type === 'tower' && d <= AIR.aaRange * 0.7) chance += AIR.towerAaChance;
       else if (b.type === 'airbase' && d <= AIR.interceptRadius) chance += AIR.fighterInterceptChance * this.aircraftAt(b.id).filter((a) => a.type === 'fighter' && a.state === 'ready').length;
     }
+    // antiaérea móvel acompanhando as tropas: como uma bateria, um pouco menos eficaz
+    for (const u of this.sim.units) if (enemy(u.owner) && u.hp > 0 && UNITS[u.type].airDefense && dist(u.pos, m.target) <= AIR.aaRange) chance += AIR.aaChance * MOBILE_AA_FACTOR;
     chance = Math.min(AIR.maxShootDown, chance);
     let shotDown = 0;
     for (const a of planes) {
@@ -571,6 +576,8 @@ export class AirSystem {
     let chance = 0;
     for (const b of this.sim.buildings)
       if (b.owner === l.targetOwner && b.type === 'aa_battery' && b.progress >= 1 && b.hp > 0 && dist(b.pos, l.target) <= MISSILE.interceptRange) chance += MISSILE.interceptChance;
+    for (const u of this.sim.units)
+      if (u.owner === l.targetOwner && u.hp > 0 && UNITS[u.type].airDefense && dist(u.pos, l.target) <= MISSILE.interceptRange) chance += MISSILE.interceptChance * MOBILE_AA_FACTOR;
     chance = Math.min(MISSILE.maxIntercept, chance);
     if (this.rand() < chance) {
       l.state = 'intercepted';

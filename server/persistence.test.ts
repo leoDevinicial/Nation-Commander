@@ -263,3 +263,22 @@ describe('salvar e carregar as camadas da partida', () => {
     }
   });
 });
+
+describe('IA e progressão militar (partida real, com economia nacional)', () => {
+  it('a IA constrói o Centro de Pesquisa, pesquisa armamentos e mantém a produção', async () => {
+    const now = { t: 0 };
+    const s = server(new MemoryMatchStore(() => now.t), now);
+    const a = fakeConn();
+    await s.send(a.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-pesq' });
+    await s.send(a.conn, { t: 'create_room', mode: 'vs_ai', countryId: 'BRA' });
+    await s.send(a.conn, { t: 'start' });
+    const room = s.rooms.get(a.last('room')!.room!.code)!;
+    const sim = room.sim!;
+    for (let i = 0; i < 20 * 60 * 13 && room.status === 'playing'; i++) {
+      room.advance();
+    }
+    expect(sim.buildings.some((b) => b.owner === 1 && b.type === 'research_center')).toBe(true);
+    expect(sim.players[1]!.militaryResearch?.length ?? 0).toBeGreaterThan(0);
+    expect(sim.units.filter((u) => u.owner === 1).length + sim.players[1]!.stats.unitsLost).toBeGreaterThan(8);
+  }, 180_000);
+});

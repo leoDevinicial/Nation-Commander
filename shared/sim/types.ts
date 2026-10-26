@@ -1,4 +1,4 @@
-import type { BuildingType, Cost, ProducibleType, ResourceType, Stockpile, Terrain, UnitType } from './config.ts';
+import type { BuildingType, Cost, MilitaryResearchId, ProducibleType, ResourceType, Stockpile, Terrain, UnitType } from './config.ts';
 import type { SpecId } from './upgrades.ts';
 import type { ModId } from './modernization.ts';
 
@@ -129,6 +129,16 @@ export interface Building {
   /** Vida máxima atual (derivada do nível e da especialização). */
   maxHp: number;
   upgrade: UpgradeWork | null;
+  /** Pesquisa militar em andamento (Centro de Pesquisa). */
+  research?: MilitaryResearchWork | null;
+}
+
+export interface MilitaryResearchWork {
+  id: MilitaryResearchId;
+  /** Ticks restantes no ritmo pleno (fracionário: avança com pesquisadores, nível e P&D). */
+  remaining: number;
+  total: number;
+  paid: Cost;
 }
 
 /** Por que um edifício não está produzindo (ou 'ok'). */
@@ -179,6 +189,8 @@ export interface PlayerState {
   incomeRemainder: Stockpile;
   defeated: boolean;
   stats: PlayerStats;
+  /** Pesquisas militares concluídas (liberam tropas). */
+  militaryResearch?: MilitaryResearchId[];
 }
 
 export interface MapData {
@@ -198,6 +210,7 @@ export type SimEvent =
   | { type: 'construction_started'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; pos: Vec2 }
   | { type: 'construction_completed'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; pos: Vec2 }
   | { type: 'unit_produced'; tick: number; id: EntityId; owner: Slot; unitType: UnitType; pos: Vec2 }
+  | { type: 'military_research_completed'; tick: number; owner: Slot; researchId: MilitaryResearchId; pos: Vec2 }
   | { type: 'under_attack'; tick: number; id: EntityId; owner: Slot; pos: Vec2 }
   | { type: 'player_defeated'; tick: number; slot: Slot }
   | { type: 'citizen_trained'; tick: number; owner: Slot; pos: Vec2 }

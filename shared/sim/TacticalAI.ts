@@ -1,5 +1,6 @@
-import { BUILDINGS, CITIZEN, OIL_TANK_RANGE, RECRUIT, type ResourceType, POP_ABSOLUTE_CAP, PREPARATION_TICKS, RESOURCE_TYPES, TICK_RATE, UNITS, canAfford, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
+import { BUILDINGS, CITIZEN, OIL_TANK_RANGE, RECRUIT, type ResourceType, POP_ABSOLUTE_CAP, PREPARATION_TICKS, RESOURCE_TYPES, TICK_RATE, UNITS, MILITARY_RESEARCH, militaryResearchBlocker, canAfford, type MilitaryResearchId, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
 import { claimableCells, claimedBy } from './gathering.ts';
+import { checkProduce } from './production.ts';
 import type { Command } from './commands.ts';
 import type { Simulation } from './Simulation.ts';
 import type { Building, Cell, Entity, Slot, Unit, Vec2 } from './types.ts';
@@ -18,6 +19,11 @@ export const AI_WAVE_COOLDOWN_TICKS = TICK_RATE * 60 * 4;
 export const AI_PREP_GARRISON = 6;
 /** A IA só começa a melhorar construções depois deste momento (economia básica primeiro). */
 export const AI_FIRST_UPGRADE_TICK = TICK_RATE * 120;
+/** Sem crescimento do exército por este tempo, a IA ataca com o que tem (mínimo AI_MIN_WAVE). */
+export const AI_STALL_TICKS = TICK_RATE * 180;
+export const AI_MIN_WAVE = 6;
+/** A IA começa a pesquisa militar depois dos primeiros minutos de economia. */
+export const AI_RESEARCH_TICK = TICK_RATE * 240;
 /** Especialização que a IA escolhe em cada classe (determinística). */
 const AI_SPEC: Partial<Record<BuildingType, SpecId>> = {
   hq: 'fortified',
@@ -57,6 +63,8 @@ export interface TacticalAISave {
   attacking: boolean;
   lastWaveTick: number | null;
   wantsWarWith: Slot | null;
+  armyPeak?: number;
+  peakTick?: number;
 }
 
 export class TacticalAI {
@@ -64,6 +72,9 @@ export class TacticalAI {
   private produced = 0;
   private attacking = false;
   private lastWaveTick = -Infinity;
+  /** Maior exército desde a última onda e quando foi atingido (detecta produção estagnada). */
+  private armyPeak = 0;
+  private peakTick = 0;
   /** País contra o qual a IA quer declarar guerra (lido e processado pelo servidor). */
   wantsWarWith: Slot | null = null;
 
@@ -77,6 +88,8 @@ export class TacticalAI {
       attacking: this.attacking,
       lastWaveTick: Number.isFinite(this.lastWaveTick) ? this.lastWaveTick : null,
       wantsWarWith: this.wantsWarWith,
+      armyPeak: this.armyPeak,
+      peakTick: this.peakTick,
     };
   }
 
@@ -86,6 +99,8 @@ export class TacticalAI {
     this.attacking = s.attacking;
     this.lastWaveTick = s.lastWaveTick ?? -Infinity;
     this.wantsWarWith = s.wantsWarWith;
+    this.armyPeak = s.armyPeak ?? 0;
+    this.peakTick = s.peakTick ?? 0;
   }
 
   think(sim: Simulation): Command[] {
@@ -109,6 +124,8 @@ export class TacticalAI {
     const mine = sim.buildings.filter((b) => b.owner === this.slot);
     const army = sim.units.filter((u) => u.owner === this.slot);
     const count = (t: BuildingType) => mine.filter((b) => b.type === t).length;
+    // coletas ainda produtivas: um depósito esgotado pede outro edifício em outro lugar
+    const active = (t: BuildingType) => mine.filter((b) => b.type === t && b.status !== 'depleted').length;
     const done = (t: BuildingType) => mine.some((b) => b.type === t && b.progress >= 1);
 
     // --- economia e construção (uma obra por avaliação, na ordem de prioridade)
@@ -136,17 +153,19 @@ export class TacticalAI {
       ['farm', res.food < 30 && done('farm') && count('farm') < 5],
       ['warehouse', ((nearlyFull('wood') && done('sawmill')) || (nearlyFull('stone') && done('quarry')) || (nearlyFull('iron') && done('mine'))) && count('warehouse') < 4],
       ['silo', nearlyFull('food') && done('farm') && count('silo') < 4],
-      ['sawmill', count('sawmill') === 0],
+      ['sawmill', active('sawmill') === 0],
       ['farm', count('farm') === 0],
       ['barracks', count('barracks') === 0],
-      ['quarry', count('quarry') === 0],
-      ['sawmill', count('sawmill') < 2 && done('barracks')],
-      ['mine', count('mine') === 0],
+      ['quarry', active('quarry') === 0],
+      ['sawmill', active('sawmill') < 2 && done('barracks')],
+      ['mine', active('mine') === 0],
       ['oil_well', count('oil_well') === 0],
       ['farm', count('farm') < 2 && done('barracks')],
       ['factory', count('factory') === 0 && done('barracks')],
       ['oil_well', count('oil_well') < 2 && done('factory')],
-      ['sawmill', count('sawmill') < 3 && done('factory')],
+      ['sawmill', active('sawmill') < 3 && done('factory')],
+      ['research_center', count('research_center') === 0 && done('factory') && sim.tick >= AI_RESEARCH_TICK],
+      ['mine', active('mine') < 2 && done('research_center')],
       ['farm', count('farm') < 3 && done('factory')],
       ['tower', count('tower') < 1 && done('factory')],
       ['aa_battery', airThreat && count('aa_battery') < 3 && done('factory')],
@@ -178,15 +197,53 @@ export class TacticalAI {
       cmds.push({ type: 'produce', buildingId: barracks.id, unitType: 'recruit' });
     }
     let crew = preparing ? Math.min(pop.recruits, garrisonRoom) : pop.recruits;
-    const factoryMix: UnitType[] = ['tank', 'apc', 'tank', 'artillery'];
+    // pesquisa militar: o centro pesquisa na ordem; a produção usa o que já foi liberado
+    this.planResearch(sim, mine, airThreat, take, cmds);
+    const unlocked = me.militaryResearch ?? [];
+    const has = (u: UnitType) => !UNITS[u].requires || unlocked.includes(UNITS[u].requires!);
+    const enemyArmor = sim.units.filter((u) => sim.hostile(this.slot, u.owner) && UNITS[u.type].armor === 'vehicle' && sim.canSee(this.slot, u)).length;
+    const barracksMix: UnitType[] = [
+      'infantry',
+      has('at_infantry') ? 'at_infantry' : 'infantry',
+      enemyArmor > 3 && has('at_infantry') ? 'at_infantry' : 'infantry',
+      has('special_forces') ? 'special_forces' : 'infantry',
+    ];
+    const factoryMix: UnitType[] = [
+      has('mbt') ? 'mbt' : 'tank',
+      'apc',
+      'tank',
+      has('rocket_artillery') ? 'rocket_artillery' : 'artillery',
+      airThreat && has('mobile_aa') ? 'mobile_aa' : has('mbt') ? 'mbt' : 'tank',
+    ];
+    const techs = sim.national ? sim.national.techs(this.slot) : null;
     for (const b of mine) {
       if (b.progress < 1 || b.queue.length > 0 || crew <= 0 || b.workers === 0) continue;
-      let unitType: UnitType | null = null;
-      if (b.type === 'barracks') unitType = 'infantry';
-      else if (b.type === 'factory') unitType = factoryMix[(this.produced++ + b.id) % factoryMix.length]!;
-      if (!unitType || !take(UNITS[unitType].cost)) continue;
-      cmds.push({ type: 'produce', buildingId: b.id, unitType });
-      crew--;
+      const mix = b.type === 'barracks' ? barracksMix : b.type === 'factory' ? factoryMix : null;
+      if (!mix) continue;
+      // a mesma regra do servidor (custo real, com o equipamento do padrão vigente); se a escolha
+      // não couber, tenta a próxima da lista em vez de insistir num pedido que seria recusado
+      const start = (this.produced + b.id) % mix.length;
+      for (let k = 0; k < mix.length; k++) {
+        const unitType = mix[(start + k) % mix.length]!;
+        const check = checkProduce(unitType, {
+          buildingType: b.type,
+          level: b.level,
+          spec: b.spec,
+          progress: b.progress,
+          queueLength: b.queue.length,
+          resources: budget,
+          recruits: crew,
+          popTotal: pop.total,
+          popCap: Infinity,
+          techs,
+          militaryResearch: unlocked,
+        });
+        if (check.blocker || !take(check.cost)) continue;
+        cmds.push({ type: 'produce', buildingId: b.id, unitType });
+        this.produced++;
+        crew--;
+        break;
+      }
     }
 
     // --- defesa: inimigos visíveis perto da base
@@ -212,7 +269,13 @@ export class TacticalAI {
     // --- ataque em ondas (unidades em modernização não contam: estão indisponíveis)
     const idle = army.filter((u) => u.order.kind === 'idle' && u.engageId === null && !u.refit);
     const ready = sim.tick >= AI_FIRST_ATTACK_TICK && sim.tick - this.lastWaveTick >= AI_WAVE_COOLDOWN_TICKS;
-    if (!this.attacking && idle.length >= this.waveSize && ready) {
+    // exército parado de crescer (recursos esgotados ao alcance): ataca com o que tem
+    if (army.length > this.armyPeak) {
+      this.armyPeak = army.length;
+      this.peakTick = sim.tick;
+    }
+    const stalled = sim.tick - this.peakTick >= AI_STALL_TICKS && idle.length >= AI_MIN_WAVE;
+    if (!this.attacking && (idle.length >= this.waveSize || stalled) && ready) {
       const objective = this.enemyObjective(sim);
       // sem guerra formal não há ofensiva: pede a declaração e espera
       if (objective && !sim.hostile(this.slot, objective.slot)) this.wantsWarWith = objective.slot;
@@ -222,6 +285,8 @@ export class TacticalAI {
         this.attacking = true;
         this.lastWaveTick = sim.tick;
         this.waveSize = Math.min(this.waveSize + AI_WAVE_STEP, AI_MAX_WAVE);
+        this.armyPeak = 0;
+        this.peakTick = sim.tick;
       }
     } else if (this.attacking && army.every((u) => u.order.kind === 'idle')) {
       this.attacking = false;
@@ -257,6 +322,23 @@ export class TacticalAI {
    * que limitam a coleta e, fora do preparo, a produção militar. Usa exatamente a mesma avaliação
    * (`upgradePlan`) e o mesmo comando que o jogador humano.
    */
+  /** Uma pesquisa militar por vez, na ordem; a antiaérea móvel sobe quando há ameaça aérea. */
+  private planResearch(sim: Simulation, mine: Building[], airThreat: boolean, take: (c: Cost) => boolean, cmds: Command[]): void {
+    const center = mine.find((b) => b.type === 'research_center' && b.progress >= 1 && b.hp > 0 && !b.research && b.workers > 0);
+    if (!center) return;
+    const done = sim.players[this.slot]!.militaryResearch ?? [];
+    const order: MilitaryResearchId[] = airThreat
+      ? ['mobile_air_defense', 'antitank_weapons', 'rocket_systems', 'special_operations', 'modern_armor']
+      : ['antitank_weapons', 'rocket_systems', 'mobile_air_defense', 'modern_armor', 'special_operations'];
+    for (const id of order) {
+      if (done.includes(id) || mine.some((b) => b.research?.id === id)) continue;
+      if (militaryResearchBlocker(id, done, center.level)) continue;
+      if (!take(MILITARY_RESEARCH[id].cost)) return;
+      cmds.push({ type: 'military_research', buildingId: center.id, researchId: id });
+      return;
+    }
+  }
+
   private planUpgrade(sim: Simulation, mine: Building[], budget: Stockpile, take: (c: Cost) => boolean, cmds: Command[]): void {
     if (sim.tick < AI_FIRST_UPGRADE_TICK || mine.some((b) => b.upgrade)) return;
     const hq = mine.find((b) => b.type === 'hq');
@@ -283,6 +365,8 @@ export class TacticalAI {
       if (BUILDINGS[b.type].gather) return b.status === 'ok' ? 1 : 9;
       if (b.type === 'warehouse' || b.type === 'silo' || b.type === 'oil_tank') return storageWanted(b.type) ? 2 : 9;
       if (b.type === 'barracks' || b.type === 'factory') return preparing ? 9 : 3;
+      // centro de pesquisa: sobe de nível quando a próxima pesquisa exige
+      if (b.type === 'research_center') return b.level < 3 ? 3 : 9;
       if (b.type === 'residential' || b.type === 'house') return pop.total >= pop.cap - 3 ? 4 : 9;
       return 6;
     };
