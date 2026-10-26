@@ -204,7 +204,7 @@ export type SimEvent =
   | { type: 'recruit_trained'; tick: number; owner: Slot; pos: Vec2 }
   | { type: 'production_halted'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; reason: BuildingStatus; pos: Vec2 }
   | { type: 'deposit_depleted'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; pos: Vec2 }
-  | { type: 'storage_lost'; tick: number; owner: Slot; resource: ResourceType; amount: number; reason: 'destroyed' | 'capacity' }
+  | { type: 'storage_lost'; tick: number; owner: Slot; resource: ResourceType; amount: number; reason: 'destroyed' | 'capacity' | 'attack' }
   | { type: 'shortage'; tick: number; owner: Slot; resource: 'food' | 'supplies' | 'oil' }
   | { type: 'upgrade_started'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; toLevel: number; spec: SpecId | null; usd: number; pos: Vec2 }
   | { type: 'upgrade_completed'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; level: number; spec: SpecId | null; pos: Vec2 }
@@ -217,4 +217,8 @@ export type SimEvent =
   | { type: 'contract_update'; tick: number; contractId: number; seller: number; buyer: number; status: string; text: string }
   | { type: 'shipment_delivered'; tick: number; shipmentId: number; contractId: number; seller: number; buyer: number; resource: string; quantity: number }
   | { type: 'shipment_lost'; tick: number; shipmentId: number; contractId: number; seller: number; buyer: number; resource: string; quantity: number; reason: string; pos: Vec2 }
+  | { type: 'air_mission'; tick: number; owner: Slot; missionId: number; kind: 'strike' | 'recon'; phase: 'launched' | 'result'; text: string; pos: Vec2 }
+  | { type: 'aircraft_lost'; tick: number; owner: Slot; aircraftType: string; pos: Vec2 }
+  | { type: 'air_strike'; tick: number; owner: Slot; victim: Slot; buildingType: BuildingType; damage: number; oilLost: number; destroyed: boolean; pos: Vec2 }
+  | { type: 'missile'; tick: number; owner: Slot; launchId: number; state: string; text: string; from: Vec2; target: Vec2; targetOwner: Slot; damage?: number; destroyed?: number; casualties?: number }
   | { type: 'modernize_cancelled'; tick: number; id: EntityId; owner: Slot; unitType: UnitType; mod: ModId; reason: 'player' | 'facility_lost'; pos: Vec2 };

@@ -1,4 +1,5 @@
 import { MODS } from '../../shared/sim/modernization.ts';
+import { AIRCRAFT, type AircraftType } from '../../shared/sim/air.ts';
 import { BUILDINGS, RESOURCE_LABELS, UNITS, type BuildingType, type UnitType } from '../../shared/sim/config.ts';
 import type { BuildingStatus } from '../../shared/sim/types.ts';
 
@@ -43,7 +44,7 @@ export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone
       return e.owner === mySlot ? { text: `${BUILDINGS[e.buildingType].label}: depósito esgotado`, tone: 'warn' } : null;
     case 'storage_lost':
       return e.owner === mySlot
-        ? { text: `Perda de ${e.amount} de ${RESOURCE_LABELS[e.resource].toLowerCase()} (${e.reason === 'destroyed' ? 'depósito destruído' : 'sem espaço de armazenamento'})`, tone: 'bad' }
+        ? { text: `Perda de ${e.amount} de ${RESOURCE_LABELS[e.resource].toLowerCase()} (${e.reason === 'destroyed' ? 'depósito destruído' : e.reason === 'attack' ? 'depósito atingido por ataque' : 'sem espaço de armazenamento'})`, tone: 'bad' }
         : null;
     case 'shortage':
       return e.owner === mySlot
@@ -103,6 +104,23 @@ export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone
             tone: 'warn',
           }
         : null;
+    case 'air_mission':
+      return e.owner === mySlot ? { text: e.phase === 'launched' ? e.text : `Missão aérea: ${e.text}`, tone: e.phase === 'launched' ? 'info' : 'good' } : null;
+    case 'aircraft_lost':
+      return e.owner === mySlot ? { text: `Aeronave perdida: ${AIRCRAFT[e.aircraftType as AircraftType]?.label ?? e.aircraftType}`, tone: 'bad' } : null;
+    case 'air_strike':
+      if (e.victim === mySlot)
+        return { text: `Ataque aéreo inimigo: ${BUILDINGS[e.buildingType].label} atingido (${e.damage} de dano${e.oilLost ? `, ${e.oilLost} de petróleo perdidos` : ''}${e.destroyed ? ', destruído' : ''})`, tone: 'bad' };
+      return null;
+    case 'missile':
+      if (e.owner === mySlot) return { text: e.text, tone: e.state === 'impact' ? 'good' : e.state === 'intercepted' || e.state === 'aborted' ? 'warn' : 'info' };
+      if (e.targetOwner === mySlot)
+        return e.state === 'flight'
+          ? { text: 'ALERTA: míssil inimigo lançado contra o nosso território!', tone: 'bad' }
+          : e.state === 'intercepted'
+            ? { text: 'Míssil inimigo interceptado pela nossa antiaérea', tone: 'good' }
+            : { text: 'Impacto de míssil inimigo no nosso território', tone: 'bad' };
+      return null;
     case 'player_defeated':
       return { text: e.slot === mySlot ? 'Nosso QG caiu.' : 'Forças inimigas derrotadas!', tone: e.slot === mySlot ? 'bad' : 'good' };
     default:

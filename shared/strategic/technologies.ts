@@ -20,7 +20,8 @@ export type TechId =
   | 'advanced_drilling'
   | 'digital_comms'
   | 'sensor_optics'
-  | 'efficient_propulsion';
+  | 'efficient_propulsion'
+  | 'ballistic_missiles';
 
 /** Categoria de investimento: em que área do orçamento de P&D a pesquisa compete. */
 export type TechCategory = 'military' | 'industry' | 'resources' | 'state';
@@ -189,7 +190,7 @@ export const TECHNOLOGIES: Record<TechId, TechDef> = {
     minDays: 100,
     prereqs: ['digital_comms'],
     effect: {},
-    unlocks: ['Modernização "Munição guiada" (todas as tropas): +15% de dano', 'Melhorias da torre a partir do nível 4'],
+    unlocks: ['Modernização "Munição guiada" (todas as tropas): +15% de dano', 'Melhorias da torre a partir do nível 4', 'Ataques aéreos a infraestrutura (caças) com maior precisão'],
   },
   sensor_optics: {
     id: 'sensor_optics',
@@ -212,6 +213,17 @@ export const TECHNOLOGIES: Record<TechId, TechDef> = {
     prereqs: ['automation', 'advanced_drilling'],
     effect: {},
     unlocks: ['Modernização "Motor eficiente" (veículos): +12% de velocidade e −30% de desgaste fora de linha de suprimento'],
+  },
+  ballistic_missiles: {
+    id: 'ballistic_missiles',
+    label: 'Mísseis balísticos',
+    category: 'military',
+    description: 'Propulsão de foguete, guiagem inercial e silos endurecidos.',
+    cost: 0.3,
+    minDays: 120,
+    prereqs: ['guided_munitions'],
+    effect: {},
+    unlocks: ['Silo de mísseis (até 2 mísseis por silo)', 'Lançamento com preparação, autorização e interceptação pela antiaérea'],
   },
 };
 

@@ -91,6 +91,11 @@ export const DIPLO = {
   aidDecay: 0.994,
   brokenTreatyPartner: -25,
   brokenTreatyReputation: -5,
+  /** Ataque a infraestrutura (Fase 7): memória com o país atingido e reputação com os demais. */
+  strikeVictimMemory: -4,
+  strikeReputation: -1,
+  missileVictimMemory: -10,
+  missileReputation: -4,
   tradeDays: 360,
   allianceDays: 540,
   sanctionsDays: 360,
@@ -282,6 +287,17 @@ export class Diplomacy {
       if (!this.active('sanctions', ally, actor, true)) this.sign('sanctions', ally, actor, day, DIPLO.sanctionsDays, [war.id]);
     }
     return war;
+  }
+
+  /**
+   * Consequência diplomática de um ataque aéreo ou de míssil: o país atingido guarda memória do
+   * ataque e os demais registram a perda de reputação de quem atacou (decai como as demais).
+   */
+  recordAttack(actor: NationId, victim: NationId, kind: 'air' | 'missile'): void {
+    if (actor === victim) return;
+    this.pair(actor, victim).memory += kind === 'missile' ? DIPLO.missileVictimMemory : DIPLO.strikeVictimMemory;
+    const rep = kind === 'missile' ? DIPLO.missileReputation : DIPLO.strikeReputation;
+    for (const n of this.all()) if (n.slot !== actor && n.slot !== victim) this.pair(actor, n.slot).memory += rep;
   }
 
   drainEvents(): DiplomaticEvent[] {

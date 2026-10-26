@@ -9,6 +9,7 @@ import { tractor } from './crops.ts';
 import { barracksDetail, factoryDetail, houseDetail, oilTankDetail, siloDetail, warehouseDetail } from './details.ts';
 import { buildMineModel, buildQuarryModel, buildSawmillModel } from './industry.ts';
 import { buildMarketModel, buildPortModel, buildRailStationModel } from './logistics.ts';
+import { buildAaBatteryModel, buildAirbaseModel, buildMissileSiloModel } from './military.ts';
 
 /**
  * Modelos de edifícios centrados na origem (piso em y = 0). Concreto, vidros azulados e detalhes
@@ -170,6 +171,9 @@ const BUILDERS: Record<BuildingType, () => Omit<BuildingModel, 'detail'>> = {
   market: buildMarketModel,
   port: buildPortModel,
   rail_station: buildRailStationModel,
+  airbase: buildAirbaseModel,
+  aa_battery: buildAaBatteryModel,
+  missile_silo: buildMissileSiloModel,
 };
 
 /** Fileira de janelas numa fachada (normal ±x ou ±z). */

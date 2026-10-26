@@ -175,6 +175,8 @@ export type NationalEvent =
   | { type: 'protest'; day: number; slot: Slot; approval: number; causes: Factor[] }
   | { type: 'threshold'; day: number; slot: Slot; indicator: 'debt' | 'inflation' | 'approval' | 'growth'; value: number; threshold: number; direction: 'up' | 'down' }
   | { type: 'budget_changed'; day: number; slot: Slot; deficitPctGdp: number }
+  /** Ataque aéreo ou de míssil registrado (Fase 7): custo, dano, petróleo perdido e alvo. */
+  | { type: 'military_strike'; day: number; slot: Slot; victim: Slot; kind: 'air' | 'missile'; target: string; damage: number; oilLost: number; destroyed: number; intercepted: boolean }
   | { type: 'diplomacy'; day: number; event: DiplomaticEvent };
 
 /** Simulação nacional de cada jogador, avançando um dia por vez. Determinística dada a seed. */
@@ -313,6 +315,7 @@ export class NationalSimulation {
     const knows = (id: NationId) => this.diplomacy.knows(viewer, id);
     return events.filter((e) => {
       if (e.type === 'protest') return knows(e.slot);
+      if (e.type === 'military_strike') return e.slot === viewer || e.victim === viewer || (knows(e.slot) && knows(e.victim));
       if (e.type !== 'diplomacy') return e.slot === viewer;
       const ev = e.event;
       switch (ev.type) {
@@ -438,9 +441,36 @@ export class NationalSimulation {
     return null;
   }
 
-  /** Contabiliza baixas e vitórias táticas para a opinião pública. */
+  /** Contabiliza baixas e vitórias táticas para a opinião pública e registra ataques estratégicos. */
   registerTacticalEvents(events: SimEvent[]): void {
     for (const e of events) {
+      if (e.type === 'aircraft_lost') {
+        const n = this.nation(e.owner);
+        if (n) n.casualties30d[0] = (n.casualties30d[0] ?? 0) + 1;
+        continue;
+      }
+      if (e.type === 'air_strike') {
+        this.diplomacy.recordAttack(e.owner, e.victim, 'air');
+        this.events.push({ type: 'military_strike', day: this.day, slot: e.owner, victim: e.victim, kind: 'air', target: e.buildingType, damage: e.damage, oilLost: e.oilLost, destroyed: e.destroyed ? 1 : 0, intercepted: false });
+        continue;
+      }
+      if (e.type === 'missile' && (e.state === 'impact' || e.state === 'intercepted')) {
+        // o lançamento custa reputação mesmo interceptado
+        this.diplomacy.recordAttack(e.owner, e.targetOwner, 'missile');
+        this.events.push({
+          type: 'military_strike',
+          day: this.day,
+          slot: e.owner,
+          victim: e.targetOwner,
+          kind: 'missile',
+          target: 'área',
+          damage: e.damage ?? 0,
+          oilLost: 0,
+          destroyed: e.destroyed ?? 0,
+          intercepted: e.state === 'intercepted',
+        });
+        continue;
+      }
       if (e.type !== 'destroyed') continue;
       const victim = this.nation(e.owner);
       if (victim && e.entity === 'unit') victim.casualties30d[0] = (victim.casualties30d[0] ?? 0) + 1;

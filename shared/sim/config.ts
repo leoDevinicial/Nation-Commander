@@ -165,7 +165,10 @@ export type BuildingType =
   | 'oil_tank'
   | 'market'
   | 'port'
-  | 'rail_station';
+  | 'rail_station'
+  | 'airbase'
+  | 'aa_battery'
+  | 'missile_silo';
 
 /** O que uma fila de produção pode produzir. */
 export type ProducibleType = UnitType | 'citizen' | 'recruit';
@@ -294,6 +297,8 @@ export interface BuildingDef {
   buildable: boolean;
   description: string;
   hotkey?: string;
+  /** Pesquisa nacional exigida para construir (Fase 7: silo de mísseis). */
+  requiresTech?: string;
 }
 
 /** Distância máxima (células, centro a centro) entre um poço e um tanque de petróleo válido. */
@@ -552,6 +557,50 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     upkeep: { supplies: 0.06 },
     buildable: true,
     description: 'Trens pela mesma rota terrestre dos caminhões: até 160 por viagem, mais rápidos e com frete menor.',
+  },
+  airbase: {
+    ...NONE,
+    label: 'Base Aérea',
+    cost: { wood: 100, stone: 150, iron: 120, supplies: 100 },
+    buildSeconds: 24,
+    maxHp: 900,
+    size: 3,
+    income: {},
+    sight: 10,
+    workers: 4,
+    upkeep: { supplies: 0.1, oil: 0.03 },
+    territoryRadius: 4,
+    buildable: true,
+    description:
+      'Pista, hangar (4 aeronaves), torre de controle e combustível. Produz caças, aviões de reconhecimento e cargueiros; cada aeronave exige um piloto (recruta), consome petróleo por missão e manutenção. Também serve de terminal para o comércio aéreo.',
+  },
+  aa_battery: {
+    ...NONE,
+    label: 'Bateria Antiaérea',
+    cost: { stone: 60, iron: 90, supplies: 40 },
+    buildSeconds: 14,
+    maxHp: 450,
+    size: 1,
+    income: {},
+    sight: 12,
+    upkeep: { supplies: 0.04 },
+    buildable: true,
+    description: 'Defesa contra aeronaves e mísseis num raio de 12: cada bateria dá 25% de chance de derrubar cada aeronave inimiga e 20% de interceptar um míssil (com teto). Não dispara contra tropas.',
+  },
+  missile_silo: {
+    ...NONE,
+    label: 'Silo de Mísseis',
+    cost: { stone: 160, iron: 200, supplies: 120 },
+    buildSeconds: 30,
+    maxHp: 700,
+    size: 1,
+    income: {},
+    sight: 4,
+    workers: 2,
+    upkeep: { supplies: 0.08 },
+    buildable: true,
+    requiresTech: 'ballistic_missiles',
+    description: 'Guarda até 2 mísseis balísticos (produção cara e lenta). Lançar exige pesquisa, guerra com o dono do alvo e uma sequência com confirmação: preparar → autorizar → lançar.',
   },
 };
 

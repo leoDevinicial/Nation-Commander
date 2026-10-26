@@ -43,6 +43,8 @@ import { placementError } from './placement.ts';
 import { Grid } from './pathfinding/Grid.ts';
 import { checkProduce } from './production.ts';
 import { TradeSystem, type TradeLink, type TradeSave } from './trade.ts';
+import { AirSystem, type AirSave } from './air.ts';
+import { TECHNOLOGIES, isTechId } from '../strategic/technologies.ts';
 import { MOD_CANCEL_REFUND, MODS, checkModernize, combineMods, pickRefitFacility, type FacilityPick, type ModId, type ModernizeContext } from './modernization.ts';
 import type {
   Building,
@@ -117,6 +119,8 @@ export interface SimulationSave {
   lastAlertTick: number[];
   /** Comércio (Fase 6): ofertas, contratos, embarques e mercado dos países da IA. */
   trade?: TradeSave;
+  /** Força aérea e mísseis (Fase 7). */
+  air?: AirSave;
 }
 
 /** JSON não representa ±Infinity: usados em alguns campos internos (ex.: distância inicial). */
@@ -151,6 +155,7 @@ export const SUPPLY_LINE_RADIUS = 12;
 const UNDER_ATTACK_ALERT_TICKS = TICK_RATE * 6;
 
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
+const techLabel = (id: string) => (isTechId(id) ? TECHNOLOGIES[id].label : id);
 
 /**
  * Simulação tática autoritativa. Não depende de rede, DOM nem Three.js: o servidor a executa e
@@ -182,6 +187,8 @@ export class Simulation {
   national: NationalLink | null = null;
   /** Comércio internacional e logística. */
   readonly trade: TradeSystem = new TradeSystem(this);
+  /** Força aérea, antiaérea e mísseis. */
+  readonly air: AirSystem = new AirSystem(this);
 
   /** Liga o comércio à diplomacia e ao tesouro nacionais. */
   setTradeLink(link: TradeLink | null): void {
@@ -269,6 +276,7 @@ export class Simulation {
       territoryVersion: this.territoryVersion,
       lastAlertTick: this.lastAlertTick,
       trade: this.trade.toSave(),
+      air: this.air.toSave(),
     };
     return JSON.parse(JSON.stringify(data, encodeNonFinite), decodeNonFinite) as SimulationSave;
   }
@@ -319,6 +327,7 @@ export class Simulation {
     sim.lastAlertTick = data.lastAlertTick;
     sim.visibilityTick = -1;
     sim.trade.load(data.trade);
+    sim.air.load(data.air);
     return sim;
   }
 
@@ -409,6 +418,8 @@ export class Simulation {
         else if (q.unitType === 'recruit') queuedRecruits++;
         else queuedMilitary++;
     }
+    // pilotos: cada aeronave (pronta, em missão ou em produção) ocupa um militar
+    for (const a of this.air.aircraft) if (a.owner === slot) military++;
     const citizens = p?.citizens ?? 0;
     const recruits = p?.recruits ?? 0;
     return {
@@ -640,6 +651,11 @@ export class Simulation {
       if (!grid) continue;
       markCircle(grid, w, h, e.pos.x / cs, e.pos.y / cs, this.sightOf(e) / cs);
     }
+    // reconhecimento aéreo: área revelada temporariamente
+    for (const r of this.air.reveals) {
+      const grid = this.visibility[r.owner];
+      if (grid) markCircle(grid, w, h, r.pos.x / cs, r.pos.y / cs, r.radius / cs);
+    }
     this.visibilityTick = this.tick;
   }
 
@@ -866,6 +882,21 @@ export class Simulation {
         return this.trade.withdraw(slot, cmd.offerId);
       case 'trade_cancel':
         return this.trade.cancel(slot, cmd.contractId);
+      case 'build_aircraft':
+        return this.air.build(slot, cmd.buildingId, cmd.aircraftType);
+      case 'air_mission':
+        return this.air.launchMission(slot, cmd.buildingId, cmd.aircraftIds, cmd.mission, {
+          ...(cmd.targetId !== undefined ? { buildingId: cmd.targetId } : {}),
+          ...(cmd.x !== undefined && cmd.y !== undefined ? { x: cmd.x, y: cmd.y } : {}),
+        });
+      case 'build_missile':
+        return this.air.buildMissile(slot, cmd.buildingId);
+      case 'missile_prepare':
+        return this.air.prepare(slot, cmd.buildingId, cmd.x, cmd.y);
+      case 'missile_authorize':
+        return this.air.authorize(slot, cmd.launchId);
+      case 'missile_abort':
+        return this.air.abort(slot, cmd.launchId);
       case 'cancel_modernize': {
         const units = this.ownUnits(slot, cmd.unitIds).filter((u) => u.refit);
         if (units.length === 0) return 'Nenhuma modernização em andamento';
@@ -1010,6 +1041,43 @@ export class Simulation {
     return false;
   }
 
+  // ---------------------------------------------------------------- força aérea e mísseis (Fase 7)
+
+  /** Dano vindo de fora do combate terrestre (ataque aéreo, míssil). Retorna true se destruiu. */
+  damageBuilding(b: Building, damage: number, attacker: Slot): boolean {
+    return this.applyDamage(b, damage, attacker);
+  }
+
+  damageUnit(u: Unit, damage: number, attacker: Slot): boolean {
+    return this.applyDamage(u, damage, attacker);
+  }
+
+  private applyDamage(target: Entity, damage: number, attacker: Slot): boolean {
+    if (target.hp <= 0 || damage <= 0) return false;
+    const dealt = Math.min(damage, target.hp);
+    target.hp -= damage;
+    this.players[attacker]!.stats.damageDealt += dealt;
+    if (this.tick - (this.lastAlertTick[target.owner] ?? -Infinity) >= UNDER_ATTACK_ALERT_TICKS) {
+      this.lastAlertTick[target.owner] = this.tick;
+      this.emit({ type: 'under_attack', tick: this.tick, id: target.id, owner: target.owner, pos: { ...target.pos } });
+    }
+    if (target.hp <= 0) {
+      this.markDestroyed(target, attacker);
+      return true;
+    }
+    return false;
+  }
+
+  /** Petróleo derramado de um tanque atingido: nunca mais do que havia nele. Retorna o perdido. */
+  loseTankOil(t: Building, amount: number): number {
+    const lost = Math.max(0, Math.min(t.stored, amount));
+    if (lost <= 0) return 0;
+    t.stored -= lost;
+    this.players[t.owner]!.resources.oil -= lost;
+    this.emit({ type: 'storage_lost', tick: this.tick, owner: t.owner, resource: 'oil', amount: Math.round(lost), reason: 'attack' });
+    return lost;
+  }
+
   /** Débito externo ao teatro (ex.: mobilização de uma declaração de guerra). Falha sem saldo. */
   spendResources(slot: Slot, cost: Cost): boolean {
     const p = this.players[slot];
@@ -1029,6 +1097,8 @@ export class Simulation {
   placementError(slot: Slot, type: BuildingType, cell: Cell): string | null {
     const player = this.players[slot];
     if (!player) return 'Jogador inválido';
+    const tech = BUILDINGS[type].requiresTech;
+    if (tech && !(this.national?.techs(slot) ?? []).includes(tech)) return `Exige a pesquisa ${techLabel(tech)}`;
     return placementError(
       {
         width: this.map.width,
@@ -1062,6 +1132,7 @@ export class Simulation {
     this.updateProduction();
     this.updateRefits();
     this.trade.step();
+    this.air.step();
     for (const u of this.units) this.updateUnit(u);
     this.updateAttrition();
     if (this.tick % TICK_RATE === 0) this.evacuateForeignTerritory();
@@ -1226,6 +1297,8 @@ export class Simulation {
       let charged = false;
       for (const r of ['supplies', 'oil'] as const) {
         for (const b of mine) p.upkeepAcc[r] += (this.fx(b).upkeep[r] ?? 0) * TICK_SECONDS;
+        // manutenção das aeronaves (Fase 7) entra na mesma conta de suprimentos
+        if (r === 'supplies') p.upkeepAcc[r] += this.air.upkeepPerSecond(p.slot) * TICK_SECONDS;
         const due = Math.floor(p.upkeepAcc[r]);
         if (due <= 0) continue;
         charged = true;

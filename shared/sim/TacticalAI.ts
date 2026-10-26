@@ -101,6 +101,8 @@ export class TacticalAI {
     const wellsWithoutTank = mine.some(
       (w) => w.type === 'oil_well' && !mine.some((t) => t.type === 'oil_tank' && dist(t.pos, w.pos) / sim.map.cellSize <= OIL_TANK_RANGE),
     );
+    // ameaça aérea (Fase 7): base aérea ou silo inimigo conhecido pede defesa antiaérea perto do QG
+    const airThreat = sim.buildings.some((b) => b.owner !== this.slot && (b.type === 'airbase' || b.type === 'missile_silo') && sim.hostile(this.slot, b.owner) && sim.air.isKnown(this.slot, b.id));
     const plan: [BuildingType, boolean][] = [
       ['house', pop.total >= pop.cap - 2 && pop.cap < POP_ABSOLUTE_CAP && !housingInProgress && count('house') + count('residential') < 14],
       ['oil_tank', wellsWithoutTank || (mine.some((b) => b.type === 'oil_well' && b.status === 'storage_full') && count('oil_tank') < 5)],
@@ -120,6 +122,7 @@ export class TacticalAI {
       ['sawmill', count('sawmill') < 3 && done('factory')],
       ['farm', count('farm') < 3 && done('factory')],
       ['tower', count('tower') < 1 && done('factory')],
+      ['aa_battery', airThreat && count('aa_battery') < 3 && done('factory')],
       ['residential', pop.cap >= 60 && pop.total >= pop.cap - 4 && !housingInProgress && count('residential') < 4],
       ['factory', count('factory') < 2 && budget.supplies > 350 && budget.oil > 150],
       ['barracks', count('barracks') < 2 && budget.food > 250],

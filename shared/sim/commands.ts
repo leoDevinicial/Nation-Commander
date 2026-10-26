@@ -2,6 +2,7 @@ import { BUILDINGS, UNITS, type BuildingType, type ProducibleType } from './conf
 import type { EntityId } from './types.ts';
 import { isSpecId, type SpecId } from './upgrades.ts';
 import { isModId, type ModId } from './modernization.ts';
+import { isAircraftType, type AircraftType, type MissionKind } from './air.ts';
 import { TRADE_RESOURCES, TRANSPORT_MODES, type TradeResource, type TransportMode } from './trade.ts';
 
 export type Command =
@@ -24,7 +25,14 @@ export type Command =
   | { type: 'trade_offer'; partner: number; side: 'buy' | 'sell'; resource: TradeResource; quantity: number; price: number; mode: TransportMode; days: number; counterOf?: number }
   | { type: 'trade_respond'; offerId: number; accept: boolean }
   | { type: 'trade_withdraw'; offerId: number }
-  | { type: 'trade_cancel'; contractId: number };
+  | { type: 'trade_cancel'; contractId: number }
+  /** Força aérea e mísseis (Fase 7). */
+  | { type: 'build_aircraft'; buildingId: EntityId; aircraftType: AircraftType }
+  | { type: 'air_mission'; buildingId: EntityId; aircraftIds: number[]; mission: MissionKind; targetId?: EntityId; x?: number; y?: number }
+  | { type: 'build_missile'; buildingId: EntityId }
+  | { type: 'missile_prepare'; buildingId: EntityId; x: number; y: number }
+  | { type: 'missile_authorize'; launchId: number }
+  | { type: 'missile_abort'; launchId: number };
 
 const MAX_UNITS_PER_COMMAND = 60;
 
@@ -104,6 +112,33 @@ export function parseCommand(raw: unknown): Command | null {
     case 'trade_cancel':
       if (!isId(raw.contractId)) return null;
       return { type: 'trade_cancel', contractId: raw.contractId };
+    case 'build_aircraft':
+      if (!isId(raw.buildingId) || !isAircraftType(raw.aircraftType)) return null;
+      return { type: 'build_aircraft', buildingId: raw.buildingId, aircraftType: raw.aircraftType };
+    case 'air_mission': {
+      if (!isId(raw.buildingId) || !isIdList(raw.aircraftIds) || (raw.mission !== 'strike' && raw.mission !== 'recon')) return null;
+      if (raw.targetId !== undefined && !isId(raw.targetId)) return null;
+      const hasPoint = raw.x !== undefined || raw.y !== undefined;
+      if (hasPoint && (!isFiniteNum(raw.x) || !isFiniteNum(raw.y))) return null;
+      return {
+        type: 'air_mission',
+        buildingId: raw.buildingId,
+        aircraftIds: [...new Set(raw.aircraftIds)],
+        mission: raw.mission,
+        ...(raw.targetId !== undefined ? { targetId: raw.targetId as number } : {}),
+        ...(hasPoint ? { x: raw.x as number, y: raw.y as number } : {}),
+      };
+    }
+    case 'build_missile':
+      if (!isId(raw.buildingId)) return null;
+      return { type: 'build_missile', buildingId: raw.buildingId };
+    case 'missile_prepare':
+      if (!isId(raw.buildingId) || !isFiniteNum(raw.x) || !isFiniteNum(raw.y)) return null;
+      return { type: 'missile_prepare', buildingId: raw.buildingId, x: raw.x, y: raw.y };
+    case 'missile_authorize':
+    case 'missile_abort':
+      if (!isId(raw.launchId)) return null;
+      return { type: raw.type, launchId: raw.launchId };
     default:
       return null;
   }

@@ -85,7 +85,7 @@ export const TRANSPORT: Record<TransportMode, TransportDef> = {
     offmapSeconds: 6,
     costPerUnit: 9_000,
     facility: 'hq',
-    needs: 'Terminal Comercial e QG nível 4 (heliponto de carga)',
+    needs: 'Terminal Comercial e Base Aérea ou QG nível 4 (heliponto de carga)',
     risk: 'Rápido e caro; em guerra o frete sobe 50% (espaço aéreo contestado).',
   },
 };
@@ -335,12 +335,19 @@ export class TradeSystem {
     const def = TRANSPORT[mode];
     if (this.facilities(slot, 'market').length === 0) return 'Construa um Terminal Comercial para negociar com outros países';
     if (mode === 'air') {
-      const hq = this.sim.hqOf(slot);
-      if (!hq || hq.level < AIR_HQ_LEVEL) return `Modal aéreo: melhore o Centro de Comando até o nível ${AIR_HQ_LEVEL} (heliponto de carga)`;
+      if (!this.airTerminals(slot).length) return `Modal aéreo: construa uma Base Aérea ou melhore o Centro de Comando até o nível ${AIR_HQ_LEVEL} (heliponto de carga)`;
       return null;
     }
     if (this.facilities(slot, def.facility).length === 0) return `Modal ${def.label.toLowerCase()}: construa ${def.needs === 'Porto' ? 'um Porto (na margem da água)' : `uma ${def.needs}`}`;
     return null;
+  }
+
+  /** Terminais aéreos: bases aéreas e o heliponto do QG (nível 4+). */
+  private airTerminals(slot: Slot): Building[] {
+    const list = this.facilities(slot, 'airbase');
+    const hq = this.sim.hqOf(slot);
+    if (hq && hq.progress >= 1 && hq.level >= AIR_HQ_LEVEL) list.push(hq);
+    return list;
   }
 
   /** Diplomacia permite negociar? */
@@ -361,8 +368,9 @@ export class TradeSystem {
   }
 
   convoyLimit(slot: Slot, mode: TransportMode): number {
-    const n = mode === 'air' ? this.facilities(slot, 'market').length : this.facilities(slot, TRANSPORT[mode].facility).length;
-    return n * TRADE.convoysPerFacility;
+    // aéreo: terminais comerciais × 2, mais um embarque por cargueiro pronto (Fase 7)
+    if (mode === 'air') return this.facilities(slot, 'market').length * TRADE.convoysPerFacility + this.sim.air.transports(slot);
+    return this.facilities(slot, TRANSPORT[mode].facility).length * TRADE.convoysPerFacility;
   }
 
   /** Estoque utilizável para venda: oleo só dos tanques; demais recursos com o depósito certo. */
@@ -603,8 +611,7 @@ export class TradeSystem {
 
   /** Instalação de embarque do jogador para o modal (a mais próxima do depósito). */
   private terminal(slot: Slot, mode: TransportMode, near?: Vec2): Building | null {
-    const type: BuildingType = mode === 'air' ? 'hq' : TRANSPORT[mode].facility;
-    const list = this.facilities(slot, type);
+    const list = mode === 'air' ? this.airTerminals(slot) : this.facilities(slot, TRANSPORT[mode].facility);
     if (near) list.sort((a, b) => dist(a.pos, near) - dist(b.pos, near) || a.id - b.id);
     return list[0] ?? null;
   }
@@ -688,9 +695,9 @@ export class TradeSystem {
     const depot = sellerP && c.depotId !== null ? (this.sim.entities.get(c.depotId) as Building | undefined) : undefined;
     const from = sellerP ? this.terminal(c.seller, c.mode, depot?.pos) : null;
     const to = buyerP ? this.terminal(c.buyer, c.mode) : null;
-    if (sellerP && !from) return `Sem ${c.mode === 'air' ? 'heliponto (QG)' : BUILDINGS[TRANSPORT[c.mode].facility].label} para embarcar`;
-    if (buyerP && !to) return `${this.name(c.buyer)} sem ${c.mode === 'air' ? 'heliponto (QG)' : BUILDINGS[TRANSPORT[c.mode].facility].label} para receber`;
-    if (c.mode === 'air' && sellerP && (this.sim.hqOf(c.seller)?.level ?? 0) < AIR_HQ_LEVEL) return 'Heliponto de carga indisponível (QG abaixo do nível 4)';
+    const term = c.mode === 'air' ? 'base aérea ou heliponto (QG nível 4)' : BUILDINGS[TRANSPORT[c.mode].facility].label;
+    if (sellerP && !from) return `Sem ${term} para embarcar`;
+    if (buyerP && !to) return `${this.name(c.buyer)} sem ${term} para receber`;
     const load = depot && from ? dist(depot.pos, from.pos) : 0;
     const shipper = sellerP ? c.seller : c.buyer;
     if (sellerP && buyerP) {

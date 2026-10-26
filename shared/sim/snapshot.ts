@@ -1,9 +1,10 @@
-import { BUILDINGS, RESOURCE_TYPES, type BuildingType, type DepositSize, type ProducibleType, type Stockpile, type UnitType } from './config.ts';
+import { BUILDINGS, RESOURCE_TYPES, TICK_RATE, type BuildingType, type DepositSize, type ProducibleType, type Stockpile, type UnitType } from './config.ts';
 import type { Population, Simulation } from './Simulation.ts';
 import { encodeTerritory } from './territory.ts';
 import type { BuildingStatus, EntityId, SimEvent, Slot, UnitActivity, Vec2 } from './types.ts';
 import type { SpecId } from './upgrades.ts';
 import type { ModId } from './modernization.ts';
+import { AIRCRAFT, MISSILE, type AircraftState, type AircraftType, type LaunchState, type MissionKind, type MissionResult, type MissionState } from './air.ts';
 import { TRADE_RESOURCES, TRANSPORT_MODES, type ShipmentState, type TradeContract, type TradeOffer, type TradeResource, type TransportMode } from './trade.ts';
 
 export interface UnitSnapshot {
@@ -103,9 +104,27 @@ export interface TradeView {
   free: Record<TradeResource, number>;
 }
 
+/** Força aérea e mísseis do ponto de vista de um jogador (Fase 7). */
+export interface AirView {
+  /** Aeronaves próprias. `progress`: produção ou manutenção (0..1). */
+  aircraft: { id: number; type: AircraftType; baseId: EntityId; state: AircraftState; progress: number }[];
+  /** Voos no mapa: os próprios e os inimigos visíveis. */
+  flights: { id: number; owner: Slot; kind: MissionKind; state: MissionState; x: number; y: number; heading: number; count: number }[];
+  /** Missões próprias recentes, com o resultado registrado. */
+  missions: { id: number; kind: MissionKind; state: MissionState; baseId: EntityId; targetType: string | null; fuel: number; count: number; result: MissionResult | null }[];
+  silos: { id: EntityId; missiles: number; building: number }[];
+  /** Lançamentos próprios, e os inimigos em voo que miram este jogador ou estão à vista. */
+  launches: { id: number; owner: Slot; siloId: EntityId; state: LaunchState; progress: number; x: number; y: number; tx: number; ty: number; targetOwner: Slot }[];
+  /** Edifícios inimigos já descobertos (alvos válidos de ataque aéreo). */
+  known: EntityId[];
+  /** Cargueiros prontos (transporte aéreo comercial). */
+  transports: number;
+}
+
 export interface Snapshot {
   tick: number;
   trade?: TradeView;
+  air?: AirView;
   units: UnitSnapshot[];
   buildings: BuildingSnapshot[];
   players: PlayerSnapshot[];
@@ -217,7 +236,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
       };
     }),
     events: viewer ? events.filter((ev) => eventVisible(sim, ev, viewer.slot)) : events,
-    ...(viewer ? { trade: tradeView(sim, viewer.slot) } : {}),
+    ...(viewer ? { trade: tradeView(sim, viewer.slot), air: airView(sim, viewer.slot) } : {}),
     territoryVersion: sim.territoryVersion,
     // fronteiras são conhecidas por todos (como no mapa político de Rise of Nations)
     ...(includeTerritory ? { territory: encodeTerritory(sim.territory) } : {}),
@@ -292,6 +311,65 @@ export function tradeView(sim: Simulation, slot: Slot): TradeView {
   };
 }
 
+export function airView(sim: Simulation, slot: Slot): AirView {
+  const air = sim.air;
+  const flights: AirView['flights'] = [];
+  for (const m of air.missions) {
+    if (m.state === 'done' || !m.aircraft.length) continue;
+    const p = air.missionPos(m);
+    if (m.owner !== slot && !sim.isVisibleTo(slot, p)) continue;
+    const dir = m.state === 'outbound' ? 1 : -1;
+    flights.push({ id: m.id, owner: m.owner, kind: m.kind, state: m.state, x: r2(p.x), y: r2(p.y), heading: r2(Math.atan2((m.target.y - m.from.y) * dir, (m.target.x - m.from.x) * dir)), count: m.aircraft.length });
+  }
+  const live = (st: LaunchState) => st === 'preparing' || st === 'armed' || st === 'launching' || st === 'flight';
+  const launches: AirView['launches'] = [];
+  for (const l of air.launches) {
+    const own = l.owner === slot;
+    const p = air.launchPos(l);
+    if (!own) {
+      // o alvo recebe o alerta assim que o míssil sai; terceiros só o veem passar
+      if (l.state !== 'flight' && l.state !== 'impact' && l.state !== 'intercepted') continue;
+      if (l.targetOwner !== slot && !sim.isVisibleTo(slot, p)) continue;
+    }
+    if (!live(l.state) && sim.tick - l.startTick > TICK_RATE * 60) continue;
+    const total = l.state === 'preparing' ? MISSILE.prepareSeconds * TICK_RATE : l.state === 'launching' ? MISSILE.launchSeconds * TICK_RATE : l.flightTicks;
+    launches.push({
+      id: l.id,
+      owner: l.owner,
+      siloId: l.siloId,
+      state: l.state,
+      progress: r2(l.state === 'preparing' || l.state === 'launching' || l.state === 'flight' ? 1 - l.timer / Math.max(1, total) : 1),
+      x: r2(p.x),
+      y: r2(p.y),
+      tx: r2(l.target.x),
+      ty: r2(l.target.y),
+      targetOwner: l.targetOwner,
+    });
+  }
+  return {
+    aircraft: air.aircraft
+      .filter((a) => a.owner === slot)
+      .map((a) => {
+        const total = a.state === 'building' ? AIRCRAFT[a.type].buildSeconds * TICK_RATE : AIRCRAFT[a.type].maintenanceSeconds * TICK_RATE;
+        return { id: a.id, type: a.type, baseId: a.baseId, state: a.state, progress: a.state === 'building' || a.state === 'maintenance' ? r2(1 - a.timer / Math.max(1, total)) : 1 };
+      }),
+    flights,
+    missions: air.missions
+      .filter((m) => m.owner === slot)
+      .slice(-12)
+      .map((m) => ({ id: m.id, kind: m.kind, state: m.state, baseId: m.baseId, targetType: m.targetType, fuel: m.fuel, count: m.aircraft.length, result: m.result })),
+    silos: sim.buildings
+      .filter((b) => b.owner === slot && b.type === 'missile_silo')
+      .map((b) => {
+        const st = air.silos[b.id];
+        return { id: b.id, missiles: st?.missiles ?? 0, building: st && st.building > 0 ? r2(1 - st.building / (MISSILE.buildSeconds * TICK_RATE)) : 0 };
+      }),
+    launches,
+    known: sim.buildings.filter((b) => b.owner !== slot && air.isKnown(slot, b.id)).map((b) => b.id),
+    transports: air.transports(slot),
+  };
+}
+
 function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
   switch (e.type) {
     case 'trade_offer':
@@ -326,6 +404,15 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
     case 'shortage':
     case 'attrition':
       return e.owner === slot;
+    case 'air_mission':
+      return e.owner === slot;
+    case 'aircraft_lost':
+      return e.owner === slot || sim.isVisibleTo(slot, e.pos);
+    case 'air_strike':
+      return e.owner === slot || e.victim === slot || sim.isVisibleTo(slot, e.pos);
+    case 'missile':
+      // o dono acompanha cada etapa; o país-alvo é alertado no lançamento e no impacto
+      return e.owner === slot || (e.targetOwner === slot && (e.state === 'flight' || e.state === 'impact' || e.state === 'intercepted')) || ((e.state === 'impact' || e.state === 'intercepted') && sim.isVisibleTo(slot, e.target));
     case 'player_defeated':
       return true;
   }

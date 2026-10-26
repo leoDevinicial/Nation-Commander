@@ -48,6 +48,13 @@ export function describeNationalEvent(e: NationalEvent, mySlot: number, nameOf: 
       const unit = e.indicator === 'debt' ? '% do PIB' : '%';
       return { text: `${label} ${verb} ${e.threshold}${unit} (agora ${formatPct(e.value)})`, tone: bad ? 'bad' : 'good' };
     }
+    case 'military_strike': {
+      const attacker = mine ? 'Nossas forças' : nameOf(e.slot);
+      const victim = e.victim === mySlot ? 'nosso país' : nameOf(e.victim);
+      const what = e.kind === 'missile' ? 'míssil' : 'ataque aéreo';
+      const result = e.intercepted ? 'interceptado' : `${e.damage} de dano${e.destroyed ? `, ${e.destroyed} estrutura(s) destruída(s)` : ''}${e.oilLost ? `, ${e.oilLost} de petróleo perdidos` : ''}`;
+      return { text: `${attacker}: ${what} contra ${victim} (${result}) — repercussão diplomática negativa`, tone: mine ? 'warn' : e.victim === mySlot ? 'bad' : 'info' };
+    }
     case 'budget_changed':
       return mine ? { text: `Novo orçamento em vigor: saldo de ${formatPct(-e.deficitPctGdp)} do PIB`, tone: 'info' } : null;
   }
