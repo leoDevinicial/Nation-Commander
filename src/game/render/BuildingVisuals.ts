@@ -3,7 +3,8 @@ import { BUILDINGS, type BuildingType } from '../../../shared/sim/config.ts';
 import { HealthBar, selectionRing } from './HealthBar.ts';
 import { accentMaterial, bodyMaterial, glassMaterial, withFog } from './materials.ts';
 import { smokeTexture, volumetricSmokeTexture } from './textures.ts';
-import { buildingModel } from './models/buildingModels.ts';
+import { buildingModel, type BuildingModel } from './models/buildingModels.ts';
+import type { SpecId } from '../../../shared/sim/upgrades.ts';
 import { C, PartBuilder, type ModelLayers } from './models/kit.ts';
 import { box, cyl, mat, mesh, sharedMaterial } from './palette.ts';
 
@@ -33,7 +34,15 @@ export interface BuildingVisualOptions {
   effects?: boolean;
   /** Ultra: fumaça volumétrica. */
   ultra?: boolean;
+  /** Nível e especialização iniciais (Fase 4). */
+  level?: number;
+  spec?: SpecId | null;
+  /** Distância da câmera a partir da qual as peças pequenas dos módulos somem (LOD). */
+  lodDistance?: number;
 }
+
+/** Distância padrão do LOD dos módulos de melhoria. */
+const DEFAULT_LOD = 80;
 
 /** Fumaça contínua de chaminé: poucos sprites reciclados, subindo, crescendo e sumindo. */
 class Smoke {
@@ -99,7 +108,12 @@ class Smoke {
 export class BuildingVisual {
   readonly group = new THREE.Group();
   private readonly model = new THREE.Group();
+  /** Corpo do modelo no nível atual (base + módulos de melhoria). */
+  private readonly parts = new THREE.Group();
+  /** Peças pequenas dos módulos (somem em zoom distante). */
+  private readonly detail = new THREE.Group();
   private readonly scaffold: THREE.Group;
+  private crane: THREE.Group | null = null;
   private readonly ring: THREE.Mesh;
   readonly hp: HealthBar;
   private readonly rally: THREE.Group;
@@ -107,7 +121,13 @@ export class BuildingVisual {
   private movingKind: 'spin' | 'rock' | 'saw' | null = null;
   private fields: THREE.Mesh | null = null;
   private smoke: Smoke | null = null;
+  private smokeKey = '';
   private t = Math.random() * 10;
+  private level = 1;
+  private spec: SpecId | null = null;
+  private height = 1;
+  private readonly size: number;
+  private readonly lod: number;
   remembered = false;
 
   constructor(
@@ -115,13 +135,16 @@ export class BuildingVisual {
     readonly type: BuildingType,
     readonly owner: number,
     friendly: boolean,
-    opts: BuildingVisualOptions,
+    private readonly opts: BuildingVisualOptions,
   ) {
-    const size = BUILDINGS[type].size * opts.cellSize;
+    this.size = BUILDINGS[type].size * opts.cellSize;
+    this.lod = opts.lodDistance ?? DEFAULT_LOD;
     this.group.position.set(opts.center.x, 0, opts.center.y);
     this.group.add(this.model);
-    const def = buildingModel(type);
-    for (const m of layerMeshes(def.base, owner)) this.model.add(m);
+    this.model.add(this.parts, this.detail);
+    this.level = opts.level ?? 1;
+    this.spec = opts.spec ?? null;
+    const def = buildingModel(type, this.level, this.spec);
     if (def.moving) {
       this.moving = new THREE.Group();
       this.moving.position.set(...def.moving.pivot);
@@ -129,20 +152,52 @@ export class BuildingVisual {
       this.model.add(this.moving);
       this.movingKind = def.moving.kind;
     }
-    if (def.smoke && opts.effects) {
-      this.smoke = new Smoke(def.smoke, opts.ultra === true);
-      this.model.add(this.smoke.group);
-    }
     if (opts.claims?.length) this.fields = buildClaimMarkers(type, opts, this.group.position);
     if (this.fields) this.group.add(this.fields);
-    this.scaffold = buildScaffold(size, def.height);
+    this.scaffold = buildScaffold(this.size, def.height);
     this.group.add(this.scaffold);
-    this.ring = selectionRing(size * 0.72, friendly ? '#8fe0a4' : '#ff8a7a');
+    this.ring = selectionRing(this.size * 0.72, friendly ? '#8fe0a4' : '#ff8a7a');
     this.group.add(this.ring);
-    this.hp = new HealthBar(Math.min(size * 0.6, 2.6), def.height + 0.6);
+    this.hp = new HealthBar(Math.min(this.size * 0.6, 2.6), def.height + 0.6);
     this.group.add(this.hp.group);
+    this.applyModel(def);
     this.rally = buildRallyFlag(owner);
     this.group.userData.entityId = id;
+  }
+
+  /** Troca o modelo quando o nível ou a especialização mudam (o mesmo valor da simulação). */
+  setVariant(level: number, spec: SpecId | null): void {
+    if (level === this.level && spec === this.spec) return;
+    this.level = level;
+    this.spec = spec;
+    this.applyModel(buildingModel(this.type, level, spec));
+  }
+
+  private applyModel(def: BuildingModel): void {
+    // as geometrias são compartilhadas (cache por nível/especialização): só os meshes são trocados
+    this.parts.clear();
+    this.detail.clear();
+    for (const m of layerMeshes(def.base, this.owner)) this.parts.add(m);
+    if (def.detail)
+      for (const m of layerMeshes(def.detail, this.owner)) {
+        m.castShadow = false;
+        this.detail.add(m);
+      }
+    this.height = def.height;
+    this.hp.group.position.y = def.height + 0.6;
+    const key = JSON.stringify(def.smoke ?? []);
+    if (key !== this.smokeKey) {
+      this.smokeKey = key;
+      if (this.smoke) {
+        this.smoke.group.removeFromParent();
+        this.smoke.dispose();
+        this.smoke = null;
+      }
+      if (def.smoke && this.opts.effects) {
+        this.smoke = new Smoke(def.smoke, this.opts.ultra === true);
+        this.model.add(this.smoke.group);
+      }
+    }
   }
 
   /** O marcador de reunião é filho da cena, não do edifício. */
@@ -154,11 +209,31 @@ export class BuildingVisual {
     this.ring.visible = v;
   }
 
-  update(dt: number, progress: number, hpFraction: number, showHp: boolean, camera: THREE.Camera, rally: THREE.Vector2 | null, showRally: boolean): void {
+  update(
+    dt: number,
+    progress: number,
+    hpFraction: number,
+    showHp: boolean,
+    camera: THREE.Camera,
+    rally: THREE.Vector2 | null,
+    showRally: boolean,
+    upgrading = false,
+  ): void {
     this.t += dt;
     const done = progress >= 1;
-    this.scaffold.visible = !done;
+    // andaimes na construção e nas obras de melhoria; guindaste só nas melhorias
+    this.scaffold.visible = !done || upgrading;
+    if (upgrading && !this.crane) {
+      this.crane = buildCrane(this.size, this.height);
+      this.group.add(this.crane);
+    }
+    if (this.crane) {
+      this.crane.visible = upgrading && !this.remembered;
+      if (this.crane.visible) (this.crane.userData.jib as THREE.Object3D).rotation.y += dt * 0.35;
+    }
     this.model.scale.y = done ? 1 : 0.12 + progress * 0.88;
+    // LOD: peças pequenas só de perto
+    this.detail.visible = camera.position.distanceTo(this.group.position) < this.lod;
     if (this.fields) this.fields.visible = done;
     if (this.smoke) {
       this.smoke.group.visible = done && !this.remembered;
@@ -180,9 +255,29 @@ export class BuildingVisual {
     this.hp.dispose();
     this.smoke?.dispose();
     this.fields?.geometry.dispose();
+    if (this.crane) this.crane.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
     this.rally.removeFromParent();
     this.group.removeFromParent();
   }
+}
+
+/** Guindaste de obra (torre treliçada com lança giratória) para as melhorias. */
+function buildCrane(size: number, height: number): THREE.Group {
+  const g = new THREE.Group();
+  const material = sharedMaterial('crane', () => withFog(new THREE.MeshStandardMaterial({ color: '#d9a640', roughness: 0.6, metalness: 0.35 })));
+  const h = Math.max(2.6, height + 1.2);
+  const x = size * 0.38;
+  const z = -size * 0.38;
+  g.add(mesh(box(0.14, h, 0.14), material, x, h / 2, z));
+  for (let y = 0.5; y < h - 0.3; y += 0.5) g.add(mesh(box(0.2, 0.03, 0.03), material, x, y, z));
+  const jib = new THREE.Group();
+  jib.position.set(x, h, z);
+  jib.add(mesh(box(size * 0.95, 0.08, 0.08), material, -size * 0.32, 0, 0));
+  jib.add(mesh(box(0.35, 0.18, 0.18), mat.metal(), size * 0.18, -0.05, 0));
+  jib.add(mesh(cyl(0.01, 0.01, h * 0.55, 4), mat.metal(), -size * 0.6, -h * 0.27, 0));
+  g.add(jib);
+  g.userData.jib = jib;
+  return g;
 }
 
 /** Marcas nas células exploradas: lavouras (fazenda), tocos (serraria), cortes (pedreira). */

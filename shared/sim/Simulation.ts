@@ -27,6 +27,16 @@ import {
   type UnitType,
 } from './config.ts';
 import { chooseClaims, claimedBy, gatherRate, sitesByDeposit } from './gathering.ts';
+import {
+  UPGRADE_CANCEL_REFUND,
+  UPGRADE_WORK_EFFICIENCY,
+  buildingEffects,
+  planUpgrade,
+  scaledCost,
+  type BuildingEffects,
+  type UpgradePlan,
+  type UpgradeWorld,
+} from './upgrades.ts';
 import { findDeposits, type DepositIndex } from './deposits.ts';
 import { computeTerritory, NO_OWNER, type TerritorySource } from './territory.ts';
 import type { Command } from './commands.ts';
@@ -70,6 +80,48 @@ export const NEUTRAL_MODIFIERS: TacticalModifiers = {
   externalIncome: 0,
   territoryMul: 1,
 };
+
+/**
+ * Ligação com a camada nacional, usada pelas melhorias de construções (Fase 4): pesquisas
+ * concluídas, condições nacionais e a verba de obras do orçamento. Sem ligação (testes e
+ * simulações isoladas) não há cobrança em dinheiro e os requisitos nacionais não são atendidos.
+ */
+export interface NationalLink {
+  techs(slot: Slot): readonly string[];
+  infrastructureIndex(slot: Slot): number;
+  stability(slot: Slot): number;
+  /** Verba de obras disponível (US$). */
+  worksFundUsd(slot: Slot): number;
+  /** Debita a verba; false se não houver saldo (nada é cobrado). */
+  chargeWorks(slot: Slot, usd: number, description: string): boolean;
+  refundWorks(slot: Slot, usd: number, description: string): void;
+}
+
+/**
+ * Estado completo da simulação tática em formato JSON (base do salvar/carregar). Inclui níveis,
+ * especializações e obras de melhoria em andamento, estoques, depósitos, território e guerras.
+ */
+export interface SimulationSave {
+  version: 1;
+  map: MapData;
+  tick: number;
+  nextId: number;
+  players: PlayerState[];
+  entities: Entity[];
+  winner: Slot | null;
+  ended: boolean;
+  wars: string[];
+  alliances: string[];
+  /** Quantidade restante de cada depósito, na ordem determinística de `findDeposits`. */
+  depositsRemaining: number[];
+  territory: number[];
+  territoryVersion: number;
+  lastAlertTick: number[];
+}
+
+/** JSON não representa ±Infinity: usados em alguns campos internos (ex.: distância inicial). */
+const encodeNonFinite = (_k: string, v: unknown) => (v === Infinity ? '+Inf' : v === -Infinity ? '-Inf' : v);
+const decodeNonFinite = (_k: string, v: unknown) => (v === '+Inf' ? Infinity : v === '-Inf' ? -Infinity : v);
 
 /** Resumo populacional de um jogador. */
 export interface Population {
@@ -126,6 +178,8 @@ export class Simulation {
   territory: Int8Array;
   territoryVersion = 0;
   private territoryDirty = true;
+  /** Camada nacional (pesquisas, condições e verba de obras), se houver. */
+  national: NationalLink | null = null;
 
   constructor(init: SimulationInit) {
     this.map = init.map;
@@ -143,7 +197,8 @@ export class Simulation {
         citizens: STARTING_CITIZENS,
         recruits: STARTING_RECRUITS,
         hungry: false,
-        upkeepAcc: { food: 0, supplies: 0 },
+        upkeepAcc: { food: 0, supplies: 0, oil: 0 },
+        unpaidUpkeep: { supplies: false, oil: false },
         incomeRemainder: emptyStockpile(),
         defeated: false,
         modifiers: { ...NEUTRAL_MODIFIERS },
@@ -185,6 +240,72 @@ export class Simulation {
         if (!this.grid.inBounds(x, y) || !TERRAIN[this.grid.terrainAt(x, y)].buildable || this.grid.occupant(x, y) !== 0) return false;
       }
     return true;
+  }
+
+  // ---------------------------------------------------------------- salvar/carregar
+
+  /** Cópia serializável (JSON) de todo o estado — não compartilha referências com a simulação. */
+  toSave(): SimulationSave {
+    const data: SimulationSave = {
+      version: 1,
+      map: this.map,
+      tick: this.tick,
+      nextId: this.nextId,
+      players: this.players,
+      entities: [...this.entities.values()],
+      winner: this.winner,
+      ended: this.ended,
+      wars: [...this.wars],
+      alliances: [...this.alliances],
+      depositsRemaining: this.deposits.deposits.map((d) => d.remaining),
+      territory: [...this.territory],
+      territoryVersion: this.territoryVersion,
+      lastAlertTick: this.lastAlertTick,
+    };
+    return JSON.parse(JSON.stringify(data, encodeNonFinite), decodeNonFinite) as SimulationSave;
+  }
+
+  /** Texto JSON do estado (para gravar em disco, banco ou enviar pela rede). */
+  serialize(): string {
+    return JSON.stringify(this.toSave(), encodeNonFinite);
+  }
+
+  static deserialize(text: string): Simulation {
+    return Simulation.fromSave(JSON.parse(text, decodeNonFinite) as SimulationSave);
+  }
+
+  /** Reconstrói a simulação a partir de um estado salvo; continuar dela é idêntico a continuar da original. */
+  static fromSave(saved: SimulationSave): Simulation {
+    if (saved.version !== 1) throw new Error(`Versão de salvamento não suportada: ${String(saved.version)}`);
+    const data = JSON.parse(JSON.stringify(saved, encodeNonFinite), decodeNonFinite) as SimulationSave;
+    const sim = new Simulation({ map: data.map, playerCount: data.players.length, startingUnits: [] });
+    // descarta o estado inicial criado pelo construtor e aplica o salvo
+    for (const b of sim.buildings) sim.grid.setOccupied(b.cell, BUILDINGS[b.type].size, 0);
+    sim.entities.clear();
+    sim.events = [];
+    sim.tick = data.tick;
+    sim.nextId = data.nextId;
+    sim.players.splice(0, sim.players.length, ...data.players);
+    for (const e of data.entities) {
+      sim.entities.set(e.id, e);
+      if (e.kind === 'building') sim.grid.setOccupied(e.cell, BUILDINGS[e.type].size, e.id);
+    }
+    sim.winner = data.winner;
+    sim.ended = data.ended;
+    sim.wars.clear();
+    for (const k of data.wars) sim.wars.add(k);
+    sim.alliances.clear();
+    for (const k of data.alliances) sim.alliances.add(k);
+    data.depositsRemaining.forEach((v, i) => {
+      const d = sim.deposits.deposits[i];
+      if (d) d.remaining = v;
+    });
+    sim.territory = Int8Array.from(data.territory);
+    sim.territoryVersion = data.territoryVersion;
+    sim.territoryDirty = false;
+    sim.lastAlertTick = data.lastAlertTick;
+    sim.visibilityTick = -1;
+    return sim;
   }
 
   // ---------------------------------------------------------------- guerra
@@ -234,9 +355,10 @@ export class Simulation {
     const out: TerritorySource[] = [];
     for (const b of this.buildings) {
       const def = BUILDINGS[b.type];
-      if (b.progress < 1 || b.hp <= 0 || def.territoryRadius <= 0) continue;
+      const radius = this.fx(b).territoryRadius;
+      if (b.progress < 1 || b.hp <= 0 || radius <= 0) continue;
       const mul = this.players[b.owner]?.modifiers.territoryMul ?? 1;
-      out.push({ owner: b.owner, x: b.pos.x / cs, y: b.pos.y / cs, radius: def.territoryRadius * mul, weight: def.territoryWeight });
+      out.push({ owner: b.owner, x: b.pos.x / cs, y: b.pos.y / cs, radius: radius * mul, weight: def.territoryWeight });
     }
     return out;
   }
@@ -267,7 +389,7 @@ export class Simulation {
         continue;
       }
       employed += e.workers;
-      if (e.progress >= 1 && !e.unpaid) housing += BUILDINGS[e.type].housing;
+      if (e.progress >= 1 && !e.unpaid) housing += this.fx(e).housing;
       for (const q of e.queue)
         if (q.unitType === 'citizen') queuedCitizens++;
         else if (q.unitType === 'recruit') queuedRecruits++;
@@ -295,7 +417,7 @@ export class Simulation {
     const cap = emptyStockpile();
     for (const b of this.buildings) {
       if (b.owner !== slot || b.progress < 1) continue;
-      const st = BUILDINGS[b.type].storage;
+      const st = this.fx(b).storage;
       for (const r of RESOURCE_TYPES) cap[r] += st[r] ?? 0;
     }
     return cap;
@@ -314,13 +436,13 @@ export class Simulation {
     if (amount <= 0) return 0;
     if (r === 'oil') {
       let left = amount;
-      const reserveCap = BUILDINGS.hq.storage.oil ?? 0;
+      const reserveCap = this.oilReserveCap(slot);
       const toReserve = Math.min(left, Math.max(0, reserveCap - p.oilReserve));
       p.oilReserve += toReserve;
       left -= toReserve;
       for (const t of this.tanks(slot)) {
         if (left <= 0) break;
-        const add = Math.min(left, (BUILDINGS.oil_tank.storage.oil ?? 0) - t.stored);
+        const add = Math.min(left, this.tankCapacity(t) - t.stored);
         if (add > 0) {
           t.stored += add;
           left -= add;
@@ -334,6 +456,17 @@ export class Simulation {
     const add = Math.min(free, amount);
     p.resources[r] += add;
     return add;
+  }
+
+  /** Capacidade de petróleo da reserva do QG (cresce com o nível do QG). */
+  private oilReserveCap(slot: Slot): number {
+    const hq = this.hqOf(slot);
+    return hq ? (this.fx(hq).storage.oil ?? 0) : 0;
+  }
+
+  /** Capacidade de um tanque de petróleo (cresce com o nível do tanque). */
+  tankCapacity(t: Building): number {
+    return this.fx(t).storage.oil ?? 0;
   }
 
   /** Retira petróleo dos tanques (os mais cheios primeiro) e, por último, da reserva do QG. */
@@ -357,7 +490,7 @@ export class Simulation {
     const cap = this.capacity(slot);
     for (const r of RESOURCE_TYPES) {
       if (r === 'oil') {
-        const reserveCap = this.hqOf(slot) ? (BUILDINGS.hq.storage.oil ?? 0) : 0;
+        const reserveCap = this.oilReserveCap(slot);
         if (p.oilReserve > reserveCap) {
           const lost = p.oilReserve - reserveCap;
           p.oilReserve = reserveCap;
@@ -404,19 +537,54 @@ export class Simulation {
    */
   buildingRate(b: Building): number {
     const def = BUILDINGS[b.type];
-    if (b.progress < 1 || !def.gather) return 0;
+    if (b.progress < 1 || !def.gather || b.unpaid) return 0;
     const p = this.players[b.owner]!;
-    const eff = this.workEfficiency(b) * (p.hungry ? HUNGER_EFFICIENCY : 1);
+    const eff = this.workEfficiency(b) * (p.hungry ? HUNGER_EFFICIENCY : 1) * (b.upgrade ? UPGRADE_WORK_EFFICIENCY : 1);
     if (eff <= 0) return 0;
     if (b.depositId !== null && (this.deposits.deposits[b.depositId]?.remaining ?? 0) <= 0) return 0;
     const cells = def.gather.terrain === null ? 1 : b.claims.filter((i) => this.territory[i] === b.owner).length;
-    return gatherRate(b.type, cells) * eff;
+    return gatherRate(b.type, cells) * this.fx(b).rateMul * eff;
   }
 
   /** Fração dos postos de trabalho ocupados (1 se o edifício não precisa de trabalhadores). */
   workEfficiency(b: Building): number {
-    const need = BUILDINGS[b.type].workers;
-    return need > 0 ? b.workers / need : 1;
+    const need = this.fx(b).workers;
+    return need > 0 ? Math.min(1, b.workers / need) : 1;
+  }
+
+  /** Valores funcionais do edifício no nível e especialização atuais (Fase 4). */
+  fx(b: Building): BuildingEffects {
+    return buildingEffects(b.type, b.level, b.spec);
+  }
+
+  /** Nível do Centro de Comando do jogador (0 se não houver). */
+  hqLevel(slot: Slot): number {
+    return this.hqOf(slot)?.level ?? 0;
+  }
+
+  /** Tudo o que a avaliação de uma melhoria precisa saber sobre o jogador. */
+  upgradeWorld(slot: Slot): UpgradeWorld {
+    const p = this.players[slot]!;
+    const link = this.national;
+    return {
+      resources: p.resources,
+      hqLevel: this.hqLevel(slot),
+      bestLevel: (type) => {
+        let best = 0;
+        for (const b of this.buildings) if (b.owner === slot && b.type === type && b.progress >= 1 && b.hp > 0) best = Math.max(best, b.level);
+        return best;
+      },
+      techs: link ? link.techs(slot) : null,
+      infrastructureIndex: link ? link.infrastructureIndex(slot) : null,
+      stability: link ? link.stability(slot) : null,
+      fundsUsd: link ? link.worksFundUsd(slot) : null,
+      constructionTimeMul: p.modifiers.constructionTimeMul,
+    };
+  }
+
+  /** Próxima melhoria de um edifício (custo, requisitos, ganhos e o que impede). */
+  upgradePlan(b: Building, spec: Parameters<typeof planUpgrade>[2] = null): UpgradePlan {
+    return planUpgrade({ type: b.type, level: b.level, spec: b.spec, progress: b.progress, upgrading: b.upgrade !== null }, this.upgradeWorld(b.owner), spec);
   }
 
   /** Saldo por segundo de cada recurso: produção ativa menos consumo da população e manutenção. */
@@ -428,8 +596,9 @@ export class Simulation {
     for (const b of this.buildings) {
       if (b.owner !== slot || b.progress < 1) continue;
       const def = BUILDINGS[b.type];
-      for (const r of RESOURCE_TYPES) inc[r] += def.income[r] ?? 0;
-      for (const r of RESOURCE_TYPES) inc[r] -= def.upkeep[r] ?? 0;
+      const fx = this.fx(b);
+      for (const r of RESOURCE_TYPES) inc[r] += fx.income[r] ?? 0;
+      for (const r of RESOURCE_TYPES) inc[r] -= fx.upkeep[r] ?? 0;
       if (def.gather && b.status === 'ok') inc[def.gather.resource] += this.buildingRate(b);
     }
     inc.food -= this.population(slot).total * FOOD_UPKEEP_PER_POP;
@@ -494,7 +663,7 @@ export class Simulation {
   }
 
   sightOf(e: Entity): number {
-    return e.kind === 'unit' ? UNITS[e.type].sight : BUILDINGS[e.type].sight;
+    return e.kind === 'unit' ? UNITS[e.type].sight : BUILDINGS[e.type].sight + this.fx(e).sightAdd;
   }
 
 
@@ -575,21 +744,25 @@ export class Simulation {
               ? `Limite nacional de ${POP_ABSOLUTE_CAP} habitantes atingido`
               : `Sem moradia: ${pop.total}/${pop.cap}. Construa casas ou prédios residenciais (ou perca unidades) para liberar espaço`;
           const def = recruit ? RECRUIT : CITIZEN;
-          if (!canAfford(player.resources, def.cost)) return 'Recursos insuficientes';
-          this.spend(player, def.cost);
-          const ticks = Math.max(1, Math.round(def.buildSeconds * TICK_RATE));
-          b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks });
+          const bfx = this.fx(b);
+          const cost = recruit ? scaledCost(def.cost, bfx.recruitCostMul) : def.cost;
+          if (!canAfford(player.resources, cost)) return 'Recursos insuficientes';
+          this.spend(player, cost);
+          const ticks = Math.max(1, Math.round(def.buildSeconds * TICK_RATE * (recruit ? bfx.recruitTimeMul : 1)));
+          b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks, paid: cost });
           return null;
         }
         const def = UNITS[cmd.unitType];
         if (def.producedBy !== b.type) return `${BUILDINGS[b.type].label} não produz ${def.label}`;
         // cada unidade militar precisa de um recruta da reserva como tripulação
         if (player.recruits < 1) return 'Nenhum recruta disponível: aliste recrutas na base militar (quartel)';
-        if (!canAfford(player.resources, def.cost)) return 'Recursos insuficientes';
-        this.spend(player, def.cost);
+        const bfx = this.fx(b);
+        const cost = scaledCost(def.cost, bfx.unitCostMul, bfx.unitOilMul);
+        if (!canAfford(player.resources, cost)) return 'Recursos insuficientes';
+        this.spend(player, cost);
         player.recruits--;
-        const ticks = Math.max(1, Math.round(def.buildSeconds * TICK_RATE * player.modifiers.productionTimeMul));
-        b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks });
+        const ticks = Math.max(1, Math.round(def.buildSeconds * TICK_RATE * player.modifiers.productionTimeMul * bfx.productionTimeMul));
+        b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks, paid: cost });
         return null;
       }
       case 'cancel_production': {
@@ -597,17 +770,46 @@ export class Simulation {
         if (!b || b.kind !== 'building' || b.owner !== slot) return 'Edifício inválido';
         const item = b.queue.pop();
         if (!item) return 'Fila vazia';
-        this.refund(slot, item.unitType === 'citizen' ? CITIZEN.cost : item.unitType === 'recruit' ? RECRUIT.cost : UNITS[item.unitType].cost);
+        this.refund(slot, item.paid ?? (item.unitType === 'citizen' ? CITIZEN.cost : item.unitType === 'recruit' ? RECRUIT.cost : UNITS[item.unitType].cost));
         if (item.unitType !== 'citizen' && item.unitType !== 'recruit') player.recruits++; // a tripulação volta à reserva
         return null;
       }
       case 'set_workers': {
         const b = this.entities.get(cmd.buildingId);
         if (!b || b.kind !== 'building' || b.owner !== slot) return 'Edifício inválido';
-        const need = BUILDINGS[b.type].workers;
+        const need = this.fx(b).workers;
         if (need === 0) return 'Este edifício não emprega trabalhadores';
         b.workerTarget = Math.max(0, Math.min(need, Math.floor(cmd.count)));
         this.staff(slot);
+        return null;
+      }
+      case 'upgrade': {
+        const b = this.entities.get(cmd.buildingId);
+        if (!b || b.kind !== 'building' || b.owner !== slot || b.hp <= 0) return 'Edifício inválido';
+        const plan = this.upgradePlan(b, cmd.spec ?? null);
+        if (plan.blocker || plan.toLevel === null) return plan.blocker ?? 'Melhoria indisponível';
+        const spec = plan.specChoice ? (cmd.spec ?? null) : null;
+        // verba nacional primeiro: se o orçamento recusar, nada é debitado do teatro
+        if (this.national && plan.usd > 0 && !this.national.chargeWorks(slot, plan.usd, `${BUILDINGS[b.type].label} → nível ${plan.toLevel}`)) {
+          return 'Verba de obras insuficiente no orçamento nacional';
+        }
+        this.spend(player, plan.cost);
+        const total = Math.max(1, Math.round(plan.seconds * TICK_RATE));
+        b.upgrade = { toLevel: plan.toLevel, spec, builtTicks: 0, totalTicks: total, paid: { ...plan.cost }, usd: plan.usd };
+        this.emit({ type: 'upgrade_started', tick: this.tick, id: b.id, owner: slot, buildingType: b.type, toLevel: plan.toLevel, spec, usd: plan.usd, pos: { ...b.pos } });
+        return null;
+      }
+      case 'cancel_upgrade': {
+        const b = this.entities.get(cmd.buildingId);
+        if (!b || b.kind !== 'building' || b.owner !== slot) return 'Edifício inválido';
+        const work = b.upgrade;
+        if (!work) return 'Nenhuma obra de melhoria em andamento';
+        b.upgrade = null;
+        const back: Cost = {};
+        for (const r of RESOURCE_TYPES) if (work.paid[r]) back[r] = Math.floor(work.paid[r]! * UPGRADE_CANCEL_REFUND);
+        this.refund(slot, back);
+        if (this.national && work.usd > 0) this.national.refundWorks(slot, Math.floor(work.usd * UPGRADE_CANCEL_REFUND), `${BUILDINGS[b.type].label}: obra cancelada`);
+        this.emit({ type: 'upgrade_cancelled', tick: this.tick, id: b.id, owner: slot, buildingType: b.type, toLevel: work.toLevel, pos: { ...b.pos } });
         return null;
       }
       case 'set_rally': {
@@ -690,6 +892,7 @@ export class Simulation {
     this.updateEconomy();
     this.updateUpkeep();
     this.updateConstruction();
+    this.updateUpgrades();
     this.updateProduction();
     for (const u of this.units) this.updateUnit(u);
     this.updateAttrition();
@@ -709,7 +912,7 @@ export class Simulation {
     const mine = this.buildings.filter((b) => b.owner === slot).sort((a, b) => a.id - b.id);
     let employed = 0;
     for (const b of mine) {
-      const limit = b.progress >= 1 && b.hp > 0 ? Math.min(b.workerTarget, BUILDINGS[b.type].workers) : 0;
+      const limit = b.progress >= 1 && b.hp > 0 ? Math.min(b.workerTarget, this.fx(b).workers) : 0;
       if (b.workers > limit) b.workers = limit;
       employed += b.workers;
     }
@@ -724,7 +927,7 @@ export class Simulation {
     for (const b of mine) {
       if (idle <= 0) break;
       if (b.progress < 1 || b.hp <= 0) continue;
-      const want = Math.min(b.workerTarget, BUILDINGS[b.type].workers) - b.workers;
+      const want = Math.min(b.workerTarget, this.fx(b).workers) - b.workers;
       if (want <= 0) continue;
       const add = Math.min(want, idle);
       b.workers += add;
@@ -747,8 +950,7 @@ export class Simulation {
     const cs = this.map.cellSize;
     const inRange = this.tanks(b.owner).filter((t) => dist(t.pos, b.pos) / cs <= OIL_TANK_RANGE).sort((x, y) => dist(x.pos, b.pos) - dist(y.pos, b.pos) || x.id - y.id);
     if (!inRange.length) return { tank: null, reason: 'no_tank' };
-    const cap = BUILDINGS.oil_tank.storage.oil ?? 0;
-    const free = inRange.find((t) => t.stored < cap);
+    const free = inRange.find((t) => t.stored < this.tankCapacity(t));
     return free ? { tank: free, reason: 'ok' } : { tank: null, reason: 'storage_full' };
   }
 
@@ -762,7 +964,7 @@ export class Simulation {
       if (p.defeated) continue;
       // renda fixa (QG) e logística nacional: suprimentos, limitados pela capacidade
       let fixed = p.modifiers.externalIncome;
-      for (const b of this.buildings) if (b.owner === p.slot && b.progress >= 1) fixed += BUILDINGS[b.type].income.supplies ?? 0;
+      for (const b of this.buildings) if (b.owner === p.slot && b.progress >= 1 && !b.unpaid) fixed += this.fx(b).income.supplies ?? 0;
       p.incomeRemainder.supplies += fixed * TICK_SECONDS;
       const whole = Math.floor(p.incomeRemainder.supplies + 1e-9);
       if (whole > 0) {
@@ -782,7 +984,11 @@ export class Simulation {
         this.setStatus(b, 'depleted');
         continue;
       }
-      if (BUILDINGS[b.type].workers > 0 && b.workers === 0) {
+      if (b.unpaid) {
+        this.setStatus(b, 'unpaid');
+        continue;
+      }
+      if (this.fx(b).workers > 0 && b.workers === 0) {
         this.setStatus(b, 'no_workers');
         continue;
       }
@@ -813,21 +1019,27 @@ export class Simulation {
       b.acc += rate * TICK_SECONDS;
       const whole = Math.floor(b.acc + 1e-9);
       if (whole <= 0) continue;
-      let amount = Math.min(whole, deposit ? deposit.remaining : whole);
+      // a especialização pode desperdiçar (ou poupar) parte do depósito por unidade extraída
+      const depletion = this.fx(b).depletionMul;
+      let amount = Math.min(whole, deposit ? Math.floor(deposit.remaining / depletion + 1e-9) : whole);
+      if (deposit && amount <= 0 && deposit.remaining > 0) amount = Math.min(whole, 1);
       if (tank) {
-        amount = Math.min(amount, (BUILDINGS.oil_tank.storage.oil ?? 0) - tank.stored);
+        amount = Math.min(amount, this.tankCapacity(tank) - tank.stored);
         tank.stored += amount;
         p.resources.oil += amount;
       } else {
         amount = this.store(b.owner, r, amount);
       }
       b.acc -= whole;
-      if (deposit) deposit.remaining -= amount;
+      if (deposit) deposit.remaining = Math.max(0, deposit.remaining - amount * depletion);
       p.stats.resourcesGathered += amount;
     }
   }
 
-  /** Consumo de comida pela população e manutenção dos edifícios (sem saldo negativo). */
+  /**
+   * Consumo de comida pela população e manutenção dos edifícios (suprimentos e petróleo), sem saldo
+   * negativo. Sem saldo de um recurso, os edifícios que dependem dele param (e não abrigam/produzem).
+   */
   private updateUpkeep(): void {
     for (const p of this.players) {
       if (p.defeated) continue;
@@ -842,24 +1054,29 @@ export class Simulation {
         if (hungry && !p.hungry) this.emit({ type: 'shortage', tick: this.tick, owner: p.slot, resource: 'food' });
         p.hungry = hungry;
       }
-      for (const b of this.buildings) {
-        const up = BUILDINGS[b.type].upkeep.supplies ?? 0;
-        if (b.owner !== p.slot || b.progress < 1 || up <= 0) continue;
-        p.upkeepAcc.supplies += up * TICK_SECONDS;
+      const mine = this.buildings.filter((b) => b.owner === p.slot && b.progress >= 1);
+      let charged = false;
+      for (const r of ['supplies', 'oil'] as const) {
+        for (const b of mine) p.upkeepAcc[r] += (this.fx(b).upkeep[r] ?? 0) * TICK_SECONDS;
+        const due = Math.floor(p.upkeepAcc[r]);
+        if (due <= 0) continue;
+        charged = true;
+        p.upkeepAcc[r] -= due;
+        const paid = Math.min(due, p.resources[r]);
+        if (r === 'oil') this.takeOil(p, paid);
+        else p.resources[r] -= paid;
+        const unpaid = paid < due;
+        if (unpaid && !p.unpaidUpkeep[r]) this.emit({ type: 'shortage', tick: this.tick, owner: p.slot, resource: r });
+        p.unpaidUpkeep[r] = unpaid;
       }
-      const sup = Math.floor(p.upkeepAcc.supplies);
-      if (sup > 0) {
-        p.upkeepAcc.supplies -= sup;
-        const paid = Math.min(sup, p.resources.supplies);
-        p.resources.supplies -= paid;
-        const unpaid = paid < sup;
-        for (const b of this.buildings) {
-          if (b.owner !== p.slot || (BUILDINGS[b.type].upkeep.supplies ?? 0) <= 0) continue;
-          if (unpaid && !b.unpaid) this.setStatus(b, 'unpaid');
-          else if (!unpaid && b.unpaid) this.setStatus(b, 'ok');
-          b.unpaid = unpaid;
-        }
-        if (unpaid) this.emit({ type: 'shortage', tick: this.tick, owner: p.slot, resource: 'supplies' });
+      // reavalia a cada cobrança (inclui edifícios novos ou recém-melhorados)
+      if (!charged) continue;
+      for (const b of mine) {
+        const up = this.fx(b).upkeep;
+        const unpaid = ((up.supplies ?? 0) > 0 && p.unpaidUpkeep.supplies) || ((up.oil ?? 0) > 0 && p.unpaidUpkeep.oil);
+        if (unpaid && !b.unpaid) this.setStatus(b, 'unpaid');
+        else if (!unpaid && b.unpaid) this.setStatus(b, 'ok');
+        b.unpaid = unpaid;
       }
     }
   }
@@ -871,7 +1088,7 @@ export class Simulation {
       const ticks = b.buildTicks;
       b.builtTicks++;
       b.progress = Math.min(1, b.builtTicks / ticks);
-      b.hp = Math.min(def.maxHp, b.hp + (def.maxHp * 0.9) / ticks);
+      b.hp = Math.min(b.maxHp, b.hp + (b.maxHp * 0.9) / ticks);
       if (b.progress >= 1) {
         b.progress = 1;
         this.players[b.owner]!.stats.structuresBuilt++;
@@ -882,18 +1099,52 @@ export class Simulation {
     }
   }
 
+  /**
+   * Obras de melhoria (Fase 4): avançam no tempo de jogo; ao concluir, o edifício passa ao novo
+   * nível e todos os efeitos são recalculados a partir dele (nunca somados ao estado anterior).
+   */
+  private updateUpgrades(): void {
+    for (const b of this.buildings) {
+      const work = b.upgrade;
+      if (!work || b.hp <= 0 || b.progress < 1) continue;
+      work.builtTicks++;
+      if (work.builtTicks < work.totalTicks) continue;
+      const before = this.fx(b);
+      b.level = work.toLevel;
+      if (work.spec) b.spec = work.spec;
+      b.upgrade = null;
+      const after = this.fx(b);
+      // a vida cresce junto com a vida máxima (o dano já sofrido continua)
+      b.maxHp = after.maxHp;
+      b.hp = Math.max(1, Math.min(b.maxHp, b.hp + (after.maxHp - before.maxHp)));
+      // novos postos ficam disponíveis se o jogador usava todos; redução de postos é respeitada
+      if (b.workerTarget >= before.workers || b.workerTarget > after.workers) b.workerTarget = after.workers;
+      if (after.territoryRadius !== before.territoryRadius) this.territoryDirty = true;
+      this.staff(b.owner);
+      // uma especialização que reduz capacidade corta o excedente (com registro, nunca em silêncio)
+      const shrank = Object.keys(before.storage).some((r) => (after.storage[r as ResourceType] ?? 0) < (before.storage[r as ResourceType] ?? 0));
+      if (shrank) this.clampToCapacity(b.owner, 'capacity');
+      this.emit({ type: 'upgrade_completed', tick: this.tick, id: b.id, owner: b.owner, buildingType: b.type, level: b.level, spec: b.spec, pos: { ...b.pos } });
+    }
+  }
+
   private updateProduction(): void {
     for (const b of this.buildings) {
       if (b.progress < 1 || b.hp <= 0) continue;
       const item = b.queue[0];
       if (!item) continue;
-      // bases e fábricas produzem no ritmo dos trabalhadores alocados (sem nenhum, param)
-      const eff = this.workEfficiency(b) * (this.players[b.owner]!.hungry ? HUNGER_EFFICIENCY : 1);
+      if (b.unpaid) {
+        this.setStatus(b, 'unpaid');
+        continue;
+      }
+      // bases e fábricas produzem no ritmo dos trabalhadores alocados (sem nenhum, param);
+      // durante uma obra de melhoria, a meio ritmo
+      const eff = this.workEfficiency(b) * (this.players[b.owner]!.hungry ? HUNGER_EFFICIENCY : 1) * (b.upgrade ? UPGRADE_WORK_EFFICIENCY : 1);
       if (eff <= 0) {
         this.setStatus(b, 'no_workers');
         continue;
       }
-      if (BUILDINGS[b.type].workers > 0) this.setStatus(b, 'ok');
+      if (this.fx(b).workers > 0) this.setStatus(b, 'ok');
       b.acc += eff;
       const steps = Math.floor(b.acc + 1e-9);
       b.acc -= steps;
@@ -911,7 +1162,7 @@ export class Simulation {
         this.emit({ type: 'recruit_trained', tick: this.tick, owner: b.owner, pos: { ...b.pos } });
         continue;
       }
-      const u = this.spawnUnitNear(b, item.unitType);
+      const u = this.spawnUnitNear(b, item.unitType, this.fx(b).unitHpMul);
       if (!u) {
         item.remainingTicks = TICK_RATE; // sem espaço: tenta de novo em 1 s
         continue;
@@ -1123,8 +1374,10 @@ export class Simulation {
   }
 
   private updateBuildingWeapon(b: Building): void {
-    const weapon = BUILDINGS[b.type].weapon;
-    if (!weapon || b.progress < 1 || b.hp <= 0) return;
+    const base = BUILDINGS[b.type].weapon;
+    if (!base || b.progress < 1 || b.hp <= 0) return;
+    const fx = this.fx(b);
+    const weapon = { damage: base.damage * fx.damageMul, range: base.range + fx.rangeAdd, cooldown: base.cooldown };
     if (b.cooldown > 0) {
       b.cooldown--;
       return;
@@ -1337,6 +1590,10 @@ export class Simulation {
       cell: { ...cell },
       pos: { x: (cell.cx + def.size / 2) * cs, y: (cell.cy + def.size / 2) * cs },
       hp: progress >= 1 ? def.maxHp : def.maxHp * 0.1,
+      maxHp: def.maxHp,
+      level: 1,
+      spec: null,
+      upgrade: null,
       progress,
       builtTicks: 0,
       buildTicks: Math.max(1, Math.round(def.buildSeconds * TICK_RATE * (this.players[owner]?.modifiers.constructionTimeMul ?? 1))),
@@ -1365,7 +1622,7 @@ export class Simulation {
   }
 
   /** Cria uma unidade numa célula livre ao redor do edifício. */
-  spawnUnitNear(b: Building, type: UnitType): Unit | null {
+  spawnUnitNear(b: Building, type: UnitType, hpMul = 1): Unit | null {
     const size = BUILDINGS[b.type].size;
     const occupied = new Set(this.units.map((u) => this.grid.index(...cellTuple(this.grid.worldToCell(u.pos)))));
     for (let r = 1; r <= 4; r++) {
@@ -1382,12 +1639,14 @@ export class Simulation {
       const mid = { x: (this.map.width * this.map.cellSize) / 2, y: (this.map.height * this.map.cellSize) / 2 };
       candidates.sort((a, c) => dist(this.grid.cellCenter(a), mid) - dist(this.grid.cellCenter(c), mid));
       const cell = candidates[0];
-      if (cell) return this.addUnit(type, b.owner, this.grid.cellCenter(cell));
+      if (cell) return this.addUnit(type, b.owner, this.grid.cellCenter(cell), hpMul);
     }
     return null;
   }
 
-  addUnit(type: UnitType, owner: Slot, pos: Vec2): Unit {
+  /** `hpMul`: equipamento do edifício que produziu (ex.: escola de elite, equipamentos avançados). */
+  addUnit(type: UnitType, owner: Slot, pos: Vec2, hpMul = 1): Unit {
+    const maxHp = Math.round(this.unitMaxHp(type, owner) * hpMul);
     const u: Unit = {
       kind: 'unit',
       id: this.nextId++,
@@ -1395,8 +1654,8 @@ export class Simulation {
       owner,
       pos: { ...pos },
       facing: 0,
-      hp: this.unitMaxHp(type, owner),
-      maxHp: this.unitMaxHp(type, owner),
+      hp: maxHp,
+      maxHp,
       order: { kind: 'idle' },
       engageId: null,
       path: [],
@@ -1487,7 +1746,7 @@ export class Simulation {
           e.stored = 0;
         }
         // armazém/silo destruído: o que exceder a capacidade restante se perde, com registro
-        if (e.progress >= 1 && Object.keys(def.storage).length) this.clampToCapacity(e.owner, 'destroyed');
+        if (e.progress >= 1 && Object.keys(this.fx(e).storage).length) this.clampToCapacity(e.owner, 'destroyed');
         if (e.workers > 0) e.workers = 0;
       }
     }

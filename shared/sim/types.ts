@@ -1,4 +1,5 @@
-import type { BuildingType, ProducibleType, ResourceType, Stockpile, Terrain, UnitType } from './config.ts';
+import type { BuildingType, Cost, ProducibleType, ResourceType, Stockpile, Terrain, UnitType } from './config.ts';
+import type { SpecId } from './upgrades.ts';
 
 export type EntityId = number;
 /** Índice do jogador na partida (0..n-1). */
@@ -51,10 +52,24 @@ export interface Unit {
 }
 
 export interface ProductionItem {
-  /** Unidade militar (já reservou um cidadão como tripulação) ou formação de cidadão. */
+  /** Unidade militar (já reservou um recruta como tripulação), cidadão ou recruta. */
   unitType: ProducibleType;
   remainingTicks: number;
   totalTicks: number;
+  /** Custo efetivamente pago (com os efeitos do edifício), devolvido integralmente ao cancelar. */
+  paid?: Cost;
+}
+
+/** Obra de melhoria em andamento (Fase 4). */
+export interface UpgradeWork {
+  toLevel: number;
+  /** Especialização escolhida, quando o nível pede uma. */
+  spec: SpecId | null;
+  builtTicks: number;
+  totalTicks: number;
+  /** Recursos e verba (US$) pagos — base do reembolso parcial ao cancelar. */
+  paid: Cost;
+  usd: number;
 }
 
 export interface Building {
@@ -90,6 +105,12 @@ export interface Building {
   status: BuildingStatus;
   /** Manutenção não paga: o edifício não fornece seus benefícios. */
   unpaid: boolean;
+  /** Nível de melhoria (1 = como construído) e especialização (Fase 4). */
+  level: number;
+  spec: SpecId | null;
+  /** Vida máxima atual (derivada do nível e da especialização). */
+  maxHp: number;
+  upgrade: UpgradeWork | null;
 }
 
 /** Por que um edifício não está produzindo (ou 'ok'). */
@@ -135,7 +156,9 @@ export interface PlayerState {
   /** Sem comida em estoque para o consumo da população. */
   hungry: boolean;
   /** Acumuladores fracionários de consumo. */
-  upkeepAcc: { food: number; supplies: number };
+  upkeepAcc: { food: number; supplies: number; oil: number };
+  /** Manutenção em atraso por recurso: os edifícios que dependem dela param. */
+  unpaidUpkeep: { supplies: boolean; oil: boolean };
   modifiers: TacticalModifiers;
   /** Acumulador fracionário de renda para manter inteiros em `resources`. */
   incomeRemainder: Stockpile;
@@ -167,5 +190,8 @@ export type SimEvent =
   | { type: 'production_halted'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; reason: BuildingStatus; pos: Vec2 }
   | { type: 'deposit_depleted'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; pos: Vec2 }
   | { type: 'storage_lost'; tick: number; owner: Slot; resource: ResourceType; amount: number; reason: 'destroyed' | 'capacity' }
-  | { type: 'shortage'; tick: number; owner: Slot; resource: 'food' | 'supplies' }
+  | { type: 'shortage'; tick: number; owner: Slot; resource: 'food' | 'supplies' | 'oil' }
+  | { type: 'upgrade_started'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; toLevel: number; spec: SpecId | null; usd: number; pos: Vec2 }
+  | { type: 'upgrade_completed'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; level: number; spec: SpecId | null; pos: Vec2 }
+  | { type: 'upgrade_cancelled'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; toLevel: number; pos: Vec2 }
   | { type: 'attrition'; tick: number; owner: Slot; pos: Vec2 };

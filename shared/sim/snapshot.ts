@@ -2,6 +2,7 @@ import { BUILDINGS, RESOURCE_TYPES, type BuildingType, type DepositSize, type Pr
 import type { Population, Simulation } from './Simulation.ts';
 import { encodeTerritory } from './territory.ts';
 import type { BuildingStatus, EntityId, SimEvent, Slot, UnitActivity, Vec2 } from './types.ts';
+import type { SpecId } from './upgrades.ts';
 
 export interface UnitSnapshot {
   id: EntityId;
@@ -26,7 +27,14 @@ export interface BuildingSnapshot {
   cx: number;
   cy: number;
   hp: number;
+  /** Vida máxima atual (cresce com o nível). */
+  maxHp: number;
   progress: number;
+  /** Nível de melhoria (1..10) e especialização — visíveis no próprio modelo, logo para todos. */
+  level: number;
+  spec: SpecId | null;
+  /** Obra de melhoria: progresso só para o dono; para os demais, apenas que há obra (andaimes). */
+  upgrade?: { toLevel: number; progress: number; spec: SpecId | null } | { visible: true };
   queue: { unitType: ProducibleType; progress: number }[];
   rally: Vec2 | null;
   /** Células de recurso reivindicadas (só para edifícios próprios de coleta). */
@@ -116,7 +124,13 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         cx: e.cell.cx,
         cy: e.cell.cy,
         hp: Math.ceil(e.hp),
+        maxHp: e.maxHp,
         progress: r2(e.progress),
+        level: e.level,
+        spec: e.spec,
+        ...(e.upgrade
+          ? { upgrade: own ? { toLevel: e.upgrade.toLevel, progress: r2(e.upgrade.builtTicks / e.upgrade.totalTicks), spec: e.upgrade.spec } : { visible: true as const } }
+          : {}),
         // fila e ponto de reunião de edifícios inimigos não são observáveis
         queue: own ? e.queue.map((q) => ({ unitType: q.unitType, progress: r2(1 - q.remainingTicks / q.totalTicks) })) : [],
         rally: own && e.rally ? { x: r2(e.rally.x), y: r2(e.rally.y) } : null,
@@ -169,7 +183,7 @@ function ownBuildingDetail(sim: Simulation, b: Parameters<Simulation['buildingRa
   const def = BUILDINGS[b.type];
   const d = b.depositId !== null ? sim.deposits.deposits[b.depositId] : undefined;
   return {
-    ...(def.workers > 0 ? { workers: b.workers, workerTarget: b.workerTarget } : {}),
+    ...(sim.fx(b).workers > 0 ? { workers: b.workers, workerTarget: b.workerTarget } : {}),
     status: b.status,
     ...(def.gather ? { rate: r2(b.status === 'ok' ? sim.buildingRate(b) : 0) } : {}),
     ...(b.type === 'oil_tank' ? { stored: r2(b.stored) } : {}),
@@ -186,7 +200,11 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
     case 'construction_started':
     case 'construction_completed':
     case 'unit_produced':
+    case 'upgrade_completed':
       return e.owner === slot || sim.isVisibleTo(slot, e.pos);
+    case 'upgrade_started':
+    case 'upgrade_cancelled':
+      return e.owner === slot;
     case 'under_attack':
     case 'citizen_trained':
     case 'recruit_trained':

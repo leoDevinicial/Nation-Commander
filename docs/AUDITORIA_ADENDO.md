@@ -59,7 +59,7 @@ Nenhum problema impedia validar as fases seguintes.
 | Montanhas/formações rochosas | parcial | terreno `Rock` gerado e explorado por pedreiras; sem minério |
 
 ### Fase 4 — Upgrades de construções
-Ausente. Construções têm um único nível.
+Ausente na auditoria: construções tinham um único nível. Implementada depois — veja `docs/FASE4_MELHORIAS.md`.
 
 ### Fase 5 — Pesquisa e modernização
 | Item | Estado | Observação |
@@ -146,6 +146,7 @@ As dependências seguem a tabela da seção 4 do adendo. Resumo dos critérios m
 | 1 — Visual, menu, HUD e mobile | implementada (pendente: validação em aparelhos físicos) | `docs/FASE1_VISUAL_MOBILE.md` |
 | 2 — Globo, contato e guerra formal | implementada para os países do teatro; guerra contra governos fora do teatro e paz ficam para fases posteriores (identificado no jogo) | `docs/FASE2_GLOBO_GUERRA.md` |
 | 3 — População, armazenamento, geologia + fronteiras | implementada; save/load, mercados/portos/bases aéreas e alianças entre jogadores pendentes | `docs/FASE3_POPULACAO_FRONTEIRAS.md` |
+| 4 — Melhorias de construções | implementada: 14 classes com até 10 níveis, custo em recursos e no fundo nacional de obras, requisitos, especializações exclusivas, evolução visual modular com LOD e serialização testada; pendentes modelos GLB finais, save/load acessível ao jogador (Fase 12) e mercados (Fase 6) | `docs/FASE4_MELHORIAS.md` |
 
 O livro de eventos começou na Fase 2: todos os eventos diplomáticos têm `id` sequencial e `causes`
 quando são consequência de outro (guerra → tratados rompidos e sanções; tratado → descoberta).

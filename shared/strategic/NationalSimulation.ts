@@ -1,6 +1,20 @@
 import { Random } from '../sim/Random.ts';
 import type { SimEvent, Slot } from '../sim/types.ts';
-import { COEF, DAYS_PER_YEAR, FALLBACKS, FALLBACK_DEFICIT_PCT, HISTORY_EVERY_DAYS, HISTORY_MAX_POINTS, LIMITS, BASE_INFRASTRUCTURE_PCT, PUBLIC_RESEARCH_SHARE, SCENARIO_START } from './params.ts';
+import {
+  COEF,
+  DAYS_PER_YEAR,
+  FALLBACKS,
+  FALLBACK_DEFICIT_PCT,
+  HISTORY_EVERY_DAYS,
+  HISTORY_MAX_POINTS,
+  LIMITS,
+  BASE_INFRASTRUCTURE_PCT,
+  PUBLIC_RESEARCH_SHARE,
+  SCENARIO_START,
+  WORKS_LEDGER_MAX,
+  WORKS_SHARE_OF_INFRA,
+  WORKS_START_FRACTION,
+} from './params.ts';
 import { countryReference, type ReferenceKey } from './reference.ts';
 import { combineEffects, TECH_IDS, TECHNOLOGIES, type TechEffects, type TechId } from './technologies.ts';
 import { COUNTRIES } from '../data/countries.ts';
@@ -76,6 +90,21 @@ export interface HistoryPoint {
   approval: number;
 }
 
+/**
+ * Verba de obras do teatro: parcela do orçamento de infraestrutura que paga as melhorias de
+ * construções. Repõe-se diariamente até o teto anual; todo débito e devolução fica no extrato.
+ */
+export interface WorksFund {
+  /** Disponível agora (US$). */
+  fundUsd: number;
+  /** Teto anual (US$): orçamento de infraestrutura × parcela do teatro. */
+  capUsd: number;
+  /** Total gasto em obras na partida (US$, líquido de devoluções). */
+  spentUsd: number;
+  /** Lançamentos mais recentes (dia, valor; negativo = devolução). */
+  ledger: { day: number; usd: number; description: string }[];
+}
+
 export interface NationState {
   slot: Slot;
   countryId: string;
@@ -102,6 +131,8 @@ export interface NationState {
   stability: number;
   growthFactors: Factor[];
   research: { current: TechId | null; progress: Record<TechId, number>; done: TechId[] };
+  /** Verba de obras do teatro (melhorias de construções). */
+  works: WorksFund;
   /** Suprimentos/s que a logística nacional entrega ao teatro (inclui ajuda de aliados). */
   theaterSupplyPerSec: number;
   /** Parte da logística vinda de aliados por acordos de defesa. */
@@ -158,6 +189,7 @@ export class NationalSimulation {
       this.recompute(n, 0);
       // o déficit inicial faz parte da situação de referência; só desvios pressionam a inflação
       n.base.deficitPctGdp = n.deficitPctGdp;
+      n.works.fundUsd = Math.round(n.works.capUsd * WORKS_START_FRACTION);
       this.pushHistory(n);
     }
   }
@@ -281,6 +313,32 @@ export class NationalSimulation {
     });
   }
 
+  // ------------------------------------------------------------ verba de obras do teatro
+
+  /** Debita uma obra da verba do país. Recusa (false) sem saldo — nada é cobrado. */
+  chargeWorks(slot: Slot, usd: number, description: string): boolean {
+    const n = this.nations.find((x) => x.slot === slot);
+    if (!n || usd < 0 || n.works.fundUsd + 1e-6 < usd) return false;
+    n.works.fundUsd -= usd;
+    n.works.spentUsd += usd;
+    this.ledger(n, usd, description);
+    return true;
+  }
+
+  /** Devolução (obra cancelada): volta à verba, sem passar do teto anual. */
+  refundWorks(slot: Slot, usd: number, description: string): void {
+    const n = this.nations.find((x) => x.slot === slot);
+    if (!n || usd <= 0) return;
+    n.works.fundUsd = Math.min(n.works.capUsd, n.works.fundUsd + usd);
+    n.works.spentUsd = Math.max(0, n.works.spentUsd - usd);
+    this.ledger(n, -usd, description);
+  }
+
+  private ledger(n: NationState, usd: number, description: string): void {
+    n.works.ledger.push({ day: this.day, usd: Math.round(usd), description });
+    if (n.works.ledger.length > WORKS_LEDGER_MAX) n.works.ledger.shift();
+  }
+
   effects(slot: Slot): TechEffects {
     return combineEffects(this.nation(slot)?.research.done ?? []);
   }
@@ -389,6 +447,8 @@ export class NationalSimulation {
     // --- PIB nominal, contas públicas e dívida
     n.gdpUsd *= 1 + ((n.realGrowthPct + COEF.usdInflation) / 100) * dt;
     this.recompute(n, dt);
+    // --- verba de obras do teatro: repõe 1/365 do teto anual por dia, até o teto
+    n.works.fundUsd = Math.min(n.works.capUsd, n.works.fundUsd + n.works.capUsd / DAYS_PER_YEAR);
     n.debtUsd = Math.max(0, n.debtUsd + (n.spendingUsd + n.interestUsd - n.revenueUsd) * dt);
 
     // --- opinião pública
@@ -470,6 +530,9 @@ export class NationalSimulation {
     const fx = combineEffects(n.research.done);
     const gdpFor = (x: NationState) => (this.mode === 'parity' ? COEF.parityGdpUsd : x.gdpUsd);
     const defenseBn = ((b.defensePct / 100) * gdpFor(n)) / 1e9;
+    // teto anual da verba de obras: segue o orçamento de infraestrutura (e o PIB) atuais
+    n.works.capUsd = Math.round((b.infrastructurePct / 100) * gdpFor(n) * WORKS_SHARE_OF_INFRA);
+    if (n.works.fundUsd > n.works.capUsd) n.works.fundUsd = n.works.capUsd;
     n.allianceAidPerSec = this.diplomacy.allianceAid(n.slot, gdpFor);
     n.theaterSupplyPerSec = COEF.theaterSupplyK * Math.log10(1 + defenseBn) * fx.theaterSupplyMul + n.allianceAidPerSec;
   }
@@ -578,6 +641,7 @@ export function createNation(slot: Slot, countryId: string): NationState {
     stability: 60,
     growthFactors: [],
     research: { current: null, progress, done: [] },
+    works: { fundUsd: 0, capUsd: 0, spentUsd: 0, ledger: [] },
     theaterSupplyPerSec: 0,
     allianceAidPerSec: 0,
     casualties30d: [0],

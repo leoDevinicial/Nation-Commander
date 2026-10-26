@@ -1,5 +1,15 @@
 /** Pesquisas disponíveis. Custo em "% do PIB × ano": investir esse percentual por um ano conclui a pesquisa. */
-export type TechId = 'logistics' | 'guided_munitions' | 'composite_armor' | 'modular_construction' | 'rapid_training' | 'automation' | 'territorial_administration';
+export type TechId =
+  | 'logistics'
+  | 'guided_munitions'
+  | 'composite_armor'
+  | 'modular_construction'
+  | 'rapid_training'
+  | 'automation'
+  | 'territorial_administration'
+  | 'agricultural_mechanization'
+  | 'mechanized_extraction'
+  | 'advanced_drilling';
 
 export interface TechDef {
   id: TechId;
@@ -38,28 +48,28 @@ export const TECHNOLOGIES: Record<TechId, TechDef> = {
   logistics: {
     id: 'logistics',
     label: 'Logística integrada',
-    description: '+25% nos suprimentos que a logística nacional envia ao teatro de operações.',
+    description: '+25% nos suprimentos que a logística nacional envia ao teatro. Libera melhorias de armazéns, silos e tanques a partir do nível 5 e do QG a partir do 4.',
     cost: 0.15,
     effect: { theaterSupplyMul: 1.25 },
   },
   rapid_training: {
     id: 'rapid_training',
     label: 'Treinamento acelerado',
-    description: '−25% no tempo de produção de unidades.',
+    description: '−25% no tempo de produção de unidades. Libera melhorias da base militar a partir do nível 5.',
     cost: 0.15,
     effect: { productionTimeMul: 0.75 },
   },
   modular_construction: {
     id: 'modular_construction',
     label: 'Construção modular',
-    description: '−30% no tempo de construção de estruturas.',
+    description: '−30% no tempo de construção de estruturas (e das obras de melhoria). Libera melhorias do prédio residencial a partir do nível 5.',
     cost: 0.12,
     effect: { constructionTimeMul: 0.7 },
   },
   guided_munitions: {
     id: 'guided_munitions',
     label: 'Munição guiada',
-    description: '+15% de dano para todas as unidades e defesas.',
+    description: '+15% de dano para todas as unidades e defesas. Libera melhorias da torre a partir do nível 4.',
     cost: 0.25,
     effect: { damageMul: 1.15 },
   },
@@ -73,16 +83,37 @@ export const TECHNOLOGIES: Record<TechId, TechDef> = {
   territorial_administration: {
     id: 'territorial_administration',
     label: 'Administração territorial',
-    description: '+20% no raio de território de todas as construções no teatro (fronteiras maiores).',
+    description: '+20% no raio de território de todas as construções no teatro (fronteiras maiores). Libera o QG a partir do nível 7.',
     cost: 0.15,
     effect: { territoryMul: 1.2 },
   },
   automation: {
     id: 'automation',
     label: 'Automação industrial',
-    description: '+0,4 p.p. no crescimento econômico anual.',
+    description: '+0,4 p.p. no crescimento econômico anual. Libera melhorias de fábrica a partir do nível 5.',
     cost: 0.3,
     effect: { growthBonus: 0.4 },
+  },
+  agricultural_mechanization: {
+    id: 'agricultural_mechanization',
+    label: 'Mecanização agrícola',
+    description: 'Libera melhorias de fazenda a partir do nível 5 (colheitadeiras, irrigação e armazenagem modernas).',
+    cost: 0.12,
+    effect: {},
+  },
+  mechanized_extraction: {
+    id: 'mechanized_extraction',
+    label: 'Extração mecanizada',
+    description: 'Libera melhorias de serraria, pedreira e mina a partir do nível 5 (máquinas pesadas e britagem).',
+    cost: 0.15,
+    effect: {},
+  },
+  advanced_drilling: {
+    id: 'advanced_drilling',
+    label: 'Perfuração avançada',
+    description: 'Libera melhorias de poço de petróleo a partir do nível 5 (perfuração direcional e recuperação avançada).',
+    cost: 0.15,
+    effect: {},
   },
 };
 

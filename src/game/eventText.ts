@@ -9,6 +9,11 @@ const HALT_TEXT: Partial<Record<BuildingStatus, string>> = {
   unpaid: 'manutenção não paga',
 };
 import type { SimEvent } from '../../shared/sim/types.ts';
+import { specDef, type SpecId } from '../../shared/sim/upgrades.ts';
+
+function specLabel(type: BuildingType, spec: SpecId): string {
+  return specDef(type, spec)?.label ?? spec;
+}
 
 /** Mensagens do painel de eventos, derivadas exclusivamente de eventos da simulação. */
 export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone: 'info' | 'good' | 'warn' | 'bad' } | null {
@@ -41,8 +46,24 @@ export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone
         : null;
     case 'shortage':
       return e.owner === mySlot
-        ? { text: e.resource === 'food' ? 'Fome: sem comida em estoque, a produção cai pela metade' : 'Faltam suprimentos para a manutenção dos prédios residenciais', tone: 'bad' }
+        ? {
+            text:
+              e.resource === 'food'
+                ? 'Fome: sem comida em estoque, a produção cai pela metade'
+                : e.resource === 'oil'
+                  ? 'Falta petróleo para a manutenção: edifícios mecanizados pararam'
+                  : 'Faltam suprimentos para a manutenção: edifícios com manutenção em atraso pararam',
+            tone: 'bad',
+          }
         : null;
+    case 'upgrade_started':
+      return e.owner === mySlot ? { text: `Obra de melhoria iniciada: ${BUILDINGS[e.buildingType].label} → nível ${e.toLevel}${e.spec ? ` (${specLabel(e.buildingType, e.spec)})` : ''}`, tone: 'info' } : null;
+    case 'upgrade_completed':
+      return e.owner === mySlot
+        ? { text: `Melhoria concluída: ${BUILDINGS[e.buildingType].label} agora no nível ${e.level}${e.spec ? ` · ${specLabel(e.buildingType, e.spec)}` : ''}`, tone: 'good' }
+        : null;
+    case 'upgrade_cancelled':
+      return e.owner === mySlot ? { text: `Obra de melhoria cancelada: ${BUILDINGS[e.buildingType].label} (devolução parcial)`, tone: 'warn' } : null;
     case 'attrition':
       return e.owner === mySlot ? { text: 'Tropas sofrendo atrito em território inimigo: leve um blindado de transporte para manter o suprimento', tone: 'warn' } : null;
     case 'player_defeated':

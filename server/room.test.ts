@@ -8,6 +8,7 @@ import { RoomManager } from './RoomManager.ts';
 import type { MatchRecord } from './supabase.ts';
 import { PROTOCOL_VERSION } from '../shared/version.ts';
 import { PREPARATION_TICKS } from '../shared/sim/config.ts';
+import { UPGRADE_CANCEL_REFUND, upgradeCost } from '../shared/sim/upgrades.ts';
 
 function fakeConn() {
   const sent: ServerMessage[] = [];
@@ -250,6 +251,55 @@ describe('servidor de partidas', () => {
     await send(a.conn, { t: 'national', cmd: { type: 'diplomacy', action: { type: 'propose', treaty: 'trade', partner: jpn.id } } });
     room.advance();
     expect(a.last('cmd_rejected')!.reason).toMatch(/não descoberto/);
+  });
+
+  it('melhoria pela rede: só o dono comanda, cobra recursos e verba nacional e o snapshot mostra a obra', async () => {
+    const { send, rooms } = setup();
+    const a = fakeConn();
+    const b = fakeConn();
+    await send(a.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-ana' });
+    await send(b.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-beto' });
+    await send(a.conn, { t: 'create_room', mode: 'pvp', countryId: 'BRA' });
+    const code = a.last('room')!.room!.code;
+    await send(b.conn, { t: 'join_room', code, countryId: 'ARG' });
+    await send(b.conn, { t: 'set_ready', ready: true });
+    await send(a.conn, { t: 'start' });
+    const room = rooms.get(code)!;
+    const sim = room.sim!;
+    const hq = sim.buildings.find((x) => x.owner === 0 && x.type === 'hq')!;
+    const works = room.national!.nation(0)!.works;
+    const me = sim.players[0]!;
+    const fund0 = works.fundUsd;
+    const wood0 = me.resources.wood;
+    const stone0 = me.resources.stone;
+    const { cost, usd } = upgradeCost('hq', 2);
+    expect(fund0).toBeGreaterThan(usd);
+
+    // o adversário não melhora o QG de outra nação, e nada é cobrado
+    await send(b.conn, { t: 'cmd', cmd: { type: 'upgrade', buildingId: hq.id } });
+    room.advance();
+    expect(b.last('cmd_rejected')).toBeDefined();
+    expect(hq.upgrade).toBeNull();
+    expect(works.fundUsd).toBe(fund0);
+
+    await send(a.conn, { t: 'cmd', cmd: { type: 'upgrade', buildingId: hq.id } });
+    room.advance();
+    expect(hq.upgrade?.toLevel).toBe(2);
+    expect(works.fundUsd).toBe(fund0 - usd);
+    expect(works.ledger.at(-1)!.usd).toBe(usd);
+    expect(me.resources.wood).toBe(wood0 - cost.wood!);
+    expect(me.resources.stone).toBe(stone0 - cost.stone!);
+    const own = a.last('snapshot')!.s.buildings.find((x) => x.id === hq.id)!;
+    expect(own.level).toBe(1);
+    expect(own.upgrade && 'toLevel' in own.upgrade ? own.upgrade.toLevel : null).toBe(2);
+
+    await send(a.conn, { t: 'cmd', cmd: { type: 'cancel_upgrade', buildingId: hq.id } });
+    room.advance();
+    expect(hq.upgrade).toBeNull();
+    expect(hq.level).toBe(1);
+    expect(works.fundUsd).toBe(fund0 - usd + Math.floor(usd * UPGRADE_CANCEL_REFUND));
+    expect(works.ledger.at(-1)!.usd).toBe(-Math.floor(usd * UPGRADE_CANCEL_REFUND));
+    expect(me.resources.wood).toBe(wood0 - cost.wood! + Math.floor(cost.wood! * UPGRADE_CANCEL_REFUND));
   });
 
   it('a IA declara guerra pelo caminho validado antes de causar qualquer dano', async () => {

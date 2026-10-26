@@ -1,6 +1,9 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { BuildingType } from '../../../../shared/sim/config.ts';
+import type { SpecId } from '../../../../shared/sim/upgrades.ts';
 import { C, layers, type ModelLayers, type PartBuilder } from './kit.ts';
+import { modulesFor } from './upgradeModules.ts';
 
 /**
  * Modelos de edifícios centrados na origem (piso em y = 0). Concreto, vidros azulados e detalhes
@@ -8,6 +11,8 @@ import { C, layers, type ModelLayers, type PartBuilder } from './kit.ts';
  */
 export interface BuildingModel {
   base: ModelLayers;
+  /** Peças pequenas dos módulos de melhoria: ficam ocultas em zoom distante (LOD). */
+  detail: ModelLayers | null;
   /** Parte animada opcional (antena, balancim do poço, serra...). */
   moving: { layers: ModelLayers; pivot: [number, number, number]; kind: 'spin' | 'rock' | 'saw' } | null;
   height: number;
@@ -16,24 +21,86 @@ export interface BuildingModel {
 }
 
 const cache = new Map<BuildingType, BuildingModel>();
+/** Variantes por nível e especialização (base + módulos fundidos numa geometria por camada). */
+const variants = new Map<string, BuildingModel>();
 
-export function buildingModel(type: BuildingType): BuildingModel {
+function baseModel(type: BuildingType): BuildingModel {
   let m = cache.get(type);
   if (!m) {
-    m = BUILDERS[type]();
+    m = { ...BUILDERS[type](), detail: null };
     cache.set(type, m);
   }
   return m;
 }
 
+const hasGeometry = (g: THREE.BufferGeometry) => !!g.getAttribute('position');
+
+/** Funde a geometria da base com a dos módulos (uma chamada de desenho por camada). */
+function mergeLayer(base: THREE.BufferGeometry, extra: THREE.BufferGeometry): THREE.BufferGeometry {
+  if (!hasGeometry(extra)) {
+    extra.dispose();
+    return base.clone();
+  }
+  if (!hasGeometry(base)) return extra;
+  const merged = mergeGeometries([base, extra], false);
+  extra.dispose();
+  if (!merged) throw new Error('Falha ao fundir os módulos de melhoria');
+  merged.computeBoundingSphere();
+  return merged;
+}
+
+/**
+ * Modelo do edifício no nível e especialização dados. Nível 1 (ou classe sem módulos) é o modelo
+ * base; acima disso, os módulos de melhoria entram na mesma geometria, e as peças pequenas numa
+ * camada de detalhe separada (LOD).
+ */
+export function buildingModel(type: BuildingType, level = 1, spec: SpecId | null = null): BuildingModel {
+  const base = baseModel(type);
+  const mods = modulesFor(type, level, spec);
+  if (!mods.length) return base;
+  const key = `${type}|${level}|${spec ?? ''}`;
+  const hit = variants.get(key);
+  if (hit) return hit;
+  const main = layers();
+  const det = layers();
+  let height = base.height;
+  const smoke = [...(base.smoke ?? [])];
+  for (const mod of mods) {
+    const t = mod.detail ? det : main;
+    mod.build({ b: t.body, a: t.accent, g: t.glass });
+    if (mod.height) height = Math.max(height, mod.height);
+    if (mod.smoke) smoke.push(...mod.smoke);
+  }
+  const extra = main.build();
+  const detail = det.build();
+  const m: BuildingModel = {
+    base: {
+      body: mergeLayer(base.base.body, extra.body),
+      accent: mergeLayer(base.base.accent, extra.accent),
+      glass: mergeLayer(base.base.glass, extra.glass),
+    },
+    detail: [detail.body, detail.accent, detail.glass].some(hasGeometry) ? detail : null,
+    moving: base.moving,
+    height,
+    ...(smoke.length ? { smoke } : {}),
+  };
+  if (!m.detail) for (const g of [detail.body, detail.accent, detail.glass]) g.dispose();
+  variants.set(key, m);
+  return m;
+}
+
 export function disposeBuildingModels(): void {
+  for (const m of variants.values()) {
+    for (const l of [m.base, m.detail]) if (l) for (const g of [l.body, l.accent, l.glass]) g.dispose();
+  }
+  variants.clear();
   for (const m of cache.values()) {
     for (const l of [m.base, m.moving?.layers]) if (l) for (const g of [l.body, l.accent, l.glass]) g.dispose();
   }
   cache.clear();
 }
 
-const BUILDERS: Record<BuildingType, () => BuildingModel> = {
+const BUILDERS: Record<BuildingType, () => Omit<BuildingModel, 'detail'>> = {
   hq: buildHq,
   barracks: buildBarracks,
   factory: buildFactory,
@@ -129,7 +196,7 @@ function flag(b: PartBuilder, a: PartBuilder, x: number, z: number, h: number): 
 
 // ------------------------------------------------------------------ comando e militares
 
-function buildHq(): BuildingModel {
+function buildHq(): Omit<BuildingModel, 'detail'> {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
   slab(b, 6);
@@ -192,7 +259,7 @@ function dishLayers(): ModelLayers {
   return d.build();
 }
 
-function buildBarracks(): BuildingModel {
+function buildBarracks(): Omit<BuildingModel, 'detail'> {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
   slab(b, 4);
@@ -211,7 +278,7 @@ function buildBarracks(): BuildingModel {
   return { base: l.build(), moving: null, height: 2.6 };
 }
 
-function buildFactory(): BuildingModel {
+function buildFactory(): Omit<BuildingModel, 'detail'> {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
   slab(b, 4);
@@ -269,7 +336,7 @@ function buildFactory(): BuildingModel {
 
 // ------------------------------------------------------------------ economia
 
-function buildFarm(): BuildingModel {
+function buildFarm(): Omit<BuildingModel, 'detail'> {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
   b.box(3.9, 0.06, 3.9, '#6f7f3e', [0, 0.03, 0]);
@@ -294,7 +361,7 @@ function buildFarm(): BuildingModel {
   return { base: l.build(), moving: null, height: 2.2 };
 }
 
-function buildSawmill(): BuildingModel {
+function buildSawmill(): Omit<BuildingModel, 'detail'> {
   const l = layers();
   const { body: b, accent: a } = l;
   slab(b, 4);
@@ -318,7 +385,7 @@ function buildSawmill(): BuildingModel {
   return { base: l.build(), moving: { layers: saw.build(), pivot: [0, 0.75, 0], kind: 'saw' }, height: 2.1 };
 }
 
-function buildQuarry(): BuildingModel {
+function buildQuarry(): Omit<BuildingModel, 'detail'> {
   const l = layers();
   const { body: b, accent: a } = l;
   b.box(3.9, 0.06, 3.9, '#8c877c', [0, 0.03, 0]);
@@ -339,7 +406,7 @@ function buildQuarry(): BuildingModel {
   return { base: l.build(), moving: null, height: 1.4 };
 }
 
-function buildOilWell(): BuildingModel {
+function buildOilWell(): Omit<BuildingModel, 'detail'> {
   const l = layers();
   const { body: b, accent: a } = l;
   b.box(3.9, 0.06, 3.9, '#4b4740', [0, 0.03, 0]);
@@ -362,7 +429,7 @@ function buildOilWell(): BuildingModel {
   return { base: l.build(), moving: { layers: jack.build(), pivot: [-0.2, 1.4, 0.3], kind: 'rock' }, height: 1.8 };
 }
 
-function buildTower(): BuildingModel {
+function buildTower(): Omit<BuildingModel, 'detail'> {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
   b.box(1.8, 0.14, 1.8, C.concreteDark, [0, 0.07, 0]);
@@ -403,7 +470,7 @@ function buildTower(): BuildingModel {
 
 // ------------------------------------------------------------------ população e armazenamento
 
-function buildMine(): BuildingModel {
+function buildMine(): Omit<BuildingModel, 'detail'> {
   const l = layers();
   const { body: b, accent: a } = l;
   b.box(3.9, 0.06, 3.9, '#6b625a', [0, 0.03, 0]);
@@ -438,7 +505,7 @@ function buildMine(): BuildingModel {
   return { base: l.build(), moving: null, height: 2.0 };
 }
 
-function buildHouse(): BuildingModel {
+function buildHouse(): Omit<BuildingModel, 'detail'> {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
   b.box(1.8, 0.06, 1.8, '#7c8a52', [0, 0.03, 0]);
@@ -455,7 +522,7 @@ function buildHouse(): BuildingModel {
   return { base: l.build(), moving: null, height: 1.4 };
 }
 
-function buildResidential(): BuildingModel {
+function buildResidential(): Omit<BuildingModel, 'detail'> {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
   slab(b, 4);
@@ -478,7 +545,7 @@ function buildResidential(): BuildingModel {
   return { base: l.build(), moving: null, height: 3.2 };
 }
 
-function buildWarehouse(): BuildingModel {
+function buildWarehouse(): Omit<BuildingModel, 'detail'> {
   const l = layers();
   const { body: b, accent: a } = l;
   slab(b, 4);
@@ -498,7 +565,7 @@ function buildWarehouse(): BuildingModel {
   return { base: l.build(), moving: null, height: 2.0 };
 }
 
-function buildSilo(): BuildingModel {
+function buildSilo(): Omit<BuildingModel, 'detail'> {
   const l = layers();
   const { body: b, accent: a } = l;
   b.box(1.8, 0.1, 1.8, C.concreteDark, [0, 0.05, 0]);
@@ -511,7 +578,7 @@ function buildSilo(): BuildingModel {
   return { base: l.build(), moving: null, height: 2.4 };
 }
 
-function buildOilTank(): BuildingModel {
+function buildOilTank(): Omit<BuildingModel, 'detail'> {
   const l = layers();
   const { body: b, accent: a } = l;
   b.box(1.8, 0.1, 1.8, C.concreteDark, [0, 0.05, 0]);

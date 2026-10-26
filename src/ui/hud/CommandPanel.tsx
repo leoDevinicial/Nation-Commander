@@ -20,6 +20,7 @@ import { factionColor } from '../../game/render/palette.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
+import { buildingEffects, formatUsd as usdShort, specDef, upgradeTrack } from '../../../shared/sim/upgrades.ts';
 
 const BUILD_OPTIONS: BuildingType[] = ['house', 'farm', 'sawmill', 'quarry', 'mine', 'oil_well', 'oil_tank', 'warehouse', 'silo', 'barracks', 'factory', 'tower', 'residential'];
 const EMPTY: Stockpile = emptyStockpile();
@@ -92,7 +93,13 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
               {inspected.kind === 'unit' ? UNITS[inspected.type as UnitType].label : BUILDINGS[inspected.type as BuildingType].label}
               <span className="text-xs text-red-300">(rival)</span>
             </div>
-            <HpLine hp={inspected.hp} max={inspected.kind === 'unit' ? UNITS[inspected.type as UnitType].maxHp : BUILDINGS[inspected.type as BuildingType].maxHp} />
+            <HpLine hp={inspected.hp} max={inspected.maxHp} />
+            {inspected.kind === 'building' && inspected.level > 1 && (
+              <div className="mt-1 text-xs text-ink-400">
+                Nível {inspected.level}
+                {inspected.spec ? ` · ${specDef(inspected.type as BuildingType, inspected.spec)?.label ?? ''}` : ''}
+              </div>
+            )}
             <WarStatus owner={inspected.owner} mySlot={mySlot} />
           </div>
         )}
@@ -177,6 +184,9 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
               </button>
             );
           })}
+        {building && building.progress >= 1 && mode.kind === 'normal' && upgradeTrack(building.type) && (
+          <UpgradeButton runtime={runtime} b={building} />
+        )}
         {building && building.progress >= 1 && (building.type === 'barracks' || building.type === 'factory') && (
           <ProduceButtons runtime={runtime} type={building.type} resources={resources} />
         )}
@@ -197,6 +207,30 @@ function WarStatus({ owner, mySlot }: { owner: number; mySlot: number }) {
         🌐 Abrir no Globo
       </button>
     </div>
+  );
+}
+
+/** Abre o painel de melhoria (ou cancela a obra em andamento). */
+function UpgradeButton({ runtime, b }: { runtime: GameRuntime; b: NonNullable<ReturnType<typeof useHudStore.getState>['selectedBuilding']> }) {
+  const track = upgradeTrack(b.type)!;
+  if (b.upgrade)
+    return (
+      <button className="cmd-btn shrink-0" onClick={() => useHudStore.getState().set({ upgradeFor: b.id })} title="Obra de melhoria em andamento — abrir detalhes ou cancelar">
+        <span className="hotkey">{Math.round(b.upgrade.progress * 100)}%</span>🏗<span>Obra Nv {b.upgrade.toLevel}</span>
+      </button>
+    );
+  const plan = runtime.upgradePlan(b.id);
+  const max = b.level >= track.maxLevel;
+  return (
+    <button
+      className="cmd-btn shrink-0"
+      onClick={() => useHudStore.getState().set({ upgradeFor: b.id })}
+      title={max ? 'Nível máximo atingido' : `Melhorar para o nível ${b.level + 1}${plan?.blocker ? `\n${plan.blocker}` : ''}`}
+    >
+      <span className="hotkey">Nv {b.level}</span>⬆
+      <span className="font-semibold">{max ? 'Máximo' : 'Melhorar'}</span>
+      {!max && plan && <span className={`text-[10px] ${plan.blocker ? 'text-red-300' : 'text-signal-green'}`}>{usdShort(plan.usd)}</span>}
+    </button>
   );
 }
 
@@ -271,7 +305,7 @@ function UnitsInfo({ units }: { units: ReturnType<typeof useHudStore.getState>['
     return (
       <div>
         <div className="text-sm font-semibold">{def.label}</div>
-        <HpLine hp={u.hp} max={def.maxHp} />
+        <HpLine hp={u.hp} max={u.maxHp} />
         <dl className="mt-2 grid grid-cols-3 gap-x-4 gap-y-0.5 text-xs text-ink-400">
           <dt>Estado</dt>
           <dd className="col-span-2 text-ink-200">{ACTIVITY[u.activity] ?? u.activity}</dd>
@@ -295,7 +329,7 @@ function UnitsInfo({ units }: { units: ReturnType<typeof useHudStore.getState>['
       <div className="mt-1 text-xs text-ink-400">{[...counts].map(([t, n]) => `${n}× ${UNITS[t].label}`).join(' · ')}</div>
       <div className="mt-2 flex max-h-24 flex-wrap gap-1 overflow-hidden">
         {units.slice(0, 40).map((u) => {
-          const f = u.hp / UNITS[u.type].maxHp;
+          const f = u.hp / u.maxHp;
           return (
             <div key={u.id} className="flex h-7 w-7 flex-col justify-between rounded border border-ink-600 bg-ink-850 p-0.5" title={`${UNITS[u.type].label} — ${Math.ceil(u.hp)} PV`}>
               <span className="text-center text-[10px] leading-none">{u.type === 'tank' ? '▣' : '●'}</span>
@@ -311,13 +345,30 @@ function UnitsInfo({ units }: { units: ReturnType<typeof useHudStore.getState>['
 function BuildingInfo({ b, runtime }: { b: NonNullable<ReturnType<typeof useHudStore.getState>['selectedBuilding']>; runtime: GameRuntime }) {
   const def = BUILDINGS[b.type];
   const done = b.progress >= 1;
+  const track = upgradeTrack(b.type);
+  const spec = specDef(b.type, b.spec);
+  // valores do nível e da especialização atuais (os de base valem só no nível 1)
+  const fx = buildingEffects(b.type, b.level, b.spec);
   return (
     <div>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-semibold">{def.label}</span>
+        <span className="text-sm font-semibold">
+          {def.label}
+          {track && done && (
+            <span className="ml-1.5 text-xs font-normal text-brass-400" title={spec ? `${spec.label}: ${spec.summary}` : undefined}>
+              Nv {b.level}/{track.maxLevel}
+              {spec ? ` · ${spec.label}` : ''}
+            </span>
+          )}
+        </span>
         {done && b.status !== 'ok' && <span className="text-[11px] font-semibold text-brass-400">⚠ {STATUS_TEXT[b.status].split(':')[0]}</span>}
       </div>
-      <HpLine hp={b.hp} max={def.maxHp} />
+      <HpLine hp={b.hp} max={b.maxHp} />
+      {b.upgrade && (
+        <div className="mt-1 flex items-center gap-2 text-xs text-brass-400">
+          Obra para o nível {b.upgrade.toLevel}: {Math.round(b.upgrade.progress * 100)}% (opera a 50% durante a obra)
+        </div>
+      )}
       {!done ? (
         <div className="mt-2 text-xs text-ink-400">Em construção: {Math.round(b.progress * 100)}%</div>
       ) : b.status !== 'ok' ? (
@@ -325,7 +376,7 @@ function BuildingInfo({ b, runtime }: { b: NonNullable<ReturnType<typeof useHudS
       ) : (
         <div className="mt-1.5 text-xs text-ink-400">{def.description}</div>
       )}
-      {done && def.workers > 0 && (
+      {done && fx.workers > 0 && (
         <div className="mt-1.5 flex items-center gap-2 text-xs">
           <span className="text-ink-400">Trabalhadores</span>
           <button className="btn min-h-7 px-2 py-0 text-xs" aria-label="Menos trabalhadores" disabled={b.workerTarget <= 0} onClick={() => runtime.setWorkers(b.id, b.workerTarget - 1)}>
@@ -333,14 +384,22 @@ function BuildingInfo({ b, runtime }: { b: NonNullable<ReturnType<typeof useHudS
           </button>
           <span className="font-mono text-ink-100" title="Ocupados / alvo / postos">
             {b.workers}/{b.workerTarget}
-            <span className="text-ink-400"> de {def.workers}</span>
+            <span className="text-ink-400"> de {fx.workers}</span>
           </span>
-          <button className="btn min-h-7 px-2 py-0 text-xs" aria-label="Mais trabalhadores" disabled={b.workerTarget >= def.workers} onClick={() => runtime.setWorkers(b.id, b.workerTarget + 1)}>
+          <button className="btn min-h-7 px-2 py-0 text-xs" aria-label="Mais trabalhadores" disabled={b.workerTarget >= fx.workers} onClick={() => runtime.setWorkers(b.id, b.workerTarget + 1)}>
             +
           </button>
         </div>
       )}
-      {done && def.income.supplies ? <div className="text-xs text-signal-green">Gera +{def.income.supplies} suprimentos/s</div> : null}
+      {done && fx.income.supplies ? <div className="text-xs text-signal-green">Gera +{fx.income.supplies.toFixed(2)} suprimentos/s</div> : null}
+      {done && Object.keys(fx.upkeep).length > 0 && (
+        <div className="text-[11px] text-ink-400">
+          Manutenção:{' '}
+          {Object.entries(fx.upkeep)
+            .map(([r, v]) => `${(v as number).toFixed(2)} ${RESOURCE_LABELS[r as keyof typeof RESOURCE_LABELS].toLowerCase()}/s`)
+            .join(' · ')}
+        </div>
+      )}
       {done && def.gather && (
         <div className="flex flex-wrap items-center gap-1.5 text-xs text-signal-green">
           <ResourceIcon type={def.gather.resource} />+{b.rate.toFixed(2)} {RESOURCE_LABELS[def.gather.resource].toLowerCase()}/s
@@ -355,19 +414,19 @@ function BuildingInfo({ b, runtime }: { b: NonNullable<ReturnType<typeof useHudS
       )}
       {b.stored !== null && (
         <div className="text-[11px] text-ink-400">
-          Estoque do tanque: <span className="font-mono text-ink-200">{Math.floor(b.stored)}</span> / {def.storage.oil}
+          Estoque do tanque: <span className="font-mono text-ink-200">{Math.floor(b.stored)}</span> / {fx.storage.oil}
         </div>
       )}
-      {done && Object.keys(def.storage).length > 0 && b.type !== 'oil_tank' && (
+      {done && Object.keys(fx.storage).length > 0 && b.type !== 'oil_tank' && (
         <div className="text-[11px] text-ink-400">
           Capacidade:{' '}
-          {Object.entries(def.storage)
+          {Object.entries(fx.storage)
             .map(([r, v]) => `${v} ${RESOURCE_LABELS[r as keyof typeof RESOURCE_LABELS].toLowerCase()}`)
             .join(' · ')}
         </div>
       )}
-      {done && def.housing > 0 && <div className="text-[11px] text-ink-400">Moradia para {def.housing} habitantes.</div>}
-      {done && def.territoryRadius > 0 && <div className="text-[11px] text-ink-400">Projeta fronteira num raio de {def.territoryRadius} células.</div>}
+      {done && fx.housing > 0 && <div className="text-[11px] text-ink-400">Moradia para {fx.housing} habitantes.</div>}
+      {done && fx.territoryRadius > 0 && <div className="text-[11px] text-ink-400">Projeta fronteira num raio de {fx.territoryRadius} células.</div>}
       {b.queue.length > 0 && (
         <div className="mt-2 flex items-center gap-1.5">
           {b.queue.map((q, i) => (
@@ -379,7 +438,7 @@ function BuildingInfo({ b, runtime }: { b: NonNullable<ReturnType<typeof useHudS
         </div>
       )}
       {(b.type === 'barracks' || b.type === 'factory') && done && (
-        <div className="mt-1 text-[11px] text-ink-400">Botão direito no mapa define o ponto de reunião{b.hasRally ? ' (definido)' : ''}. Cada unidade usa um cidadão ocioso.</div>
+        <div className="mt-1 text-[11px] text-ink-400">Botão direito no mapa define o ponto de reunião{b.hasRally ? ' (definido)' : ''}. Cada unidade usa um recruta da reserva.</div>
       )}
     </div>
   );

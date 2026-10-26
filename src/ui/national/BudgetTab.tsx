@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { NationView } from '../../../shared/protocol.ts';
 import { interestRate, spendPct, type Budget } from '../../../shared/strategic/NationalSimulation.ts';
-import { COEF, LIMITS } from '../../../shared/strategic/params.ts';
+import { COEF, LIMITS, WORKS_SHARE_OF_INFRA } from '../../../shared/strategic/params.ts';
 import { formatPct, formatSigned, formatUsd } from '../../lib/format.ts';
 
 const ROWS: { key: keyof Budget; label: string; limits: readonly [number, number]; hint: string }[] = [
@@ -27,7 +27,8 @@ export function BudgetTab({ nation, onApply, balanceMode }: { nation: NationView
     const balance = draft.taxPct - spend - interestPct;
     const gdpForTheater = balanceMode === 'parity' ? COEF.parityGdpUsd : nation.gdpUsd;
     const supply = COEF.theaterSupplyK * Math.log10(1 + ((draft.defensePct / 100) * gdpForTheater) / 1e9);
-    return { interestPct, spend, balance, supplyBase: supply };
+    const worksCap = (draft.infrastructurePct / 100) * gdpForTheater * WORKS_SHARE_OF_INFRA;
+    return { interestPct, spend, balance, supplyBase: supply, worksCap };
   }, [draft, nation, balanceMode]);
 
   const set = (key: keyof Budget, v: number) => setEdited({ ...draft, [key]: v });
@@ -86,6 +87,7 @@ export function BudgetTab({ nation, onApply, balanceMode }: { nation: NationView
         <span className="font-sans text-ink-400">Logística do teatro (sem bônus)</span>
         <span className="text-right">+{preview.supplyBase.toFixed(2)}/s</span>
       </div>
+      <WorksFundBox nation={nation} draftCap={preview.worksCap} />
       {nation.taxAdjustmentPct > 0 && (
         <p className="text-[10px] text-ink-400">
           A receita de referência inclui um ajuste de {formatPct(nation.taxAdjustmentPct)} do PIB: os dados de receita cobrem só o governo central,
@@ -118,6 +120,51 @@ export function BudgetTab({ nation, onApply, balanceMode }: { nation: NationView
           Referência
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Verba de obras do teatro: parcela do orçamento de infraestrutura que paga as melhorias de
+ * construções (Fase 4). Mostra saldo, teto anual (e o efeito do rascunho do orçamento) e o extrato.
+ */
+function WorksFundBox({ nation, draftCap }: { nation: NationView; draftCap: number }) {
+  const w = nation.works;
+  const changed = Math.abs(draftCap - w.capUsd) > 1;
+  return (
+    <div className="rounded border border-ink-700 bg-ink-900 p-2.5">
+      <div className="flex items-baseline justify-between">
+        <span className="font-semibold text-ink-200">Verba de obras do teatro</span>
+        <span className="font-mono text-ink-100">
+          {formatUsd(w.fundUsd)} <span className="text-ink-400">de {formatUsd(w.capUsd)}/ano</span>
+        </span>
+      </div>
+      <p className="mt-1 text-[10px] text-ink-400">
+        Paga as melhorias de construções no teatro. É uma parcela de {formatPct(WORKS_SHARE_OF_INFRA * 100, 1)} do orçamento de infraestrutura
+        (já contada no gasto público) e repõe 1/365 do teto por dia. Para ter mais verba, aumente a infraestrutura.
+        {changed && (
+          <span className="text-brass-400"> Com o rascunho, o teto passa a {formatUsd(draftCap)}/ano.</span>
+        )}
+      </p>
+      <div className="mt-1 flex justify-between text-[11px]">
+        <span className="text-ink-400">Gasto na partida</span>
+        <span className="font-mono text-ink-200">{formatUsd(w.spentUsd)}</span>
+      </div>
+      {w.ledger.length > 0 && (
+        <ul className="mt-1 max-h-24 space-y-0.5 overflow-y-auto text-[11px]">
+          {[...w.ledger].reverse().map((l, i) => (
+            <li key={i} className="flex justify-between gap-2">
+              <span className="truncate text-ink-400">
+                dia {l.day} · {l.description}
+              </span>
+              <span className={`shrink-0 font-mono ${l.usd > 0 ? 'text-red-300' : 'text-signal-green'}`}>
+                {l.usd > 0 ? '−' : '+'}
+                {formatUsd(Math.abs(l.usd))}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

@@ -3,11 +3,14 @@ import type { BuildingType, DepositSize, ProducibleType, UnitType } from '../../
 import type { GameSpeed } from '../../shared/protocol.ts';
 import type { PlayerSnapshot } from '../../shared/sim/snapshot.ts';
 import type { BuildingStatus, EntityId, UnitActivity } from '../../shared/sim/types.ts';
+import type { SpecId } from '../../shared/sim/upgrades.ts';
 
 export interface SelectedUnitInfo {
   id: EntityId;
   type: UnitType;
   hp: number;
+  /** Vida máxima desta unidade (pesquisas e especializações do edifício que a produziu). */
+  maxHp: number;
   activity: UnitActivity;
   order: string;
 }
@@ -17,7 +20,13 @@ export interface SelectedBuildingInfo {
   type: BuildingType;
   owner: number;
   hp: number;
+  maxHp: number;
   progress: number;
+  /** Nível de melhoria e especialização (Fase 4). */
+  level: number;
+  spec: SpecId | null;
+  /** Obra de melhoria em andamento. */
+  upgrade: { toLevel: number; progress: number; spec: SpecId | null } | null;
   queue: { unitType: ProducibleType; progress: number }[];
   hasRally: boolean;
   claims: number;
@@ -56,7 +65,9 @@ export interface HudState {
   selectedUnits: SelectedUnitInfo[];
   selectedBuilding: SelectedBuildingInfo | null;
   /** Seleção de entidade inimiga (só leitura). */
-  inspected: { kind: 'unit' | 'building'; type: string; owner: number; hp: number } | null;
+  inspected: { kind: 'unit' | 'building'; type: string; owner: number; hp: number; maxHp: number; level: number; spec: SpecId | null } | null;
+  /** Painel de melhoria aberto para este edifício. */
+  upgradeFor: EntityId | null;
   mode: PointerMode;
   events: HudEvent[];
   fps: number;
@@ -81,6 +92,7 @@ export const useHudStore = create<HudState>((set) => ({
   selectedUnits: [],
   selectedBuilding: null,
   inspected: null,
+  upgradeFor: null,
   mode: { kind: 'normal' },
   events: [],
   fps: 0,

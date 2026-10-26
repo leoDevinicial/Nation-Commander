@@ -1,8 +1,9 @@
-import { BUILDINGS, CITIZEN, OIL_TANK_RANGE, RECRUIT, POP_ABSOLUTE_CAP, PREPARATION_TICKS, RESOURCE_TYPES, TICK_RATE, UNITS, canAfford, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
+import { BUILDINGS, CITIZEN, OIL_TANK_RANGE, RECRUIT, type ResourceType, POP_ABSOLUTE_CAP, PREPARATION_TICKS, RESOURCE_TYPES, TICK_RATE, UNITS, canAfford, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
 import { claimableCells, claimedBy } from './gathering.ts';
 import type { Command } from './commands.ts';
 import type { Simulation } from './Simulation.ts';
 import type { Building, Cell, Entity, Slot, Vec2 } from './types.ts';
+import type { SpecId } from './upgrades.ts';
 import { DIPLO } from '../strategic/Diplomacy.ts';
 
 /** Com que frequência a IA reavalia a situação. */
@@ -13,6 +14,24 @@ export const AI_FIRST_ATTACK_TICK = PREPARATION_TICKS;
 export const AI_WAVE_COOLDOWN_TICKS = TICK_RATE * 60 * 4;
 /** Tamanho máximo do exército durante o preparo (defesa da base), salvo se já estiver em guerra. */
 export const AI_PREP_GARRISON = 6;
+/** A IA só começa a melhorar construções depois deste momento (economia básica primeiro). */
+export const AI_FIRST_UPGRADE_TICK = TICK_RATE * 120;
+/** Especialização que a IA escolhe em cada classe (determinística). */
+const AI_SPEC: Partial<Record<BuildingType, SpecId>> = {
+  hq: 'fortified',
+  farm: 'intensive',
+  sawmill: 'efficient',
+  quarry: 'efficient',
+  mine: 'efficient',
+  oil_well: 'enhanced',
+  warehouse: 'capacity',
+  silo: 'capacity',
+  oil_tank: 'capacity',
+  residential: 'dense',
+  barracks: 'drill',
+  factory: 'volume',
+};
+
 /** Primeira onda e crescimento por onda: a pressão sobe ao longo da partida. */
 export const AI_FIRST_WAVE = 12;
 const AI_WAVE_STEP = 3;
@@ -106,8 +125,11 @@ export class TacticalAI {
     ];
     for (const [type, wanted] of plan) if (wanted && tryBuild(type)) break;
 
+    // --- melhorias (Fase 4): uma obra por vez, só com folga de recursos e de manutenção
+    this.planUpgrade(sim, mine, budget, take, cmds);
+
     // --- população: forma cidadãos para preencher postos e manter reserva para recrutamento
-    const vacancies = mine.reduce((a, b) => a + (b.progress >= 1 ? Math.max(0, Math.min(b.workerTarget, BUILDINGS[b.type].workers) - b.workers) : 0), 0);
+    const vacancies = mine.reduce((a, b) => a + (b.progress >= 1 ? Math.max(0, Math.min(b.workerTarget, sim.fx(b).workers) - b.workers) : 0), 0);
     if (hq.queue.length < 2 && pop.total < pop.cap && pop.idle + pop.queuedCitizens < vacancies + 1 && take(CITIZEN.cost)) {
       cmds.push({ type: 'produce', buildingId: hq.id, unitType: 'citizen' });
     }
@@ -168,6 +190,62 @@ export class TacticalAI {
       if (strays.length > 0) cmds.push({ type: 'move', unitIds: strays.map((u) => u.id), x: rally.x, y: rally.y });
     }
     return cmds;
+  }
+
+  /**
+   * Escolhe no máximo uma melhoria: QG primeiro (destrava os demais), depois coleta, depósitos
+   * que limitam a coleta e, fora do preparo, a produção militar. Usa exatamente a mesma avaliação
+   * (`upgradePlan`) e o mesmo comando que o jogador humano.
+   */
+  private planUpgrade(sim: Simulation, mine: Building[], budget: Stockpile, take: (c: Cost) => boolean, cmds: Command[]): void {
+    if (sim.tick < AI_FIRST_UPGRADE_TICK || mine.some((b) => b.upgrade)) return;
+    const hq = mine.find((b) => b.type === 'hq');
+    if (!hq) return;
+    const income = sim.incomePerSecond(this.slot);
+    const minutes = sim.tick / TICK_RATE / 60;
+    const preparing = sim.tick < AI_FIRST_ATTACK_TICK;
+    const res = sim.players[this.slot]!.resources;
+    const cap = sim.capacity(this.slot);
+    const pop = sim.population(this.slot);
+    const full = (r: ResourceType) => cap[r] > 0 && res[r] >= cap[r] * 0.7;
+    // depósitos que limitam a próxima melhoria de alguma coleta (requisito de logística)
+    const neededStorage = new Set<BuildingType>();
+    for (const b of mine) {
+      const g = BUILDINGS[b.type].gather;
+      if (!g || b.progress < 1) continue;
+      const blocked = sim.upgradePlan(b, AI_SPEC[b.type] ?? null).requirements.find((r) => r.key === 'storage' && !r.met);
+      if (blocked) neededStorage.add(g.resource === 'food' ? 'silo' : g.resource === 'oil' ? 'oil_tank' : 'warehouse');
+    }
+    const storageWanted = (t: BuildingType) =>
+      neededStorage.has(t) || (t === 'silo' ? full('food') : t === 'oil_tank' ? full('oil') : full('wood') || full('stone') || full('iron'));
+    const order = (b: Building): number => {
+      if (b.type === 'hq') return b.level < 2 + Math.floor(minutes / 5) ? 0 : 9;
+      if (BUILDINGS[b.type].gather) return b.status === 'ok' ? 1 : 9;
+      if (b.type === 'warehouse' || b.type === 'silo' || b.type === 'oil_tank') return storageWanted(b.type) ? 2 : 9;
+      if (b.type === 'barracks' || b.type === 'factory') return preparing ? 9 : 3;
+      if (b.type === 'residential' || b.type === 'house') return pop.total >= pop.cap - 3 ? 4 : 9;
+      return 6;
+    };
+    const candidates = mine.filter((b) => b.progress >= 1 && b.hp > 0 && order(b) < 9).sort((a, b) => order(a) - order(b) || a.level - b.level || a.id - b.id);
+    for (const b of candidates) {
+      const plan = sim.upgradePlan(b, AI_SPEC[b.type] ?? null);
+      if (plan.toLevel === null) continue;
+      // o QG destrava todo o resto: se só faltam recursos ou verba, junta para ele em vez de gastar em outra obra
+      const saving = order(b) === 0 && plan.blocker !== null && (plan.blocker.startsWith('Recursos') || plan.blocker.startsWith('Verba'));
+      if (saving) return;
+      if (plan.blocker) continue;
+      // mantém reserva para cidadãos, recrutas e emergências
+      const reserve: Cost = { supplies: 120, food: 80 };
+      const left = { ...budget };
+      for (const r of RESOURCE_TYPES) left[r] -= (plan.cost[r] ?? 0) + (reserve[r] ?? 0);
+      if (RESOURCE_TYPES.some((r) => left[r] < 0)) continue;
+      // a manutenção extra não pode deixar o saldo de suprimentos/petróleo negativo
+      if (income.supplies - (plan.upkeepDelta.supplies ?? 0) < 0.4 || income.oil - (plan.upkeepDelta.oil ?? 0) < 0) continue;
+      if (!take(plan.cost)) continue;
+      const spec = plan.specChoice ? AI_SPEC[b.type] : undefined;
+      cmds.push(spec ? { type: 'upgrade', buildingId: b.id, spec } : { type: 'upgrade', buildingId: b.id });
+      return;
+    }
   }
 
   private nearestThreat(sim: Simulation, mine: Building[]): Entity | null {

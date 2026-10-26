@@ -3,7 +3,7 @@ import type { BuildingSnapshot } from '../../shared/sim/snapshot.ts';
 import { citizenRoster, dropoffFor } from '../game/render/CitizenLayer.ts';
 
 const b = (id: number, type: BuildingSnapshot['type'], workers: number, progress = 1): BuildingSnapshot =>
-  ({ id, type, owner: 0, cx: 0, cy: 0, hp: 100, progress, queue: [], rally: null, workers }) as BuildingSnapshot;
+  ({ id, type, owner: 0, cx: 0, cy: 0, hp: 100, maxHp: 100, progress, level: 1, spec: null, queue: [], rally: null, workers }) as BuildingSnapshot;
 
 describe('cidadãos visíveis', () => {
   it('um civil por trabalhador e por ocioso: o total bate com a população real', () => {

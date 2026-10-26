@@ -32,6 +32,18 @@ export const PUBLIC_RESEARCH_SHARE = 0.3;
 /** Gasto inicial em infraestrutura, % do PIB (sem série comparável no WDI). */
 export const BASE_INFRASTRUCTURE_PCT = 2.5;
 
+/**
+ * Verba de obras do teatro (Fase 4): parcela do orçamento anual de infraestrutura reservada às
+ * melhorias de construções no teatro de operações. Hipótese de jogo. A parcela já faz parte do gasto
+ * público contabilizado (não cria despesa nova); para ter mais verba, aumenta-se o orçamento de
+ * infraestrutura, com os efeitos normais sobre déficit e dívida.
+ */
+export const WORKS_SHARE_OF_INFRA = 0.003;
+/** A verba começa a partida com esta fração do teto anual (o resto chega dia a dia). */
+export const WORKS_START_FRACTION = 0.5;
+/** Lançamentos mais recentes guardados no extrato de obras. */
+export const WORKS_LEDGER_MAX = 12;
+
 export const LIMITS = {
   taxPct: [5, 60] as const,
   categoryPct: [0, 30] as const,

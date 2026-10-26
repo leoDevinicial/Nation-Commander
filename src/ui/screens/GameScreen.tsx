@@ -11,6 +11,7 @@ import { PauseMenu } from '../hud/PauseMenu.tsx';
 import { ResultsOverlay } from '../hud/ResultsOverlay.tsx';
 import { TopBar } from '../hud/TopBar.tsx';
 import { TouchToolbar } from '../hud/TouchToolbar.tsx';
+import { UpgradePanel } from '../hud/UpgradePanel.tsx';
 import { GlobePanel } from '../geo/GlobePanel.tsx';
 import { WarDialog } from '../geo/WarDialog.tsx';
 import { ChatBox } from '../components/ChatBox.tsx';
@@ -134,6 +135,7 @@ export function GameScreen() {
             </div>
           )}
           {touchUi && !nationalOpen && !globeOpen && <TouchToolbar runtime={runtime} />}
+          {!globeOpen && !nationalOpen && <UpgradePanel runtime={runtime} />}
           {nationalOpen && <NationalPanel onClose={() => setNationalOpen(false)} />}
           {chatOpen && (
             <div className="absolute top-15 right-2 z-30 w-72 max-w-[calc(100vw-16px)] sm:top-14 sm:right-3">

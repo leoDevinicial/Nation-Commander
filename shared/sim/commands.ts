@@ -1,5 +1,6 @@
 import { BUILDINGS, UNITS, type BuildingType, type ProducibleType } from './config.ts';
 import type { EntityId } from './types.ts';
+import { isSpecId, type SpecId } from './upgrades.ts';
 
 export type Command =
   | { type: 'move'; unitIds: EntityId[]; x: number; y: number }
@@ -10,7 +11,10 @@ export type Command =
   | { type: 'produce'; buildingId: EntityId; unitType: ProducibleType }
   | { type: 'set_workers'; buildingId: EntityId; count: number }
   | { type: 'cancel_production'; buildingId: EntityId }
-  | { type: 'set_rally'; buildingId: EntityId; x: number; y: number };
+  | { type: 'set_rally'; buildingId: EntityId; x: number; y: number }
+  /** Melhoria para o próximo nível; `spec` é obrigatório no nível que pede especialização. */
+  | { type: 'upgrade'; buildingId: EntityId; spec?: SpecId }
+  | { type: 'cancel_upgrade'; buildingId: EntityId };
 
 const MAX_UNITS_PER_COMMAND = 60;
 
@@ -50,6 +54,13 @@ export function parseCommand(raw: unknown): Command | null {
     case 'set_rally':
       if (!isId(raw.buildingId) || !isFiniteNum(raw.x) || !isFiniteNum(raw.y)) return null;
       return { type: 'set_rally', buildingId: raw.buildingId, x: raw.x, y: raw.y };
+    case 'upgrade':
+      if (!isId(raw.buildingId)) return null;
+      if (raw.spec !== undefined && raw.spec !== null && !isSpecId(raw.spec)) return null;
+      return isSpecId(raw.spec) ? { type: 'upgrade', buildingId: raw.buildingId, spec: raw.spec } : { type: 'upgrade', buildingId: raw.buildingId };
+    case 'cancel_upgrade':
+      if (!isId(raw.buildingId)) return null;
+      return { type: 'cancel_upgrade', buildingId: raw.buildingId };
     default:
       return null;
   }

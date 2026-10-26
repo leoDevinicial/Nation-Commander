@@ -238,6 +238,16 @@ export class Room {
       spend: (slot, cost) => void sim.spendResources(slot, cost),
       setWar: (a, b) => sim.setWar(a, b, true),
     });
+    // melhorias de construções consultam pesquisas, condições nacionais e a verba de obras
+    const national = this.national;
+    sim.national = {
+      techs: (slot) => national.nation(slot)?.research.done ?? [],
+      infrastructureIndex: (slot) => national.nation(slot)?.infrastructureIndex ?? 1,
+      stability: (slot) => national.nation(slot)?.stability ?? 0,
+      worksFundUsd: (slot) => national.nation(slot)?.works.fundUsd ?? 0,
+      chargeWorks: (slot, usd, description) => national.chargeWorks(slot, usd, description),
+      refundWorks: (slot, usd, description) => national.refundWorks(slot, usd, description),
+    };
     for (const n of this.national.nations) this.gdpStart.set(n.slot, n.gdpUsd);
     this.applyNationalModifiers();
     this.status = 'playing';

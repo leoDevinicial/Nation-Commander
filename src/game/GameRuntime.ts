@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { GameSpeed, MatchStartInfo, ServerMessage } from '../../shared/protocol.ts';
 import type { Command } from '../../shared/sim/commands.ts';
-import { BUILDINGS, CITIZEN, RECRUIT, UNITS, type BuildingType, type Terrain, type UnitType } from '../../shared/sim/config.ts';
+import { BUILDINGS, CITIZEN, RECRUIT, UNITS, emptyStockpile, type BuildingType, type Terrain, type UnitType } from '../../shared/sim/config.ts';
 import { anchorForCursor, placementError } from '../../shared/sim/placement.ts';
 import type { BuildingSnapshot, Snapshot, UnitSnapshot } from '../../shared/sim/snapshot.ts';
 import type { Cell, MapData, SimEvent } from '../../shared/sim/types.ts';
@@ -19,6 +19,9 @@ import { setModelDetail } from './render/models/kit.ts';
 import { chooseClaims, claimedBy, gatherRate, sitesByDeposit } from '../../shared/sim/gathering.ts';
 import { findDeposits, type DepositIndex } from '../../shared/sim/deposits.ts';
 import { decodeTerritory } from '../../shared/sim/territory.ts';
+import { planUpgrade, type SpecId, type UpgradePlan, type UpgradeWorld } from '../../shared/sim/upgrades.ts';
+import { combineEffects } from '../../shared/strategic/technologies.ts';
+import { useNationalStore } from '../state/useNationalStore.ts';
 import { Terrain as T } from '../../shared/sim/config.ts';
 import { TerritoryLayer } from './render/TerritoryLayer.ts';
 import { createSky, environmentFromSky, SKY } from './render/Sky.ts';
@@ -348,12 +351,18 @@ export class GameRuntime {
           claims: b.claims,
           effects: this.opts.profile.maxEffects > 60,
           ultra: this.opts.profile.ultra,
+          level: b.level,
+          spec: b.spec,
+          // celular: os detalhes pequenos das melhorias somem mais cedo ao afastar a câmera
+          lodDistance: this.opts.profile.terrain === 'low' ? 50 : 80,
         });
         this.scene.add(visual.group, visual.rallyObject);
         t = { visual, snap: b };
         this.buildings.set(b.id, t);
       } else t.snap = b;
       t.visual.remembered = b.remembered === true;
+      // o modelo acompanha o nível e a especialização registrados na simulação
+      t.visual.setVariant(b.level, b.spec);
     }
     const me = s.players.find((p) => p.slot === this.mySlot);
     this.citizens.sync(
@@ -446,19 +455,18 @@ export class GameRuntime {
       v.facing = t.prevFacing + df * alpha;
       const target = t.snap.targetId !== null ? this.positionOf(t.snap.targetId) : null;
       const aim = target ? Math.atan2(target.y - v.renderPos.y, target.x - v.renderPos.x) : null;
-      const def = UNITS[t.snap.type];
-      const frac = t.snap.hp / def.maxHp;
+      const frac = t.snap.hp / t.snap.maxHp;
       const selected = this.selection.has(t.snap.id);
       v.setSelected(selected);
       v.update(dt, t.snap.activity === 'moving' || t.snap.activity === 'chasing', aim, frac, selected || frac < 0.999, this.camera);
     }
     for (const t of this.buildings.values()) {
-      const def = BUILDINGS[t.snap.type];
-      const frac = t.snap.hp / def.maxHp;
+      const frac = t.snap.hp / t.snap.maxHp;
       const selected = this.selection.has(t.snap.id);
+      const upgrading = !!t.snap.upgrade;
       t.visual.setSelected(selected);
       const rally = t.snap.rally ? new THREE.Vector2(t.snap.rally.x, t.snap.rally.y) : null;
-      t.visual.update(dt, t.snap.progress, frac, selected || frac < 0.999 || t.snap.progress < 1, this.camera, rally, selected && t.snap.owner === this.mySlot);
+      t.visual.update(dt, t.snap.progress, frac, selected || frac < 0.999 || t.snap.progress < 1 || upgrading, this.camera, rally, selected && t.snap.owner === this.mySlot, upgrading);
     }
     this.effects.update(dt);
     this.citizens.update(this.paused ? 0 : dt * this.speed);
@@ -530,8 +538,8 @@ export class GameRuntime {
     for (const id of this.selection) {
       const u = this.units.get(id);
       if (u) {
-        if (u.snap.owner === this.mySlot) selectedUnits.push({ id, type: u.snap.type, hp: u.snap.hp, activity: u.snap.activity, order: u.snap.order });
-        else inspected = { kind: 'unit' as const, type: u.snap.type, owner: u.snap.owner, hp: u.snap.hp };
+        if (u.snap.owner === this.mySlot) selectedUnits.push({ id, type: u.snap.type, hp: u.snap.hp, maxHp: u.snap.maxHp, activity: u.snap.activity, order: u.snap.order });
+        else inspected = { kind: 'unit' as const, type: u.snap.type, owner: u.snap.owner, hp: u.snap.hp, maxHp: u.snap.maxHp, level: 1, spec: null };
         continue;
       }
       const b = this.buildings.get(id);
@@ -542,7 +550,11 @@ export class GameRuntime {
             type: b.snap.type,
             owner: b.snap.owner,
             hp: b.snap.hp,
+            maxHp: b.snap.maxHp,
             progress: b.snap.progress,
+            level: b.snap.level,
+            spec: b.snap.spec,
+            upgrade: b.snap.upgrade && 'toLevel' in b.snap.upgrade ? b.snap.upgrade : null,
             queue: b.snap.queue,
             hasRally: b.snap.rally !== null,
             claims: b.snap.claims?.length ?? 0,
@@ -553,7 +565,7 @@ export class GameRuntime {
             stored: b.snap.stored ?? null,
             deposit: b.snap.deposit ?? null,
           };
-        else inspected = { kind: 'building' as const, type: b.snap.type, owner: b.snap.owner, hp: b.snap.hp };
+        else inspected = { kind: 'building' as const, type: b.snap.type, owner: b.snap.owner, hp: b.snap.hp, maxHp: b.snap.maxHp, level: b.snap.level, spec: b.snap.spec };
       }
     }
     if (selectedUnits.length !== this.lastSelectionCount && selectedUnits.length > 0) {
@@ -1141,6 +1153,40 @@ export class GameRuntime {
 
   setWorkers(buildingId: number, count: number): void {
     this.send({ type: 'set_workers', buildingId, count });
+  }
+
+  // ------------------------------------------------------------ melhorias (Fase 4)
+
+  /** Estado do jogador para avaliar melhorias no painel (o servidor revalida com o mesmo cálculo). */
+  upgradeWorld(): UpgradeWorld {
+    const me = this.snapshot?.players.find((p) => p.slot === this.mySlot);
+    const nation = useNationalStore.getState().nations.find((n) => n.slot === this.mySlot);
+    const own = [...this.buildings.values()].filter((t) => t.snap.owner === this.mySlot && !t.snap.remembered);
+    return {
+      resources: me?.resources ?? emptyStockpile(),
+      hqLevel: own.find((t) => t.snap.type === 'hq')?.snap.level ?? 0,
+      bestLevel: (type) => own.reduce((best, t) => (t.snap.type === type && t.snap.progress >= 1 ? Math.max(best, t.snap.level) : best), 0),
+      techs: nation ? nation.research.done : null,
+      infrastructureIndex: nation ? nation.infrastructureIndex : null,
+      stability: nation ? nation.stability : null,
+      fundsUsd: nation ? nation.works.fundUsd : null,
+      constructionTimeMul: nation ? combineEffects(nation.research.done).constructionTimeMul : 1,
+    };
+  }
+
+  upgradePlan(id: number, spec: SpecId | null = null): UpgradePlan | null {
+    const t = this.buildings.get(id);
+    if (!t || t.snap.owner !== this.mySlot) return null;
+    const s = t.snap;
+    return planUpgrade({ type: s.type, level: s.level, spec: s.spec, progress: s.progress, upgrading: !!s.upgrade }, this.upgradeWorld(), spec);
+  }
+
+  upgrade(id: number, spec: SpecId | null = null): void {
+    this.send(spec ? { type: 'upgrade', buildingId: id, spec } : { type: 'upgrade', buildingId: id });
+  }
+
+  cancelUpgrade(id: number): void {
+    this.send({ type: 'cancel_upgrade', buildingId: id });
   }
 
   trainRecruit(): void {
