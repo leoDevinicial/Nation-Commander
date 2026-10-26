@@ -329,3 +329,54 @@ describe('servidor de partidas', () => {
     expect(msg.events.some((e) => e.type === 'diplomacy' && e.event.type === 'war_declared' && e.event.by === 1)).toBe(true);
   }, 240_000);
 });
+
+describe('operações expedicionárias pela rede (Fase 8)', () => {
+  it('guerra contra país da IA, lançamento, batalha local com escopo próprio e retorno reconciliado', async () => {
+    const { send, rooms } = setup();
+    const a = fakeConn();
+    await send(a.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-op' });
+    await send(a.conn, { t: 'create_room', mode: 'vs_ai', countryId: 'BRA' });
+    await send(a.conn, { t: 'start' });
+    const room = rooms.get(a.last('room')!.room!.code)!;
+    const sim = room.sim!;
+    const usa = a.last('national')!.diplomacy.nations.find((n) => n.countryId === 'USA')!.id;
+    await send(a.conn, { t: 'national', cmd: { type: 'diplomacy', action: { type: 'declare_war', target: usa } } });
+    room.advance();
+    expect(a.last('cmd_rejected')).toBeUndefined();
+    for (let i = 0; i < 20; i++) room.advance();
+    const view = a.last('operations')!.ops;
+    expect(view.wars.find((w) => w.target === usa)?.sectors.length).toBeGreaterThan(0);
+    const mine = sim.units.filter((u) => u.owner === 0);
+    // a declaração consumiu o petróleo inicial: abastece para a operação
+    sim.players[0]!.resources.oil = 100;
+    sim.players[0]!.oilReserve = 100;
+    const sector = view.wars.find((w) => w.target === usa)!.sectors[0]!.id;
+    await send(a.conn, { t: 'cmd', cmd: { type: 'launch_operation', target: usa, sectorId: sector, unitIds: mine.map((u) => u.id) } });
+    room.advance();
+    expect(a.last('cmd_rejected')).toBeUndefined();
+    expect(sim.units.filter((u) => u.owner === 0)).toHaveLength(0);
+    const op = a.last('operations')!.ops.ops[0]!;
+    expect(op.state).toBe('transit');
+    // até a chegada: o servidor abre a batalha local e envia snapshots com escopo próprio
+    for (let i = 0; i < op.travelDays * 20 + 5; i++) room.advance();
+    const start = a.last('battle_start')!;
+    expect(start.battle.opId).toBe(op.id);
+    expect(start.battle.match.yourSlot).toBe(0);
+    const battleSnap = a.sent.filter((m) => m.t === 'snapshot' && m.scope === 'battle').at(-1) as Extract<ServerMessage, { t: 'snapshot' }>;
+    expect(battleSnap.opId).toBe(op.id);
+    expect(battleSnap.s.units.filter((u) => u.owner === 0)).toHaveLength(mine.length);
+    // ordem na batalha vai para a batalha (não para o teatro)
+    const ids = battleSnap.s.units.filter((u) => u.owner === 0).map((u) => u.id);
+    await send(a.conn, { t: 'cmd', cmd: { type: 'move', unitIds: ids, x: 30, y: 30 }, scope: 'battle' });
+    room.advance();
+    expect(a.last('cmd_rejected')).toBeUndefined();
+    await send(a.conn, { t: 'cmd', cmd: { type: 'operation_retreat', opId: op.id } });
+    room.advance();
+    const end = a.last('battle_end')!;
+    expect(end.result.outcome).toBe('retreat');
+    expect(end.result.lost).toBe(0);
+    for (let i = 0; i < op.travelDays * 20 + 5; i++) room.advance();
+    expect(sim.units.filter((u) => u.owner === 0)).toHaveLength(mine.length);
+    expect(a.last('operations')!.ops.ops[0]!.state).toBe('done');
+  });
+});

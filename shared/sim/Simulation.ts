@@ -26,15 +26,7 @@ import {
   type UnitType,
 } from './config.ts';
 import { chooseClaims, claimedBy, gatherRate, sitesByDeposit } from './gathering.ts';
-import {
-  UPGRADE_CANCEL_REFUND,
-  UPGRADE_WORK_EFFICIENCY,
-  buildingEffects,
-  planUpgrade,
-  type BuildingEffects,
-  type UpgradePlan,
-  type UpgradeWorld,
-} from './upgrades.ts';
+import { UPGRADE_CANCEL_REFUND, UPGRADE_WORK_EFFICIENCY, buildingEffects, planUpgrade, type BuildingEffects, type UpgradePlan, type UpgradeWorld } from './upgrades.ts';
 import { findDeposits, type DepositIndex } from './deposits.ts';
 import { computeTerritory, NO_OWNER, type TerritorySource } from './territory.ts';
 import type { Command } from './commands.ts';
@@ -46,20 +38,7 @@ import { TradeSystem, type TradeLink, type TradeSave } from './trade.ts';
 import { AirSystem, type AirSave } from './air.ts';
 import { TECHNOLOGIES, isTechId } from '../strategic/technologies.ts';
 import { MOD_CANCEL_REFUND, MODS, checkModernize, combineMods, pickRefitFacility, type FacilityPick, type ModId, type ModernizeContext } from './modernization.ts';
-import type {
-  Building,
-  BuildingStatus,
-  Cell,
-  Entity,
-  EntityId,
-  MapData,
-  PlayerState,
-  SimEvent,
-  Slot,
-  TacticalModifiers,
-  Unit,
-  Vec2,
-} from './types.ts';
+import type { Building, BuildingStatus, Cell, Entity, EntityId, MapData, PlayerState, SimEvent, Slot, TacticalModifiers, Unit, Vec2 } from './types.ts';
 
 export interface SimulationInit {
   map: MapData;
@@ -72,6 +51,11 @@ export interface SimulationInit {
    * depois de uma declaração formal validada pela camada nacional (ver `setWar`).
    */
   allAtWar?: boolean;
+  /**
+   * Batalha local de uma operação (Fase 8): mapa pequeno sem linhas de suprimento a manter, então
+   * não há atrito por território inimigo.
+   */
+  battle?: boolean;
 }
 
 export const NEUTRAL_MODIFIERS: TacticalModifiers = {
@@ -121,6 +105,9 @@ export interface SimulationSave {
   trade?: TradeSave;
   /** Força aérea e mísseis (Fase 7). */
   air?: AirSave;
+  /** Militares fora do teatro em operações expedicionárias, por jogador (Fase 8). */
+  detached?: number[];
+  battle?: boolean;
 }
 
 /** JSON não representa ±Infinity: usados em alguns campos internos (ex.: distância inicial). */
@@ -189,6 +176,10 @@ export class Simulation {
   readonly trade: TradeSystem = new TradeSystem(this);
   /** Força aérea, antiaérea e mísseis. */
   readonly air: AirSystem = new AirSystem(this);
+  /** Militares fora do teatro em operações expedicionárias (contam na população). */
+  detached: number[] = [];
+  /** Batalha local de uma operação (sem atrito territorial). */
+  battle = false;
 
   /** Liga o comércio à diplomacia e ao tesouro nacionais. */
   setTradeLink(link: TradeLink | null): void {
@@ -198,6 +189,7 @@ export class Simulation {
   constructor(init: SimulationInit) {
     this.map = init.map;
     this.grid = new Grid(init.map.width, init.map.height, init.map.cellSize, [...init.map.terrain]);
+    this.battle = !!init.battle;
     this.players = [];
     this.lastAlertTick = [];
     this.deposits = findDeposits(init.map);
@@ -248,7 +240,7 @@ export class Simulation {
     if (init.allAtWar) for (let a = 0; a < init.playerCount; a++) for (let b = a + 1; b < init.playerCount; b++) this.setWar(a, b, true);
   }
 
-  private footprintFree(cell: Cell, size: number): boolean {
+  footprintFree(cell: Cell, size: number): boolean {
     for (let y = cell.cy; y < cell.cy + size; y++)
       for (let x = cell.cx; x < cell.cx + size; x++) {
         if (!this.grid.inBounds(x, y) || !TERRAIN[this.grid.terrainAt(x, y)].buildable || this.grid.occupant(x, y) !== 0) return false;
@@ -277,6 +269,8 @@ export class Simulation {
       lastAlertTick: this.lastAlertTick,
       trade: this.trade.toSave(),
       air: this.air.toSave(),
+      detached: [...this.detached],
+      ...(this.battle ? { battle: true } : {}),
     };
     return JSON.parse(JSON.stringify(data, encodeNonFinite), decodeNonFinite) as SimulationSave;
   }
@@ -328,6 +322,8 @@ export class Simulation {
     sim.visibilityTick = -1;
     sim.trade.load(data.trade);
     sim.air.load(data.air);
+    sim.detached = [...(data.detached ?? [])];
+    sim.battle = !!data.battle;
     return sim;
   }
 
@@ -420,6 +416,7 @@ export class Simulation {
     }
     // pilotos: cada aeronave (pronta, em missão ou em produção) ocupa um militar
     for (const a of this.air.aircraft) if (a.owner === slot) military++;
+    military += this.detached[slot] ?? 0;
     const citizens = p?.citizens ?? 0;
     const recruits = p?.recruits ?? 0;
     return {
@@ -674,8 +671,7 @@ export class Simulation {
     if (e.kind === 'unit') return this.isVisibleTo(slot, e.pos);
     const vis = this.visibilityOf(slot);
     const size = BUILDINGS[e.type].size;
-    for (let y = e.cell.cy; y < e.cell.cy + size; y++)
-      for (let x = e.cell.cx; x < e.cell.cx + size; x++) if (vis[y * this.map.width + x] === 1) return true;
+    for (let y = e.cell.cy; y < e.cell.cy + size; y++) for (let x = e.cell.cx; x < e.cell.cx + size; x++) if (vis[y * this.map.width + x] === 1) return true;
     return false;
   }
 
@@ -695,7 +691,6 @@ export class Simulation {
   sightOf(e: Entity): number {
     return e.kind === 'unit' ? UNITS[e.type].sight + combineMods(e.mods).sightAdd : BUILDINGS[e.type].sight + this.fx(e).sightAdd;
   }
-
 
   hqOf(slot: Slot): Building | undefined {
     return this.buildings.find((b) => b.owner === slot && b.type === 'hq');
@@ -874,7 +869,16 @@ export class Simulation {
         return started > 0 ? null : (firstError ?? 'Nenhuma unidade pode receber este pacote');
       }
       case 'trade_offer': {
-        return this.trade.propose(slot, { partner: cmd.partner, side: cmd.side, resource: cmd.resource, quantity: cmd.quantity, price: cmd.price, mode: cmd.mode, days: cmd.days, ...(cmd.counterOf !== undefined ? { counterOf: cmd.counterOf } : {}) });
+        return this.trade.propose(slot, {
+          partner: cmd.partner,
+          side: cmd.side,
+          resource: cmd.resource,
+          quantity: cmd.quantity,
+          price: cmd.price,
+          mode: cmd.mode,
+          days: cmd.days,
+          ...(cmd.counterOf !== undefined ? { counterOf: cmd.counterOf } : {}),
+        });
       }
       case 'trade_respond':
         return this.trade.respond(slot, cmd.offerId, cmd.accept);
@@ -897,6 +901,10 @@ export class Simulation {
         return this.air.authorize(slot, cmd.launchId);
       case 'missile_abort':
         return this.air.abort(slot, cmd.launchId);
+      case 'launch_operation':
+      case 'operation_retreat':
+        // operações expedicionárias envolvem a camada nacional: tratadas pelo servidor (OperationsSystem)
+        return 'Operações expedicionárias exigem a camada nacional';
       case 'cancel_modernize': {
         const units = this.ownUnits(slot, cmd.unitIds).filter((u) => u.refit);
         if (units.length === 0) return 'Nenhuma modernização em andamento';
@@ -1078,6 +1086,38 @@ export class Simulation {
     return lost;
   }
 
+  // ---------------------------------------------------------------- expedições (Fase 8)
+
+  /**
+   * Retira unidades do teatro para uma operação: só as próprias, vivas e fora de modernização.
+   * Elas deixam de existir aqui e passam a contar como militares destacados (mesma população).
+   */
+  detachUnits(slot: Slot, ids: readonly EntityId[]): Unit[] {
+    const out = this.ownUnits(slot, [...ids], true);
+    for (const u of out) {
+      this.entities.delete(u.id);
+      this.detached[slot] = (this.detached[slot] ?? 0) + 1;
+    }
+    return out;
+  }
+
+  /** Militar destacado que não volta (baixa ou rendição). */
+  releaseDetached(slot: Slot, count: number): void {
+    this.detached[slot] = Math.max(0, (this.detached[slot] ?? 0) - count);
+  }
+
+  /** Volta de uma unidade destacada: reaparece junto ao QG com a vida e o equipamento que tinha. */
+  returnUnit(slot: Slot, rec: { type: UnitType; hp: number; maxHp: number; mods: readonly ModId[] }): Unit | null {
+    this.releaseDetached(slot, 1);
+    const hq = this.hqOf(slot);
+    if (!hq) return null;
+    const u = this.spawnUnitNear(hq, rec.type, 1, rec.mods);
+    if (!u) return null;
+    u.maxHp = rec.maxHp;
+    u.hp = Math.min(rec.maxHp, Math.max(1, rec.hp));
+    return u;
+  }
+
   /** Débito externo ao teatro (ex.: mobilização de uma declaração de guerra). Falha sem saldo. */
   spendResources(slot: Slot, cost: Cost): boolean {
     const p = this.players[slot];
@@ -1187,7 +1227,9 @@ export class Simulation {
   /** Tanque próprio com espaço ao alcance de um poço (ou o motivo de não haver). */
   private tankFor(b: Building): { tank: Building | null; reason: BuildingStatus } {
     const cs = this.map.cellSize;
-    const inRange = this.tanks(b.owner).filter((t) => dist(t.pos, b.pos) / cs <= OIL_TANK_RANGE).sort((x, y) => dist(x.pos, b.pos) - dist(y.pos, b.pos) || x.id - y.id);
+    const inRange = this.tanks(b.owner)
+      .filter((t) => dist(t.pos, b.pos) / cs <= OIL_TANK_RANGE)
+      .sort((x, y) => dist(x.pos, b.pos) - dist(y.pos, b.pos) || x.id - y.id);
     if (!inRange.length) return { tank: null, reason: 'no_tank' };
     const free = inRange.find((t) => t.stored < this.tankCapacity(t));
     return free ? { tank: free, reason: 'ok' } : { tank: null, reason: 'storage_full' };
@@ -1424,6 +1466,7 @@ export class Simulation {
    * mantendo a linha de suprimento.
    */
   private updateAttrition(): void {
+    if (this.battle) return;
     const apcs = this.units.filter((u) => u.type === 'apc');
     for (const u of this.units) {
       const c = this.grid.worldToCell(u.pos);
@@ -1829,7 +1872,7 @@ export class Simulation {
 
   // ---------------------------------------------------------------- ciclo de vida
 
-  private addBuilding(type: BuildingType, owner: Slot, cell: Cell, progress: number): Building {
+  addBuilding(type: BuildingType, owner: Slot, cell: Cell, progress: number): Building {
     const def = BUILDINGS[type];
     const cs = this.grid.cellSize;
     const b: Building = {

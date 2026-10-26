@@ -48,6 +48,12 @@ export function describeNationalEvent(e: NationalEvent, mySlot: number, nameOf: 
       const unit = e.indicator === 'debt' ? '% do PIB' : '%';
       return { text: `${label} ${verb} ${e.threshold}${unit} (agora ${formatPct(e.value)})`, tone: bad ? 'bad' : 'good' };
     }
+    case 'operation': {
+      const outcome = { victory: 'vitória', defeat: 'derrota', retreat: 'recuo', stalemate: 'impasse (recuo)' }[e.outcome];
+      const target = e.target === mySlot ? 'nosso país' : nameOf(e.target);
+      const text = `${mine ? 'Nossa operação' : `Operação de ${nameOf(e.slot)}`} em ${e.sector} (${target}): ${outcome} — ${e.lost} de ${e.sent} unidades perdidas, ${e.enemyLost} baixas inimigas, ${formatUsd(e.usd)}${e.occupied ? '; região ocupada' : ''}`;
+      return { text, tone: mine ? (e.outcome === 'victory' ? 'good' : 'warn') : e.target === mySlot ? 'bad' : 'info' };
+    }
     case 'military_strike': {
       const attacker = mine ? 'Nossas forças' : nameOf(e.slot);
       const victim = e.victim === mySlot ? 'nosso país' : nameOf(e.victim);
@@ -102,7 +108,8 @@ function describeDiplomatic(
       return { text: `Contato estabelecido com ${nameOf(e.target)} (${via})`, tone: 'good' };
     }
     case 'war_declared': {
-      if (e.by === mySlot) return { text: `Declaramos guerra a ${nameOf(e.target)}: mobilização de ${formatUsd(e.costs.usd)}, ${e.costs.supplies} suprimentos e ${e.costs.oil} de combustível`, tone: 'bad' };
+      if (e.by === mySlot)
+        return { text: `Declaramos guerra a ${nameOf(e.target)}: mobilização de ${formatUsd(e.costs.usd)}, ${e.costs.supplies} suprimentos e ${e.costs.oil} de combustível`, tone: 'bad' };
       if (e.target === mySlot) return { text: `${nameOf(e.by)} declarou guerra ao nosso país — as forças do teatro já podem se enfrentar`, tone: 'bad' };
       return { text: `${nameOf(e.by)} declarou guerra a ${nameOf(e.target)}`, tone: 'warn' };
     }

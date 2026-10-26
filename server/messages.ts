@@ -44,7 +44,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return { t: 'start' };
     case 'cmd': {
       const cmd = parseCommand(data.cmd);
-      return cmd ? { t: 'cmd', cmd } : null;
+      return cmd ? (data.scope === 'battle' ? { t: 'cmd', cmd, scope: 'battle' } : { t: 'cmd', cmd }) : null;
     }
     case 'national': {
       const cmd = isObj(data.cmd) ? data.cmd : null;

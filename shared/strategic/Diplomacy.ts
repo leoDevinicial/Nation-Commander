@@ -96,6 +96,9 @@ export const DIPLO = {
   strikeReputation: -1,
   missileVictimMemory: -10,
   missileReputation: -4,
+  /** Ocupação de uma região do país inimigo (Fase 8). */
+  occupationVictimMemory: -12,
+  occupationReputation: -3,
   tradeDays: 360,
   allianceDays: 540,
   sanctionsDays: 360,
@@ -170,8 +173,6 @@ export function warPreview(i: WarPreviewInput): WarPreview {
   if (i.actor === i.target) blockers.push('Alvo inválido');
   if (!i.known) blockers.push('País não descoberto: sem contato, não há alvo para uma declaração de guerra');
   if (i.atWar) blockers.push('Os dois países já estão em guerra');
-  if (i.known && !i.targetInTheater)
-    blockers.push('Guerra contra governos fora deste teatro de operações ainda não existe no jogo (depende da transição globo → batalha)');
   if (i.actorDebtPctGdp > DIPLO.warDebtCapPct) blockers.push(`Sem capacidade de financiar a mobilização: dívida acima de ${DIPLO.warDebtCapPct}% do PIB`);
   if (!i.theaterStock) blockers.push('Seu país não tem forças neste teatro');
   else {
@@ -180,7 +181,10 @@ export function warPreview(i: WarPreviewInput): WarPreview {
   }
   const between = (t: Treaty) => (t.a === i.actor && t.b === i.target) || (t.a === i.target && t.b === i.actor);
   const brokenTreaties = i.treaties.filter((t) => between(t) && t.type !== 'sanctions');
-  const allies = i.treaties.filter((t) => t.type === 'alliance' && (t.a === i.target || t.b === i.target)).map((t) => (t.a === i.target ? t.b : t.a)).filter((x) => x !== i.actor);
+  const allies = i.treaties
+    .filter((t) => t.type === 'alliance' && (t.a === i.target || t.b === i.target))
+    .map((t) => (t.a === i.target ? t.b : t.a))
+    .filter((x) => x !== i.actor);
   const alliedWithActor = (x: NationId) => i.treaties.some((t) => t.type === 'alliance' && ((t.a === x && t.b === i.actor) || (t.b === x && t.a === i.actor)));
   const respondingAllies = allies.filter((x) => i.isNpc(x) && !alliedWithActor(x) && i.relationWith(x) < DIPLO.warAllyResponseBelow);
   return { costs, brokenTreaties, respondingAllies, otherAllies: allies.filter((x) => !respondingAllies.includes(x)), blockers };
@@ -224,8 +228,7 @@ export class Diplomacy {
     private readonly theaterPairs: [NationId, NationId][],
   ) {
     const nations = all();
-    for (const a of nations)
-      for (const b of nations) if (a.slot !== b.slot && initialContact(a.countryId, b.countryId)) this.known.add(`${a.slot}>${b.slot}`);
+    for (const a of nations) for (const b of nations) if (a.slot !== b.slot && initialContact(a.countryId, b.countryId)) this.known.add(`${a.slot}>${b.slot}`);
     for (const [a, b] of theaterPairs) {
       this.known.add(`${a}>${b}`);
       this.known.add(`${b}>${a}`);
@@ -293,10 +296,10 @@ export class Diplomacy {
    * Consequência diplomática de um ataque aéreo ou de míssil: o país atingido guarda memória do
    * ataque e os demais registram a perda de reputação de quem atacou (decai como as demais).
    */
-  recordAttack(actor: NationId, victim: NationId, kind: 'air' | 'missile'): void {
+  recordAttack(actor: NationId, victim: NationId, kind: 'air' | 'missile' | 'occupation'): void {
     if (actor === victim) return;
-    this.pair(actor, victim).memory += kind === 'missile' ? DIPLO.missileVictimMemory : DIPLO.strikeVictimMemory;
-    const rep = kind === 'missile' ? DIPLO.missileReputation : DIPLO.strikeReputation;
+    this.pair(actor, victim).memory += kind === 'missile' ? DIPLO.missileVictimMemory : kind === 'occupation' ? DIPLO.occupationVictimMemory : DIPLO.strikeVictimMemory;
+    const rep = kind === 'missile' ? DIPLO.missileReputation : kind === 'occupation' ? DIPLO.occupationReputation : DIPLO.strikeReputation;
     for (const n of this.all()) if (n.slot !== actor && n.slot !== victim) this.pair(actor, n.slot).memory += rep;
   }
 
@@ -348,13 +351,18 @@ export class Diplomacy {
   }
 
   relation(a: NationId, b: NationId): number {
-    return clamp(this.factors(a, b).reduce((s, f) => s + f.value, 0), -100, 100);
+    return clamp(
+      this.factors(a, b).reduce((s, f) => s + f.value, 0),
+      -100,
+      100,
+    );
   }
 
   /** Relações do país `viewer` com os países que ele conhece. */
   relationsOf(viewer: NationId): RelationView[] {
     const out: RelationView[] = [];
-    for (const n of this.all()) if (n.slot !== viewer && this.knows(viewer, n.slot)) out.push({ a: viewer, b: n.slot, value: round1(this.relation(viewer, n.slot)), factors: this.factors(viewer, n.slot) });
+    for (const n of this.all())
+      if (n.slot !== viewer && this.knows(viewer, n.slot)) out.push({ a: viewer, b: n.slot, value: round1(this.relation(viewer, n.slot)), factors: this.factors(viewer, n.slot) });
     return out;
   }
 
@@ -422,7 +430,9 @@ export class Diplomacy {
       reasons.push({ key: 'market', label: 'Tamanho do mercado do proponente', value: round1(12 * Math.log10(1 + them.gdpUsd / me.gdpUsd)) });
       if (this.active('sanctions', receiver, proposer, true)) reasons.push({ key: 'sanctions', label: 'Mantém sanções contra o proponente', value: -50 });
     } else if (proposal === 'alliance') {
-      const enemies = this.warPairs().filter(([x, y]) => x === proposer || y === proposer).map(([x, y]) => (x === proposer ? y : x));
+      const enemies = this.warPairs()
+        .filter(([x, y]) => x === proposer || y === proposer)
+        .map(([x, y]) => (x === proposer ? y : x));
       if (enemies.length) reasons.push({ key: 'war_risk', label: 'Risco de envolvimento num conflito em curso', value: -20 });
       for (const e of enemies) {
         const r = this.relation(receiver, e);

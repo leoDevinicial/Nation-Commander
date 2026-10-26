@@ -145,11 +145,12 @@ describe('declaração de guerra', () => {
     expect(sim.diplomaticAction(0, { type: 'declare_war', target: 1 })).toMatch(/financiar/);
   });
 
-  it('alvo desconhecido é recusado antes de qualquer outra regra; governo conhecido fora do teatro também', () => {
+  it('alvo desconhecido é recusado antes de qualquer outra regra; governo conhecido fora do teatro pode ser alvo (Fase 8)', () => {
     const { sim, npc } = setup();
     theater(sim);
     expect(sim.diplomaticAction(0, { type: 'declare_war', target: npc('JPN').slot })).toMatch(/não descoberto/);
-    expect(sim.diplomaticAction(0, { type: 'declare_war', target: npc('USA').slot })).toMatch(/fora deste teatro/);
+    expect(sim.diplomaticAction(0, { type: 'declare_war', target: npc('USA').slot })).toBeNull();
+    expect(sim.diplomacy.atWar(0, npc('USA').slot)).toBe(true);
     expect(sim.diplomaticAction(0, { type: 'declare_war', target: 0 })).not.toBeNull();
   });
 

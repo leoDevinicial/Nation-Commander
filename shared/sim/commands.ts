@@ -32,15 +32,17 @@ export type Command =
   | { type: 'build_missile'; buildingId: EntityId }
   | { type: 'missile_prepare'; buildingId: EntityId; x: number; y: number }
   | { type: 'missile_authorize'; launchId: number }
-  | { type: 'missile_abort'; launchId: number };
+  | { type: 'missile_abort'; launchId: number }
+  /** Operações expedicionárias (Fase 8): lançar contra um setor de um país em guerra e recuar. */
+  | { type: 'launch_operation'; target: number; sectorId: string; unitIds: EntityId[] }
+  | { type: 'operation_retreat'; opId: number };
 
 const MAX_UNITS_PER_COMMAND = 60;
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isFiniteNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const isId = (v: unknown): v is number => Number.isInteger(v) && (v as number) > 0;
-const isIdList = (v: unknown): v is number[] =>
-  Array.isArray(v) && v.length > 0 && v.length <= MAX_UNITS_PER_COMMAND && v.every(isId);
+const isIdList = (v: unknown): v is number[] => Array.isArray(v) && v.length > 0 && v.length <= MAX_UNITS_PER_COMMAND && v.every(isId);
 
 /** Valida a forma de um comando recebido pela rede. Não verifica regras de jogo. */
 export function parseCommand(raw: unknown): Command | null {
@@ -139,6 +141,13 @@ export function parseCommand(raw: unknown): Command | null {
     case 'missile_abort':
       if (!isId(raw.launchId)) return null;
       return { type: raw.type, launchId: raw.launchId };
+    case 'launch_operation':
+      if (!Number.isInteger(raw.target) || (raw.target as number) < 0 || (raw.target as number) > 1000) return null;
+      if (typeof raw.sectorId !== 'string' || raw.sectorId.length > 40 || !isIdList(raw.unitIds)) return null;
+      return { type: 'launch_operation', target: raw.target as number, sectorId: raw.sectorId, unitIds: [...new Set(raw.unitIds)] };
+    case 'operation_retreat':
+      if (!isId(raw.opId)) return null;
+      return { type: 'operation_retreat', opId: raw.opId };
     default:
       return null;
   }

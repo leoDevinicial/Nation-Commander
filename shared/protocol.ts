@@ -4,14 +4,12 @@ import type { TechId } from './strategic/technologies.ts';
 import type { DiplomaticAction } from './strategic/Diplomacy.ts';
 import type { PlayerStats, Slot } from './sim/types.ts';
 import type { Snapshot } from './sim/snapshot.ts';
+import type { OperationResult, OperationsView, SectorView } from './strategic/operations.ts';
 
 export type RoomMode = 'pvp' | 'vs_ai';
 export type { BalanceMode };
 
-export type NationalCommand =
-  | { type: 'set_budget'; budget: Budget }
-  | { type: 'set_research'; techId: TechId | null }
-  | { type: 'diplomacy'; action: DiplomaticAction };
+export type NationalCommand = { type: 'set_budget'; budget: Budget } | { type: 'set_research'; techId: TechId | null } | { type: 'diplomacy'; action: DiplomaticAction };
 
 /** Visão geopolítica do jogador: só países com quem tem contato trazem dados (ver `viewFor`). */
 export type DiplomacyView = GeopoliticalView;
@@ -85,6 +83,14 @@ export interface MatchStartInfo {
   ticksPerDay: number;
 }
 
+export interface BattleInfo {
+  opId: number;
+  target: number;
+  targetCountryId: string;
+  sector: SectorView;
+  match: MatchStartInfo;
+}
+
 export type EndReason = 'hq_destroyed' | 'forfeit' | 'disconnect' | 'draw';
 
 export interface MatchEndInfo {
@@ -103,7 +109,8 @@ export type ClientMessage =
   | { t: 'set_country'; countryId: string }
   | { t: 'set_ready'; ready: boolean }
   | { t: 'start' }
-  | { t: 'cmd'; cmd: Command }
+  /** `scope: 'battle'`: ordem às tropas na batalha local de uma operação (Fase 8). */
+  | { t: 'cmd'; cmd: Command; scope?: 'battle' }
   | { t: 'national'; cmd: NationalCommand }
   | { t: 'set_balance'; mode: BalanceMode }
   | { t: 'pause'; paused: boolean }
@@ -117,7 +124,13 @@ export type ServerMessage =
   | { t: 'error'; code: string; message: string }
   | { t: 'room'; room: RoomInfo | null }
   | { t: 'match_start'; match: MatchStartInfo }
-  | { t: 'snapshot'; s: Snapshot; paused: boolean; speed: GameSpeed; pausedBy: string | null }
+  | { t: 'snapshot'; s: Snapshot; paused: boolean; speed: GameSpeed; pausedBy: string | null; scope?: 'battle'; opId?: number }
+  /** Batalha local de uma operação começou: mapa e contexto da região (o jogador é o slot 0). */
+  | { t: 'battle_start'; battle: BattleInfo }
+  /** Batalha local encerrada: resultado já reconciliado com a campanha. */
+  | { t: 'battle_end'; opId: number; result: OperationResult }
+  /** Operações expedicionárias do jogador: setores dos países em guerra e operações. */
+  | { t: 'operations'; ops: OperationsView }
   | { t: 'match_end'; end: MatchEndInfo }
   /** `nations` traz só a nação do próprio jogador; as demais vêm filtradas em `diplomacy`. */
   | { t: 'national'; day: number; date: string; nations: NationView[]; events: NationalEvent[]; diplomacy: DiplomacyView }

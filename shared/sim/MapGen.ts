@@ -145,3 +145,88 @@ export function reachable(map: MapData, from: Cell): Set<number> {
   }
   return seen;
 }
+
+/** Características da região que orientam o mapa tático local (Fase 8). */
+export interface BattleTerrainSpec {
+  biome: 'temperate' | 'arid' | 'tropical' | 'cold' | 'grassland';
+  coast: boolean;
+  river: boolean;
+  mountains: boolean;
+}
+
+/** Proporções de terreno por bioma (limiares sobre ruído): coerência visual, não cartografia. */
+const BIOME_MIX: Record<BattleTerrainSpec['biome'], { forest: number; fertile: number; mud: number; rock: number }> = {
+  temperate: { forest: 0.6, fertile: 0.32, mud: 0.04, rock: 0.84 },
+  grassland: { forest: 0.8, fertile: 0.42, mud: 0.03, rock: 0.9 },
+  tropical: { forest: 0.45, fertile: 0.25, mud: 0.08, rock: 0.88 },
+  arid: { forest: 0.92, fertile: 0.08, mud: 0.0, rock: 0.74 },
+  cold: { forest: 0.55, fertile: 0.12, mud: 0.05, rock: 0.7 },
+};
+
+/**
+ * Mapa da batalha local (Fase 8): menor que o teatro, sem simetria. O atacante entra pela borda
+ * oeste e o defensor guarda um posto de comando a leste. Costa (água ao sul), rio (com vaus e
+ * ponte de estrada), montanhas e vegetação seguem o setor escolhido. Sempre há uma estrada
+ * passável entre as duas posições.
+ */
+export function generateBattleMap(seed: number, spec: BattleTerrainSpec, size = 40): MapData {
+  const rng = new Random(seed ^ 0x2c1b3c6d);
+  const elevation = valueNoise(rng, size, 7);
+  const moisture = valueNoise(rng, size, 5);
+  const detail = valueNoise(rng, size, 3);
+  const mix = BIOME_MIX[spec.biome];
+  const terrain: Terrain[] = new Array<Terrain>(size * size).fill(Terrain.Plains);
+  for (let i = 0; i < size * size; i++) {
+    const e = elevation[i]! * 0.75 + detail[i]! * 0.25 + (spec.mountains ? 0.06 : -0.04);
+    const m = moisture[i]!;
+    let t = Terrain.Plains;
+    if (e > mix.rock) t = Terrain.Rock;
+    else if (m > mix.forest) t = Terrain.Forest;
+    else if (m < mix.mud) t = Terrain.Mud;
+    else if (m < mix.fertile && e > 0.35) t = Terrain.Fertile;
+    terrain[i] = t;
+  }
+  const set = (x: number, y: number, t: Terrain) => {
+    if (x >= 0 && y >= 0 && x < size && y < size) terrain[y * size + x] = t;
+  };
+  // costa: faixa de água ao sul, com praia lamacenta
+  if (spec.coast) {
+    for (let x = 0; x < size; x++) {
+      const depth = 4 + Math.round(Math.sin(x * 0.35 + seed) * 1.5 + rng.next());
+      for (let y = size - depth; y < size; y++) set(x, y, Terrain.Water);
+      set(x, size - depth - 1, Terrain.Mud);
+    }
+  }
+  // rio: atravessa de norte a sul no meio do mapa, com dois vaus
+  if (spec.river) {
+    let rx = Math.floor(size / 2) + Math.round((rng.next() - 0.5) * 4);
+    const fords = [Math.floor(size * 0.3), Math.floor(size * 0.62)];
+    for (let y = 0; y < size; y++) {
+      const ford = fords.some((f) => Math.abs(y - f) <= 1);
+      for (const dx of [0, 1]) set(rx + dx, y, ford ? Terrain.Mud : Terrain.Water);
+      if (rng.next() < 0.3) rx += rng.next() < 0.5 ? -1 : 1;
+      rx = Math.max(size / 2 - 5, Math.min(size / 2 + 5, rx));
+    }
+  }
+  const spawns: Cell[] = [
+    { cx: 5, cy: Math.floor(size / 2) - 4 },
+    { cx: size - 6, cy: Math.floor(size / 2) - 4 },
+  ];
+  const clear = (c: Cell, r: number) => {
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) set(c.cx + dx, c.cy + dy, Terrain.Plains);
+  };
+  clear(spawns[0]!, 5);
+  clear(spawns[1]!, 5);
+  // estrada sinuosa de base a base (atravessa o rio por ponte)
+  let x = spawns[0]!.cx;
+  let y = spawns[0]!.cy + 1;
+  const ty = spawns[1]!.cy + 1;
+  while (x < spawns[1]!.cx) {
+    set(x, y, Terrain.Road);
+    set(x, y + 1, Terrain.Road);
+    if (rng.next() < 0.75 || y === ty) x++;
+    else y += y < ty ? 1 : -1;
+    y = Math.max(2, Math.min(size - 8, y));
+  }
+  return { width: size, height: size, cellSize: CELL_SIZE, seed: seed >>> 0, terrain, resourceNodes: [], spawns };
+}

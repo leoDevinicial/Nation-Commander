@@ -16,7 +16,8 @@ export const snapshotBuffer: { last: SnapshotMsg | null } = { last: null };
 let lastTerritory: string | undefined;
 
 gameClient.on((msg) => {
-  if (msg.t === 'snapshot') {
+  // snapshots da batalha local (Fase 8) vão para a cena da batalha, não para o teatro
+  if (msg.t === 'snapshot' && !msg.scope) {
     if (msg.s.territory) lastTerritory = msg.s.territory;
     // o snapshot guardado sempre carrega a grade de território mais recente
     snapshotBuffer.last = msg.s.territory || !lastTerritory ? msg : { ...msg, s: { ...msg.s, territory: lastTerritory } };

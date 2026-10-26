@@ -24,6 +24,8 @@ import type { SimEvent, Slot } from '../shared/sim/types.ts';
 import { NationalAI } from '../shared/strategic/NationalAI.ts';
 import { NationalSimulation, type NationalEvent } from '../shared/strategic/NationalSimulation.ts';
 import { HISTORY_EVERY_DAYS, SCENARIO_START, TICKS_PER_DAY } from '../shared/strategic/params.ts';
+import { OperationsSystem, operationsView, type Operation } from '../shared/strategic/operations.ts';
+import { sectorById } from '../shared/data/sectors.ts';
 import type { Connection } from './Connection.ts';
 import { log } from './logger.ts';
 import type { MatchRecord } from './supabase.ts';
@@ -69,6 +71,11 @@ export class Room {
   sim: Simulation | null = null;
   private ais: TacticalAI[] = [];
   private pending: { slot: Slot; cmd: Command; conn: Connection | null }[] = [];
+  /** Ordens às tropas nas batalhas locais das operações (Fase 8). */
+  private pendingBattle: { slot: Slot; cmd: Command; conn: Connection | null }[] = [];
+  private ops: OperationsSystem | null = null;
+  private battleFog = new Map<number, FogMemory>();
+  private opsDirty = new Set<Slot>();
   private events: SimEvent[] = [];
   paused = false;
   pausedBy: string | null = null;
@@ -265,6 +272,8 @@ export class Room {
       pay: (slot, usd, description) => national.tradePayment(slot, usd, description.startsWith('Frete') ? 'freight' : usd >= 0 ? 'export' : 'import'),
       partnerName: (id) => countryName(national.nation(id)?.countryId ?? '') || `Jogador ${id + 1}`,
     });
+    // operações expedicionárias contra governos fora do teatro (Fase 8)
+    this.ops = new OperationsSystem(sim, national, this.seed);
     for (const n of this.national.nations) this.gdpStart.set(n.slot, n.gdpUsd);
     this.applyNationalModifiers();
     this.status = 'playing';
@@ -337,15 +346,126 @@ export class Room {
     }
     const batch = this.pending.splice(0, this.pending.length);
     for (const { slot, cmd, conn } of batch) {
-      const err = sim.applyCommand(slot, cmd);
+      const err =
+        cmd.type === 'launch_operation'
+          ? this.ops
+            ? this.ops.launch(slot, cmd.target, cmd.sectorId, cmd.unitIds)
+            : 'Indisponível'
+          : cmd.type === 'operation_retreat'
+            ? this.ops
+              ? this.ops.retreat(slot, cmd.opId)
+              : 'Indisponível'
+            : sim.applyCommand(slot, cmd);
+      if (err) conn?.send({ t: 'cmd_rejected', reason: err });
+      else if (cmd.type === 'launch_operation' || cmd.type === 'operation_retreat') this.opsDirty.add(slot);
+    }
+    for (const { slot, cmd, conn } of this.pendingBattle.splice(0, this.pendingBattle.length)) {
+      const err = this.ops ? this.ops.battleCommand(slot, cmd) : 'Indisponível';
       if (err) conn?.send({ t: 'cmd_rejected', reason: err });
     }
     sim.step();
+    this.stepOperations();
     const tickEvents = sim.drainEvents();
     this.events.push(...tickEvents);
     this.advanceNational(tickEvents);
     if (sim.tick % SNAPSHOT_EVERY === 0 || sim.ended) this.broadcastSnapshot();
     if (sim.ended) void this.finish(this.endReason ?? (sim.winner === null ? 'draw' : 'hq_destroyed'));
+  }
+
+  /** Operações: viagem, batalhas locais (snapshots só para o dono), reconciliação e volta. */
+  private stepOperations(): void {
+    const ops = this.ops;
+    const sim = this.sim;
+    if (!ops || !sim) return;
+    const before = new Map(ops.ops.map((o) => [o.id, o.state]));
+    ops.step();
+    for (const op of ops.ops) {
+      const prev = before.get(op.id);
+      if (prev !== op.state) this.opsDirty.add(op.owner);
+      if (prev === 'transit' && op.state === 'battle') this.sendBattleStart(op);
+    }
+    if (sim.tick % SNAPSHOT_EVERY === 0) for (const [id, battle] of ops.battles) this.sendBattleSnapshot(id, battle);
+    for (const [id, battle] of ops.finishedBattles) {
+      const op = ops.ops.find((o) => o.id === id)!;
+      this.sendBattleSnapshot(id, battle);
+      this.playerBySlot(op.owner)?.conn?.send({ t: 'battle_end', opId: id, result: op.result! });
+      this.battleFog.delete(id);
+    }
+    ops.finishedBattles.clear();
+    if (sim.tick % TICKS_PER_DAY === 0) for (const p of this.players) if (!p.isAI) this.opsDirty.add(p.slot);
+    for (const slot of this.opsDirty) this.sendOperations(slot);
+    this.opsDirty.clear();
+  }
+
+  private playerBySlot(slot: Slot): RoomPlayer | undefined {
+    return this.players.find((p) => p.slot === slot);
+  }
+
+  private sendOperations(slot: Slot): void {
+    const p = this.playerBySlot(slot);
+    if (!p?.conn || p.isAI || !this.ops || !this.national || !this.sim) return;
+    p.conn.send({ t: 'operations', ops: operationsView(this.ops, this.national, slot, this.sim.tick) });
+  }
+
+  private sendBattleStart(op: Operation): void {
+    const p = this.playerBySlot(op.owner);
+    const battle = this.ops?.battles.get(op.id);
+    if (!p?.conn || !battle || !this.national) return;
+    const def = sectorById(op.sectorId)!;
+    const view = operationsView(this.ops!, this.national, op.owner, this.sim!.tick)
+      .wars.find((w) => w.target === op.target)
+      ?.sectors.find((s) => s.id === op.sectorId);
+    const target = this.national.nation(op.target);
+    p.conn.send({
+      t: 'battle_start',
+      battle: {
+        opId: op.id,
+        target: op.target,
+        targetCountryId: target?.countryId ?? '',
+        sector: view ?? { ...def, control: 'enemy', garrison: 0 },
+        match: {
+          seed: op.seed,
+          yourSlot: 0,
+          players: [
+            { slot: 0, userId: p.userId, name: p.name, countryId: p.countryId, ready: true, isAI: false, connected: true },
+            { slot: 1, userId: null, name: countryName(target?.countryId ?? '') || 'Defensor', countryId: target?.countryId ?? '', ready: true, isAI: true, connected: true },
+          ],
+          terrain: battle.map.terrain.join(''),
+          width: battle.map.width,
+          height: battle.map.height,
+          cellSize: battle.map.cellSize,
+          resourceNodes: battle.map.resourceNodes,
+          spawns: battle.map.spawns,
+          tickRate: TICK_RATE,
+          snapshotEvery: SNAPSHOT_EVERY,
+          canControlSpeed: false,
+          balanceMode: this.balanceMode,
+          scenarioStart: SCENARIO_START,
+          ticksPerDay: TICKS_PER_DAY,
+        },
+      },
+    });
+    this.sendBattleSnapshot(op.id, battle);
+  }
+
+  private sendBattleSnapshot(opId: number, battle: Simulation): void {
+    const op = this.ops?.ops.find((o) => o.id === opId);
+    const p = op ? this.playerBySlot(op.owner) : undefined;
+    const events = this.ops?.battleEvents.get(opId)?.splice(0) ?? [];
+    if (!p?.conn) return;
+    let memory = this.battleFog.get(opId);
+    if (!memory) this.battleFog.set(opId, (memory = new FogMemory()));
+    p.conn.sendRaw(
+      JSON.stringify({
+        t: 'snapshot',
+        s: makeSnapshot(battle, events, { slot: 0, memory }, true),
+        paused: this.paused,
+        speed: this.speed,
+        pausedBy: this.pausedBy,
+        scope: 'battle',
+        opId,
+      } satisfies ServerMessage),
+    );
   }
 
   /** Camada nacional: comandos pendentes, um dia a cada TICKS_PER_DAY ticks e modificadores táticos. */
@@ -356,12 +476,7 @@ export class Room {
     national.registerTacticalEvents(tickEvents);
     let diplomacyChanged = false;
     for (const { slot, cmd, conn } of this.pendingNational.splice(0, this.pendingNational.length)) {
-      const err =
-        cmd.type === 'set_budget'
-          ? national.setBudget(slot, cmd.budget)
-          : cmd.type === 'set_research'
-            ? national.setResearch(slot, cmd.techId)
-            : national.diplomaticAction(slot, cmd.action);
+      const err = cmd.type === 'set_budget' ? national.setBudget(slot, cmd.budget) : cmd.type === 'set_research' ? national.setResearch(slot, cmd.techId) : national.diplomaticAction(slot, cmd.action);
       if (err) conn?.send({ t: 'cmd_rejected', reason: err });
       else if (cmd.type === 'diplomacy') diplomacyChanged = true;
     }
@@ -418,11 +533,13 @@ export class Room {
   }
 
   private nationViews(slot: Slot, withHistory: boolean): NationView[] {
-    return (this.national?.nations ?? []).filter((n) => n.slot === slot).map(({ history, casualties30d, victories30d: _v, ...rest }) => ({
-      ...rest,
-      casualties30d: casualties30d.reduce((a, c) => a + c, 0),
-      ...(withHistory ? { history } : {}),
-    }));
+    return (this.national?.nations ?? [])
+      .filter((n) => n.slot === slot)
+      .map(({ history, casualties30d, victories30d: _v, ...rest }) => ({
+        ...rest,
+        casualties30d: casualties30d.reduce((a, c) => a + c, 0),
+        ...(withHistory ? { history } : {}),
+      }));
   }
 
   nationalCommand(conn: Connection, cmd: NationalCommand): void {
@@ -432,9 +549,14 @@ export class Room {
     this.pendingNational.push({ slot: p.slot, cmd, conn });
   }
 
-  command(conn: Connection, cmd: Command): void {
+  command(conn: Connection, cmd: Command, scope?: 'battle'): void {
     const p = this.playerOf(conn);
     if (!p || this.status !== 'playing' || !this.sim) return;
+    if (scope === 'battle') {
+      if (this.pendingBattle.filter((x) => x.slot === p.slot).length >= MAX_COMMANDS_PER_TICK) return;
+      this.pendingBattle.push({ slot: p.slot, cmd, conn });
+      return;
+    }
     if (this.pending.filter((x) => x.slot === p.slot).length >= MAX_COMMANDS_PER_TICK) {
       conn.send({ t: 'cmd_rejected', reason: 'Comandos demais' });
       return;
@@ -522,6 +644,13 @@ export class Room {
       this.territorySent.delete(p.slot); // reconexão: reenvia as fronteiras
       conn.sendRaw(this.snapshotJson([], p.slot));
       if (this.national) conn.send(this.nationalMessage(p.slot, [], true));
+      // operação em combate: o cliente reabre a batalha local
+      const battle = this.ops?.battleOf(p.slot);
+      if (battle) {
+        this.battleFog.delete(battle.op.id);
+        this.sendBattleStart(battle.op);
+      }
+      this.sendOperations(p.slot);
     }
     return true;
   }
@@ -694,4 +823,3 @@ function publicPlayer(p: RoomPlayer): RoomPlayerInfo {
 function countryForAI(humanCountry: string): string {
   return humanCountry === 'ARG' ? 'BRA' : 'ARG';
 }
-

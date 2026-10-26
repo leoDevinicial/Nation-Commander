@@ -274,7 +274,7 @@ export class GameRuntime {
     });
 
     this.unsubscribe = client.on((msg) => {
-      if (msg.t === 'snapshot') this.onSnapshot(msg);
+      if (msg.t === 'snapshot' && !msg.scope) this.onSnapshot(msg);
       else if (msg.t === 'cmd_rejected') {
         useHudStore.getState().pushEvent({ tick: this.snapshot?.tick ?? 0, text: msg.reason, tone: 'warn' });
         audio.ui('error');

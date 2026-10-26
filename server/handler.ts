@@ -104,7 +104,7 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
       return;
     }
     case 'cmd':
-      room?.command(conn, msg.cmd);
+      room?.command(conn, msg.cmd, msg.scope);
       return;
     case 'national':
       room?.nationalCommand(conn, msg.cmd);

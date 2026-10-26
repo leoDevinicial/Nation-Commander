@@ -176,10 +176,27 @@ export type NationalEvent =
   | { type: 'threshold'; day: number; slot: Slot; indicator: 'debt' | 'inflation' | 'approval' | 'growth'; value: number; threshold: number; direction: 'up' | 'down' }
   | { type: 'budget_changed'; day: number; slot: Slot; deficitPctGdp: number }
   /** Ataque aéreo ou de míssil registrado (Fase 7): custo, dano, petróleo perdido e alvo. */
+  /** Operação expedicionária concluída (Fase 8): resultado reconciliado uma única vez. */
+  | {
+      type: 'operation';
+      day: number;
+      slot: Slot;
+      target: NationId;
+      sector: string;
+      outcome: 'victory' | 'defeat' | 'retreat' | 'stalemate';
+      sent: number;
+      lost: number;
+      enemyLost: number;
+      usd: number;
+      occupied: boolean;
+    }
   | { type: 'military_strike'; day: number; slot: Slot; victim: Slot; kind: 'air' | 'missile'; target: string; damage: number; oilLost: number; destroyed: number; intercepted: boolean }
   | { type: 'diplomacy'; day: number; event: DiplomaticEvent };
 
 /** Simulação nacional de cada jogador, avançando um dia por vez. Determinística dada a seed. */
+/** Fração da produção de uma região ocupada que o país perde (choque único no PIB). */
+export const OCCUPATION_GDP_LOSS = 0.3;
+
 export class NationalSimulation {
   day = 0;
   readonly nations: NationState[];
@@ -315,6 +332,7 @@ export class NationalSimulation {
     const knows = (id: NationId) => this.diplomacy.knows(viewer, id);
     return events.filter((e) => {
       if (e.type === 'protest') return knows(e.slot);
+      if (e.type === 'operation') return e.slot === viewer || e.target === viewer || (knows(e.slot) && knows(e.target));
       if (e.type === 'military_strike') return e.slot === viewer || e.victim === viewer || (knows(e.slot) && knows(e.victim));
       if (e.type !== 'diplomacy') return e.slot === viewer;
       const ev = e.event;
@@ -441,6 +459,44 @@ export class NationalSimulation {
     return null;
   }
 
+  // ------------------------------------------------------------ operações (Fase 8)
+
+  /** Gasto militar extraordinário (operação expedicionária): financiado por dívida, como a mobilização. */
+  militarySpend(slot: Slot, usd: number): void {
+    const n = this.nation(slot);
+    if (n && usd > 0) n.debtUsd += usd;
+  }
+
+  /** Baixas de uma operação contam na opinião pública como as do teatro. */
+  registerCasualties(slot: Slot, count: number): void {
+    const n = this.nation(slot);
+    if (n && count > 0) n.casualties30d[0] = (n.casualties30d[0] ?? 0) + count;
+  }
+
+  /** Orçamento anual de defesa (US$) — base do tamanho das guarnições dos governos da IA. */
+  defenseBudgetUsd(id: NationId): number {
+    const n = this.nation(id);
+    return n ? (n.budget.defensePct / 100) * n.gdpUsd : 0;
+  }
+
+  /**
+   * Ocupação de uma região: o país atingido perde parte da produção da região (choque único no
+   * PIB) e o ocupante paga em reputação. Retorna a perda de PIB (US$).
+   */
+  applyOccupation(actor: Slot, target: NationId, share: number): number {
+    const t = this.nation(target);
+    if (!t) return 0;
+    const loss = t.gdpUsd * share * OCCUPATION_GDP_LOSS;
+    t.gdpUsd -= loss;
+    this.diplomacy.recordAttack(actor, target, 'occupation');
+    this.recompute(t, 0);
+    return loss;
+  }
+
+  pushEvent(e: NationalEvent): void {
+    this.events.push(e);
+  }
+
   /** Contabiliza baixas e vitórias táticas para a opinião pública e registra ataques estratégicos. */
   registerTacticalEvents(events: SimEvent[]): void {
     for (const e of events) {
@@ -451,7 +507,18 @@ export class NationalSimulation {
       }
       if (e.type === 'air_strike') {
         this.diplomacy.recordAttack(e.owner, e.victim, 'air');
-        this.events.push({ type: 'military_strike', day: this.day, slot: e.owner, victim: e.victim, kind: 'air', target: e.buildingType, damage: e.damage, oilLost: e.oilLost, destroyed: e.destroyed ? 1 : 0, intercepted: false });
+        this.events.push({
+          type: 'military_strike',
+          day: this.day,
+          slot: e.owner,
+          victim: e.victim,
+          kind: 'air',
+          target: e.buildingType,
+          damage: e.damage,
+          oilLost: e.oilLost,
+          destroyed: e.destroyed ? 1 : 0,
+          intercepted: false,
+        });
         continue;
       }
       if (e.type === 'missile' && (e.state === 'impact' || e.state === 'intercepted')) {
@@ -529,11 +596,7 @@ export class NationalSimulation {
     n.inflationPct += (target - n.inflationPct) * Math.min(1, COEF.inflationAdjust * dt);
 
     // --- desemprego (Okun + reversão à taxa de referência)
-    n.unemploymentPct = clamp(
-      n.unemploymentPct + (-COEF.okun * (n.realGrowthPct - n.trendGrowthPct) + COEF.unemploymentReversion * (n.naturalUnemploymentPct - n.unemploymentPct)) * dt,
-      0.5,
-      50,
-    );
+    n.unemploymentPct = clamp(n.unemploymentPct + (-COEF.okun * (n.realGrowthPct - n.trendGrowthPct) + COEF.unemploymentReversion * (n.naturalUnemploymentPct - n.unemploymentPct)) * dt, 0.5, 50);
 
     // --- PIB nominal, contas públicas e dívida
     n.gdpUsd *= 1 + ((n.realGrowthPct + COEF.usdInflation) / 100) * dt;
@@ -544,11 +607,7 @@ export class NationalSimulation {
 
     // --- opinião pública
     this.updateApproval(n);
-    const stabilityTarget = clamp(
-      30 + 0.7 * n.approval - Math.min(15, 0.2 * Math.max(0, debtPct - 100)) - Math.min(20, 0.3 * Math.max(0, n.inflationPct - 20)),
-      0,
-      100,
-    );
+    const stabilityTarget = clamp(30 + 0.7 * n.approval - Math.min(15, 0.2 * Math.max(0, debtPct - 100)) - Math.min(20, 0.3 * Math.max(0, n.inflationPct - 20)), 0, 100);
     n.stability += ((stabilityTarget - n.stability) * 1) / COEF.stabilityDays;
 
     // --- protesto: risco probabilístico com causas registradas
@@ -557,7 +616,10 @@ export class NationalSimulation {
       if (this.rng.next() < chance) {
         n.approval = Math.max(0, n.approval - 2);
         n.stability = Math.max(0, n.stability - 4);
-        const causes = [...n.approvalFactors].filter((f) => f.value < 0).sort((a, c) => a.value - c.value).slice(0, 3);
+        const causes = [...n.approvalFactors]
+          .filter((f) => f.value < 0)
+          .sort((a, c) => a.value - c.value)
+          .slice(0, 3);
         this.events.push({ type: 'protest', day: this.day, slot: n.slot, approval: round2(n.approval), causes });
       }
     }
@@ -766,10 +828,7 @@ export function createNation(slot: Slot, countryId: string): NationState {
  */
 export function interestRate(inflationPct: number, debtPct: number, baseDebtPct: number): number {
   // o mercado já precifica a dívida inicial: o prêmio incide só sobre o aumento acima dela (e de 60%)
-  const r =
-    COEF.baseRate +
-    COEF.inflationPassThrough * clamp(inflationPct, 0, COEF.inflationPassThroughCap) +
-    COEF.riskPremiumPerPoint * Math.max(0, debtPct - Math.max(60, baseDebtPct));
+  const r = COEF.baseRate + COEF.inflationPassThrough * clamp(inflationPct, 0, COEF.inflationPassThroughCap) + COEF.riskPremiumPerPoint * Math.max(0, debtPct - Math.max(60, baseDebtPct));
   return Math.min(r, COEF.maxInterestRate);
 }
 
