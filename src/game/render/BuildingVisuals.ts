@@ -6,7 +6,7 @@ import { cinematicSmokeTexture, smokeTexture, volumetricSmokeTexture } from './t
 import { buildingModel, type BuildingModel } from './models/buildingModels.ts';
 import type { SpecId } from '../../../shared/sim/upgrades.ts';
 import { C, PartBuilder, type ModelLayers } from './models/kit.ts';
-import { box, cyl, mat, mesh, sharedMaterial } from './palette.ts';
+import { box, cyl, factionColor, mat, mesh, sharedMaterial } from './palette.ts';
 
 function layerMeshes(l: ModelLayers, owner: number): THREE.Mesh[] {
   const out: THREE.Mesh[] = [];
@@ -367,11 +367,56 @@ function buildRallyFlag(owner: number): THREE.Group {
   return g;
 }
 
-/** Fantasma de posicionamento de construção. */
-export function buildGhost(type: BuildingType, cellSize: number): THREE.Mesh {
-  const s = BUILDINGS[type].size * cellSize;
-  const m = new THREE.Mesh(new THREE.BoxGeometry(s, 1.2, s), mat.ghostOk());
-  m.position.y = 0.6;
-  m.renderOrder = 5;
-  return m;
+/**
+ * Prévia de posicionamento: o edifício pronto, translúcido como um holograma, sobre uma base na
+ * área ocupada — verde quando a posição é válida, vermelha quando não. A geometria é a do modelo
+ * real (cache compartilhado); só os materiais pertencem à prévia.
+ */
+export class PlacementGhost {
+  readonly group = new THREE.Group();
+  private readonly base: THREE.Mesh;
+  private readonly mats: THREE.MeshStandardMaterial[];
+  private valid = true;
+
+  constructor(type: BuildingType, cellSize: number, owner: number) {
+    const s = BUILDINGS[type].size * cellSize;
+    this.base = new THREE.Mesh(new THREE.BoxGeometry(s, 0.08, s), mat.ghostOk());
+    this.base.position.y = 0.05;
+    this.base.renderOrder = 5;
+    this.group.add(this.base);
+    const look = { transparent: true, opacity: 0.68, emissiveIntensity: 0.55, roughness: 0.6, metalness: 0.1 };
+    const body = new THREE.MeshStandardMaterial({ ...look, vertexColors: true, emissive: '#2f9a52' });
+    const accent = new THREE.MeshStandardMaterial({ ...look, color: factionColor(owner), emissive: '#2f9a52' });
+    const glass = new THREE.MeshStandardMaterial({ ...look, color: '#4d6270', emissive: '#2f9a52' });
+    this.mats = [body, accent, glass];
+    const model = buildingModel(type);
+    const parts: [ModelLayers, [number, number, number] | null][] = [[model.base, null]];
+    if (model.detail) parts.push([model.detail, null]);
+    if (model.moving) parts.push([model.moving.layers, model.moving.pivot]);
+    for (const [l, at] of parts)
+      for (const [geo, m] of [
+        [l.body, body],
+        [l.accent, accent],
+        [l.glass, glass],
+      ] as const) {
+        if (!geo.getAttribute('position')) continue;
+        const mesh = new THREE.Mesh(geo, m);
+        if (at) mesh.position.set(...at);
+        mesh.renderOrder = 6;
+        this.group.add(mesh);
+      }
+  }
+
+  setValid(ok: boolean): void {
+    if (ok === this.valid) return;
+    this.valid = ok;
+    this.base.material = ok ? mat.ghostOk() : mat.ghostBad();
+    for (const m of this.mats) m.emissive.set(ok ? '#2f9a52' : '#b8322a');
+  }
+
+  dispose(): void {
+    this.base.geometry.dispose();
+    for (const m of this.mats) m.dispose();
+    this.group.removeFromParent();
+  }
 }

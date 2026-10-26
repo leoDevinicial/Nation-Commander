@@ -305,3 +305,20 @@ Retorno de um jogador após uma partida de ~10 min no celular:
 A regra de produção agora é uma só (`shared/sim/production.ts`, `checkProduce`): o servidor valida com ela e o HUD a usa
 para explicar. O motivo mostrado é, portanto, exatamente o que o servidor diria. Testes em
 `shared/test/production.test.ts`.
+
+## Painel de comando com miniaturas 3D
+
+- **Cartões com preview:** os botões de construir, formar cidadão/recruta/tropas e melhorar mostram uma miniatura 3D
+  da estrutura ou tropa (os próprios modelos do jogo, na cor da facção), além do nome, custo, atalho e motivo de
+  bloqueio. As miniaturas são renderizadas uma vez por partida (`src/game/render/Thumbnails.ts`) num alvo fora da
+  tela do mesmo renderizador e viram imagens comuns no HUD (`useHudStore.thumbs`); sem WebGL, o cartão cai para o ícone.
+- **Fila de produção à esquerda:** nos edifícios que produzem (Centro de Comando, Base Militar, Fábrica), uma coluna
+  mostra o item em andamento (miniatura, nome e progresso), os próximos em miniaturas menores, a capacidade (x/5) e
+  "Cancelar". No celular deitado, a coluna fica compacta.
+- **Prévia da obra no local:** ao escolher onde construir, em vez do quadrado verde aparece o próprio modelo da
+  estrutura pronta, translúcido, em verde (posição válida) ou vermelho (inválida) — `PlacementGhost` em
+  `BuildingVisuals.ts`.
+- **Menu de toque recolhível:** a barra lateral de toque virou um menu que se recolhe sozinho quando o painel de
+  comando mostra algo (seleção, inspeção ou escolha de local), para não cobrir o painel no celular. O botão do topo
+  mostra a ferramenta atual e abre o menu mesmo assim; ao fechar o painel, o menu volta a abrir. No PC (sem toque) a
+  barra não aparece.

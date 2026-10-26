@@ -7,10 +7,11 @@ import type { BuildingSnapshot, Snapshot, UnitSnapshot } from '../../shared/sim/
 import type { Cell, MapData, SimEvent } from '../../shared/sim/types.ts';
 import type { GameClient } from '../net/GameClient.ts';
 import { useHudStore, type PointerMode } from '../state/useHudStore.ts';
-import { BuildingVisual, buildGhost } from './render/BuildingVisuals.ts';
+import { BuildingVisual, PlacementGhost } from './render/BuildingVisuals.ts';
+import { renderThumbnails } from './render/Thumbnails.ts';
 import { CameraController } from './render/CameraController.ts';
 import { Effects } from './render/Effects.ts';
-import { disposeSharedResources, mat } from './render/palette.ts';
+import { disposeSharedResources } from './render/palette.ts';
 import { buildTerrain, type TerrainHandle } from './render/TerrainFactory.ts';
 import { cloudUniforms, disposeMaterials, fogUniforms, setCloudShadows, weatherUniforms } from './render/materials.ts';
 import { disposeBuildingModels } from './render/models/buildingModels.ts';
@@ -98,7 +99,7 @@ export class GameRuntime {
   private pausedBy: string | null = null;
   private speed: GameSpeed = 1;
   private mode: PointerMode = { kind: 'normal' };
-  private ghost: THREE.Mesh | null = null;
+  private ghost: PlacementGhost | null = null;
   private ghostCell: Cell | null = null;
   private keys = new Set<string>();
   private pointer = { x: 0, y: 0, inside: false };
@@ -250,6 +251,15 @@ export class GameRuntime {
     });
     if (initial) this.onSnapshot(initial);
     this.raf = requestAnimationFrame(this.frame);
+    // miniaturas 3D dos botões: logo depois do primeiro quadro, para não atrasar a entrada
+    window.setTimeout(() => {
+      if (this.disposed) return;
+      try {
+        useHudStore.getState().set({ thumbs: renderThumbnails(this.renderer, this.mySlot) });
+      } catch (err) {
+        console.warn('Miniaturas indisponíveis', err);
+      }
+    }, 50);
   }
 
   // ------------------------------------------------------------ cena
@@ -644,9 +654,9 @@ export class GameRuntime {
 
   startPlacement(type: BuildingType): void {
     this.setMode({ kind: 'place', buildingType: type, valid: false, reason: null, yield: null });
-    if (this.ghost) this.ghost.removeFromParent();
-    this.ghost = buildGhost(type, this.map.cellSize);
-    this.scene.add(this.ghost);
+    this.ghost?.dispose();
+    this.ghost = new PlacementGhost(type, this.map.cellSize, this.mySlot);
+    this.scene.add(this.ghost.group);
     if (useHudStore.getState().touchUi || (this.ghostAt.x === 0 && this.ghostAt.y === 0)) {
       // sem cursor (toque, ou mouse ainda parado): o fantasma começa no centro da vista
       const r = this.renderer.domElement.getBoundingClientRect();
@@ -693,8 +703,7 @@ export class GameRuntime {
 
   cancelMode(): void {
     if (this.ghost) {
-      this.ghost.geometry.dispose();
-      this.ghost.removeFromParent();
+      this.ghost.dispose();
       this.ghost = null;
     }
     this.setMode({ kind: 'normal' });
@@ -1130,9 +1139,9 @@ export class GameRuntime {
     const cell = anchorForCursor(type, cursor, this.map.resourceNodes);
     this.ghostCell = cell;
     const size = BUILDINGS[type].size;
-    this.ghost.position.set((cell.cx + size / 2) * cs, 0.6, (cell.cy + size / 2) * cs);
+    this.ghost.group.position.set((cell.cx + size / 2) * cs, 0, (cell.cy + size / 2) * cs);
     const reason = this.localPlacementError(type, cell);
-    this.ghost.material = reason ? mat.ghostBad() : mat.ghostOk();
+    this.ghost.setValid(!reason);
     const yieldPreview = this.previewYield(type, cell);
     if (
       this.mode.valid !== !reason ||

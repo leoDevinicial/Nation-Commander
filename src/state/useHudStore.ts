@@ -67,6 +67,8 @@ export interface HudState {
   players: PlayerSnapshot[];
   /** Edifícios próprios com algo na fila (unidades, recrutas, cidadãos). */
   production: ProductionEntry[];
+  /** Miniaturas 3D (data URL) dos botões, por tipo de edifício/unidade, 'citizen' e 'recruit'. */
+  thumbs: Partial<Record<string, string>>;
   mySlot: number;
   paused: boolean;
   pausedBy: string | null;
@@ -95,6 +97,7 @@ export const useHudStore = create<HudState>((set) => ({
   tick: 0,
   players: [],
   production: [],
+  thumbs: {},
   mySlot: 0,
   paused: false,
   pausedBy: null,
