@@ -34,6 +34,8 @@ import { CitizenLayer } from './render/CitizenLayer.ts';
 import { CargoLayer, disposeCargoModels } from './render/CargoLayer.ts';
 import { AirLayer, disposeAirModels } from './render/AirLayer.ts';
 import { AIRCRAFT, MISSILE } from '../../shared/sim/air.ts';
+import { PRODUCTION_SOUND, audio } from './audio/AudioService.ts';
+import { useSettingsStore } from '../state/useSettingsStore.ts';
 import { AdaptiveExposure, EnvironmentProbe, ShadowFollow } from './render/Lighting.ts';
 import { describeEvent } from './eventText.ts';
 import type { GraphicsProfile } from '../lib/graphics.ts';
@@ -109,6 +111,7 @@ export class GameRuntime {
   /** Veículos de carga do comércio (Fase 6) e a rota inspecionada. */
   private readonly cargo = new CargoLayer();
   private focusedShipment: number | null = null;
+  private readonly heardFlights = new Set<number>();
   /** Aeronaves, mísseis, faróis dos silos e alvos (Fase 7). */
   private readonly airLayer: AirLayer;
   private readonly buildings = new Map<number, TrackedBuilding>();
@@ -256,6 +259,7 @@ export class GameRuntime {
       () => this.touchTool === 'box',
     );
     this.bindInput();
+    this.bindAudio();
     this.resize();
     useHudStore.setState({
       mySlot: this.mySlot,
@@ -271,7 +275,10 @@ export class GameRuntime {
 
     this.unsubscribe = client.on((msg) => {
       if (msg.t === 'snapshot') this.onSnapshot(msg);
-      else if (msg.t === 'cmd_rejected') useHudStore.getState().pushEvent({ tick: this.snapshot?.tick ?? 0, text: msg.reason, tone: 'warn' });
+      else if (msg.t === 'cmd_rejected') {
+        useHudStore.getState().pushEvent({ tick: this.snapshot?.tick ?? 0, text: msg.reason, tone: 'warn' });
+        audio.ui('error');
+      }
     });
     if (initial) this.onSnapshot(initial);
     this.raf = requestAnimationFrame(this.frame);
@@ -355,6 +362,12 @@ export class GameRuntime {
     if (s.air) {
       useHudStore.getState().set({ air: s.air });
       this.airLayer.update(s.air);
+      // passagem de jato quando uma formação entra no mapa (própria ou inimiga à vista)
+      for (const f of s.air.flights)
+        if (!this.heardFlights.has(f.id)) {
+          this.heardFlights.add(f.id);
+          audio.playAt('jet', f.x, f.y);
+        }
     }
     this.snapshot = s;
     if (s.territory) {
@@ -480,6 +493,7 @@ export class GameRuntime {
         this.effects.explosion(at, false);
       }
     }
+    this.eventSound(e);
     const text = describeEvent(e, this.mySlot);
     if (text) useHudStore.getState().pushEvent({ tick: e.tick, text: text.text, tone: text.tone });
   }
@@ -561,6 +575,8 @@ export class GameRuntime {
     this.cargo.frame(alpha, dt);
     this.airLayer.frame(alpha, dt);
     this.updateAirTargeting();
+    audio.setListener(this.cameraCtl.target.x, this.cameraCtl.target.z, this.cameraCtl.distance, this.cameraCtl.yaw);
+    this.updateProductionSound();
     this.updateRouteInspection();
     this.effects.update(dt);
     this.citizens.update(this.paused ? 0 : dt * this.speed);
@@ -1006,6 +1022,90 @@ export class GameRuntime {
 
   get isPaused(): boolean {
     return this.paused;
+  }
+
+  // ------------------------------------------------------------ áudio (Fase 7)
+
+  /** Volumes das configurações e desbloqueio do áudio no primeiro gesto (exigência dos navegadores). */
+  private bindAudio(): void {
+    audio.configure({ mobile: isTouchDevice() || this.opts.profile.terrain === 'low' });
+    const apply = () => {
+      const s = useSettingsStore.getState();
+      audio.setVolumes(s.volumes, s.muted);
+    };
+    apply();
+    this.cleanup.push(useSettingsStore.subscribe(apply));
+    const unlock = () => {
+      audio.unlock();
+      apply();
+      if (!audio.ready) return;
+      audio.startAmbient();
+      audio.startMusic();
+      window.removeEventListener('pointerdown', unlock, true);
+      window.removeEventListener('keydown', unlock, true);
+    };
+    window.addEventListener('pointerdown', unlock, true);
+    window.addEventListener('keydown', unlock, true);
+    this.cleanup.push(() => {
+      window.removeEventListener('pointerdown', unlock, true);
+      window.removeEventListener('keydown', unlock, true);
+      audio.stopAll();
+    });
+  }
+
+  /** Sons de um evento da simulação (o serviço descarta o que está longe ou excede as vozes). */
+  private eventSound(e: SimEvent): void {
+    const mine = (o: number) => o === this.mySlot;
+    switch (e.type) {
+      case 'shot': {
+        const attacker = this.units.get(e.attackerId);
+        const sound = attacker ? (attacker.visual.type === 'tank' || attacker.visual.type === 'artillery' ? 'cannon' : 'rifle') : 'tower';
+        audio.playAt(sound, e.from.x, e.from.y);
+        break;
+      }
+      case 'destroyed':
+        audio.playAt(e.entity === 'building' || e.entityType === 'tank' ? 'explosion_big' : 'explosion', e.pos.x, e.pos.y);
+        break;
+      case 'air_strike':
+        audio.playAt('bomb', e.pos.x, e.pos.y);
+        break;
+      case 'aircraft_lost':
+        audio.playAt('flak', e.pos.x, e.pos.y);
+        audio.playAt('explosion', e.pos.x, e.pos.y);
+        if (mine(e.owner)) audio.ui('alert');
+        break;
+      case 'under_attack':
+        if (mine(e.owner)) audio.ui('alert');
+        break;
+      case 'construction_completed':
+      case 'upgrade_completed':
+        if (mine(e.owner)) audio.ui('success');
+        break;
+      case 'missile': {
+        const own = mine(e.owner);
+        if (own && e.state === 'preparing') audio.missileCue('prepare', e.launchId);
+        else if (own && e.state === 'armed') audio.missileCue('armed', e.launchId);
+        else if (own && e.state === 'launching') audio.missileCue('authorize', e.launchId);
+        else if (own && e.state === 'aborted') audio.stopAlarm(e.launchId);
+        else if (e.state === 'flight') {
+          audio.playAt('missile_launch', e.from.x, e.from.y);
+          // o país-alvo ouve o alarme mesmo com a câmera longe
+          if (mine(e.targetOwner)) audio.ui('alert');
+        } else if (e.state === 'impact') {
+          if (own || mine(e.targetOwner)) audio.play('missile_impact', 0.55);
+          audio.playAt('missile_impact', e.target.x, e.target.y);
+        } else if (e.state === 'intercepted') audio.playAt('intercept', e.target.x, e.target.y);
+        break;
+      }
+    }
+  }
+
+  /** Som de trabalho do edifício próprio selecionado (só ele; troca e silencia com transição). */
+  private updateProductionSound(): void {
+    const id = this.selection.size === 1 ? [...this.selection][0]! : null;
+    const b = id !== null ? this.buildings.get(id) : undefined;
+    const working = b && b.snap.owner === this.mySlot && b.snap.progress >= 1 && (b.snap.status ?? 'ok') === 'ok' && !this.paused;
+    audio.setProduction(working ? (PRODUCTION_SOUND[b.snap.type] ?? null) : null);
   }
 
   // ------------------------------------------------------------ entrada

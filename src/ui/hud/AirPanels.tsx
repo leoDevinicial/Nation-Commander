@@ -8,6 +8,7 @@ import { useHudStore, type SelectedBuildingInfo } from '../../state/useHudStore.
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { CostLabel } from '../components/Resources.tsx';
 import { CardButton } from './CardButton.tsx';
+import { audio } from '../../game/audio/AudioService.ts';
 
 const ICON: Record<AircraftType, string> = { fighter: '✈', recon: '🔭', transport: '📦' };
 const SHORT: Record<AircraftType, string> = { fighter: 'Caça', recon: 'Reconhecimento', transport: 'Cargueiro' };
@@ -266,6 +267,7 @@ export function HoldToConfirm({ label, onConfirm, ms = 1500 }: { label: string; 
     if (start.current !== null) return;
     done.current = false;
     start.current = performance.now();
+    audio.ui('hold');
     // a confirmação vem de um temporizador (independe da taxa de quadros); o quadro só anima a barra
     timer.current = window.setTimeout(() => start.current !== null && confirm(), ms);
     const tick = () => {

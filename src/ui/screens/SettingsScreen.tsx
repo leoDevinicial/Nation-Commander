@@ -3,6 +3,7 @@ import { useAppStore } from '../../state/useAppStore.ts';
 import { fullscreenMode } from '../../lib/fullscreen.ts';
 import { useSettingsStore } from '../../state/useSettingsStore.ts';
 import { Shell } from '../components/Shell.tsx';
+import { AudioSettings } from '../components/AudioSettings.tsx';
 import { GRAPHICS_PRESETS, HEAVY_PRESETS, PRESET_LABELS, PROFILES, currentDeviceHints, detectPreset, isTouchDevice, type GraphicsPreset } from '../../lib/graphics.ts';
 
 const PRESET_DESC = {
@@ -39,8 +40,7 @@ export function SettingsScreen() {
           </div>
           <p className="mt-1.5 text-xs text-ink-400">{PRESET_DESC[s.quality]}</p>
           <p className="mt-1 text-[11px] text-ink-400">
-            Sugerido para este aparelho: {PRESET_LABELS[detectPreset(currentDeviceHints())]}. Os presets mudam só o custo gráfico — nunca as regras ou os
-            resultados da simulação.
+            Sugerido para este aparelho: {PRESET_LABELS[detectPreset(currentDeviceHints())]}. Os presets mudam só o custo gráfico — nunca as regras ou os resultados da simulação.
           </p>
         </fieldset>
         <Toggle
@@ -60,8 +60,7 @@ export function SettingsScreen() {
               </>
             ) : (
               <p className="text-xs text-ink-400">
-                No iPhone, páginas não podem ocupar a tela toda: toque em Compartilhar → <b>Adicionar à Tela de Início</b> e abra o jogo pelo ícone, que ele abre em
-                tela cheia.
+                No iPhone, páginas não podem ocupar a tela toda: toque em Compartilhar → <b>Adicionar à Tela de Início</b> e abra o jogo pelo ícone, que ele abre em tela cheia.
               </p>
             )}
           </fieldset>
@@ -75,10 +74,7 @@ export function SettingsScreen() {
           </label>
           <input id="pan" type="range" min={0.25} max={3} step={0.25} value={s.panSpeed} onChange={(e) => s.update({ panSpeed: Number(e.target.value) })} className="w-full accent-[#e0b44c]" />
         </div>
-        <div>
-          <span className="label">Áudio</span>
-          <p className="text-ink-400">Ainda não há sons nesta versão; alertas importantes aparecem sempre no painel de eventos.</p>
-        </div>
+        <AudioSettings />
         <p className="text-xs text-ink-400">Mudanças gráficas valem a partir da próxima partida (o globo do menu se atualiza na hora).</p>
         <button className="btn" onClick={s.reset}>
           Restaurar Padrões
@@ -128,13 +124,13 @@ function PerformanceWarning({ preset, onCancel, onConfirm }: { preset: GraphicsP
             <li>brilho (bloom), feixes de sol com mais amostras, oclusão de ambiente mais fina e resolução até 2,5×.</li>
           </ul>
           <p className="text-xs">
-            Espere menos quadros por segundo que no Ultra (muitas vezes metade) e mais uso de memória de vídeo. Indicado só para computadores com placa de
-            vídeo dedicada recente e potente. O contador de FPS será ligado para você acompanhar; se o jogo ficar lento, volte para Ultra ou Alto.
+            Espere menos quadros por segundo que no Ultra (muitas vezes metade) e mais uso de memória de vídeo. Indicado só para computadores com placa de vídeo dedicada recente e potente. O contador
+            de FPS será ligado para você acompanhar; se o jogo ficar lento, volte para Ultra ou Alto.
           </p>
           {mobile && (
             <p className="rounded border border-red-400/60 bg-red-950/40 p-2 text-xs text-red-200">
-              <b>Você está em um celular ou tablet.</b> Neste aparelho o {PRESET_LABELS[preset]} tende a travar, aquecer e gastar a bateria rapidamente; o
-              navegador pode até recarregar a página por falta de memória. Recomendado aqui: <b>{PRESET_LABELS[suggested]}</b>.
+              <b>Você está em um celular ou tablet.</b> Neste aparelho o {PRESET_LABELS[preset]} tende a travar, aquecer e gastar a bateria rapidamente; o navegador pode até recarregar a página por
+              falta de memória. Recomendado aqui: <b>{PRESET_LABELS[suggested]}</b>.
             </p>
           )}
           <p className="text-[11px] text-ink-400">Só muda o visual: regras e resultados da partida são os mesmos em qualquer preset. Vale a partir da próxima partida.</p>

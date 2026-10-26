@@ -68,6 +68,7 @@ export const MANUAL: ManualCard[] = [
       'Declare guerra pelo Globo (🌐). Sem guerra, as ordens de ataque são recusadas.',
       'Só se constrói no próprio território. Tropas em terra inimiga perdem vida aos poucos — um Veículo Blindado por perto mantém o suprimento.',
       'Torres de vigilância defendem e empurram a fronteira.',
+      'Base Aérea: reconhecimento revela alvos; caças só atacam o que já foi descoberto. Mísseis exigem preparar, confirmar o alvo e segurar o botão de autorização.',
     ],
   },
   {

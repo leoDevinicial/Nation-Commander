@@ -84,7 +84,7 @@ describe('preset Ultra+', () => {
   });
 
   it('a escolha fica salva nas configurações', () => {
-    const base = parseSettings(null, { quality: 'balanced', shadows: true, panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false, autoFullscreen: false, lockLandscape: false });
+    const base = parseSettings(null, { quality: 'balanced', shadows: true, panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false, autoFullscreen: false, lockLandscape: false, volumes: { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 }, muted: false });
     expect(parseSettings(JSON.stringify({ quality: 'ultraplus' }), base).quality).toBe('ultraplus');
   });
 

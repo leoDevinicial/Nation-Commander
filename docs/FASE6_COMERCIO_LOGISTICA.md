@@ -16,10 +16,10 @@ O painel mostra custos e motivos de bloqueio com as mesmas regras do servidor.
 | Terminal Comercial | obrigatório para negociar; despacha comboios rodoviários; 2 embarques simultâneos por terminal |
 | Estação Ferroviária | habilita o modal ferroviário (mais carga, menos frete) |
 | Porto | precisa ficar na margem da água (2+ células de água em volta); habilita o modal marítimo; o modelo vira o cais para a água |
-| Centro de Comando nível 4 | heliponto de carga: habilita o modal aéreo |
+| Base Aérea (Fase 7) ou Centro de Comando nível 4 | terminal aéreo (pista ou heliponto de carga): habilita o modal aéreo |
 
 **Fórmula da infraestrutura:** embarques simultâneos de um modal = instalações desse modal × 2. Para o aéreo,
-contam os terminais comerciais. Construir uma estação ou um porto troca o modal (capacidade, frete e tempo da
+contam os terminais comerciais, mais um embarque por cargueiro pronto (Fase 7). Construir uma estação ou um porto troca o modal (capacidade, frete e tempo da
 tabela abaixo); um segundo terminal dobra os embarques simultâneos.
 
 ## Modais

@@ -1,3 +1,5 @@
+import { audio } from '../../game/audio/AudioService.ts';
+
 /**
  * Cartão de ação: miniatura 3D (ou ícone), nome, conteúdo extra (custo) e motivo de bloqueio.
  * `blocked` deixa o cartão clicável (o toque explica o motivo), `disabled` não.
@@ -32,7 +34,17 @@ export function CardButton({
   children?: React.ReactNode;
 }) {
   return (
-    <button className={`cmd-btn cmd-card shrink-0 ${blocked ? 'is-blocked' : ''}`} aria-disabled={blocked || undefined} disabled={disabled} onClick={onClick} title={title} aria-label={label}>
+    <button
+      className={`cmd-btn cmd-card shrink-0 ${blocked ? 'is-blocked' : ''}`}
+      aria-disabled={blocked || undefined}
+      disabled={disabled}
+      onClick={() => {
+        audio.ui(blocked ? 'error' : 'click');
+        onClick();
+      }}
+      title={title}
+      aria-label={label}
+    >
       {hotkey && <span className="hotkey z-10">{hotkey}</span>}
       {badge && <span className="absolute top-0.5 right-0.5 z-10 rounded bg-ink-950/80 px-1 font-mono text-[9px] text-brass-400">{badge}</span>}
       {count !== undefined && count > 0 && (

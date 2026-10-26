@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { GRAPHICS_PRESETS, currentDeviceHints, detectPreset, isTouchDevice, type GraphicsPreset } from '../lib/graphics.ts';
+import { DEFAULT_VOLUMES, type Volumes } from '../game/audio/AudioService.ts';
 
 export interface Settings {
   quality: GraphicsPreset;
@@ -13,6 +14,9 @@ export interface Settings {
   autoFullscreen: boolean;
   /** Em tela cheia, travar a tela na horizontal (onde o aparelho permite). */
   lockLandscape: boolean;
+  /** Volume (0..1) de cada canal de áudio e o geral. */
+  volumes: Volumes;
+  muted: boolean;
 }
 
 const KEY = 'nc.settings.v1';
@@ -26,7 +30,7 @@ function defaults(): Settings {
   } catch {
     // ambiente sem navigator/screen (testes): mantém equilibrado
   }
-  return { quality, shadows: true, panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false, autoFullscreen: touch, lockLandscape: false };
+  return { quality, shadows: true, panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false, autoFullscreen: touch, lockLandscape: false, volumes: { ...DEFAULT_VOLUMES }, muted: false };
 }
 
 /** Lê configurações salvas; aceita o formato antigo ('low' | 'high'). */
@@ -43,10 +47,22 @@ export function parseSettings(raw: string | null, base: Settings): Settings {
       reducedMotion: Boolean(p.reducedMotion),
       autoFullscreen: typeof p.autoFullscreen === 'boolean' ? p.autoFullscreen : base.autoFullscreen,
       lockLandscape: typeof p.lockLandscape === 'boolean' ? p.lockLandscape : base.lockLandscape,
+      volumes: parseVolumes(p.volumes, base.volumes),
+      muted: Boolean(p.muted),
     };
   } catch {
     return base;
   }
+}
+
+function parseVolumes(raw: unknown, base: Volumes): Volumes {
+  const out = { ...base };
+  if (typeof raw !== 'object' || raw === null) return out;
+  for (const k of Object.keys(base) as (keyof Volumes)[]) {
+    const v = (raw as Record<string, unknown>)[k];
+    if (typeof v === 'number' && v >= 0 && v <= 1) out[k] = v;
+  }
+  return out;
 }
 
 function load(): Settings {
@@ -67,9 +83,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   ...load(),
   update: (patch) => {
     set(patch);
-    const { quality, shadows, panSpeed, edgeScroll, showFps, reducedMotion, autoFullscreen, lockLandscape } = get();
+    const { quality, shadows, panSpeed, edgeScroll, showFps, reducedMotion, autoFullscreen, lockLandscape, volumes, muted } = get();
     try {
-      localStorage.setItem(KEY, JSON.stringify({ quality, shadows, panSpeed, edgeScroll, showFps, reducedMotion, autoFullscreen, lockLandscape }));
+      localStorage.setItem(KEY, JSON.stringify({ quality, shadows, panSpeed, edgeScroll, showFps, reducedMotion, autoFullscreen, lockLandscape, volumes, muted }));
     } catch {
       // armazenamento indisponível: mantém apenas em memória
     }

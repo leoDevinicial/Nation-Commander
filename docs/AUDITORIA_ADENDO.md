@@ -70,7 +70,7 @@ Parcial na auditoria (acordos comerciais só afetavam o crescimento). Implementa
 `docs/FASE6_COMERCIO_LOGISTICA.md`.
 
 ### Fase 7 — Força aérea, mísseis e áudio
-Ausente. O jogo ainda não tem som; a tela de configurações já diz isso.
+Ausente na auditoria (o jogo não tinha som). Implementada depois — veja `docs/FASE7_FORCA_AEREA_MISSEIS_AUDIO.md`.
 
 ### Fase 8 — Transição globo → mapa operacional → batalha
 Ausente. Existe um único mapa tático por partida.
@@ -147,6 +147,7 @@ As dependências seguem a tabela da seção 4 do adendo. Resumo dos critérios m
 | 4 — Melhorias de construções | implementada: 14 classes com até 10 níveis, custo em recursos e no fundo nacional de obras, requisitos, especializações exclusivas, evolução visual modular com LOD e serialização testada; pendentes modelos GLB finais, save/load acessível ao jogador (Fase 12) e mercados (Fase 6) | `docs/FASE4_MELHORIAS.md` |
 | 5 — Pesquisa e modernização | implementada: 13 tecnologias em 4 categorias, com pré-requisitos, duração mínima e investimento em US$ registrado; 6 pacotes de modernização por unidade (instalação, baias, materiais, verba, indisponibilidade), padrão de produção com sobrecusto, equipamento visível e origem de cada bônus; persistência de equipamento e pesquisa testada; salvamento completo para o jogador na Fase 12 | `docs/FASE5_PESQUISA_MODERNIZACAO.md` |
 | 6 — Comércio internacional e logística | implementada: terminal, porto e estação; ofertas, contrapropostas e contratos rastreáveis; reserva, lotes, quatro modais com rota, frete e riscos; entrega só com capacidade; interrupções por guerra, sanções, rota e depósito; veículos no mapa e inspeção de rota; persistência testada | `docs/FASE6_COMERCIO_LOGISTICA.md` |
+| 7 — Força aérea, mísseis e áudio | implementada: base aérea (hangar, piloto, combustível, manutenção, terminal aéreo), antiaérea e silo; caça, reconhecimento e cargueiro; missões só contra alvos descobertos, em guerra e no alcance, com resultado registrado; perda de petróleo exata nos tanques; mísseis com inventário e estados preparar → armado → autorizado → voo → impacto/interceptado, confirmação por pressão longa; notícia e reputação; serviço de áudio procedural com canais, posição, limite de vozes e produção só do edifício selecionado; persistência testada. Pendentes: guerra aérea contra governos fora do teatro e escolta/combate aéreo direto | `docs/FASE7_FORCA_AEREA_MISSEIS_AUDIO.md` |
 
 O livro de eventos começou na Fase 2: todos os eventos diplomáticos têm `id` sequencial e `causes`
 quando são consequência de outro (guerra → tratados rompidos e sanções; tratado → descoberta).
