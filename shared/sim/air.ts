@@ -177,6 +177,8 @@ export interface MissileLaunch {
   from: Vec2;
   flightTicks: number;
   startTick: number;
+  /** Tick em que terminou (impacto, interceptação ou aborto): o resultado fica visível a partir daqui. */
+  endTick?: number;
   result: { damage: number; destroyed: number; casualties: number; intercepted: boolean } | null;
 }
 
@@ -553,6 +555,7 @@ export class AirSystem {
     if (!l || l.owner !== slot) return 'Lançamento inválido';
     if (l.state !== 'preparing' && l.state !== 'armed') return 'Não é mais possível abortar';
     l.state = 'aborted';
+    l.endTick = this.sim.tick;
     this.silo(l.siloId).missiles++;
     this.missileEvent(l, 'Lançamento abortado: míssil devolvido ao silo');
     return null;
@@ -571,6 +574,7 @@ export class AirSystem {
     chance = Math.min(MISSILE.maxIntercept, chance);
     if (this.rand() < chance) {
       l.state = 'intercepted';
+      l.endTick = this.sim.tick;
       l.result = { damage: 0, destroyed: 0, casualties: 0, intercepted: true };
       this.missileEvent(l, 'Míssil interceptado pela defesa antiaérea');
       return;
@@ -591,6 +595,7 @@ export class AirSystem {
       } else if (this.sim.damageUnit(e, dmg, l.owner)) casualties++;
     }
     l.state = 'impact';
+    l.endTick = this.sim.tick;
     l.result = { damage: Math.round(damage), destroyed, casualties, intercepted: false };
     this.missileEvent(l, `Impacto: ${Math.round(damage)} de dano, ${destroyed} edifício(s) destruído(s), ${casualties} baixa(s)`);
   }
@@ -657,6 +662,7 @@ export class AirSystem {
       if (l.state === 'preparing') {
         if (!this.building(l.siloId)) {
           l.state = 'aborted';
+          l.endTick = tick;
           continue;
         }
         if (--l.timer <= 0) {
@@ -673,7 +679,7 @@ export class AirSystem {
         if (--l.timer <= 0) this.impact(l);
       }
     }
-    if (tick % (TICK_RATE * 30) === 0) this.launches = this.launches.filter((l) => !['impact', 'intercepted', 'aborted'].includes(l.state) || tick - l.startTick < TICK_RATE * 120);
+    if (tick % (TICK_RATE * 30) === 0) this.launches = this.launches.filter((l) => !['impact', 'intercepted', 'aborted'].includes(l.state) || tick - (l.endTick ?? l.startTick) < TICK_RATE * 120);
   }
 
   /** Suprimentos por segundo de manutenção das aeronaves do jogador (cobrados com os edifícios). */

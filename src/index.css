@@ -492,7 +492,8 @@ select {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * {
+  /* a abertura fica de fora: ela segue só a opção "Reduzir animações" do jogo (ver IntroOverlay) */
+  *:not(.intro-root, .intro-root *) {
     transition: none !important;
     animation: none !important;
   }

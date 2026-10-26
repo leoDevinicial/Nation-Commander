@@ -1,7 +1,6 @@
 import '@fontsource/michroma/latin-400.css';
 import { useCallback, useEffect, useState } from 'react';
 import { GAME_VERSION } from '../../../shared/version.ts';
-import { prefersReducedMotion } from '../../lib/graphics.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { useSettingsStore } from '../../state/useSettingsStore.ts';
 
@@ -17,13 +16,14 @@ const STATUS = ['Estabelecendo enlace seguro…', 'Sincronizando teatro de opera
  * Abertura no estilo RTS ao abrir o jogo, antes da tela de login/registro: fundo preto com grade tática e radar discretos, o nome
  * "NATIONS COMMANDER" surgindo letra a letra em branco (fonte Michroma), linha de destaque, reflexo
  * de luz e uma barra de "inicialização". Em seguida faz um fade para a tela de login/registro (ou
- * direto ao manual/menu, se a sessão já estava aberta), que entra por baixo. Toque, clique ou tecla pula. Toca uma vez por sessão; com "reduzir movimento",
- * é curta e sem deslocamentos.
+ * direto ao manual/menu, se a sessão já estava aberta), que entra por baixo. Toque, clique ou tecla pula. Toca uma vez por sessão; com a
+ * opção "Reduzir animações" do jogo, é curta e sem deslocamentos. A preferência de movimento do
+ * sistema não a desliga: no Windows ela vem ligada sempre que "Mostrar animações" está desativado,
+ * e a abertura ficava parada no PC (é curta, sem movimento de câmera, e pode ser pulada).
  */
 export function IntroOverlay() {
   const phase = useAppStore((s) => s.intro);
-  const reducedSetting = useSettingsStore((s) => s.reducedMotion);
-  const reduced = reducedSetting || prefersReducedMotion();
+  const reduced = useSettingsStore((s) => s.reducedMotion);
   const [status, setStatus] = useState(0);
   const [coords, setCoords] = useState('00°00′N · 000°00′W');
 

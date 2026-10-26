@@ -138,7 +138,7 @@ export function GameScreen() {
     };
   }, [match]);
 
-  // Esc sem modo ativo e sem seleção abre o menu; F10 sempre abre
+  // atalhos da tela: F10 menu, Enter chat, G painel nacional, Tab globo (Esc fica com a cena: cancela o modo ou a seleção)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'F10') {

@@ -340,7 +340,7 @@ export function airView(sim: Simulation, slot: Slot): AirView {
       if (l.state !== 'flight' && l.state !== 'impact' && l.state !== 'intercepted') continue;
       if (l.targetOwner !== slot && !sim.isVisibleTo(slot, p)) continue;
     }
-    if (!live(l.state) && sim.tick - l.startTick > TICK_RATE * 60) continue;
+    if (!live(l.state) && sim.tick - (l.endTick ?? l.startTick) > TICK_RATE * 60) continue;
     const total = l.state === 'preparing' ? MISSILE.prepareSeconds * TICK_RATE : l.state === 'launching' ? MISSILE.launchSeconds * TICK_RATE : l.flightTicks;
     launches.push({
       id: l.id,

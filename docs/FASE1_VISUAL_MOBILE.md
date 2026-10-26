@@ -102,10 +102,14 @@ Detalhes de comportamento:
 - toque, clique ou qualquer tecla pula;
 - toca toda vez que o jogo é aberto ou recarregado, inclusive com o login já salvo (antes era uma vez por sessão, o que
   escondia a abertura de quem mantinha a aba aberta); voltar ao menu dentro do jogo não repete;
-- com "reduzir movimento", é curta e só usa opacidade;
-- robustez: o estado de repouso de todo elemento é visível (só a animação parte do invisível). Com "reduzir movimento"
-  do sistema, que desliga todas as animações, o título aparece parado, em vez de sumir. As letras não usam `filter` e o
-  reflexo não usa `mix-blend-mode` (combinação que faz texto sumir no Safari do iPhone);
+- com a opção "Reduzir animações" do jogo, é curta e só usa opacidade;
+- a preferência de movimento reduzido do sistema não desliga a abertura. O Windows a ativa sempre que "Mostrar
+  animações no Windows" está desligado, e por isso a abertura ficava parada no PC enquanto animava no celular. Ela é
+  curta, não move a câmera e pode ser pulada. A regra global que desliga as animações com essa preferência exclui
+  `.intro-root`;
+- robustez: o estado de repouso de todo elemento é visível (só a animação parte do invisível). Se um navegador falhar
+  uma animação, o título aparece parado, em vez de sumir. As letras não usam `filter` e o reflexo não usa
+  `mix-blend-mode` (combinação que faz texto sumir no Safari do iPhone);
 - as telas por baixo só montam quando o fade começa.
 
 ## Manual de entrada

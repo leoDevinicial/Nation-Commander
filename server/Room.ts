@@ -390,6 +390,7 @@ export class Room {
       this.sendBattleSnapshot(id, battle);
       this.playerBySlot(op.owner)?.conn?.send({ t: 'battle_end', opId: id, result: op.result! });
       this.battleFog.delete(id);
+      ops.battleEvents.delete(id);
     }
     ops.finishedBattles.clear();
     if (sim.tick % TICKS_PER_DAY === 0) for (const p of this.players) if (!p.isAI) this.opsDirty.add(p.slot);

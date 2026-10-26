@@ -277,8 +277,8 @@ describe('Fase 7 — mísseis', () => {
     expect(sim.applyCommand(0, { type: 'missile_authorize', launchId: l.id })).toMatch(/Aguarde/);
     run(sim, MISSILE.prepareSeconds + 0.1);
     expect(l.state).toBe('armed');
-    run(sim, 30);
-    expect(l.state).toBe('armed'); // armado não lança sozinho
+    run(sim, 100);
+    expect(l.state).toBe('armed'); // armado não lança sozinho, mesmo esperando muito
     const hp = enemyHq.hp;
     expect(sim.applyCommand(0, { type: 'missile_authorize', launchId: l.id })).toBeNull();
     expect(l.state).toBe('launching');
@@ -289,6 +289,11 @@ describe('Fase 7 — mísseis', () => {
     expect(l.state).toBe('impact');
     expect(l.result!.damage).toBeGreaterThan(0);
     expect(enemyHq.hp).toBeLessThan(hp);
+    // o resultado conta a partir do impacto (não da preparação): segue visível ao jogador por um tempo
+    run(sim, 40);
+    expect(airView(sim, 0).launches.find((x) => x.id === l.id)?.state).toBe('impact');
+    run(sim, 100);
+    expect(airView(sim, 0).launches.some((x) => x.id === l.id)).toBe(false);
   });
 
   it('abortar devolve o míssil; a paz decretada depois de armar bloqueia a autorização', () => {
