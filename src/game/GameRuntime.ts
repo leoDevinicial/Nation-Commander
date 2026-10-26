@@ -31,6 +31,7 @@ import { cloudShadowTexture, disposeTextures, grimeTexture, windowTexture } from
 import { UnitVisual } from './render/UnitVisuals.ts';
 import { PostFx } from './render/PostFx.ts';
 import { CitizenLayer } from './render/CitizenLayer.ts';
+import { CargoLayer, disposeCargoModels } from './render/CargoLayer.ts';
 import { AdaptiveExposure, EnvironmentProbe, ShadowFollow } from './render/Lighting.ts';
 import { describeEvent } from './eventText.ts';
 import type { GraphicsProfile } from '../lib/graphics.ts';
@@ -103,6 +104,9 @@ export class GameRuntime {
   readonly cameraCtl: CameraController;
   private readonly effects: Effects;
   private readonly units = new Map<number, TrackedUnit>();
+  /** Veículos de carga do comércio (Fase 6) e a rota inspecionada. */
+  private readonly cargo = new CargoLayer();
+  private focusedShipment: number | null = null;
   private readonly buildings = new Map<number, TrackedBuilding>();
   private readonly selection = new Set<number>();
   private readonly raycaster = new THREE.Raycaster();
@@ -224,6 +228,7 @@ export class GameRuntime {
     this.scene.add(this.territoryLayer.group);
     this.citizens = new CitizenLayer(this.map, this.mySlot, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.citizens.group);
+    this.scene.add(this.cargo.group);
     this.effects = new Effects(this.scene, opts.profile.maxEffects, opts.profile.dynamicLights, opts.profile.cinematic ? 'cinematic' : opts.profile.ultra ? 'volumetric' : 'basic');
 
     this.selectionBox = document.createElement('div');
@@ -339,7 +344,10 @@ export class GameRuntime {
 
   private onSnapshot(msg: SnapshotMsg): void {
     const s = msg.s;
-    if (s.trade) useHudStore.getState().set({ trade: s.trade });
+    if (s.trade) {
+      useHudStore.getState().set({ trade: s.trade });
+      this.cargo.update(s.trade.shipments, this.cameraCtl.target);
+    }
     this.snapshot = s;
     if (s.territory) {
       this.territory = decodeTerritory(s.territory);
@@ -519,6 +527,8 @@ export class GameRuntime {
       const rally = t.snap.rally ? new THREE.Vector2(t.snap.rally.x, t.snap.rally.y) : null;
       t.visual.update(dt, t.snap.progress, frac, selected || frac < 0.999 || t.snap.progress < 1 || upgrading, this.camera, rally, selected && t.snap.owner === this.mySlot, upgrading);
     }
+    this.cargo.frame(alpha, dt);
+    this.updateRouteInspection();
     this.effects.update(dt);
     this.citizens.update(this.paused ? 0 : dt * this.speed);
     if (!this.suspended) {
@@ -544,6 +554,22 @@ export class GameRuntime {
       this.publishHud();
     }
   };
+
+  /** Rota inspecionada pelo painel de comércio: linha no mapa e câmera centrada uma vez. */
+  private updateRouteInspection(): void {
+    const hud = useHudStore.getState();
+    const id = hud.inspectedShipment;
+    const s = id !== null ? hud.trade?.shipments.find((x) => x.id === id) : undefined;
+    this.cargo.showRoute(s ?? null);
+    if (id !== this.focusedShipment) {
+      this.focusedShipment = id;
+      if (s) {
+        this.cameraCtl.target.x = s.x;
+        this.cameraCtl.target.z = s.y;
+        useNationalStore.getState().setPanelOpen(false);
+      }
+    }
+  }
 
   private positionOf(id: number): THREE.Vector2 | null {
     const u = this.units.get(id);
@@ -1408,6 +1434,8 @@ export class GameRuntime {
     disposeSharedResources();
     disposeUnitModels();
     disposeCitizenModel();
+    this.cargo.dispose();
+    disposeCargoModels();
     disposeBuildingModels();
     disposeMaterials();
     disposeTextures();

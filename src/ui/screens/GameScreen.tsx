@@ -11,6 +11,7 @@ import { PauseMenu } from '../hud/PauseMenu.tsx';
 import { ResultsOverlay } from '../hud/ResultsOverlay.tsx';
 import { TopBar } from '../hud/TopBar.tsx';
 import { TouchToolbar } from '../hud/TouchToolbar.tsx';
+import { RouteInspector } from '../hud/RouteInspector.tsx';
 import { UpgradePanel } from '../hud/UpgradePanel.tsx';
 import { GlobePanel } from '../geo/GlobePanel.tsx';
 import { WarDialog } from '../geo/WarDialog.tsx';
@@ -137,6 +138,7 @@ export function GameScreen() {
             </div>
           )}
           {touchUi && !nationalOpen && !globeOpen && <TouchToolbar runtime={runtime} />}
+          {!nationalOpen && !globeOpen && <RouteInspector />}
           {touchUi && !nationalOpen && !globeOpen && !menuOpen && <FullscreenPrompt />}
           {!globeOpen && !nationalOpen && <UpgradePanel runtime={runtime} />}
           {nationalOpen && <NationalPanel key={nationalTab ?? 'painel'} onClose={() => setNationalOpen(false)} />}
