@@ -6,6 +6,7 @@ import { factionColor } from '../../game/factions.ts';
 import { ChatBox } from '../components/ChatBox.tsx';
 import { CountrySelect } from '../components/CountrySelect.tsx';
 import { CountryCard } from '../components/CountryCard.tsx';
+import { autoFullscreen } from '../components/FullscreenButton.tsx';
 import { Shell } from '../components/Shell.tsx';
 
 export function LobbyScreen() {
@@ -101,11 +102,24 @@ export function LobbyScreen() {
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
             {isHost ? (
-              <button className="btn btn-primary" disabled={!canStart} onClick={() => gameClient.send({ t: 'start' })}>
+              <button
+                className="btn btn-primary"
+                disabled={!canStart}
+                onClick={() => {
+                  autoFullscreen();
+                  gameClient.send({ t: 'start' });
+                }}
+              >
                 Iniciar Operação
               </button>
             ) : (
-              <button className={`btn ${mine?.ready ? '' : 'btn-primary'}`} onClick={() => gameClient.send({ t: 'set_ready', ready: !mine?.ready })}>
+              <button
+                className={`btn ${mine?.ready ? '' : 'btn-primary'}`}
+                onClick={() => {
+                  if (!mine?.ready) autoFullscreen();
+                  gameClient.send({ t: 'set_ready', ready: !mine?.ready });
+                }}
+              >
                 {mine?.ready ? 'Cancelar Pronto' : 'Estou Pronto'}
               </button>
             )}

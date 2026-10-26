@@ -65,3 +65,23 @@ Three.js do menu fica em um bloco separado, carregado depois da interface.
   camadas (`setLayerVisible`) e os dados de `shared/data/geography.ts`.
 - **Painel de comando no celular deitado:** ocupa cerca de 1/3 da altura. O botão **QG** e a ajuda recolhível reduzem o problema;
   um painel minimizável fica para o polimento.
+
+## Tela cheia (celular e tablet)
+
+Código em `src/lib/fullscreen.ts` (API) e `src/ui/components/FullscreenButton.tsx` (interface). Testes em `src/test/fullscreen.test.ts`.
+
+| Situação | Comportamento |
+|---|---|
+| Android, iPad, computador | Botão de tela cheia na barra superior da partida e no canto inferior direito dos menus. Esconde a barra do navegador (`navigationUI: 'hide'`). Usa os nomes `webkit` quando só eles existem. Sair: o mesmo botão, o gesto de voltar ou Esc; o ícone acompanha o estado real |
+| Início automático | Com a opção **Entrar em tela cheia ao iniciar uma partida** (ligada por padrão em aparelhos de toque), os toques em *Nova Partida*, *Entrar em Sala*, *Iniciar Operação* e *Estou Pronto* já entram em tela cheia. O navegador só aceita o pedido dentro de um toque, por isso nunca acontece sozinho |
+| Convite na partida | Em aparelho de toque fora da tela cheia, um aviso compacto ("Mais espaço para o mapa · Tela cheia · ✕") entra com um toque. Não volta depois de dispensado nem se o jogador saiu da tela cheia de propósito na mesma sessão |
+| Travar na horizontal | Opcional (Configurações), desligado por padrão: em tela cheia, trava a orientação onde o aparelho permite |
+| iPhone | O Safari do iPhone não permite tela cheia de páginas. O botão e o convite explicam como **adicionar à Tela de Início**; aberto pelo ícone, o jogo roda sem barras (dica mostrada uma vez) |
+| App instalado | `public/manifest.webmanifest` com `display: fullscreen`, ícones PNG (192, 512 e *maskable*) e metatags da Apple. Instalado, abre direto em tela cheia e o botão some |
+| Entalhe/bordas curvas | Com `viewport-fit=cover`, a interface respeita as áreas seguras (`env(safe-area-inset-*)`) para nada ficar sob o entalhe |
+
+Verificado em navegador headless com celular emulado (horizontal 844×390 e vertical 390×844):
+- entrada automática ao iniciar a partida;
+- botão de sair na barra;
+- saída sem o convite voltar;
+- convite com auto desligado, entrando com um toque.

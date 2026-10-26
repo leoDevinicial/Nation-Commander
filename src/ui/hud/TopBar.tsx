@@ -7,6 +7,7 @@ import { useAppStore } from '../../state/useAppStore.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
 import { useSettingsStore } from '../../state/useSettingsStore.ts';
 import { formatDate, formatDuration, formatPct } from '../../lib/format.ts';
+import { FullscreenButton } from '../components/FullscreenButton.tsx';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 
 export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRuntime; onMenu: () => void; canControlSpeed: boolean }) {
@@ -166,6 +167,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
         >
           🏛<span className="hidden sm:inline">Nação</span>
         </button>
+        <FullscreenButton />
         <button className="btn min-h-8 px-2 py-1 text-xs whitespace-nowrap" onClick={onMenu} title="Menu (F10)" aria-label="Menu">
           ☰<span className="hidden sm:inline">Menu</span>
         </button>

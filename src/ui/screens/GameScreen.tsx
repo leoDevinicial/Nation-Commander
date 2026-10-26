@@ -18,6 +18,7 @@ import { ChatBox } from '../components/ChatBox.tsx';
 import { NationalPanel } from '../national/NationalPanel.tsx';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
+import { FullscreenPrompt } from '../components/FullscreenButton.tsx';
 import { describeNationalEvent, makeNameOf } from '../../game/nationalText.ts';
 
 export function GameScreen() {
@@ -135,6 +136,7 @@ export function GameScreen() {
             </div>
           )}
           {touchUi && !nationalOpen && !globeOpen && <TouchToolbar runtime={runtime} />}
+          {touchUi && !nationalOpen && !globeOpen && !menuOpen && <FullscreenPrompt />}
           {!globeOpen && !nationalOpen && <UpgradePanel runtime={runtime} />}
           {nationalOpen && <NationalPanel onClose={() => setNationalOpen(false)} />}
           {chatOpen && (

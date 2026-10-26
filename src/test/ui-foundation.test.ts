@@ -11,7 +11,7 @@ import { parseWorld } from '../globe/worldGeo.ts';
 import atlas from 'world-atlas/countries-110m.json';
 import { POLITICAL_COLORS, politicalArcs, politicalFills, politicalState } from '../globe/political.ts';
 
-const base: Settings = { quality: 'balanced', shadows: true, panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false };
+const base: Settings = { quality: 'balanced', shadows: true, panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false, autoFullscreen: false, lockLandscape: false };
 
 describe('identidade', () => {
   it('título exato do jogo', () => {

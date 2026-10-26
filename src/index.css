@@ -74,6 +74,15 @@ body,
   margin: 0;
 }
 
+/*
+ * Tela cheia / app instalado em aparelhos com entalhe (notch) ou bordas curvas: a página ocupa a
+ * tela toda (viewport-fit=cover), então a interface respeita as áreas seguras do sistema.
+ */
+#root {
+  box-sizing: border-box;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
 body {
   background: var(--color-ink-950);
   color: var(--color-ink-100);

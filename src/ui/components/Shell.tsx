@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { FullscreenButton } from './FullscreenButton.tsx';
 
 /** Moldura das telas fora da partida, sobre o globo de fundo (ver GlobeBackdrop). */
 export function Shell({
@@ -17,7 +18,7 @@ export function Shell({
 }) {
   return (
     <div
-      className={`relative z-10 flex h-full w-full items-start justify-center overflow-auto px-3 py-4 sm:items-center sm:p-6 ${
+      className={`relative z-10 flex h-full w-full items-start justify-center overflow-auto px-3 pt-4 pb-16 sm:items-center sm:p-6 ${
         align === 'start' ? 'hero:justify-start hero:pl-[5vw] xl:pl-[7vw]' : ''
       }`}
     >
@@ -43,6 +44,7 @@ export function Shell({
         )}
         {children}
       </div>
+      <FullscreenButton variant="floating" />
     </div>
   );
 }

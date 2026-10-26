@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { GRAPHICS_PRESETS, currentDeviceHints, detectPreset, type GraphicsPreset } from '../lib/graphics.ts';
+import { GRAPHICS_PRESETS, currentDeviceHints, detectPreset, isTouchDevice, type GraphicsPreset } from '../lib/graphics.ts';
 
 export interface Settings {
   quality: GraphicsPreset;
@@ -9,18 +9,24 @@ export interface Settings {
   showFps: boolean;
   /** Animações de câmera e de fundo reduzidas (além do prefers-reduced-motion do sistema). */
   reducedMotion: boolean;
+  /** Entrar em tela cheia ao iniciar uma partida (padrão: ligado em aparelhos de toque). */
+  autoFullscreen: boolean;
+  /** Em tela cheia, travar a tela na horizontal (onde o aparelho permite). */
+  lockLandscape: boolean;
 }
 
 const KEY = 'nc.settings.v1';
 
 function defaults(): Settings {
   let quality: GraphicsPreset = 'balanced';
+  let touch = false;
   try {
     quality = detectPreset(currentDeviceHints());
+    touch = isTouchDevice();
   } catch {
     // ambiente sem navigator/screen (testes): mantém equilibrado
   }
-  return { quality, shadows: true, panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false };
+  return { quality, shadows: true, panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false, autoFullscreen: touch, lockLandscape: false };
 }
 
 /** Lê configurações salvas; aceita o formato antigo ('low' | 'high'). */
@@ -35,6 +41,8 @@ export function parseSettings(raw: string | null, base: Settings): Settings {
       edgeScroll: Boolean(p.edgeScroll),
       showFps: Boolean(p.showFps),
       reducedMotion: Boolean(p.reducedMotion),
+      autoFullscreen: typeof p.autoFullscreen === 'boolean' ? p.autoFullscreen : base.autoFullscreen,
+      lockLandscape: typeof p.lockLandscape === 'boolean' ? p.lockLandscape : base.lockLandscape,
     };
   } catch {
     return base;
@@ -59,9 +67,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   ...load(),
   update: (patch) => {
     set(patch);
-    const { quality, shadows, panSpeed, edgeScroll, showFps, reducedMotion } = get();
+    const { quality, shadows, panSpeed, edgeScroll, showFps, reducedMotion, autoFullscreen, lockLandscape } = get();
     try {
-      localStorage.setItem(KEY, JSON.stringify({ quality, shadows, panSpeed, edgeScroll, showFps, reducedMotion }));
+      localStorage.setItem(KEY, JSON.stringify({ quality, shadows, panSpeed, edgeScroll, showFps, reducedMotion, autoFullscreen, lockLandscape }));
     } catch {
       // armazenamento indisponível: mantém apenas em memória
     }

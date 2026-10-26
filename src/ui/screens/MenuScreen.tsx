@@ -6,6 +6,7 @@ import { countryName } from '../../../shared/data/countries.ts';
 import { GAME_TITLE } from '../../../shared/version.ts';
 import { ConnectionBadge } from '../components/ConnectionBadge.tsx';
 import { Shell } from '../components/Shell.tsx';
+import { autoFullscreen } from '../components/FullscreenButton.tsx';
 
 export function MenuScreen() {
   const setScreen = useAppStore((s) => s.setScreen);
@@ -17,10 +18,15 @@ export function MenuScreen() {
   const online = status === 'connected';
   const offlineHint = online ? undefined : 'Aguardando conexão com o servidor de jogo';
 
-  const create = (mode: 'pvp' | 'vs_ai') => gameClient.send({ t: 'create_room', mode, countryId: preferredCountry() });
+  const create = (mode: 'pvp' | 'vs_ai') => {
+    autoFullscreen();
+    gameClient.send({ t: 'create_room', mode, countryId: preferredCountry() });
+  };
   const join = () => {
     const c = code.trim().toUpperCase();
-    if (c.length === 5) gameClient.send({ t: 'join_room', code: c, countryId: preferredCountry() });
+    if (c.length !== 5) return;
+    autoFullscreen();
+    gameClient.send({ t: 'join_room', code: c, countryId: preferredCountry() });
   };
 
   return (

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../../state/useAppStore.ts';
+import { fullscreenMode } from '../../lib/fullscreen.ts';
 import { useSettingsStore } from '../../state/useSettingsStore.ts';
 import { Shell } from '../components/Shell.tsx';
 import { GRAPHICS_PRESETS, HEAVY_PRESETS, PRESET_LABELS, PROFILES, currentDeviceHints, detectPreset, isTouchDevice, type GraphicsPreset } from '../../lib/graphics.ts';
@@ -48,6 +49,23 @@ export function SettingsScreen() {
           disabled={!PROFILES[s.quality].shadows}
           onChange={(v) => s.update({ shadows: v })}
         />
+        {fullscreenMode() !== 'none' && (
+          <fieldset className="space-y-1">
+            <legend className="label">Tela cheia</legend>
+            {fullscreenMode() === 'api' ? (
+              <>
+                <Toggle label="Entrar em tela cheia ao iniciar uma partida (celular e tablet)" checked={s.autoFullscreen} onChange={(v) => s.update({ autoFullscreen: v })} />
+                <Toggle label="Travar na horizontal em tela cheia (onde o aparelho permite)" checked={s.lockLandscape} onChange={(v) => s.update({ lockLandscape: v })} />
+                <p className="text-[11px] text-ink-400">Use o botão de tela cheia no canto da tela ou na barra da partida; para sair, toque nele de novo ou use o gesto de voltar.</p>
+              </>
+            ) : (
+              <p className="text-xs text-ink-400">
+                No iPhone, páginas não podem ocupar a tela toda: toque em Compartilhar → <b>Adicionar à Tela de Início</b> e abra o jogo pelo ícone, que ele abre em
+                tela cheia.
+              </p>
+            )}
+          </fieldset>
+        )}
         <Toggle label="Reduzir animações (globo do menu e transições)" checked={s.reducedMotion} onChange={(v) => s.update({ reducedMotion: v })} />
         <Toggle label="Mover câmera pelas bordas da tela" checked={s.edgeScroll} onChange={(v) => s.update({ edgeScroll: v })} />
         <Toggle label="Mostrar FPS" checked={s.showFps} onChange={(v) => s.update({ showFps: v })} />
