@@ -23,11 +23,33 @@ import { CostLabel, ResourceIcon } from '../components/Resources.tsx';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { factionColor } from '../../game/render/palette.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
+import { CardButton } from './CardButton.tsx';
+import { AirbaseButtons, AirbaseInfo, SiloButtons, SiloInfo, airTargetText } from './AirPanels.tsx';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { buildingEffects, formatUsd as usdShort, specDef, upgradeTrack } from '../../../shared/sim/upgrades.ts';
 
-const BUILD_OPTIONS: BuildingType[] = ['house', 'farm', 'sawmill', 'quarry', 'mine', 'oil_well', 'oil_tank', 'warehouse', 'silo', 'barracks', 'factory', 'tower', 'residential', 'market', 'rail_station', 'port'];
+const BUILD_OPTIONS: BuildingType[] = [
+  'house',
+  'farm',
+  'sawmill',
+  'quarry',
+  'mine',
+  'oil_well',
+  'oil_tank',
+  'warehouse',
+  'silo',
+  'barracks',
+  'factory',
+  'tower',
+  'residential',
+  'market',
+  'rail_station',
+  'port',
+  'airbase',
+  'aa_battery',
+  'missile_silo',
+];
 const EMPTY: Stockpile = emptyStockpile();
 
 /** Motivo legível de um edifício parado, com o que fazer. */
@@ -59,6 +81,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
   const touch = useHudStore((s) => s.touchUi);
   const thumbs = useHudStore((s) => s.thumbs);
   const [help, setHelp] = useState(false);
+  const techs = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot)?.research.done ?? []);
 
   return (
     <div
@@ -95,6 +118,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
               )}
             </div>
           )}
+          {mode.kind === 'air_target' && <ModeHint {...airTargetText(mode.purpose, touch, mode.target !== null)} />}
           {mode.kind === 'attack_move' && <ModeHint title="Avançar atacando" text={`${touch ? 'Toque' : 'Clique'} no destino. As unidades atacam o que encontrarem pelo caminho.`} />}
           {mode.kind === 'normal' && units.length > 0 && <UnitsInfo units={units} />}
           {mode.kind === 'normal' && units.length === 0 && building && <BuildingInfo b={building} runtime={runtime} />}
@@ -154,6 +178,15 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
         {mode.kind === 'place' && touch && (
           <CardButton thumb={thumbs[mode.buildingType]} icon="✔" label="Confirmar" disabled={!mode.valid} onClick={() => runtime.confirmPlacement()} title="Construir na posição marcada" />
         )}
+        {mode.kind === 'air_target' && mode.purpose === 'missile' && (
+          <CardButton
+            icon="⌖"
+            label="Confirmar alvo"
+            disabled={!mode.target}
+            onClick={() => runtime.confirmAirTarget()}
+            title="Inicia a preparação do míssil para o alvo marcado (ainda exige autorização)"
+          />
+        )}
         {mode.kind !== 'normal' && <CardButton icon="✖" hotkey="Esc" label="Cancelar" onClick={() => runtime.cancelMode()} title="Cancelar (Esc)" />}
         {building?.type === 'hq' && mode.kind === 'normal' && (
           <ProduceButton
@@ -169,7 +202,8 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           mode.kind === 'normal' &&
           BUILD_OPTIONS.map((type) => {
             const def = BUILDINGS[type];
-            const ok = canAfford(resources, def.cost);
+            const techMissing = def.requiresTech && !(techs as readonly string[]).includes(def.requiresTech) ? def.requiresTech : null;
+            const ok = canAfford(resources, def.cost) && !techMissing;
             return (
               <CardButton
                 key={type}
@@ -177,12 +211,13 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
                 hotkey={def.hotkey}
                 label={def.label}
                 blocked={!ok}
+                short={techMissing ? 'exige pesquisa' : null}
                 onClick={() =>
                   ok
                     ? runtime.startPlacement(type)
                     : useHudStore.getState().pushEvent({
                         tick: useHudStore.getState().tick,
-                        text: `${def.label}: recursos insuficientes`,
+                        text: `${def.label}: ${techMissing ? `exige a pesquisa ${TECHNOLOGIES[techMissing as keyof typeof TECHNOLOGIES]?.label ?? techMissing}` : 'recursos insuficientes'}`,
                         tone: 'warn',
                       })
                 }
@@ -194,6 +229,8 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           })}
         {building && building.progress >= 1 && mode.kind === 'normal' && upgradeTrack(building.type) && <UpgradeButton runtime={runtime} b={building} />}
         {building && building.progress >= 1 && (building.type === 'barracks' || building.type === 'factory') && <ProduceButtons runtime={runtime} b={building} />}
+        {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'airbase' && <AirbaseButtons runtime={runtime} b={building} />}
+        {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'missile_silo' && <SiloButtons runtime={runtime} b={building} />}
       </div>
     </div>
   );
@@ -248,58 +285,6 @@ function UpgradeButton({ runtime, b }: { runtime: GameRuntime; b: NonNullable<Re
   );
 }
 
-/**
- * Cartão de ação: miniatura 3D (ou ícone), nome, conteúdo extra (custo) e motivo de bloqueio.
- * `blocked` deixa o cartão clicável (o toque explica o motivo), `disabled` não.
- */
-function CardButton({
-  thumb,
-  icon,
-  hotkey,
-  label,
-  title,
-  onClick,
-  blocked,
-  disabled,
-  short,
-  badge,
-  count,
-  children,
-}: {
-  thumb?: string;
-  icon?: string;
-  hotkey?: string;
-  label: string;
-  title: string;
-  onClick: () => void;
-  blocked?: boolean;
-  disabled?: boolean;
-  short?: string | null;
-  /** Selo no canto superior direito (nível, progresso). */
-  badge?: string;
-  /** Quantos já estão na fila. */
-  count?: number;
-  children?: React.ReactNode;
-}) {
-  return (
-    <button className={`cmd-btn cmd-card shrink-0 ${blocked ? 'is-blocked' : ''}`} aria-disabled={blocked || undefined} disabled={disabled} onClick={onClick} title={title} aria-label={label}>
-      {hotkey && <span className="hotkey z-10">{hotkey}</span>}
-      {badge && <span className="absolute top-0.5 right-0.5 z-10 rounded bg-ink-950/80 px-1 font-mono text-[9px] text-brass-400">{badge}</span>}
-      {count !== undefined && count > 0 && (
-        <span className="absolute top-0.5 right-0.5 z-10 rounded-full bg-brass-400 px-1.5 text-[10px] leading-4 font-bold text-ink-950" aria-label={`${count} na fila`}>
-          ×{count}
-        </span>
-      )}
-      <span className="cmd-card-view" aria-hidden>
-        {thumb ? <img src={thumb} alt="" draggable={false} /> : <span className="text-xl text-ink-200">{icon}</span>}
-      </span>
-      <span className="cmd-card-label">{label}</span>
-      {children}
-      {short && <span className="text-[9px] leading-tight font-semibold text-red-300">{short}</span>}
-    </button>
-  );
-}
-
 type SelectedBuilding = NonNullable<ReturnType<typeof useHudStore.getState>['selectedBuilding']>;
 
 /**
@@ -348,7 +333,11 @@ function ProduceButton({ b, unit, hotkey, label, title, onRun }: { b: SelectedBu
       title={`${title}${check.mods.length ? `\nSai da linha com: ${check.mods.map((m) => MODS[m].label).join(', ')} (custo do equipamento incluído)` : ''}${check.blocker ? `\nBloqueado: ${check.blocker}` : ''}`}
     >
       <CostLabel cost={check.cost} have={me?.resources ?? emptyStockpile()} compact />
-      {check.mods.length > 0 && <span className="text-[9px] leading-tight text-signal-blue">Ger. {check.mods.length} · {check.mods.map((m) => MODS[m].short).join(' ')}</span>}
+      {check.mods.length > 0 && (
+        <span className="text-[9px] leading-tight text-signal-blue">
+          Ger. {check.mods.length} · {check.mods.map((m) => MODS[m].short).join(' ')}
+        </span>
+      )}
     </CardButton>
   );
 }
@@ -424,7 +413,9 @@ function QueueColumn({ b, runtime }: { b: SelectedBuilding; runtime: GameRuntime
       </div>
       {first ? (
         <div className="rounded border border-brass-400/50 bg-ink-900/80 p-1" title={`Produzindo: ${producibleLabel(first.unitType)}`}>
-          <div className="cmd-card-view !h-[40px] [@media(max-height:520px)]:!h-[26px]">{thumbs[first.unitType] ? <img src={thumbs[first.unitType]} alt="" /> : <span className="text-lg">{producibleIcon(first.unitType)}</span>}</div>
+          <div className="cmd-card-view !h-[40px] [@media(max-height:520px)]:!h-[26px]">
+            {thumbs[first.unitType] ? <img src={thumbs[first.unitType]} alt="" /> : <span className="text-lg">{producibleIcon(first.unitType)}</span>}
+          </div>
           <div className="mt-0.5 truncate text-[10px] font-semibold text-ink-100">{producibleLabel(first.unitType)}</div>
           <div className="mt-0.5 h-1.5 overflow-hidden rounded bg-ink-950">
             <div className="h-full bg-brass-400 transition-[width] duration-300" style={{ width: `${first.progress * 100}%` }} />
@@ -449,7 +440,11 @@ function QueueColumn({ b, runtime }: { b: SelectedBuilding; runtime: GameRuntime
         })}
       </div>
       {b.queue.length > 0 && (
-        <button className="btn min-h-7 px-1 py-0.5 text-[10px] whitespace-nowrap [@media(max-height:520px)]:min-h-6" onClick={() => runtime.cancelProduction()} title="Cancelar o último item da fila — reembolso integral">
+        <button
+          className="btn min-h-7 px-1 py-0.5 text-[10px] whitespace-nowrap [@media(max-height:520px)]:min-h-6"
+          onClick={() => runtime.cancelProduction()}
+          title="Cancelar o último item da fila — reembolso integral"
+        >
           ↶ Cancelar
         </button>
       )}
@@ -528,7 +523,13 @@ function ModernizeButtons({ runtime }: { runtime: GameRuntime }) {
         );
       })}
       {refitting > 0 && (
-        <CardButton icon="↶" label="Cancelar moderniz." onClick={() => runtime.cancelModernize()} title={`Cancelar a modernização de ${refitting} unidade(s) — devolve metade dos materiais e da verba`} badge={`×${refitting}`} />
+        <CardButton
+          icon="↶"
+          label="Cancelar moderniz."
+          onClick={() => runtime.cancelModernize()}
+          title={`Cancelar a modernização de ${refitting} unidade(s) — devolve metade dos materiais e da verba`}
+          badge={`×${refitting}`}
+        />
       )}
     </>
   );
@@ -592,7 +593,11 @@ function UnitsInfo({ units }: { units: ReturnType<typeof useHudStore.getState>['
       <div className="text-sm font-semibold">{units.length} unidades</div>
       <div className="mt-1 text-xs text-ink-400">{[...counts].map(([t, n]) => `${n}× ${UNITS[t].label}`).join(' · ')}</div>
       <div className="mt-0.5 text-[10px] text-ink-400">
-        Equipamento: {[...gens].sort((a, b) => a[0] - b[0]).map(([g, n]) => `${n}× ${g === 0 ? 'padrão inicial' : `ger. ${g}`}`).join(' · ')}
+        Equipamento:{' '}
+        {[...gens]
+          .sort((a, b) => a[0] - b[0])
+          .map(([g, n]) => `${n}× ${g === 0 ? 'padrão inicial' : `ger. ${g}`}`)
+          .join(' · ')}
         {refitting > 0 && <span className="text-brass-400"> · {refitting} em modernização</span>}
       </div>
       <div className="mt-2 flex max-h-24 flex-wrap gap-1 overflow-hidden">
@@ -723,6 +728,8 @@ function BuildingInfo({ b, runtime }: { b: NonNullable<ReturnType<typeof useHudS
             .join(' · ')}
         </div>
       )}
+      {done && b.type === 'airbase' && <AirbaseInfo b={b} />}
+      {done && b.type === 'missile_silo' && <SiloInfo b={b} />}
       {done && fx.housing > 0 && <div className="text-[11px] text-ink-400">Moradia para {fx.housing} habitantes.</div>}
       {done && fx.territoryRadius > 0 && <div className="text-[11px] text-ink-400">Projeta fronteira num raio de {fx.territoryRadius} células.</div>}
       {(b.type === 'barracks' || b.type === 'factory') && done && (

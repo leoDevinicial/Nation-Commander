@@ -49,9 +49,9 @@ export const AIRCRAFT: Record<AircraftType, AircraftDef> = {
     cost: { iron: 60, oil: 40, supplies: 50 },
     usd: 3_000_000,
     buildSeconds: 30,
-    range: 70,
+    range: 170,
     speed: 14,
-    fuelPerWorld: 0.25,
+    fuelPerWorld: 0.12,
     upkeep: 0.04,
     maintenanceSeconds: 25,
     strikeDamage: 180,
@@ -62,9 +62,9 @@ export const AIRCRAFT: Record<AircraftType, AircraftDef> = {
     cost: { iron: 30, oil: 25, supplies: 30 },
     usd: 1_500_000,
     buildSeconds: 20,
-    range: 100,
+    range: 200,
     speed: 16,
-    fuelPerWorld: 0.15,
+    fuelPerWorld: 0.08,
     upkeep: 0.02,
     maintenanceSeconds: 15,
     strikeDamage: 0,
@@ -375,7 +375,16 @@ export class AirSystem {
       a.missionId = m.id;
     }
     this.missions.push(m);
-    this.sim.emitTrade({ type: 'air_mission', tick: this.sim.tick, owner: slot, missionId: m.id, kind, phase: 'launched', text: `${kind === 'strike' ? 'Ataque aéreo' : 'Reconhecimento'} decolou com ${ids.length} aeronave(s)`, pos: { ...m.from } });
+    this.sim.emitTrade({
+      type: 'air_mission',
+      tick: this.sim.tick,
+      owner: slot,
+      missionId: m.id,
+      kind,
+      phase: 'launched',
+      text: `${kind === 'strike' ? 'Ataque aéreo' : 'Reconhecimento'} decolou com ${ids.length} aeronave(s)`,
+      pos: { ...m.from },
+    });
     return null;
   }
 
@@ -432,7 +441,17 @@ export class AirSystem {
         }
         r.destroyed = this.sim.damageBuilding(t, r.damage, m.owner);
         r.text = `${BUILDINGS[t.type].label}: ${r.damage} de dano${r.destroyed ? ' (destruído)' : ''}${r.oilLost ? `, ${r.oilLost} de petróleo perdidos` : ''}`;
-        this.sim.emitTrade({ type: 'air_strike', tick: this.sim.tick, owner: m.owner, victim: t.owner, buildingType: t.type, damage: r.damage, oilLost: r.oilLost, destroyed: r.destroyed, pos: { ...t.pos } });
+        this.sim.emitTrade({
+          type: 'air_strike',
+          tick: this.sim.tick,
+          owner: m.owner,
+          victim: t.owner,
+          buildingType: t.type,
+          damage: r.damage,
+          oilLost: r.oilLost,
+          destroyed: r.destroyed,
+          pos: { ...t.pos },
+        });
       } else r.text = 'Todas as aeronaves abatidas antes do alvo';
     }
     if (shotDown) r.text += ` · ${shotDown} abatida(s)`;
@@ -582,8 +601,7 @@ export class AirSystem {
     const tick = this.sim.tick;
     // descoberta: o que cada jogador vê fica registrado (a cada segundo)
     if (tick % TICK_RATE === 0) {
-      for (const p of this.sim.players)
-        for (const b of this.sim.buildings) if (b.owner !== p.slot && this.sim.canSee(p.slot, b)) this.remember(p.slot, b.id);
+      for (const p of this.sim.players) for (const b of this.sim.buildings) if (b.owner !== p.slot && this.sim.canSee(p.slot, b)) this.remember(p.slot, b.id);
       this.reveals = this.reveals.filter((r) => r.untilTick > tick);
       this.upkeep();
     }

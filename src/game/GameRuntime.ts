@@ -32,6 +32,8 @@ import { UnitVisual } from './render/UnitVisuals.ts';
 import { PostFx } from './render/PostFx.ts';
 import { CitizenLayer } from './render/CitizenLayer.ts';
 import { CargoLayer, disposeCargoModels } from './render/CargoLayer.ts';
+import { AirLayer, disposeAirModels } from './render/AirLayer.ts';
+import { AIRCRAFT, MISSILE } from '../../shared/sim/air.ts';
 import { AdaptiveExposure, EnvironmentProbe, ShadowFollow } from './render/Lighting.ts';
 import { describeEvent } from './eventText.ts';
 import type { GraphicsProfile } from '../lib/graphics.ts';
@@ -107,6 +109,8 @@ export class GameRuntime {
   /** Veículos de carga do comércio (Fase 6) e a rota inspecionada. */
   private readonly cargo = new CargoLayer();
   private focusedShipment: number | null = null;
+  /** Aeronaves, mísseis, faróis dos silos e alvos (Fase 7). */
+  private readonly airLayer: AirLayer;
   private readonly buildings = new Map<number, TrackedBuilding>();
   private readonly selection = new Set<number>();
   private readonly raycaster = new THREE.Raycaster();
@@ -218,9 +222,7 @@ export class GameRuntime {
         this.renderer,
         this.scene,
         this.camera,
-        opts.profile.ultra && this.sun
-          ? { sun: this.sun, sunDir: SKY.sunDir, sunColor: SKY.sunColor, sunDepthSize: opts.profile.cinematic ? 2048 : 1024, cinematic: opts.profile.cinematic }
-          : null,
+        opts.profile.ultra && this.sun ? { sun: this.sun, sunDir: SKY.sunDir, sunColor: SKY.sunColor, sunDepthSize: opts.profile.cinematic ? 2048 : 1024, cinematic: opts.profile.cinematic } : null,
       );
     if (opts.profile.adaptiveExposure) this.exposure = new AdaptiveExposure(this.renderer, this.renderer.toneMappingExposure);
     if (opts.profile.envProbe) this.probe = opts.profile.cinematic ? new EnvironmentProbe(this.renderer, this.scene, 128, 1500) : new EnvironmentProbe(this.renderer, this.scene);
@@ -230,6 +232,8 @@ export class GameRuntime {
     this.scene.add(this.citizens.group);
     this.scene.add(this.cargo.group);
     this.effects = new Effects(this.scene, opts.profile.maxEffects, opts.profile.dynamicLights, opts.profile.cinematic ? 'cinematic' : opts.profile.ultra ? 'volumetric' : 'basic');
+    this.airLayer = new AirLayer(this.effects, this.mySlot, (id) => this.positionOf(id));
+    this.scene.add(this.airLayer.group);
 
     this.selectionBox = document.createElement('div');
     this.selectionBox.className = 'selection-box';
@@ -348,6 +352,10 @@ export class GameRuntime {
       useHudStore.getState().set({ trade: s.trade });
       this.cargo.update(s.trade.shipments, this.cameraCtl.target);
     }
+    if (s.air) {
+      useHudStore.getState().set({ air: s.air });
+      this.airLayer.update(s.air);
+    }
     this.snapshot = s;
     if (s.territory) {
       this.territory = decodeTerritory(s.territory);
@@ -449,6 +457,28 @@ export class GameRuntime {
       this.effects.tracer(from, new THREE.Vector3(tp.x, target ? 0.7 : 1.4, tp.y), heavy);
     } else if (e.type === 'destroyed') {
       this.effects.explosion(new THREE.Vector3(e.pos.x, 0, e.pos.y), e.entity === 'building' || e.entityType === 'tank');
+    } else if (e.type === 'air_strike') {
+      // bombas guiadas: impactos em sequência sobre o alvo
+      for (let i = 0; i < 3; i++) this.effects.explosion(new THREE.Vector3(e.pos.x + (Math.random() - 0.5) * 1.6, 0, e.pos.y + (Math.random() - 0.5) * 1.6), i === 0 && (e.destroyed || e.oilLost > 0));
+    } else if (e.type === 'aircraft_lost') {
+      // abatida em voo: explosão no ar
+      this.effects.explosion(new THREE.Vector3(e.pos.x, 6.5, e.pos.y), false);
+      this.effects.flash(new THREE.Vector3(e.pos.x, 6.5, e.pos.y), 1.1, '#ffd38a', 0.4);
+    } else if (e.type === 'missile') {
+      if (e.state === 'flight') {
+        // ignição: clarão branco e nuvem de fumaça na boca do silo
+        this.effects.flash(new THREE.Vector3(e.from.x, 1, e.from.y), 1.6, '#fff4d0', 0.5);
+        for (let i = 0; i < 6; i++) this.effects.flash(new THREE.Vector3(e.from.x + (Math.random() - 0.5) * 2, 0.6, e.from.y + (Math.random() - 0.5) * 2), 0.9, '#cfccc4', 1.6);
+      } else if (e.state === 'impact') {
+        for (let i = 0; i < 4; i++) this.effects.explosion(new THREE.Vector3(e.target.x + (Math.random() - 0.5) * MISSILE.radius, 0, e.target.y + (Math.random() - 0.5) * MISSILE.radius), i < 2);
+        this.effects.flash(new THREE.Vector3(e.target.x, 1.5, e.target.y), MISSILE.radius * 0.8, '#fff0c0', 0.35);
+        this.airLayer.shockwave(e.target, MISSILE.radius);
+      } else if (e.state === 'intercepted') {
+        // interceptação: estouro alto no céu, sem dano no chão
+        const at = new THREE.Vector3(e.target.x, 10, e.target.y);
+        this.effects.flash(at, 1.8, '#ffffff', 0.25);
+        this.effects.explosion(at, false);
+      }
     }
     const text = describeEvent(e, this.mySlot);
     if (text) useHudStore.getState().pushEvent({ tick: e.tick, text: text.text, tone: text.tone });
@@ -475,6 +505,7 @@ export class GameRuntime {
         }
     };
     for (const t of this.units.values()) if (t.snap.owner === this.mySlot) mark(t.snap.x, t.snap.y, UNITS[t.snap.type].sight);
+    for (const r of this.snapshot?.air?.reveals ?? []) mark(r.x, r.y, r.r);
     for (const t of this.buildings.values()) {
       if (t.snap.owner !== this.mySlot) continue;
       const size = BUILDINGS[t.snap.type].size;
@@ -528,6 +559,8 @@ export class GameRuntime {
       t.visual.update(dt, t.snap.progress, frac, selected || frac < 0.999 || t.snap.progress < 1 || upgrading, this.camera, rally, selected && t.snap.owner === this.mySlot, upgrading);
     }
     this.cargo.frame(alpha, dt);
+    this.airLayer.frame(alpha, dt);
+    this.updateAirTargeting();
     this.updateRouteInspection();
     this.effects.update(dt);
     this.citizens.update(this.paused ? 0 : dt * this.speed);
@@ -751,6 +784,58 @@ export class GameRuntime {
     this.selection.clear();
   }
 
+  /** Escolha de alvo da força aérea: reconhecimento (ponto), ataque (edifício) ou míssil (ponto). */
+  startAirTarget(purpose: 'recon' | 'strike' | 'missile', sourceId: number, aircraftIds: number[] = []): void {
+    this.setMode({ kind: 'air_target', purpose, sourceId, aircraftIds, target: null });
+  }
+
+  /** Míssil: envia a preparação do alvo marcado (o lançamento ainda exige autorização). */
+  confirmAirTarget(): void {
+    const m = this.mode;
+    if (m.kind !== 'air_target' || m.purpose !== 'missile' || !m.target) return;
+    this.send({ type: 'missile_prepare', buildingId: m.sourceId, x: m.target.x, y: m.target.y });
+    this.cancelMode();
+  }
+
+  private airTargetAt(clientX: number, clientY: number): void {
+    const m = this.mode;
+    if (m.kind !== 'air_target') return;
+    const p = this.groundAt(clientX, clientY);
+    if (!p) return;
+    const warn = (text: string) => useHudStore.getState().pushEvent({ tick: this.snapshot?.tick ?? 0, text, tone: 'warn' });
+    if (m.purpose === 'recon') {
+      this.send({ type: 'air_mission', buildingId: m.sourceId, aircraftIds: m.aircraftIds, mission: 'recon', x: p.x, y: p.y });
+      this.effects.flash(new THREE.Vector3(p.x, 0.2, p.y), 0.8, '#7fc4ff', 0.5);
+      this.cancelMode();
+      return;
+    }
+    if (m.purpose === 'strike') {
+      const hit = this.pickEntity(p);
+      const b = hit !== null ? this.buildings.get(hit) : undefined;
+      if (!b || b.snap.owner === this.mySlot) return warn('Ataque aéreo: toque num edifício inimigo já descoberto');
+      if (!(this.snapshot?.air?.known ?? []).includes(b.snap.id)) return warn('Alvo não descoberto: faça um reconhecimento da área antes');
+      this.send({ type: 'air_mission', buildingId: m.sourceId, aircraftIds: m.aircraftIds, mission: 'strike', targetId: b.snap.id });
+      this.flashTarget(b.snap.id);
+      this.cancelMode();
+      return;
+    }
+    // míssil: só marca o alvo; a preparação sai pelo botão "Confirmar alvo"
+    this.setMode({ ...m, target: { x: p.x, y: p.y } });
+  }
+
+  /** Raio de ação e alvo marcado no chão durante a escolha de alvo. */
+  private updateAirTargeting(): void {
+    const m = this.mode;
+    if (m.kind !== 'air_target') {
+      this.airLayer.setTargeting(null, null);
+      return;
+    }
+    const src = this.positionOf(m.sourceId);
+    const types = m.aircraftIds.map((id) => this.snapshot?.air?.aircraft.find((a) => a.id === id)?.type).filter((t) => t !== undefined);
+    const range = types.length ? Math.min(...types.map((t) => AIRCRAFT[t].range)) : 0;
+    this.airLayer.setTargeting(src && range ? { x: src.x, y: src.y, r: range } : null, m.target ? { x: m.target.x, y: m.target.y, r: MISSILE.radius } : null);
+  }
+
   startAttackMove(): void {
     if (this.myUnitIds().length > 0) this.setMode({ kind: 'attack_move' });
   }
@@ -943,10 +1028,15 @@ export class GameRuntime {
     });
     on(el, 'pointerenter', () => (this.pointer.inside = true));
     on(el, 'pointerleave', () => (this.pointer.inside = false));
-    on(el, 'wheel', (e) => {
-      e.preventDefault();
-      this.cameraCtl.zoom(e.deltaY > 0 ? 1.12 : 1 / 1.12);
-    }, { passive: false });
+    on(
+      el,
+      'wheel',
+      (e) => {
+        e.preventDefault();
+        this.cameraCtl.zoom(e.deltaY > 0 ? 1.12 : 1 / 1.12);
+      },
+      { passive: false },
+    );
     on(window, 'keydown', (e) => this.onKeyDown(e));
     on(window, 'keyup', (e) => this.keys.delete(e.code));
     on(window, 'blur', () => this.keys.clear());
@@ -1052,6 +1142,10 @@ export class GameRuntime {
       if (!e.shiftKey) this.cancelMode();
       return;
     }
+    if (this.mode.kind === 'air_target') {
+      this.airTargetAt(e.clientX, e.clientY);
+      return;
+    }
     this.drag = { x: e.clientX, y: e.clientY, active: false, button: 0 };
   }
 
@@ -1125,6 +1219,10 @@ export class GameRuntime {
       const ids = this.myUnitIds();
       if (p && ids.length) this.send({ type: 'attack_move', unitIds: ids, x: p.x, y: p.y });
       this.cancelMode();
+      return;
+    }
+    if (this.mode.kind === 'air_target') {
+      this.airTargetAt(x, y);
       return;
     }
     if (this.touchTool === 'order') {
@@ -1283,11 +1381,7 @@ export class GameRuntime {
     const reason = this.localPlacementError(type, cell);
     this.ghost.setValid(!reason);
     const yieldPreview = this.previewYield(type, cell);
-    if (
-      this.mode.valid !== !reason ||
-      this.mode.reason !== reason ||
-      this.mode.yield?.cells !== yieldPreview?.cells
-    )
+    if (this.mode.valid !== !reason || this.mode.reason !== reason || this.mode.yield?.cells !== yieldPreview?.cells)
       this.setMode({ kind: 'place', buildingType: type, valid: !reason, reason, yield: yieldPreview });
   }
 
@@ -1436,6 +1530,8 @@ export class GameRuntime {
     disposeCitizenModel();
     this.cargo.dispose();
     disposeCargoModels();
+    this.airLayer.dispose();
+    disposeAirModels();
     disposeBuildingModels();
     disposeMaterials();
     disposeTextures();

@@ -114,7 +114,9 @@ export interface AirView {
   missions: { id: number; kind: MissionKind; state: MissionState; baseId: EntityId; targetType: string | null; fuel: number; count: number; result: MissionResult | null }[];
   silos: { id: EntityId; missiles: number; building: number }[];
   /** Lançamentos próprios, e os inimigos em voo que miram este jogador ou estão à vista. */
-  launches: { id: number; owner: Slot; siloId: EntityId; state: LaunchState; progress: number; x: number; y: number; tx: number; ty: number; targetOwner: Slot }[];
+  launches: { id: number; owner: Slot; siloId: EntityId; state: LaunchState; progress: number; x: number; y: number; fx: number; fy: number; tx: number; ty: number; targetOwner: Slot }[];
+  /** Áreas reveladas pelo reconhecimento próprio (névoa do cliente). */
+  reveals: { x: number; y: number; r: number }[];
   /** Edifícios inimigos já descobertos (alvos válidos de ataque aéreo). */
   known: EntityId[];
   /** Cargueiros prontos (transporte aéreo comercial). */
@@ -191,9 +193,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         progress: r2(e.progress),
         level: e.level,
         spec: e.spec,
-        ...(e.upgrade
-          ? { upgrade: own ? { toLevel: e.upgrade.toLevel, progress: r2(e.upgrade.builtTicks / e.upgrade.totalTicks), spec: e.upgrade.spec } : { visible: true as const } }
-          : {}),
+        ...(e.upgrade ? { upgrade: own ? { toLevel: e.upgrade.toLevel, progress: r2(e.upgrade.builtTicks / e.upgrade.totalTicks), spec: e.upgrade.spec } : { visible: true as const } } : {}),
         // fila e ponto de reunião de edifícios inimigos não são observáveis
         queue: own ? e.queue.map((q) => ({ unitType: q.unitType, progress: r2(1 - q.remainingTicks / q.totalTicks) })) : [],
         rally: own && e.rally ? { x: r2(e.rally.x), y: r2(e.rally.y) } : null,
@@ -319,7 +319,16 @@ export function airView(sim: Simulation, slot: Slot): AirView {
     const p = air.missionPos(m);
     if (m.owner !== slot && !sim.isVisibleTo(slot, p)) continue;
     const dir = m.state === 'outbound' ? 1 : -1;
-    flights.push({ id: m.id, owner: m.owner, kind: m.kind, state: m.state, x: r2(p.x), y: r2(p.y), heading: r2(Math.atan2((m.target.y - m.from.y) * dir, (m.target.x - m.from.x) * dir)), count: m.aircraft.length });
+    flights.push({
+      id: m.id,
+      owner: m.owner,
+      kind: m.kind,
+      state: m.state,
+      x: r2(p.x),
+      y: r2(p.y),
+      heading: r2(Math.atan2((m.target.y - m.from.y) * dir, (m.target.x - m.from.x) * dir)),
+      count: m.aircraft.length,
+    });
   }
   const live = (st: LaunchState) => st === 'preparing' || st === 'armed' || st === 'launching' || st === 'flight';
   const launches: AirView['launches'] = [];
@@ -341,6 +350,8 @@ export function airView(sim: Simulation, slot: Slot): AirView {
       progress: r2(l.state === 'preparing' || l.state === 'launching' || l.state === 'flight' ? 1 - l.timer / Math.max(1, total) : 1),
       x: r2(p.x),
       y: r2(p.y),
+      fx: r2(l.from.x),
+      fy: r2(l.from.y),
       tx: r2(l.target.x),
       ty: r2(l.target.y),
       targetOwner: l.targetOwner,
@@ -366,6 +377,7 @@ export function airView(sim: Simulation, slot: Slot): AirView {
       }),
     launches,
     known: sim.buildings.filter((b) => b.owner !== slot && air.isKnown(slot, b.id)).map((b) => b.id),
+    reveals: air.reveals.filter((r) => r.owner === slot).map((r) => ({ x: r2(r.pos.x), y: r2(r.pos.y), r: r.radius })),
     transports: air.transports(slot),
   };
 }
@@ -412,7 +424,11 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
       return e.owner === slot || e.victim === slot || sim.isVisibleTo(slot, e.pos);
     case 'missile':
       // o dono acompanha cada etapa; o país-alvo é alertado no lançamento e no impacto
-      return e.owner === slot || (e.targetOwner === slot && (e.state === 'flight' || e.state === 'impact' || e.state === 'intercepted')) || ((e.state === 'impact' || e.state === 'intercepted') && sim.isVisibleTo(slot, e.target));
+      return (
+        e.owner === slot ||
+        (e.targetOwner === slot && (e.state === 'flight' || e.state === 'impact' || e.state === 'intercepted')) ||
+        ((e.state === 'impact' || e.state === 'intercepted') && sim.isVisibleTo(slot, e.target))
+      );
     case 'player_defeated':
       return true;
   }

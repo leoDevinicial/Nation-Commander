@@ -1,4 +1,4 @@
-import type { TradeView } from '../../shared/sim/snapshot.ts';
+import type { AirView, TradeView } from '../../shared/sim/snapshot.ts';
 import type { ModId } from '../../shared/sim/modernization.ts';
 import { create } from 'zustand';
 import type { BuildingType, DepositSize, ProducibleType, UnitType } from '../../shared/sim/config.ts';
@@ -56,7 +56,12 @@ export interface HudEvent {
 export type PointerMode =
   | { kind: 'normal' }
   | { kind: 'place'; buildingType: BuildingType; valid: boolean; reason: string | null; yield: { cells: number; rate: number } | null }
-  | { kind: 'attack_move' };
+  | { kind: 'attack_move' }
+  /**
+   * Escolha de alvo da força aérea (Fase 7): ponto do reconhecimento, edifício inimigo descoberto
+   * do ataque, ou ponto do míssil — este último fica marcado e só segue com "Confirmar alvo".
+   */
+  | { kind: 'air_target'; purpose: 'recon' | 'strike' | 'missile'; sourceId: EntityId; aircraftIds: number[]; target: { x: number; y: number } | null };
 
 /** Fila de produção de um edifício próprio (para o resumo de produção do HUD). */
 export interface ProductionEntry {
@@ -77,6 +82,8 @@ export interface HudState {
   thumbs: Partial<Record<string, string>>;
   /** Comércio internacional do jogador (Fase 6). */
   trade: TradeView | null;
+  /** Força aérea e mísseis do jogador (Fase 7). */
+  air: AirView | null;
   /** Rota inspecionada no mapa (id do embarque). */
   inspectedShipment: number | null;
   mySlot: number;
@@ -109,6 +116,7 @@ export const useHudStore = create<HudState>((set) => ({
   production: [],
   thumbs: {},
   trade: null,
+  air: null,
   inspectedShipment: null,
   mySlot: 0,
   paused: false,
