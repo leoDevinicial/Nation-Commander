@@ -102,5 +102,7 @@ curtos (≈2 min), um assunto por cartão.
 | Aspecto | Comportamento |
 |---|---|
 | Navegação | Botões Voltar/Próximo, pontos clicáveis, setas do teclado e deslize no celular; cada cartão cabe na tela sem rolar |
-| Quando aparece | Volta a cada entrada até o jogador chegar ao último cartão e tocar em "Entendi, começar". "Pular por agora" leva ao menu, mas o manual reaparece na próxima vez. Sempre disponível pelo botão **Manual** do menu |
+| Quando aparece | Volta a cada entrada até o jogador chegar ao último cartão e tocar em "Entendi, começar". Sempre disponível pelo botão **Manual** do menu |
+| Pular | "Pular por agora" abre um aviso: o manual leva ~2 min e explica regras que travam quem não as conhece (recruta por tropa, guerra declarada, verba de obras, moradia e comida). O padrão é **Continuar lendo**; "Pular mesmo assim" vai ao menu, e o manual volta na próxima entrada. Quem já leu (abriu pelo menu) vê "Fechar", sem aviso |
+| Transição | Sem corte seco após o login: o painel surge do fundo (desfoque → nítido, leve zoom, 0,7 s), os blocos aparecem em sequência e o globo atrás escurece junto. Respeita "reduzir movimento" |
 | Testes | `src/test/manual.test.ts`: fluxo de leitura, falta de armazenamento, limite de tamanho dos textos (objetividade) e cobertura dos temas básicos |

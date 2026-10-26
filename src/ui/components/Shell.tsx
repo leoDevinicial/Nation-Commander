@@ -8,6 +8,7 @@ export function Shell({
   back,
   wide,
   align = 'center',
+  enter = false,
 }: {
   title?: string;
   children: ReactNode;
@@ -15,6 +16,8 @@ export function Shell({
   wide?: boolean | 'xl';
   /** 'start': painel à esquerda em telas largas, deixando o globo à vista. */
   align?: 'center' | 'start';
+  /** Entrada animada do painel (usada pelo manual, para não ser um corte seco após o login). */
+  enter?: boolean;
 }) {
   return (
     <div
@@ -31,7 +34,7 @@ export function Shell({
           backgroundSize: '40px 40px',
         }}
       />
-      <div className={`panel panel-frame relative my-auto w-full ${wide === 'xl' ? 'max-w-6xl' : wide ? 'max-w-4xl' : 'max-w-lg'} p-4 sm:p-6`}>
+      <div className={`panel panel-frame relative my-auto w-full ${wide === 'xl' ? 'max-w-6xl' : wide ? 'max-w-4xl' : 'max-w-lg'} p-4 sm:p-6 ${enter ? 'shell-enter' : ''}`}>
         {(title || back) && (
           <div className="mb-5 flex items-center justify-between gap-4">
             {title && <h1 className="font-display text-lg font-bold tracking-wide text-ink-100 uppercase">{title}</h1>}
