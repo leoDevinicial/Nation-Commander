@@ -276,6 +276,13 @@ O preset inicial é escolhido pelo aparelho (toque com tela pequena, pouca memó
 desempenho antes de ser ativado (detalhes em `docs/GRAFICOS_REALISTAS.md`). Os presets nunca alteram
 regras nem resultados da simulação.
 
+**Qualidade adaptativa (KGPS + KAICS)**, ligada por padrão: durante a partida, o KGPS mede o tempo de
+cada quadro. Se o jogo fica lento, alivia primeiro o que menos aparece (reflexos, efeitos de tela,
+sombras, resolução), um ajuste por vez, e desfaz o que não ajudou. Com folga, devolve a qualidade do
+preset. O KAICS só deixa mexer em parâmetros validados no renderizador e confere cada mudança lendo
+o estado de volta. Tocar no contador de FPS abre o painel com as medidas e as decisões. Detalhes em
+`docs/KGPS_KAICS.md`.
+
 ## Testes e verificação
 
 ```bash

@@ -6,7 +6,7 @@ import { useHudStore } from '../../state/useHudStore.ts';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { producibleIcon, producibleLabel } from './CommandPanel.tsx';
 
-export type TopBarPopover = 'money' | 'production' | null;
+export type TopBarPopover = 'money' | 'production' | 'perf' | null;
 
 /**
  * Dinheiro do teatro na barra superior (também no celular): a verba de obras que paga as

@@ -211,6 +211,11 @@ export interface WaterHandle {
   mesh: THREE.Mesh;
   update(time: number): void;
   dispose(): void;
+  /**
+   * Reflexo planar (preset Alto+): o espelho redesenha a cena inteira; com intervalo N ele é
+   * atualizado só a cada N quadros (o KGPS usa isso quando o quadro está pesado).
+   */
+  reflection: { readonly interval: number; setInterval(n: number): void } | null;
 }
 
 export interface WaterOptions {
@@ -225,6 +230,7 @@ export function createWater(W: number, H: number, mode: WaterReflection, opts: W
   const geo = new THREE.PlaneGeometry(W, H, seg, seg);
   let mesh: THREE.Mesh;
   let material: THREE.ShaderMaterial;
+  let reflection: WaterHandle['reflection'] = null;
   if (mode === 'planar') {
     const reflector = new Reflector(geo, {
       textureWidth: 512,
@@ -236,6 +242,22 @@ export function createWater(W: number, H: number, mode: WaterReflection, opts: W
     material = reflector.material as THREE.ShaderMaterial;
     material.uniforms.uPlanar!.value = 1;
     mesh = reflector;
+    // pular a atualização mantém textura e matriz do quadro anterior juntas: o reflexo só atrasa
+    const draw = reflector.onBeforeRender.bind(reflector);
+    let interval = 1;
+    let frame = 0;
+    reflector.onBeforeRender = (renderer, scene, camera, geometry, mat, group) => {
+      if (frame++ % interval === 0) draw(renderer, scene, camera, geometry, mat, group);
+    };
+    reflection = {
+      get interval() {
+        return interval;
+      },
+      setInterval: (n) => {
+        interval = Math.max(1, Math.round(n));
+        frame = 0;
+      },
+    };
   } else {
     material = new THREE.ShaderMaterial({ uniforms: uniforms(), vertexShader, fragmentShader });
     mesh = new THREE.Mesh(geo, material);
@@ -256,6 +278,7 @@ export function createWater(W: number, H: number, mode: WaterReflection, opts: W
   mesh.renderOrder = 0;
   return {
     mesh,
+    reflection,
     update: (time) => (material.uniforms.uTime!.value = time),
     dispose: () => {
       geo.dispose();

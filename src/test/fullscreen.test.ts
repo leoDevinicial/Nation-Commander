@@ -92,7 +92,7 @@ describe('tela cheia', () => {
   });
 
   it('as preferências de tela cheia ficam salvas', () => {
-    const base: Settings = { quality: 'low', shadows: true, panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false, autoFullscreen: true, lockLandscape: false, volumes: { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 }, muted: false };
+    const base: Settings = { quality: 'low', shadows: true, adaptiveQuality: true, panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false, autoFullscreen: true, lockLandscape: false, volumes: { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 }, muted: false };
     expect(parseSettings(JSON.stringify({ autoFullscreen: false, lockLandscape: true }), base)).toMatchObject({ autoFullscreen: false, lockLandscape: true });
     // configurações antigas (sem os campos) herdam o padrão do aparelho
     expect(parseSettings(JSON.stringify({ quality: 'high' }), base)).toMatchObject({ autoFullscreen: true, lockLandscape: false });

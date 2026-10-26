@@ -67,7 +67,14 @@ export function SettingsScreen() {
         )}
         <Toggle label="Reduzir animações (globo do menu e transições)" checked={s.reducedMotion} onChange={(v) => s.update({ reducedMotion: v })} />
         <Toggle label="Mover câmera pelas bordas da tela" checked={s.edgeScroll} onChange={(v) => s.update({ edgeScroll: v })} />
-        <Toggle label="Mostrar FPS" checked={s.showFps} onChange={(v) => s.update({ showFps: v })} />
+        <div>
+          <Toggle label="Qualidade adaptativa (KGPS)" checked={s.adaptiveQuality} onChange={(v) => s.update({ adaptiveQuality: v })} />
+          <p className="text-[11px] text-ink-400">
+            Durante a partida, mede o tempo de cada quadro e, se o jogo ficar lento, alivia primeiro o que menos aparece (reflexos, efeitos de tela, sombras, resolução) — um ajuste por vez,
+            desfazendo o que não ajudar. Com folga, devolve a qualidade do preset. Nunca passa do preset escolhido nem mexe em regras, névoa de guerra ou interface. Vale na hora.
+          </p>
+        </div>
+        <Toggle label="Mostrar FPS (toque no contador para ver o painel de desempenho)" checked={s.showFps} onChange={(v) => s.update({ showFps: v })} />
         <div>
           <label className="label" htmlFor="pan">
             Velocidade da câmera: {s.panSpeed.toFixed(2)}×

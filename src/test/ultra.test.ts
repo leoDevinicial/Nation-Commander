@@ -91,6 +91,7 @@ describe('preset Ultra+', () => {
     const base = parseSettings(null, {
       quality: 'balanced',
       shadows: true,
+      adaptiveQuality: true,
       panSpeed: 1,
       edgeScroll: false,
       showFps: false,

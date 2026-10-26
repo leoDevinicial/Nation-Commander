@@ -4,7 +4,7 @@ import { Terrain } from '../../../shared/sim/config.ts';
 import { Random } from '../../../shared/sim/Random.ts';
 import type { MapData } from '../../../shared/sim/types.ts';
 import { withFog } from './materials.ts';
-import { createWater, groundHeightTexture, type WaterReflection } from './Water.ts';
+import { createWater, groundHeightTexture, type WaterHandle, type WaterReflection } from './Water.ts';
 import { asphaltTexture, dirtTexture, grassTexture, rockTexture } from './textures.ts';
 import { C, PartBuilder } from './models/kit.ts';
 import { detailedTrees } from './Trees.ts';
@@ -161,6 +161,8 @@ export interface TerrainHandle {
   water: THREE.Mesh;
   /** Anima as ondulações da água (segundos). */
   update: (time: number) => void;
+  /** Controle do reflexo planar da água (null sem reflexo planar). */
+  reflection: WaterHandle['reflection'];
   dispose: () => void;
 }
 
@@ -336,6 +338,7 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
     upgrade,
     water: water.mesh,
     update: water.update,
+    reflection: water.reflection,
     dispose: () => {
       for (const d of disposables) d.dispose();
     },

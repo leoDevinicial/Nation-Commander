@@ -5,6 +5,11 @@ import { DEFAULT_VOLUMES, type Volumes } from '../game/audio/AudioService.ts';
 export interface Settings {
   quality: GraphicsPreset;
   shadows: boolean;
+  /**
+   * Qualidade adaptativa (KGPS): durante a partida, reduz efeitos e resolução quando o quadro
+   * fica lento e devolve a qualidade quando sobra folga. Desligada, ele só mede e sugere.
+   */
+  adaptiveQuality: boolean;
   panSpeed: number;
   edgeScroll: boolean;
   showFps: boolean;
@@ -30,7 +35,7 @@ function defaults(): Settings {
   } catch {
     // ambiente sem navigator/screen (testes): mantém equilibrado
   }
-  return { quality, shadows: true, panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false, autoFullscreen: touch, lockLandscape: false, volumes: { ...DEFAULT_VOLUMES }, muted: false };
+  return { quality, shadows: true, adaptiveQuality: true, panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false, autoFullscreen: touch, lockLandscape: false, volumes: { ...DEFAULT_VOLUMES }, muted: false };
 }
 
 /** Lê configurações salvas; aceita o formato antigo ('low' | 'high'). */
@@ -41,6 +46,7 @@ export function parseSettings(raw: string | null, base: Settings): Settings {
     return {
       quality: GRAPHICS_PRESETS.includes(p.quality as GraphicsPreset) ? (p.quality as GraphicsPreset) : base.quality,
       shadows: typeof p.shadows === 'boolean' ? p.shadows : base.shadows,
+      adaptiveQuality: typeof p.adaptiveQuality === 'boolean' ? p.adaptiveQuality : base.adaptiveQuality,
       panSpeed: typeof p.panSpeed === 'number' && p.panSpeed >= 0.25 && p.panSpeed <= 3 ? p.panSpeed : base.panSpeed,
       edgeScroll: Boolean(p.edgeScroll),
       showFps: Boolean(p.showFps),
@@ -83,9 +89,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   ...load(),
   update: (patch) => {
     set(patch);
-    const { quality, shadows, panSpeed, edgeScroll, showFps, reducedMotion, autoFullscreen, lockLandscape, volumes, muted } = get();
+    const { quality, shadows, adaptiveQuality, panSpeed, edgeScroll, showFps, reducedMotion, autoFullscreen, lockLandscape, volumes, muted } = get();
     try {
-      localStorage.setItem(KEY, JSON.stringify({ quality, shadows, panSpeed, edgeScroll, showFps, reducedMotion, autoFullscreen, lockLandscape, volumes, muted }));
+      localStorage.setItem(KEY, JSON.stringify({ quality, shadows, adaptiveQuality, panSpeed, edgeScroll, showFps, reducedMotion, autoFullscreen, lockLandscape, volumes, muted }));
     } catch {
       // armazenamento indisponível: mantém apenas em memória
     }

@@ -65,6 +65,8 @@ export function GameScreen() {
           shadows: settings.shadows && PROFILES[settings.quality].shadows,
           panSpeed: settings.panSpeed,
           edgeScroll: settings.edgeScroll,
+          adaptive: settings.adaptiveQuality,
+          preset: settings.quality,
           battle: { opId: battle.opId, biome: battle.sector.biome },
         },
         battleSnapshotBuffer.last?.opId === battle.opId ? battleSnapshotBuffer.last : null,
@@ -123,6 +125,8 @@ export function GameScreen() {
           shadows: settings.shadows && PROFILES[settings.quality].shadows,
           panSpeed: settings.panSpeed,
           edgeScroll: settings.edgeScroll,
+          adaptive: settings.adaptiveQuality,
+          preset: settings.quality,
         },
         snapshotBuffer.last,
       );

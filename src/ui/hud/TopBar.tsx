@@ -11,6 +11,7 @@ import { FullscreenButton } from '../components/FullscreenButton.tsx';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useState } from 'react';
 import { MoneyChip, MoneyPopover, ProductionChip, ProductionPopover, type TopBarPopover } from './TopBarExtras.tsx';
+import { PerfChip, PerfPopover } from './PerfPanel.tsx';
 
 export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRuntime; onMenu: () => void; canControlSpeed: boolean }) {
   const players = useHudStore((s) => s.players);
@@ -19,7 +20,6 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
   const paused = useHudStore((s) => s.paused);
   const pausedBy = useHudStore((s) => s.pausedBy);
   const speed = useHudStore((s) => s.speed);
-  const fps = useHudStore((s) => s.fps);
   const showFps = useSettingsStore((s) => s.showFps);
   const roster = useAppStore((s) => s.match?.players ?? []);
   const connStatus = useAppStore((s) => s.connStatus);
@@ -131,7 +131,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
             ⚠<span className="hidden sm:inline"> {connDetail ? 'Servidor atualizando… a partida será retomada' : 'Reconectando…'}</span>
           </span>
         )}
-        {showFps && <span className="hidden font-mono text-xs text-ink-400 sm:inline">{fps} qps</span>}
+        {showFps && <PerfChip open={pop === 'perf'} onToggle={() => toggle('perf')} />}
         {paused && <span className="hidden text-xs font-semibold text-brass-400 md:inline">PAUSADO{pausedBy ? ` por ${pausedBy}` : ''}</span>}
         <button className="btn min-h-8 px-2 py-1 text-xs whitespace-nowrap" onClick={() => runtime.togglePause()} title="Pausar/retomar (Espaço)" aria-label={paused ? 'Retomar' : 'Pausar'}>
           <PlayPauseIcon playing={!paused} />
@@ -183,8 +183,14 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
       {pop && (
         <>
           <div className="fixed inset-0 z-40" onPointerDown={() => setPop(null)} aria-hidden />
-          <div className="absolute top-full left-0 z-50 mt-1">
-            {pop === 'money' ? <MoneyPopover onClose={() => setPop(null)} /> : <ProductionPopover runtime={runtime} onClose={() => setPop(null)} />}
+          <div className={`absolute top-full z-50 mt-1 ${pop === 'perf' ? 'right-0' : 'left-0'}`}>
+            {pop === 'money' ? (
+              <MoneyPopover onClose={() => setPop(null)} />
+            ) : pop === 'perf' ? (
+              <PerfPopover onClose={() => setPop(null)} />
+            ) : (
+              <ProductionPopover runtime={runtime} onClose={() => setPop(null)} />
+            )}
           </div>
         </>
       )}

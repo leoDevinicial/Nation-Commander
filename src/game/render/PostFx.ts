@@ -31,6 +31,13 @@ export class PostFx {
   private readonly composer: EffectComposer;
   private readonly ao: GTAOPass;
   private readonly bloom: UnrealBloomPass | null = null;
+  private readonly ultraPasses: { enabled: boolean }[] = [];
+  /**
+   * Níveis de efeito (KGPS): 0 = sem pós-processamento (o jogo desenha direto), 1 = oclusão,
+   * 2 = + feixes de sol e exposição local (Ultra), 3 = + brilho (Ultra+). Os feixes usam a
+   * profundidade da oclusão, por isso os níveis só ligam efeitos em ordem.
+   */
+  readonly maxLevel: number;
 
   private readonly extra: { dispose: () => void }[] = [];
 
@@ -52,12 +59,31 @@ export class PostFx {
       this.composer.addPass(shafts);
       this.composer.addPass(local);
       this.extra.push(shafts, local);
+      this.ultraPasses.push(shafts, local);
       if (cine) {
         this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), BLOOM_STRENGTH, BLOOM_RADIUS, BLOOM_THRESHOLD);
         this.composer.addPass(this.bloom);
       }
     }
     this.composer.addPass(new OutputPass());
+    this.maxLevel = this.bloom ? 3 : ultra ? 2 : 1;
+  }
+
+  /** Nível em vigor, lido dos passes (-1 se a combinação ligada não for um nível válido). */
+  get level(): number {
+    const flags = [this.ao.enabled, ...this.ultraPasses.map((p) => p.enabled), ...(this.bloom ? [this.bloom.enabled] : [])];
+    const on = flags.filter(Boolean).length;
+    // válido só se os ligados forem um prefixo: AO, depois os do Ultra (juntos), depois o brilho
+    const expected = on === 0 ? 0 : on === 1 ? 1 : on === 1 + this.ultraPasses.length ? 2 : on === flags.length && this.bloom ? 3 : -1;
+    if (expected < 0) return -1;
+    for (let i = 0; i < flags.length; i++) if (flags[i] !== i < on) return -1;
+    return expected;
+  }
+
+  setLevel(level: number): void {
+    this.ao.enabled = level >= 1;
+    for (const p of this.ultraPasses) p.enabled = level >= 2;
+    if (this.bloom) this.bloom.enabled = level >= 3;
   }
 
   setSize(w: number, h: number, pixelRatio: number): void {

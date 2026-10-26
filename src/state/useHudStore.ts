@@ -6,6 +6,8 @@ import type { GameSpeed } from '../../shared/protocol.ts';
 import type { PlayerSnapshot } from '../../shared/sim/snapshot.ts';
 import type { BuildingStatus, EntityId, UnitActivity } from '../../shared/sim/types.ts';
 import type { SpecId } from '../../shared/sim/upgrades.ts';
+import type { Capabilities } from '../game/perf/kaics.ts';
+import type { PerfSummary } from '../game/perf/kgps.ts';
 
 export interface SelectedUnitInfo {
   id: EntityId;
@@ -75,6 +77,9 @@ export interface ProductionEntry {
 /** Ferramenta do toque: o que um toque curto faz no mapa. */
 export type TouchTool = 'select' | 'order' | 'box';
 
+/** Resumo do KGPS mais dados do renderizador e do aparelho (KAICS). */
+export type PerfHud = PerfSummary & { drawCalls: number; triangles: number; caps: Capabilities };
+
 export interface HudState {
   tick: number;
   players: PlayerSnapshot[];
@@ -103,6 +108,8 @@ export interface HudState {
   mode: PointerMode;
   events: HudEvent[];
   fps: number;
+  /** Painel de desempenho (KGPS/KAICS); null antes da primeira janela publicada. */
+  perf: PerfHud | null;
   /** Interface de toque ativa (aparelho de toque ou toque detectado nesta partida). */
   touchUi: boolean;
   touchTool: TouchTool;
@@ -134,6 +141,7 @@ export const useHudStore = create<HudState>((set) => ({
   mode: { kind: 'normal' },
   events: [],
   fps: 0,
+  perf: null,
   touchUi: false,
   touchTool: 'select',
   touchAdditive: false,

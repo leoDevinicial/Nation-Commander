@@ -41,7 +41,9 @@ import { describeEvent } from './eventText.ts';
 import type { GraphicsProfile } from '../lib/graphics.ts';
 import { isTouchDevice, prefersReducedMotion } from '../lib/graphics.ts';
 import { TouchGestures, type TouchPoint } from './input/TouchGestures.ts';
-import type { TouchTool } from '../state/useHudStore.ts';
+import { Kaics, probeCapabilities } from './perf/kaics.ts';
+import { Kgps, localProfileStore } from './perf/kgps.ts';
+import type { PerfHud, TouchTool } from '../state/useHudStore.ts';
 
 type SnapshotMsg = Extract<ServerMessage, { t: 'snapshot' }>;
 
@@ -70,6 +72,10 @@ export interface RuntimeOptions {
    * as ordens com escopo de batalha. O teatro continua em outro runtime, suspenso.
    */
   battle?: { opId: number; biome?: keyof typeof BIOME_TINT };
+  /** Qualidade adaptativa (KGPS) ligada; desligada, ele só mede e sugere. */
+  adaptive?: boolean;
+  /** Preset escolhido (chave do ajuste aprendido neste aparelho). */
+  preset?: string;
 }
 
 interface TrackedUnit {
@@ -87,6 +93,10 @@ interface TrackedBuilding {
 }
 
 const HUD_INTERVAL_MS = 150;
+/** Painel de desempenho: atualização mais lenta (as janelas do KGPS são de ~2 s). */
+const PERF_HUD_INTERVAL_MS = 500;
+/** Piso da resolução interna (pixels de desenho por pixel de tela). */
+const MIN_PIXEL_RATIO = 0.7;
 /** Ultra+: quanto as sombras de nuvens escurecem a luz direta do sol (0–1). */
 const CLOUD_SHADOW_STRENGTH = 0.42;
 /** Ultra+: velocidade das nuvens em coordenadas de textura por segundo (≈2,4 unidades/s). */
@@ -108,6 +118,18 @@ export class GameRuntime {
   private probe: EnvironmentProbe | null = null;
   private shadowFollow: ShadowFollow | null = null;
   private skyEnv: THREE.Texture | null = null;
+  /** KAICS/KGPS (ver `perf/`): botões gráficos que o desempenho pode ajustar durante a partida. */
+  private kaics!: Kaics;
+  private kgps!: Kgps;
+  private perfGate: string | null = null;
+  private lastPerf = 0;
+  private frameNo = 0;
+  /** Mapa de sombra: redesenhado uma vez por quadro (ou a cada N), não a cada passe de render. */
+  private shadowInterval = 1;
+  private shadowDirty = true;
+  private postFxOn = true;
+  private probeLive = true;
+  private exposureLive = true;
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.PerspectiveCamera;
   readonly cameraCtl: CameraController;
@@ -201,8 +223,18 @@ export class GameRuntime {
     this.renderer.domElement.style.display = 'block';
     this.renderer.domElement.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
+      this.kaics?.setCondition('contextLost', true);
       useHudStore.getState().pushEvent({ tick: 0, text: 'Contexto gráfico perdido. Tentando restaurar…', tone: 'bad' });
     });
+    this.renderer.domElement.addEventListener('webglcontextrestored', () => {
+      this.kaics?.setCondition('contextLost', false);
+      this.shadowDirty = true;
+      this.kgps?.invalidate(performance.now(), 'contexto gráfico restaurado');
+    });
+    // o KGPS mede chamadas de desenho do quadro inteiro (todos os passes), não só do último render
+    this.renderer.info.autoReset = false;
+    // com sombras, o mapa é redesenhado sob demanda (ver frame): os passes extras o reaproveitam
+    if (opts.shadows) this.renderer.shadowMap.autoUpdate = false;
 
     const W = this.map.width * this.map.cellSize;
     const H = this.map.height * this.map.cellSize;
@@ -273,6 +305,7 @@ export class GameRuntime {
     // o áudio (desbloqueio, ambiente e música) pertence ao teatro; a batalha só toca efeitos
     if (this.battleOp === null) this.bindAudio();
     this.resize();
+    this.setupPerf();
     useHudStore.setState({
       mySlot: this.mySlot,
       events: [],
@@ -554,7 +587,10 @@ export class GameRuntime {
   private frame = (now: number): void => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.frame);
-    const dt = Math.min((now - this.lastFrame) / 1000, 0.1); // limita delta após perder foco
+    const workStart = performance.now();
+    const interval = now - this.lastFrame;
+    this.renderer.info.reset();
+    const dt = Math.min(interval / 1000, 0.1); // limita delta após perder foco
     this.lastFrame = now;
 
     this.updateCameraFromKeys(dt);
@@ -609,12 +645,18 @@ export class GameRuntime {
       (this.sky.material as THREE.ShaderMaterial).uniforms.uTime!.value = now / 1000;
       this.terrain.update(now / 1000);
       this.shadowFollow?.update(this.cameraCtl.target, this.cameraCtl.distance);
-      if (this.postFx) this.postFx.render();
+      if (this.opts.shadows && (this.shadowDirty || this.frameNo % this.shadowInterval === 0)) {
+        this.renderer.shadowMap.needsUpdate = true;
+        this.shadowDirty = false;
+      }
+      this.frameNo++;
+      if (this.postFx && this.postFxOn) this.postFx.render();
       else this.renderer.render(this.scene, this.camera);
       // medições extras depois do quadro principal (o mapa de sombra já existe e está atualizado)
-      this.probe?.update(this.cameraCtl.target, now, [this.terrain.water]);
-      this.exposure?.update(this.scene, this.camera, now, dt, [this.terrain.water]);
+      if (this.probeLive) this.probe?.update(this.cameraCtl.target, now, [this.terrain.water]);
+      if (this.exposureLive) this.exposure?.update(this.scene, this.camera, now, dt, [this.terrain.water]);
     }
+    this.perfFrame(now, interval, performance.now() - workStart);
 
     this.frames++;
     if (now - this.fpsTime >= 1000) {
@@ -626,7 +668,157 @@ export class GameRuntime {
       this.lastHud = now;
       this.publishHud();
     }
+    if (this.hudActive && now - this.lastPerf >= PERF_HUD_INTERVAL_MS) {
+      this.lastPerf = now;
+      useHudStore.getState().set({ perf: this.perfReport(now) });
+    }
   };
+
+  // ------------------------------------------------------------ desempenho (KAICS + KGPS)
+
+  /**
+   * Declara ao KAICS os botões gráficos desta cena, cada um com níveis, piso de qualidade, custo
+   * visual de cada passo e leitura do estado real no renderizador. Só entra o que o preset ligou.
+   */
+  private setupPerf(): void {
+    const r = this.renderer;
+    const kaics = new Kaics(probeCapabilities(r.getContext(), r.capabilities.maxTextureSize), this.opts.adaptive ?? true);
+    this.kaics = kaics;
+    const refl = this.terrain.reflection;
+    if (refl)
+      kaics.register({
+        id: 'reflections',
+        label: 'Reflexo da água',
+        levels: ['a cada 3 quadros', 'a cada 2 quadros', 'todo quadro'],
+        baseline: 2,
+        floor: 0,
+        helps: ['gpu', 'cpu'],
+        stepCost: () => 1,
+        apply: (l) => refl.setInterval(3 - l),
+        read: () => 3 - refl.interval,
+      });
+    if (this.probe)
+      kaics.register({
+        id: 'probe',
+        label: 'Reflexos do cenário',
+        levels: ['congelados', 'atualizados'],
+        baseline: 1,
+        floor: 0,
+        helps: ['gpu', 'cpu'],
+        stepCost: () => 1,
+        apply: (l) => (this.probeLive = l === 1),
+        read: () => (this.probeLive ? 1 : 0),
+      });
+    if (this.exposure)
+      kaics.register({
+        id: 'exposure',
+        label: 'Exposição automática',
+        levels: ['fixa', 'adaptativa'],
+        baseline: 1,
+        floor: 0,
+        helps: ['gpu', 'cpu'],
+        stepCost: () => 1,
+        apply: (l) => (this.exposureLive = l === 1),
+        read: () => (this.exposureLive ? 1 : 0),
+      });
+    if (this.opts.shadows)
+      kaics.register({
+        id: 'shadowRate',
+        label: 'Atualização das sombras',
+        levels: ['a cada 2 quadros', 'todo quadro'],
+        baseline: 1,
+        floor: 0,
+        helps: ['gpu', 'cpu'],
+        stepCost: () => 2,
+        apply: (l) => (this.shadowInterval = l === 1 ? 1 : 2),
+        read: () => (this.shadowInterval === 1 ? 1 : this.shadowInterval === 2 ? 0 : -1),
+      });
+    const fx = this.postFx;
+    if (fx)
+      kaics.register({
+        id: 'postfx',
+        label: 'Efeitos de tela',
+        levels: ['desligados', 'oclusão de ambiente', 'oclusão + feixes de sol', 'oclusão + feixes + brilho'].slice(0, fx.maxLevel + 1),
+        baseline: fx.maxLevel,
+        floor: 0,
+        helps: ['gpu', 'cpu'],
+        stepCost: (from) => (from >= 3 ? 2 : from === 2 ? 3 : 4),
+        apply: (l) => {
+          fx.setLevel(l);
+          this.postFxOn = l > 0;
+        },
+        read: () => fx.level,
+      });
+    const sun = this.sun;
+    if (this.opts.shadows && sun) {
+      const sizes: number[] = [];
+      for (let size = 1024; size <= sun.shadow.mapSize.x; size *= 2) sizes.push(size);
+      kaics.register({
+        id: 'shadowRes',
+        label: 'Resolução das sombras',
+        levels: sizes.map((size) => `${size} px`),
+        baseline: sizes.length - 1,
+        floor: 0,
+        helps: ['gpu'],
+        stepCost: (from) => (sizes[from]! >= 8192 ? 1 : sizes[from]! >= 4096 ? 2 : 3),
+        apply: (l) => {
+          const size = sizes[l]!;
+          sun.shadow.mapSize.set(size, size);
+          // o three recria o mapa no próximo desenho de sombra
+          sun.shadow.map?.dispose();
+          sun.shadow.map = null;
+          this.shadowDirty = true;
+        },
+        read: () => sizes.indexOf(sun.shadow.mapSize.x),
+      });
+    }
+    const base = r.getPixelRatio();
+    const factors = [0.6, 0.7, 0.8, 0.9, 1].filter((f) => base * f >= Math.min(base, MIN_PIXEL_RATIO) - 1e-6);
+    const ratios = factors.map((f) => (f === 1 ? base : base * f));
+    const top = ratios.length - 1;
+    kaics.register({
+      id: 'resolution',
+      label: 'Resolução interna',
+      levels: factors.map((f) => `${Math.round(f * 100)}%`),
+      baseline: top,
+      floor: 0,
+      helps: ['gpu'],
+      stepCost: (from) => (from === top ? 2 : from === top - 1 ? 3 : 4),
+      apply: (l) => {
+        r.setPixelRatio(ratios[l]!);
+        this.resize();
+      },
+      read: () => {
+        const pr = r.getPixelRatio();
+        // confere também o buffer real do canvas (o que a GPU de fato desenha)
+        const size = r.getSize(new THREE.Vector2());
+        if (size.x > 0 && r.domElement.width !== Math.floor(size.x * pr)) return -1;
+        return ratios.findIndex((x) => Math.abs(x - pr) < 1e-3);
+      },
+    });
+    const key = `${this.opts.preset ?? 'custom'}|${Math.round(window.devicePixelRatio * 100)}|${this.battleOp === null ? 'teatro' : 'batalha'}`;
+    this.kgps = new Kgps(kaics, performance.now(), localProfileStore(key));
+    this.cleanup.push(useSettingsStore.subscribe((st) => this.kgps.setAdaptive(st.adaptiveQuality, performance.now())));
+  }
+
+  /** Telemetria do quadro: só conta quadros desenhados em condição normal (portões do KAICS). */
+  private perfFrame(now: number, interval: number, cpu: number): void {
+    const k = this.kaics;
+    k.setCondition('suspended', this.suspended);
+    k.setCondition('hidden', typeof document !== 'undefined' && document.hidden);
+    k.setCondition('intro', this.intro !== null);
+    const gate = k.gate();
+    if (gate !== this.perfGate) {
+      this.kgps.invalidate(now, gate ?? `${this.perfGate} — retomado`);
+      this.perfGate = gate;
+    }
+    if (gate === null) this.kgps.sample(now, interval, cpu);
+  }
+
+  private perfReport(now: number): PerfHud {
+    const info = this.renderer.info.render;
+    return { ...this.kgps.summary(now), drawCalls: info.calls, triangles: info.triangles, caps: this.kaics.capabilities };
+  }
 
   /** Rota inspecionada pelo painel de comércio: linha no mapa e câmera centrada uma vez. */
   private updateRouteInspection(): void {
@@ -1234,8 +1426,12 @@ export class GameRuntime {
     on(window, 'keydown', (e) => this.onKeyDown(e));
     on(window, 'keyup', (e) => this.keys.delete(e.code));
     on(window, 'blur', () => this.keys.clear());
-    on(window, 'resize', () => this.resize());
-    const ro = new ResizeObserver(() => this.resize());
+    const onResize = () => {
+      this.resize();
+      this.kgps?.invalidate(performance.now(), 'janela redimensionada');
+    };
+    on(window, 'resize', onResize);
+    const ro = new ResizeObserver(onResize);
     ro.observe(this.container);
     this.cleanup.push(() => ro.disconnect());
   }
