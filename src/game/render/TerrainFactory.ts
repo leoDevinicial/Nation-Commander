@@ -4,9 +4,10 @@ import { Terrain } from '../../../shared/sim/config.ts';
 import { Random } from '../../../shared/sim/Random.ts';
 import type { MapData } from '../../../shared/sim/types.ts';
 import { withFog } from './materials.ts';
-import { createWater, shoreDistance, type WaterReflection } from './Water.ts';
+import { createWater, groundHeightTexture, type WaterReflection } from './Water.ts';
 import { asphaltTexture, dirtTexture, grassTexture, rockTexture } from './textures.ts';
 import { C, PartBuilder } from './models/kit.ts';
+import { detailedTrees } from './Trees.ts';
 
 /** Tom aplicado sobre a textura de cada terreno (1 = textura pura). */
 const TERRAIN_COLORS: Record<Terrain, THREE.Color> = {
@@ -149,7 +150,6 @@ export const MINIMAP_COLORS: Record<Terrain, string> = {
 };
 
 const NATURE_URL = '/assets/models/nature/';
-const TREE_MODELS = ['TreeMed001', 'TreeMed002', 'TreeMed003', 'TreeLow001', 'TreeLow002', 'TreeLow003', 'TreeLow004'];
 const ROCK_MODELS = ['Rock001', 'Rock002', 'Rock003', 'Cliff001', 'Cliff002', 'Cliff003'];
 const BUSH_MODELS = ['Bush001', 'Bush002'];
 
@@ -231,20 +231,12 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
   disposables.push(geo, groundMat);
   group.add(buildSkirt(map, quality, disposables));
 
-  let shore: THREE.DataTexture | null = null;
-  if (ultra) {
-    shore = new THREE.DataTexture(
-      shoreDistance(map.width, map.height, (i) => map.terrain[i] === Terrain.Water),
-      map.width,
-      map.height,
-      THREE.RedFormat,
-    );
-    shore.magFilter = THREE.LinearFilter;
-    shore.minFilter = THREE.LinearFilter;
-    shore.needsUpdate = true;
-    disposables.push(shore);
-  }
-  const water = createWater(W, H, reflection, { waves: ultra, shore });
+  // alturas do chão para a água: profundidade real, ondas calmas no raso e margem sem corte
+  const heights = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) heights[i] = pos.getY(i);
+  const groundHeights = groundHeightTexture(heights, map.width * sub + 1, map.height * sub + 1);
+  disposables.push(groundHeights.texture);
+  const water = createWater(W, H, reflection, { waves: ultra, ground: groundHeights });
   group.add(water.mesh);
   disposables.push(water);
 
@@ -270,8 +262,11 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
     }
   }
 
+  // árvores com folhagem detalhada (procedurais, prontas na hora); rochas e arbustos podem
+  // trocar pelos modelos do Nature Kit em seguida
+  group.add(detailedTrees(trees, { lite: quality === 'low', tint: FOLIAGE_TINT, hash: hash2 }, disposables));
   const decor = new THREE.Group();
-  decor.add(proceduralTrees(trees), proceduralRocks(rocks));
+  decor.add(proceduralRocks(rocks));
   group.add(decor);
 
   // veios de minério: blocos ferruginosos entre as rochas da montanha
@@ -327,15 +322,13 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
         return null;
       }
     };
-    const treeKit = (await Promise.all(TREE_MODELS.map((n) => load(n, 0.45)))).filter((x) => x !== null);
     const rockKit = (await Promise.all(ROCK_MODELS.map((n) => load(n, 0.85)))).filter((x) => x !== null);
     const bushKit = (await Promise.all(BUSH_MODELS.map((n) => load(n, 0.4)))).filter((x) => x !== null);
-    if (treeKit.length === 0 || rockKit.length === 0) return; // mantém o procedural
+    if (rockKit.length === 0) return; // mantém o procedural
     decor.clear();
-    decor.add(instanced(treeKit, trees, 2.6, 0, true, FOLIAGE_TINT));
     decor.add(instanced(rockKit, rocks, 1.5, -0.1, true, ROCK_TINT));
     if (bushKit.length) decor.add(instanced(bushKit, bushes, 0.7, 0, true, FOLIAGE_TINT));
-    for (const k of [...treeKit, ...rockKit, ...bushKit]) disposables.push(k.geo, k.mat);
+    for (const k of [...rockKit, ...bushKit]) disposables.push(k.geo, k.mat);
   };
 
   return {
@@ -398,29 +391,6 @@ function instanced(
     im.receiveShadow = true;
     g.add(im);
   });
-  return g;
-}
-
-function proceduralTrees(points: { x: number; z: number; s: number; r: number }[]): THREE.Group {
-  const g = new THREE.Group();
-  if (points.length === 0) return g;
-  const crown = new THREE.ConeGeometry(0.75, 2.1, 7);
-  crown.translate(0, 2, 0);
-  const trunk = new THREE.CylinderGeometry(0.12, 0.16, 1, 5);
-  trunk.translate(0, 0.5, 0);
-  const crownMesh = new THREE.InstancedMesh(crown, withFog(new THREE.MeshStandardMaterial({ color: '#3a5a32', roughness: 0.9, flatShading: true }), { weather: 0.45 }), points.length);
-  const trunkMesh = new THREE.InstancedMesh(trunk, withFog(new THREE.MeshStandardMaterial({ color: '#5b4330', roughness: 0.9 })), points.length);
-  const m = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  points.forEach((p, i) => {
-    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), p.r);
-    m.compose(new THREE.Vector3(p.x, 0, p.z), q, new THREE.Vector3(p.s, p.s, p.s));
-    crownMesh.setMatrixAt(i, m);
-    trunkMesh.setMatrixAt(i, m);
-  });
-  crownMesh.castShadow = true;
-  trunkMesh.castShadow = true;
-  g.add(crownMesh, trunkMesh);
   return g;
 }
 

@@ -18,6 +18,7 @@ Tudo é gerado no próprio navegador (texturas em canvas e shaders); nenhum arqu
 | Oclusão de ambiente | `src/game/render/PostFx.ts` | GTAO em espaço de tela: sombras de contato no chão, cantos e frestas (só no preset Alto) |
 | Juntas de concreto | `textures.ts` (`grimeTexture`, canal verde) | painéis de forma nas paredes e chapas; vegetação e rochas usam o canal sem linhas |
 | Vegetação e rochas | `TerrainFactory.ts` (`FOLIAGE_TINT`, `ROCK_TINT`) | cor variada por instância (verde-oliva, seco, escuro) e textura de desgaste |
+| Árvores com folhagem | `Trees.ts` (`detailedTrees`) | 3 folhosas e 2 coníferas procedurais, em lote: tronco com raízes e galhos; copa de cachos com miolo fechado e cartões de folhas (textura desenhada folha a folha, com nervura, recortada por `alphaTest`) com normais "de copa" para volume suave; pinheiros com camadas de ramos de agulhas caídos. Preset Baixo usa menos cartões |
 | Objetos de cena | `buildingModels.ts` (`jersey`, `container`) | barreiras de concreto "New Jersey" no QG e na fábrica, contêineres com nervuras |
 
 ## Low poly com detalhe realista

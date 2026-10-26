@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GRAPHICS_PRESETS, HEAVY_PRESETS, PROFILES, detectPreset } from '../lib/graphics.ts';
 import { parseSettings } from '../state/useSettingsStore.ts';
 import { PartBuilder, setModelDetail } from '../game/render/models/kit.ts';
-import { shoreDistance } from '../game/render/Water.ts';
+import { GROUND_MAX, GROUND_MIN, groundHeightTexture } from '../game/render/Water.ts';
 
 describe('preset Ultra', () => {
   it('existe, é o mais caro e nunca é escolhido automaticamente', () => {
@@ -51,15 +51,19 @@ describe('preset Ultra', () => {
     expect(ultra).toBe(verts());
   });
 
-  it('distância até a margem: 0 em terra, cresce para dentro do lago e satura em 3 células', () => {
-    // linha de 9 células: terra, 7 de água, terra
-    const water = [false, true, true, true, true, true, true, true, false];
-    const d = shoreDistance(9, 1, (i) => water[i]!);
+  it('altura do chão para a água: 1 texel por vértice, faixa codificada e limitada', () => {
+    const g = groundHeightTexture([GROUND_MIN, 0, -0.7, GROUND_MAX, 5, -5], 3, 2);
+    const d = g.texture.image.data as Uint8Array;
+    expect([g.texture.image.width, g.texture.image.height]).toEqual([3, 2]);
     expect(d[0]).toBe(0);
-    expect(d[8]).toBe(0);
-    expect(d[1]).toBe(Math.round(255 / 3));
+    expect(d[3]).toBe(255);
     expect(d[4]).toBe(255);
-    expect(d[2]! < d[3]!).toBe(true);
+    expect(d[5]).toBe(0);
+    // decodifica com erro abaixo de 1 cm do mapa
+    const dec = (v: number) => GROUND_MIN + (v / 255) * (GROUND_MAX - GROUND_MIN);
+    expect(Math.abs(dec(d[1]!) - 0)).toBeLessThan(0.005);
+    expect(Math.abs(dec(d[2]!) + 0.7)).toBeLessThan(0.005);
+    g.texture.dispose();
   });
 });
 
@@ -84,7 +88,18 @@ describe('preset Ultra+', () => {
   });
 
   it('a escolha fica salva nas configurações', () => {
-    const base = parseSettings(null, { quality: 'balanced', shadows: true, panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false, autoFullscreen: false, lockLandscape: false, volumes: { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 }, muted: false });
+    const base = parseSettings(null, {
+      quality: 'balanced',
+      shadows: true,
+      panSpeed: 1,
+      edgeScroll: false,
+      showFps: false,
+      reducedMotion: false,
+      autoFullscreen: false,
+      lockLandscape: false,
+      volumes: { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 },
+      muted: false,
+    });
     expect(parseSettings(JSON.stringify({ quality: 'ultraplus' }), base).quality).toBe('ultraplus');
   });
 

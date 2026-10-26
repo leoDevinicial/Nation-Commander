@@ -13,16 +13,50 @@ import { SKY } from './Sky.ts';
  */
 export type WaterReflection = 'planar' | 'sky';
 
+/** Faixa de altura do solo codificada na textura (o relevo decorativo fica entre -0,7 e 0,9). */
+export const GROUND_MIN = -0.9;
+export const GROUND_MAX = 1.1;
+
+export interface GroundHeight {
+  texture: THREE.DataTexture;
+  /** Vértices da malha do chão em x e z. */
+  res: THREE.Vector2;
+}
+
+/**
+ * Alturas da malha do chão numa textura (1 texel por vértice, 8 bits na faixa GROUND_MIN–MAX,
+ * ~0,008 de precisão), lida pela água para saber a profundidade real em cada ponto.
+ */
+export function groundHeightTexture(heights: ArrayLike<number>, nx: number, nz: number): GroundHeight {
+  const data = new Uint8Array(nx * nz);
+  for (let i = 0; i < nx * nz; i++) data[i] = Math.round(THREE.MathUtils.clamp((heights[i]! - GROUND_MIN) / (GROUND_MAX - GROUND_MIN), 0, 1) * 255);
+  const texture = new THREE.DataTexture(data, nx, nz, THREE.RedFormat);
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearFilter;
+  texture.needsUpdate = true;
+  return { texture, res: new THREE.Vector2(nx, nz) };
+}
+
+const GROUND_GLSL = /* glsl */ `
+  float groundHeight(vec2 xz) {
+    vec2 uv = (xz / uFogSize * (uGroundRes - 1.0) + 0.5) / uGroundRes;
+    return ${GROUND_MIN.toFixed(2)} + texture2D(uGround, uv).r * ${(GROUND_MAX - GROUND_MIN).toFixed(2)};
+  }`;
+
 const vertexShader = /* glsl */ `
   uniform mat4 textureMatrix;
   uniform float uTime;
   uniform float uWaves;
+  uniform sampler2D uGround;
+  uniform vec2 uGroundRes;
+  uniform vec2 uFogSize;
   varying vec4 vReflUv;
   varying vec3 vWorld;
   varying vec2 vFogXZ;
   varying vec3 vWaveN;
   varying float vCrest;
   #include <fog_pars_vertex>
+  ${GROUND_GLSL}
   // Ondas de Gerstner: cada onda tem direção, comprimento L e amplitude A; a frequência sai da
   // relação de dispersão de águas profundas, w = sqrt(g k), com k = 2 pi / L.
   const float G = 3.27; // 9,81 m/s² com ~3 m por unidade do mapa
@@ -48,6 +82,11 @@ const vertexShader = /* glsl */ `
       gerstner(vec2(-0.4, 1.0), 3.1, 0.03, 0.5, wp.xz, off, n);
       gerstner(vec2(0.8, -0.7), 1.7, 0.016, 0.4, wp.xz, off, n);
       gerstner(vec2(-1.0, -0.2), 0.9, 0.008, 0.3, wp.xz, off, n);
+      // ondas morrem no raso: na margem a superfície fica parada e a linha d'água não sobe nem
+      // desce pelo barranco (nem anda por cima do solo)
+      float calm = smoothstep(0.03, 0.4, wp.y - groundHeight(wp.xz));
+      off *= calm;
+      n = mix(vec3(0.0, 1.0, 0.0), n, calm);
     }
     wp.xyz += off;
     vWaveN = normalize(n);
@@ -72,7 +111,8 @@ const fragmentShader = /* glsl */ `
   uniform sampler2D uFogMap;
   uniform vec2 uFogSize;
   uniform float uWaves;
-  uniform sampler2D uShore;
+  uniform sampler2D uGround;
+  uniform vec2 uGroundRes;
   varying vec4 vReflUv;
   varying vec3 vWorld;
   varying vec2 vFogXZ;
@@ -80,6 +120,7 @@ const fragmentShader = /* glsl */ `
   varying float vCrest;
   #include <common>
   #include <fog_pars_fragment>
+  ${GROUND_GLSL}
   float wHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
   float wNoise(vec2 p) {
     vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -120,20 +161,24 @@ const fragmentShader = /* glsl */ `
     // cristas das ondulações um pouco mais claras: a superfície "mexe" mesmo vista de cima
     col += vec3(0.05, 0.06, 0.06) * smoothstep(0.2, 0.6, n.x + n.z);
     float alpha = 0.9;
+    // profundidade real até o solo neste ponto (a margem é onde ela chega a zero)
+    float depth = vWorld.y - groundHeight(vWorld.xz);
+    float shallow = 1.0 - smoothstep(0.0, 0.3, depth);
+    col = mix(col, col * vec3(1.02, 1.08, 1.05) + vec3(0.01, 0.025, 0.02), shallow * 0.5);
     if (uWaves > 0.5) {
-      // distância até a margem (0 na borda, 1 a 3+ células para dentro)
-      float shore = texture2D(uShore, vFogXZ / uFogSize).r;
-      float shallow = 1.0 - smoothstep(0.0, 0.5, shore);
-      col = mix(col, col * vec3(1.02, 1.08, 1.05) + vec3(0.01, 0.025, 0.02), shallow * 0.5);
       alpha = mix(0.92, 0.72, shallow);
-      // espuma: linha fina de arrebentação na margem (animada pelo fluxo) e cristas das ondas maiores
+      // espuma: faixa fina sobre a água logo antes da margem, que avança e recua um pouco (sem
+      // passar para o solo), e cristas das ondas maiores
       float flow = wNoise(vWorld.xz * 2.2 + vec2(uTime * 0.6, -uTime * 0.4)) * wNoise(vWorld.xz * 4.7 - uTime * 0.3);
-      float edge = 1.0 - smoothstep(0.0, 0.07 + 0.025 * sin(uTime * 1.3 + vWorld.x * 0.7), shore);
+      float reach = 0.07 + 0.03 * sin(uTime * 1.3 + vWorld.x * 0.7 + vWorld.z * 0.4);
+      float edge = smoothstep(0.0, 0.025, depth) * (1.0 - smoothstep(reach * 0.5, reach, depth));
       float crest = smoothstep(0.075, 0.1, vCrest) * smoothstep(0.35, 0.6, flow);
-      float foam = clamp(edge * smoothstep(0.15, 0.4, flow) + crest * 0.35, 0.0, 1.0);
+      float foam = clamp(edge * smoothstep(0.12, 0.38, flow) + crest * 0.35, 0.0, 1.0);
       col = mix(col, vec3(0.86, 0.9, 0.9), foam * 0.75);
       alpha = max(alpha, foam);
     }
+    // borda suave exatamente onde a água encontra o solo (sem serrilhado nem corte seco)
+    alpha *= smoothstep(0.0, 0.035, depth);
     gl_FragColor = vec4(col, alpha);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -149,7 +194,8 @@ function uniforms(): Record<string, THREE.IUniform> {
     textureMatrix: { value: new THREE.Matrix4() },
     uPlanar: { value: 0 },
     uWaves: { value: 0 },
-    uShore: { value: null },
+    uGround: { value: null },
+    uGroundRes: { value: new THREE.Vector2(1, 1) },
     uTime: { value: 0 },
     uDeep: { value: new THREE.Color('#1d3d4a') },
     uShallow: { value: new THREE.Color('#3b6a70') },
@@ -170,41 +216,8 @@ export interface WaterHandle {
 export interface WaterOptions {
   /** Ultra: ondas de Gerstner na malha, espuma e transparência rasa perto da margem. */
   waves?: boolean;
-  /** Distância (0–1) de cada célula de água até a margem; obrigatório com `waves`. */
-  shore?: THREE.Texture | null;
-}
-
-/**
- * Distância de cada célula de água até a terra mais próxima, em células (0 = terra), limitada a 3
- * e normalizada para 0–1. Calculada uma vez por mapa (busca em largura).
- */
-export function shoreDistance(width: number, height: number, isWater: (i: number) => boolean): Uint8Array {
-  const n = width * height;
-  const dist = new Float32Array(n).fill(Infinity);
-  const queue: number[] = [];
-  for (let i = 0; i < n; i++)
-    if (!isWater(i)) {
-      dist[i] = 0;
-      queue.push(i);
-    }
-  for (let h = 0; h < queue.length; h++) {
-    const i = queue[h]!;
-    const x = i % width;
-    const y = (i - x) / width;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-      const j = ny * width + nx;
-      if (dist[j]! > dist[i]! + 1) {
-        dist[j] = dist[i]! + 1;
-        queue.push(j);
-      }
-    }
-  }
-  const out = new Uint8Array(n);
-  for (let i = 0; i < n; i++) out[i] = Math.round((Math.min(3, dist[i]!) / 3) * 255);
-  return out;
+  /** Altura do solo (ver `groundHeightTexture`): calma das ondas no raso, espuma e borda na margem. */
+  ground?: GroundHeight | null;
 }
 
 export function createWater(W: number, H: number, mode: WaterReflection, opts: WaterOptions = {}): WaterHandle {
@@ -230,9 +243,10 @@ export function createWater(W: number, H: number, mode: WaterReflection, opts: W
   // as cópias feitas pelo Reflector quebrariam o vínculo com a névoa de guerra: religa por referência
   material.uniforms.uFogMap = fogUniforms.uFogMap;
   material.uniforms.uFogSize = fogUniforms.uFogSize;
-  if (opts.waves) {
-    material.uniforms.uWaves!.value = 1;
-    material.uniforms.uShore!.value = opts.shore ?? null;
+  if (opts.waves) material.uniforms.uWaves!.value = 1;
+  if (opts.ground) {
+    material.uniforms.uGround!.value = opts.ground.texture;
+    material.uniforms.uGroundRes!.value = opts.ground.res;
   }
   material.transparent = true;
   material.fog = true;
