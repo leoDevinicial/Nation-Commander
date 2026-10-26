@@ -322,3 +322,26 @@ para explicar. O motivo mostrado é, portanto, exatamente o que o servidor diria
   comando mostra algo (seleção, inspeção ou escolha de local), para não cobrir o painel no celular. O botão do topo
   mostra a ferramenta atual e abre o menu mesmo assim; ao fechar o painel, o menu volta a abrir. No PC (sem toque) a
   barra não aparece.
+
+## Modelos mais detalhados: fazenda e poço de petróleo
+- **Lavouras** (`src/game/render/models/crops.ts`): cada célula cultivada da fazenda tem solo arado com camalhões e
+  plantas low poly em fileiras. Há quatro culturas: milho (colmo, folhas caídas, pendão e espiga), trigo (touceiras
+  douradas com espigas e palha ao longo da fileira), soja (moitas) e hortaliças (repolho/alface com folhas externas).
+  A cultura de cada célula é sorteada pelo índice da célula (sempre a mesma), com variação de altura, cor e posição. Para
+  pesar pouco, as plantas usam primitivas de 3–4 lados abertas embaixo: cerca de 2–4 mil vértices por célula.
+- **Trator** com capô, grade, cabine envidraçada, rodas traseiras grandes e escapamento (base e especialização
+  *mecanizada*).
+- **Cavalo-mecânico** (`src/game/render/models/pumpjack.ts`), no padrão real:
+  - base de concreto e skid de aço;
+  - poste sansão em "A" com escada e plataforma amarelas;
+  - balancim em perfil I e cabeça de cavalo curva com faixas de alerta;
+  - redutor com manivelas e contrapesos listrados, bielas e motor elétrico com proteção da correia;
+  - cerca em volta da manivela, cabresto e haste polida;
+  - cabeça de poço vermelha com válvulas e linha de produção em suportes até o manifold.
+- **Animação do cavalo-mecânico:** é sincronizada, a cerca de 13 golpes por minuto, como um poço real:
+  - o balancim oscila;
+  - a manivela gira acompanhando a traseira do balancim;
+  - as bielas ligam os dois a cada quadro;
+  - a haste sobe e desce pelo arco da cabeça.
+- **Segundo poço do nível 9:** usa o mesmo modelo, parado e em escala menor.
+- **Poça escura removida:** a mancha de petróleo sob o poço saiu (o adendo pede que a jazida não pareça um lago).

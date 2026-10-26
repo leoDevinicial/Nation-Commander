@@ -4,6 +4,8 @@ import { HealthBar, selectionRing } from './HealthBar.ts';
 import { accentMaterial, bodyMaterial, glassMaterial, withFog } from './materials.ts';
 import { cinematicSmokeTexture, smokeTexture, volumetricSmokeTexture } from './textures.ts';
 import { buildingModel, type BuildingModel } from './models/buildingModels.ts';
+import { PUMP, pumpPose } from './models/pumpjack.ts';
+import { cropCell } from './models/crops.ts';
 import type { SpecId } from '../../../shared/sim/upgrades.ts';
 import { C, PartBuilder, type ModelLayers } from './models/kit.ts';
 import { box, cyl, factionColor, mat, mesh, sharedMaterial } from './palette.ts';
@@ -45,6 +47,8 @@ export interface BuildingVisualOptions {
 
 /** Distância padrão do LOD dos módulos de melhoria. */
 const DEFAULT_LOD = 80;
+/** Ciclos do cavalo-mecânico: ≈ 13 golpes por minuto, como um poço real. */
+const PUMP_SPEED = 1.4;
 
 /** Qualidade da fumaça: simples (Mobile/Equilibrado/Alto), volumétrica (Ultra) e cinematográfica (Ultra+). */
 export type SmokeMode = 'basic' | 'volumetric' | 'cinematic';
@@ -153,7 +157,9 @@ export class BuildingVisual {
   readonly hp: HealthBar;
   private readonly rally: THREE.Group;
   private moving: THREE.Group | null = null;
-  private movingKind: 'spin' | 'rock' | 'saw' | null = null;
+  private movingKind: 'spin' | 'rock' | 'saw' | 'pump' | null = null;
+  /** Cavalo-mecânico: manivela, bielas e haste animadas com o balancim. */
+  private pump: { crank: THREE.Group; pitman: THREE.Group; rod: THREE.Group; pivot: [number, number, number]; crankPivot: [number, number, number]; rodY: number } | null = null;
   private fields: THREE.Mesh | null = null;
   private smoke: Smoke | null = null;
   private smokeKey = '';
@@ -186,6 +192,24 @@ export class BuildingVisual {
       for (const m of layerMeshes(def.moving.layers, owner)) this.moving.add(m);
       this.model.add(this.moving);
       this.movingKind = def.moving.kind;
+      if (def.pump) {
+        const part = (l: ModelLayers, at: [number, number, number]) => {
+          const g = new THREE.Group();
+          g.position.set(...at);
+          for (const m of layerMeshes(l, owner)) g.add(m);
+          this.model.add(g);
+          return g;
+        };
+        this.pump = {
+          crank: part(def.pump.crank, def.pump.crankPivot),
+          pitman: part(def.pump.pitman, [0, 0, 0]),
+          rod: part(def.pump.rod, def.pump.rodPivot),
+          pivot: def.moving.pivot,
+          crankPivot: def.pump.crankPivot,
+          rodY: def.pump.rodPivot[1],
+        };
+        this.posePump(0);
+      }
     }
     if (opts.claims?.length) this.fields = buildClaimMarkers(type, opts, this.group.position);
     if (this.fields) this.group.add(this.fields);
@@ -278,12 +302,28 @@ export class BuildingVisual {
       if (this.movingKind === 'spin') this.moving.rotation.y += dt * 0.7;
       else if (this.movingKind === 'rock') this.moving.rotation.z = Math.sin(this.t * 2.2) * 0.32;
       else if (this.movingKind === 'saw') this.moving.rotation.z += dt * 18;
+      else if (this.movingKind === 'pump') this.posePump(this.t * PUMP_SPEED);
     }
     this.hp.set(hpFraction);
     this.hp.group.visible = showHp && !this.remembered;
     if (showHp) this.hp.face(camera);
     this.rally.visible = showRally && rally !== null;
     if (rally) this.rally.position.set(rally.x, 0, rally.y);
+  }
+
+  /** Cinemática do cavalo-mecânico na fase `w` (radianos): balancim, manivela, haste e bielas juntos. */
+  private posePump(w: number): void {
+    const p = this.pump;
+    if (!p || !this.moving) return;
+    const theta = PUMP.amp * Math.sin(w);
+    const phi = w + Math.PI;
+    this.moving.rotation.z = theta;
+    p.crank.rotation.z = phi;
+    const pose = pumpPose(p.pivot, p.crankPivot, theta, phi);
+    p.rod.position.y = p.rodY + pose.rodDy;
+    p.pitman.position.set(...pose.pitmanPos);
+    p.pitman.rotation.z = pose.pitmanRotZ;
+    p.pitman.scale.y = pose.pitmanLen;
   }
 
   dispose(): void {
@@ -327,8 +367,7 @@ function buildClaimMarkers(type: BuildingType, opts: BuildingVisualOptions, orig
     const x = cx * cs - origin.x;
     const z = cy * cs - origin.z;
     if (type === 'farm') {
-      b.box(cs * 0.94, 0.04, cs * 0.94, C.soil, [x, 0.03, z]);
-      for (let r = 0; r < 4; r++) b.box(cs * 0.86, 0.1, 0.16, (i + r) % 3 === 0 ? C.cropRipe : C.crop, [x, 0.09, z - cs * 0.33 + r * cs * 0.22]);
+      cropCell(b, x, z, cs, i);
     } else if (type === 'sawmill') {
       b.cyl(0.13, 0.15, 0.16, C.woodDark, [x + 0.3, 0.08, z - 0.2], undefined, 6);
       b.cyl(0.11, 0.13, 0.14, C.woodDark, [x - 0.35, 0.07, z + 0.3], undefined, 6);
@@ -393,6 +432,7 @@ export class PlacementGhost {
     const parts: [ModelLayers, [number, number, number] | null][] = [[model.base, null]];
     if (model.detail) parts.push([model.detail, null]);
     if (model.moving) parts.push([model.moving.layers, model.moving.pivot]);
+    if (model.pump) parts.push([model.pump.crank, model.pump.crankPivot], [model.pump.rod, model.pump.rodPivot]);
     for (const [l, at] of parts)
       for (const [geo, m] of [
         [l.body, body],

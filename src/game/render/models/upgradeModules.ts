@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import type { BuildingType } from '../../../../shared/sim/config.ts';
 import type { SpecId } from '../../../../shared/sim/upgrades.ts';
 import { C, type PartBuilder } from './kit.ts';
+import { tractor } from './crops.ts';
+import { staticPumpjack } from './pumpjack.ts';
 
 /**
  * Evolução visual das melhorias (Fase 4): módulos procedurais que se somam ao modelo base
@@ -747,8 +749,7 @@ const FARM: UpgradeModule[] = [
       for (const s of [-1, 1]) t.b.cyl(0.14, 0.14, 0.08, C.rubber, [0.9, 0.2, 1.62 + s * 0.22], [Math.PI / 2, 0, 0], 10);
       t.b.cyl(0.04, 0.04, 0.6, '#4b7a3a', [1.3, 0.8, 1.62], [0, 0, -1.1], 6);
       // segundo trator junto ao primeiro
-      t.b.box(0.45, 0.25, 0.3, C.red, [-0.35, 0.3, -0.2]);
-      t.b.cyl(0.14, 0.14, 0.34, C.rubber, [-0.47, 0.16, -0.2], [Math.PI / 2, 0, 0], 10);
+      tractor(t.b, t.g, -0.62, 0.06, -0.2, '#2f6f3a');
     },
   },
   {
@@ -1086,12 +1087,8 @@ const OIL_WELL: UpgradeModule[] = [
   {
     level: 9,
     build: (t) => {
-      // segundo poço com cavalo-mecânico (estático) na frente à direita
-      t.b.box(1.0, 0.14, 0.35, C.metalDark, [1.2, 0.13, 1.55]);
-      t.b.box(0.07, 0.8, 0.07, C.metal, [1.2, 0.53, 1.55]);
-      t.b.box(1.0, 0.09, 0.1, C.yellow, [1.2, 0.96, 1.55], [0, 0, 0.12]);
-      t.b.box(0.14, 0.28, 0.12, C.yellow, [1.7, 0.86, 1.55]);
-      t.b.cyl(0.05, 0.05, 0.3, C.red, [1.62, 0.21, 1.55], undefined, 6);
+      // segundo poço com cavalo-mecânico (parado, em escala menor) na frente à direita
+      staticPumpjack(t.b, [1.39, 0.06, 1.55], 0.42);
     },
   },
   { level: 10, height: 3.4, build: (t) => annex(t, 0.8, -1.55, 1.2, 0.7, 0.6, C.concreteLight, true, true) },

@@ -85,6 +85,10 @@ export function renderThumbnails(renderer: THREE.WebGLRenderer, slot: number): P
       add(g, m.base);
       if (m.detail) add(g, m.detail);
       if (m.moving) add(g, m.moving.layers, m.moving.pivot);
+      if (m.pump) {
+        add(g, m.pump.crank, m.pump.crankPivot);
+        add(g, m.pump.rod, m.pump.rodPivot);
+      }
       shoot(type, g);
     }
     for (const type of Object.keys(UNITS) as UnitType[]) {

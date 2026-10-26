@@ -4,6 +4,8 @@ import type { BuildingType } from '../../../../shared/sim/config.ts';
 import type { SpecId } from '../../../../shared/sim/upgrades.ts';
 import { C, layers, type ModelLayers, type PartBuilder } from './kit.ts';
 import { modulesFor } from './upgradeModules.ts';
+import { pumpjack, type PumpRig } from './pumpjack.ts';
+import { tractor } from './crops.ts';
 
 /**
  * Modelos de edifícios centrados na origem (piso em y = 0). Concreto, vidros azulados e detalhes
@@ -14,7 +16,9 @@ export interface BuildingModel {
   /** Peças pequenas dos módulos de melhoria: ficam ocultas em zoom distante (LOD). */
   detail: ModelLayers | null;
   /** Parte animada opcional (antena, balancim do poço, serra...). */
-  moving: { layers: ModelLayers; pivot: [number, number, number]; kind: 'spin' | 'rock' | 'saw' } | null;
+  moving: { layers: ModelLayers; pivot: [number, number, number]; kind: 'spin' | 'rock' | 'saw' | 'pump' } | null;
+  /** Cavalo-mecânico: manivela, bielas e haste animadas junto com o balancim (`moving`, tipo 'pump'). */
+  pump?: Omit<PumpRig, 'beam' | 'pivot'>;
   height: number;
   /** Topos de chaminé que soltam fumaça (coordenadas locais). */
   smoke?: [number, number, number][];
@@ -81,6 +85,7 @@ export function buildingModel(type: BuildingType, level = 1, spec: SpecId | null
     },
     detail: [detail.body, detail.accent, detail.glass].some(hasGeometry) ? detail : null,
     moving: base.moving,
+    ...(base.pump ? { pump: base.pump } : {}),
     height,
     ...(smoke.length ? { smoke } : {}),
   };
@@ -95,7 +100,7 @@ export function disposeBuildingModels(): void {
   }
   variants.clear();
   for (const m of cache.values()) {
-    for (const l of [m.base, m.moving?.layers]) if (l) for (const g of [l.body, l.accent, l.glass]) g.dispose();
+    for (const l of [m.base, m.moving?.layers, m.pump?.crank, m.pump?.pitman, m.pump?.rod]) if (l) for (const g of [l.body, l.accent, l.glass]) g.dispose();
   }
   cache.clear();
 }
@@ -352,8 +357,7 @@ function buildFarm(): Omit<BuildingModel, 'detail'> {
   b.cyl(0.4, 0.4, 1.8, C.concreteLight, [1.35, 0.95, 0.75], undefined, 12);
   b.sphere(0.4, C.metal, [1.35, 1.85, 0.75], [1, 0.6, 1], 12);
   // trator
-  b.box(0.45, 0.25, 0.3, C.red, [0.0, 0.3, -0.2]);
-  b.cyl(0.14, 0.14, 0.34, C.rubber, [-0.12, 0.16, -0.2], [Math.PI / 2, 0, 0], 10);
+  tractor(b, g, 0.0, 0.06, -0.2);
   // cerca
   for (let i = 0; i < 8; i++) b.box(0.05, 0.3, 0.05, C.wood, [-1.85 + i * 0.5, 0.18, -1.85]);
   b.box(3.6, 0.04, 0.03, C.wood, [-0.1, 0.27, -1.85]);
@@ -410,23 +414,24 @@ function buildOilWell(): Omit<BuildingModel, 'detail'> {
   const l = layers();
   const { body: b, accent: a } = l;
   b.box(3.9, 0.06, 3.9, '#4b4740', [0, 0.03, 0]);
-  b.cyl(0.6, 0.6, 0.02, C.oil, [-0.2, 0.07, 0.3], undefined, 14);
-  // base e cavalete do cavalo-mecânico
-  b.box(1.6, 0.18, 0.5, C.metalDark, [-0.2, 0.15, 0.3]);
-  b.box(0.1, 1.2, 0.1, C.metal, [-0.2, 0.8, 0.5], [0.25, 0, 0]);
-  b.box(0.1, 1.2, 0.1, C.metal, [-0.2, 0.8, 0.1], [-0.25, 0, 0]);
-  b.box(0.3, 0.3, 0.3, C.metalDark, [-0.85, 0.35, 0.3]); // motor
-  // manifold de válvulas e saída para o tanque de petróleo
+  // cavalo-mecânico real ao longo de x, cabeça de cavalo sobre a cabeça de poço (x ≈ 0,95)
+  const rig = pumpjack({ b }, [0, 0, 0.3]);
+  // linha de produção (tubo branco em suportes) da cabeça de poço até o manifold
+  const pipeY = 0.42;
+  b.cyl(0.035, 0.035, 1.3, '#d8d9d4', [0.95, pipeY, -0.4], [Math.PI / 2, 0, 0], 8);
+  for (const z of [-0.35, -0.85]) {
+    b.box(0.05, pipeY, 0.05, '#c9372c', [0.95, pipeY / 2 + 0.03, z]);
+    b.box(0.14, 0.03, 0.05, '#e6e6e0', [0.95, pipeY - 0.04, z]);
+  }
+  // manifold de válvulas com identificação da facção
   b.box(0.5, 0.35, 0.35, C.metalDark, [1.1, 0.25, -1.1]);
   b.cyl(0.06, 0.06, 0.5, C.red, [1.1, 0.6, -1.1], undefined, 6);
   a.box(0.52, 0.08, 0.02, '#ffffff', [1.1, 0.35, -0.92]);
-  b.box(1.6, 0.06, 0.06, C.metal, [0.5, 0.3, -0.5]); // tubulação
-  b.box(0.06, 0.06, 1.0, C.metal, [1.25, 0.3, 0.0]);
-  const jack = layers();
-  jack.body.box(1.6, 0.12, 0.14, C.yellow, [0, 0, 0]);
-  jack.body.box(0.2, 0.4, 0.16, C.yellow, [0.82, -0.12, 0]); // cabeça de cavalo
-  jack.body.box(0.3, 0.3, 0.2, C.metalDark, [-0.7, -0.15, 0]); // contrapeso
-  return { base: l.build(), moving: { layers: jack.build(), pivot: [-0.2, 1.4, 0.3], kind: 'rock' }, height: 1.8 };
+  // quadro elétrico do motor
+  b.box(0.3, 0.42, 0.14, '#9aa0a6', [-1.6, 0.27, -0.45]);
+  b.box(0.26, 0.04, 0.16, '#6c7177', [-1.6, 0.5, -0.45]);
+  const beam = { layers: rig.beam, pivot: rig.pivot, kind: 'pump' as const };
+  return { base: l.build(), moving: beam, pump: { crank: rig.crank, pitman: rig.pitman, rod: rig.rod, crankPivot: rig.crankPivot, rodPivot: rig.rodPivot }, height: 2.3 };
 }
 
 function buildTower(): Omit<BuildingModel, 'detail'> {
