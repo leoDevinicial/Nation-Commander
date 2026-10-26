@@ -4,6 +4,7 @@ import { encodeTerritory } from './territory.ts';
 import type { BuildingStatus, EntityId, SimEvent, Slot, UnitActivity, Vec2 } from './types.ts';
 import type { SpecId } from './upgrades.ts';
 import type { ModId } from './modernization.ts';
+import { TRADE_RESOURCES, TRANSPORT_MODES, type ShipmentState, type TradeContract, type TradeOffer, type TradeResource, type TransportMode } from './trade.ts';
 
 export interface UnitSnapshot {
   id: EntityId;
@@ -67,8 +68,44 @@ export interface PlayerSnapshot {
   defeated: boolean;
 }
 
+/** Carga em trânsito: completa para quem negocia; para os demais, só o veículo visível no mapa. */
+export interface ShipmentView {
+  id: number;
+  contractId: number;
+  mode: TransportMode;
+  state: ShipmentState;
+  x: number;
+  y: number;
+  /** Direção do movimento (radianos no plano). */
+  heading: number;
+  seller: number;
+  buyer: number;
+  resource?: TradeResource;
+  quantity?: number;
+  /** Segundos restantes estimados (só para quem negocia). */
+  etaSeconds?: number;
+  /** Trajeto restante no mapa (só para quem negocia: inspeção de rota). */
+  path?: { x: number; y: number }[];
+  reason?: string | null;
+}
+
+/** Comércio do ponto de vista de um jogador. */
+export interface TradeView {
+  offers: TradeOffer[];
+  contracts: TradeContract[];
+  shipments: ShipmentView[];
+  /** Cotação dos países da IA (venda/compra por unidade) e o quanto têm/querem agora. */
+  quotes: { partner: number; resource: TradeResource; sell: number; buy: number; supply: number; demand: number }[];
+  /** Motivo de cada modal estar indisponível para o jogador (null = disponível) e embarques simultâneos. */
+  modes: Record<TransportMode, { blocker: string | null; limit: number }>;
+  /** Estoque vendável (nos depósitos certos) e espaço livre por recurso. */
+  sellable: Record<TradeResource, number>;
+  free: Record<TradeResource, number>;
+}
+
 export interface Snapshot {
   tick: number;
+  trade?: TradeView;
   units: UnitSnapshot[];
   buildings: BuildingSnapshot[];
   players: PlayerSnapshot[];
@@ -180,6 +217,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
       };
     }),
     events: viewer ? events.filter((ev) => eventVisible(sim, ev, viewer.slot)) : events,
+    ...(viewer ? { trade: tradeView(sim, viewer.slot) } : {}),
     territoryVersion: sim.territoryVersion,
     // fronteiras são conhecidas por todos (como no mapa político de Rise of Nations)
     ...(includeTerritory ? { territory: encodeTerritory(sim.territory) } : {}),
@@ -198,8 +236,72 @@ function ownBuildingDetail(sim: Simulation, b: Parameters<Simulation['buildingRa
   };
 }
 
+const r1 = (n: number) => Math.round(n * 10) / 10;
+
+export function tradeView(sim: Simulation, slot: Slot): TradeView {
+  const t = sim.trade;
+  const mine = (a: number, b: number) => a === slot || b === slot;
+  const shipments: ShipmentView[] = [];
+  for (const s of t.shipments) {
+    if (s.state === 'delivered' || s.state === 'lost') continue;
+    const p = t.position(s);
+    const own = mine(s.seller, s.buyer);
+    const onMap = s.state === 'moving' || s.state === 'loading' || s.state === 'waiting_capacity';
+    if (!own && !(onMap && sim.isVisibleTo(slot, p))) continue;
+    const ahead = s.path.find((_, i) => i > 0) ?? p;
+    const next = t.position({ ...s, travelled: Math.min(s.pathLength, s.travelled + 0.5) });
+    const heading = Math.atan2(next.y - p.y, next.x - p.x) || Math.atan2(ahead.y - p.y, ahead.x - p.x);
+    shipments.push({
+      id: s.id,
+      contractId: s.contractId,
+      mode: s.mode,
+      state: s.state,
+      x: r2(p.x),
+      y: r2(p.y),
+      heading: r2(heading),
+      seller: s.seller,
+      buyer: s.buyer,
+      ...(own
+        ? {
+            resource: s.resource,
+            quantity: r1(s.quantity),
+            etaSeconds: Math.max(0, Math.round((s.etaTicks - (sim.tick - s.startTick)) / 20)),
+            path: s.path.map((q) => ({ x: r2(q.x), y: r2(q.y) })),
+            reason: s.reason,
+          }
+        : {}),
+    });
+  }
+  const quotes: TradeView['quotes'] = [];
+  for (const n of t.link?.npcs() ?? []) {
+    if (!t.link?.knows(slot, n.id)) continue;
+    for (const r of TRADE_RESOURCES) {
+      const q = t.quote(n.id, slot, r);
+      const pool = t.npcPool(n.id)[r];
+      quotes.push({ partner: n.id, resource: r, sell: q.sell, buy: q.buy, supply: Math.floor(pool.supply), demand: Math.floor(pool.demand) });
+    }
+  }
+  return {
+    offers: t.offers.filter((o) => mine(o.from, o.to) && (o.status === 'pending' || sim.tick - o.createdTick < 20 * 120)),
+    contracts: t.contracts.filter((c) => mine(c.seller, c.buyer)),
+    shipments,
+    quotes,
+    modes: Object.fromEntries(TRANSPORT_MODES.map((m) => [m, { blocker: t.modeBlocker(slot, m), limit: t.convoyLimit(slot, m) }])) as TradeView['modes'],
+    sellable: Object.fromEntries(TRADE_RESOURCES.map((r) => [r, Math.floor(t.sellable(slot, r))])) as Record<TradeResource, number>,
+    free: Object.fromEntries(TRADE_RESOURCES.map((r) => [r, Math.floor(t.freeCapacity(slot, r))])) as Record<TradeResource, number>,
+  };
+}
+
 function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
   switch (e.type) {
+    case 'trade_offer':
+    case 'trade_reply':
+      return e.from === slot || e.to === slot;
+    case 'contract_update':
+    case 'shipment_delivered':
+      return e.seller === slot || e.buyer === slot;
+    case 'shipment_lost':
+      return e.seller === slot || e.buyer === slot || sim.isVisibleTo(slot, e.pos);
     case 'shot':
       return sim.isVisibleTo(slot, e.from) || sim.isVisibleTo(slot, e.to);
     case 'destroyed':

@@ -162,7 +162,10 @@ export type BuildingType =
   | 'residential'
   | 'warehouse'
   | 'silo'
-  | 'oil_tank';
+  | 'oil_tank'
+  | 'market'
+  | 'port'
+  | 'rail_station';
 
 /** O que uma fila de produção pode produzir. */
 export type ProducibleType = UnitType | 'citizen' | 'recruit';
@@ -509,6 +512,46 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     buildable: true,
     description: `Guarda 300 de petróleo, com estoque próprio. Poços a até ${OIL_TANK_RANGE} células enchem o tanque; se for destruído, o petróleo dele se perde.`,
     hotkey: 'Y',
+  },
+  market: {
+    ...NONE,
+    label: 'Terminal Comercial',
+    cost: { wood: 80, stone: 60, supplies: 60 },
+    buildSeconds: 14,
+    maxHp: 450,
+    size: 2,
+    income: {},
+    sight: 6,
+    upkeep: { supplies: 0.05 },
+    buildable: true,
+    description: 'Habilita o comércio internacional (ofertas e contratos no painel Nação → Comércio) e despacha comboios rodoviários. Cada terminal opera 2 embarques ao mesmo tempo.',
+    hotkey: 'K',
+  },
+  port: {
+    ...NONE,
+    label: 'Porto',
+    cost: { wood: 120, stone: 100, iron: 40 },
+    buildSeconds: 18,
+    maxHp: 600,
+    size: 2,
+    income: {},
+    sight: 8,
+    upkeep: { supplies: 0.08 },
+    buildable: true,
+    description: 'Construído na margem da água. Navios levam até 320 por viagem com o menor frete, mas são lentos e, em guerra, navegam escoltados (+50% de tempo).',
+  },
+  rail_station: {
+    ...NONE,
+    label: 'Estação Ferroviária',
+    cost: { wood: 100, stone: 80, iron: 80 },
+    buildSeconds: 16,
+    maxHp: 500,
+    size: 2,
+    income: {},
+    sight: 6,
+    upkeep: { supplies: 0.06 },
+    buildable: true,
+    description: 'Trens pela mesma rota terrestre dos caminhões: até 160 por viagem, mais rápidos e com frete menor.',
   },
 };
 

@@ -1,3 +1,4 @@
+import { countryName } from '../shared/data/countries.ts';
 import type {
   BalanceMode,
   EndReason,
@@ -248,6 +249,22 @@ export class Room {
       chargeWorks: (slot, usd, description) => national.chargeWorks(slot, usd, description),
       refundWorks: (slot, usd, description) => national.refundWorks(slot, usd, description),
     };
+    // comércio internacional: diplomacia, países da IA e tesouro nacional
+    const d = national.diplomacy;
+    sim.setTradeLink({
+      npcs: () => national.npcs.map((n) => ({ id: n.slot, countryId: n.countryId })),
+      knows: (a, b) => d.knows(a, b),
+      atWar: (a, b) => d.atWar(a, b),
+      sanctioned: (a, b) => !!d.active('sanctions', a, b),
+      relation: (a, b) => d.relation(a, b),
+      atWarAny: (a) => d.warPairs().some(([x, y]) => x === a || y === a),
+      debtPctGdp: (slot) => {
+        const n = national.nation(slot);
+        return n ? (n.debtUsd / n.gdpUsd) * 100 : 0;
+      },
+      pay: (slot, usd, description) => national.tradePayment(slot, usd, description.startsWith('Frete') ? 'freight' : usd >= 0 ? 'export' : 'import'),
+      partnerName: (id) => countryName(national.nation(id)?.countryId ?? '') || `Jogador ${id + 1}`,
+    });
     for (const n of this.national.nations) this.gdpStart.set(n.slot, n.gdpUsd);
     this.applyNationalModifiers();
     this.status = 'playing';

@@ -5,6 +5,7 @@ import type { Simulation } from './Simulation.ts';
 import type { Building, Cell, Entity, Slot, Unit, Vec2 } from './types.ts';
 import type { SpecId } from './upgrades.ts';
 import { MOD_IDS, MODS, checkModernize } from './modernization.ts';
+import { BASE_PRICE } from './trade.ts';
 import { DIPLO } from '../strategic/Diplomacy.ts';
 
 /** Com que frequência a IA reavalia a situação. */
@@ -166,6 +167,13 @@ export class TacticalAI {
         cmds.push({ type: 'attack_move', unitIds: defenders.map((u) => u.id), x: threat.pos.x, y: threat.pos.y });
       }
       return cmds;
+    }
+
+    // --- comércio (Fase 6): responde a ofertas de outros jogadores pela mesma regra de aceitação
+    for (const o of sim.trade.offers) {
+      if (o.status !== 'pending' || o.to !== this.slot || o.from >= 100) continue;
+      const fair = Math.abs(o.price / BASE_PRICE[o.resource] - 1) <= 0.15;
+      cmds.push({ type: 'trade_respond', offerId: o.id, accept: fair && sim.trade.acceptBlocker(o) === null });
     }
 
     // --- modernização (Fase 5): tropas paradas perto da instalação recebem os pacotes liberados

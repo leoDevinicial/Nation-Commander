@@ -2,6 +2,7 @@ import { BUILDINGS, UNITS, type BuildingType, type ProducibleType } from './conf
 import type { EntityId } from './types.ts';
 import { isSpecId, type SpecId } from './upgrades.ts';
 import { isModId, type ModId } from './modernization.ts';
+import { TRADE_RESOURCES, TRANSPORT_MODES, type TradeResource, type TransportMode } from './trade.ts';
 
 export type Command =
   | { type: 'move'; unitIds: EntityId[]; x: number; y: number }
@@ -18,7 +19,12 @@ export type Command =
   | { type: 'cancel_upgrade'; buildingId: EntityId }
   /** Instala um pacote de modernização nas unidades (Fase 5); cada uma precisa estar perto de uma instalação compatível. */
   | { type: 'modernize'; unitIds: EntityId[]; mod: ModId }
-  | { type: 'cancel_modernize'; unitIds: EntityId[] };
+  | { type: 'cancel_modernize'; unitIds: EntityId[] }
+  /** Comércio (Fase 6): proposta (ou contraproposta) a outro país, resposta, retirada e cancelamento. */
+  | { type: 'trade_offer'; partner: number; side: 'buy' | 'sell'; resource: TradeResource; quantity: number; price: number; mode: TransportMode; days: number; counterOf?: number }
+  | { type: 'trade_respond'; offerId: number; accept: boolean }
+  | { type: 'trade_withdraw'; offerId: number }
+  | { type: 'trade_cancel'; contractId: number };
 
 const MAX_UNITS_PER_COMMAND = 60;
 
@@ -71,6 +77,33 @@ export function parseCommand(raw: unknown): Command | null {
     case 'cancel_modernize':
       if (!isIdList(raw.unitIds)) return null;
       return { type: 'cancel_modernize', unitIds: [...new Set(raw.unitIds)] };
+    case 'trade_offer': {
+      if (!Number.isInteger(raw.partner) || (raw.partner as number) < 0 || (raw.partner as number) > 1000) return null;
+      if (raw.side !== 'buy' && raw.side !== 'sell') return null;
+      if (!TRADE_RESOURCES.includes(raw.resource as TradeResource) || !TRANSPORT_MODES.includes(raw.mode as TransportMode)) return null;
+      if (!Number.isInteger(raw.quantity) || !isFiniteNum(raw.price) || !Number.isInteger(raw.days)) return null;
+      if (raw.counterOf !== undefined && !isId(raw.counterOf)) return null;
+      return {
+        type: 'trade_offer',
+        partner: raw.partner as number,
+        side: raw.side,
+        resource: raw.resource as TradeResource,
+        quantity: raw.quantity as number,
+        price: raw.price,
+        mode: raw.mode as TransportMode,
+        days: raw.days as number,
+        ...(raw.counterOf !== undefined ? { counterOf: raw.counterOf as number } : {}),
+      };
+    }
+    case 'trade_respond':
+      if (!isId(raw.offerId) || typeof raw.accept !== 'boolean') return null;
+      return { type: 'trade_respond', offerId: raw.offerId, accept: raw.accept };
+    case 'trade_withdraw':
+      if (!isId(raw.offerId)) return null;
+      return { type: 'trade_withdraw', offerId: raw.offerId };
+    case 'trade_cancel':
+      if (!isId(raw.contractId)) return null;
+      return { type: 'trade_cancel', contractId: raw.contractId };
     default:
       return null;
   }

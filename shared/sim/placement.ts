@@ -3,6 +3,8 @@ import type { DepositIndex } from './deposits.ts';
 import { chooseClaims, claimedBy, sitesByDeposit } from './gathering.ts';
 import type { Cell, Slot } from './types.ts';
 
+const WATER = 4 as Terrain;
+
 /** Visão mínima do mundo necessária para validar uma construção (usada no servidor e no cliente). */
 export interface PlacementWorld {
   width: number;
@@ -52,6 +54,17 @@ export function placementError(w: PlacementWorld, slot: Slot, type: BuildingType
   for (const u of w.units) {
     const r = UNITS[u.type].radius;
     if (u.pos.x + r > minX && u.pos.x - r < maxX && u.pos.y + r > minY && u.pos.y - r < maxY) return 'Há unidades no local';
+  }
+  if (type === 'port') {
+    // o cais precisa encostar na água: ao menos duas células de água em volta do terreno
+    let water = 0;
+    for (let y = cell.cy - 1; y <= cell.cy + def.size; y++)
+      for (let x = cell.cx - 1; x <= cell.cx + def.size; x++) {
+        const inside = x >= cell.cx && x < cell.cx + def.size && y >= cell.cy && y < cell.cy + def.size;
+        if (inside || x < 0 || y < 0 || x >= w.width || y >= w.height) continue;
+        if (w.terrain[y * w.width + x] === WATER) water++;
+      }
+    if (water < 2) return 'O porto precisa ficar na margem da água';
   }
   if (def.gather) {
     const choice = chooseClaims(w, w.deposits, type, cell, claimedBy(buildings, type), sitesByDeposit(buildings), (i) => w.territory[i] === slot);

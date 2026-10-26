@@ -42,6 +42,7 @@ import { findPath } from './pathfinding/AStar.ts';
 import { placementError } from './placement.ts';
 import { Grid } from './pathfinding/Grid.ts';
 import { checkProduce } from './production.ts';
+import { TradeSystem, type TradeLink, type TradeSave } from './trade.ts';
 import { MOD_CANCEL_REFUND, MODS, checkModernize, combineMods, pickRefitFacility, type FacilityPick, type ModId, type ModernizeContext } from './modernization.ts';
 import type {
   Building,
@@ -114,6 +115,8 @@ export interface SimulationSave {
   territory: number[];
   territoryVersion: number;
   lastAlertTick: number[];
+  /** Comércio (Fase 6): ofertas, contratos, embarques e mercado dos países da IA. */
+  trade?: TradeSave;
 }
 
 /** JSON não representa ±Infinity: usados em alguns campos internos (ex.: distância inicial). */
@@ -177,6 +180,13 @@ export class Simulation {
   private territoryDirty = true;
   /** Camada nacional (pesquisas, condições e verba de obras), se houver. */
   national: NationalLink | null = null;
+  /** Comércio internacional e logística. */
+  readonly trade: TradeSystem = new TradeSystem(this);
+
+  /** Liga o comércio à diplomacia e ao tesouro nacionais. */
+  setTradeLink(link: TradeLink | null): void {
+    this.trade.link = link;
+  }
 
   constructor(init: SimulationInit) {
     this.map = init.map;
@@ -258,6 +268,7 @@ export class Simulation {
       territory: [...this.territory],
       territoryVersion: this.territoryVersion,
       lastAlertTick: this.lastAlertTick,
+      trade: this.trade.toSave(),
     };
     return JSON.parse(JSON.stringify(data, encodeNonFinite), decodeNonFinite) as SimulationSave;
   }
@@ -307,6 +318,7 @@ export class Simulation {
     sim.territoryDirty = false;
     sim.lastAlertTick = data.lastAlertTick;
     sim.visibilityTick = -1;
+    sim.trade.load(data.trade);
     return sim;
   }
 
@@ -845,6 +857,15 @@ export class Simulation {
         }
         return started > 0 ? null : (firstError ?? 'Nenhuma unidade pode receber este pacote');
       }
+      case 'trade_offer': {
+        return this.trade.propose(slot, { partner: cmd.partner, side: cmd.side, resource: cmd.resource, quantity: cmd.quantity, price: cmd.price, mode: cmd.mode, days: cmd.days, ...(cmd.counterOf !== undefined ? { counterOf: cmd.counterOf } : {}) });
+      }
+      case 'trade_respond':
+        return this.trade.respond(slot, cmd.offerId, cmd.accept);
+      case 'trade_withdraw':
+        return this.trade.withdraw(slot, cmd.offerId);
+      case 'trade_cancel':
+        return this.trade.cancel(slot, cmd.contractId);
       case 'cancel_modernize': {
         const units = this.ownUnits(slot, cmd.unitIds).filter((u) => u.refit);
         if (units.length === 0) return 'Nenhuma modernização em andamento';
@@ -951,6 +972,44 @@ export class Simulation {
     }
   }
 
+  // ---------------------------------------------------------------- comércio (Fase 6)
+
+  emitTrade(e: SimEvent): void {
+    this.emit(e);
+  }
+
+  /** Retira mercadoria reservada para um contrato (petróleo sai só dos tanques). */
+  takeForTrade(slot: Slot, r: ResourceType, amount: number): void {
+    const p = this.players[slot]!;
+    if (r === 'oil') {
+      let left = amount;
+      for (const t of this.tanks(slot).sort((a, b) => b.stored - a.stored || a.id - b.id)) {
+        const take = Math.min(left, t.stored);
+        t.stored -= take;
+        left -= take;
+      }
+      p.resources.oil -= amount - left;
+      return;
+    }
+    p.resources[r] -= amount;
+  }
+
+  /** Entrada de mercadoria (entrega ou reserva devolvida), respeitando a capacidade. */
+  storeFromTrade(slot: Slot, r: ResourceType, amount: number): number {
+    return this.store(slot, r, amount);
+  }
+
+  /** Há tropa ou torre em guerra com o jogador perto deste ponto? */
+  hostileNear(slot: Slot, p: Vec2, range: number): boolean {
+    for (const e of this.entities.values()) {
+      if (e.hp <= 0 || !this.hostile(slot, e.owner)) continue;
+      if (e.kind === 'building' && !BUILDINGS[e.type].weapon) continue;
+      if (e.kind === 'building' && e.progress < 1) continue;
+      if (dist(e.pos, p) <= range + this.entityRadius(e)) return true;
+    }
+    return false;
+  }
+
   /** Débito externo ao teatro (ex.: mobilização de uma declaração de guerra). Falha sem saldo. */
   spendResources(slot: Slot, cost: Cost): boolean {
     const p = this.players[slot];
@@ -1002,6 +1061,7 @@ export class Simulation {
     this.updateUpgrades();
     this.updateProduction();
     this.updateRefits();
+    this.trade.step();
     for (const u of this.units) this.updateUnit(u);
     this.updateAttrition();
     if (this.tick % TICK_RATE === 0) this.evacuateForeignTerritory();

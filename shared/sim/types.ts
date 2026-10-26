@@ -212,4 +212,9 @@ export type SimEvent =
   | { type: 'attrition'; tick: number; owner: Slot; pos: Vec2 }
   | { type: 'modernize_started'; tick: number; id: EntityId; owner: Slot; unitType: UnitType; mod: ModId; usd: number; pos: Vec2 }
   | { type: 'unit_modernized'; tick: number; id: EntityId; owner: Slot; unitType: UnitType; mod: ModId; pos: Vec2 }
+  | { type: 'trade_offer'; tick: number; offerId: number; from: number; to: number }
+  | { type: 'trade_reply'; tick: number; offerId: number; from: number; to: number; accepted: boolean; reason: string | null }
+  | { type: 'contract_update'; tick: number; contractId: number; seller: number; buyer: number; status: string; text: string }
+  | { type: 'shipment_delivered'; tick: number; shipmentId: number; contractId: number; seller: number; buyer: number; resource: string; quantity: number }
+  | { type: 'shipment_lost'; tick: number; shipmentId: number; contractId: number; seller: number; buyer: number; resource: string; quantity: number; reason: string; pos: Vec2 }
   | { type: 'modernize_cancelled'; tick: number; id: EntityId; owner: Slot; unitType: UnitType; mod: ModId; reason: 'player' | 'facility_lost'; pos: Vec2 };

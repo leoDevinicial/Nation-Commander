@@ -8,6 +8,7 @@ import { pumpjack, type PumpRig } from './pumpjack.ts';
 import { tractor } from './crops.ts';
 import { barracksDetail, factoryDetail, houseDetail, oilTankDetail, siloDetail, warehouseDetail } from './details.ts';
 import { buildMineModel, buildQuarryModel, buildSawmillModel } from './industry.ts';
+import { buildMarketModel, buildPortModel, buildRailStationModel } from './logistics.ts';
 
 /**
  * Modelos de edifícios centrados na origem (piso em y = 0). Concreto, vidros azulados e detalhes
@@ -166,6 +167,9 @@ const BUILDERS: Record<BuildingType, () => Omit<BuildingModel, 'detail'>> = {
   warehouse: buildWarehouse,
   silo: buildSilo,
   oil_tank: buildOilTank,
+  market: buildMarketModel,
+  port: buildPortModel,
+  rail_station: buildRailStationModel,
 };
 
 /** Fileira de janelas numa fachada (normal ±x ou ±z). */

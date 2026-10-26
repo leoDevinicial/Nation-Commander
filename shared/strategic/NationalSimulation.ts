@@ -151,6 +151,8 @@ export interface NationState {
   research: ResearchState;
   /** Verba de obras do teatro (melhorias de construções). */
   works: WorksFund;
+  /** Comércio internacional (Fase 6): totais acumulados em US$. */
+  trade: { exportsUsd: number; importsUsd: number; freightUsd: number };
   /** Suprimentos/s que a logística nacional entrega ao teatro (inclui ajuda de aliados). */
   theaterSupplyPerSec: number;
   /** Parte da logística vinda de aliados por acordos de defesa. */
@@ -359,6 +361,19 @@ export class NationalSimulation {
 
   effects(slot: Slot): TechEffects {
     return combineEffects(this.nation(slot)?.research.done ?? []);
+  }
+
+  /**
+   * Lançamento de comércio no tesouro (Fase 6): receita de exportação reduz a dívida; importação e
+   * frete a aumentam. `kind` separa os totais para o painel.
+   */
+  tradePayment(slot: Slot, usd: number, kind: 'export' | 'import' | 'freight'): void {
+    const n = this.nations.find((x) => x.slot === slot);
+    if (!n) return;
+    n.debtUsd = Math.max(0, n.debtUsd - usd);
+    if (kind === 'export') n.trade.exportsUsd += usd;
+    else if (kind === 'import') n.trade.importsUsd -= usd;
+    else n.trade.freightUsd -= usd;
   }
 
   /** Estado de pesquisa de todas as nações (JSON) — parte do salvar/carregar da partida. */
@@ -693,6 +708,7 @@ export function createNation(slot: Slot, countryId: string): NationState {
     approvalFactors: [],
     stability: 60,
     growthFactors: [],
+    trade: { exportsUsd: 0, importsUsd: 0, freightUsd: 0 },
     research: { current: null, progress, done: [], invested: Object.fromEntries(TECH_IDS.map((id) => [id, 0])) as Record<TechId, number>, idleUsd: 0, doneDay: {} },
     works: { fundUsd: 0, capUsd: 0, spentUsd: 0, ledger: [] },
     theaterSupplyPerSec: 0,
