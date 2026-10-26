@@ -94,6 +94,8 @@ export interface HudState {
   selectedBuilding: SelectedBuildingInfo | null;
   /** Seleção de entidade inimiga (só leitura). */
   inspected: { kind: 'unit' | 'building'; type: string; owner: number; hp: number; maxHp: number; level: number; spec: SpecId | null } | null;
+  /** Cidadãos selecionados no mapa: ociosos e a caminho de um posto. */
+  selectedCitizens: { idle: number; going: number } | null;
   /** Painel de melhoria aberto para este edifício. */
   upgradeFor: EntityId | null;
   mode: PointerMode;
@@ -125,6 +127,7 @@ export const useHudStore = create<HudState>((set) => ({
   selectedUnits: [],
   selectedBuilding: null,
   inspected: null,
+  selectedCitizens: null,
   upgradeFor: null,
   mode: { kind: 'normal' },
   events: [],

@@ -21,7 +21,7 @@ import { setModelDetail } from './render/models/kit.ts';
 import { chooseClaims, claimedBy, gatherRate, sitesByDeposit } from '../../shared/sim/gathering.ts';
 import { findDeposits, type DepositIndex } from '../../shared/sim/deposits.ts';
 import { decodeTerritory } from '../../shared/sim/territory.ts';
-import { planUpgrade, type SpecId, type UpgradePlan, type UpgradeWorld } from '../../shared/sim/upgrades.ts';
+import { buildingEffects, planUpgrade, type SpecId, type UpgradePlan, type UpgradeWorld } from '../../shared/sim/upgrades.ts';
 import { combineEffects } from '../../shared/strategic/technologies.ts';
 import { useNationalStore } from '../state/useNationalStore.ts';
 import { Terrain as T } from '../../shared/sim/config.ts';
@@ -279,6 +279,7 @@ export class GameRuntime {
       selectedUnits: [],
       selectedBuilding: null,
       inspected: null,
+      selectedCitizens: null,
       mode: { kind: 'normal' },
       touchUi: isTouchDevice(),
       touchTool: 'select',
@@ -748,6 +749,7 @@ export class GameRuntime {
       selectedUnits,
       selectedBuilding,
       inspected,
+      selectedCitizens: this.citizens.selectionInfo(),
       mode: this.mode,
       fps: this.fps,
     });
@@ -818,11 +820,12 @@ export class GameRuntime {
       selectedUnits: [],
       selectedBuilding: null,
       inspected: null,
+      selectedCitizens: null,
       mode: { kind: 'normal' },
       air: this.snapshot?.air ?? null,
       trade: this.snapshot?.trade ?? null,
     });
-    this.selection.clear();
+    this.clearSelection();
     this.publishHud();
   }
 
@@ -872,8 +875,10 @@ export class GameRuntime {
     this.cameraCtl.rotate(delta);
   }
 
+  /** Limpa a seleção de entidades e de cidadãos. */
   clearSelection(): void {
     this.selection.clear();
+    this.citizens?.selected.clear();
   }
 
   /** Escolha de alvo da força aérea: reconhecimento (ponto), ataque (edifício) ou míssil (ponto). */
@@ -1059,7 +1064,7 @@ export class GameRuntime {
   focusBuilding(id: number): void {
     const p = this.positionOf(id);
     if (!p) return;
-    this.selection.clear();
+    this.clearSelection();
     this.selection.add(id);
     this.cameraCtl.lookAt(p.x, p.y);
   }
@@ -1238,7 +1243,7 @@ export class GameRuntime {
       } else {
         const ids = this.controlGroups.get(digit)?.filter((id) => this.units.has(id) || this.buildings.has(id));
         if (ids?.length) {
-          this.selection.clear();
+          this.clearSelection();
           ids.forEach((id) => this.selection.add(id));
         }
       }
@@ -1247,7 +1252,7 @@ export class GameRuntime {
     switch (e.code) {
       case 'Escape':
         if (this.mode.kind !== 'normal') this.cancelMode();
-        else this.selection.clear();
+        else this.clearSelection();
         break;
       case 'KeyF':
         this.startAttackMove();
@@ -1447,6 +1452,7 @@ export class GameRuntime {
       }
       return true;
     }
+    if (this.citizens.selected.size) return this.orderCitizens(p);
     const b = this.selectedOwnBuilding();
     if (b && b.snap.progress >= 1 && (b.snap.type === 'barracks' || b.snap.type === 'factory')) {
       this.send({ type: 'set_rally', buildingId: b.snap.id, x: p.x, y: p.y });
@@ -1454,6 +1460,33 @@ export class GameRuntime {
       return true;
     }
     return false;
+  }
+
+  /**
+   * Ordem aos cidadãos selecionados: num edifício próprio que emprega gente, vão trabalhar lá (a
+   * simulação confirma e eles caminham até o prédio e entram); no chão, caminham até o ponto.
+   */
+  private orderCitizens(p: THREE.Vector2): boolean {
+    const warn = (text: string) => useHudStore.getState().pushEvent({ tick: this.snapshot?.tick ?? 0, text, tone: 'warn' });
+    const hit = this.pickEntity(p);
+    const b = hit !== null ? this.buildings.get(hit) : undefined;
+    if (b && b.snap.owner === this.mySlot) {
+      const need = buildingEffects(b.snap.type, b.snap.level, b.snap.spec).workers;
+      if (b.snap.progress < 1) warn('O edifício ainda está em obra');
+      else if (need === 0) warn(`${BUILDINGS[b.snap.type].label} não emprega trabalhadores`);
+      else if ((b.snap.workers ?? 0) >= need) warn(`${BUILDINGS[b.snap.type].label}: sem vagas (${need} de ${need} trabalhadores)`);
+      else {
+        const sources = this.citizens.orderWork(b.snap.id);
+        if (!sources.length) return true;
+        this.send({ type: 'assign_workers', buildingId: b.snap.id, sources });
+        const c = this.positionOf(b.snap.id);
+        if (c) this.effects.flash(new THREE.Vector3(c.x, 0.2, c.y), 0.9, '#8fe0a4', 0.45);
+      }
+      return true;
+    }
+    if (this.citizens.orderMove(p)) this.effects.flash(new THREE.Vector3(p.x, 0.1, p.y), 0.35, '#8fe0a4', 0.35);
+    else warn('Quem já está indo trabalhar segue para o posto: mande-o a outro edifício com vagas');
+    return true;
   }
 
   private flashTarget(id: number): void {
@@ -1468,8 +1501,19 @@ export class GameRuntime {
   private clickSelect(x: number, y: number, additive: boolean, double: boolean): void {
     const p = this.groundAt(x, y);
     const hit = p ? this.pickEntity(p) : null;
-    if (!additive) this.selection.clear();
+    if (!additive) this.clearSelection();
+    // cidadão (fora dos edifícios): escolhido antes do edifício ao lado de onde ele está
+    const citizen = hit === null || !this.units.has(hit) ? this.pickCitizen(x, y) : null;
+    if (citizen !== null) {
+      this.selection.clear();
+      const sel = this.citizens.selected;
+      if (double) for (const c of this.citizens.visible()) if (this.isOnScreen(new THREE.Vector2(c.x, c.y))) sel.add(c.id);
+      if (additive && sel.has(citizen) && !double) sel.delete(citizen);
+      else sel.add(citizen);
+      return;
+    }
     if (hit === null) return;
+    this.citizens.selected.clear();
     const u = this.units.get(hit);
     if (double && u && u.snap.owner === this.mySlot) {
       // duplo clique: todas as unidades do mesmo tipo visíveis
@@ -1481,7 +1525,7 @@ export class GameRuntime {
     if (additive && this.selection.has(hit)) this.selection.delete(hit);
     else {
       // não mistura entidades inimigas/edifícios numa seleção de unidades
-      if (additive && (this.ownerOf(hit) !== this.mySlot || !u)) this.selection.clear();
+      if (additive && (this.ownerOf(hit) !== this.mySlot || !u)) this.clearSelection();
       this.selection.add(hit);
     }
   }
@@ -1492,7 +1536,7 @@ export class GameRuntime {
     const maxX = Math.max(x0, x1);
     const minY = Math.min(y0, y1);
     const maxY = Math.max(y0, y1);
-    if (!additive) this.selection.clear();
+    if (!additive) this.clearSelection();
     const v = new THREE.Vector3();
     for (const t of this.units.values()) {
       if (t.snap.owner !== this.mySlot) continue;
@@ -1503,11 +1547,39 @@ export class GameRuntime {
     }
     // remove edifícios de uma seleção por arrasto com unidades
     if ([...this.selection].some((id) => this.units.has(id))) for (const id of [...this.selection]) if (!this.units.has(id)) this.selection.delete(id);
+    // sem tropas no retângulo: seleciona os cidadãos à vista
+    if (![...this.selection].some((id) => this.units.has(id))) {
+      for (const c of this.citizens.visible()) {
+        v.set(c.x, 0.5, c.y).project(this.camera);
+        const sx = r.left + ((v.x + 1) / 2) * r.width;
+        const sy = r.top + ((1 - v.y) / 2) * r.height;
+        if (sx >= minX && sx <= maxX && sy >= minY && sy <= maxY) this.citizens.selected.add(c.id);
+      }
+      if (this.citizens.selected.size) this.selection.clear();
+    } else this.citizens.selected.clear();
   }
 
   private isOnScreen(p: THREE.Vector2): boolean {
     const v = new THREE.Vector3(p.x, 0, p.y).project(this.camera);
     return Math.abs(v.x) <= 1 && Math.abs(v.y) <= 1 && v.z < 1;
+  }
+
+  /** Cidadão à vista mais próximo do ponto da tela (pelo corpo, não pelo chão: ele é pequeno). */
+  private pickCitizen(clientX: number, clientY: number): number | null {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    const v = new THREE.Vector3();
+    let best: number | null = null;
+    let bd = useHudStore.getState().touchUi ? 26 : 16;
+    for (const c of this.citizens.visible()) {
+      v.set(c.x, this.groundHeight(c.x, c.y) + 0.45, c.y).project(this.camera);
+      if (v.z > 1) continue;
+      const d = Math.hypot(r.left + ((v.x + 1) / 2) * r.width - clientX, r.top + ((1 - v.y) / 2) * r.height - clientY);
+      if (d < bd) {
+        bd = d;
+        best = c.id;
+      }
+    }
+    return best;
   }
 
   /** Unidade mais próxima do ponto (com tolerância) ou edifício que o contém. */

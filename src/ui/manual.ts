@@ -53,7 +53,7 @@ export const MANUAL: ManualCard[] = [
     title: 'População',
     lead: 'Pessoas são o recurso mais valioso.',
     points: [
-      'Cidadãos (no Centro de Comando) trabalham nas construções. Sem trabalhadores, nada produz.',
+      'Cidadãos trabalham nas construções; sem eles, nada produz. Selecione um e mande-o a uma fazenda.',
       'Recrutas (na Base Militar) ficam na reserva e tripulam as tropas: cada unidade usa 1 recruta.',
       'Moradia: Centro de Comando 20, casa +10, prédio residencial +20 — teto de 200 habitantes.',
       'Todos comem. Sem comida, a produção cai pela metade.',

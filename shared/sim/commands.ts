@@ -13,6 +13,11 @@ export type Command =
   | { type: 'build'; buildingType: BuildingType; cx: number; cy: number }
   | { type: 'produce'; buildingId: EntityId; unitType: ProducibleType }
   | { type: 'set_workers'; buildingId: EntityId; count: number }
+  /**
+   * Põe cidadãos escolhidos pelo jogador para trabalhar num edifício: cada fonte é 0 (cidadão
+   * ocioso) ou o id do edifício onde ele trabalha hoje (realocação).
+   */
+  | { type: 'assign_workers'; buildingId: EntityId; sources: number[] }
   | { type: 'cancel_production'; buildingId: EntityId }
   | { type: 'set_rally'; buildingId: EntityId; x: number; y: number }
   /** Melhoria para o próximo nível; `spec` é obrigatório no nível que pede especialização. */
@@ -68,6 +73,10 @@ export function parseCommand(raw: unknown): Command | null {
     case 'set_workers':
       if (!isId(raw.buildingId) || !Number.isInteger(raw.count) || (raw.count as number) < 0 || (raw.count as number) > 50) return null;
       return { type: 'set_workers', buildingId: raw.buildingId, count: raw.count as number };
+    case 'assign_workers':
+      if (!isId(raw.buildingId) || !Array.isArray(raw.sources) || raw.sources.length === 0 || raw.sources.length > MAX_UNITS_PER_COMMAND) return null;
+      if (!raw.sources.every((v) => v === 0 || isId(v))) return null;
+      return { type: 'assign_workers', buildingId: raw.buildingId, sources: raw.sources as number[] };
     case 'cancel_production':
       if (!isId(raw.buildingId)) return null;
       return { type: 'cancel_production', buildingId: raw.buildingId };

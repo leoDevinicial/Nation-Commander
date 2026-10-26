@@ -63,6 +63,24 @@ export const STATUS_TEXT: Record<BuildingStatus, string> = {
   unpaid: 'Sem manutenção paga (faltam suprimentos): não abriga ninguém',
 };
 
+/** Cidadãos selecionados no mapa e como mandá-los trabalhar. */
+function CitizensInfo({ sel, touch }: { sel: { idle: number; going: number }; touch: boolean }) {
+  const n = sel.idle + sel.going;
+  return (
+    <div className="text-xs leading-relaxed text-ink-400">
+      <div className="mb-1 text-sm font-semibold text-ink-200">{n === 1 ? 'Cidadão selecionado' : `${n} cidadãos selecionados`}</div>
+      <div>
+        {sel.idle > 0 && `${sel.idle} ocioso${sel.idle > 1 ? 's' : ''}`}
+        {sel.idle > 0 && sel.going > 0 && ' · '}
+        {sel.going > 0 && `${sel.going} a caminho do trabalho`}
+      </div>
+      <div className="mt-1">
+        {touch ? 'Toque longo' : 'Botão direito'} numa construção com vagas (fazenda, serraria, pedreira, mina, poço, fábrica…): eles vão até lá e entram para trabalhar. No chão: caminham até o ponto.
+      </div>
+    </div>
+  );
+}
+
 const ACTIVITY: Record<string, string> = {
   idle: 'Parada',
   moving: 'Movendo',
@@ -74,6 +92,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
   const units = useHudStore((s) => s.selectedUnits);
   const building = useHudStore((s) => s.selectedBuilding);
   const inspected = useHudStore((s) => s.inspected);
+  const citizens = useHudStore((s) => s.selectedCitizens);
   const mode = useHudStore((s) => s.mode);
   const players = useHudStore((s) => s.players);
   const mySlot = useHudStore((s) => s.mySlot);
@@ -122,7 +141,8 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           {mode.kind === 'attack_move' && <ModeHint title="Avançar atacando" text={`${touch ? 'Toque' : 'Clique'} no destino. As unidades atacam o que encontrarem pelo caminho.`} />}
           {mode.kind === 'normal' && units.length > 0 && <UnitsInfo units={units} />}
           {mode.kind === 'normal' && units.length === 0 && building && <BuildingInfo b={building} runtime={runtime} />}
-          {mode.kind === 'normal' && units.length === 0 && !building && inspected && (
+          {mode.kind === 'normal' && units.length === 0 && !building && citizens && <CitizensInfo sel={citizens} touch={touch} />}
+          {mode.kind === 'normal' && units.length === 0 && !building && !citizens && inspected && (
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <span className="inline-block h-3 w-3 rounded-sm" style={{ background: factionColor(inspected.owner) }} aria-hidden />
@@ -139,7 +159,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
               <WarStatus owner={inspected.owner} mySlot={mySlot} />
             </div>
           )}
-          {mode.kind === 'normal' && units.length === 0 && !building && !inspected && touch && (
+          {mode.kind === 'normal' && units.length === 0 && !building && !citizens && !inspected && touch && (
             <div className="text-xs leading-relaxed text-ink-400">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-semibold text-ink-200">Nenhuma seleção</span>
@@ -157,7 +177,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
               )}
             </div>
           )}
-          {mode.kind === 'normal' && units.length === 0 && !building && !inspected && !touch && (
+          {mode.kind === 'normal' && units.length === 0 && !building && !citizens && !inspected && !touch && (
             <div className="text-xs leading-relaxed text-ink-400">
               <div className="mb-1 text-sm font-semibold text-ink-200">Nenhuma seleção</div>
               Clique ou arraste para selecionar · Botão direito: mover/atacar · F: avançar atacando · X: parar · H: Centro de Comando · Ctrl+1–9: grupos · WASD/setas: câmera · Q/E: girar · Roda: zoom

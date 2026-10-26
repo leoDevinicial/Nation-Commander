@@ -117,6 +117,8 @@ export class GlobeView {
   private political: THREE.Mesh | null = null;
   private politicalCanvas: HTMLCanvasElement | null = null;
   private arcs = new THREE.Group();
+  /** Tempo compartilhado pelos fluxos das linhas (segundos). */
+  private readonly arcTime = { value: 0 };
   private labels: { def: GlobeLabel; el: HTMLDivElement; sub: HTMLDivElement | null }[] = [];
   private readonly raycaster = new THREE.Raycaster();
   private sphere: THREE.Mesh | null = null;
@@ -346,7 +348,13 @@ export class GlobeView {
     });
   }
 
-  /** Rotas e linhas entre capitais (tratados, sanções, guerras), em arcos acima da superfície. */
+  /**
+   * Rotas e linhas entre capitais (tratados, sanções, guerras), em arcos baixos acima da superfície.
+   * Cada linha tem um fluxo contínuo de pulsos que corre da origem para o destino (shader com o
+   * comprimento acumulado do arco), na mesma velocidade em todas as linhas; sanções correm
+   * tracejadas. O arco segue o grande círculo (slerp) e a altura é limitada, para que rotas longas
+   * não virem órbitas fora do globo.
+   */
   setArcs(defs: GlobeArc[]): void {
     for (const child of [...this.arcs.children]) {
       const line = child as THREE.Line;
@@ -359,22 +367,19 @@ export class GlobeView {
     for (const d of defs) {
       lonLatToVector(d.from.lon, d.from.lat, 1, a);
       lonLatToVector(d.to.lon, d.to.lat, 1, b);
-      const angle = a.angleTo(b);
-      const pts: THREE.Vector3[] = [];
-      const n = Math.max(12, Math.ceil(angle * 40));
-      for (let i = 0; i <= n; i++) {
-        const t = i / n;
-        const v = new THREE.Vector3().copy(a).lerp(b, t).normalize();
-        v.multiplyScalar(RADIUS * (1.004 + Math.sin(Math.PI * t) * angle * 0.12));
-        pts.push(v);
-      }
+      const pts = arcPoints(a, b);
+      const dist = new Float32Array(pts.length);
+      for (let i = 1; i < pts.length; i++) dist[i] = dist[i - 1]! + pts[i]!.distanceTo(pts[i - 1]!);
       const geom = new THREE.BufferGeometry().setFromPoints(pts);
-      const mat = d.dashed
-        ? new THREE.LineDashedMaterial({ color: d.color, dashSize: 0.025, gapSize: 0.02, transparent: true, opacity: 0.9 })
-        : new THREE.LineBasicMaterial({ color: d.color, transparent: true, opacity: 0.85 });
-      const line = new THREE.Line(geom, mat);
-      if (d.dashed) line.computeLineDistances();
-      this.arcs.add(line);
+      geom.setAttribute('aDist', new THREE.BufferAttribute(dist, 1));
+      const mat = new THREE.ShaderMaterial({
+        uniforms: { uTime: this.arcTime, uColor: { value: new THREE.Color(d.color) }, uDashed: { value: d.dashed ? 1 : 0 }, uLength: { value: dist[dist.length - 1] ?? 1 } },
+        vertexShader: ARC_VERTEX,
+        fragmentShader: ARC_FRAGMENT,
+        transparent: true,
+        depthWrite: false,
+      });
+      this.arcs.add(new THREE.Line(geom, mat));
     }
   }
 
@@ -490,6 +495,8 @@ export class GlobeView {
       this.earth.rotation.y += spin * step;
       if (this.clouds) this.clouds.rotation.y += spin * 0.35 * step;
     }
+    // fluxo das linhas: contínuo; com "Reduzir animações" corre devagar
+    this.arcTime.value = (this.arcTime.value + step * (this.opts.reducedMotion ? 0.3 : 1)) % 1000;
     this.renderer.render(this.scene, this.camera);
     this.updateLabels();
   };
@@ -890,3 +897,66 @@ function hatchPattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
   g.stroke();
   return ctx.createPattern(c, 'repeat');
 }
+
+/** Pontos de um arco baixo sobre o grande círculo entre dois pontos da esfera unitária. */
+function arcPoints(a: THREE.Vector3, b: THREE.Vector3): THREE.Vector3[] {
+  const angle = a.angleTo(b);
+  // eixo de rotação; pontos quase antípodas usam um eixo qualquer perpendicular
+  const axis = new THREE.Vector3().crossVectors(a, b);
+  if (axis.lengthSq() < 1e-10) {
+    axis.set(0, 1, 0).cross(a);
+    if (axis.lengthSq() < 1e-10) axis.set(1, 0, 0);
+  }
+  axis.normalize();
+  const lift = Math.min(0.05, 0.015 + angle * 0.025);
+  const n = Math.max(16, Math.ceil(angle * 48));
+  const q = new THREE.Quaternion();
+  const pts: THREE.Vector3[] = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    q.setFromAxisAngle(axis, angle * t);
+    pts.push(
+      a
+        .clone()
+        .applyQuaternion(q)
+        .multiplyScalar(RADIUS * (1.004 + Math.sin(Math.PI * t) * lift)),
+    );
+  }
+  return pts;
+}
+
+const ARC_VERTEX = /* glsl */ `
+attribute float aDist;
+varying float vDist;
+varying float vFacing;
+void main() {
+  vDist = aDist;
+  // lado do globo voltado para a câmera (o globo fica na origem)
+  vec3 world = (modelMatrix * vec4(position, 1.0)).xyz;
+  vFacing = dot(normalize(world), normalize(cameraPosition));
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+/**
+ * Linha fraca de base + pulsos (cabeça brilhante com cauda) que avançam para o destino; as pontas
+ * esmaecem para o fluxo nascer na origem e sumir no destino, e o trecho no verso do globo some.
+ */
+const ARC_FRAGMENT = /* glsl */ `
+uniform float uTime;
+uniform vec3 uColor;
+uniform float uDashed;
+uniform float uLength;
+varying float vDist;
+varying float vFacing;
+void main() {
+  float phase = fract(vDist * 7.0 - uTime * 1.6);
+  float pulse = pow(phase, 3.0);
+  float ends = smoothstep(0.0, 0.03, vDist) * smoothstep(0.0, 0.03, uLength - vDist);
+  // o trecho atrás do globo some (não vira um anel em volta da borda)
+  float alpha = (0.4 + 0.6 * pulse) * ends * smoothstep(0.12, 0.4, vFacing);
+  if (uDashed > 0.5 && fract(vDist * 40.0 - uTime * 1.6 * 40.0 / 7.0) > 0.55) alpha *= 0.15;
+  // cabeça do pulso clareia em direção ao branco
+  gl_FragColor = vec4(mix(uColor, vec3(1.0), pulse * pulse * 0.6), alpha);
+}
+`;

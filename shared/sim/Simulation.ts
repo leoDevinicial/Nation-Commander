@@ -806,6 +806,35 @@ export class Simulation {
         this.staff(slot);
         return null;
       }
+      case 'assign_workers': {
+        const b = this.entities.get(cmd.buildingId);
+        if (!b || b.kind !== 'building' || b.owner !== slot) return 'Edifício inválido';
+        const need = this.fx(b).workers;
+        if (need === 0) return 'Este edifício não emprega trabalhadores';
+        if (b.progress < 1 || b.hp <= 0) return 'O edifício ainda está em obra';
+        if (b.workers >= need) return 'Sem vagas: o edifício já tem todos os trabalhadores';
+        let idle = this.population(slot).idle;
+        let moved = 0;
+        for (const src of cmd.sources) {
+          if (b.workers >= need) break;
+          if (src === 0) {
+            if (idle <= 0) continue;
+            idle--;
+          } else {
+            const from = this.entities.get(src);
+            if (!from || from === b || from.kind !== 'building' || from.owner !== slot || from.workers <= 0) continue;
+            from.workers--;
+            // realocação: o posto de origem não puxa outro cidadão no lugar
+            from.workerTarget = Math.min(from.workerTarget, from.workers);
+          }
+          b.workers++;
+          moved++;
+        }
+        if (!moved) return 'Nenhum cidadão disponível para esse trabalho';
+        b.workerTarget = Math.max(b.workerTarget, b.workers);
+        this.staff(slot);
+        return null;
+      }
       case 'upgrade': {
         const b = this.entities.get(cmd.buildingId);
         if (!b || b.kind !== 'building' || b.owner !== slot || b.hp <= 0) return 'Edifício inválido';

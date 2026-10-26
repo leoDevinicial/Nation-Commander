@@ -36,6 +36,12 @@ mensagem que diz como liberar espaço.
 - **Distribuição automática:** cidadãos ociosos ocupam os postos vagos na ordem de construção.
 - **Ajuste manual:** botões −/+ no painel do edifício, comando `set_workers`. O alvo vai de 0 até o número de postos; os que
   saem voltam a ficar ociosos.
+- **Escolha pelo jogador:** cidadãos à vista (ociosos ou a caminho de um posto) podem ser selecionados com clique, duplo
+  clique (todos os da tela) ou arrasto. Botão direito (toque longo) num edifício com vagas manda os selecionados trabalhar lá
+  (comando `assign_workers`: cada fonte é um ocioso ou o edifício de onde o trabalhador sai, cujo alvo baixa para ele não
+  puxar substituto). No chão, os ociosos caminham até o ponto.
+- **No mapa:** quem ganha um posto caminha até o edifício e entra (some enquanto trabalha); quem perde o posto sai pela
+  porta. O civil que o jogador mandou é o mesmo que caminha; quando a simulação aloca sozinha, vai o ocioso mais próximo.
 - **Efeito na produção:** é proporcional a `ocupados / postos`. Com zero trabalhadores, o edifício para e o painel de eventos
   explica o motivo.
 

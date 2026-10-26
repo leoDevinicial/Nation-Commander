@@ -8,10 +8,17 @@ import { citizenModel, recruitModel } from './models/unitModels.ts';
 
 /**
  * Cidadãos no mapa. A simulação conta a população (trabalhadores por edifício e ociosos) e decide
- * a alocação; esta camada só a torna visível: um civil por cidadão real, sempre no mesmo número
- * do contador. Trabalhadores de coleta levam a carga até o depósito do recurso (silo, armazém,
- * tanque ou QG); os de quartel e fábrica circulam junto ao prédio; ociosos ficam perto do QG e
- * das casas. Não são selecionáveis e não afetam o jogo.
+ * a alocação; esta camada a torna visível, um civil por cidadão real, sempre no mesmo número do
+ * contador:
+ * - quem ganha um posto caminha até o edifício e entra (some enquanto trabalha lá dentro);
+ * - quem perde o posto sai pela porta e vira ocioso; ociosos ficam perto do QG e das casas, ou no
+ *   ponto para onde o jogador os mandou;
+ * - cada civil tem identidade própria: o mesmo boneco que o jogador selecionou é o que caminha
+ *   para o trabalho quando a ordem é aceita (ou o ocioso mais próximo, quando a simulação aloca
+ *   sozinha);
+ * - recrutas da reserva treinam junto ao quartel (não são selecionáveis).
+ * Ociosos e quem está a caminho podem ser selecionados; a ordem de trabalho vai para a simulação
+ * (`assign_workers`), o passeio até um ponto é só visual.
  */
 
 export type CitizenJobKind = 'gather' | 'staff' | 'idle' | 'recruit';
@@ -46,44 +53,25 @@ export function citizenRoster(own: readonly BuildingSnapshot[], idle: number, re
   return jobs;
 }
 
-/** Edifício mais próximo que armazena o recurso (o QG guarda de tudo). */
-export function dropoffFor(resource: ResourceType, from: { x: number; y: number }, own: readonly { type: BuildingType; x: number; y: number; done: boolean }[]): { x: number; y: number } | null {
-  let best: { x: number; y: number } | null = null;
-  let bd = Infinity;
-  for (const b of own) {
-    if (!b.done || !(BUILDINGS[b.type].storage[resource] ?? 0)) continue;
-    const d = (b.x - from.x) ** 2 + (b.y - from.y) ** 2;
-    if (d < bd) {
-      bd = d;
-      best = b;
-    }
-  }
-  return best;
-}
-
 const HOMES: ReadonlySet<BuildingType> = new Set(['hq', 'house', 'residential']);
 const SPEED = 1.5;
 const MAX = 220;
-const CARGO_COLOR: Record<ResourceType, string> = {
-  supplies: '#8a8160',
-  food: '#c9b452',
-  wood: '#8a6a45',
-  stone: '#9a968d',
-  iron: '#7e858c',
-  oil: '#2a2724',
-};
+/** Quanto tempo (s) uma ordem de trabalho espera a confirmação da simulação. */
+const HANDOFF_SECONDS = 6;
 
-interface Agent {
+export interface CitizenAgent {
+  readonly id: number;
   job: CitizenJob;
   pos: THREE.Vector2;
   path: THREE.Vector2[];
-  /** Espera parado (trabalhando, descarregando ou à toa). */
+  /** Espera parado (à toa). */
   wait: number;
   heading: number;
-  carry: ResourceType | null;
-  /** Próxima perna da rotina de coleta. */
-  leg: 'toWork' | 'toDrop';
   phase: number;
+  /** Dentro do edifício onde trabalha (não é desenhado). */
+  inside: boolean;
+  /** Ponto para onde o jogador mandou o ocioso (passeia em volta dele). */
+  hold: THREE.Vector2 | null;
 }
 
 interface Site {
@@ -97,23 +85,33 @@ interface Site {
   done: boolean;
 }
 
+const isWorker = (j: CitizenJob) => j.kind === 'gather' || j.kind === 'staff';
+
 export class CitizenLayer {
   readonly group = new THREE.Group();
   private readonly body: THREE.InstancedMesh;
   private readonly accent: THREE.InstancedMesh;
-  private readonly cargo: THREE.InstancedMesh;
   /** Recrutas: modelo de soldado, desenhado em lote separado. */
   private readonly recBody: THREE.InstancedMesh;
   private readonly recAccent: THREE.InstancedMesh;
-  private readonly cargoGeo = new THREE.BoxGeometry(0.28, 0.2, 0.22);
-  private readonly cargoMat = new THREE.MeshStandardMaterial({ roughness: 0.85 });
-  private agents = new Map<string, Agent>();
+  /** Anel de seleção sob os civis selecionados. */
+  private readonly rings: THREE.InstancedMesh;
+  private readonly ringGeo = new THREE.RingGeometry(0.34, 0.46, 20).rotateX(-Math.PI / 2);
+  private readonly ringMat = new THREE.MeshBasicMaterial({ color: '#8fe0a4', transparent: true, opacity: 0.9, depthWrite: false });
+  private nextId = 1;
+  /** Civis com posto de trabalho (chave do posto → civil). */
+  private workers = new Map<string, CitizenAgent>();
+  private idle: CitizenAgent[] = [];
+  private recruits = new Map<string, CitizenAgent>();
+  /** Civis selecionados pelo jogador. */
+  readonly selected = new Set<number>();
+  /** Ordens de trabalho enviadas: civil → edifício, até a simulação confirmar. */
+  private handoffs = new Map<number, { buildingId: number; until: number }>();
   private sites = new Map<number, Site>();
   private grid: Grid;
   private gridKey = '';
   private readonly m = new THREE.Matrix4();
   private readonly q = new THREE.Quaternion();
-  private readonly color = new THREE.Color();
   private time = 0;
 
   constructor(
@@ -124,20 +122,26 @@ export class CitizenLayer {
     const model = citizenModel();
     this.body = new THREE.InstancedMesh(model.body, bodyMaterial(), MAX);
     this.accent = new THREE.InstancedMesh(model.accent, accentMaterial(owner), MAX);
-    this.cargo = new THREE.InstancedMesh(this.cargoGeo, this.cargoMat, MAX);
     const rec = recruitModel();
     this.recBody = new THREE.InstancedMesh(rec.body, bodyMaterial(), MAX);
     this.recAccent = new THREE.InstancedMesh(rec.accent, accentMaterial(owner), MAX);
-    for (const im of [this.body, this.accent, this.cargo, this.recBody, this.recAccent]) {
+    this.rings = new THREE.InstancedMesh(this.ringGeo, this.ringMat, MAX);
+    for (const im of [this.body, this.accent, this.recBody, this.recAccent, this.rings]) {
       im.count = 0;
-      im.castShadow = true;
+      im.castShadow = im !== this.rings;
       im.frustumCulled = false;
       this.group.add(im);
     }
     this.grid = new Grid(map.width, map.height, map.cellSize, map.terrain);
   }
 
-  /** Atualiza os postos com o snapshot: cria quem chegou, remove quem saiu, mantém o resto. */
+  /** Todos os civis (sem os recrutas). */
+  private *civilians(): Generator<CitizenAgent> {
+    yield* this.workers.values();
+    yield* this.idle;
+  }
+
+  /** Atualiza os postos com o snapshot, mantendo cada civil e movendo quem mudou de posto. */
   sync(allBuildings: readonly BuildingSnapshot[], own: readonly BuildingSnapshot[], idle: number, recruits = 0): void {
     const cs = this.map.cellSize;
     this.sites.clear();
@@ -152,26 +156,107 @@ export class CitizenLayer {
       this.grid = new Grid(this.map.width, this.map.height, cs, this.map.terrain);
       for (const b of allBuildings) this.grid.setOccupied({ cx: b.cx, cy: b.cy }, BUILDINGS[b.type].size, b.id);
     }
-    const jobs = citizenRoster(own, idle, recruits).slice(0, MAX * 2);
-    const next = new Map<string, Agent>();
-    for (const job of jobs) {
-      const a = this.agents.get(job.key);
-      if (a) {
-        a.job = job;
-        next.set(job.key, a);
-      } else next.set(job.key, this.spawn(job));
+    const jobs = citizenRoster(own, idle, recruits);
+    const workerJobs = jobs.filter(isWorker).slice(0, MAX);
+    const idleCount = Math.min(Math.max(0, idle), Math.max(0, MAX - workerJobs.length));
+
+    // quem continua no mesmo posto fica; quem perdeu o posto fica livre
+    const nextWorkers = new Map<string, CitizenAgent>();
+    const wanted = new Set(workerJobs.map((j) => j.key));
+    const freed: CitizenAgent[] = [];
+    for (const [k, a] of this.workers) {
+      if (wanted.has(k)) nextWorkers.set(k, a);
+      else freed.push(a);
     }
-    this.agents = next;
+    const pool = [...this.idle];
+    const take = (list: CitizenAgent[], a: CitizenAgent) => list.splice(list.indexOf(a), 1)[0]!;
+    for (const job of workerJobs) {
+      if (nextWorkers.has(job.key)) continue;
+      const site = this.sites.get(job.buildingId!);
+      // 1) o civil que o jogador mandou para este edifício; 2) o ocioso mais próximo; 3) quem saiu de outro posto; 4) um novo, de casa
+      const ordered = [...pool, ...freed].find((a) => this.handoffs.get(a.id)?.buildingId === job.buildingId);
+      let a: CitizenAgent | undefined = ordered ? take(pool.includes(ordered) ? pool : freed, ordered) : undefined;
+      if (!a && pool.length) a = take(pool, this.nearest(pool, site));
+      if (!a && freed.length) a = take(freed, this.nearest(freed, site));
+      if (a) {
+        this.handoffs.delete(a.id);
+        this.leaveBuilding(a);
+        a.hold = null;
+        a.path = [];
+        a.wait = 0;
+      } else a = this.spawn(job);
+      a.job = job;
+      nextWorkers.set(job.key, a);
+    }
+    // ociosos: os que sobraram e os que perderam o posto (saem pela porta)
+    const nextIdle: CitizenAgent[] = [];
+    for (const a of [...pool, ...freed]) {
+      if (nextIdle.length >= idleCount) break;
+      this.leaveBuilding(a);
+      a.job = { key: `idle:${a.id}`, kind: 'idle', buildingId: null, resource: null };
+      nextIdle.push(a);
+    }
+    while (nextIdle.length < idleCount) nextIdle.push(this.spawn({ key: 'idle', kind: 'idle', buildingId: null, resource: null }));
+    this.workers = nextWorkers;
+    this.idle = nextIdle;
+
+    // recrutas: postos fixos junto ao quartel
+    const nextRec = new Map<string, CitizenAgent>();
+    for (const job of jobs.filter((j) => j.kind === 'recruit').slice(0, MAX)) {
+      const a = this.recruits.get(job.key) ?? this.spawn(job);
+      a.job = job;
+      nextRec.set(job.key, a);
+    }
+    this.recruits = nextRec;
+
+    // seleção e ordens só valem para civis que ainda existem e estão à vista
+    const alive = new Set([...this.civilians()].map((a) => a.id));
+    for (const id of [...this.selected]) if (!alive.has(id)) this.selected.delete(id);
+    for (const [id, h] of [...this.handoffs]) if (!alive.has(id) || h.until < this.time) this.handoffs.delete(id);
   }
 
-  private spawn(job: CitizenJob): Agent {
+  private nearest(list: CitizenAgent[], site: Site | undefined): CitizenAgent {
+    if (!site) return list[0]!;
+    let best = list[0]!;
+    let bd = Infinity;
+    for (const a of list) {
+      const d = (a.pos.x - site.x) ** 2 + (a.pos.y - site.y) ** 2 + (a.inside ? 1e6 : 0);
+      if (d < bd) {
+        bd = d;
+        best = a;
+      }
+    }
+    return best;
+  }
+
+  /** Quem estava dentro de um edifício reaparece na porta. */
+  private leaveBuilding(a: CitizenAgent): void {
+    if (!a.inside) return;
+    a.inside = false;
+    const site = a.job.buildingId !== null ? this.sites.get(a.job.buildingId) : undefined;
+    if (site) a.pos.copy(this.doorPoint(site, site));
+    a.path = [];
+    a.wait = 0.5 + Math.random();
+  }
+
+  private spawn(job: CitizenJob): CitizenAgent {
     // novos cidadãos saem de casa (QG ou moradia mais próxima do posto) e caminham até ele
     const target = job.buildingId !== null ? this.sites.get(job.buildingId) : undefined;
     // recrutas saem do próprio quartel, onde foram alistados
     const home = job.kind === 'recruit' && target ? target : this.nearestHome(target ?? null);
     const start = home ? this.doorPoint(home, target ?? home) : new THREE.Vector2(this.map.width, this.map.height);
-    const a: Agent = { job, pos: start, path: [], wait: Math.random() * 0.8, heading: Math.random() * Math.PI * 2, carry: null, leg: 'toWork', phase: Math.random() * 10 };
-    return a;
+    const id = this.nextId++;
+    return {
+      id,
+      job: job.kind === 'idle' ? { ...job, key: `idle:${id}` } : job,
+      pos: start,
+      path: [],
+      wait: Math.random() * 0.8,
+      heading: Math.random() * Math.PI * 2,
+      phase: Math.random() * 10,
+      inside: false,
+      hold: null,
+    };
   }
 
   private nearestHome(near: Site | null): Site | null {
@@ -209,7 +294,7 @@ export class CitizenLayer {
     return new THREE.Vector2(best[0] + (Math.random() - 0.5) * cs * 0.7, best[1] + (Math.random() - 0.5) * cs * 0.7);
   }
 
-  private route(a: Agent, to: THREE.Vector2): void {
+  private route(a: CitizenAgent, to: THREE.Vector2): void {
     const cs = this.map.cellSize;
     const start = { cx: Math.floor(a.pos.x / cs), cy: Math.floor(a.pos.y / cs) };
     const goal = { cx: Math.floor(to.x / cs), cy: Math.floor(to.y / cs) };
@@ -219,25 +304,23 @@ export class CitizenLayer {
   }
 
   /** Decide o próximo destino quando o cidadão termina a espera. */
-  private plan(a: Agent): void {
+  private plan(a: CitizenAgent): void {
     const site = a.job.buildingId !== null ? this.sites.get(a.job.buildingId) : undefined;
-    if (a.job.kind === 'gather' && site && a.job.resource) {
-      if (a.leg === 'toDrop') {
-        const own = [...this.sites.values()];
-        const drop = dropoffFor(a.job.resource, site, own);
-        // depósito colado no posto (ex.: QG vizinho): só trabalha no lugar
-        if (drop && Math.hypot(drop.x - site.x, drop.y - site.y) > this.map.cellSize * 2.5) {
-          const dropSite = own.find((s) => s.x === drop.x && s.y === drop.y)!;
-          a.carry = a.job.resource;
-          this.route(a, this.doorPoint(dropSite, site));
-          a.leg = 'toWork';
-          return;
-        }
-        a.leg = 'toWork';
+    if (isWorker(a.job) && site) {
+      // a caminho do trabalho: vai até a porta e entra
+      const door = this.doorPoint(site, a.pos);
+      if (a.pos.distanceTo(door) < this.map.cellSize * 1.2) {
+        a.inside = true;
+        this.selected.delete(a.id);
+        return;
       }
-      a.carry = null;
-      this.route(a, this.doorPoint(site, site));
-      a.leg = 'toDrop';
+      this.route(a, door);
+      return;
+    }
+    if (a.hold) {
+      // mandado pelo jogador: fica por ali, com passos curtos
+      const cs = this.map.cellSize;
+      this.route(a, new THREE.Vector2(a.hold.x + (Math.random() - 0.5) * cs * 1.5, a.hold.y + (Math.random() - 0.5) * cs * 1.5));
       return;
     }
     const anchor = site ?? this.nearestHome(null);
@@ -245,16 +328,65 @@ export class CitizenLayer {
       a.wait = 2;
       return;
     }
-    a.carry = null;
-    // passeio curto em volta do prédio (trabalhadores de quartel/fábrica e ociosos)
+    // ocioso: passeio curto em volta de casa; recruta: em volta do quartel
     this.route(a, this.doorPoint(anchor, { x: anchor.x + (Math.random() - 0.5) * 8, y: anchor.y + (Math.random() - 0.5) * 8 }));
+  }
+
+  // ------------------------------------------------------------ seleção e ordens
+
+  /** Civis à vista (fora dos edifícios), com a posição atual. */
+  visible(): { id: number; x: number; y: number }[] {
+    const out = [];
+    for (const a of this.civilians()) if (!a.inside) out.push({ id: a.id, x: a.pos.x, y: a.pos.y });
+    return out;
+  }
+
+  /** Resumo da seleção para o HUD. */
+  selectionInfo(): { idle: number; going: number } | null {
+    if (!this.selected.size) return null;
+    let idle = 0;
+    let going = 0;
+    for (const a of this.civilians()) {
+      if (!this.selected.has(a.id)) continue;
+      if (isWorker(a.job)) going++;
+      else idle++;
+    }
+    return { idle, going };
+  }
+
+  /**
+   * Fontes da ordem de trabalho para a simulação (0 = ocioso; id do edifício = realocação) e
+   * registro de quem deve caminhar para o novo posto quando a simulação confirmar.
+   */
+  orderWork(buildingId: number): number[] {
+    const sources: number[] = [];
+    for (const a of this.civilians()) {
+      if (!this.selected.has(a.id) || a.job.buildingId === buildingId) continue;
+      sources.push(isWorker(a.job) ? a.job.buildingId! : 0);
+      this.handoffs.set(a.id, { buildingId, until: this.time + HANDOFF_SECONDS });
+    }
+    return sources;
+  }
+
+  /** Manda os ociosos selecionados até um ponto (só visual: continuam ociosos). */
+  orderMove(p: { x: number; y: number }): number {
+    let n = 0;
+    for (const a of this.idle) {
+      if (!this.selected.has(a.id)) continue;
+      a.hold = new THREE.Vector2(p.x, p.y);
+      this.route(a, new THREE.Vector2(p.x + (Math.random() - 0.5) * 1.2, p.y + (Math.random() - 0.5) * 1.2));
+      n++;
+    }
+    return n;
   }
 
   update(dt: number): void {
     this.time += dt;
     let i = 0;
     let r = 0;
-    for (const a of this.agents.values()) {
+    let s = 0;
+    for (const a of [...this.civilians(), ...this.recruits.values()]) {
+      if (a.inside) continue;
       if (a.path.length > 0) {
         const t = a.path[0]!;
         const dx = t.x - a.pos.x;
@@ -265,9 +397,13 @@ export class CitizenLayer {
           a.pos.copy(t);
           a.path.shift();
           if (a.path.length === 0) {
-            // chegou: trabalha, descarrega ou fica à toa um pouco
-            a.wait = a.job.kind === 'gather' ? (a.leg === 'toDrop' ? 3 + Math.random() * 4 : 1) : 2 + Math.random() * 6;
-            if (a.leg === 'toWork' && a.job.kind === 'gather') a.carry = null;
+            // chegou: o trabalhador entra; os demais ficam um pouco à toa
+            if (isWorker(a.job)) {
+              a.inside = true;
+              this.selected.delete(a.id);
+              continue;
+            }
+            a.wait = a.hold ? 4 + Math.random() * 6 : 2 + Math.random() * 6;
           }
         } else {
           a.pos.x += (dx / d) * step;
@@ -277,6 +413,7 @@ export class CitizenLayer {
       } else {
         a.wait -= dt;
         if (a.wait <= 0) this.plan(a);
+        if (a.inside) continue;
       }
       const moving = a.path.length > 0;
       if (a.job.kind === 'recruit') {
@@ -292,40 +429,37 @@ export class CitizenLayer {
       }
       if (i >= MAX) continue;
       const bob = moving ? Math.abs(Math.sin((this.time + a.phase) * 9)) * 0.06 : 0;
-      const working = !moving && a.job.kind === 'gather' && a.leg === 'toDrop';
-      const lean = working ? Math.sin((this.time + a.phase) * 3) * 0.18 : 0;
-      const y = this.heightAt(a.pos.x, a.pos.y) + bob;
-      this.q.setFromEuler(new THREE.Euler(0, a.heading, lean));
-      this.m.compose(new THREE.Vector3(a.pos.x, y, a.pos.y), this.q, new THREE.Vector3(1, 1, 1));
+      const ground = this.heightAt(a.pos.x, a.pos.y);
+      this.q.setFromEuler(new THREE.Euler(0, a.heading, 0));
+      this.m.compose(new THREE.Vector3(a.pos.x, ground + bob, a.pos.y), this.q, new THREE.Vector3(1, 1, 1));
       this.body.setMatrixAt(i, this.m);
       this.accent.setMatrixAt(i, this.m);
-      if (a.carry) {
-        // carga no ombro
-        this.m.compose(new THREE.Vector3(a.pos.x, y + 1.0, a.pos.y), this.q, new THREE.Vector3(1, 1, 1));
-        this.cargo.setColorAt(i, this.color.set(CARGO_COLOR[a.carry]));
-      } else this.m.makeScale(0, 0, 0);
-      this.cargo.setMatrixAt(i, this.m);
       i++;
+      if (this.selected.has(a.id) && s < MAX) {
+        this.m.makeTranslation(a.pos.x, ground + 0.05, a.pos.y);
+        this.rings.setMatrixAt(s++, this.m);
+      }
     }
-    for (const im of [this.body, this.accent, this.cargo]) {
-      im.count = i;
+    for (const [im, n] of [
+      [this.body, i],
+      [this.accent, i],
+      [this.recBody, r],
+      [this.recAccent, r],
+      [this.rings, s],
+    ] as const) {
+      im.count = n;
       im.instanceMatrix.needsUpdate = true;
     }
-    for (const im of [this.recBody, this.recAccent]) {
-      im.count = r;
-      im.instanceMatrix.needsUpdate = true;
-    }
-    if (this.cargo.instanceColor) this.cargo.instanceColor.needsUpdate = true;
   }
 
   get count(): number {
-    return this.agents.size;
+    return this.workers.size + this.idle.length + this.recruits.size;
   }
 
   dispose(): void {
     this.group.removeFromParent();
-    for (const im of [this.body, this.accent, this.cargo, this.recBody, this.recAccent]) im.dispose();
-    this.cargoGeo.dispose();
-    this.cargoMat.dispose();
+    for (const im of [this.body, this.accent, this.recBody, this.recAccent, this.rings]) im.dispose();
+    this.ringGeo.dispose();
+    this.ringMat.dispose();
   }
 }
