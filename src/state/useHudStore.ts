@@ -1,3 +1,4 @@
+import type { TradeView } from '../../shared/sim/snapshot.ts';
 import type { ModId } from '../../shared/sim/modernization.ts';
 import { create } from 'zustand';
 import type { BuildingType, DepositSize, ProducibleType, UnitType } from '../../shared/sim/config.ts';
@@ -74,6 +75,10 @@ export interface HudState {
   production: ProductionEntry[];
   /** Miniaturas 3D (data URL) dos botões, por tipo de edifício/unidade, 'citizen' e 'recruit'. */
   thumbs: Partial<Record<string, string>>;
+  /** Comércio internacional do jogador (Fase 6). */
+  trade: TradeView | null;
+  /** Rota inspecionada no mapa (id do embarque). */
+  inspectedShipment: number | null;
   mySlot: number;
   paused: boolean;
   pausedBy: string | null;
@@ -103,6 +108,8 @@ export const useHudStore = create<HudState>((set) => ({
   players: [],
   production: [],
   thumbs: {},
+  trade: null,
+  inspectedShipment: null,
   mySlot: 0,
   paused: false,
   pausedBy: null,

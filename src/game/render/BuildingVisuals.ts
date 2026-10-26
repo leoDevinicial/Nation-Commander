@@ -43,6 +43,8 @@ export interface BuildingVisualOptions {
   spec?: SpecId | null;
   /** Distância da câmera a partir da qual as peças pequenas dos módulos somem (LOD). */
   lodDistance?: number;
+  /** Giro do modelo em torno de y (ex.: porto com o cais virado para a água). */
+  facing?: number;
 }
 
 /** Distância padrão do LOD dos módulos de melhoria. */
@@ -185,6 +187,7 @@ export class BuildingVisual {
     this.group.position.set(opts.center.x, 0, opts.center.y);
     this.group.add(this.model);
     this.model.add(this.parts, this.detail);
+    if (opts.facing) this.model.rotation.y = opts.facing;
     this.level = opts.level ?? 1;
     this.spec = opts.spec ?? null;
     const def = buildingModel(type, this.level, this.spec);

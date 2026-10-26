@@ -12,6 +12,7 @@ import { DiagnosisTab } from './DiagnosisTab.tsx';
 import { OverviewTab } from './OverviewTab.tsx';
 import { ResearchTab } from './ResearchTab.tsx';
 import { DiplomacyTab } from './DiplomacyTab.tsx';
+import { TradeTab } from './TradeTab.tsx';
 import { makeNameOf } from '../../game/nationalText.ts';
 import type { DiplomaticAction } from '../../../shared/strategic/Diplomacy.ts';
 
@@ -20,6 +21,7 @@ const TABS = [
   { id: 'budget', label: 'Orçamento' },
   { id: 'research', label: 'Pesquisa' },
   { id: 'diplomacy', label: 'Diplomacia' },
+  { id: 'trade', label: 'Comércio' },
   { id: 'diagnosis', label: 'Diagnóstico' },
   { id: 'data', label: 'Dados' },
 ] as const;
@@ -82,6 +84,12 @@ export function NationalPanel({ onClose }: { onClose: () => void }) {
           <BudgetTab nation={nation} onApply={applyBudget} balanceMode={balanceMode} />
         ) : tab === 'research' ? (
           <ResearchTab nation={nation} onSelect={selectResearch} />
+        ) : tab === 'trade' ? (
+          <TradeTab
+            nation={nation}
+            mySlot={mySlot}
+            partners={(diplomacy?.nations ?? []).map((n) => ({ id: n.id, name: nameOf(n.id), known: n.known }))}
+          />
         ) : tab === 'diplomacy' ? (
           diplomacy ? (
             <DiplomacyTab

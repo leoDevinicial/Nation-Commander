@@ -348,7 +348,8 @@ export class TradeSystem {
     if (a === b) return 'Parceiro inválido';
     const l = this.link;
     if (!l) return 'Comércio internacional indisponível nesta partida';
-    if (!l.knows(a, b) || !l.knows(b, a)) return `Sem contato diplomático com ${this.name(b)}`;
+    // basta um dos lados conhecer o outro: quem propõe apresenta-se na própria oferta
+    if (!l.knows(a, b) && !l.knows(b, a)) return `Sem contato diplomático com ${this.name(b)}`;
     if (l.atWar(a, b)) return `Em guerra com ${this.name(b)}`;
     if (l.sanctioned(a, b)) return `Sanções em vigor com ${this.name(b)}`;
     return null;

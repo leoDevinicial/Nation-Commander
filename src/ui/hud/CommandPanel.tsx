@@ -27,7 +27,7 @@ import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { buildingEffects, formatUsd as usdShort, specDef, upgradeTrack } from '../../../shared/sim/upgrades.ts';
 
-const BUILD_OPTIONS: BuildingType[] = ['house', 'farm', 'sawmill', 'quarry', 'mine', 'oil_well', 'oil_tank', 'warehouse', 'silo', 'barracks', 'factory', 'tower', 'residential'];
+const BUILD_OPTIONS: BuildingType[] = ['house', 'farm', 'sawmill', 'quarry', 'mine', 'oil_well', 'oil_tank', 'warehouse', 'silo', 'barracks', 'factory', 'tower', 'residential', 'market', 'rail_station', 'port'];
 const EMPTY: Stockpile = emptyStockpile();
 
 /** Motivo legível de um edifício parado, com o que fazer. */

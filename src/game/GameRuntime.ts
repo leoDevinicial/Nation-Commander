@@ -339,6 +339,7 @@ export class GameRuntime {
 
   private onSnapshot(msg: SnapshotMsg): void {
     const s = msg.s;
+    if (s.trade) useHudStore.getState().set({ trade: s.trade });
     this.snapshot = s;
     if (s.territory) {
       this.territory = decodeTerritory(s.territory);
@@ -399,6 +400,7 @@ export class GameRuntime {
           spec: b.spec,
           // celular: os detalhes pequenos das melhorias somem mais cedo ao afastar a câmera
           lodDistance: this.opts.profile.terrain === 'low' ? 50 : 80,
+          ...(b.type === 'port' ? { facing: this.waterFacing(b.cx, b.cy, size) } : {}),
         });
         this.scene.add(visual.group, visual.rallyObject);
         t = { visual, snap: b };
@@ -739,6 +741,23 @@ export class GameRuntime {
     this.mode = m;
     this.renderer.domElement.style.cursor = m.kind === 'normal' ? 'default' : 'crosshair';
     useHudStore.getState().set({ mode: m });
+  }
+
+  /** Giro que vira o cais do porto (lado +z do modelo) para o lado com mais água. */
+  private waterFacing(cx: number, cy: number, size: number): number {
+    const W = this.map.width;
+    const T = this.map.terrain;
+    const water = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < this.map.height && T[y * W + x] === 4;
+    const count = { s: 0, n: 0, e: 0, w: 0 };
+    for (let i = -1; i <= size; i++) {
+      if (water(cx + i, cy + size)) count.s++;
+      if (water(cx + i, cy - 1)) count.n++;
+      if (water(cx + size, cy + i)) count.e++;
+      if (water(cx - 1, cy + i)) count.w++;
+    }
+    const best = (Object.entries(count) as [keyof typeof count, number][]).sort((a, b) => b[1] - a[1])[0]![0];
+    // +z do modelo = sul (+y do mapa); girar em y: leste = +π/2, norte = π, oeste = −π/2
+    return { s: 0, e: Math.PI / 2, n: Math.PI, w: -Math.PI / 2 }[best];
   }
 
   // ------------------------------------------------------------ modernização (Fase 5)
