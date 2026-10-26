@@ -36,9 +36,15 @@ const SPLAT: Record<Terrain, [number, number, number, number]> = {
  * Solo com texturas reais misturadas por um mapa de pesos (1 texel por célula, filtrado):
  * transições suaves entre grama, terra, asfalto e rocha. Repetição quebrada por variação macro.
  */
-function groundMaterial(map: MapData, quality: 'low' | 'high', disposables: { dispose: () => void }[]): THREE.MeshStandardMaterial {
+function groundMaterial(map: MapData, quality: 'low' | 'high', disposables: { dispose: () => void }[], tint: [number, number, number] = [1, 1, 1]): THREE.MeshStandardMaterial {
   const data = new Uint8Array(map.width * map.height * 4);
-  for (let i = 0; i < map.width * map.height; i++) data.set(SPLAT[map.terrain[i] ?? Terrain.Plains], i * 4);
+  // biomas secos trocam parte da grama por solo exposto (o tom vem de `tint`)
+  const dry = Math.max(0, Math.min(0.8, (tint[0] - tint[2]) * 0.9));
+  for (let i = 0; i < map.width * map.height; i++) {
+    const w = SPLAT[map.terrain[i] ?? Terrain.Plains];
+    const moved = Math.round(w[0] * dry);
+    data.set([w[0] - moved, Math.min(255, w[1] + moved), w[2], w[3]], i * 4);
+  }
   const splat = new THREE.DataTexture(data, map.width, map.height, THREE.RGBAFormat);
   splat.magFilter = THREE.LinearFilter;
   splat.minFilter = THREE.LinearFilter;
@@ -51,12 +57,13 @@ function groundMaterial(map: MapData, quality: 'low' | 'high', disposables: { di
   mat.onBeforeCompile = (shader, renderer) => {
     fogCompile.call(mat, shader, renderer);
     shader.uniforms.uSplat = { value: splat };
+    shader.uniforms.uTint = { value: new THREE.Vector3(...tint) };
     shader.uniforms.uMapSize = { value: new THREE.Vector2(map.width * map.cellSize, map.height * map.cellSize) };
     for (const [k, t] of Object.entries(tex)) shader.uniforms[k] = { value: t };
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
-        '#include <common>\nuniform sampler2D uSplat; uniform vec2 uMapSize; uniform sampler2D uGrass; uniform sampler2D uDirt; uniform sampler2D uAsphalt; uniform sampler2D uRock;',
+        '#include <common>\nuniform vec3 uTint; uniform sampler2D uSplat; uniform vec2 uMapSize; uniform sampler2D uGrass; uniform sampler2D uDirt; uniform sampler2D uAsphalt; uniform sampler2D uRock;',
       )
       .replace(
         '#include <color_fragment>',
@@ -71,7 +78,7 @@ function groundMaterial(map: MapData, quality: 'low' | 'high', disposables: { di
         ground /= sum;
         // variação em grande escala para não denunciar a repetição
         float macro = texture2D(uGrass, vFogXZ * 0.013 + 0.37).g;
-        diffuseColor.rgb = ground * vColor.rgb * (0.86 + 0.28 * macro);`,
+        diffuseColor.rgb = ground * vColor.rgb * uTint * (0.86 + 0.28 * macro);`,
       );
   };
   mat.customProgramCacheKey = () => 'nc-ground-v2';
@@ -161,7 +168,19 @@ export interface TerrainHandle {
  * Representação visual do mapa. A simulação é 2D plana; a altura aqui é decorativa e baixa nas
  * áreas passáveis para que unidades e terreno continuem alinhados.
  */
-export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: WaterReflection = 'sky', ultra = false, cinematic = false): TerrainHandle {
+/**
+ * Tom do solo por bioma (Fase 8): a batalha local reflete a região escolhida — areia e ocre no
+ * árido, verde fechado no tropical, palha nos campos abertos, tons frios no frio.
+ */
+export const BIOME_TINT: Record<'temperate' | 'arid' | 'tropical' | 'cold' | 'grassland', [number, number, number]> = {
+  temperate: [1, 1, 1],
+  grassland: [1.08, 1.03, 0.82],
+  tropical: [0.8, 1.0, 0.78],
+  arid: [1.36, 1.06, 0.66],
+  cold: [0.9, 0.97, 1.06],
+};
+
+export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: WaterReflection = 'sky', ultra = false, cinematic = false, tint: [number, number, number] = [1, 1, 1]): TerrainHandle {
   const group = new THREE.Group();
   group.name = 'terrain';
   const W = map.width * map.cellSize;
@@ -204,7 +223,7 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geo.computeVertexNormals();
-  const groundMat = groundMaterial(map, quality, disposables);
+  const groundMat = groundMaterial(map, quality, disposables, tint);
   const ground = new THREE.Mesh(geo, groundMat);
   ground.receiveShadow = true;
   ground.name = 'ground';
@@ -214,7 +233,12 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
 
   let shore: THREE.DataTexture | null = null;
   if (ultra) {
-    shore = new THREE.DataTexture(shoreDistance(map.width, map.height, (i) => map.terrain[i] === Terrain.Water), map.width, map.height, THREE.RedFormat);
+    shore = new THREE.DataTexture(
+      shoreDistance(map.width, map.height, (i) => map.terrain[i] === Terrain.Water),
+      map.width,
+      map.height,
+      THREE.RedFormat,
+    );
     shore.magFilter = THREE.LinearFilter;
     shore.minFilter = THREE.LinearFilter;
     shore.needsUpdate = true;

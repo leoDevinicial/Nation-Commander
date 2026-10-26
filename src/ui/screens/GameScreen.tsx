@@ -23,7 +23,7 @@ import { FullscreenPrompt } from '../components/FullscreenButton.tsx';
 import { describeNationalEvent, makeNameOf } from '../../game/nationalText.ts';
 import { battleSnapshotBuffer, useOpsStore } from '../../state/useOpsStore.ts';
 import { OperationalMap } from '../geo/OperationalMap.tsx';
-import { BattleBar, BattlePrompt, OperationChip, OutcomeDialog } from '../hud/BattleHud.tsx';
+import { BattleBar, BattleLoading, BattlePrompt, OperationChip, OutcomeDialog } from '../hud/BattleHud.tsx';
 
 export function GameScreen() {
   const match = useAppStore((s) => s.match);
@@ -65,7 +65,7 @@ export function GameScreen() {
           shadows: settings.shadows && PROFILES[settings.quality].shadows,
           panSpeed: settings.panSpeed,
           edgeScroll: settings.edgeScroll,
-          battle: { opId: battle.opId },
+          battle: { opId: battle.opId, biome: battle.sector.biome },
         },
         battleSnapshotBuffer.last?.opId === battle.opId ? battleSnapshotBuffer.last : null,
       );
@@ -90,6 +90,7 @@ export function GameScreen() {
     battleRt?.setSuspended(!battleActive || globeOpen);
   }, [runtime, battleRt, battleActive, globeOpen]);
   const active = battleActive ? battleRt : runtime;
+  const reducedMotion = useSettingsStore((s) => s.reducedMotion);
 
   // eventos nacionais entram no painel de eventos da operação
   useEffect(() => {
@@ -162,9 +163,12 @@ export function GameScreen() {
   if (!match) return null;
 
   return (
-    <div className="relative h-full w-full overflow-hidden">
+    <div className={`relative h-full w-full overflow-hidden ${reducedMotion ? 'reduce-motion' : ''}`}>
       <div ref={containerRef} className="absolute inset-0" />
       <div ref={battleRef} className={`absolute inset-0 ${battleActive ? '' : 'pointer-events-none invisible'}`} aria-hidden={!battleActive} />
+      {/* troca de cena (teatro ↔ batalha): esmaecimento curto, sem salto brusco */}
+      {battleRt && <div key={battleActive ? 'battle' : 'theater'} className="scene-fade pointer-events-none absolute inset-0 z-[35] bg-ink-950" aria-hidden />}
+      {inBattle && battle && <BattleLoading runtime={battleRt} />}
       {error && (
         <div className="absolute inset-0 flex items-center justify-center bg-ink-950/90 p-8 text-center">
           <div className="panel max-w-md p-6">

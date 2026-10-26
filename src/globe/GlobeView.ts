@@ -120,7 +120,7 @@ export class GlobeView {
   private labels: { def: GlobeLabel; el: HTMLDivElement; sub: HTMLDivElement | null }[] = [];
   private readonly raycaster = new THREE.Raycaster();
   private sphere: THREE.Mesh | null = null;
-  private tween: { from: THREE.Vector2; to: THREE.Vector2; t: number; dur: number } | null = null;
+  private tween: { from: THREE.Vector2; to: THREE.Vector2; t: number; dur: number; zoom?: [number, number] } | null = null;
   private readonly cleanup: (() => void)[] = [];
 
   constructor(
@@ -222,18 +222,23 @@ export class GlobeView {
     this.resize();
   }
 
-  /** Centraliza a coordenada; animação curta (instantânea com movimento reduzido). */
-  focus(lon: number, lat: number): void {
+  /**
+   * Centraliza a coordenada; animação curta (instantânea com movimento reduzido). `zoom`
+   * aproxima junto (globo → região), com a mesma suavização.
+   */
+  focus(lon: number, lat: number, zoom?: number, dur = 0.6): void {
     const to = new THREE.Vector2(facingRotation(lon), THREE.MathUtils.clamp(lat * DEG, -1.2, 1.2));
     // menor caminho em longitude
     const cur = this.earth.rotation.y;
     to.x = cur + Math.atan2(Math.sin(to.x - cur), Math.cos(to.x - cur));
+    const z = zoom === undefined ? undefined : THREE.MathUtils.clamp(zoom, 0.8, 4);
     if (this.opts.reducedMotion) {
       this.earth.rotation.y = to.x;
       this.tilt.rotation.x = to.y;
+      if (z !== undefined) this.zoomBy(z / this.zoom);
       return;
     }
-    this.tween = { from: new THREE.Vector2(cur, this.tilt.rotation.x), to, t: 0, dur: 0.6 };
+    this.tween = { from: new THREE.Vector2(cur, this.tilt.rotation.x), to, t: 0, dur, ...(z !== undefined ? { zoom: [this.zoom, z] as [number, number] } : {}) };
   }
 
   /** Posição de tela (px relativos ao canvas) de uma coordenada, ou null se estiver no lado oculto. */
@@ -311,10 +316,7 @@ export class GlobeView {
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 4;
       this.disposables.push(tex);
-      this.political = new THREE.Mesh(
-        new THREE.SphereGeometry(RADIUS * 1.0007, 96, 48),
-        new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }),
-      );
+      this.political = new THREE.Mesh(new THREE.SphereGeometry(RADIUS * 1.0007, 96, 48), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
       this.earth.add(this.political);
       this.layers.set('political', this.political);
     } else {
@@ -473,6 +475,10 @@ export class GlobeView {
         const e = 1 - (1 - tw.t) ** 3;
         this.earth.rotation.y = tw.from.x + (tw.to.x - tw.from.x) * e;
         this.tilt.rotation.x = tw.from.y + (tw.to.y - tw.from.y) * e;
+        if (tw.zoom) {
+          this.zoom = tw.zoom[0] + (tw.zoom[1] - tw.zoom[0]) * e;
+          this.resize();
+        }
         if (tw.t >= 1) this.tween = null;
       }
       if (this.clouds) this.clouds.rotation.y += SPIN * 0.05 * step;
@@ -614,10 +620,7 @@ export class GlobeView {
     ctx.putImageData(img, 0, 0);
     const alphaMap = new THREE.CanvasTexture(canvas);
     this.disposables.push(alphaMap);
-    const clouds = new THREE.Mesh(
-      new THREE.SphereGeometry(RADIUS * 1.012, 64, 32),
-      new THREE.MeshLambertMaterial({ color: '#e8eef4', alphaMap, transparent: true, opacity: 0.38, depthWrite: false }),
-    );
+    const clouds = new THREE.Mesh(new THREE.SphereGeometry(RADIUS * 1.012, 64, 32), new THREE.MeshLambertMaterial({ color: '#e8eef4', alphaMap, transparent: true, opacity: 0.38, depthWrite: false }));
     this.earth.add(clouds);
     this.clouds = clouds;
     this.layers.set('clouds', clouds);
@@ -678,7 +681,7 @@ export class GlobeView {
     const pos: number[] = [];
     const col: number[] = [];
     let seed = 1337;
-    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     for (let i = 0; i < count; i++) {
       const u = rnd() * 2 - 1;
       const t = rnd() * Math.PI * 2;
@@ -712,13 +715,7 @@ function landColor(id: string | null, name: string): string {
  * polígonos que cruzam o antimeridiano fiquem contínuos; anéis que contornam um polo
  * (Antártida) são fechados pela borda do polo.
  */
-function traceRing(
-  ring: Position[],
-  project: (p: Position) => [number, number],
-  offset: number,
-  H: number,
-  ...ctxs: CanvasRenderingContext2D[]
-): void {
+function traceRing(ring: Position[], project: (p: Position) => [number, number], offset: number, H: number, ...ctxs: CanvasRenderingContext2D[]): void {
   if (ring.length < 3) return;
   let shift = 0;
   let prevLon = ring[0]![0]!;
@@ -790,7 +787,7 @@ function circleSprite(): THREE.CanvasTexture {
 
 function grain(ctx: CanvasRenderingContext2D, W: number, H: number): void {
   let seed = 99;
-  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   ctx.globalCompositeOperation = 'overlay';
   const n = Math.round((W * H) / 900);
   for (let i = 0; i < n; i++) {
@@ -821,11 +818,7 @@ function noise3(x: number, y: number, z: number): number {
   const w = s(zf);
   const l = (a: number, b: number, t: number) => a + (b - a) * t;
   const c = (dx: number, dy: number, dz: number) => hash3(xi + dx, yi + dy, zi + dz);
-  return l(
-    l(l(c(0, 0, 0), c(1, 0, 0), u), l(c(0, 1, 0), c(1, 1, 0), u), v),
-    l(l(c(0, 0, 1), c(1, 0, 1), u), l(c(0, 1, 1), c(1, 1, 1), u), v),
-    w,
-  );
+  return l(l(l(c(0, 0, 0), c(1, 0, 0), u), l(c(0, 1, 0), c(1, 1, 0), u), v), l(l(c(0, 0, 1), c(1, 0, 1), u), l(c(0, 1, 1), c(1, 1, 1), u), v), w);
 }
 function fbm(x: number, y: number, z: number): number {
   let sum = 0;

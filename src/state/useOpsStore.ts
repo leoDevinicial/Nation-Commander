@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useNationalStore } from './useNationalStore.ts';
 import type { BattleInfo, ServerMessage } from '../../shared/protocol.ts';
 import type { OperationResult, OperationsView } from '../../shared/strategic/operations.ts';
 
@@ -58,4 +59,12 @@ export function applyOpsMessage(msg: ServerMessage): void {
       outcome: { opId: msg.opId, result: msg.result, sectorName: b?.sector.name ?? st.view?.ops.find((o) => o.id === msg.opId)?.sectorName ?? '', targetCountryId: b?.targetCountryId ?? '' },
     });
   }
+}
+
+/** Entra na cena da batalha: fecha o mapa operacional, o globo e o painel nacional. */
+export function enterBattle(): void {
+  useOpsStore.getState().set({ inBattle: true, opMap: null });
+  const n = useNationalStore.getState();
+  if (n.globeOpen) n.closeGlobe();
+  if (n.panelOpen) n.setPanelOpen(false);
 }

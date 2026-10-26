@@ -787,3 +787,37 @@ select {
   border-color: rgb(212 175 95 / 0.55);
   box-shadow: 0 0 0 1px rgb(212 175 95 / 0.18);
 }
+
+/* Fase 8: transições entre escalas (globo → mapa operacional → batalha), curtas e com easing */
+.scene-enter {
+  animation: scene-enter 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes scene-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.scene-fade {
+  animation: scene-fade 380ms ease-out both;
+}
+@keyframes scene-fade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+.reduce-motion .scene-enter,
+.reduce-motion .scene-fade {
+  animation: none;
+}
+.reduce-motion .scene-fade {
+  display: none;
+}

@@ -4,7 +4,7 @@ import { countryName } from '../../../shared/data/countries.ts';
 import type { DiplomaticAction } from '../../../shared/strategic/Diplomacy.ts';
 import { countryReference } from '../../../shared/strategic/reference.ts';
 import { gameClient } from '../../net/client.ts';
-import { PROFILES } from '../../lib/graphics.ts';
+import { PROFILES, prefersReducedMotion } from '../../lib/graphics.ts';
 import { formatDate, formatPct, formatUsd } from '../../lib/format.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { useNationalStore } from '../../state/useNationalStore.ts';
@@ -171,6 +171,27 @@ export function GlobePanel({ visible, onClose }: { visible: boolean; onClose: ()
     useNationalStore.setState({ globeFocus: null });
   }, [focus, ready, visible]);
 
+  /**
+   * Globo → região → mapa operacional: o globo gira e aproxima até o país (curto, com easing) e o
+   * mapa operacional entra por cima. Com movimento reduzido abre na hora; um toque durante a
+   * aproximação abre imediatamente.
+   */
+  const openOperations = (id: number) => {
+    const countryId = diplomacy?.nations.find((n) => n.id === id)?.countryId;
+    const cap = countryId ? geoOf(countryId)?.capital : undefined;
+    const open = () => useOpsStore.getState().set({ opMap: id });
+    if (!cap || reduced || prefersReducedMotion() || !viewRef.current) return open();
+    setSheetOpen(false);
+    viewRef.current.focus(cap.lon, cap.lat, 2.6, 0.7);
+    const timer = window.setTimeout(open, 650);
+    const skip = () => {
+      window.clearTimeout(timer);
+      open();
+    };
+    window.addEventListener('pointerdown', skip, { once: true, capture: true });
+    window.setTimeout(() => window.removeEventListener('pointerdown', skip, { capture: true }), 700);
+  };
+
   const diplomaticAction = (action: DiplomaticAction) => gameClient.send({ t: 'national', cmd: { type: 'diplomacy', action } });
   const selectedState: PoliticalState | null =
     selection?.kind === 'scenario' && diplomacy
@@ -299,7 +320,7 @@ export function GlobePanel({ visible, onClose }: { visible: boolean; onClose: ()
           nameOf={nameOf}
           onAction={diplomaticAction}
           onDeclareWar={(id) => useNationalStore.getState().setWarTarget(id)}
-          onOpenOperations={(id) => useOpsStore.getState().set({ opMap: id })}
+          onOpenOperations={(id) => openOperations(id)}
         />
         {f.known && (
           <details className="rounded border border-ink-700 bg-ink-950/60 p-2 text-xs">

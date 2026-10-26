@@ -80,6 +80,7 @@ export const MANUAL: ManualCard[] = [
       'O US$ da barra é a verba de obras: sai do orçamento de infraestrutura e paga as melhorias.',
       'Selecione um prédio e toque em ⬆ Melhorar: até 10 níveis. No nível 6 você escolhe uma especialização, e ela é permanente.',
       'Pesquisas militares liberam modernizações: leve a tropa à base militar ou fábrica e toque no pacote.',
+      'País fora do teatro em guerra: envie tropas pelo Mapa Operacional do globo.',
     ],
     tip: 'Botão apagado? Ele mostra o motivo (ex.: "sem recruta", "faltam 20 petróleo"). Toque para ver os detalhes.',
   },

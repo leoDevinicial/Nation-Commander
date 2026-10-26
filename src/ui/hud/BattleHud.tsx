@@ -5,7 +5,7 @@ import { OPS } from '../../../shared/strategic/operations.ts';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { formatUsd } from '../../lib/format.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
-import { useOpsStore } from '../../state/useOpsStore.ts';
+import { enterBattle, useOpsStore } from '../../state/useOpsStore.ts';
 import { OUTCOME_LABEL } from '../geo/OperationalMap.tsx';
 
 const STATE_SHORT = { transit: 'a caminho', battle: 'em combate', returning: 'voltando', done: 'concluída' } as const;
@@ -85,7 +85,7 @@ export function OperationChip() {
         {op.state === 'transit' || op.state === 'returning' ? ` · ${op.daysLeft} d` : ''}
       </span>
       {op.state === 'battle' && battle?.opId === op.id ? (
-        <button className="btn btn-primary min-h-6 px-2 py-0 text-[11px]" onClick={() => useOpsStore.getState().set({ inBattle: true })}>
+        <button className="btn btn-primary min-h-6 px-2 py-0 text-[11px]" onClick={() => enterBattle()}>
           ⚔ Entrar
         </button>
       ) : (
@@ -109,7 +109,7 @@ export function BattlePrompt() {
         <div className="font-semibold text-ink-100">Suas forças chegaram a {battle.sector.name.split(' (')[0]}</div>
         <p className="mt-1 text-ink-300">A guarnição de {countryName(battle.targetCountryId)} defende a região. Assuma o comando da batalha local.</p>
         <div className="mt-2 flex gap-1.5">
-          <button className="btn btn-primary px-3 py-1 text-xs" onClick={() => useOpsStore.getState().set({ inBattle: true, opMap: null })}>
+          <button className="btn btn-primary px-3 py-1 text-xs" onClick={() => enterBattle()}>
             ⚔ Entrar na batalha
           </button>
           <button className="btn px-3 py-1 text-xs" onClick={() => setDismissed(battle.opId)}>
@@ -171,6 +171,43 @@ export function OutcomeDialog() {
             🗺 Mapa operacional
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Carregamento da batalha local: cobre a troca enquanto a cena gera o terreno e recebe o
+ * primeiro estado; some sozinho (ou cancela e volta ao teatro). Nunca deixa a tela congelada.
+ */
+export function BattleLoading({ runtime }: { runtime: GameRuntime | null }) {
+  const battle = useOpsStore((s) => s.battle);
+  const [readyFor, setReadyFor] = useState<GameRuntime | null>(null);
+  useEffect(() => {
+    if (!runtime) return;
+    const id = window.setInterval(() => {
+      if (runtime.hasSnapshot) {
+        setReadyFor(runtime);
+        window.clearInterval(id);
+      }
+    }, 80);
+    return () => window.clearInterval(id);
+  }, [runtime]);
+  if (!battle || (runtime && readyFor === runtime)) return null;
+  return (
+    <div className="absolute inset-0 z-[36] flex items-center justify-center bg-ink-950" role="status" aria-live="polite">
+      <div className="scene-enter max-w-sm p-4 text-center">
+        <div className="font-display text-sm font-bold tracking-wide uppercase">⚔ {battle.sector.name.split(' (')[0]}</div>
+        <div className="mt-1 text-xs text-ink-300">
+          {countryName(battle.targetCountryId)} · {BIOME_LABELS[battle.sector.biome]}
+        </div>
+        <div className="mt-3 text-[11px] text-ink-400">{runtime ? 'Posicionando as forças…' : 'Gerando o terreno da região…'}</div>
+        <div className="mx-auto mt-2 h-1 w-40 overflow-hidden rounded bg-ink-800">
+          <div className={`h-full bg-brass-400 transition-all duration-500 ${runtime ? 'w-3/4' : 'w-1/3'}`} />
+        </div>
+        <button className="btn mt-3 px-3 py-1 text-xs" onClick={() => useOpsStore.getState().set({ inBattle: false })}>
+          Cancelar
+        </button>
       </div>
     </div>
   );

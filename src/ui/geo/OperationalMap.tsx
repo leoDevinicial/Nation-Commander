@@ -9,7 +9,7 @@ import { loadWorldGeo, type WorldGeo } from '../../globe/worldGeo.ts';
 import { formatUsd } from '../../lib/format.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
-import { useOpsStore } from '../../state/useOpsStore.ts';
+import { enterBattle, useOpsStore } from '../../state/useOpsStore.ts';
 import { factionColor } from '../../game/render/palette.ts';
 
 const UNIT_ORDER: UnitType[] = ['infantry', 'apc', 'tank', 'artillery'];
@@ -160,7 +160,7 @@ export function OperationalMap({ runtime, target }: { runtime: GameRuntime; targ
 
   return (
     <div
-      className="absolute inset-x-0 top-14 bottom-0 z-30 flex flex-col border-t border-ink-700 bg-ink-950/95 sm:flex-row"
+      className="scene-enter absolute inset-x-0 top-14 bottom-0 z-30 flex flex-col border-t border-ink-700 bg-ink-950/95 sm:flex-row"
       onPointerDown={(e) => e.stopPropagation()}
       onWheel={(e) => e.stopPropagation()}
       role="dialog"
@@ -321,7 +321,7 @@ function ActiveOperation({ op, runtime }: { op: OperationView; runtime: GameRunt
       </div>
       <div className="mt-1.5 flex flex-wrap gap-1.5">
         {op.state === 'battle' && battle?.opId === op.id && (
-          <button className="btn btn-primary px-2 py-1 text-xs" onClick={() => useOpsStore.getState().set({ inBattle: true, opMap: null })}>
+          <button className="btn btn-primary px-2 py-1 text-xs" onClick={() => enterBattle()}>
             ⚔ Entrar na batalha
           </button>
         )}

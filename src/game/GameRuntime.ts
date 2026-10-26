@@ -13,7 +13,7 @@ import { renderThumbnails } from './render/Thumbnails.ts';
 import { CameraController } from './render/CameraController.ts';
 import { Effects } from './render/Effects.ts';
 import { disposeSharedResources } from './render/palette.ts';
-import { buildTerrain, type TerrainHandle } from './render/TerrainFactory.ts';
+import { BIOME_TINT, buildTerrain, type TerrainHandle } from './render/TerrainFactory.ts';
 import { cloudUniforms, disposeMaterials, fogUniforms, setCloudShadows, weatherUniforms } from './render/materials.ts';
 import { disposeBuildingModels } from './render/models/buildingModels.ts';
 import { disposeCitizenModel, disposeUnitModels } from './render/models/unitModels.ts';
@@ -39,7 +39,7 @@ import { useSettingsStore } from '../state/useSettingsStore.ts';
 import { AdaptiveExposure, EnvironmentProbe, ShadowFollow } from './render/Lighting.ts';
 import { describeEvent } from './eventText.ts';
 import type { GraphicsProfile } from '../lib/graphics.ts';
-import { isTouchDevice } from '../lib/graphics.ts';
+import { isTouchDevice, prefersReducedMotion } from '../lib/graphics.ts';
 import { TouchGestures, type TouchPoint } from './input/TouchGestures.ts';
 import type { TouchTool } from '../state/useHudStore.ts';
 
@@ -69,7 +69,7 @@ export interface RuntimeOptions {
    * Cena da batalha local de uma operação (Fase 8): recebe só os snapshots dessa batalha e envia
    * as ordens com escopo de batalha. O teatro continua em outro runtime, suspenso.
    */
-  battle?: { opId: number };
+  battle?: { opId: number; biome?: keyof typeof BIOME_TINT };
 }
 
 interface TrackedUnit {
@@ -264,6 +264,11 @@ export class GameRuntime {
       () => this.touchTool === 'box',
     );
     this.battleOp = opts.battle?.opId ?? null;
+    // batalha: a câmera entra do alto e desce até a base avançada (curto; nada com movimento reduzido)
+    if (this.battleOp !== null && !useSettingsStore.getState().reducedMotion && !prefersReducedMotion()) {
+      this.intro = { from: this.cameraCtl.distance * 2.4, to: this.cameraCtl.distance, t: 0 };
+      this.cameraCtl.distance = this.intro.from;
+    }
     this.bindInput();
     // o áudio (desbloqueio, ambiente e música) pertence ao teatro; a batalha só toca efeitos
     if (this.battleOp === null) this.bindAudio();
@@ -340,7 +345,8 @@ export class GameRuntime {
       sun.shadow.normalBias = 0.02;
     }
     this.scene.add(sun, sun.target);
-    this.terrain = buildTerrain(this.map, this.opts.profile.terrain, this.opts.profile.reflections, this.opts.profile.ultra, this.opts.profile.cinematic);
+    const tint = this.opts.battle?.biome ? BIOME_TINT[this.opts.battle.biome] : undefined;
+    this.terrain = buildTerrain(this.map, this.opts.profile.terrain, this.opts.profile.reflections, this.opts.profile.ultra, this.opts.profile.cinematic, tint);
     this.scene.add(this.terrain.group);
     // modelos do Nature Kit chegam depois; até lá, vegetação procedural
     this.terrain.upgrade().catch((err: unknown) => console.warn('Nature Kit indisponível', err));
@@ -551,6 +557,13 @@ export class GameRuntime {
     this.lastFrame = now;
 
     this.updateCameraFromKeys(dt);
+    if (this.intro && !this.suspended) {
+      // o zoom do jogador interrompe a aproximação (ver zoomBy)
+      this.intro.t = Math.min(1, this.intro.t + dt / 0.9);
+      const e = 1 - (1 - this.intro.t) ** 3;
+      this.cameraCtl.distance = this.intro.from + (this.intro.to - this.intro.from) * e;
+      if (this.intro.t >= 1) this.intro = null;
+    }
     this.cameraCtl.apply();
     if (this.opts.profile.cinematic) {
       // as nuvens andam com o mesmo vento da fumaça (≈2,4 unidades/s)
@@ -761,6 +774,11 @@ export class GameRuntime {
     this.client.send(this.battleOp !== null ? { t: 'cmd', cmd, scope: 'battle' } : { t: 'cmd', cmd });
   }
 
+  /** Já recebeu o primeiro estado (a cena pode ser mostrada). */
+  get hasSnapshot(): boolean {
+    return this.snapshot !== null;
+  }
+
   /** Unidades próprias no teatro (para compor a força de uma operação). */
   myForces(): { id: number; type: UnitType; hp: number; maxHp: number; refit: boolean }[] {
     const out = [];
@@ -780,6 +798,9 @@ export class GameRuntime {
 
   /** Operação cuja batalha local esta cena mostra (null = teatro). */
   readonly battleOp: number | null;
+  /** Aproximação inicial da câmera na batalha local. */
+  private intro: { from: number; to: number; t: number } | null = null;
+
   /** Só a cena ativa escreve no HUD, ouve o teclado e posiciona o áudio. */
   private hudActive = true;
 
@@ -843,6 +864,7 @@ export class GameRuntime {
   }
 
   zoomBy(factor: number): void {
+    this.intro = null;
     this.cameraCtl.zoom(factor);
   }
 
