@@ -7,9 +7,9 @@ import { useSettingsStore } from '../../state/useSettingsStore.ts';
 
 const TITLE = ['NATIONS', 'COMMANDER'];
 /** Duração da abertura antes do fade (ms) e do fade para a tela seguinte. */
-const PLAY_MS = 4300;
-const PLAY_REDUCED_MS = 1700;
-const OUT_MS = 800;
+const PLAY_MS = 7000;
+const PLAY_REDUCED_MS = 2600;
+const OUT_MS = 1000;
 
 const STATUS = ['Estabelecendo enlace seguro…', 'Sincronizando teatro de operações…', 'Carregando dados nacionais…', 'Comando pronto'];
 
@@ -87,7 +87,7 @@ export function IntroOverlay() {
           {TITLE.map((word) => (
             <span key={word} className="whitespace-nowrap">
               {[...word].map((ch) => (
-                <span key={n} className="intro-letter inline-block" style={{ animationDelay: `${250 + n++ * 60}ms` }}>
+                <span key={n} className="intro-letter inline-block" style={{ animationDelay: `${500 + n++ * 110}ms` }}>
                   {ch}
                 </span>
               ))}

@@ -89,10 +89,10 @@ Verificado em navegador headless com celular emulado (horizontal 844×390 e vert
 ## Abertura (intro)
 
 Ao abrir o jogo, antes da tela de login/registro, toca uma abertura no estilo RTS (`src/ui/screens/IntroOverlay.tsx`, estilos
-`.intro-*` em `src/index.css`), com cerca de 4,3 s:
+`.intro-*` em `src/index.css`), com cerca de 7 s:
 - fundo preto com grade tática que deriva devagar, radar com varredura dourada e cantoneiras de visor;
 - **NATIONS COMMANDER** em branco, fonte Michroma (OFL, embutida via `@fontsource/michroma`, sem depender de serviço
-  externo), letra a letra: cada uma sai do desfoque e aperta o espaçamento;
+  externo), letra a letra: cada uma surge como um brilho difuso que se condensa em letra nítida;
 - uma linha dourada se abre sob o título, um reflexo de luz o atravessa e surge "Modern Geopolitical Real Strategy";
 - barra de inicialização com mensagens de status e coordenadas "varrendo" o globo;
 - fade de 0,8 s para a tela de login/registro, que entra por baixo com a própria animação — sem corte seco. Se a
@@ -103,6 +103,9 @@ Detalhes de comportamento:
 - toca toda vez que o jogo é aberto ou recarregado, inclusive com o login já salvo (antes era uma vez por sessão, o que
   escondia a abertura de quem mantinha a aba aberta); voltar ao menu dentro do jogo não repete;
 - com "reduzir movimento", é curta e só usa opacidade;
+- robustez: o estado de repouso de todo elemento é visível (só a animação parte do invisível). Com "reduzir movimento"
+  do sistema, que desliga todas as animações, o título aparece parado, em vez de sumir. As letras não usam `filter` e o
+  reflexo não usa `mix-blend-mode` (combinação que faz texto sumir no Safari do iPhone);
 - as telas por baixo só montam quando o fade começa.
 
 ## Manual de entrada
