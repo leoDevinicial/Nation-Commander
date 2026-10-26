@@ -78,4 +78,16 @@ export const LEADERS: Record<string, LeaderRecord> = {
     headOfState: { title: 'Presidente', name: 'Abdel Fattah el-Sisi' },
     headOfGovernment: { title: 'Primeiro-ministro', name: 'Mostafa Madbouly' },
   },
+  RUS: {
+    system: 'República semipresidencialista federal',
+    headOfState: { title: 'Presidente', name: 'Vladimir Putin' },
+    headOfGovernment: { title: 'Presidente do Governo (primeiro-ministro)', name: 'Mikhail Mishustin' },
+  },
+  TUR: { system: 'República presidencialista', headOfState: { title: 'Presidente', name: 'Recep Tayyip Erdoğan' }, headOfGovernment: null },
+  KOR: { system: 'República presidencialista', headOfState: { title: 'Presidente', name: 'Lee Jae-myung' }, headOfGovernment: null },
+  PRK: {
+    system: 'Estado socialista de partido único',
+    headOfState: { title: 'Presidente dos Assuntos de Estado', name: 'Kim Jong Un' },
+    headOfGovernment: { title: 'Primeiro-ministro', name: 'Pak Thae-song' },
+  },
 };

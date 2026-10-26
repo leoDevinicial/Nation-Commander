@@ -26,6 +26,10 @@ export const COUNTRIES: readonly CountryProfile[] = [
   { id: 'SAU', name: 'Arábia Saudita' },
   { id: 'ESP', name: 'Espanha' },
   { id: 'EGY', name: 'Egito' },
+  { id: 'RUS', name: 'Rússia' },
+  { id: 'TUR', name: 'Turquia' },
+  { id: 'KOR', name: 'Coreia do Sul' },
+  { id: 'PRK', name: 'Coreia do Norte' },
 ];
 
 export const DEFAULT_COUNTRY = 'BRA';

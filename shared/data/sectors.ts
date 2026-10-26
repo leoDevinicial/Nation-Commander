@@ -139,6 +139,23 @@ export const SECTORS: readonly SectorDef[] = [
   S('EGY', 'cairo', 'Cairo e Delta do Nilo', 30.05, 31.2, 'arid', { river: true }, ['road', 'rail', 'industry', 'airfield'], 0.45),
   S('EGY', 'suez', 'Canal de Suez', 30.6, 32.3, 'arid', { coast: true }, ['road', 'port', 'oil'], 0.2),
   S('EGY', 'alexandria', 'Alexandria e Costa Mediterrânea', 31.2, 29.9, 'arid', { coast: true }, ['road', 'rail', 'port', 'oil'], 0.15),
+
+  S('RUS', 'moscou', 'Moscou e Rússia Central', 55.8, 37.6, 'cold', { river: true }, ['road', 'rail', 'industry', 'airfield'], 0.35),
+  S('RUS', 'sao_petersburgo', 'São Petersburgo e Noroeste', 59.9, 30.3, 'cold', { coast: true, river: true }, ['road', 'rail', 'port', 'industry'], 0.12),
+  S('RUS', 'volga', 'Volga e Urais', 55.8, 49.1, 'grassland', { river: true }, ['road', 'rail', 'oil', 'industry'], 0.15),
+  S('RUS', 'siberia', 'Sibéria Ocidental (Tyumen)', 61, 69, 'cold', { river: true }, ['road', 'oil', 'airfield'], 0.12),
+
+  S('TUR', 'marmara', 'Mármara (Istambul)', 41, 28.98, 'temperate', { coast: true }, ['road', 'rail', 'port', 'industry', 'airfield'], 0.4),
+  S('TUR', 'anatolia', 'Anatólia Central (Ancara)', 39.9, 32.9, 'arid', { mountains: true }, ['road', 'rail', 'industry'], 0.15),
+  S('TUR', 'egeu', 'Egeu e Mediterrâneo (Izmir)', 38.4, 27.1, 'temperate', { coast: true, mountains: true }, ['road', 'port'], 0.15),
+
+  S('KOR', 'seul', 'Seul e Incheon', 37.5, 126.9, 'temperate', { coast: true, river: true }, ['road', 'rail', 'port', 'industry', 'airfield'], 0.5),
+  S('KOR', 'sudeste', 'Sudeste (Busan e Ulsan)', 35.3, 129.2, 'temperate', { coast: true, mountains: true }, ['road', 'rail', 'port', 'industry'], 0.22),
+  S('KOR', 'centro', 'Centro (Daejeon)', 36.35, 127.4, 'temperate', { mountains: true, river: true }, ['road', 'rail', 'airfield'], 0.1),
+
+  S('PRK', 'pyongyang', 'Pyongyang e Planície Ocidental', 39, 125.75, 'cold', { river: true }, ['road', 'rail', 'industry', 'airfield'], 0.4),
+  S('PRK', 'nampo', 'Nampo e Costa Oeste', 38.73, 125.4, 'cold', { coast: true }, ['road', 'port', 'industry'], 0.15),
+  S('PRK', 'leste', 'Costa Leste (Hamhung e Wonsan)', 39.9, 127.5, 'cold', { coast: true, mountains: true }, ['road', 'rail', 'port'], 0.2),
 ];
 
 export function sectorsOf(countryId: string): SectorDef[] {

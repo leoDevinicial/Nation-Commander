@@ -1,5 +1,6 @@
 import imf from '../data/reference/imf.json';
 import worldbank from '../data/reference/worldbank.json';
+import { ESTIMATES } from '../data/reference/estimates.ts';
 import { LEADERS, LEADERS_REFERENCE_DATE, type LeaderRecord } from '../data/reference/leaders.ts';
 
 /** Valor com procedência. `quality` distingue dado oficial de parâmetro de jogo. */
@@ -96,6 +97,12 @@ export function countryReference(id: string): CountryReference {
   const values = {} as Record<ReferenceKey, SourcedValue>;
   for (const key of REFERENCE_KEYS) {
     const e = (IMF_PREFERRED.includes(key) ? imfEntries[key] : null) ?? entries[key];
+    // sem valor oficial: estimativa de pesquisa com fonte, quando houver (ex.: Coreia do Norte)
+    const est = e ? undefined : ESTIMATES[id]?.[key];
+    if (est) {
+      values[key] = { value: est.value, unit: est.unit, referenceDate: est.referenceDate, sourceName: est.sourceName, sourceUrl: est.sourceUrl, quality: 'research', notes: est.notes };
+      continue;
+    }
     values[key] = e
       ? {
           value: e.value,

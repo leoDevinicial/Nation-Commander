@@ -41,6 +41,10 @@ export const COUNTRY_GEO: readonly CountryGeo[] = [
   { id: 'SAU', region: 'middle_east', isoNumeric: '682', capital: { name: 'Riad', lat: 24.71, lon: 46.68 } },
   { id: 'ESP', region: 'europe', isoNumeric: '724', capital: { name: 'Madri', lat: 40.42, lon: -3.7 } },
   { id: 'EGY', region: 'middle_east', isoNumeric: '818', capital: { name: 'Cairo', lat: 30.04, lon: 31.24 } },
+  { id: 'RUS', region: 'europe', isoNumeric: '643', capital: { name: 'Moscou', lat: 55.76, lon: 37.62 } },
+  { id: 'TUR', region: 'middle_east', isoNumeric: '792', capital: { name: 'Ancara', lat: 39.93, lon: 32.86 } },
+  { id: 'KOR', region: 'asia_pacific', isoNumeric: '410', capital: { name: 'Seul', lat: 37.57, lon: 126.98 } },
+  { id: 'PRK', region: 'asia_pacific', isoNumeric: '408', capital: { name: 'Pyongyang', lat: 39.04, lon: 125.76 } },
 ];
 
 export function geoOf(id: string): CountryGeo | undefined {

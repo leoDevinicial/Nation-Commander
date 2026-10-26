@@ -47,7 +47,7 @@ Arquivo: `shared/data/reference/worldbank.json`, gerado por `scripts/import-refe
 - **Governo central vs. geral:** dívida/receita/despesa do WDI cobrem só o governo central, enquanto
   saúde e educação cobrem todos os níveis. O modelo ajusta a receita inicial para preservar o
   déficit observado (`taxAdjustmentPct`, explicado no painel de orçamento).
-- **Dívida pública:** vem do FMI WEO (governo geral, 2025) para os 17 países.
+- **Dívida pública:** vem do FMI WEO (governo geral, 2025) para todos os países com dados no FMI (a Coreia do Norte não tem).
 - **Receita/despesa:** a API do FMI não retornou receita/despesa do governo geral; usam-se as do
   governo central (WDI) e o saldo do governo geral do FMI calibra o déficit inicial.
 
@@ -71,3 +71,19 @@ dados do mundo real.
 | FMI — World Economic Outlook | dívida bruta e saldo do governo geral, projeções 2026 |
 | UN Comtrade | comércio bilateral (Fase 3, diplomacia) |
 | V-Dem | indicadores institucionais (estabilidade) |
+
+## Estimativas de pesquisa (países sem estatística oficial)
+A Coreia do Norte não publica contas nacionais, e o Banco Mundial e o FMI não têm PIB, crescimento
+nem gasto militar dela. Nesses campos, e só neles, o jogo usa estimativas com fonte
+(`shared/data/reference/estimates.ts`), marcadas como `research` e exibidas com "est." no cartão do país:
+
+| Campo | Valor | Fonte |
+|---|---|---|
+| PIB | US$ 32,0 bi (renda nacional bruta de 44,4 tri de wons, 2024) | Banco da Coreia, estimativa anual |
+| PIB per capita | US$ 1.240 (1,72 mi de wons, 2024) | Banco da Coreia |
+| Crescimento real | 3,7% (2024) | Banco da Coreia |
+| Gasto militar | 18,4% do PIB (ponto médio de 13,4–23,4%, média 2007–2017) | Departamento de Estado dos EUA, WMEAT 2019 |
+
+- **Gasto militar:** o orçamento de defesa do jogo é limitado a 10% do PIB, então a Coreia do Norte começa nesse teto.
+- **Dados oficiais existentes:** população, desemprego, efetivo militar, gasto militar em US$ (SIPRI, 2018), expectativa de vida, energia e área vêm do Banco Mundial normalmente.
+- **Valores de referência do jogo, declarados como estimativa:** inflação, dívida e demais rubricas do orçamento.

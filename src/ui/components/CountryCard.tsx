@@ -38,8 +38,9 @@ export function ReferenceRow({ k, v, fmt }: { k: ReferenceKey; v: SourcedValue; 
       <td className="py-1 text-right font-mono whitespace-nowrap text-ink-100">
         {v.value === null ? <span className="font-sans text-[11px] text-brass-400">sem dado confiável</span> : fmt(v.value)}
       </td>
-      <td className="py-1 pl-2 text-right text-[10px] text-ink-400" title={v.sourceName}>
+      <td className="py-1 pl-2 text-right text-[10px] text-ink-400" title={v.notes ? `${v.sourceName}\n${v.notes}` : v.sourceName}>
         {v.value === null ? '—' : v.sourceUrl ? <a href={v.sourceUrl} target="_blank" rel="noreferrer" className="underline decoration-dotted hover:text-ink-100">{v.referenceDate}</a> : v.referenceDate}
+        {v.value !== null && v.quality !== 'official' && <span className="ml-1 text-brass-400">est.</span>}
       </td>
     </tr>
   );

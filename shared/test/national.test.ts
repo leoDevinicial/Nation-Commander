@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ESTIMATES } from '../data/reference/estimates.ts';
 import { COUNTRIES } from '../data/countries.ts';
 import { NationalAI } from '../strategic/NationalAI.ts';
 import { createNation, NationalSimulation, spendPct } from '../strategic/NationalSimulation.ts';
@@ -16,10 +17,21 @@ describe('dados de referência', () => {
       const ref = countryReference(c.id);
       for (const key of ['population', 'gdpUsd', 'inflationPct', 'militaryPctGdp'] as const) {
         const v = ref.values[key];
+        // única lacuna aceita: inflação da Coreia do Norte (sem fonte confiável; vira estimativa declarada)
+        if (c.id === 'PRK' && key === 'inflationPct') {
+          expect(v.value).toBeNull();
+          continue;
+        }
         expect(v.value, `${c.id}.${key}`).not.toBeNull();
-        expect(v.referenceDate).toMatch(/^\d{4}$/);
+        expect(v.referenceDate).toMatch(/^\d{4}/);
         expect(v.sourceName.length).toBeGreaterThan(0);
-        expect(v.quality).toBe('official');
+        // estimativa de pesquisa só onde não há dado oficial, e sempre com fonte e nota
+        if (v.quality !== 'official') {
+          expect(ESTIMATES[c.id]?.[key], `${c.id}.${key}`).toBeDefined();
+          expect(v.quality).toBe('research');
+          expect(v.sourceUrl).toMatch(/^https:/);
+          expect(v.notes?.length).toBeGreaterThan(0);
+        }
       }
     }
   });
