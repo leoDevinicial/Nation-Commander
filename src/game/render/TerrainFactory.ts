@@ -161,13 +161,14 @@ export interface TerrainHandle {
  * Representação visual do mapa. A simulação é 2D plana; a altura aqui é decorativa e baixa nas
  * áreas passáveis para que unidades e terreno continuem alinhados.
  */
-export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: WaterReflection = 'sky', ultra = false): TerrainHandle {
+export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: WaterReflection = 'sky', ultra = false, cinematic = false): TerrainHandle {
   const group = new THREE.Group();
   group.name = 'terrain';
   const W = map.width * map.cellSize;
   const H = map.height * map.cellSize;
   const rng = new Random(map.seed ^ 0x9e3779b9);
-  const sub = quality === 'high' ? 2 : 1;
+  // Ultra+: malha do chão 4× mais fina (relevo e margens mais suaves)
+  const sub = cinematic ? 4 : quality === 'high' ? 2 : 1;
   const disposables: { dispose: () => void }[] = [];
 
   const geo = new THREE.PlaneGeometry(W, H, map.width * sub, map.height * sub);

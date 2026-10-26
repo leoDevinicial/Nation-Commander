@@ -70,6 +70,8 @@ describe('globo', () => {
 
   it('globo do menu gira de forma visível (uma volta entre 1 e 2 min) e mais devagar com movimento reduzido', () => {
     const turn = (2 * Math.PI) / SPIN;
+    // 5% mais rápido que a velocidade original (0,08 rad/s)
+    expect(SPIN).toBeCloseTo(0.08 * 1.05, 6);
     expect(turn).toBeGreaterThan(60);
     expect(turn).toBeLessThan(120);
     expect(REDUCED_SPIN_FACTOR).toBeGreaterThan(0);

@@ -323,6 +323,94 @@ export function volumetricSmokeTexture(): THREE.Texture {
 }
 
 /**
+ * Fumaça do Ultra+: 256 px, bordas bem difusas (densidade em curva suave, sem recorte) e
+ * iluminação de cima com autossombreamento — partículas grandes e translúcidas que se fundem
+ * numa pluma contínua em vez de "bolinhas".
+ */
+export function cinematicSmokeTexture(): THREE.Texture {
+  return cached('smoke-cine', () => {
+    const size = 256;
+    const [canvas, ctx] = canvasOf(size);
+    const n = tileableFbm(size, 4, 6, 83);
+    const m = tileableFbm(size, 8, 4, 97);
+    const img = ctx.createImageData(size, size);
+    const dens = (x: number, y: number) => {
+      const i = y * size + x;
+      const dx = (x - size / 2) / (size / 2);
+      const dy = (y - size / 2) / (size / 2);
+      const r2 = dx * dx + dy * dy;
+      const falloff = Math.max(0, 1 - r2) ** 1.6;
+      return Math.max(0, (n[i]! * 0.75 + m[i]! * 0.45) * falloff * 1.5 - 0.12);
+    };
+    for (let y = 0; y < size; y++)
+      for (let x = 0; x < size; x++) {
+        const i = y * size + x;
+        const d = dens(x, y);
+        // autossombreamento: densidade na direção da luz (cima à esquerda)
+        const occl = dens(Math.max(0, x - 10), Math.max(0, y - 14));
+        const dy = (y - size / 2) / (size / 2);
+        const light = 0.58 + 0.42 * Math.exp(-occl * 2.2) - dy * 0.1;
+        const v = Math.round(Math.min(1, light) * 255);
+        img.data[i * 4] = v;
+        img.data[i * 4 + 1] = v;
+        img.data[i * 4 + 2] = v;
+        // curva suave (smoothstep) em vez de corte: as bordas somem sem serrilhado
+        const a = Math.min(1, d * 1.4);
+        img.data[i * 4 + 3] = Math.round(a * a * (3 - 2 * a) * 255);
+      }
+    ctx.putImageData(img, 0, 0);
+    const t = new THREE.CanvasTexture(canvas);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  });
+}
+
+/** Brilho radial macio (fogo e clarões do Ultra+): branco no centro, some sem borda. */
+export function glowTexture(): THREE.Texture {
+  return cached('glow', () => {
+    const size = 128;
+    const [canvas, ctx] = canvasOf(size);
+    const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.25, 'rgba(255,240,210,0.85)');
+    g.addColorStop(0.6, 'rgba(255,190,120,0.3)');
+    g.addColorStop(1, 'rgba(255,160,90,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+    const t = new THREE.CanvasTexture(canvas);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  });
+}
+
+/**
+ * Sombras de nuvens do Ultra+: manchas grandes e macias, repetíveis, deslocadas pelo vento sobre
+ * o mapa (canal R: 1 = sombra máxima).
+ */
+export function cloudShadowTexture(): THREE.Texture {
+  return cached('cloud-shadow', () => {
+    const size = 256;
+    const [canvas, ctx] = canvasOf(size);
+    const n = tileableFbm(size, 3, 5, 131);
+    const img = ctx.createImageData(size, size);
+    for (let i = 0; i < size * size; i++) {
+      const t = Math.min(1, Math.max(0, (n[i]! - 0.52) / 0.22));
+      const v = Math.round(t * t * (3 - 2 * t) * 255);
+      img.data[i * 4] = v;
+      img.data[i * 4 + 1] = v;
+      img.data[i * 4 + 2] = v;
+      img.data[i * 4 + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    const t = new THREE.CanvasTexture(canvas);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.magFilter = THREE.LinearFilter;
+    t.minFilter = THREE.LinearMipmapLinearFilter;
+    return t;
+  });
+}
+
+/**
  * Janelas industriais: caixilhos escuros em grade, vidros com reflexo variado, alguns
  * sujos ou quebrados. Multiplicado sobre o material de vidro (aplicação triplanar).
  */

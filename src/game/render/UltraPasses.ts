@@ -50,6 +50,8 @@ export class LightShaftsPass extends Pass {
     sunDir: THREE.Vector3,
     sunColor: THREE.Color,
     size = 1024,
+    /** Amostras ao longo de cada raio (Ultra+: mais amostras, feixes sem faixas). */
+    steps = SHAFT_STEPS,
   ) {
     super();
     this.sunTarget = new THREE.WebGLRenderTarget(size, size, { depthBuffer: true });
@@ -109,10 +111,10 @@ export class LightShaftsPass extends Pass {
             t1 = min(t1, max(ta, tb));
           }
           if (t1 <= t0) { gl_FragColor = base; return; }
-          float stepLen = (t1 - t0) / float(${SHAFT_STEPS});
+          float stepLen = (t1 - t0) / float(${steps});
           float j = hash(gl_FragCoord.xy + fract(uTime) * 61.0);
           float inscatter = 0.0;
-          for (int i = 0; i < ${SHAFT_STEPS}; i++) {
+          for (int i = 0; i < ${steps}; i++) {
             vec3 p = uCamPos + rd * (t0 + (float(i) + j) * stepLen);
             float density = 0.009 * exp(-max(p.y, 0.0) / 4.0);
             inscatter += lit(p) * density * stepLen;

@@ -135,8 +135,8 @@ export class ShadowFollow {
  * passam a refletir o terreno, as árvores e os prédios reais da região, não só o céu.
  */
 export class EnvironmentProbe {
-  private readonly cubeRT = new THREE.WebGLCubeRenderTarget(64, { type: THREE.HalfFloatType });
-  private readonly cam = new THREE.CubeCamera(1, 400, this.cubeRT);
+  private readonly cubeRT: THREE.WebGLCubeRenderTarget;
+  private readonly cam: THREE.CubeCamera;
   private readonly pmrem: THREE.PMREMGenerator;
   private env: THREE.WebGLRenderTarget | null = null;
   private last = -Infinity;
@@ -145,12 +145,17 @@ export class EnvironmentProbe {
   constructor(
     private readonly renderer: THREE.WebGLRenderer,
     private readonly scene: THREE.Scene,
+    /** Resolução do cubo (Ultra+: 128, reflexos mais nítidos) e intervalo mínimo entre capturas. */
+    size = 64,
+    private readonly interval = 2500,
   ) {
+    this.cubeRT = new THREE.WebGLCubeRenderTarget(size, { type: THREE.HalfFloatType });
+    this.cam = new THREE.CubeCamera(1, 400, this.cubeRT);
     this.pmrem = new THREE.PMREMGenerator(renderer);
   }
 
   update(target: THREE.Vector3, now: number, hide: THREE.Object3D[]): void {
-    if (now - this.last < 2500 || this.at.distanceToSquared(target) < 64) return;
+    if (now - this.last < this.interval || this.at.distanceToSquared(target) < 64) return;
     this.last = now;
     this.at.copy(target);
     const vis = hide.map((o) => o.visible);

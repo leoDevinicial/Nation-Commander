@@ -262,10 +262,12 @@ público) empacotadas pelo [`world-atlas`](https://github.com/topojson/world-atl
 decodificadas com `topojson-client` (ISC). O arquivo é servido pelo próprio build — nada é baixado
 de terceiros em tempo de execução. Fronteiras, litoral, marcadores e nuvens são camadas separadas.
 
-**Presets gráficos** (Configurações): *Mobile/Baixo*, *Equilibrado* e *Alto* ajustam resolução,
+**Presets gráficos** (Configurações): *Mobile/Baixo*, *Equilibrado*, *Alto*, *Ultra* e *Ultra+* ajustam resolução,
 antisserrilhado, sombras, vegetação, número de efeitos e as camadas do globo (`src/lib/graphics.ts`).
 O preset inicial é escolhido pelo aparelho (toque com tela pequena, pouca memória ou poucos núcleos
-→ Mobile/Baixo). Os presets nunca alteram regras nem resultados da simulação.
+→ Mobile/Baixo); Ultra e Ultra+ nunca são escolhidos automaticamente, e o Ultra+ mostra um aviso de
+desempenho antes de ser ativado (detalhes em `docs/GRAFICOS_REALISTAS.md`). Os presets nunca alteram
+regras nem resultados da simulação.
 
 ## Testes e verificação
 

@@ -101,3 +101,38 @@ Limite honesto: a imagem de referência (base industrial com dezenas de tanques)
 esculpidos e texturas fotográficas. Aqui os modelos são montados por código a partir de primitivas; o Ultra aproxima a
 iluminação, a água, a fumaça e o acabamento, mas não chega ao nível de detalhe de modelos feitos à mão por artistas.
 Testes: `src/test/ultra.test.ts`.
+
+## Preset Ultra+ (cinematográfico)
+
+Pedido do usuário: um nível acima do Ultra, com shaders, iluminação, fumaça (mais suave, dispersa e realista) e sombras
+dinâmicas no máximo, mirando ≈80% de realismo e 20% de low-poly, com aviso de desempenho antes de ativar — sobretudo no
+celular. Nunca é escolhido automaticamente (`detectPreset`).
+
+**Aviso antes de ativar** (`SettingsScreen.tsx`, `HEAVY_PRESETS`): ao tocar em **Ultra+ ⚠**, um diálogo explica o que
+muda e o custo esperado (muitas vezes metade dos quadros do Ultra). Em celular/tablet aparece um alerta reforçado
+(travamentos, aquecimento, bateria, página recarregada por falta de memória) com o preset recomendado para o aparelho.
+"Manter preset atual" é o botão padrão; confirmar ativa o Ultra+ e liga o contador de FPS.
+
+Tudo do Ultra, mais:
+
+| Recurso | Onde | Como funciona |
+|---|---|---|
+| Modelos ≈80% realistas | `models/kit.ts` (`'cinematic'`) | caixas com chanfro curvo (2 segmentos, raio até 9 cm, a partir de 5 cm de espessura); cilindros e esferas com o triplo de segmentos. Mesmas formas, leitura bem menos facetada |
+| Sombras dinâmicas | `GameRuntime.ts` | mapa do sol de até 8192 px (limitado ao máximo da placa), penumbra larga (raio 4) e `normalBias` contra serrilhado; o volume acompanha a câmera |
+| Sombras de nuvens | `materials.ts` (`cloudUniforms`), `textures.ts` (`cloudShadowTexture`) | manchas macias que atravessam o mapa com o vento (≈2,4 un/s); atenuam só a luz direta (sol e clarões), a luz do céu continua — tarde parcialmente nublada |
+| Fumaça de chaminé | `BuildingVisuals.ts` (`SmokeMode`) | 30 partículas por saída, textura 256 px com bordas em curva suave e autossombreamento; vida longa, a pluma deita com o vento e se abre num véu largo e ralo (cada partícula se desvia para um lado), com turbulência em duas escalas |
+| Explosões | `Effects.ts` | bola de fogo de partículas aditivas que esfriam do branco-amarelo ao vermelho (em vez da esfera sólida); coluna de 9–18 partículas de fuligem que sobe, abre e é levada pelo vento; anel de poeira rasteira nas explosões grandes |
+| Brilho (bloom) | `PostFx.ts` | `UnrealBloomPass` suave (limiar 0,88): fogo, clarões e reflexos do sol |
+| Feixes de sol e oclusão | `UltraPasses.ts`, `PostFx.ts` | 48 amostras por raio (antes 28) e mapa de profundidade do sol de 2048 px; GTAO com 20 amostras |
+| Reflexos | `Lighting.ts` (`EnvironmentProbe`) | cubo de ambiente de 128 px atualizado a cada 1,5 s |
+| Terreno | `TerrainFactory.ts` | malha do chão 4× mais fina |
+| Resolução e efeitos | `graphics.ts` | até 2,5× de pixel ratio, 300 efeitos simultâneos e 8 luzes dinâmicas |
+
+Verificado em navegador headless (renderização por software): sem erros de shader, fumaça, bloom e sombras de nuvem
+aparecendo. O desempenho real depende da placa de vídeo e não foi medido em hardware — por isso o aviso e o FPS ligado.
+Testes: `src/test/ultra.test.ts` (perfil, persistência da escolha e geometria mais suave que a do Ultra).
+
+## Globo do menu
+
+Gira 5% mais rápido que a versão original: `SPIN` = 0,084 rad/s (uma volta a cada ~75 s; com "reduzir movimento", 1/4
+disso). Teste em `src/test/ui-foundation.test.ts`.

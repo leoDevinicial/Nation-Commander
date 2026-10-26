@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BUILDINGS, type BuildingType } from '../../../shared/sim/config.ts';
 import { HealthBar, selectionRing } from './HealthBar.ts';
 import { accentMaterial, bodyMaterial, glassMaterial, withFog } from './materials.ts';
-import { smokeTexture, volumetricSmokeTexture } from './textures.ts';
+import { cinematicSmokeTexture, smokeTexture, volumetricSmokeTexture } from './textures.ts';
 import { buildingModel, type BuildingModel } from './models/buildingModels.ts';
 import type { SpecId } from '../../../shared/sim/upgrades.ts';
 import { C, PartBuilder, type ModelLayers } from './models/kit.ts';
@@ -34,6 +34,8 @@ export interface BuildingVisualOptions {
   effects?: boolean;
   /** Ultra: fumaça volumétrica. */
   ultra?: boolean;
+  /** Ultra+: fumaça densa e dispersa pelo vento (mais partículas, maiores e mais suaves). */
+  cinematic?: boolean;
   /** Nível e especialização iniciais (Fase 4). */
   level?: number;
   spec?: SpecId | null;
@@ -44,41 +46,72 @@ export interface BuildingVisualOptions {
 /** Distância padrão do LOD dos módulos de melhoria. */
 const DEFAULT_LOD = 80;
 
-/** Fumaça contínua de chaminé: poucos sprites reciclados, subindo, crescendo e sumindo. */
+/** Qualidade da fumaça: simples (Mobile/Equilibrado/Alto), volumétrica (Ultra) e cinematográfica (Ultra+). */
+export type SmokeMode = 'basic' | 'volumetric' | 'cinematic';
+
+/** Direção do vento (horizontal) compartilhada por toda a fumaça. */
+const WIND_X = 0.94;
+const WIND_Z = 0.34;
+
+/** Fumaça contínua de chaminé: sprites reciclados, subindo, crescendo e sumindo. */
 class Smoke {
   readonly group = new THREE.Group();
-  private readonly puffs: { s: THREE.Sprite; phase: number; m: THREE.SpriteMaterial; spin: number; seed: number }[] = [];
+  private readonly puffs: { s: THREE.Sprite; phase: number; m: THREE.SpriteMaterial; spin: number; seed: number; side: number; lift: number }[] = [];
 
-  /** `volumetric` (Ultra): mais partículas, textura com volume, giro e turbulência. */
   constructor(
     tops: [number, number, number][],
-    private readonly volumetric = false,
+    private readonly mode: SmokeMode = 'basic',
   ) {
-    const count = volumetric ? 16 : 7;
+    const count = mode === 'cinematic' ? 30 : mode === 'volumetric' ? 16 : 7;
+    const map = mode === 'cinematic' ? cinematicSmokeTexture() : mode === 'volumetric' ? volumetricSmokeTexture() : smokeTexture();
     for (const [x, y, z] of tops) {
       for (let i = 0; i < count; i++) {
-        const m = new THREE.SpriteMaterial({
-          map: volumetric ? volumetricSmokeTexture() : smokeTexture(),
-          color: '#8d8f90',
-          transparent: true,
-          depthWrite: false,
-          opacity: 0,
-        });
+        const m = new THREE.SpriteMaterial({ map, color: '#8d8f90', transparent: true, depthWrite: false, opacity: 0 });
         const sp = new THREE.Sprite(m);
         sp.position.set(x, y, z);
         sp.userData.origin = [x, y, z];
         this.group.add(sp);
-        this.puffs.push({ s: sp, phase: i / count, m, spin: (Math.random() - 0.5) * 0.6, seed: Math.random() * 10 });
+        this.puffs.push({
+          s: sp,
+          phase: i / count,
+          m,
+          spin: (Math.random() - 0.5) * 0.6,
+          seed: Math.random() * 10,
+          // cada partícula se abre para um lado da pluma e sobe um pouco diferente
+          side: (Math.random() - 0.5) * 2,
+          lift: 0.8 + Math.random() * 0.4,
+        });
       }
     }
   }
 
   update(dt: number): void {
     for (const p of this.puffs) {
-      p.phase = (p.phase + dt * (this.volumetric ? 0.11 : 0.16)) % 1;
-      const t = p.phase;
       const [x, y, z] = p.s.userData.origin as [number, number, number];
-      if (this.volumetric) {
+      if (this.mode === 'cinematic') {
+        // vida longa: a pluma sobe, deita com o vento e se espalha em um véu largo e ralo
+        p.phase = (p.phase + dt * 0.07) % 1;
+        const t = p.phase;
+        const drift = Math.pow(t, 1.45) * 7.5;
+        const spread = Math.pow(t, 1.2) * 2.4 * p.side;
+        const turbX = Math.sin(t * 7 + p.seed) * 0.45 * t + Math.sin(t * 17 + p.seed * 2) * 0.12 * t;
+        const turbZ = Math.cos(t * 6 + p.seed) * 0.4 * t;
+        p.s.position.set(
+          x + drift * WIND_X - spread * WIND_Z + turbX,
+          y + Math.pow(t, 0.55) * 5.2 * p.lift,
+          z + drift * WIND_Z + spread * WIND_X + turbZ,
+        );
+        const sc = 0.6 + Math.pow(t, 0.75) * 6.5;
+        p.s.scale.set(sc, sc * 0.92, sc);
+        p.m.rotation += p.spin * dt * 0.6;
+        // sai escura e quente perto da chaminé, clareia ao subir e fica levemente azulada ao dispersar
+        const c = 0.34 + t * 0.4;
+        p.m.color.setRGB(c, c * 0.995, c * (0.97 + t * 0.05));
+        // muitas partículas finas e sobrepostas: transições suaves, sem "bolhas" visíveis
+        p.m.opacity = Math.min(1, t * 6) * Math.pow(1 - t, 1.6) * 0.52;
+      } else if (this.mode === 'volumetric') {
+        p.phase = (p.phase + dt * 0.11) % 1;
+        const t = p.phase;
         // pluma: sobe rápido na saída e é dobrada pelo vento (deriva cresce com t^1,6), com turbulência
         const drift = Math.pow(t, 1.6);
         const turb = Math.sin(t * 9 + p.seed) * 0.25 * t;
@@ -91,6 +124,8 @@ class Smoke {
         p.m.color.setRGB(c, c * 0.99, c * 0.97);
         p.m.opacity = Math.min(1, t * 8) * Math.pow(1 - t, 1.3) * 0.85;
       } else {
+        p.phase = (p.phase + dt * 0.16) % 1;
+        const t = p.phase;
         // sobe e é levada pelo vento, abrindo-se
         p.s.position.set(x + t * 2.2, y + t * 3.2, z + t * 0.8);
         const sc = 0.5 + t * 2.4;
@@ -194,7 +229,7 @@ export class BuildingVisual {
         this.smoke = null;
       }
       if (def.smoke && this.opts.effects) {
-        this.smoke = new Smoke(def.smoke, this.opts.ultra === true);
+        this.smoke = new Smoke(def.smoke, this.opts.cinematic ? 'cinematic' : this.opts.ultra ? 'volumetric' : 'basic');
         this.model.add(this.smoke.group);
       }
     }

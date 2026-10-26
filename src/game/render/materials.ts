@@ -18,6 +18,26 @@ export const weatherUniforms = {
 };
 
 /**
+ * Sombras de nuvens (Ultra+): textura de manchas macias deslocada pelo vento sobre o mapa. Só a
+ * luz direta (sol e clarões) é atenuada — a luz do céu continua, como numa tarde parcialmente
+ * nublada. `uCloudStrength` 0 desliga sem recompilar.
+ */
+export const cloudUniforms = {
+  uCloudMap: { value: null as THREE.Texture | null },
+  uCloudOffset: { value: new THREE.Vector2() },
+  uCloudStrength: { value: 0 },
+};
+
+let cloudShadows = false;
+/** Liga as sombras de nuvens nos materiais criados a partir de agora (definido no início da partida). */
+export function setCloudShadows(on: boolean): void {
+  cloudShadows = on;
+}
+
+/** Escala da textura de nuvens no mundo (uma repetição a cada ~220 unidades). */
+const CLOUD_SCALE = 0.0045;
+
+/**
  * Correção de cor única (aplicada em céu, terreno, vegetação e modelos, depois do tone mapping):
  * saturação levemente contida, sombras um pouco frias e luzes um pouco quentes. É o que faz
  * peças de origens diferentes parecerem pertencer à mesma foto. Custo: poucas instruções por pixel.
@@ -67,9 +87,15 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
   const weather = opts.weather ?? 0;
   const panes = opts.panes ?? false;
   const ch = opts.seams ? 'g' : 'r';
+  const clouds = cloudShadows;
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uFogMap = fogUniforms.uFogMap;
     shader.uniforms.uFogSize = fogUniforms.uFogSize;
+    if (clouds) {
+      shader.uniforms.uCloudMap = cloudUniforms.uCloudMap;
+      shader.uniforms.uCloudOffset = cloudUniforms.uCloudOffset;
+      shader.uniforms.uCloudStrength = cloudUniforms.uCloudStrength;
+    }
     let vs = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec2 vFogXZ;' + (weather || panes ? '\nvarying vec3 vObjPos;\nvarying vec3 vObjNormal;' : ''))
       .replace(
@@ -88,8 +114,20 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
       '#include <common>',
       '#include <common>\nuniform sampler2D uFogMap;\nuniform vec2 uFogSize;\nvarying vec2 vFogXZ;' +
         (weather ? '\nuniform sampler2D uGrime;\nuniform float uGrimeScale;\nuniform vec3 uRimColor;\nvarying vec3 vObjPos;\nvarying vec3 vObjNormal;\nfloat vGrimeV = 1.0;' : '') +
-        (panes ? '\nuniform sampler2D uPanes;\nvarying vec3 vObjPos;\nvarying vec3 vObjNormal;' : ''),
+        (panes ? '\nuniform sampler2D uPanes;\nvarying vec3 vObjPos;\nvarying vec3 vObjNormal;' : '') +
+        (clouds ? '\nuniform sampler2D uCloudMap;\nuniform vec2 uCloudOffset;\nuniform float uCloudStrength;' : ''),
     );
+    if (clouds)
+      fs = fs.replace(
+        '#include <lights_fragment_end>',
+        `#include <lights_fragment_end>
+        {
+          float cloudS = texture2D(uCloudMap, vFogXZ * ${CLOUD_SCALE} + uCloudOffset).r;
+          float cloudLit = 1.0 - uCloudStrength * cloudS;
+          reflectedLight.directDiffuse *= cloudLit;
+          reflectedLight.directSpecular *= cloudLit;
+        }`,
+      );
     if (panes) {
       shader.uniforms.uPanes = weatherUniforms.uPanes;
       fs = fs.replace(
@@ -140,7 +178,7 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
         ${FOG_GLSL}`,
     );
   };
-  material.customProgramCacheKey = () => `nc-fog-v5-w${weather}-p${panes ? 1 : 0}-${ch}`;
+  material.customProgramCacheKey = () => `nc-fog-v5-w${weather}-p${panes ? 1 : 0}-${ch}-c${clouds ? 1 : 0}`;
   return material;
 }
 

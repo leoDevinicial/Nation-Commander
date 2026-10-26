@@ -2,15 +2,19 @@
  * Presets gráficos. Controlam apenas custo de renderização (resolução, sombras, efeitos,
  * vegetação, camadas decorativas do globo) — nunca regras ou resultados da simulação.
  */
-export type GraphicsPreset = 'low' | 'balanced' | 'high' | 'ultra';
+export type GraphicsPreset = 'low' | 'balanced' | 'high' | 'ultra' | 'ultraplus';
 
-export const GRAPHICS_PRESETS: readonly GraphicsPreset[] = ['low', 'balanced', 'high', 'ultra'];
+export const GRAPHICS_PRESETS: readonly GraphicsPreset[] = ['low', 'balanced', 'high', 'ultra', 'ultraplus'];
+
+/** Presets que pedem confirmação (aviso de desempenho) antes de serem ativados. */
+export const HEAVY_PRESETS: readonly GraphicsPreset[] = ['ultraplus'];
 
 export const PRESET_LABELS: Record<GraphicsPreset, string> = {
   low: 'Mobile/Baixo',
   balanced: 'Equilibrado',
   high: 'Alto',
   ultra: 'Ultra',
+  ultraplus: 'Ultra+',
 };
 
 export interface GraphicsProfile {
@@ -40,6 +44,13 @@ export interface GraphicsProfile {
    * exposição local que clareia regiões em sombra.
    */
   ultra: boolean;
+  /**
+   * Ultra+ (cinematográfico): vai além do Ultra — modelos bem mais arredondados (≈20% low-poly,
+   * 80% realista), sombras de alta resolução com penumbra larga, sombras de nuvens que se movem
+   * sobre o mapa, fumaça densa que se espalha com o vento, brilho (bloom) em fogo e reflexos,
+   * feixes de sol com mais amostras e reflexos de ambiente mais nítidos.
+   */
+  cinematic: boolean;
   /** Globo do menu. */
   globe: { textureWidth: number; clouds: boolean; stars: number; maxFps: number };
 }
@@ -58,6 +69,7 @@ export const PROFILES: Record<GraphicsPreset, GraphicsProfile> = {
     dynamicLights: 0,
     envProbe: false,
     ultra: false,
+    cinematic: false,
     globe: { textureWidth: 1024, clouds: false, stars: 400, maxFps: 30 },
   },
   balanced: {
@@ -73,6 +85,7 @@ export const PROFILES: Record<GraphicsPreset, GraphicsProfile> = {
     dynamicLights: 2,
     envProbe: false,
     ultra: false,
+    cinematic: false,
     globe: { textureWidth: 2048, clouds: true, stars: 1200, maxFps: 60 },
   },
   high: {
@@ -88,6 +101,7 @@ export const PROFILES: Record<GraphicsPreset, GraphicsProfile> = {
     dynamicLights: 4,
     envProbe: true,
     ultra: false,
+    cinematic: false,
     globe: { textureWidth: 4096, clouds: true, stars: 2000, maxFps: 60 },
   },
   ultra: {
@@ -103,7 +117,24 @@ export const PROFILES: Record<GraphicsPreset, GraphicsProfile> = {
     dynamicLights: 6,
     envProbe: true,
     ultra: true,
+    cinematic: false,
     globe: { textureWidth: 4096, clouds: true, stars: 2400, maxFps: 60 },
+  },
+  ultraplus: {
+    pixelRatioCap: 2.5,
+    antialias: true,
+    shadows: true,
+    shadowMapSize: 8192,
+    terrain: 'high',
+    maxEffects: 300,
+    ao: true,
+    reflections: 'planar',
+    adaptiveExposure: true,
+    dynamicLights: 8,
+    envProbe: true,
+    ultra: true,
+    cinematic: true,
+    globe: { textureWidth: 4096, clouds: true, stars: 3000, maxFps: 60 },
   },
 };
 

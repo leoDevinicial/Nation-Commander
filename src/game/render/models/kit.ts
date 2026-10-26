@@ -5,9 +5,12 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 /**
  * Nível de detalhe dos modelos. No Ultra, caixas ganham arestas arredondadas (que pegam luz como
  * concreto e chapa reais) e cilindros/esferas têm o dobro de segmentos — menos "tudo quadrado".
+ * No Ultra+ ('cinematic') as arestas são ainda mais suaves (chanfro maior, com curvatura) e as
+ * peças redondas têm o triplo de segmentos: a forma continua a mesma, mas a leitura fica ≈20%
+ * low-poly e 80% realista.
  * Definido antes de os modelos serem montados (os caches são limpos ao fim de cada partida).
  */
-export type ModelDetail = 'standard' | 'ultra';
+export type ModelDetail = 'standard' | 'ultra' | 'cinematic';
 let detail: ModelDetail = 'standard';
 export function setModelDetail(d: ModelDetail): void {
   detail = d;
@@ -17,6 +20,8 @@ export function modelDetail(): ModelDetail {
 }
 /** Peças menores que isto continuam com quinas vivas (economia de vértices sem perda visível). */
 const ROUND_MIN = 0.08;
+/** No Ultra+, peças um pouco menores também são arredondadas. */
+const ROUND_MIN_CINEMATIC = 0.05;
 
 type V3 = [number, number, number];
 
@@ -63,17 +68,22 @@ export class PartBuilder {
 
   box(w: number, h: number, d: number, color: THREE.ColorRepresentation, pos: V3, rot?: V3): this {
     const m = Math.min(w, h, d);
-    const geo = detail === 'ultra' && m >= ROUND_MIN ? new RoundedBoxGeometry(w, h, d, 1, Math.min(0.06, m * 0.18)) : new THREE.BoxGeometry(w, h, d);
+    const geo =
+      detail === 'cinematic' && m >= ROUND_MIN_CINEMATIC
+        ? new RoundedBoxGeometry(w, h, d, 2, Math.min(0.09, m * 0.26))
+        : detail === 'ultra' && m >= ROUND_MIN
+          ? new RoundedBoxGeometry(w, h, d, 1, Math.min(0.06, m * 0.18))
+          : new THREE.BoxGeometry(w, h, d);
     return this.add(geo, color, { pos, rot });
   }
 
   cyl(rTop: number, rBottom: number, h: number, color: THREE.ColorRepresentation, pos: V3, rot?: V3, segments = 10): this {
-    const seg = detail === 'ultra' ? Math.min(32, segments * 2) : segments;
+    const seg = detail === 'cinematic' ? Math.min(48, segments * 3) : detail === 'ultra' ? Math.min(32, segments * 2) : segments;
     return this.add(new THREE.CylinderGeometry(rTop, rBottom, h, seg), color, { pos, rot });
   }
 
   sphere(r: number, color: THREE.ColorRepresentation, pos: V3, scale?: V3, segments = 8): this {
-    const seg = detail === 'ultra' ? Math.min(24, segments * 2) : segments;
+    const seg = detail === 'cinematic' ? Math.min(36, segments * 3) : detail === 'ultra' ? Math.min(24, segments * 2) : segments;
     return this.add(new THREE.SphereGeometry(r, seg, Math.max(4, seg - 2)), color, { pos, scale });
   }
 

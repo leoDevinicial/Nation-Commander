@@ -12,7 +12,7 @@ import { CameraController } from './render/CameraController.ts';
 import { Effects } from './render/Effects.ts';
 import { disposeSharedResources, mat } from './render/palette.ts';
 import { buildTerrain, type TerrainHandle } from './render/TerrainFactory.ts';
-import { disposeMaterials, fogUniforms, weatherUniforms } from './render/materials.ts';
+import { cloudUniforms, disposeMaterials, fogUniforms, setCloudShadows, weatherUniforms } from './render/materials.ts';
 import { disposeBuildingModels } from './render/models/buildingModels.ts';
 import { disposeCitizenModel, disposeUnitModels } from './render/models/unitModels.ts';
 import { setModelDetail } from './render/models/kit.ts';
@@ -25,7 +25,7 @@ import { useNationalStore } from '../state/useNationalStore.ts';
 import { Terrain as T } from '../../shared/sim/config.ts';
 import { TerritoryLayer } from './render/TerritoryLayer.ts';
 import { createSky, environmentFromSky, SKY } from './render/Sky.ts';
-import { disposeTextures, grimeTexture, windowTexture } from './render/textures.ts';
+import { cloudShadowTexture, disposeTextures, grimeTexture, windowTexture } from './render/textures.ts';
 import { UnitVisual } from './render/UnitVisuals.ts';
 import { PostFx } from './render/PostFx.ts';
 import { CitizenLayer } from './render/CitizenLayer.ts';
@@ -61,6 +61,10 @@ interface TrackedBuilding {
 }
 
 const HUD_INTERVAL_MS = 150;
+/** Ultra+: quanto as sombras de nuvens escurecem a luz direta do sol (0–1). */
+const CLOUD_SHADOW_STRENGTH = 0.42;
+/** Ultra+: velocidade das nuvens em coordenadas de textura por segundo (≈2,4 unidades/s). */
+const CLOUD_DRIFT = 0.011;
 const DRAG_THRESHOLD = 6;
 
 /**
@@ -153,7 +157,11 @@ export class GameRuntime {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.profile.pixelRatioCap));
     this.renderer.shadowMap.enabled = opts.shadows;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
-    setModelDetail(opts.profile.ultra ? 'ultra' : 'standard');
+    setModelDetail(opts.profile.cinematic ? 'cinematic' : opts.profile.ultra ? 'ultra' : 'standard');
+    // Ultra+: sombras de nuvens que atravessam o mapa (nos materiais criados a partir daqui)
+    setCloudShadows(opts.profile.cinematic);
+    cloudUniforms.uCloudMap.value = opts.profile.cinematic ? cloudShadowTexture() : null;
+    cloudUniforms.uCloudStrength.value = opts.profile.cinematic ? CLOUD_SHADOW_STRENGTH : 0;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
@@ -190,15 +198,17 @@ export class GameRuntime {
         this.renderer,
         this.scene,
         this.camera,
-        opts.profile.ultra && this.sun ? { sun: this.sun, sunDir: SKY.sunDir, sunColor: SKY.sunColor, sunDepthSize: 1024 } : null,
+        opts.profile.ultra && this.sun
+          ? { sun: this.sun, sunDir: SKY.sunDir, sunColor: SKY.sunColor, sunDepthSize: opts.profile.cinematic ? 2048 : 1024, cinematic: opts.profile.cinematic }
+          : null,
       );
     if (opts.profile.adaptiveExposure) this.exposure = new AdaptiveExposure(this.renderer, this.renderer.toneMappingExposure);
-    if (opts.profile.envProbe) this.probe = new EnvironmentProbe(this.renderer, this.scene);
+    if (opts.profile.envProbe) this.probe = opts.profile.cinematic ? new EnvironmentProbe(this.renderer, this.scene, 128, 1500) : new EnvironmentProbe(this.renderer, this.scene);
     this.territoryLayer = new TerritoryLayer(this.map.width, this.map.height, this.map.cellSize, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.territoryLayer.group);
     this.citizens = new CitizenLayer(this.map, this.mySlot, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.citizens.group);
-    this.effects = new Effects(this.scene, opts.profile.maxEffects, opts.profile.dynamicLights, opts.profile.ultra);
+    this.effects = new Effects(this.scene, opts.profile.maxEffects, opts.profile.dynamicLights, opts.profile.cinematic ? 'cinematic' : opts.profile.ultra ? 'volumetric' : 'basic');
 
     this.selectionBox = document.createElement('div');
     this.selectionBox.className = 'selection-box';
@@ -260,7 +270,9 @@ export class GameRuntime {
     sun.position.set(W / 2 + SKY.sunDir.x * 120, SKY.sunDir.y * 120, H / 2 + SKY.sunDir.z * 120);
     sun.target.position.set(W / 2, 0, H / 2);
     sun.castShadow = this.opts.shadows;
-    sun.shadow.mapSize.set(this.opts.profile.shadowMapSize, this.opts.profile.shadowMapSize);
+    // Ultra+ pede 8192; limitado ao máximo que a placa suporta
+    const shadowSize = Math.min(this.opts.profile.shadowMapSize, this.renderer.capabilities.maxTextureSize);
+    sun.shadow.mapSize.set(shadowSize, shadowSize);
     const sc = sun.shadow.camera;
     sc.left = -W * 0.75;
     sc.right = W * 0.75;
@@ -273,8 +285,13 @@ export class GameRuntime {
     sun.shadow.bias = -0.0006;
     // Ultra: penumbra mais suave (filtro PCF mais largo)
     if (this.opts.profile.ultra) sun.shadow.radius = 2.5;
+    // Ultra+: mapa mais denso permite penumbra mais larga sem perder o contato com o chão
+    if (this.opts.profile.cinematic) {
+      sun.shadow.radius = 4;
+      sun.shadow.normalBias = 0.02;
+    }
     this.scene.add(sun, sun.target);
-    this.terrain = buildTerrain(this.map, this.opts.profile.terrain, this.opts.profile.reflections, this.opts.profile.ultra);
+    this.terrain = buildTerrain(this.map, this.opts.profile.terrain, this.opts.profile.reflections, this.opts.profile.ultra, this.opts.profile.cinematic);
     this.scene.add(this.terrain.group);
     // modelos do Nature Kit chegam depois; até lá, vegetação procedural
     this.terrain.upgrade().catch((err: unknown) => console.warn('Nature Kit indisponível', err));
@@ -351,6 +368,7 @@ export class GameRuntime {
           claims: b.claims,
           effects: this.opts.profile.maxEffects > 60,
           ultra: this.opts.profile.ultra,
+          cinematic: this.opts.profile.cinematic,
           level: b.level,
           spec: b.spec,
           // celular: os detalhes pequenos das melhorias somem mais cedo ao afastar a câmera
@@ -445,6 +463,11 @@ export class GameRuntime {
 
     this.updateCameraFromKeys(dt);
     this.cameraCtl.apply();
+    if (this.opts.profile.cinematic) {
+      // as nuvens andam com o mesmo vento da fumaça (≈2,4 unidades/s)
+      const o = cloudUniforms.uCloudOffset.value;
+      o.set((o.x - 0.94 * CLOUD_DRIFT * dt) % 1, (o.y - 0.34 * CLOUD_DRIFT * dt) % 1);
+    }
 
     const alpha = this.paused ? 1 : Math.min(1, (now - this.snapshotAt) / (this.snapshotInterval / this.speed));
     for (const t of this.units.values()) {
@@ -1259,6 +1282,9 @@ export class GameRuntime {
     this.territoryLayer.dispose();
     this.fogTexture.dispose();
     fogUniforms.uFogMap.value = null;
+    cloudUniforms.uCloudMap.value = null;
+    cloudUniforms.uCloudStrength.value = 0;
+    setCloudShadows(false);
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }

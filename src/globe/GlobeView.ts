@@ -56,8 +56,8 @@ export type GlobeLayout = 'hero' | 'center';
 
 const RADIUS = 1;
 const DEG = Math.PI / 180;
-/** Rotação automática do globo do menu (rad/s): uma volta a cada ~80 s, visível sem distrair. */
-export const SPIN = 0.08;
+/** Rotação automática do globo do menu (rad/s): 5% mais rápida que a original (0,08), uma volta a cada ~75 s. */
+export const SPIN = 0.084;
 /** Com "reduzir movimento" o globo continua girando, mas a 1/4 da velocidade (~5 min por volta). */
 export const REDUCED_SPIN_FACTOR = 0.25;
 
