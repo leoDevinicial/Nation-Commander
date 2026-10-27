@@ -1,4 +1,4 @@
-import { BUILDINGS, UNITS, isMilitaryResearchId, type BuildingType, type MilitaryResearchId, type ProducibleType } from './config.ts';
+import { BUILDINGS, UNITS, isMilitaryResearchId, type BuildingType, type MilitaryResearchId, type ProducibleType, type UnitType } from './config.ts';
 import type { EntityId } from './types.ts';
 import { isSpecId, type SpecId } from './upgrades.ts';
 import { isModId, type ModId } from './modernization.ts';
@@ -43,7 +43,20 @@ export type Command =
   | { type: 'missile_abort'; launchId: number }
   /** Operações expedicionárias (Fase 8): lançar contra um setor de um país em guerra e recuar. */
   | { type: 'launch_operation'; target: number; sectorId: string; unitIds: EntityId[] }
-  | { type: 'operation_retreat'; opId: number };
+  | { type: 'operation_retreat'; opId: number }
+  /** Modo Sandbox: ferramentas livres (só aceitas numa partida Sandbox, para o jogador humano). */
+  | { type: 'sandbox_toggle'; key: SandboxToggle; value: boolean }
+  | { type: 'sandbox_spawn'; unitType: UnitType; x: number; y: number; count: number; enemy: boolean; maxed: boolean }
+  | { type: 'sandbox_level'; buildingId: EntityId; level: number; spec?: SpecId }
+  | { type: 'sandbox_maxout'; unitIds: EntityId[] }
+  | { type: 'sandbox_remove'; ids: EntityId[] }
+  | { type: 'sandbox_clear'; who: 'enemy' | 'mine' };
+
+/** Opções do Sandbox: produção/obras instantâneas, IA inimiga agindo e mapa revelado. */
+export type SandboxToggle = 'instant' | 'aiActive' | 'reveal';
+export const SANDBOX_TOGGLES: readonly SandboxToggle[] = ['instant', 'aiActive', 'reveal'];
+/** Máximo de unidades criadas de uma vez no Sandbox. */
+export const SANDBOX_MAX_SPAWN = 20;
 
 const MAX_UNITS_PER_COMMAND = 60;
 
@@ -166,6 +179,26 @@ export function parseCommand(raw: unknown): Command | null {
     case 'operation_retreat':
       if (!isId(raw.opId)) return null;
       return { type: 'operation_retreat', opId: raw.opId };
+    case 'sandbox_toggle':
+      if (!SANDBOX_TOGGLES.includes(raw.key as SandboxToggle) || typeof raw.value !== 'boolean') return null;
+      return { type: 'sandbox_toggle', key: raw.key as SandboxToggle, value: raw.value };
+    case 'sandbox_spawn':
+      if (typeof raw.unitType !== 'string' || !Object.hasOwn(UNITS, raw.unitType) || !isFiniteNum(raw.x) || !isFiniteNum(raw.y)) return null;
+      if (!Number.isInteger(raw.count) || (raw.count as number) < 1 || (raw.count as number) > SANDBOX_MAX_SPAWN) return null;
+      if (typeof raw.enemy !== 'boolean' || typeof raw.maxed !== 'boolean') return null;
+      return { type: 'sandbox_spawn', unitType: raw.unitType as UnitType, x: raw.x, y: raw.y, count: raw.count as number, enemy: raw.enemy, maxed: raw.maxed };
+    case 'sandbox_level':
+      if (!isId(raw.buildingId) || !Number.isInteger(raw.level) || (raw.level as number) < 1 || (raw.level as number) > 20) return null;
+      if (raw.spec !== undefined && !isSpecId(raw.spec)) return null;
+      return isSpecId(raw.spec) ? { type: 'sandbox_level', buildingId: raw.buildingId, level: raw.level as number, spec: raw.spec } : { type: 'sandbox_level', buildingId: raw.buildingId, level: raw.level as number };
+    case 'sandbox_maxout':
+      if (!isIdList(raw.unitIds)) return null;
+      return { type: 'sandbox_maxout', unitIds: [...new Set(raw.unitIds)] };
+    case 'sandbox_remove':
+      if (!isIdList(raw.ids)) return null;
+      return { type: 'sandbox_remove', ids: [...new Set(raw.ids)] };
+    case 'sandbox_clear':
+      return raw.who === 'enemy' || raw.who === 'mine' ? { type: 'sandbox_clear', who: raw.who } : null;
     default:
       return null;
   }

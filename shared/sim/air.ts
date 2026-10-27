@@ -315,7 +315,7 @@ export class AirSystem {
     if (this.sim.national && !this.sim.national.chargeWorks(slot, def.usd, `${def.label}`)) return 'Verba de obras insuficiente para a aeronave';
     this.sim.spendResources(slot, def.cost);
     this.sim.players[slot]!.recruits--;
-    this.aircraft.push({ id: this.nextId++, type, owner: slot, baseId, home: { ...this.building(baseId)!.pos }, state: 'building', timer: def.buildSeconds * TICK_RATE, missionId: null });
+    this.aircraft.push({ id: this.nextId++, type, owner: slot, baseId, home: { ...this.building(baseId)!.pos }, state: 'building', timer: this.sim.duration(slot, def.buildSeconds * TICK_RATE), missionId: null });
     return null;
   }
 
@@ -497,7 +497,7 @@ export class AirSystem {
     if (this.sim.national && !this.sim.national.chargeWorks(slot, MISSILE.usd, 'Míssil balístico')) return 'Verba de obras insuficiente para o míssil';
     this.sim.spendResources(slot, MISSILE.cost);
     const s = this.silo(siloId);
-    s.building = MISSILE.buildSeconds * TICK_RATE;
+    s.building = this.sim.duration(slot, MISSILE.buildSeconds * TICK_RATE);
     s.paid = { ...MISSILE.cost };
     s.usd = this.sim.national ? MISSILE.usd : 0;
     return null;

@@ -110,6 +110,8 @@ export interface HudState {
   fps: number;
   /** Painel de desempenho (KGPS/KAICS); null antes da primeira janela publicada. */
   perf: PerfHud | null;
+  /** Opções do modo Sandbox (null nas partidas normais). */
+  sandbox: { instant: boolean; aiActive: boolean; reveal: boolean } | null;
   /** Interface de toque ativa (aparelho de toque ou toque detectado nesta partida). */
   touchUi: boolean;
   touchTool: TouchTool;
@@ -142,6 +144,7 @@ export const useHudStore = create<HudState>((set) => ({
   events: [],
   fps: 0,
   perf: null,
+  sandbox: null,
   touchUi: false,
   touchTool: 'select',
   touchAdditive: false,

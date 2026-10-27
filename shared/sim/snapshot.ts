@@ -133,6 +133,8 @@ export interface AirView {
 
 export interface Snapshot {
   tick: number;
+  /** Opções do modo Sandbox (ausente nas partidas normais). */
+  sandbox?: { instant: boolean; aiActive: boolean; reveal: boolean };
   trade?: TradeView;
   air?: AirView;
   units: UnitSnapshot[];
@@ -230,6 +232,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
 
   return {
     tick: sim.tick,
+    ...(sim.sandbox ? { sandbox: { instant: sim.sandbox.instant, aiActive: sim.sandbox.aiActive, reveal: sim.sandbox.reveal } } : {}),
     units,
     buildings,
     players: sim.players.map((p) => {

@@ -6,7 +6,8 @@ import type { PlayerStats, Slot } from './sim/types.ts';
 import type { Snapshot } from './sim/snapshot.ts';
 import type { OperationResult, OperationsView, SectorView } from './strategic/operations.ts';
 
-export type RoomMode = 'pvp' | 'vs_ai';
+/** `sandbox`: modo livre contra uma IA (recursos ilimitados, tudo liberado, ferramentas de teste). */
+export type RoomMode = 'pvp' | 'vs_ai' | 'sandbox';
 export type { BalanceMode };
 
 export type NationalCommand = { type: 'set_budget'; budget: Budget } | { type: 'set_research'; techId: TechId | null } | { type: 'diplomacy'; action: DiplomaticAction };
@@ -81,6 +82,8 @@ export interface MatchStartInfo {
   balanceMode: BalanceMode;
   scenarioStart: string;
   ticksPerDay: number;
+  /** Modo da sala (o cliente esconde a economia e mostra as ferramentas no Sandbox). */
+  mode?: RoomMode;
 }
 
 export interface BattleInfo {

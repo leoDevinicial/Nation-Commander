@@ -31,7 +31,7 @@ export function LobbyScreen() {
   };
 
   return (
-    <Shell title={room.mode === 'vs_ai' ? 'Operação contra a IA' : 'Sala multijogador'} wide="xl">
+    <Shell title={room.mode === 'sandbox' ? 'Modo Sandbox' : room.mode === 'vs_ai' ? 'Operação contra a IA' : 'Sala multijogador'} wide="xl">
       <div className="grid gap-6 md:grid-cols-[1fr_280px]">
         <div>
           {room.mode === 'pvp' && (

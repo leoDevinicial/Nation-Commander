@@ -32,6 +32,9 @@ import { AirbaseButtons, AirbaseInfo, SiloButtons, SiloInfo, airTargetText } fro
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { buildingEffects, formatUsd as usdShort, specDef, upgradeTrack } from '../../../shared/sim/upgrades.ts';
+import { effectiveMilitaryResearch, effectivePopCap, effectiveTechs } from '../../state/sandbox.ts';
+
+const EMPTY_TECHS: readonly string[] = [];
 
 const BUILD_OPTIONS: BuildingType[] = [
   'house',
@@ -105,7 +108,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
   const touch = useHudStore((s) => s.touchUi);
   const thumbs = useHudStore((s) => s.thumbs);
   const [help, setHelp] = useState(false);
-  const techs = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot)?.research.done ?? []);
+  const techs = effectiveTechs(useNationalStore((s) => s.nations.find((n) => n.slot === mySlot)?.research.done ?? EMPTY_TECHS));
 
   return (
     <div
@@ -323,7 +326,7 @@ type SelectedBuilding = NonNullable<ReturnType<typeof useHudStore.getState>['sel
 function ProduceButton({ b, unit, hotkey, label, title, onRun }: { b: SelectedBuilding; unit: ProducibleType; hotkey: string; label: string; title: string; onRun: () => void }) {
   const me = useHudStore((s) => s.players.find((p) => p.slot === s.mySlot));
   const mySlot = useHudStore((s) => s.mySlot);
-  const techs = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot)?.research.done ?? null);
+  const techs = effectiveTechs(useNationalStore((s) => s.nations.find((n) => n.slot === mySlot)?.research.done ?? null));
   const check = checkProduce(unit, {
     buildingType: b.type,
     level: b.level,
@@ -333,9 +336,9 @@ function ProduceButton({ b, unit, hotkey, label, title, onRun }: { b: SelectedBu
     resources: me?.resources ?? emptyStockpile(),
     recruits: me?.population?.recruits ?? 0,
     popTotal: me?.population?.total ?? 0,
-    popCap: me?.population?.cap ?? 0,
+    popCap: effectivePopCap(me?.population?.cap ?? 0),
     techs,
-    militaryResearch: me?.militaryResearch ?? [],
+    militaryResearch: effectiveMilitaryResearch(me?.militaryResearch ?? []),
   });
   const queued = b.queue.filter((q) => q.unitType === unit).length;
   const thumb = useHudStore((s) => s.thumbs[unit]);
@@ -433,7 +436,7 @@ function counterText(u: UnitType): string {
 function ResearchButtons({ runtime, b }: { runtime: GameRuntime; b: SelectedBuilding }) {
   const me = useHudStore((s) => s.players.find((p) => p.slot === s.mySlot));
   const thumbs = useHudStore((s) => s.thumbs);
-  const done = me?.militaryResearch ?? [];
+  const done = effectiveMilitaryResearch(me?.militaryResearch ?? []);
   const resources = me?.resources ?? emptyStockpile();
   const unlockOf = (id: MilitaryResearchId) => (Object.keys(UNITS) as UnitType[]).find((u) => UNITS[u].requires === id)!;
   return (

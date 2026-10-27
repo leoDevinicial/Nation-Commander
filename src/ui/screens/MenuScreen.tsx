@@ -18,7 +18,7 @@ export function MenuScreen() {
   const online = status === 'connected';
   const offlineHint = online ? undefined : 'Aguardando conexão com o servidor de jogo';
 
-  const create = (mode: 'pvp' | 'vs_ai') => {
+  const create = (mode: 'pvp' | 'vs_ai' | 'sandbox') => {
     autoFullscreen();
     gameClient.send({ t: 'create_room', mode, countryId: preferredCountry() });
   };
@@ -47,6 +47,13 @@ export function MenuScreen() {
           <span className="flex flex-col">
             <span>Nova Partida</span>
             <span className="font-sans text-[11px] font-medium tracking-normal opacity-75">Contra um governo controlado pela IA</span>
+          </span>
+        </button>
+        <button className="btn btn-hero w-full" disabled={!online} title={offlineHint} onClick={() => create('sandbox')}>
+          <span aria-hidden>🧪</span>
+          <span className="flex flex-col">
+            <span>Modo Sandbox</span>
+            <span className="font-sans text-[11px] font-medium tracking-normal text-ink-400">Livre: recursos ilimitados, tudo liberado, crie tropas e teste o jogo</span>
           </span>
         </button>
         <button className="btn btn-hero w-full" disabled={!online} title={offlineHint} onClick={() => create('pvp')}>

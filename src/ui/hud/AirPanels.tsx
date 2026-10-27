@@ -9,6 +9,7 @@ import { useNationalStore } from '../../state/useNationalStore.ts';
 import { CostLabel } from '../components/Resources.tsx';
 import { CardButton } from './CardButton.tsx';
 import { audio } from '../../game/audio/AudioService.ts';
+import { effectiveFund, effectiveTechs } from '../../state/sandbox.ts';
 
 const ICON: Record<AircraftType, string> = { fighter: '✈', recon: '🔭', transport: '📦' };
 const SHORT: Record<AircraftType, string> = { fighter: 'Caça', recon: 'Reconhecimento', transport: 'Cargueiro' };
@@ -35,7 +36,7 @@ function useMe() {
   const me = useHudStore((s) => s.players.find((p) => p.slot === s.mySlot));
   const mySlot = useHudStore((s) => s.mySlot);
   const nation = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot));
-  return { resources: me?.resources ?? emptyStockpile(), recruits: me?.population?.recruits ?? 0, techs: nation?.research.done ?? [], fund: nation?.works.fundUsd ?? null };
+  return { resources: me?.resources ?? emptyStockpile(), recruits: me?.population?.recruits ?? 0, techs: effectiveTechs(nation?.research.done ?? []), fund: effectiveFund(nation?.works.fundUsd ?? null) };
 }
 
 function Bar({ value, tone = 'bg-brass-400' }: { value: number; tone?: string }) {

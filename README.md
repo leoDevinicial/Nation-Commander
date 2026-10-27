@@ -276,6 +276,14 @@ O preset inicial é escolhido pelo aparelho (toque com tela pequena, pouca memó
 desempenho antes de ser ativado (detalhes em `docs/GRAFICOS_REALISTAS.md`). Os presets nunca alteram
 regras nem resultados da simulação.
 
+**Modo Sandbox** (menu → 🧪 Modo Sandbox): partida livre contra uma IA parada, com:
+- recursos ilimitados (sem barra de economia) e tudo pesquisado e liberado;
+- obras e produção instantâneas;
+- criação de tropas próprias ou inimigas já modernizadas;
+- qualquer edifício no nível máximo e mapa revelado.
+
+O QG não cai e nada conta no histórico. Detalhes em `docs/MODO_SANDBOX.md`.
+
 **Qualidade adaptativa (KGPS + KAICS)**, ligada por padrão: durante a partida, o KGPS mede o tempo de
 cada quadro. Se o jogo fica lento, alivia primeiro o que menos aparece (reflexos, efeitos de tela,
 sombras, resolução), um ajuste por vez, e desfaz o que não ajudou. Com folga, devolve a qualidade do

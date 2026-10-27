@@ -38,7 +38,7 @@ export interface MatchHistoryRow {
   units_killed: number;
   units_lost: number;
   matches: {
-    mode: 'pvp' | 'vs_ai';
+    mode: 'pvp' | 'vs_ai' | 'sandbox';
     ended_at: string;
     duration_seconds: number;
     end_reason: string;

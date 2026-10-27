@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { GameSpeed, MatchStartInfo, ServerMessage } from '../../shared/protocol.ts';
-import type { Command } from '../../shared/sim/commands.ts';
+import type { Command, SandboxToggle } from '../../shared/sim/commands.ts';
 import { BUILDINGS, CITIZEN, MILITARY_RESEARCH, MILITARY_RESEARCH_IDS, RECRUIT, RESOURCE_TYPES, UNITS, emptyStockpile, type BuildingType, type MilitaryResearchId, type Terrain, type UnitType } from '../../shared/sim/config.ts';
 import { MOD_IDS, MODS, checkModernize, pickRefitFacility, type FacilityInfo, type ModId, type ModernizeCheck } from '../../shared/sim/modernization.ts';
 import { anchorForCursor, placementError } from '../../shared/sim/placement.ts';
@@ -44,6 +44,7 @@ import { TouchGestures, type TouchPoint } from './input/TouchGestures.ts';
 import { Kaics, probeCapabilities } from './perf/kaics.ts';
 import { Kgps, localProfileStore } from './perf/kgps.ts';
 import type { PerfHud, TouchTool } from '../state/useHudStore.ts';
+import { effectiveFund, effectiveStability, effectiveTechs } from '../state/sandbox.ts';
 
 type SnapshotMsg = Extract<ServerMessage, { t: 'snapshot' }>;
 
@@ -585,6 +586,8 @@ export class GameRuntime {
       const size = BUILDINGS[t.snap.type].size;
       mark((t.snap.cx + size / 2) * cs, (t.snap.cy + size / 2) * cs, BUILDINGS[t.snap.type].sight);
     }
+    // Sandbox com o mapa revelado: tudo à vista
+    if (this.snapshot?.sandbox?.reveal) visible.fill(1);
     const tex = this.fogTexture.image.data as Uint8Array;
     for (let i = 0; i < w * h; i++) {
       if (visible[i]) this.fogState[i] = 2;
@@ -958,6 +961,7 @@ export class GameRuntime {
       selectedCitizens: this.citizens.selectionInfo(),
       mode: this.mode,
       fps: this.fps,
+      sandbox: s.sandbox ?? null,
     });
   }
 
@@ -980,6 +984,41 @@ export class GameRuntime {
 
   send(cmd: Command): void {
     this.client.send(this.battleOp !== null ? { t: 'cmd', cmd, scope: 'battle' } : { t: 'cmd', cmd });
+  }
+
+  // ------------------------------------------------------------ Sandbox
+
+  sandboxToggle(key: SandboxToggle, value: boolean): void {
+    this.send({ type: 'sandbox_toggle', key, value });
+  }
+
+  /** Cria tropas no centro da tela (próprias ou do inimigo, opcionalmente com todos os pacotes). */
+  sandboxSpawn(unitType: UnitType, count: number, enemy: boolean, maxed: boolean): void {
+    this.send({ type: 'sandbox_spawn', unitType, x: this.cameraCtl.target.x, y: this.cameraCtl.target.z, count, enemy, maxed });
+  }
+
+  /** Leva o edifício selecionado ao nível pedido (com a especialização escolhida, se houver). */
+  sandboxLevel(level: number, spec?: SpecId): void {
+    const id = [...this.selection].find((x) => this.buildings.has(x));
+    if (id === undefined) return;
+    this.send(spec ? { type: 'sandbox_level', buildingId: id, level, spec } : { type: 'sandbox_level', buildingId: id, level });
+  }
+
+  /** Todos os pacotes de modernização e vida cheia nas unidades selecionadas. */
+  sandboxMaxout(): void {
+    const ids = [...this.selection].filter((x) => this.units.has(x)).slice(0, 60);
+    if (ids.length) this.send({ type: 'sandbox_maxout', unitIds: ids });
+  }
+
+  /** Remove o que estiver selecionado (unidades ou edifícios, de qualquer lado; o QG fica). */
+  sandboxRemoveSelected(): void {
+    const ids = [...this.selection].slice(0, 60);
+    if (ids.length) this.send({ type: 'sandbox_remove', ids });
+    this.selection.clear();
+  }
+
+  sandboxClear(who: 'enemy' | 'mine'): void {
+    this.send({ type: 'sandbox_clear', who });
   }
 
   /** Já recebeu o primeiro estado (a cena pode ser mostrada). */
@@ -1178,7 +1217,7 @@ export class GameRuntime {
 
   /** Pesquisas concluídas do meu país (null antes do primeiro relatório nacional). */
   myTechs(): readonly string[] | null {
-    return useNationalStore.getState().nations.find((n) => n.slot === this.mySlot)?.research.done ?? null;
+    return effectiveTechs(useNationalStore.getState().nations.find((n) => n.slot === this.mySlot)?.research.done ?? null);
   }
 
   /**
@@ -1213,7 +1252,7 @@ export class GameRuntime {
       const applicable = units.filter((u) => MODS[mod].units.includes(u.type) && !(u.mods ?? []).includes(mod));
       if (applicable.length === 0) continue;
       const resources = { ...(me?.resources ?? emptyStockpile()) };
-      let funds = nation ? nation.works.fundUsd : null;
+      let funds = effectiveFund(nation ? nation.works.fundUsd : null);
       const busy = new Map(baseBusy);
       const ready: number[] = [];
       let first: ModernizeCheck | null = null;
@@ -1920,10 +1959,10 @@ export class GameRuntime {
       resources: me?.resources ?? emptyStockpile(),
       hqLevel: own.find((t) => t.snap.type === 'hq')?.snap.level ?? 0,
       bestLevel: (type) => own.reduce((best, t) => (t.snap.type === type && t.snap.progress >= 1 ? Math.max(best, t.snap.level) : best), 0),
-      techs: nation ? nation.research.done : null,
+      techs: effectiveTechs(nation ? nation.research.done : null),
       infrastructureIndex: nation ? nation.infrastructureIndex : null,
-      stability: nation ? nation.stability : null,
-      fundsUsd: nation ? nation.works.fundUsd : null,
+      stability: effectiveStability(nation ? nation.stability : null),
+      fundsUsd: effectiveFund(nation ? nation.works.fundUsd : null),
       constructionTimeMul: nation ? combineEffects(nation.research.done).constructionTimeMul : 1,
     };
   }

@@ -21,6 +21,7 @@ import {
   canAfford,
   emptyStockpile,
   MILITARY_RESEARCH,
+  MILITARY_RESEARCH_IDS,
   militaryResearchBlocker,
   type WeaponDef,
   type BuildingType,
@@ -30,10 +31,10 @@ import {
   type UnitType,
 } from './config.ts';
 import { chooseClaims, claimedBy, gatherRate, sitesByDeposit } from './gathering.ts';
-import { UPGRADE_CANCEL_REFUND, UPGRADE_WORK_EFFICIENCY, buildingEffects, missingText, planUpgrade, type BuildingEffects, type UpgradePlan, type UpgradeWorld } from './upgrades.ts';
+import { UPGRADE_CANCEL_REFUND, UPGRADE_WORK_EFFICIENCY, buildingEffects, maxLevelOf, missingText, planUpgrade, upgradeTrack, type BuildingEffects, type UpgradePlan, type UpgradeWorld } from './upgrades.ts';
 import { findDeposits, type DepositIndex } from './deposits.ts';
 import { computeTerritory, NO_OWNER, type TerritorySource } from './territory.ts';
-import type { Command } from './commands.ts';
+import type { Command, SandboxToggle } from './commands.ts';
 import { findPath } from './pathfinding/AStar.ts';
 import { placementError } from './placement.ts';
 import { Grid } from './pathfinding/Grid.ts';
@@ -114,6 +115,7 @@ export interface SimulationSave {
   /** Militares fora do teatro em operações expedicionárias, por jogador (Fase 8). */
   detached?: number[];
   battle?: boolean;
+  sandbox?: SandboxState;
 }
 
 /** Resumo populacional de um jogador. */
@@ -154,6 +156,23 @@ export function targetMultiplier(w: WeaponDef, target: Entity): number {
 }
 
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
+
+/**
+ * Modo Sandbox: os jogadores em `slots` (os humanos) têm recursos ilimitados, tudo pesquisado e
+ * ferramentas livres; o QG não cai (a partida não termina por eliminação).
+ */
+export interface SandboxState {
+  slots: Slot[];
+  /** Obras, melhorias, produção e pesquisas em 1 tick. */
+  instant: boolean;
+  /** IA inimiga pensando e atacando (desligada, a base inimiga fica parada como alvo de testes). */
+  aiActive: boolean;
+  /** Mapa inteiro visível para os jogadores do Sandbox. */
+  reveal: boolean;
+}
+
+/** Estoque mantido cheio no Sandbox (cada recurso, a cada tick). */
+export const SANDBOX_STOCK = 99_999;
 const techLabel = (id: string) => (isTechId(id) ? TECHNOLOGIES[id].label : id);
 
 /**
@@ -192,6 +211,8 @@ export class Simulation {
   detached: number[] = [];
   /** Batalha local de uma operação (sem atrito territorial). */
   battle = false;
+  /** Modo Sandbox (null numa partida normal). */
+  sandbox: SandboxState | null = null;
 
   /** Liga o comércio à diplomacia e ao tesouro nacionais. */
   setTradeLink(link: TradeLink | null): void {
@@ -283,6 +304,7 @@ export class Simulation {
       air: this.air.toSave(),
       detached: [...this.detached],
       ...(this.battle ? { battle: true } : {}),
+      ...(this.sandbox ? { sandbox: { ...this.sandbox, slots: [...this.sandbox.slots] } } : {}),
     };
     return JSON.parse(JSON.stringify(data, encodeNonFinite), decodeNonFinite) as SimulationSave;
   }
@@ -336,6 +358,7 @@ export class Simulation {
     sim.air.load(data.air);
     sim.detached = [...(data.detached ?? [])];
     sim.battle = !!data.battle;
+    sim.sandbox = data.sandbox ? { ...data.sandbox, slots: [...data.sandbox.slots] } : null;
     return sim;
   }
 
@@ -665,6 +688,7 @@ export class Simulation {
       const grid = this.visibility[r.owner];
       if (grid) markCircle(grid, w, h, r.pos.x / cs, r.pos.y / cs, r.radius / cs);
     }
+    if (this.sandbox?.reveal) for (const slot of this.sandbox.slots) this.visibility[slot]?.fill(1);
     this.visibilityTick = this.tick;
   }
 
@@ -780,9 +804,9 @@ export class Simulation {
           resources: player.resources,
           recruits: player.recruits,
           popTotal: pop.total,
-          popCap: pop.cap,
+          popCap: this.isSandbox(slot) ? Infinity : pop.cap,
           techs: this.national ? this.national.techs(slot) : null,
-          militaryResearch: player.militaryResearch ?? [],
+          militaryResearch: this.isSandbox(slot) ? MILITARY_RESEARCH_IDS : (player.militaryResearch ?? []),
         });
         if (check.blocker) return check.blocker;
         const cost = check.cost;
@@ -791,13 +815,13 @@ export class Simulation {
         if (cmd.unitType === 'citizen' || cmd.unitType === 'recruit') {
           const recruit = cmd.unitType === 'recruit';
           const def = recruit ? RECRUIT : CITIZEN;
-          const ticks = Math.max(1, Math.round(def.buildSeconds * TICK_RATE * (recruit ? bfx.recruitTimeMul : 1)));
+          const ticks = this.duration(slot, def.buildSeconds * TICK_RATE * (recruit ? bfx.recruitTimeMul : 1));
           b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks, paid: cost });
           return null;
         }
         const def = UNITS[cmd.unitType];
         player.recruits--;
-        const ticks = Math.max(1, Math.round(def.buildSeconds * TICK_RATE * player.modifiers.productionTimeMul * bfx.productionTimeMul));
+        const ticks = this.duration(slot, def.buildSeconds * TICK_RATE * player.modifiers.productionTimeMul * bfx.productionTimeMul);
         b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks, paid: cost, mods: [...check.mods] });
         return null;
       }
@@ -814,7 +838,7 @@ export class Simulation {
         if (blocker) return blocker;
         if (!canAfford(player.resources, def.cost)) return `Recursos insuficientes: faltam ${missingText(player.resources, def.cost)}`;
         this.spend(player, def.cost);
-        const ticks = def.seconds * TICK_RATE;
+        const ticks = this.duration(slot, def.seconds * TICK_RATE);
         b.research = { id: cmd.researchId, remaining: ticks, total: ticks, paid: { ...def.cost } };
         return null;
       }
@@ -885,7 +909,7 @@ export class Simulation {
           return 'Verba de obras insuficiente no orçamento nacional';
         }
         this.spend(player, plan.cost);
-        const total = Math.max(1, Math.round(plan.seconds * TICK_RATE));
+        const total = this.duration(slot, plan.seconds * TICK_RATE);
         b.upgrade = { toLevel: plan.toLevel, spec, builtTicks: 0, totalTicks: total, paid: { ...plan.cost }, usd: plan.usd };
         this.emit({ type: 'upgrade_started', tick: this.tick, id: b.id, owner: slot, buildingType: b.type, toLevel: plan.toLevel, spec, usd: plan.usd, pos: { ...b.pos } });
         return null;
@@ -928,7 +952,7 @@ export class Simulation {
             continue;
           }
           this.spend(player, check.cost);
-          const total = Math.max(1, Math.round(check.seconds * TICK_RATE));
+          const total = this.duration(slot, check.seconds * TICK_RATE);
           this.setIdle(u);
           u.refit = { mod: cmd.mod, facilityId: facility.id, remainingTicks: total, totalTicks: total, paid: { ...check.cost }, usd: check.usd };
           this.emit({ type: 'modernize_started', tick: this.tick, id: u.id, owner: slot, unitType: u.type, mod: cmd.mod, usd: check.usd, pos: { ...u.pos } });
@@ -969,6 +993,13 @@ export class Simulation {
         return this.air.authorize(slot, cmd.launchId);
       case 'missile_abort':
         return this.air.abort(slot, cmd.launchId);
+      case 'sandbox_toggle':
+      case 'sandbox_spawn':
+      case 'sandbox_level':
+      case 'sandbox_maxout':
+      case 'sandbox_remove':
+      case 'sandbox_clear':
+        return this.isSandbox(slot) ? this.sandboxCommand(slot, cmd) : 'Ferramenta disponível só no modo Sandbox';
       case 'launch_operation':
       case 'operation_retreat':
         // operações expedicionárias envolvem a camada nacional: tratadas pelo servidor (OperationsSystem)
@@ -1231,6 +1262,7 @@ export class Simulation {
   step(): void {
     if (this.ended) return;
     this.tick++;
+    this.sandboxTopUp();
     if (this.territoryDirty) this.recomputeTerritory();
     if (this.tick % TICK_RATE === 0) for (const p of this.players) if (!p.defeated) this.staff(p.slot);
     this.updateEconomy();
@@ -1249,6 +1281,130 @@ export class Simulation {
     this.separateUnits();
     this.removeDead();
     this.checkVictory();
+    this.sandboxTopUp();
+  }
+
+  /** Jogador com as regras do Sandbox (recursos ilimitados e tudo liberado). */
+  isSandbox(slot: Slot): boolean {
+    return !!this.sandbox?.slots.includes(slot);
+  }
+
+  /** Duração em ticks de uma obra/produção/pesquisa (1 tick no Sandbox instantâneo). */
+  duration(slot: Slot, ticks: number): number {
+    if (this.sandbox?.instant && this.isSandbox(slot)) return 1;
+    return Math.max(1, Math.round(ticks));
+  }
+
+  /**
+   * Sandbox: estoques sempre cheios (acima da capacidade), recrutas e cidadãos ociosos de sobra
+   * e nada de fome ou manutenção atrasada. Roda no começo e no fim do tick.
+   */
+  sandboxTopUp(): void {
+    if (!this.sandbox) return;
+    for (const slot of this.sandbox.slots) {
+      const p = this.players[slot];
+      if (!p || p.defeated) continue;
+      for (const r of RESOURCE_TYPES) p.resources[r] = SANDBOX_STOCK;
+      p.oilReserve = SANDBOX_STOCK;
+      p.recruits = Math.max(p.recruits, 60);
+      let employed = 0;
+      for (const b of this.buildings) if (b.owner === slot) employed += b.workers;
+      p.citizens = Math.max(p.citizens, employed + 20);
+      p.hungry = false;
+      p.unpaidUpkeep = { supplies: false, oil: false };
+      for (const b of this.buildings) if (b.owner === slot) b.unpaid = false;
+    }
+  }
+
+  /** Comandos do Sandbox (o chamador já verificou que é um jogador do Sandbox). */
+  private sandboxCommand(slot: Slot, cmd: Extract<Command, { type: `sandbox_${string}` }>): string | null {
+    const sb = this.sandbox!;
+    switch (cmd.type) {
+      case 'sandbox_toggle': {
+        const key: SandboxToggle = cmd.key;
+        sb[key] = cmd.value;
+        if (key === 'reveal') this.visibilityTick = -1;
+        return null;
+      }
+      case 'sandbox_spawn': {
+        const owner = cmd.enemy ? (this.players.find((p) => !sb.slots.includes(p.slot) && !p.defeated)?.slot ?? null) : slot;
+        if (owner === null) return 'Não há um país inimigo nesta partida';
+        const at = this.clampToMap({ x: cmd.x, y: cmd.y });
+        const mods = cmd.maxed ? (Object.keys(MODS) as ModId[]).filter((m) => MODS[m].units.includes(cmd.unitType)) : [];
+        const taken = new Set(this.units.map((u) => this.grid.index(...cellTuple(this.grid.worldToCell(u.pos)))));
+        const origin = this.grid.worldToCell(at);
+        let made = 0;
+        for (let r = 0; r <= 8 && made < cmd.count; r++)
+          for (let y = origin.cy - r; y <= origin.cy + r && made < cmd.count; y++)
+            for (let x = origin.cx - r; x <= origin.cx + r && made < cmd.count; x++) {
+              if (Math.max(Math.abs(x - origin.cx), Math.abs(y - origin.cy)) !== r) continue;
+              if (!this.grid.isPassable(x, y) || taken.has(this.grid.index(x, y))) continue;
+              taken.add(this.grid.index(x, y));
+              this.addUnit(cmd.unitType, owner, this.grid.cellCenter({ cx: x, cy: y }), 1, mods);
+              made++;
+            }
+        return made > 0 ? null : 'Sem espaço livre perto deste ponto';
+      }
+      case 'sandbox_level': {
+        const b = this.entities.get(cmd.buildingId);
+        if (!b || b.kind !== 'building') return 'Edifício inválido';
+        const max = maxLevelOf(b.type);
+        if (max <= 1) return 'Este edifício não tem melhorias';
+        const level = Math.min(max, cmd.level);
+        const track = upgradeTrack(b.type);
+        const spec = track?.specLevel !== undefined && level >= track.specLevel ? (cmd.spec && track.specs?.some((x) => x.id === cmd.spec) ? cmd.spec : (b.spec ?? track.specs?.[0]?.id ?? null)) : null;
+        const before = this.fx(b);
+        b.progress = 1;
+        b.upgrade = null;
+        b.level = level;
+        b.spec = spec;
+        const after = this.fx(b);
+        b.maxHp = after.maxHp;
+        b.hp = after.maxHp;
+        b.workerTarget = after.workers;
+        if (after.territoryRadius !== before.territoryRadius) this.territoryDirty = true;
+        this.staff(b.owner);
+        this.emit({ type: 'upgrade_completed', tick: this.tick, id: b.id, owner: b.owner, buildingType: b.type, level: b.level, spec: b.spec, pos: { ...b.pos } });
+        return null;
+      }
+      case 'sandbox_maxout': {
+        let n = 0;
+        for (const id of cmd.unitIds) {
+          const u = this.entities.get(id);
+          if (!u || u.kind !== 'unit') continue;
+          const mods = (Object.keys(MODS) as ModId[]).filter((m) => MODS[m].units.includes(u.type));
+          u.mods = mods;
+          u.refit = null;
+          u.maxHp = Math.round(UNITS[u.type].maxHp * combineMods(mods).hpMul);
+          u.hp = u.maxHp;
+          n++;
+        }
+        return n > 0 ? null : 'Nenhuma unidade válida';
+      }
+      case 'sandbox_remove': {
+        let n = 0;
+        for (const id of cmd.ids) {
+          const e = this.entities.get(id);
+          if (!e || (e.kind === 'building' && e.type === 'hq')) continue;
+          this.removeEntity(e);
+          n++;
+        }
+        return n > 0 ? null : 'Nada para remover (o QG não pode ser removido)';
+      }
+      case 'sandbox_clear': {
+        for (const u of this.units) if (cmd.who === 'mine' ? u.owner === slot : u.owner !== slot) this.removeEntity(u);
+        return null;
+      }
+    }
+  }
+
+  /** Remove uma entidade sem destruição (Sandbox): sem explosão, sem perda contabilizada. */
+  private removeEntity(e: Entity): void {
+    this.entities.delete(e.id);
+    if (e.kind === 'building') {
+      this.grid.setOccupied(e.cell, BUILDINGS[e.type].size, 0);
+      if (BUILDINGS[e.type].territoryRadius > 0 && e.progress >= 1) this.territoryDirty = true;
+    }
   }
 
   /**
@@ -1998,7 +2154,7 @@ export class Simulation {
       research: null,
       progress,
       builtTicks: 0,
-      buildTicks: Math.max(1, Math.round(def.buildSeconds * TICK_RATE * (this.players[owner]?.modifiers.constructionTimeMul ?? 1))),
+      buildTicks: this.duration(owner, def.buildSeconds * TICK_RATE * (this.players[owner]?.modifiers.constructionTimeMul ?? 1)),
       queue: [],
       rally: null,
       cooldown: 0,
@@ -2106,6 +2262,11 @@ export class Simulation {
   }
 
   private markDestroyed(e: Entity, killerOwner: Slot | null): void {
+    // Sandbox: o QG não cai — volta com a vida cheia, sem aviso de destruição
+    if (this.sandbox && e.kind === 'building' && e.type === 'hq') {
+      e.hp = e.maxHp;
+      return;
+    }
     const victim = this.players[e.owner]!;
     const killer = killerOwner !== null ? this.players[killerOwner] : undefined;
     if (e.kind === 'unit') {
@@ -2130,6 +2291,11 @@ export class Simulation {
   private removeDead(): void {
     for (const e of [...this.entities.values()]) {
       if (e.hp > 0) continue;
+      // Sandbox: o QG não cai (a partida não termina); volta com a vida cheia
+      if (this.sandbox && e.kind === 'building' && e.type === 'hq') {
+        e.hp = e.maxHp;
+        continue;
+      }
       this.entities.delete(e.id);
       if (e.kind === 'building') {
         // destruir o edifício interrompe a fila (sem reembolso) e libera as células

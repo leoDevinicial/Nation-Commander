@@ -16,6 +16,7 @@ import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { CostLabel, ResourceIcon } from '../components/Resources.tsx';
+import { effectiveFund } from '../../state/sandbox.ts';
 
 const nf = (d: number) => new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: d });
 
@@ -81,7 +82,7 @@ export function UpgradePanel({ runtime }: { runtime: GameRuntime }) {
   const plan = runtime.upgradePlan(b.id, spec);
   if (!track || !plan) return null;
   const nation = useNationalStore.getState().nations.find((n) => n.slot === b.owner);
-  const fund = nation?.works.fundUsd ?? null;
+  const fund = effectiveFund(nation?.works.fundUsd ?? null);
   const resources = useHudStore.getState().players.find((p) => p.slot === b.owner)?.resources ?? emptyStockpile();
   const currentSpec = specDef(b.type, b.spec);
 

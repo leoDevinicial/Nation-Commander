@@ -25,6 +25,7 @@ import type { EntityId, SimEvent, Slot } from '../shared/sim/types.ts';
 import { NationalAI } from '../shared/strategic/NationalAI.ts';
 import { NationalSimulation, type NationalEvent, type NationalSave } from '../shared/strategic/NationalSimulation.ts';
 import { HISTORY_EVERY_DAYS, SCENARIO_START, TICKS_PER_DAY, militaryResearchSpeed } from '../shared/strategic/params.ts';
+import { TECHNOLOGIES, type TechId } from '../shared/strategic/technologies.ts';
 import { OperationsSystem, operationsView, type Operation, type OperationsSave } from '../shared/strategic/operations.ts';
 import { sectorById } from '../shared/data/sectors.ts';
 import type { Connection } from './Connection.ts';
@@ -134,7 +135,7 @@ export class Room {
     const countryId = host.countryId;
     this.hostUserId = host.conn.user!.id;
     this.addHuman(host.conn, countryId);
-    if (mode === 'vs_ai') {
+    if (mode !== 'pvp') {
       this.players.push({
         slot: 1,
         userId: null,
@@ -275,9 +276,11 @@ export class Room {
       this.balanceMode,
     );
     this.nationalAIs = this.players.filter((p) => p.isAI).map((p) => new NationalAI(p.slot));
+    if (this.mode === 'sandbox') this.sim.sandbox = { slots: this.players.filter((p) => !p.isAI).map((p) => p.slot), instant: true, aiActive: false, reveal: false };
     this.wire();
     const sim = this.sim;
     const national = this.national;
+    if (sim.sandbox) this.startSandbox();
     // operações expedicionárias contra governos fora do teatro (Fase 8)
     this.ops = new OperationsSystem(sim, national, this.seed);
     for (const n of this.national.nations) this.gdpStart.set(n.slot, n.gdpUsd);
@@ -308,13 +311,16 @@ export class Room {
       setWar: (a, b) => sim.setWar(a, b, true),
     });
     // melhorias de construções consultam pesquisas, condições nacionais e a verba de obras
+    // Sandbox: tudo pesquisado, estabilidade máxima e verba de obras ilimitada (sem mexer no orçamento)
+    const free = (slot: Slot) => sim.isSandbox(slot);
+    const allTechs = Object.keys(TECHNOLOGIES) as TechId[];
     sim.national = {
-      techs: (slot) => national.nation(slot)?.research.done ?? [],
+      techs: (slot) => (free(slot) ? allTechs : (national.nation(slot)?.research.done ?? [])),
       infrastructureIndex: (slot) => national.nation(slot)?.infrastructureIndex ?? 1,
-      stability: (slot) => national.nation(slot)?.stability ?? 0,
-      worksFundUsd: (slot) => national.nation(slot)?.works.fundUsd ?? 0,
-      chargeWorks: (slot, usd, description) => national.chargeWorks(slot, usd, description),
-      refundWorks: (slot, usd, description) => national.refundWorks(slot, usd, description),
+      stability: (slot) => (free(slot) ? 100 : (national.nation(slot)?.stability ?? 0)),
+      worksFundUsd: (slot) => (free(slot) ? 1e15 : (national.nation(slot)?.works.fundUsd ?? 0)),
+      chargeWorks: (slot, usd, description) => free(slot) || national.chargeWorks(slot, usd, description),
+      refundWorks: (slot, usd, description) => (free(slot) ? undefined : national.refundWorks(slot, usd, description)),
       researchSpeed: (slot) => militaryResearchSpeed(national.nation(slot)?.budget.researchPct ?? 0),
     };
     // comércio internacional: diplomacia, países da IA e tesouro nacional
@@ -333,6 +339,19 @@ export class Room {
       pay: (slot, usd, description) => national.tradePayment(slot, usd, description.startsWith('Frete') ? 'freight' : usd >= 0 ? 'export' : 'import'),
       partnerName: (id) => countryName(national.nation(id)?.countryId ?? '') || `Jogador ${id + 1}`,
     });
+  }
+
+  /** Sandbox: contato e guerra com a IA desde o início (o combate fica liberado na hora). */
+  private startSandbox(): void {
+    const sim = this.sim!;
+    const national = this.national!;
+    sim.sandboxTopUp();
+    for (const me of sim.sandbox!.slots)
+      for (const ai of this.players.filter((p) => p.isAI)) {
+        national.diplomacy.discover(me, ai.slot, 'contato', national.day);
+        national.diplomacy.discover(ai.slot, me, 'contato', national.day);
+        if (national.declareWar(me, ai.slot)) sim.setWar(me, ai.slot, true);
+      }
   }
 
   private startLoop(): void {
@@ -416,7 +435,7 @@ export class Room {
     room.applyNationalModifiers();
     room.status = 'playing';
     room.graceUntil = now + RESTORE_GRACE_MS;
-    if (save.mode === 'vs_ai') {
+    if (save.mode !== 'pvp') {
       room.paused = true;
       room.pausedBy = room.players.find((p) => !p.isAI)?.name ?? null;
       room.pausedForDisconnect = true;
@@ -439,7 +458,8 @@ export class Room {
       spawns: sim.map.spawns,
       tickRate: TICK_RATE,
       snapshotEvery: SNAPSHOT_EVERY,
-      canControlSpeed: this.mode === 'vs_ai',
+      canControlSpeed: this.mode !== 'pvp',
+      mode: this.mode,
       balanceMode: this.balanceMode,
       scenarioStart: SCENARIO_START,
       ticksPerDay: TICKS_PER_DAY,
@@ -476,7 +496,8 @@ export class Room {
   advance(): void {
     const sim = this.sim;
     if (!sim || this.status !== 'playing') return;
-    if (sim.tick % AI_THINK_TICKS === 0) {
+    // Sandbox: a IA inimiga só age quando o jogador liga (senão a base fica parada como alvo)
+    if (sim.tick % AI_THINK_TICKS === 0 && (!sim.sandbox || sim.sandbox.aiActive)) {
       for (const ai of this.ais) {
         for (const cmd of ai.think(sim)) sim.applyCommand(ai.slot, cmd);
         // a IA pede a guerra pelo mesmo caminho validado do jogador; se faltar algo, tenta depois
@@ -720,7 +741,7 @@ export class Room {
   setSpeed(conn: Connection, speed: GameSpeed): void {
     const p = this.playerOf(conn);
     if (!p || this.status !== 'playing') return;
-    if (this.mode !== 'vs_ai') {
+    if (this.mode === 'pvp') {
       conn.send({ t: 'cmd_rejected', reason: 'Velocidade fixa em partidas entre jogadores' });
       return;
     }
@@ -759,7 +780,7 @@ export class Room {
     p.disconnectedAt = this.now();
     if (this.status === 'playing') {
       this.system(`${p.name} perdeu a conexão. Aguardando reconexão...`);
-      if (this.mode === 'vs_ai' && !this.paused) {
+      if (this.mode !== 'pvp' && !this.paused) {
         this.paused = true;
         this.pausedBy = p.name;
         this.pausedForDisconnect = true;
@@ -836,7 +857,8 @@ export class Room {
     const result = (slot: Slot): 'win' | 'loss' | 'draw' => (winnerSlot === null ? 'draw' : winnerSlot === slot ? 'win' : 'loss');
     const winner = this.players.find((p) => p.slot === winnerSlot);
 
-    const realUsers = this.players.filter((p) => !p.isAI && p.userId && !p.userId.startsWith('guest:'));
+    // o Sandbox não conta no histórico nem no ranking
+    const realUsers = this.mode === 'sandbox' ? [] : this.players.filter((p) => !p.isAI && p.userId && !p.userId.startsWith('guest:'));
     let recorded = false;
     if (realUsers.length > 0) {
       try {

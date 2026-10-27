@@ -12,6 +12,7 @@ import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useState } from 'react';
 import { MoneyChip, MoneyPopover, ProductionChip, ProductionPopover, type TopBarPopover } from './TopBarExtras.tsx';
 import { PerfChip, PerfPopover } from './PerfPanel.tsx';
+import { SandboxChip, SandboxPanel } from './SandboxPanel.tsx';
 
 export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRuntime; onMenu: () => void; canControlSpeed: boolean }) {
   const players = useHudStore((s) => s.players);
@@ -22,6 +23,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
   const speed = useHudStore((s) => s.speed);
   const showFps = useSettingsStore((s) => s.showFps);
   const roster = useAppStore((s) => s.match?.players ?? []);
+  const sandbox = useAppStore((s) => s.match?.mode === 'sandbox');
   const connStatus = useAppStore((s) => s.connStatus);
   const connDetail = useAppStore((s) => s.connDetail);
   const me = players.find((p) => p.slot === mySlot);
@@ -41,30 +43,33 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
       {/* indicadores: rolam na horizontal em telas estreitas em vez de cortar */}
       <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-3 overflow-x-auto sm:gap-4">
         {/* dinheiro e produção primeiro: ficam visíveis mesmo na tela estreita do celular */}
-        <MoneyChip open={pop === 'money'} onToggle={() => toggle('money')} />
+        {sandbox && <SandboxChip open={pop === 'sandbox'} onToggle={() => toggle('sandbox')} />}
+        {/* Sandbox: sem economia na tela (recursos ilimitados) */}
+        {!sandbox && <MoneyChip open={pop === 'money'} onToggle={() => toggle('money')} />}
         <ProductionChip open={pop === 'production'} onToggle={() => toggle('production')} />
-        {RESOURCE_TYPES.map((r) => {
-          const have = Math.floor(me?.resources?.[r] ?? 0);
-          const cap = me?.capacity?.[r] ?? 0;
-          const net = me?.income?.[r] ?? 0;
-          const full = cap > 0 && have >= cap;
-          return (
-            <div
-              key={r}
-              className="flex shrink-0 items-center gap-1"
-              title={`${RESOURCE_LABELS[r]}: ${have} de ${cap} (guardado em: ${STORAGE_LABEL[r]}). Saldo: ${net >= 0 ? '+' : ''}${net.toFixed(2)}/s${full ? ' — CHEIO: a produção pausa' : ''}`}
-            >
-              <ResourceIcon type={r} />
-              <span className={`font-mono font-bold ${full ? 'text-brass-400' : r === 'food' && me?.hungry ? 'text-red-300' : ''}`}>{have}</span>
-              <span className="hidden font-mono text-[10px] text-ink-400 lg:inline">/{cap}</span>
-              <span className={`hidden text-[11px] xl:inline ${net < 0 ? 'text-red-300' : 'text-signal-green'}`}>
-                {net >= 0 ? '+' : ''}
-                {net.toFixed(1)}
-              </span>
-            </div>
-          );
-        })}
-        {me?.population && (
+        {!sandbox &&
+          RESOURCE_TYPES.map((r) => {
+            const have = Math.floor(me?.resources?.[r] ?? 0);
+            const cap = me?.capacity?.[r] ?? 0;
+            const net = me?.income?.[r] ?? 0;
+            const full = cap > 0 && have >= cap;
+            return (
+              <div
+                key={r}
+                className="flex shrink-0 items-center gap-1"
+                title={`${RESOURCE_LABELS[r]}: ${have} de ${cap} (guardado em: ${STORAGE_LABEL[r]}). Saldo: ${net >= 0 ? '+' : ''}${net.toFixed(2)}/s${full ? ' — CHEIO: a produção pausa' : ''}`}
+              >
+                <ResourceIcon type={r} />
+                <span className={`font-mono font-bold ${full ? 'text-brass-400' : r === 'food' && me?.hungry ? 'text-red-300' : ''}`}>{have}</span>
+                <span className="hidden font-mono text-[10px] text-ink-400 lg:inline">/{cap}</span>
+                <span className={`hidden text-[11px] xl:inline ${net < 0 ? 'text-red-300' : 'text-signal-green'}`}>
+                  {net >= 0 ? '+' : ''}
+                  {net.toFixed(1)}
+                </span>
+              </div>
+            );
+          })}
+        {!sandbox && me?.population && (
           <div
             className="flex shrink-0 items-center gap-1.5"
             title={`População ${me.population.total}/${me.population.cap} (teto nacional ${POP_ABSOLUTE_CAP}). Cidadãos: ${me.population.citizens} (${me.population.employed} empregados, ${me.population.idle} ociosos) · Recrutas na reserva: ${me.population.recruits} (+${me.population.queuedRecruits} em alistamento no quartel) · Militares: ${me.population.military} em campo, ${me.population.queuedMilitary} em formação · Cidadãos em formação: ${me.population.queuedCitizens}`}
@@ -86,11 +91,8 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
           </span>
           <span className="font-mono">{formatDuration(Math.floor(tick / TICK_RATE))}</span>
         </div>
-        {tick < PREPARATION_TICKS && (
-          <div
-            className="flex shrink-0 items-center gap-1.5 text-emerald-300"
-            title="Período de preparo: os governos de IA não declaram guerra nem atacam. Use para montar a economia e as defesas."
-          >
+        {!sandbox && tick < PREPARATION_TICKS && (
+          <div className="flex shrink-0 items-center gap-1.5 text-emerald-300" title="Período de preparo: os governos de IA não declaram guerra nem atacam. Use para montar a economia e as defesas.">
             <span aria-hidden>🛡</span>
             <span className="hidden sm:inline">Preparo</span>
             <span className="font-mono">{formatDuration(Math.ceil((PREPARATION_TICKS - tick) / TICK_RATE))}</span>
@@ -186,6 +188,8 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
           <div className={`absolute top-full z-50 mt-1 ${pop === 'perf' ? 'right-0' : 'left-0'}`}>
             {pop === 'money' ? (
               <MoneyPopover onClose={() => setPop(null)} />
+            ) : pop === 'sandbox' ? (
+              <SandboxPanel runtime={runtime} onClose={() => setPop(null)} />
             ) : pop === 'perf' ? (
               <PerfPopover onClose={() => setPop(null)} />
             ) : (
