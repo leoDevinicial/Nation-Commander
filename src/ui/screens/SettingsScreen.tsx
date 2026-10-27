@@ -17,8 +17,20 @@ const PRESET_DESC = {
 } as const;
 
 export function SettingsScreen() {
-  const s = useSettingsStore();
   const setScreen = useAppStore((x) => x.setScreen);
+  return (
+    <Shell title="Configurações" back={() => setScreen('menu')}>
+      <SettingsForm />
+    </Shell>
+  );
+}
+
+/**
+ * Conteúdo das configurações: a tela do menu principal e o painel Opções do menu da partida usam
+ * o mesmo formulário. Na partida, avisa o que só vale na próxima (preset e sombras recriam a cena).
+ */
+export function SettingsForm({ inGame = false }: { inGame?: boolean }) {
+  const s = useSettingsStore();
   // presets pesados só entram depois do aviso de desempenho
   const [pending, setPending] = useState<GraphicsPreset | null>(null);
   const choose = (q: GraphicsPreset) => {
@@ -26,7 +38,7 @@ export function SettingsScreen() {
     else s.update({ quality: q });
   };
   return (
-    <Shell title="Configurações" back={() => setScreen('menu')}>
+    <>
       <div className="space-y-4 text-sm">
         <fieldset>
           <legend className="label">Qualidade gráfica</legend>
@@ -70,8 +82,8 @@ export function SettingsScreen() {
         <div>
           <Toggle label="Qualidade adaptativa (KGPS)" checked={s.adaptiveQuality} onChange={(v) => s.update({ adaptiveQuality: v })} />
           <p className="text-[11px] text-ink-400">
-            Durante a partida, mede o tempo de cada quadro e, se o jogo ficar lento, alivia primeiro o que menos aparece (reflexos, efeitos de tela, sombras, resolução) — um ajuste por vez,
-            desfazendo o que não ajudar. Com folga, devolve a qualidade do preset. Nunca passa do preset escolhido nem mexe em regras, névoa de guerra ou interface. Vale na hora.
+            Durante a partida, mede o tempo de cada quadro e, se o jogo ficar lento, alivia primeiro o que menos aparece (reflexos, efeitos de tela, sombras, resolução) — um ajuste por vez, desfazendo
+            o que não ajudar. Com folga, devolve a qualidade do preset. Nunca passa do preset escolhido nem mexe em regras, névoa de guerra ou interface. Vale na hora.
           </p>
         </div>
         <Toggle label="Mostrar FPS (toque no contador para ver o painel de desempenho)" checked={s.showFps} onChange={(v) => s.update({ showFps: v })} />
@@ -82,7 +94,11 @@ export function SettingsScreen() {
           <input id="pan" type="range" min={0.25} max={3} step={0.25} value={s.panSpeed} onChange={(e) => s.update({ panSpeed: Number(e.target.value) })} className="w-full accent-[#e0b44c]" />
         </div>
         <AudioSettings />
-        <p className="text-xs text-ink-400">Mudanças gráficas valem a partir da próxima partida (o globo do menu se atualiza na hora).</p>
+        <p className="text-xs text-ink-400">
+          {inGame
+            ? 'Qualidade gráfica e sombras valem a partir da próxima partida; câmera, FPS, qualidade adaptativa, animações e áudio mudam na hora.'
+            : 'Mudanças gráficas valem a partir da próxima partida (o globo do menu se atualiza na hora).'}
+        </p>
         <button className="btn" onClick={s.reset}>
           Restaurar Padrões
         </button>
@@ -98,7 +114,7 @@ export function SettingsScreen() {
           }}
         />
       )}
-    </Shell>
+    </>
   );
 }
 

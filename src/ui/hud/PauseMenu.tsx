@@ -3,11 +3,13 @@ import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { gameClient } from '../../net/client.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { AudioSettings } from '../components/AudioSettings.tsx';
+import { SettingsForm } from '../screens/SettingsScreen.tsx';
 
 export function PauseMenu({ runtime, onClose }: { runtime: GameRuntime; onClose: () => void }) {
   const [confirm, setConfirm] = useState(false);
   const mode = useAppStore((s) => s.room?.mode);
   const [sound, setSound] = useState(false);
+  const [options, setOptions] = useState(false);
   // rendição enviada: aguarda o servidor encerrar (sem resposta em alguns segundos, deixa tentar de novo)
   const [surrender, setSurrender] = useState<'idle' | 'sent' | 'offline' | 'slow'>('idle');
   useEffect(() => {
@@ -16,6 +18,20 @@ export function PauseMenu({ runtime, onClose }: { runtime: GameRuntime; onClose:
     return () => clearTimeout(t);
   }, [surrender]);
   const sendSurrender = () => setSurrender(gameClient.send({ t: 'surrender' }) ? 'sent' : 'offline');
+  if (options)
+    return (
+      <div className="absolute inset-0 z-40 flex items-center justify-center bg-ink-950/70 p-2" onPointerDown={(e) => e.stopPropagation()}>
+        <div className="panel scroll-thin max-h-[94%] w-[min(36rem,100%)] overflow-y-auto p-4" role="dialog" aria-label="Opções">
+          <div className="sticky -top-4 z-10 -mx-4 -mt-4 mb-3 flex items-center justify-between gap-2 border-b border-ink-700 bg-ink-900 px-4 py-2">
+            <h2 className="font-bold tracking-wide">Opções</h2>
+            <button className="btn min-h-8 px-3" onClick={() => setOptions(false)}>
+              ← Voltar
+            </button>
+          </div>
+          <SettingsForm inGame />
+        </div>
+      </div>
+    );
   return (
     <div className="absolute inset-0 z-40 flex items-center justify-center bg-ink-950/70" onPointerDown={(e) => e.stopPropagation()}>
       <div className="panel scroll-thin max-h-[92%] w-80 space-y-2 overflow-y-auto p-5" role="dialog" aria-label="Menu da partida">
@@ -30,6 +46,9 @@ export function PauseMenu({ runtime, onClose }: { runtime: GameRuntime; onClose:
           {sound ? 'Ocultar Áudio' : 'Áudio e Volumes'}
         </button>
         {sound && <AudioSettings compact />}
+        <button className="btn w-full" onClick={() => setOptions(true)}>
+          Opções
+        </button>
         {mode === 'pvp' && <p className="text-xs text-ink-400">Em partidas multijogador, qualquer jogador pode pausar ou retomar.</p>}
         {!confirm ? (
           <button className="btn btn-danger w-full" onClick={() => setConfirm(true)}>
