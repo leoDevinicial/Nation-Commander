@@ -284,6 +284,11 @@ export class BuildingVisual {
     this.ring.visible = v;
   }
 
+  /** Ritmo das máquinas (0 parado, 1 normal) e o tempo de animação acumulado nesse ritmo. */
+  private workRate = 1;
+  // fase inicial própria: construções iguais não ficam em sincronia perfeita
+  private workT = Math.random() * 100;
+
   update(
     dt: number,
     progress: number,
@@ -293,8 +298,14 @@ export class BuildingVisual {
     rally: THREE.Vector2 | null,
     showRally: boolean,
     upgrading = false,
+    active = true,
   ): void {
     this.t += dt;
+    // as máquinas acompanham o funcionamento: param devagar sem trabalhadores, sem pagar a
+    // manutenção, com o depósito esgotado ou o armazém cheio, e voltam a girar suaves
+    this.workRate += ((active ? 1 : 0) - this.workRate) * (1 - Math.exp(-dt * 1.6));
+    if (Math.abs(this.workRate - (active ? 1 : 0)) < 1e-3) this.workRate = active ? 1 : 0;
+    this.workT += dt * this.workRate;
     const done = progress >= 1;
     // andaimes na construção e nas obras de melhoria; guindaste só nas melhorias
     this.scaffold.visible = !done || upgrading;
@@ -311,16 +322,16 @@ export class BuildingVisual {
     this.detail.visible = camera.position.distanceTo(this.group.position) < this.lod;
     if (this.fields) this.fields.visible = done;
     if (this.smoke) {
-      this.smoke.group.visible = done && !this.remembered;
+      this.smoke.group.visible = done && !this.remembered && this.workRate > 0.05;
       if (this.smoke.group.visible) this.smoke.update(dt);
     }
     if (done && this.moving && !this.remembered) {
-      if (this.movingKind === 'spin') this.moving.rotation.y += dt * 0.7;
-      else if (this.movingKind === 'rock') this.moving.rotation.z = Math.sin(this.t * 2.2) * 0.32;
-      else if (this.movingKind === 'saw') this.moving.rotation.z += dt * 18;
-      else if (this.movingKind === 'pump') this.posePump(this.t * PUMP_SPEED);
+      if (this.movingKind === 'spin') this.moving.rotation.y += dt * 0.7 * this.workRate;
+      else if (this.movingKind === 'rock') this.moving.rotation.z = Math.sin(this.workT * 2.2) * 0.32;
+      else if (this.movingKind === 'saw') this.moving.rotation.z += dt * 18 * this.workRate;
+      else if (this.movingKind === 'pump') this.posePump(this.workT * PUMP_SPEED);
     }
-    if (done && this.anims.length && !this.remembered) this.poseAnims(this.t);
+    if (done && this.anims.length && !this.remembered) this.poseAnims(this.workT);
     this.hp.set(hpFraction);
     this.hp.group.visible = showHp && !this.remembered;
     if (showHp) this.hp.face(camera);

@@ -151,6 +151,8 @@ export class GameRuntime {
   private readonly trackMarks: TrackMarks;
   /** Visão aproximada: entidade acompanhada pela câmera e o zoom de antes (para voltar). */
   private follow: number | null = null;
+  /** Unidades destruídas ainda caindo (animação curta antes de sumir). */
+  private readonly dying: UnitVisual[] = [];
   private zoomBeforeCloseUp = 48;
   private readonly buildings = new Map<number, TrackedBuilding>();
   private readonly selection = new Set<number>();
@@ -302,11 +304,19 @@ export class GameRuntime {
       {
         tap: (x, y, double) => this.onTouchTap(x, y, double),
         longPress: (x, y) => this.onTouchLongPress(x, y),
-        pan: (dx, dy) => this.cameraCtl.pan(-dx * 0.08, dy * 0.08),
+        pan: (dx, dy) => {
+          // arrastar o mapa solta o acompanhamento da visão aproximada
+          this.cameraCtl.pan(-dx * 0.08, dy * 0.08);
+          this.follow = null;
+        },
         pinch: (scale, rot, dx, dy) => {
           if (scale !== 1) this.cameraCtl.zoom(1 / scale);
           if (rot) this.cameraCtl.rotate(rot);
-          if (dx || dy) this.cameraCtl.pan(-dx * 0.08, dy * 0.08);
+          // a pinça desloca um pouco o centro: só solta o acompanhamento se for um arrasto de verdade
+          if ((dx || dy) && Math.hypot(dx, dy) > 3) {
+            this.cameraCtl.pan(-dx * 0.08, dy * 0.08);
+            this.follow = null;
+          } else if ((dx || dy) && !this.follow) this.cameraCtl.pan(-dx * 0.08, dy * 0.08);
         },
         box: (x0, y0, x1, y1, done) => this.onTouchBox(x0, y0, x1, y1, done),
         cancel: () => (this.selectionBox.style.display = 'none'),
@@ -469,9 +479,15 @@ export class GameRuntime {
       }
       t.visual.setEquipment(u.mods ?? [], !!u.refit);
     }
+    // unidades destruídas neste snapshot caem/tombam antes de sumir; as que só saíram da visão somem
+    const killed = new Set<number>();
+    for (const e of s.events) if (e.type === 'destroyed' && e.entity === 'unit') killed.add(e.id);
     for (const [id, t] of this.units) {
       if (!seen.has(id)) {
-        t.visual.dispose();
+        if (killed.has(id)) {
+          t.visual.beginDeath();
+          this.dying.push(t.visual);
+        } else t.visual.dispose();
         this.units.delete(id);
         this.selection.delete(id);
       }
@@ -551,7 +567,7 @@ export class GameRuntime {
       this.rocketLayer.salvo({
         attackerId: e.attackerId,
         count: e.salvo,
-        flight: (e.flightTicks ?? TICK_RATE) / TICK_RATE / this.speed,
+        flight: (e.flightTicks ?? TICK_RATE) / TICK_RATE,
         target: e.to,
         spread: UNITS.rocket_artillery.weapon.splash ?? 3,
         tube: (i, pos, dir) => {
@@ -587,7 +603,11 @@ export class GameRuntime {
       const from = attacker ? attacker.visual.muzzleWorld() : new THREE.Vector3(e.from.x, 2, e.from.y);
       this.effects.tracer(from, new THREE.Vector3(tp.x, target ? 0.7 : 1.4, tp.y), heavy);
     } else if (e.type === 'destroyed') {
-      this.effects.explosion(new THREE.Vector3(e.pos.x, 0, e.pos.y), e.entity === 'building' || e.entityType === 'tank');
+      const heavy = e.entity === 'building' || e.entityType === 'tank' || e.entityType === 'mbt';
+      this.effects.explosion(new THREE.Vector3(e.pos.x, 0, e.pos.y), heavy);
+      // veículo destruído: os destroços queimam e soltam uma coluna de fumaça escura
+      if (e.entity === 'unit' && (UNITS as Record<string, { armor: string }>)[e.entityType]?.armor === 'vehicle')
+        this.effects.plume(new THREE.Vector3(e.pos.x, 0.4, e.pos.y), { count: 7, size: 1.3, rise: 5, life: 6.5, spread: 0.6, tone: 0.25, delay: 0.15 });
     } else if (e.type === 'air_strike') {
       // bombas guiadas: impactos em sequência sobre o alvo
       for (let i = 0; i < 3; i++) this.effects.explosion(new THREE.Vector3(e.pos.x + (Math.random() - 0.5) * 1.6, 0, e.pos.y + (Math.random() - 0.5) * 1.6), i === 0 && (e.destroyed || e.oilLost > 0));
@@ -718,11 +738,17 @@ export class GameRuntime {
       const upgrading = !!t.snap.upgrade;
       t.visual.setSelected(selected);
       const rally = t.snap.rally ? new THREE.Vector2(t.snap.rally.x, t.snap.rally.y) : null;
-      t.visual.update(dt, t.snap.progress, frac, (selected || frac < 0.999 || t.snap.progress < 1 || upgrading) && !this.cameraCtl.closeUp, this.camera, rally, selected && t.snap.owner === this.mySlot, upgrading);
+      t.visual.update(dt, t.snap.progress, frac, (selected || frac < 0.999 || t.snap.progress < 1 || upgrading) && !this.cameraCtl.closeUp, this.camera, rally, selected && t.snap.owner === this.mySlot, upgrading, t.snap.status === undefined || t.snap.status === 'ok');
     }
     this.cargo.frame(alpha, dt);
     this.airLayer.frame(alpha, dt);
-    this.rocketLayer.update(dt);
+    // os foguetes andam no relógio da simulação: param na pausa e aceleram com a velocidade
+    this.rocketLayer.update(this.paused ? 0 : dt * this.speed);
+    for (let i = this.dying.length - 1; i >= 0; i--)
+      if (!this.dying[i]!.updateDeath(dt)) {
+        this.dying[i]!.dispose();
+        this.dying.splice(i, 1);
+      }
     this.trackMarks.update(dt);
     this.updateAirTargeting();
     if (this.hudActive) {
@@ -923,6 +949,7 @@ export class GameRuntime {
       if (s) {
         this.cameraCtl.target.x = s.x;
         this.cameraCtl.target.z = s.y;
+        this.follow = null;
         useNationalStore.getState().setPanelOpen(false);
       }
     }
@@ -1460,6 +1487,8 @@ export class GameRuntime {
     this.clearSelection();
     this.selection.add(id);
     this.cameraCtl.lookAt(p.x, p.y);
+    // na visão aproximada, passa a acompanhar o edifício escolhido
+    this.follow = this.cameraCtl.closeUp ? id : null;
   }
 
   centerOnHQ(): void {
@@ -1467,6 +1496,7 @@ export class GameRuntime {
       if (b.snap.owner === this.mySlot && b.snap.type === 'hq') {
         const p = this.positionOf(b.snap.id)!;
         this.cameraCtl.lookAt(p.x, p.y);
+        this.follow = null;
         return;
       }
     }
@@ -1474,6 +1504,7 @@ export class GameRuntime {
 
   lookAt(x: number, y: number): void {
     this.cameraCtl.lookAt(x, y);
+    this.follow = null;
   }
 
   /** Ordem de movimento a partir do minimapa. */
@@ -2193,6 +2224,7 @@ export class GameRuntime {
       this.airLayer.dispose();
       this.rocketLayer.dispose();
       this.trackMarks.dispose();
+      for (const v of this.dying.splice(0)) v.dispose();
       this.terrain.dispose();
       this.territoryLayer.dispose();
       this.fogTexture.dispose();
@@ -2217,6 +2249,7 @@ export class GameRuntime {
     this.airLayer.dispose();
       this.rocketLayer.dispose();
       this.trackMarks.dispose();
+      for (const v of this.dying.splice(0)) v.dispose();
     disposeAirModels();
     disposeBuildingModels();
     disposeMaterials();

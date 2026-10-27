@@ -51,3 +51,26 @@ veículos de rodas inclinam mais que os de lagartas.
 - o zoom e a inclinação da visão aproximada, e a volta ao modo normal;
 - a posição dos pares de marcas sob as esteiras;
 - o esmaecimento das marcas e o reaproveitamento em anel.
+
+## Animações: polimento e correções
+
+- **Entrada em cena:** a unidade cresce até o tamanho real em cerca de 0,3 s ao ser produzida ou ao entrar na
+  visão, em vez de surgir de repente.
+- **Destruição:**
+  - o veículo tomba de lado, a torre fica torta e uma coluna de fumaça escura sobe dos destroços, que ficam
+    cerca de 6 s no chão e afundam;
+  - o soldado cai e some em cerca de 3 s.
+  - Uma unidade que só saiu da visão some na hora, sem a animação.
+- **Máquinas das construções:**
+  - serras, bombas de petróleo, esteiras, guindastes e chaminés acompanham o funcionamento do prédio: param
+    sem trabalhadores, sem manutenção paga, com o depósito esgotado ou com o armazém cheio, desacelerando e
+    voltando suaves;
+  - construções iguais não giram mais em sincronia perfeita.
+- **Correções:**
+  - os foguetes do lança-foguetes seguem o relógio da simulação: param na pausa e aceleram com a velocidade
+    do jogo, chegando junto com o dano;
+  - na visão aproximada, arrastar o mapa (também no celular), usar o minimapa ou centralizar no QG solta o
+    acompanhamento; antes, a câmera era puxada de volta para a unidade;
+  - escolher um edifício pelo resumo de produção passa a acompanhá-lo.
+- **Testes:** `src/test/unitAnim.test.ts` cobre a entrada, a queda, os rastros de um tanque andando e a
+  parada suave das máquinas.

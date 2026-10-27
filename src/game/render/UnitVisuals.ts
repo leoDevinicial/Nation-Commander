@@ -101,6 +101,9 @@ export class UnitVisual {
   private travel = 0;
   private gait = 0;
   private readonly lastPos = new THREE.Vector2(NaN, NaN);
+  /** Entrada em cena (0→1) e queda ao ser destruída (segundos desde a destruição; null = viva). */
+  private appear = 0;
+  private death: { t: number; tilt: number; side: number } | null = null;
   /** Rastros de esteira no chão (veículos de lagartas): distância desde a última marca. */
   treadMarks: TrackMarks | null = null;
   private markAcc = 0;
@@ -262,9 +265,53 @@ export class UnitVisual {
     return out.copy(this.muzzleLocal).applyMatrix4(parent.matrixWorld);
   }
 
+  /**
+   * Destruída: em vez de sumir, o veículo tomba de lado e afunda devagar (os destroços ficam um
+   * pouco no chão) e o soldado cai. Sem barra de vida nem anel de seleção.
+   */
+  beginDeath(): void {
+    if (this.death) return;
+    this.death = { t: 0, tilt: 0.25 + Math.random() * 0.25, side: Math.random() < 0.5 ? -1 : 1 };
+    this.ring.visible = false;
+    this.refitRing.visible = false;
+    this.hp.group.visible = false;
+  }
+
+  get dying(): boolean {
+    return this.death !== null;
+  }
+
+  /** Anima a queda; devolve false quando terminou (o chamador descarta a unidade). */
+  updateDeath(dt: number): boolean {
+    const d = this.death;
+    if (!d) return false;
+    d.t += dt;
+    const vehicle = UNITS[this.type].armor === 'vehicle';
+    if (vehicle) {
+      // tomba de lado, a torre fica torta e os destroços afundam no fim
+      const k = Math.min(1, d.t / 0.6);
+      const ease = 1 - (1 - k) * (1 - k);
+      this.body.rotation.x = d.side * d.tilt * ease;
+      if (this.turret) this.turret.rotation.y = this.turretAngle + d.side * 0.5 * ease;
+      this.body.position.y = -Math.max(0, d.t - 4) * 0.35;
+      return d.t < 6;
+    }
+    // soldados caem para trás e somem na grama
+    const k = Math.min(1, d.t / 0.45);
+    this.body.rotation.z = (Math.PI / 2) * k * k * 0.95;
+    this.body.position.y = 0.05 * k - Math.max(0, d.t - 2) * 0.3;
+    return d.t < 3.2;
+  }
+
   /** Atualiza transformações a cada frame. */
   update(dt: number, moving: boolean, aimAngle: number | null, hpFraction: number, showHp: boolean, camera: THREE.Camera, deployed = false): void {
     this.group.position.set(this.renderPos.x, 0, this.renderPos.y);
+    // entrada em cena: cresce um pouco ao sair da fábrica ou aparecer na visão
+    if (this.appear < 1) {
+      this.appear = Math.min(1, this.appear + dt * 3.2);
+      const e = 1 - Math.pow(1 - this.appear, 3);
+      this.group.scale.setScalar(0.78 + 0.22 * e);
+    }
     // facing da simulação: ângulo no plano (x, y) → rotação em torno do eixo Y (x, z)
     this.body.rotation.y = -this.facing;
     if (this.turret) {
