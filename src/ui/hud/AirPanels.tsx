@@ -9,7 +9,7 @@ import { useNationalStore } from '../../state/useNationalStore.ts';
 import { CostLabel } from '../components/Resources.tsx';
 import { CardButton } from './CardButton.tsx';
 import { audio } from '../../game/audio/AudioService.ts';
-import { effectiveFund, effectiveTechs } from '../../state/sandbox.ts';
+import { effectiveFund, effectiveTechs, timeText } from '../../state/sandbox.ts';
 
 const ICON: Record<AircraftType, string> = { fighter: '✈', recon: '🔭', transport: '📦' };
 const SHORT: Record<AircraftType, string> = { fighter: 'Caça', recon: 'Reconhecimento', transport: 'Cargueiro' };
@@ -118,7 +118,7 @@ export function AirbaseButtons({ b, runtime }: { b: SelectedBuildingInfo; runtim
             short={blocker}
             count={planes.filter((a) => a.type === t && a.state === 'building').length}
             onClick={() => (blocker ? warn(`${def.label}: ${blocker}`) : runtime.send({ type: 'build_aircraft', buildingId: b.id, aircraftType: t }))}
-            title={`${def.label} — ${def.role}\nCusto: ${formatUsd(def.usd)} da verba de obras + materiais + 1 piloto · ${def.buildSeconds}s${def.range ? `\nAlcance ${def.range} · manutenção ${def.maintenanceSeconds}s após cada missão` : ''}`}
+            title={`${def.label} — ${def.role}\nCusto: ${formatUsd(def.usd)} da verba de obras + materiais + 1 piloto · ${timeText(def.buildSeconds)}${def.range ? `\nAlcance ${def.range} · manutenção ${def.maintenanceSeconds}s após cada missão` : ''}`}
           >
             <CostLabel cost={def.cost} have={ctx.resources} compact />
             <span className="text-[9px] text-ink-400">{formatUsd(def.usd)}</span>
@@ -212,7 +212,7 @@ export function SiloButtons({ b, runtime }: { b: SelectedBuildingInfo; runtime: 
         blocked={buildBlock !== null}
         short={buildBlock}
         onClick={() => (buildBlock ? warn(`Míssil: ${buildBlock}`) : runtime.send({ type: 'build_missile', buildingId: b.id }))}
-        title={`Míssil balístico: ${formatUsd(MISSILE.usd)} + materiais · ${MISSILE.buildSeconds}s · dano em área (raio ${MISSILE.radius}), interceptável pela antiaérea do alvo.`}
+        title={`Míssil balístico: ${formatUsd(MISSILE.usd)} + materiais · ${timeText(MISSILE.buildSeconds)} · dano em área (raio ${MISSILE.radius}), interceptável pela antiaérea do alvo.`}
       >
         <CostLabel cost={MISSILE.cost} have={ctx.resources} compact />
       </CardButton>

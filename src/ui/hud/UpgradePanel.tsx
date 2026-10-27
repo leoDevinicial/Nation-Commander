@@ -143,7 +143,7 @@ export function UpgradePanel({ runtime }: { runtime: GameRuntime }) {
               </div>
               <div className="rounded border border-ink-700 bg-ink-900 p-2">
                 <div className="text-ink-400">Tempo de obra</div>
-                <div className="mt-1 font-mono text-sm">{plan.seconds} s</div>
+                <div className="mt-1 font-mono text-sm">{plan.seconds > 0 ? `${plan.seconds} s` : 'instantâneo'}</div>
                 <div className="text-[10px] text-ink-400">
                   manutenção: <UpkeepText cost={plan.upkeepDelta} />
                 </div>

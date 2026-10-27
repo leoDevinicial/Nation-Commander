@@ -649,7 +649,9 @@ export class Room {
       if (diplomacyChanged) this.broadcastNational();
       return;
     }
-    if (national.day % 30 === 0) {
+    // Sandbox com a IA pausada: o governo inimigo também não mexe em orçamento nem diplomacia
+    // (senão poderia propor paz e desligar o combate no meio do teste)
+    if (national.day % 30 === 0 && (!sim.sandbox || sim.sandbox.aiActive)) {
       for (const ai of this.nationalAIs) {
         const r = ai.think(national);
         if (r.budget) national.setBudget(ai.slot, r.budget);

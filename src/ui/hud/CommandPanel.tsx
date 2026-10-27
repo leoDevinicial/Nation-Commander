@@ -32,7 +32,7 @@ import { AirbaseButtons, AirbaseInfo, SiloButtons, SiloInfo, airTargetText } fro
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { buildingEffects, formatUsd as usdShort, specDef, upgradeTrack } from '../../../shared/sim/upgrades.ts';
-import { effectiveMilitaryResearch, effectivePopCap, effectiveTechs } from '../../state/sandbox.ts';
+import { effectiveMilitaryResearch, effectivePopCap, effectiveTechs, timeText } from '../../state/sandbox.ts';
 
 const EMPTY_TECHS: readonly string[] = [];
 
@@ -223,7 +223,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             hotkey={CITIZEN.hotkey}
             label="Cidadão"
             onRun={() => runtime.trainCitizen()}
-            title={`Formar cidadão civil — trabalha nas construções (fazendas, poços de petróleo, serrarias, pedreiras, minas, fábricas). Exige vaga de moradia.\nTempo: ${CITIZEN.buildSeconds}s`}
+            title={`Formar cidadão civil — trabalha nas construções (fazendas, poços de petróleo, serrarias, pedreiras, minas, fábricas). Exige vaga de moradia.\nTempo: ${timeText(CITIZEN.buildSeconds)}`}
           />
         )}
         {building?.type === 'hq' &&
@@ -250,7 +250,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
                         tone: 'warn',
                       })
                 }
-                title={`${def.label} — ${def.description}\nTempo: ${def.buildSeconds}s · Vida: ${def.maxHp}${def.workers ? ` · Trabalhadores: ${def.workers}` : ''}${def.territoryRadius ? ` · Fronteira: ${def.territoryRadius} células` : ''}`}
+                title={`${def.label} — ${def.description}\nTempo: ${timeText(def.buildSeconds)} · Vida: ${def.maxHp}${def.workers ? ` · Trabalhadores: ${def.workers}` : ''}${def.territoryRadius ? ` · Fronteira: ${def.territoryRadius} células` : ''}`}
               >
                 <CostLabel cost={def.cost} have={resources} compact />
               </CardButton>
@@ -386,7 +386,7 @@ function ProduceButtons({ runtime, b }: { runtime: GameRuntime; b: SelectedBuild
           hotkey={RECRUIT.hotkey}
           label={`Recruta (${recruits})`}
           onRun={() => runtime.trainRecruit()}
-          title={`Alistar recruta — vai para a reserva militar e é a tripulação de qualquer unidade (infantaria, blindado, tanque, artilharia). Exige vaga de moradia.\nTempo: ${RECRUIT.buildSeconds}s · Na reserva: ${recruits}`}
+          title={`Alistar recruta — vai para a reserva militar e é a tripulação de qualquer unidade (infantaria, blindado, tanque, artilharia). Exige vaga de moradia.\nTempo: ${timeText(RECRUIT.buildSeconds)} · Na reserva: ${recruits}`}
         />
       )}
       {options.map((u) => {
@@ -399,7 +399,7 @@ function ProduceButtons({ runtime, b }: { runtime: GameRuntime; b: SelectedBuild
             hotkey={def.hotkey}
             label={def.label}
             onRun={() => runtime.produce(u)}
-            title={`${def.label} — ${def.description}\nTripulação: 1 recruta (reserva: ${recruits}) · Tempo: ${def.buildSeconds}s · Vida: ${def.maxHp} · Dano: ${def.weapon.damage} · Alcance: ${def.weapon.range} · Visão: ${def.sight}${counterText(u)}`}
+            title={`${def.label} — ${def.description}\nTripulação: 1 recruta (reserva: ${recruits}) · Tempo: ${timeText(def.buildSeconds)} · Vida: ${def.maxHp} · Dano: ${def.weapon.damage} · Alcance: ${def.weapon.range} · Visão: ${def.sight}${counterText(u)}`}
           />
         );
       })}
@@ -463,7 +463,7 @@ function ResearchButtons({ runtime, b }: { runtime: GameRuntime; b: SelectedBuil
               if (ok) return runtime.startMilitaryResearch(id);
               useHudStore.getState().pushEvent({ tick: useHudStore.getState().tick, text: `${def.label}: ${blocker ?? 'recursos insuficientes'}`, tone: 'warn' });
             }}
-            title={`${def.label} — ${def.description}\nLibera: ${UNITS[unit].label} (${UNITS[unit].producedBy === 'barracks' ? 'base militar' : 'fábrica'})\nTempo: ${def.seconds}s (com 3 pesquisadores; o orçamento nacional de P&D acelera)${def.prereqs.length ? `\nRequer: ${def.prereqs.map((p) => MILITARY_RESEARCH[p].label).join(', ')}` : ''}${def.tier > 1 ? `\nCentro de Pesquisa no nível ${def.tier}` : ''}${current ? '\nEm andamento — clique para cancelar (devolve 75%)' : blocker ? `\nBloqueado: ${blocker}` : ''}`}
+            title={`${def.label} — ${def.description}\nLibera: ${UNITS[unit].label} (${UNITS[unit].producedBy === 'barracks' ? 'base militar' : 'fábrica'})\nTempo: ${timeText(def.seconds)} (com 3 pesquisadores; o orçamento nacional de P&D acelera)${def.prereqs.length ? `\nRequer: ${def.prereqs.map((p) => MILITARY_RESEARCH[p].label).join(', ')}` : ''}${def.tier > 1 ? `\nCentro de Pesquisa no nível ${def.tier}` : ''}${current ? '\nEm andamento — clique para cancelar (devolve 75%)' : blocker ? `\nBloqueado: ${blocker}` : ''}`}
           >
             {!isDone && !current && <CostLabel cost={def.cost} have={resources} compact />}
             {current && <span className="text-[10px] text-brass-400">cancelar</span>}
@@ -618,7 +618,7 @@ function ModernizeButtons({ runtime }: { runtime: GameRuntime }) {
               }
               runtime.modernize(o.mod);
             }}
-            title={`Modernizar: ${def.label} (${def.area}) — ${def.description}\nPesquisa: ${TECHNOLOGIES[def.tech].label}\n${o.readyIds.length} de ${o.applicable} unidade(s) podem começar agora · ${o.check.seconds}s parada(s) na instalação · ${usdShort(o.check.usd)} por unidade${o.blocker ? `\nBloqueado: ${o.blocker}` : ''}`}
+            title={`Modernizar: ${def.label} (${def.area}) — ${def.description}\nPesquisa: ${TECHNOLOGIES[def.tech].label}\n${o.readyIds.length} de ${o.applicable} unidade(s) podem começar agora · ${timeText(o.check.seconds)} parada(s) na instalação · ${usdShort(o.check.usd)} por unidade${o.blocker ? `\nBloqueado: ${o.blocker}` : ''}`}
           >
             <CostLabel cost={o.check.cost} have={me?.resources ?? emptyStockpile()} compact />
             {o.check.usd > 0 && <span className="text-[9px] text-signal-green">{usdShort(o.check.usd)}</span>}

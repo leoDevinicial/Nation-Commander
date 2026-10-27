@@ -636,6 +636,7 @@ export class Simulation {
       stability: link ? link.stability(slot) : null,
       fundsUsd: link ? link.worksFundUsd(slot) : null,
       constructionTimeMul: p.modifiers.constructionTimeMul,
+      ...(this.isSandbox(slot) ? { sandbox: { instant: !!this.sandbox?.instant } } : {}),
     };
   }
 
@@ -1340,7 +1341,7 @@ export class Simulation {
               if (Math.max(Math.abs(x - origin.cx), Math.abs(y - origin.cy)) !== r) continue;
               if (!this.grid.isPassable(x, y) || taken.has(this.grid.index(x, y))) continue;
               taken.add(this.grid.index(x, y));
-              this.addUnit(cmd.unitType, owner, this.grid.cellCenter({ cx: x, cy: y }), 1, mods);
+              this.addUnit(cmd.unitType, owner, this.grid.cellCenter({ cx: x, cy: y }), cmd.maxed ? this.maxedHpMul(cmd.unitType) : 1, mods);
               made++;
             }
         return made > 0 ? null : 'Sem espaço livre perto deste ponto';
@@ -1375,7 +1376,7 @@ export class Simulation {
           const mods = (Object.keys(MODS) as ModId[]).filter((m) => MODS[m].units.includes(u.type));
           u.mods = mods;
           u.refit = null;
-          u.maxHp = Math.round(UNITS[u.type].maxHp * combineMods(mods).hpMul);
+          u.maxHp = Math.round(UNITS[u.type].maxHp * this.maxedHpMul(u.type) * combineMods(mods).hpMul);
           u.hp = u.maxHp;
           n++;
         }
@@ -1396,6 +1397,14 @@ export class Simulation {
         return null;
       }
     }
+  }
+
+  /** Bônus de vida de uma unidade saída do produtor no nível máximo (melhor especialização). */
+  private maxedHpMul(type: UnitType): number {
+    const by = UNITS[type].producedBy;
+    const level = maxLevelOf(by);
+    const specs = upgradeTrack(by)?.specs ?? [];
+    return Math.max(...[null, ...specs.map((x) => x.id)].map((spec) => buildingEffects(by, level, spec).unitHpMul));
   }
 
   /** Remove uma entidade sem destruição (Sandbox): sem explosão, sem perda contabilizada. */

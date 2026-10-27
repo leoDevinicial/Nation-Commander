@@ -43,3 +43,10 @@ O painel também traz um "Como testar" com sugestões rápidas.
 | Cliente | `src/state/sandbox.ts` aplica as mesmas liberações nos botões; `SandboxPanel.tsx` é o painel; a barra esconde a economia |
 
 Testes: `server/sandbox.test.ts`.
+
+## Correções de divergência
+
+- O botão normal **⬆ Melhorar** também ignora os requisitos (Centro de Comando, armazém do produto, infraestrutura nacional, estabilidade, verba); com "Tudo instantâneo" a janela mostra a obra como instantânea.
+- As dicas de produção, pesquisa, modernização, aeronaves e mísseis mostram "instantâneo (Sandbox)" quando o modo está ligado.
+- Tropas criadas "no máximo" (e o botão Maximizar) recebem também o bônus de vida do quartel/fábrica no nível máximo, igual a uma unidade produzida de verdade.
+- Com a IA pausada, o governo inimigo também não mexe em orçamento nem em diplomacia (não propõe paz no meio do teste).

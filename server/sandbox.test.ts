@@ -60,7 +60,8 @@ describe('modo Sandbox', () => {
     let err: string | null = 'sem lugar';
     for (let r = 4; r < 14 && err; r++)
       for (let dy = -r; dy <= r && err; dy++)
-        for (let dx = -r; dx <= r && err; dx++) err = sim.placementError(0, 'factory', { cx: hq.cell.cx + dx, cy: hq.cell.cy + dy }) ? err : await cmd({ type: 'build', buildingType: 'factory', cx: hq.cell.cx + dx, cy: hq.cell.cy + dy });
+        for (let dx = -r; dx <= r && err; dx++)
+          err = sim.placementError(0, 'factory', { cx: hq.cell.cx + dx, cy: hq.cell.cy + dy }) ? err : await cmd({ type: 'build', buildingType: 'factory', cx: hq.cell.cx + dx, cy: hq.cell.cy + dy });
     expect(err).toBeNull();
     run(1.5);
     const factory = sim.buildings.find((b) => b.owner === 0 && b.type === 'factory')!;
@@ -133,5 +134,39 @@ describe('modo Sandbox', () => {
     const { Simulation } = await import('../shared/sim/Simulation.ts');
     const back = Simulation.deserialize(sim.serialize());
     expect(back.sandbox).toEqual(sim.sandbox);
+  });
+  it('melhoria normal sem requisitos (QG, armazém, infraestrutura) e pronta na hora; unidades no máximo com o bônus do produtor', async () => {
+    const { sim, cmd, run } = await sandboxRoom();
+    const hq = sim.buildings.find((b) => b.owner === 0 && b.type === 'hq')!;
+    // com o QG no nível 1, a fábrica normalmente pararia no requisito de Centro de Comando
+    let err: string | null = 'sem lugar';
+    for (let r = 4; r < 14 && err; r++)
+      for (let dy = -r; dy <= r && err; dy++)
+        for (let dx = -r; dx <= r && err; dx++)
+          err = sim.placementError(0, 'factory', { cx: hq.cell.cx + dx, cy: hq.cell.cy + dy }) ? err : await cmd({ type: 'build', buildingType: 'factory', cx: hq.cell.cx + dx, cy: hq.cell.cy + dy });
+    expect(err).toBeNull();
+    run(1);
+    const factory = sim.buildings.find((b) => b.owner === 0 && b.type === 'factory')!;
+    for (let l = 2; l <= maxLevelOf('factory'); l++) {
+      const spec = sim.upgradePlan(factory).specChoice?.[0]?.id ?? null;
+      const plan = sim.upgradePlan(factory, spec);
+      expect(plan.blocker).toBeNull();
+      expect(plan.seconds).toBe(0);
+      expect(await cmd({ type: 'upgrade', buildingId: factory.id, ...(spec ? { spec } : {}) })).toBeNull();
+      run(0.2);
+      expect(factory.level).toBe(l);
+    }
+    expect(await cmd({ type: 'sandbox_spawn', unitType: 'tank', x: hq.pos.x + 10, y: hq.pos.y - 10, count: 1, enemy: false, maxed: true })).toBeNull();
+    const tank = sim.units.filter((u) => u.owner === 0 && u.type === 'tank').at(-1)!;
+    const before = tank.maxHp;
+    expect(await cmd({ type: 'sandbox_maxout', unitIds: [tank.id] })).toBeNull();
+    expect(tank.maxHp).toBe(before);
+  });
+
+  it('com a IA pausada o governo inimigo não faz diplomacia nem orçamento', async () => {
+    const { room, run } = await sandboxRoom();
+    const national = (room as unknown as { national: { diplomacy: { atWar: (a: number, b: number) => boolean } } }).national;
+    run(400);
+    expect(national.diplomacy.atWar(0, 1)).toBe(true);
   });
 });

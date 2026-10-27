@@ -1964,6 +1964,7 @@ export class GameRuntime {
       stability: effectiveStability(nation ? nation.stability : null),
       fundsUsd: effectiveFund(nation ? nation.works.fundUsd : null),
       constructionTimeMul: nation ? combineEffects(nation.research.done).constructionTimeMul : 1,
+      ...(this.snapshot?.sandbox ? { sandbox: { instant: this.snapshot.sandbox.instant } } : {}),
     };
   }
 

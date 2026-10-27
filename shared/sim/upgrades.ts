@@ -749,6 +749,8 @@ export interface UpgradeWorld {
   /** Verba de obras disponível (US$); null = sem cobrança em dinheiro. */
   fundsUsd: number | null;
   constructionTimeMul: number;
+  /** Modo Sandbox: requisitos liberados; `instant` = obra concluída no tick seguinte. */
+  sandbox?: { instant: boolean };
 }
 
 export interface UpgradeSubject {
@@ -796,7 +798,6 @@ export interface UpgradePlan {
   risks: string[];
 }
 
-
 const RES_NAMES: Record<ResourceType, string> = {
   supplies: 'suprimentos',
   food: 'comida',
@@ -839,34 +840,37 @@ export function planUpgrade(b: UpgradeSubject, world: UpgradeWorld, chosenSpec: 
 
   const to = b.level + 1;
   const lc = upgradeCost(b.type, to);
-  const seconds = Math.max(1, Math.round(lc.seconds * world.constructionTimeMul));
+  const seconds = world.sandbox?.instant ? 0 : Math.max(1, Math.round(lc.seconds * world.constructionTimeMul));
   const specChoice = t.specLevel === to && t.specs?.length ? t.specs : null;
   const nextSpec = specChoice ? (chosenSpec && specChoice.some((s) => s.id === chosenSpec) ? chosenSpec : null) : b.spec;
 
   const req: UpgradeRequirement[] = [];
-  if (b.type !== 'hq') req.push({ key: 'hq', label: `Centro de Comando no nível ${to - HQ_LEVEL_LEAD} ou mais`, met: world.hqLevel >= to - HQ_LEVEL_LEAD });
-  for (const g of t.techAt ?? []) {
-    if (to < g.level) continue;
-    req.push({ key: `tech:${g.tech}`, label: `Pesquisa: ${TECHNOLOGIES[g.tech].label}`, met: world.techs === null ? false : world.techs.includes(g.tech) });
+  if (world.sandbox) req.push({ key: 'sandbox', label: 'Sandbox: requisitos e custos liberados', met: true });
+  else {
+    if (b.type !== 'hq') req.push({ key: 'hq', label: `Centro de Comando no nível ${to - HQ_LEVEL_LEAD} ou mais`, met: world.hqLevel >= to - HQ_LEVEL_LEAD });
+    for (const g of t.techAt ?? []) {
+      if (to < g.level) continue;
+      req.push({ key: `tech:${g.tech}`, label: `Pesquisa: ${TECHNOLOGIES[g.tech].label}`, met: world.techs === null ? false : world.techs.includes(g.tech) });
+    }
+    if (t.storageAt && to >= t.storageAt.from) {
+      const need = Math.floor(to / 2);
+      const have = world.bestLevel(t.storageAt.building);
+      req.push({ key: 'storage', label: `${BUILDINGS[t.storageAt.building].label} no nível ${need} ou mais (logística do produto)`, met: have >= need });
+    }
+    if (to >= INFRA_GATE_LEVEL) {
+      req.push({
+        key: 'infra',
+        label: `Infraestrutura nacional com índice ${INFRA_GATE_MIN.toFixed(2).replace('.', ',')} ou mais (orçamento de infraestrutura)`,
+        met: world.infrastructureIndex === null ? false : world.infrastructureIndex >= INFRA_GATE_MIN - 1e-9,
+      });
+    }
+    if (t.stabilityAt && to >= t.stabilityAt.level) {
+      req.push({ key: 'stability', label: `Estabilidade política ${t.stabilityAt.min} ou mais`, met: world.stability === null ? false : world.stability >= t.stabilityAt.min });
+    }
+    const affordable = canAfford(world.resources, lc.cost);
+    req.push({ key: 'resources', label: 'Recursos no teatro', met: affordable });
+    if (world.fundsUsd !== null) req.push({ key: 'funds', label: `Verba de obras do orçamento nacional (${formatUsd(lc.usd)})`, met: world.fundsUsd >= lc.usd });
   }
-  if (t.storageAt && to >= t.storageAt.from) {
-    const need = Math.floor(to / 2);
-    const have = world.bestLevel(t.storageAt.building);
-    req.push({ key: 'storage', label: `${BUILDINGS[t.storageAt.building].label} no nível ${need} ou mais (logística do produto)`, met: have >= need });
-  }
-  if (to >= INFRA_GATE_LEVEL) {
-    req.push({
-      key: 'infra',
-      label: `Infraestrutura nacional com índice ${INFRA_GATE_MIN.toFixed(2).replace('.', ',')} ou mais (orçamento de infraestrutura)`,
-      met: world.infrastructureIndex === null ? false : world.infrastructureIndex >= INFRA_GATE_MIN - 1e-9,
-    });
-  }
-  if (t.stabilityAt && to >= t.stabilityAt.level) {
-    req.push({ key: 'stability', label: `Estabilidade política ${t.stabilityAt.min} ou mais`, met: world.stability === null ? false : world.stability >= t.stabilityAt.min });
-  }
-  const affordable = canAfford(world.resources, lc.cost);
-  req.push({ key: 'resources', label: 'Recursos no teatro', met: affordable });
-  if (world.fundsUsd !== null) req.push({ key: 'funds', label: `Verba de obras do orçamento nacional (${formatUsd(lc.usd)})`, met: world.fundsUsd >= lc.usd });
 
   // ganhos esperados: valores do próximo nível contra os atuais
   const now = buildingEffects(b.type, b.level, b.spec);
@@ -878,14 +882,12 @@ export function planUpgrade(b: UpgradeSubject, world: UpgradeWorld, chosenSpec: 
     if (Math.abs(d) > 1e-9) upkeepDelta[r] = d;
   }
   const risks = [
-    `Durante a obra (${seconds} s) o edifício opera a ${Math.round(UPGRADE_WORK_EFFICIENCY * 100)}% (coleta e produção).`,
+    seconds > 0 ? `Durante a obra (${seconds} s) o edifício opera a ${Math.round(UPGRADE_WORK_EFFICIENCY * 100)}% (coleta e produção).` : 'Sandbox instantâneo: a obra fica pronta no tick seguinte.',
     'Se for destruído durante a obra, todo o investimento é perdido.',
     `Cancelar devolve ${Math.round(UPGRADE_CANCEL_REFUND * 100)}% dos recursos e da verba.`,
   ];
-  if (next.workers > now.workers)
-    risks.push(`Abre ${next.workers - now.workers} posto de trabalho: sem cidadão ocioso, a produção fica proporcional aos postos ocupados.`);
-  if (Object.keys(upkeepDelta).some((r) => (upkeepDelta[r as ResourceType] ?? 0) > 0))
-    risks.push('A manutenção maior é cobrada sempre; sem saldo, o edifício para.');
+  if (next.workers > now.workers) risks.push(`Abre ${next.workers - now.workers} posto de trabalho: sem cidadão ocioso, a produção fica proporcional aos postos ocupados.`);
+  if (Object.keys(upkeepDelta).some((r) => (upkeepDelta[r as ResourceType] ?? 0) > 0)) risks.push('A manutenção maior é cobrada sempre; sem saldo, o edifício para.');
 
   let blocker: string | null = null;
   if (b.progress < 1) blocker = 'Edifício em construção';

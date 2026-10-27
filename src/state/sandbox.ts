@@ -1,6 +1,7 @@
 import { MILITARY_RESEARCH_IDS } from '../../shared/sim/config.ts';
 import { TECHNOLOGIES, type TechId } from '../../shared/strategic/technologies.ts';
 import { useAppStore } from './useAppStore.ts';
+import { useHudStore } from './useHudStore.ts';
 
 /**
  * Modo Sandbox no cliente: o servidor libera tudo (pesquisas, verba, população) para o jogador;
@@ -31,4 +32,9 @@ export function effectivePopCap(cap: number): number {
 
 export function effectiveStability(stability: number | null): number | null {
   return isSandboxMatch() ? 100 : stability;
+}
+
+/** Tempo exibido nas dicas: no Sandbox com "Tudo instantâneo" ligado, a obra fica pronta na hora. */
+export function timeText(seconds: number): string {
+  return useHudStore.getState().sandbox?.instant ? 'instantâneo (Sandbox)' : `${seconds}s`;
 }
