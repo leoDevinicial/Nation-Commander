@@ -709,7 +709,8 @@ export class GameRuntime {
       const frac = t.snap.hp / t.snap.maxHp;
       const selected = this.selection.has(t.snap.id);
       v.setSelected(selected);
-      v.update(dt, t.snap.activity === 'moving' || t.snap.activity === 'chasing', aim, frac, selected || frac < 0.999, this.camera, t.snap.activity === 'attacking');
+      // na visão aproximada a barra de vida (em escala do mundo) cobriria a tela: fica só no painel
+      v.update(dt, t.snap.activity === 'moving' || t.snap.activity === 'chasing', aim, frac, (selected || frac < 0.999) && !this.cameraCtl.closeUp, this.camera, t.snap.activity === 'attacking');
     }
     for (const t of this.buildings.values()) {
       const frac = t.snap.hp / t.snap.maxHp;
@@ -717,7 +718,7 @@ export class GameRuntime {
       const upgrading = !!t.snap.upgrade;
       t.visual.setSelected(selected);
       const rally = t.snap.rally ? new THREE.Vector2(t.snap.rally.x, t.snap.rally.y) : null;
-      t.visual.update(dt, t.snap.progress, frac, selected || frac < 0.999 || t.snap.progress < 1 || upgrading, this.camera, rally, selected && t.snap.owner === this.mySlot, upgrading);
+      t.visual.update(dt, t.snap.progress, frac, (selected || frac < 0.999 || t.snap.progress < 1 || upgrading) && !this.cameraCtl.closeUp, this.camera, rally, selected && t.snap.owner === this.mySlot, upgrading);
     }
     this.cargo.frame(alpha, dt);
     this.airLayer.frame(alpha, dt);
