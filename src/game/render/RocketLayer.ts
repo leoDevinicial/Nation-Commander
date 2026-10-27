@@ -125,7 +125,7 @@ export class RocketLayer {
     target: { x: number; y: number };
     spread: number;
     tube: (index: number, pos: THREE.Vector3, dir: THREE.Vector3) => void;
-    onLaunch: () => void;
+    onLaunch: (index: number) => void;
   }): void {
     for (let i = 0; i < o.count; i++) {
       const slot = this.free.pop();
@@ -147,7 +147,7 @@ export class RocketLayer {
         flame: this.flames[slot]!,
         trailAcc: 0,
         tube: (pos, dir) => o.tube(i, pos, dir),
-        onLaunch: o.onLaunch,
+        onLaunch: () => o.onLaunch(i),
         spread: new THREE.Vector2(Math.cos(a) * r, Math.sin(a) * r),
         target: new THREE.Vector2(o.target.x, o.target.y),
         dist: 0,

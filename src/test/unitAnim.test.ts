@@ -86,3 +86,43 @@ describe('modelos dos soldados', () => {
     expect(unitModel('infantry').motion.legs.length).toBeGreaterThan(0);
   });
 });
+
+describe('canos e casulo', () => {
+  it('o cano recua no disparo e volta; a antiaérea alterna os dois canos', () => {
+    const tank = new UnitVisual(5, 'tank', 0, true);
+    tank.update(1 / 60, false, 0, 1, false, cam);
+    const p = new THREE.Vector3();
+    const d = new THREE.Vector3();
+    tank.fireGun(p, d);
+    // a boca fica à frente do tanque e a saída aponta para a frente
+    expect(p.x).toBeGreaterThan(1.8);
+    expect(d.x).toBeGreaterThan(0.95);
+    tank.update(1 / 60, false, 0, 1, false, cam);
+    const barrel = (tank as unknown as { guns: { barrel: THREE.Group }[] }).guns[0]!.barrel;
+    expect(barrel.position.x).toBeLessThan(-0.25);
+    for (let i = 0; i < 90; i++) tank.update(1 / 60, false, 0, 1, false, cam);
+    expect(barrel.position.x).toBeCloseTo(0, 3);
+    tank.dispose();
+    const aa = new UnitVisual(6, 'mobile_aa', 0, true);
+    aa.update(1 / 60, false, 0, 1, false, cam);
+    const a = new THREE.Vector3();
+    const b = new THREE.Vector3();
+    aa.fireGun(a, d);
+    aa.fireGun(b, d);
+    expect(Math.abs(a.z - b.z)).toBeGreaterThan(0.8);
+    aa.dispose();
+  });
+
+  it('cada foguete que sai esvazia um tubo; a guarnição recarrega depois', () => {
+    const rl = new UnitVisual(7, 'rocket_artillery', 0, true);
+    const loaded = () => (rl as unknown as { loaded: boolean[] }).loaded.filter(Boolean).length;
+    expect(loaded()).toBe(12);
+    for (let i = 0; i < 12; i++) rl.rocketKick(i);
+    expect(loaded()).toBe(0);
+    for (let i = 0; i < 60; i++) rl.update(1 / 30, false, 0, 1, false, cam, true);
+    expect(loaded()).toBe(0); // ainda na pausa da salva
+    for (let i = 0; i < 6 * 30; i++) rl.update(1 / 30, false, 0, 1, false, cam, true);
+    expect(loaded()).toBe(12);
+    rl.dispose();
+  });
+});

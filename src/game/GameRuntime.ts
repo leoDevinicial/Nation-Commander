@@ -15,10 +15,11 @@ import { Effects } from './render/Effects.ts';
 import { disposeSharedResources } from './render/palette.ts';
 import { RocketLayer } from './render/RocketLayer.ts';
 import { TrackMarks } from './render/TrackMarks.ts';
+import { Projectiles } from './render/Projectiles.ts';
 import { BIOME_TINT, buildTerrain, type TerrainHandle } from './render/TerrainFactory.ts';
 import { cloudUniforms, disposeMaterials, fogUniforms, setCloudShadows, weatherUniforms } from './render/materials.ts';
 import { disposeBuildingModels } from './render/models/buildingModels.ts';
-import { disposeCitizenModel, disposeUnitModels } from './render/models/unitModels.ts';
+import { disposeCitizenModel, disposeUnitModels, unitModel } from './render/models/unitModels.ts';
 import { setModelDetail } from './render/models/kit.ts';
 import { chooseClaims, claimedBy, gatherRate, sitesByDeposit } from '../../shared/sim/gathering.ts';
 import { findDeposits, type DepositIndex } from '../../shared/sim/deposits.ts';
@@ -149,6 +150,7 @@ export class GameRuntime {
   private readonly airLayer: AirLayer;
   private readonly rocketLayer: RocketLayer;
   private readonly trackMarks: TrackMarks;
+  private readonly projectiles: Projectiles;
   /** Visão aproximada: entidade acompanhada pela câmera e o zoom de antes (para voltar). */
   private follow: number | null = null;
   /** Unidades destruídas ainda caindo (animação curta antes de sumir). */
@@ -294,6 +296,8 @@ export class GameRuntime {
     // rastros de esteira: menos marcas guardadas nos presets leves
     this.trackMarks = new TrackMarks(opts.profile.maxEffects > 60 ? 3000 : 1200);
     this.scene.add(this.trackMarks.mesh);
+    this.projectiles = new Projectiles(this.effects, opts.profile.maxEffects > 60 ? 80 : 40, opts.profile.maxEffects > 60 ? 140 : 60);
+    this.scene.add(this.projectiles.group);
 
     this.selectionBox = document.createElement('div');
     this.selectionBox.className = 'selection-box';
@@ -578,8 +582,8 @@ export class GameRuntime {
             dir.set(e.to.x - e.from.x, 0, e.to.y - e.from.y).normalize().setY(0.8).normalize();
           }
         },
-        onLaunch: () => {
-          this.units.get(e.attackerId)?.visual.rocketKick();
+        onLaunch: (i) => {
+          this.units.get(e.attackerId)?.visual.rocketKick(i);
           audio.playAt('rocket', e.from.x, e.from.y);
         },
       });
@@ -594,6 +598,15 @@ export class GameRuntime {
         }
       this.effects.scorch(e.pos, e.radius * 0.8, 25);
       this.shakeNear(e.pos, 0.18);
+    } else if (e.type === 'shot' && this.units.get(e.attackerId) && unitModel(this.units.get(e.attackerId)!.visual.type).shot) {
+      // veículos com canhão: o projétil sai da boca do cano (o cano recua) e voa até o alvo
+      const attacker = this.units.get(e.attackerId)!;
+      const kind = unitModel(attacker.visual.type).shot!;
+      const target = this.units.get(e.targetId);
+      const tp = target ? target.visual.renderPos : new THREE.Vector2(e.to.x, e.to.y);
+      const ty = target ? (UNITS[target.visual.type].armor === 'vehicle' ? 0.6 : 0.7) : 1.2;
+      attacker.visual.onFire();
+      this.projectiles.fire(kind, { x: tp.x, y: ty, z: tp.y }, (pos, dir) => attacker.visual.fireGun(pos, dir));
     } else if (e.type === 'shot') {
       const attacker = this.units.get(e.attackerId);
       const heavy = attacker ? attacker.visual.type === 'tank' : true;
@@ -744,6 +757,7 @@ export class GameRuntime {
     this.airLayer.frame(alpha, dt);
     // os foguetes andam no relógio da simulação: param na pausa e aceleram com a velocidade
     this.rocketLayer.update(this.paused ? 0 : dt * this.speed);
+    this.projectiles.update(this.paused ? 0 : dt * this.speed);
     for (let i = this.dying.length - 1; i >= 0; i--)
       if (!this.dying[i]!.updateDeath(dt)) {
         this.dying[i]!.dispose();
@@ -2224,6 +2238,7 @@ export class GameRuntime {
       this.airLayer.dispose();
       this.rocketLayer.dispose();
       this.trackMarks.dispose();
+      this.projectiles.dispose();
       for (const v of this.dying.splice(0)) v.dispose();
       this.terrain.dispose();
       this.territoryLayer.dispose();
@@ -2249,6 +2264,7 @@ export class GameRuntime {
     this.airLayer.dispose();
       this.rocketLayer.dispose();
       this.trackMarks.dispose();
+      this.projectiles.dispose();
       for (const v of this.dying.splice(0)) v.dispose();
     disposeAirModels();
     disposeBuildingModels();

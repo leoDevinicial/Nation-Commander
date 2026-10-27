@@ -170,6 +170,14 @@ export class UnitVisual {
   private lastFacing = NaN;
   private roll = 0;
   private pitchTilt = 0;
+  /** Canos: o recuo de cada um (1 no disparo, volta a 0) e o próximo a atirar (antiaérea alterna). */
+  private readonly guns: { barrel: THREE.Group; recoil: number; def: NonNullable<ReturnType<typeof unitModel>['guns']>[number] }[] = [];
+  private nextGun = 0;
+  /** Ogivas dos foguetes nos tubos do casulo (somem na saída e voltam na recarga). */
+  private noses: THREE.InstancedMesh | null = null;
+  private readonly loaded: boolean[] = [];
+  private reloadAt = 0;
+  private reloadClock = 0;
   /** Casulo de foguetes articulado (lança-foguetes) e sua elevação atual. */
   private pod: THREE.Group | null = null;
   private podElev = 0;
@@ -190,6 +198,18 @@ export class UnitVisual {
       for (const m of layerMeshes(model.turret, owner)) this.turret.add(m);
       this.body.add(this.turret);
     }
+    for (const def of model.guns ?? []) {
+      if (!this.turret) break;
+      // suporte na culatra com a elevação; o cano dentro dele recua ao longo do próprio eixo
+      const mount = new THREE.Group();
+      mount.position.set(...def.pivot);
+      mount.rotation.z = def.elev;
+      const barrel = new THREE.Group();
+      for (const m of layerMeshes(def.layers, owner)) barrel.add(m);
+      mount.add(barrel);
+      this.turret.add(mount);
+      this.guns.push({ barrel, recoil: 0, def });
+    }
     if (model.pod && this.turret) {
       this.pod = new THREE.Group();
       this.pod.position.set(...model.pod.hinge);
@@ -197,6 +217,16 @@ export class UnitVisual {
       this.podElev = model.pod.stowed;
       this.pod.rotation.z = this.podElev;
       this.turret.add(this.pod);
+      // ogivas brancas com faixa: uma por tubo, na boca, visíveis enquanto o foguete está carregado
+      const noseGeo = sharedGeometry('rocket-nose', () => new THREE.CylinderGeometry(0.004, 0.034, 0.07, 8).rotateZ(-Math.PI / 2));
+      this.noses = new THREE.InstancedMesh(noseGeo, sharedMaterial('rocket-nose', () => new THREE.MeshStandardMaterial({ color: '#ece7d6', roughness: 0.5, metalness: 0.2 })), model.pod.tubes.length);
+      this.noses.castShadow = false;
+      this.noses.frustumCulled = false;
+      model.pod.tubes.forEach((t, i) => {
+        this.noses!.setMatrixAt(i, tmpM.makeTranslation(t[0] - 0.01, t[1], t[2]));
+        this.loaded.push(true);
+      });
+      this.pod.add(this.noses);
     }
     this.muzzleLocal = new THREE.Vector3(...model.muzzle);
     this.ring = selectionRing(UNITS[type].radius + 0.3, friendly ? '#8fe0a4' : '#ff8a7a');
@@ -289,8 +319,51 @@ export class UnitVisual {
   }
 
   /** Cada foguete que sai sacode o casulo um pouco (sem mexer no chassi). */
-  rocketKick(): void {
+  rocketKick(index = -1): void {
     this.podKick = 1;
+    const pod = unitModel(this.type).pod;
+    if (!this.noses || !pod) return;
+    const i = index >= 0 ? index % pod.tubes.length : this.loaded.indexOf(true);
+    if (i < 0 || !this.loaded[i]) return;
+    this.loaded[i] = false;
+    this.noses.setMatrixAt(i, tmpM.makeScale(0, 0, 0));
+    this.noses.instanceMatrix.needsUpdate = true;
+    // a guarnição recarrega o casulo pouco depois da salva, tubo a tubo
+    this.reloadAt = this.reloadClock + 2.8;
+  }
+
+  /** Recarga visual do casulo: um tubo a cada 0,3 s, depois da pausa da salva. */
+  private reloadPod(dt: number): void {
+    this.reloadClock += dt;
+    const pod = unitModel(this.type).pod;
+    if (!this.noses || !pod || this.reloadClock < this.reloadAt) return;
+    const i = this.loaded.indexOf(false);
+    if (i < 0) return;
+    this.loaded[i] = true;
+    const t = pod.tubes[i]!;
+    this.noses.setMatrixAt(i, tmpM.makeTranslation(t[0] - 0.01, t[1], t[2]));
+    this.noses.instanceMatrix.needsUpdate = true;
+    this.reloadAt = this.reloadClock + 0.3;
+  }
+
+  /**
+   * Disparo de um cano: recua, e devolve a boca e a direção de saída em coordenadas de mundo
+   * (a antiaérea alterna os dois canos). Sem canos próprios, usa a boca da torre.
+   */
+  fireGun(outPos: THREE.Vector3, outDir: THREE.Vector3): void {
+    if (!this.guns.length) {
+      this.recoil = 1;
+      this.muzzleWorld(outPos);
+      outDir.set(Math.cos(this.facing), 0, Math.sin(this.facing)).normalize();
+      return;
+    }
+    const g = this.guns[this.nextGun % this.guns.length]!;
+    this.nextGun++;
+    g.recoil = 1;
+    const mount = g.barrel.parent!;
+    mount.updateWorldMatrix(true, false);
+    outPos.set(...g.def.muzzle).applyMatrix4(mount.matrixWorld);
+    outDir.set(1, 0, 0).transformDirection(mount.matrixWorld);
   }
 
   /**
@@ -381,6 +454,12 @@ export class UnitVisual {
       this.turret.position.x = unitModel(this.type).turretPivot[0] - this.recoil * 0.08;
     }
     this.recoil = Math.max(0, this.recoil - dt * 4);
+    // recuo do cano: volta rápida no disparo e retorno amortecido (sistema hidráulico)
+    for (const g of this.guns) {
+      g.barrel.position.x = -g.def.recoil * (g.recoil > 0.85 ? 1 : Math.pow(g.recoil / 0.85, 2));
+      g.recoil = Math.max(0, g.recoil - dt * (g.def.recoil > 0.3 ? 1.6 : 6));
+    }
+    this.reloadPod(dt);
     const podDef = unitModel(this.type).pod;
     if (this.pod && podDef) {
       // ergue para atirar e só baixa depois de parado o disparo; movimento suave (hidráulico)
@@ -452,6 +531,7 @@ export class UnitVisual {
 
   dispose(): void {
     for (const w of this.wheelSets) w.mesh.dispose();
+    this.noses?.dispose();
     for (const l of this.legSets) l.mesh.dispose();
     this.hp.dispose();
     this.group.removeFromParent();

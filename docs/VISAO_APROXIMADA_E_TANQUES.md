@@ -74,3 +74,22 @@ veículos de rodas inclinam mais que os de lagartas.
   - escolher um edifício pelo resumo de produção passa a acompanhá-lo.
 - **Testes:** `src/test/unitAnim.test.ts` cobre a entrada, a queda, os rastros de um tanque andando e a
   parada suave das máquinas.
+
+## Canos e disparos visíveis
+
+- **Canos:** viram peças próprias da torre, com a boca aberta (anel de aço e o furo escuro à mostra).
+  - **Tanques:** canhão com luva térmica e evacuador de gases.
+  - **Artilharia:** obus com freio de boca de dupla câmara e janelas laterais.
+  - **Antiaérea:** dois canhões com quebra-chamas.
+  - **Blindado:** canhão automático.
+- **Recuo:** no disparo o cano recua rápido sozinho (a torre fica parada) e volta amortecido, como num sistema
+  hidráulico. O curso é maior no obus e no canhão do tanque.
+- **Projétil visível**, com clarão macio e jato de fogo na boca:
+  - **Tanque:** a flecha sai muito rápida com traçante; anel de fumaça na boca e poeira no chão.
+  - **Artilharia:** a granada sobe em arco com fumaça fina e explode ao cair.
+  - **Antiaérea:** rajadas de dois traçantes alternando os canos.
+  - **Blindado:** rajada de três traçantes.
+- **Relógio:** os projéteis seguem o relógio da simulação: param na pausa e aceleram com a velocidade.
+- **Lança-foguetes:**
+  - cada tubo mostra a ogiva do foguete carregado, e ela some quando aquele foguete sai;
+  - cerca de 2,8 s depois da salva a guarnição recarrega o casulo, um tubo a cada 0,3 s.

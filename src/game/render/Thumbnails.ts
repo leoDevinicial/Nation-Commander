@@ -97,6 +97,14 @@ export function renderThumbnails(renderer: THREE.WebGLRenderer, slot: number): P
       const g = new THREE.Group();
       add(g, m.hull);
       if (m.turret) add(g, m.turret, m.turretPivot);
+      for (const gun of m.guns ?? []) {
+        // canos: peças próprias presas à torre, com a elevação do modelo
+        const mount = new THREE.Group();
+        mount.position.set(m.turretPivot[0] + gun.pivot[0], m.turretPivot[1] + gun.pivot[1], m.turretPivot[2] + gun.pivot[2]);
+        mount.rotation.z = gun.elev;
+        add(mount, gun.layers);
+        g.add(mount);
+      }
       if (m.pod) {
         // casulo de foguetes erguido, como no disparo
         const pod = new THREE.Group();

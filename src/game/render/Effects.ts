@@ -271,6 +271,30 @@ export class Effects {
     }
   }
 
+  /**
+   * Clarão de boca de cano: brilho macio (sem borda) e um jato curto de fogo à frente, que somem em
+   * poucos centésimos de segundo; respeita a profundidade (não aparece por cima dos prédios).
+   */
+  muzzleFlash(at: THREE.Vector3, dir: THREE.Vector3, size: number): void {
+    if (this.items.length >= this.maxItems) return;
+    const map = glowTexture();
+    const parts: [number, number, string][] = [
+      [0, 1, '#ffe6a8'],
+      [0.45, 0.75, '#ffb453'],
+      [0.9, 0.5, '#ff8a2a'],
+    ];
+    for (const [ahead, scale, color] of parts) {
+      const m = new THREE.SpriteMaterial({ map, color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+      const sp = new THREE.Sprite(m);
+      sp.position.copy(at).addScaledVector(dir, ahead * size);
+      const sz = size * scale * (0.85 + Math.random() * 0.3);
+      this.add(sp, 0.07 + size * 0.03, (t) => {
+        sp.scale.setScalar(sz * (1 + t * 0.6));
+        m.opacity = Math.pow(1 - t, 1.5);
+      }, () => m.dispose());
+    }
+  }
+
   /** Clarão grande e macio (sprite com brilho radial): sem a borda poligonal de uma esfera. */
   softFlash(at: THREE.Vector3, size: number, color: string, life: number): void {
     const m = new THREE.SpriteMaterial({ map: glowTexture(), color, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending });

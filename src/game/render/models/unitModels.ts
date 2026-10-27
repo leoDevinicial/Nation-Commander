@@ -21,6 +21,14 @@ export interface UnitModel {
    * são as bocas dos tubos no referencial do casulo, que aponta para +x.
    */
   pod?: { layers: ModelLayers; hinge: [number, number, number]; tubes: [number, number, number][]; stowed: number; raised: number };
+  /**
+   * Canos (peças separadas da torre): giram com ela e recuam sozinhos no disparo. `pivot` é a
+   * culatra no referencial da torre, `elev` a elevação (rad) e `muzzle` a boca no referencial do
+   * cano, que aponta para +x. `recoil` é o curso do recuo.
+   */
+  guns?: { layers: ModelLayers; pivot: V3; elev: number; muzzle: V3; recoil: number }[];
+  /** Tipo de disparo visível (projétil que sai da boca do cano). */
+  shot?: 'apfsds' | 'howitzer' | 'flak' | 'autocannon';
 }
 
 type V3 = [number, number, number];
@@ -109,7 +117,7 @@ export function unitModel(type: UnitType): UnitModel {
 
 export function disposeUnitModels(): void {
   for (const m of cache.values()) {
-    for (const l of [m.hull, m.turret, m.pod?.layers]) if (l) for (const g of [l.body, l.accent, l.glass]) g.dispose();
+    for (const l of [m.hull, m.turret, m.pod?.layers, ...(m.guns ?? []).map((g) => g.layers)]) if (l) for (const g of [l.body, l.accent, l.glass]) g.dispose();
     m.motion.treads?.top.dispose();
     m.motion.treads?.bottom.dispose();
     for (const w of m.motion.wheels) w.geo.dispose();
@@ -154,6 +162,15 @@ function rollingWheel(at: V3, r: number, w: number): void {
 }
 
 type BuiltUnit = Omit<UnitModel, 'motion'>;
+
+/**
+ * Boca do cano aberta: anel de aço na ponta e o furo escuro (a alma do cano) à mostra, no
+ * referencial do cano (aponta para +x).
+ */
+function bore(b: PartBuilder, x: number, r: number, ring = r * 1.25): void {
+  b.cyl(ring, ring, 0.05, C.metalDark, [x - 0.025, 0, 0], [0, 0, Math.PI / 2], 14);
+  b.cyl(r, r, 0.012, '#060606', [x + 0.002, 0, 0], [0, 0, Math.PI / 2], 14);
+}
 
 const BUILDERS: Record<UnitType, () => BuiltUnit> = {
   infantry: buildInfantry,
@@ -456,10 +473,14 @@ function t90(modern: boolean): BuiltUnit {
   // mantelete e canhão longo com luva térmica, evacuador de gases e freio de boca liso
   t.box(0.22, 0.2, 0.26, dark, [0.56 * s, 0.17, 0]);
   const gun = modern ? 2.0 : 1.85;
-  t.cyl(0.055, 0.068, gun, dark, [0.6 * s + gun / 2, 0.18, 0], [0, 0, Math.PI / 2], 12);
-  for (const x of [0.95, 1.35, 1.95, 2.25]) t.cyl(0.07, 0.07, 0.04, green, [x * s, 0.18, 0], [0, 0, Math.PI / 2], 10);
-  t.cyl(0.082, 0.082, 0.24, green, [1.62 * s, 0.18, 0], [0, 0, Math.PI / 2], 12);
-  t.cyl(0.064, 0.062, 0.1, C.metalDark, [0.6 * s + gun + 0.02, 0.18, 0], [0, 0, Math.PI / 2], 10);
+  // canhão (peça própria, recua no disparo): tubo afinando, luva térmica, evacuador e boca aberta
+  const gunL = layers();
+  const gb = gunL.body;
+  const g0 = 0.6 * s;
+  gb.cyl(0.05, 0.066, gun, dark, [gun / 2, 0, 0], [0, 0, Math.PI / 2], 14);
+  for (const x of [0.95, 1.35, 1.95, 2.25]) gb.cyl(0.07, 0.07, 0.04, green, [x * s - g0, 0, 0], [0, 0, Math.PI / 2], 12);
+  gb.cyl(0.082, 0.082, 0.24, green, [1.62 * s - g0, 0, 0], [0, 0, Math.PI / 2], 14);
+  bore(gb, gun + 0.03, 0.036, 0.06);
   // Shtora: bloqueadores infravermelhos (caixa com lente vermelha) dos dois lados do canhão
   for (const z of [0.22, -0.22]) {
     t.box(0.14, 0.12, 0.15, dark, [0.5 * s, 0.36, z * s]);
@@ -492,7 +513,14 @@ function t90(modern: boolean): BuiltUnit {
   t.cyl(0.008, 0.008, 0.6, C.metalDark, [-0.55 * s, 0.55, -0.34 * s], [0, 0, -0.1], 4);
   turret.accent.box(0.36, 0.08, 0.02, '#ffffff', [-0.32 * s, 0.17, 0.515 * s]);
   turret.accent.box(0.36, 0.08, 0.02, '#ffffff', [-0.32 * s, 0.17, -0.515 * s]);
-  return { hull: hull.build(), turret: turret.build(), turretPivot: [-0.1 * s, 0.68, 0], muzzle: [0.6 * s + gun + 0.1, 0.18, 0] };
+  return {
+    hull: hull.build(),
+    turret: turret.build(),
+    turretPivot: [-0.1 * s, 0.68, 0],
+    muzzle: [g0 + gun + 0.06, 0.18, 0],
+    guns: [{ layers: gunL.build(), pivot: [g0, 0.18, 0], elev: 0, muzzle: [gun + 0.06, 0, 0], recoil: 0.32 }],
+    shot: 'apfsds',
+  };
 }
 
 function buildApc(): BuiltUnit {
@@ -560,7 +588,10 @@ function buildApc(): BuiltUnit {
     0.24,
     C.olive,
   );
-  t.cyl(0.035, 0.04, 0.85, C.metalDark, [0.68, 0.13, 0], [0, 0, Math.PI / 2], 6);
+  // canhão automático (peça própria) com a boca aberta
+  const gunL = layers();
+  gunL.body.cyl(0.032, 0.04, 0.82, C.metalDark, [0.41, 0, 0], [0, 0, Math.PI / 2], 10);
+  bore(gunL.body, 0.84, 0.022, 0.042);
   t.box(0.1, 0.1, 0.12, C.metalDark, [0.18, 0.31, 0.12]);
   t.cyl(0.01, 0.01, 0.6, C.metalDark, [-0.2, 0.5, -0.15], [0, 0, -0.2], 4);
   // lançadores de fumaça e caixa de munição do canhão
@@ -568,7 +599,14 @@ function buildApc(): BuiltUnit {
   t.box(0.16, 0.14, 0.12, C.oliveDark, [0.05, 0.12, -0.3]);
   turret.glass.box(0.02, 0.05, 0.08, '#ffffff', [0.24, 0.21, 0.12]);
   turret.accent.box(0.26, 0.05, 0.02, '#ffffff', [-0.05, 0.13, 0.255]);
-  return { hull: hull.build(), turret: turret.build(), turretPivot: [0.1, 0.96, 0], muzzle: [1.1, 0.13, 0] };
+  return {
+    hull: hull.build(),
+    turret: turret.build(),
+    turretPivot: [0.1, 0.96, 0],
+    muzzle: [1.11, 0.13, 0],
+    guns: [{ layers: gunL.build(), pivot: [0.26, 0.13, 0], elev: 0, muzzle: [0.85, 0, 0], recoil: 0.1 }],
+    shot: 'autocannon',
+  };
 }
 
 function buildArtillery(): BuiltUnit {
@@ -619,12 +657,17 @@ function buildArtillery(): BuiltUnit {
   const dir = [Math.cos(elev), Math.sin(elev)] as const;
   const start = [0.45, 0.42] as const;
   const at = (d: number): [number, number, number] => [start[0] + dir[0] * d, start[1] + dir[1] * d, 0];
-  t.cyl(0.075, 0.09, 2.3, C.oliveDark, at(1.15), [0, 0, -(Math.PI / 2 - elev)]);
-  t.cyl(0.11, 0.11, 0.18, C.metalDark, at(2.3), [0, 0, -(Math.PI / 2 - elev)]);
-  // freio de boca (janelas laterais), evacuador e berço do cano
-  t.box(0.06, 0.16, 0.26, C.metalDark, at(2.22), [0, 0, elev]);
-  t.box(0.06, 0.16, 0.26, C.metalDark, at(2.38), [0, 0, elev]);
-  t.cyl(0.11, 0.11, 0.26, C.oliveDark, at(1.3), [0, 0, -(Math.PI / 2 - elev)], 10);
+  // obus (peça própria, recua no disparo): tubo, evacuador, freio de boca de dupla câmara com
+  // janelas laterais e a boca aberta
+  const gunL = layers();
+  const gb = gunL.body;
+  gb.cyl(0.072, 0.09, 2.2, C.oliveDark, [1.1, 0, 0], [0, 0, Math.PI / 2], 14);
+  gb.cyl(0.11, 0.11, 0.26, C.oliveDark, [1.3, 0, 0], [0, 0, Math.PI / 2], 12);
+  gb.cyl(0.085, 0.085, 0.3, C.metalDark, [2.32, 0, 0], [0, 0, Math.PI / 2], 14);
+  for (const x of [2.21, 2.43]) gb.cyl(0.13, 0.13, 0.05, C.metalDark, [x, 0, 0], [0, 0, Math.PI / 2], 14);
+  for (const z of [0.088, -0.088]) for (const x of [2.27, 2.37]) gb.box(0.06, 0.1, 0.012, '#0b0b0b', [x, 0, z]);
+  bore(gb, 2.47, 0.05, 0.075);
+  // berço do cano (fica na torre, não recua)
   t.cyl(0.1, 0.1, 0.5, C.olive, at(0.25), [0, 0, -(Math.PI / 2 - elev)], 10);
   // telêmetro, escotilhas e metralhadora do teto
   t.box(0.1, 0.1, 0.5, C.oliveDark, [0.1, 0.6, 0]);
@@ -638,7 +681,14 @@ function buildArtillery(): BuiltUnit {
   t.box(0.5, 0.2, 1.0, C.oliveDark, [-0.45, 0.25, 0]);
   turret.accent.box(0.6, 0.08, 0.02, '#ffffff', [-0.2, 0.4, 0.483]);
   turret.accent.box(0.6, 0.08, 0.02, '#ffffff', [-0.2, 0.4, -0.483]);
-  return { hull: hull.build(), turret: turret.build(), turretPivot: [-0.25, 0.62, 0], muzzle: at(2.4) };
+  return {
+    hull: hull.build(),
+    turret: turret.build(),
+    turretPivot: [-0.25, 0.62, 0],
+    muzzle: at(2.5),
+    guns: [{ layers: gunL.build(), pivot: [start[0], start[1], 0], elev, muzzle: [2.5, 0, 0], recoil: 0.45 }],
+    shot: 'howitzer',
+  };
 }
 
 // ------------------------------------------------------------------ veículos liberados por pesquisa
@@ -712,8 +762,8 @@ function buildRocketArtillery(): BuiltUnit {
     for (let c = 0; c < 4; c++) {
       const y = 0.14 + r * 0.16;
       const z = (c - 1.5) * 0.17;
+      // tubo aberto: o fundo escuro aparece quando o foguete já saiu (as ogivas são animadas)
       pb.cyl(0.062, 0.062, 0.03, '#141513', [L + 0.035, y, z], [0, 0, -Math.PI / 2], 10);
-      pb.cyl(0.03, 0.03, 0.032, '#e8e2cf', [L + 0.04, y, z], [0, 0, -Math.PI / 2], 8); // ogiva do foguete no tubo
       tubes.push([L + 0.06, y, z]);
     }
   // traseira: saída dos gases (tampas abertas)
@@ -766,10 +816,16 @@ function buildMobileAa(): BuiltUnit {
   t.box(0.3, 0.3, 0.86, C.oliveDark, [0.45, 0.22, 0], [0, 0, -0.5]);
   // dois canhões de tiro rápido elevados nas laterais
   const elev = 0.45;
+  const guns: NonNullable<UnitModel['guns']> = [];
   for (const z of [0.52, -0.52]) {
     t.box(0.34, 0.3, 0.18, C.oliveDark, [0.15, 0.32, z]);
-    t.cyl(0.035, 0.045, 1.3, C.metalDark, [0.15 + Math.cos(elev) * 0.75, 0.32 + Math.sin(elev) * 0.75, z], [0, 0, -(Math.PI / 2 - elev)], 8);
-    t.cyl(0.06, 0.06, 0.14, C.metalDark, [0.15 + Math.cos(elev) * 1.35, 0.32 + Math.sin(elev) * 1.35, z], [0, 0, -(Math.PI / 2 - elev)], 8);
+    // canhão de tiro rápido (peça própria): tubo, quebra-chamas com fendas e boca aberta
+    const gl = layers();
+    gl.body.cyl(0.032, 0.045, 1.25, C.metalDark, [0.7, 0, 0], [0, 0, Math.PI / 2], 10);
+    gl.body.cyl(0.055, 0.055, 0.16, C.metalDark, [1.32, 0, 0], [0, 0, Math.PI / 2], 12);
+    for (const dz of [0.056, -0.056]) gl.body.box(0.1, 0.022, 0.01, '#0b0b0b', [1.32, 0, dz]);
+    bore(gl.body, 1.41, 0.024, 0.04);
+    guns.push({ layers: gl.build(), pivot: [0.15, 0.32, z], elev, muzzle: [1.42, 0, 0], recoil: 0.12 });
   }
   // radar de busca (prato) atrás e radar de tiro na frente
   t.cyl(0.04, 0.04, 0.3, C.metalDark, [-0.3, 0.65, 0], undefined, 6);
@@ -783,6 +839,8 @@ function buildMobileAa(): BuiltUnit {
     turret: turret.build(),
     turretPivot: [-0.1, 0.66, 0],
     muzzle: [0.15 + Math.cos(elev) * 1.42, 0.32 + Math.sin(elev) * 1.42, 0.52],
+    guns,
+    shot: 'flak',
   };
 }
 
