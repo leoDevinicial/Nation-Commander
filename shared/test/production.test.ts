@@ -14,7 +14,9 @@ const ctx = (over: Partial<ProduceContext> = {}): ProduceContext => ({
   popTotal: 20,
   popCap: 40,
   techs: null,
-  militaryResearch: [],
+  // os veículos de lagarta e a artilharia exigem pesquisa: aqui já liberados (o bloqueio por
+  // pesquisa tem teste próprio)
+  militaryResearch: ['tracked_armor', 'field_artillery'],
   ...over,
 });
 
@@ -54,5 +56,13 @@ describe('regra de produção (servidor e HUD)', () => {
     // centro de alistamento: recrutas 30% mais baratos
     const r = checkProduce('recruit', ctx({ level: 6, spec: 'enlistment' }));
     expect(r.cost.food).toBeLessThan(RECRUIT.cost.food!);
+  });
+
+  it('tanque e artilharia exigem pesquisa no Centro de Pesquisa; o blindado de transporte não', () => {
+    const none = { buildingType: 'factory' as const, militaryResearch: [] };
+    expect(checkProduce('tank', ctx(none)).short).toBe('pesquisar');
+    expect(checkProduce('artillery', ctx(none)).short).toBe('pesquisar');
+    expect(checkProduce('apc', ctx(none)).blocker).toBeNull();
+    expect(checkProduce('tank', ctx({ buildingType: 'factory', militaryResearch: ['tracked_armor'] })).blocker).toBeNull();
   });
 });

@@ -92,13 +92,13 @@ describe('progressão militar — pesquisa no Centro de Pesquisa', () => {
 
   it('pré-requisitos e nível do centro: segundo escalão pede nível 2, blindados de nova geração pedem nível 3', () => {
     const { sim, center } = withCenter();
-    expect(research(sim, center, 'rocket_systems')).toMatch(/Requer: Armas antitanque/);
-    sim.players[0]!.militaryResearch = ['antitank_weapons'];
+    expect(research(sim, center, 'rocket_systems')).toMatch(/Requer: Artilharia de campanha/);
+    sim.players[0]!.militaryResearch = ['antitank_weapons', 'field_artillery', 'tracked_armor'];
     expect(research(sim, center, 'rocket_systems')).toMatch(/nível 2/);
     center.level = 2;
     expect(research(sim, center, 'rocket_systems')).toBeNull();
     sim.applyCommand(0, { type: 'cancel_military_research', buildingId: center.id });
-    sim.players[0]!.militaryResearch = ['antitank_weapons', 'rocket_systems'];
+    sim.players[0]!.militaryResearch = ['antitank_weapons', 'field_artillery', 'tracked_armor', 'rocket_systems'];
     expect(research(sim, center, 'modern_armor')).toMatch(/nível 3/);
   });
 

@@ -49,6 +49,8 @@ const fertile = flatMap(32, (set) => {
 
 function sim(link: NationalLink | null = fakeNation().link, map = fertile) {
   const s = new Simulation({ map, playerCount: 2, startingUnits: [] });
+  // tanques e artilharia exigem pesquisa militar (já feita aqui)
+  for (const pl of s.players) pl.militaryResearch = ['tracked_armor', 'field_artillery'];
   s.national = link;
   return s;
 }

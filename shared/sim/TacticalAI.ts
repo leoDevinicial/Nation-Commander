@@ -209,11 +209,11 @@ export class TacticalAI {
       has('special_forces') ? 'special_forces' : 'infantry',
     ];
     const factoryMix: UnitType[] = [
-      has('mbt') ? 'mbt' : 'tank',
+      has('mbt') ? 'mbt' : has('tank') ? 'tank' : 'apc',
       'apc',
-      'tank',
-      has('rocket_artillery') ? 'rocket_artillery' : 'artillery',
-      airThreat && has('mobile_aa') ? 'mobile_aa' : has('mbt') ? 'mbt' : 'tank',
+      has('tank') ? 'tank' : 'apc',
+      has('rocket_artillery') ? 'rocket_artillery' : has('artillery') ? 'artillery' : 'apc',
+      airThreat && has('mobile_aa') ? 'mobile_aa' : has('mbt') ? 'mbt' : has('tank') ? 'tank' : 'apc',
     ];
     const techs = sim.national ? sim.national.techs(this.slot) : null;
     for (const b of mine) {
@@ -328,8 +328,8 @@ export class TacticalAI {
     if (!center) return;
     const done = sim.players[this.slot]!.militaryResearch ?? [];
     const order: MilitaryResearchId[] = airThreat
-      ? ['mobile_air_defense', 'antitank_weapons', 'rocket_systems', 'special_operations', 'modern_armor']
-      : ['antitank_weapons', 'rocket_systems', 'mobile_air_defense', 'modern_armor', 'special_operations'];
+      ? ['tracked_armor', 'mobile_air_defense', 'field_artillery', 'antitank_weapons', 'rocket_systems', 'special_operations', 'modern_armor']
+      : ['tracked_armor', 'field_artillery', 'antitank_weapons', 'rocket_systems', 'mobile_air_defense', 'modern_armor', 'special_operations'];
     for (const id of order) {
       if (done.includes(id) || mine.some((b) => b.research?.id === id)) continue;
       if (militaryResearchBlocker(id, done, center.level)) continue;

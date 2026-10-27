@@ -259,6 +259,7 @@ export const UNITS: Record<UnitType, UnitDef> = {
     description: 'Resistente e de bom alcance. Lento na floresta e na lama.',
     hotkey: 'T',
     armor: 'vehicle',
+    requires: 'tracked_armor',
   },
   artillery: {
     label: 'Artilharia',
@@ -273,6 +274,7 @@ export const UNITS: Record<UnitType, UnitDef> = {
     description: 'Alcance muito longo, mas frágil e com pouca visão: precisa de outras unidades para enxergar alvos.',
     hotkey: 'R',
     armor: 'vehicle',
+    requires: 'field_artillery',
   },
   // ---- liberadas por pesquisa militar (Centro de Pesquisa) ----
   at_infantry: {
@@ -356,7 +358,7 @@ export const UNITS: Record<UnitType, UnitDef> = {
 
 // ------------------------------------------------------------------ pesquisa militar
 
-export type MilitaryResearchId = 'antitank_weapons' | 'mobile_air_defense' | 'special_operations' | 'rocket_systems' | 'modern_armor';
+export type MilitaryResearchId = 'tracked_armor' | 'field_artillery' | 'antitank_weapons' | 'mobile_air_defense' | 'special_operations' | 'rocket_systems' | 'modern_armor';
 
 /**
  * Pesquisa militar feita no Centro de Pesquisa durante a partida (fila no próprio edifício, com
@@ -374,6 +376,25 @@ export interface MilitaryResearchDef {
 }
 
 export const MILITARY_RESEARCH: Record<MilitaryResearchId, MilitaryResearchDef> = {
+  // veículos liberados aos poucos: só o blindado de transporte sai da fábrica sem pesquisa
+  tracked_armor: {
+    label: 'Blindados sobre lagartas',
+    description: 'Motor, transmissão e canhão para o chassi de lagartas: libera o Tanque.',
+    cost: { supplies: 100, iron: 90, oil: 40 },
+    seconds: 35,
+    prereqs: [],
+    tier: 1,
+    hotkey: 'K',
+  },
+  field_artillery: {
+    label: 'Artilharia de campanha',
+    description: 'Obus autopropulsado e direção de tiro indireto: libera a Artilharia.',
+    cost: { supplies: 110, iron: 80, oil: 30 },
+    seconds: 35,
+    prereqs: [],
+    tier: 1,
+    hotkey: 'U',
+  },
   antitank_weapons: {
     label: 'Armas antitanque',
     description: 'Lança-rojões portáteis: libera a Infantaria Antitanque.',
@@ -388,7 +409,7 @@ export const MILITARY_RESEARCH: Record<MilitaryResearchId, MilitaryResearchDef> 
     description: 'Radar e canhões sobre lagartas: libera a Antiaérea Móvel.',
     cost: { supplies: 140, iron: 100, oil: 60 },
     seconds: 50,
-    prereqs: [],
+    prereqs: ['tracked_armor'],
     tier: 1,
     hotkey: 'Y',
   },
@@ -406,7 +427,7 @@ export const MILITARY_RESEARCH: Record<MilitaryResearchId, MilitaryResearchDef> 
     description: 'Foguetes de saturação com dano em área: libera o Lança-Foguetes.',
     cost: { supplies: 200, iron: 140, oil: 90 },
     seconds: 65,
-    prereqs: ['antitank_weapons'],
+    prereqs: ['field_artillery'],
     tier: 2,
     hotkey: 'L',
   },
@@ -415,7 +436,7 @@ export const MILITARY_RESEARCH: Record<MilitaryResearchId, MilitaryResearchDef> 
     description: 'Blindagem composta, canhão de alta velocidade e controle de tiro digital: libera o Tanque Moderno.',
     cost: { supplies: 300, iron: 240, oil: 160 },
     seconds: 90,
-    prereqs: ['rocket_systems'],
+    prereqs: ['tracked_armor', 'rocket_systems'],
     tier: 3,
     hotkey: 'M',
   },

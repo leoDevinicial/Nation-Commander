@@ -44,6 +44,8 @@ function base(techs: TechId[] = [], fundUsd = 50e6) {
   const nat = link(techs, fundUsd);
   sim.national = nat.link;
   const p = sim.players[0]!;
+  // tanques exigem a pesquisa de blindados (já feita aqui)
+  p.militaryResearch = ['tracked_armor', 'field_artillery'];
   for (const r of Object.keys(p.resources) as (keyof typeof p.resources)[]) p.resources[r] = 5000;
   p.oilReserve = 5000;
   const place = (type: BuildingType): Building => {

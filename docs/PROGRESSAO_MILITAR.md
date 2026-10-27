@@ -30,11 +30,18 @@ tecnologia agora sai em cerca de 20 s de jogo com o orçamento padrão, em vez d
 
 | Pesquisa | Custo | Tempo | Requer | Nível do centro | Libera |
 |---|---|---|---|---|---|
+| Blindados sobre lagartas | 100 sup · 90 ferro · 40 petr. | 35 s | — | 1 | Tanque (fábrica, T) |
+| Artilharia de campanha | 110 sup · 80 ferro · 30 petr. | 35 s | — | 1 | Artilharia (fábrica, R) |
 | Armas antitanque | 120 sup · 80 ferro | 40 s | — | 1 | Infantaria antitanque (base militar, N) |
-| Defesa antiaérea móvel | 140 sup · 100 ferro · 60 petr. | 50 s | — | 1 | Antiaérea móvel (fábrica, Y) |
+| Defesa antiaérea móvel | 140 sup · 100 ferro · 60 petr. | 50 s | lagartas | 1 | Antiaérea móvel (fábrica, Y) |
 | Operações especiais | 180 sup · 150 comida · 60 ferro | 60 s | antitanque | 2 | Forças especiais (base militar, J) |
-| Lança-foguetes múltiplos | 200 sup · 140 ferro · 90 petr. | 65 s | antitanque | 2 | Lança-Foguetes (fábrica, L) |
-| Blindados de nova geração | 300 sup · 240 ferro · 160 petr. | 90 s | foguetes | 3 | Tanque Moderno (fábrica, M) |
+| Lança-foguetes múltiplos | 200 sup · 140 ferro · 90 petr. | 65 s | artilharia de campanha | 2 | Lança-Foguetes (fábrica, L) |
+| Blindados de nova geração | 300 sup · 240 ferro · 160 petr. | 90 s | lagartas e foguetes | 3 | Tanque Moderno (fábrica, M) |
+
+Liberação gradual dos veículos:
+- sem pesquisa, a fábrica produz só o Veículo Blindado de transporte;
+- o Tanque e a Artilharia vêm das duas primeiras pesquisas;
+- o tanque com que cada país começa a partida continua.
 
 O botão de uma tropa ainda bloqueada aparece apagado, com o motivo: "pesquisar" no botão e, na dica,
 "Requer a pesquisa … no Centro de Pesquisa Militar".
