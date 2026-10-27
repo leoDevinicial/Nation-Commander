@@ -470,8 +470,13 @@ export function aircraftModel(type: 'fighter' | 'gripen' | 'recon' | 'transport'
   return l.build();
 }
 
-/** Míssil balístico (ponta para +x), com aletas. */
-export function missileModel(): ModelLayers {
+/**
+ * Míssil (ponta para +x). A 1ª geração é o balístico simples com aletas; a 2ª, o míssil pesado do
+ * lançador eretor: corpo mais grosso e longo em seções, ogiva escura, asas cruciformes no meio do
+ * corpo e aletas de cauda largas, faixas de alerta e tubeira aparente.
+ */
+export function missileModel(gen = 1): ModelLayers {
+  if (gen >= 2) return heavyMissile();
   const l = layers();
   const { body: b, accent: a } = l;
   b.cyl(0.07, 0.07, 0.9, '#d9d8d0', [0, 0, 0], [0, 0, Math.PI / 2], 10);
@@ -483,6 +488,45 @@ export function missileModel(): ModelLayers {
   a.cyl(0.072, 0.072, 0.06, '#ffffff', [0.2, 0, 0], [0, 0, Math.PI / 2], 10);
   return l.build();
 }
+
+function heavyMissile(): ModelLayers {
+  const l = layers();
+  const { body: b, accent: a } = l;
+  const X: V3r = [0, 0, Math.PI / 2];
+  const tip: V3r = [0, 0, -Math.PI / 2];
+  // corpo em três seções (a do meio um pouco mais clara), com anéis de junção
+  b.cyl(0.1, 0.1, 0.46, '#e4e2d8', [-0.3, 0, 0], X, 14);
+  b.cyl(0.1, 0.1, 0.4, '#efede5', [0.13, 0, 0], X, 14);
+  b.cyl(0.1, 0.1, 0.24, '#e4e2d8', [0.45, 0, 0], X, 14);
+  for (const x of [-0.07, 0.33]) b.cyl(0.104, 0.104, 0.02, '#9fa19c', [x, 0, 0], X, 14);
+  // ogiva escura (radome) em dois cones e ponta metálica
+  b.cyl(0.07, 0.1, 0.16, '#3d4044', [0.65, 0, 0], tip, 14);
+  b.cyl(0.012, 0.07, 0.17, '#2c2e31', [0.815, 0, 0], tip, 14);
+  // tubeira e saia traseira
+  b.cyl(0.1, 0.085, 0.05, '#7d8084', [-0.555, 0, 0], X, 14);
+  b.cyl(0.075, 0.06, 0.07, '#3a3c3f', [-0.61, 0, 0], X, 12);
+  // asas cruciformes no meio do corpo (trapezoidais: corda maior junto ao corpo)
+  for (let i = 0; i < 4; i++) {
+    const ang = (i * Math.PI) / 2 + Math.PI / 4;
+    const cy = Math.sin(ang);
+    const cz = Math.cos(ang);
+    b.box(0.26, 0.012, 0.13, '#cfcdc4', [0.08, cy * 0.16, cz * 0.16], [ang, 0, 0]);
+    b.box(0.16, 0.012, 0.09, '#cfcdc4', [0.1, cy * 0.27, cz * 0.27], [ang, 0, 0]);
+    // aletas de cauda, maiores, alinhadas com as asas
+    b.box(0.22, 0.014, 0.16, '#5b5f63', [-0.47, cy * 0.17, cz * 0.17], [ang, 0, 0]);
+    b.box(0.12, 0.014, 0.08, '#5b5f63', [-0.5, cy * 0.29, cz * 0.29], [ang, 0, 0]);
+  }
+  // calhas de cabos e janelas de acesso
+  b.box(0.7, 0.025, 0.03, '#b9b8b0', [0.0, 0.098, 0]);
+  for (const x of [-0.35, -0.2, 0.25]) b.box(0.05, 0.03, 0.02, '#8e8f8a', [x, 0, 0.099]);
+  // faixas de alerta e marcas da nação
+  b.cyl(0.102, 0.102, 0.035, '#d6a31f', [0.55, 0, 0], X, 14);
+  b.cyl(0.102, 0.102, 0.035, '#1f2022', [0.515, 0, 0], X, 14);
+  a.cyl(0.103, 0.103, 0.08, '#ffffff', [-0.18, 0, 0], X, 14);
+  return l.build();
+}
+
+type V3r = [number, number, number];
 
 /** Meia-cana (arco do hangar) de raio r e comprimento len ao longo de z, apoiada em y = 0. */
 function cylHalf(r: number, len: number): THREE.BufferGeometry {

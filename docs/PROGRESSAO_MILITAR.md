@@ -49,7 +49,7 @@ uma classe de blindagem: infantaria ou veículo.
 | Infantaria antitanque | caça blindados | ×3 contra veículos, ×0,5 contra infantaria |
 | Forças especiais | rápidas, enxergam longe | velocidade 3,9, visão 15, tiro rápido |
 | Antiaérea móvel | acompanha o exército | conta como defesa antiaérea (80% de uma bateria) contra aviões e mísseis |
-| Lança-Foguetes | longo alcance | alcance 18, dano em área (raio 3,5, 60% do dano) |
+| Lança-Foguetes | artilharia de saturação | salva de 12 foguetes, alcance 24, alcance mínimo 7, dano em área (raio 3,5, 60% em volta) ao fim do voo |
 | Tanque Moderno | blindado pesado | 430 de vida, 48 de dano |
 
 A dica do botão de cada tropa lista as vantagens dela, por exemplo "×3 contra veículos".
@@ -73,3 +73,25 @@ sem os pacotes, e o botão avisa "sai básica". Ela pode ser modernizada depois 
 - `shared/test/military.test.ts`: bloqueio, pré-requisitos, nível, velocidade, cancelamento, visibilidade,
   salvar/carregar, contras, dano em área, antiaérea móvel e produção básica.
 - `server/persistence.test.ts`: a IA constrói o centro, pesquisa e monta o exército numa sala real.
+
+## Lança-Foguetes: salva de foguetes
+
+O lança-foguetes funciona como um lançador múltiplo real (estilo Astros II), e não como um canhão.
+
+- **Salva:** cada disparo lança 12 foguetes, um a um, do casulo de tubos. O dano (40, ×1,6 contra construções)
+  cai na **área do alvo no fim do voo**, entre 1 e 2 segundos depois, conforme a distância. Quem sai da área a
+  tempo escapa; quem fica em volta leva 60%.
+- **Alcance:** 24, o maior entre as tropas, contra 9 a 10 das torres e do QG. Bate em construções de longe.
+- **Alcance mínimo de 7:** alvos mais perto não podem ser atingidos. O lançador recua para a distância de
+  tiro e, parado, prefere alvos fora dessa faixa.
+- **Distância das bases:** o lançador não avança até a beira das construções inimigas. Uma ordem de
+  movimento para dentro da base inimiga para a 7 de distância da construção mais próxima.
+- **Preparo:** ao parar para atirar, o lançador leva 1,4 s para baixar os macacos e erguer o casulo antes da
+  primeira salva.
+- **Visual:**
+  - o casulo de 12 tubos fica deitado na carroceria em deslocamento e se ergue sobre a cabine para atirar;
+  - cada foguete sai com clarão, jato de gases para trás, poeira e chama;
+  - na subida, o foguete deixa um rastro de fumaça e cai espalhado na área, cada um com a sua explosão;
+  - cada saída tem um som de sopro.
+- **Salvar e carregar:** as salvas em voo entram no estado salvo da partida.
+

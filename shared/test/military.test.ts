@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MILITARY_RESEARCH, TICK_RATE, UNITS, type BuildingType } from '../sim/config.ts';
 import { parseCommand } from '../sim/commands.ts';
 import { RESEARCH_CANCEL_REFUND, SPLASH_FRACTION, Simulation, targetMultiplier, type NationalLink } from '../sim/Simulation.ts';
-import { MISSILE } from '../sim/air.ts';
+import { MISSILE, missileSpec } from '../sim/air.ts';
 import { makeSnapshot } from '../sim/snapshot.ts';
 import type { Building, SimEvent, Unit } from '../sim/types.ts';
 import { militaryResearchSpeed } from '../strategic/params.ts';
@@ -304,5 +304,42 @@ describe('progressão militar — tropas novas em combate', () => {
       if (!sim.entities.has(enemyHq.id)) break;
     }
     expect(intercepted).toBeGreaterThan(0);
+  });
+  it('silo nível 2: míssil pesado (abastece em 5 s, contagem de 2 s, voa mais rápido, raio e dano maiores)', () => {
+    const { sim, place } = setup();
+    const silo = place(0, 'missile_silo', [2, 8], [12, 14]);
+    run(sim, 35);
+    // a melhoria passa pela regra normal de obra
+    const plan = sim.upgradePlan(silo);
+    expect(plan.toLevel).toBe(2);
+    expect(plan.gains.some((g) => g.key === 'missileGen')).toBe(true);
+    silo.level = 2;
+    const enemyHq = sim.hqOf(1)!;
+    sim.air.known[0] = new Set([enemyHq.id]);
+    sim.air.silo(silo.id).missiles = 1;
+    expect(sim.applyCommand(0, { type: 'missile_prepare', buildingId: silo.id, x: enemyHq.pos.x, y: enemyHq.pos.y })).toBeNull();
+    const l = sim.air.launches.at(-1)!;
+    const heavy = missileSpec(2);
+    expect(l.gen).toBe(2);
+    expect(l.timer).toBe(heavy.prepareSeconds * TICK_RATE);
+    expect(l.flightTicks).toBe(Math.max(1, Math.round((Math.hypot(enemyHq.pos.x - silo.pos.x, enemyHq.pos.y - silo.pos.y) / heavy.speed) * TICK_RATE)));
+    expect(heavy.damage).toBeGreaterThan(MISSILE.damage);
+    expect(heavy.radius).toBeGreaterThan(MISSILE.radius);
+    expect(heavy.maxIntercept).toBeLessThan(MISSILE.maxIntercept);
+    run(sim, heavy.prepareSeconds + 0.1);
+    expect(l.state).toBe('armed');
+    expect(sim.applyCommand(0, { type: 'missile_authorize', launchId: l.id })).toBeNull();
+    expect(l.timer).toBe(heavy.launchSeconds * TICK_RATE);
+    const before = enemyHq.hp;
+    const events: SimEvent[] = [];
+    for (let i = 0; i < (heavy.launchSeconds + 0.2) * TICK_RATE + l.flightTicks; i++) {
+      sim.step();
+      events.push(...sim.drainEvents());
+    }
+    expect(l.state).toBe('impact');
+    expect(events.find((e) => e.type === 'missile' && e.state === 'impact')).toMatchObject({ gen: 2 });
+    expect(before - enemyHq.hp).toBeGreaterThan(MISSILE.damage);
+    // salvar e carregar mantém a geração do lançamento
+    expect(Simulation.deserialize(sim.serialize()).air.launches.at(-1)!.gen).toBe(2);
   });
 });

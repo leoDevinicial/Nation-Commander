@@ -4,7 +4,7 @@ import { encodeTerritory } from './territory.ts';
 import type { BuildingStatus, EntityId, SimEvent, Slot, UnitActivity, Vec2 } from './types.ts';
 import type { SpecId } from './upgrades.ts';
 import type { ModId } from './modernization.ts';
-import { AIRCRAFT, MISSILE, type AircraftState, type AircraftType, type LaunchState, type MissionKind, type MissionResult, type MissionState } from './air.ts';
+import { AIRCRAFT, MISSILE, missileSpec, type AircraftState, type AircraftType, type LaunchState, type MissionKind, type MissionResult, type MissionState } from './air.ts';
 import { TRADE_RESOURCES, TRANSPORT_MODES, type ShipmentState, type TradeContract, type TradeOffer, type TradeResource, type TransportMode } from './trade.ts';
 
 export interface UnitSnapshot {
@@ -122,7 +122,7 @@ export interface AirView {
   missions: { id: number; kind: MissionKind; state: MissionState; baseId: EntityId; targetType: string | null; fuel: number; count: number; result: MissionResult | null }[];
   silos: { id: EntityId; missiles: number; building: number }[];
   /** Lançamentos próprios, e os inimigos em voo que miram este jogador ou estão à vista. */
-  launches: { id: number; owner: Slot; siloId: EntityId; state: LaunchState; progress: number; x: number; y: number; fx: number; fy: number; tx: number; ty: number; targetOwner: Slot }[];
+  launches: { id: number; owner: Slot; siloId: EntityId; state: LaunchState; progress: number; x: number; y: number; fx: number; fy: number; tx: number; ty: number; targetOwner: Slot; gen: number }[];
   /** Áreas reveladas pelo reconhecimento próprio (névoa do cliente). */
   reveals: { x: number; y: number; r: number }[];
   /** Edifícios inimigos já descobertos (alvos válidos de ataque aéreo). */
@@ -358,7 +358,8 @@ export function airView(sim: Simulation, slot: Slot): AirView {
       if (l.targetOwner !== slot && !sim.isVisibleTo(slot, p)) continue;
     }
     if (!live(l.state) && sim.tick - (l.endTick ?? l.startTick) > TICK_RATE * 60) continue;
-    const total = l.state === 'preparing' ? MISSILE.prepareSeconds * TICK_RATE : l.state === 'launching' ? MISSILE.launchSeconds * TICK_RATE : l.flightTicks;
+    const spec = missileSpec(l.gen ?? 1);
+    const total = l.state === 'preparing' ? spec.prepareSeconds * TICK_RATE : l.state === 'launching' ? spec.launchSeconds * TICK_RATE : l.flightTicks;
     launches.push({
       id: l.id,
       owner: l.owner,
@@ -372,6 +373,7 @@ export function airView(sim: Simulation, slot: Slot): AirView {
       tx: r2(l.target.x),
       ty: r2(l.target.y),
       targetOwner: l.targetOwner,
+      gen: l.gen ?? 1,
     });
   }
   return {

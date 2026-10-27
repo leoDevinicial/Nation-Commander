@@ -336,6 +336,20 @@ export class Effects {
     });
   }
 
+  /**
+   * Ignição do míssil pesado (silo nível 2): clarão maior, luz que cega por um instante, bola de
+   * fogo no defletor e uma nuvem enorme que sai em leque pela frente da torre e sobe em coluna.
+   */
+  heavyIgnition(at: THREE.Vector3): void {
+    this.light(at, '#ffe0a8', 520, 40, 1.8);
+    this.softFlash(at.clone().setY(2), 22, '#fff6e0', 0.6);
+    this.softFlash(at.clone().setY(1), 9, '#ffb760', 1.4);
+    this.blast(at.clone().setZ(at.z + 0.8), 3.8, 1.2, 12);
+    this.plume(at, { count: 26, size: 4.6, rise: 1.8, life: 10, spread: 11, ground: true, tone: 1 });
+    this.plume(at, { count: 12, size: 4, rise: 16, life: 11, spread: 2.6, tone: 0.95, delay: 0.04 });
+    this.plume(at.clone().setZ(at.z + 2.5), { count: 10, size: 3.6, rise: 5, life: 8, spread: 4, tone: 0.9, delay: 0.1 });
+  }
+
   /** Ignição no silo: clarão, luz forte e uma nuvem de fumaça que rola pelo chão e sobe. */
   ignition(at: THREE.Vector3): void {
     this.light(at, '#ffd9a0', 260, 26, 1.4);
@@ -357,6 +371,36 @@ export class Effects {
     this.plume(at, { count: 14, size: radius * 1.4, rise: radius * 3.8, life: 12, spread: radius * 1.5, cap: true, tone: 0.5, delay: 0.04 });
     this.plume(at, { count: 18, size: radius * 1, rise: 1, life: 6.5, spread: radius * 2.8, ground: true, tone: 0.8 });
     this.scorch({ x: at.x, y: at.z }, radius, 40);
+  }
+
+  /**
+   * Impacto do míssil pesado: o impacto comum maior, um segundo clarão, um anel de explosões em
+   * volta, brasas lançadas para todos os lados e uma poeira mais larga e demorada.
+   */
+  heavyMissileImpact(at: THREE.Vector3, radius: number): void {
+    this.missileImpact(at, radius);
+    this.softFlash(at.clone().setY(5), radius * 12, '#fff8ea', 0.7);
+    this.light(at, '#ffd08a', 400, radius * 12, 2.6);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + Math.random() * 0.4;
+      const r = radius * (0.7 + Math.random() * 0.35);
+      this.explosion(new THREE.Vector3(at.x + Math.cos(a) * r, 0, at.z + Math.sin(a) * r), i % 2 === 0);
+    }
+    this.plume(at, { count: 22, size: radius * 1.1, rise: 1.4, life: 9, spread: radius * 3.8, ground: true, tone: 0.75, delay: 0.08 });
+    for (let i = 0; i < 16; i++) {
+      if (this.items.length >= this.maxItems) return;
+      const m = new THREE.SpriteMaterial({ map: glowTexture(), color: '#ffa648', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+      const sp = new THREE.Sprite(m);
+      const a = Math.random() * Math.PI * 2;
+      const v = 5 + Math.random() * 7;
+      const vy = 5 + Math.random() * 7;
+      sp.scale.setScalar(0.4 + Math.random() * 0.3);
+      this.add(sp, 1.8 + Math.random() * 0.8, (t) => {
+        const s = t * 2.2;
+        sp.position.set(at.x + Math.cos(a) * v * s, Math.max(0.2, 1 + vy * s - 4.9 * s * s), at.z + Math.sin(a) * v * s);
+        m.opacity = 1 - t * t;
+      }, () => m.dispose());
+    }
   }
 
   /** Interceptação: estouro no céu, nuvem que fica pairando e fragmentos incandescentes caindo. */

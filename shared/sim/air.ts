@@ -121,6 +121,16 @@ export const MISSILE = {
   maxIntercept: 0.6,
 };
 
+/**
+ * Ficha do míssil por geração. A 2ª geração (silo no nível 2) é o míssil pesado do lançador
+ * eretor: abastece em metade do tempo, contagem final curta, voa mais rápido, ogiva maior e é
+ * mais difícil de interceptar.
+ */
+export function missileSpec(gen: number): { prepareSeconds: number; launchSeconds: number; speed: number; damage: number; radius: number; interceptChance: number; maxIntercept: number } {
+  if (gen >= 2) return { prepareSeconds: 5, launchSeconds: 2, speed: 32, damage: 1150, radius: 5.5, interceptChance: 0.13, maxIntercept: 0.45 };
+  return { prepareSeconds: MISSILE.prepareSeconds, launchSeconds: MISSILE.launchSeconds, speed: MISSILE.speed, damage: MISSILE.damage, radius: MISSILE.radius, interceptChance: MISSILE.interceptChance, maxIntercept: MISSILE.maxIntercept };
+}
+
 export type AircraftState = 'building' | 'ready' | 'mission' | 'maintenance' | 'grounded';
 
 export interface Aircraft {
@@ -185,6 +195,8 @@ export interface MissileLaunch {
   /** Tick em que terminou (impacto, interceptação ou aborto): o resultado fica visível a partir daqui. */
   endTick?: number;
   result: { damage: number; destroyed: number; casualties: number; intercepted: boolean } | null;
+  /** Geração do míssil (2 = silo no nível 2); ausente nos salvamentos antigos = 1. */
+  gen?: number;
 }
 
 export interface SiloState {
@@ -526,6 +538,8 @@ export class AirSystem {
     const p = this.sim.clampToMap({ x, y });
     const c = this.sim.grid.worldToCell(p);
     this.silo(siloId).missiles--;
+    const gen = buildingEffects('missile_silo', b.level).missileGen;
+    const spec = missileSpec(gen);
     const l: MissileLaunch = {
       id: this.nextId++,
       owner: slot,
@@ -533,11 +547,12 @@ export class AirSystem {
       target: p,
       targetOwner: this.sim.territoryOwner(c.cx, c.cy),
       state: 'preparing',
-      timer: MISSILE.prepareSeconds * TICK_RATE,
+      timer: spec.prepareSeconds * TICK_RATE,
       from: { ...b.pos },
-      flightTicks: Math.max(1, Math.round((dist(b.pos, p) / MISSILE.speed) * TICK_RATE)),
+      flightTicks: Math.max(1, Math.round((dist(b.pos, p) / spec.speed) * TICK_RATE)),
       startTick: this.sim.tick,
       result: null,
+      gen,
     };
     this.launches.push(l);
     this.missileEvent(l, 'Míssil em preparação (abastecimento)');
@@ -552,7 +567,7 @@ export class AirSystem {
     if (!this.sim.hostile(slot, l.targetOwner)) return 'Sem estado de guerra com o dono do alvo: lançamento bloqueado';
     if (!this.operational(this.building(l.siloId), 'missile_silo', slot)) return 'Silo inoperante';
     l.state = 'launching';
-    l.timer = MISSILE.launchSeconds * TICK_RATE;
+    l.timer = missileSpec(l.gen ?? 1).launchSeconds * TICK_RATE;
     this.missileEvent(l, 'Lançamento autorizado: contagem final');
     return null;
   }
@@ -571,17 +586,18 @@ export class AirSystem {
 
   private missileEvent(l: MissileLaunch, text: string): void {
     const r = l.result && !l.result.intercepted ? { damage: l.result.damage, destroyed: l.result.destroyed, casualties: l.result.casualties } : {};
-    this.sim.emitTrade({ type: 'missile', tick: this.sim.tick, owner: l.owner, launchId: l.id, state: l.state, text, from: { ...l.from }, target: { ...l.target }, targetOwner: l.targetOwner, ...r });
+    this.sim.emitTrade({ type: 'missile', tick: this.sim.tick, owner: l.owner, launchId: l.id, state: l.state, text, from: { ...l.from }, target: { ...l.target }, targetOwner: l.targetOwner, gen: l.gen ?? 1, ...r });
   }
 
   private impact(l: MissileLaunch): void {
+    const spec = missileSpec(l.gen ?? 1);
     // interceptação pelas baterias antiaéreas perto do alvo
     let chance = 0;
     for (const b of this.sim.buildings)
-      if (b.owner === l.targetOwner && b.type === 'aa_battery' && b.progress >= 1 && b.hp > 0 && dist(b.pos, l.target) <= MISSILE.interceptRange) chance += MISSILE.interceptChance;
+      if (b.owner === l.targetOwner && b.type === 'aa_battery' && b.progress >= 1 && b.hp > 0 && dist(b.pos, l.target) <= MISSILE.interceptRange) chance += spec.interceptChance;
     for (const u of this.sim.units)
-      if (u.owner === l.targetOwner && u.hp > 0 && UNITS[u.type].airDefense && dist(u.pos, l.target) <= MISSILE.interceptRange) chance += MISSILE.interceptChance * MOBILE_AA_FACTOR;
-    chance = Math.min(MISSILE.maxIntercept, chance);
+      if (u.owner === l.targetOwner && u.hp > 0 && UNITS[u.type].airDefense && dist(u.pos, l.target) <= MISSILE.interceptRange) chance += spec.interceptChance * MOBILE_AA_FACTOR;
+    chance = Math.min(spec.maxIntercept, chance);
     if (this.rand() < chance) {
       l.state = 'intercepted';
       l.endTick = this.sim.tick;
@@ -596,8 +612,8 @@ export class AirSystem {
     for (const e of [...this.sim.entities.values()]) {
       if (e.hp <= 0) continue;
       const d = dist(e.pos, l.target);
-      if (d > MISSILE.radius + this.sim.entityRadius(e)) continue;
-      const dmg = MISSILE.damage * Math.max(0.25, 1 - d / (MISSILE.radius + 1));
+      if (d > spec.radius + this.sim.entityRadius(e)) continue;
+      const dmg = spec.damage * Math.max(0.25, 1 - d / (spec.radius + 1));
       damage += Math.min(dmg, e.hp);
       if (e.kind === 'building') {
         if (e.type === 'oil_tank' && e.stored > 0) this.sim.loseTankOil(e, e.stored * Math.min(1, dmg / Math.max(1, e.hp)));

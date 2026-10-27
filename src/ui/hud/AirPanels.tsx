@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { canAfford, emptyStockpile } from '../../../shared/sim/config.ts';
-import { AIR, AIRCRAFT, AIRCRAFT_TYPES, MISSILE, type AircraftState, type AircraftType, type LaunchState } from '../../../shared/sim/air.ts';
+import { AIR, AIRCRAFT, AIRCRAFT_TYPES, MISSILE, missileSpec, type AircraftState, type AircraftType, type LaunchState } from '../../../shared/sim/air.ts';
 import { TECHNOLOGIES } from '../../../shared/strategic/technologies.ts';
-import { formatUsd } from '../../../shared/sim/upgrades.ts';
+import { buildingEffects, formatUsd } from '../../../shared/sim/upgrades.ts';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { useHudStore, type SelectedBuildingInfo } from '../../state/useHudStore.ts';
 import { useNationalStore } from '../../state/useNationalStore.ts';
@@ -204,6 +204,8 @@ export function SiloButtons({ b, runtime }: { b: SelectedBuildingInfo; runtime: 
             ? 'verba insuficiente'
             : null;
   const prepBlock = missiles < 1 ? 'sem míssil' : active ? 'em andamento' : null;
+  const gen = buildingEffects('missile_silo', b.level).missileGen;
+  const spec = missileSpec(gen);
   return (
     <>
       <CardButton
@@ -212,7 +214,7 @@ export function SiloButtons({ b, runtime }: { b: SelectedBuildingInfo; runtime: 
         blocked={buildBlock !== null}
         short={buildBlock}
         onClick={() => (buildBlock ? warn(`Míssil: ${buildBlock}`) : runtime.send({ type: 'build_missile', buildingId: b.id }))}
-        title={`Míssil balístico: ${formatUsd(MISSILE.usd)} + materiais · ${timeText(MISSILE.buildSeconds)} · dano em área (raio ${MISSILE.radius}), interceptável pela antiaérea do alvo.`}
+        title={`${gen >= 2 ? 'Míssil pesado de nova geração' : 'Míssil balístico'}: ${formatUsd(MISSILE.usd)} + materiais · ${timeText(MISSILE.buildSeconds)} · dano ${spec.damage} em área (raio ${String(spec.radius).replace('.', ',')}), interceptável pela antiaérea do alvo${gen >= 2 ? ' (mais difícil de interceptar)' : ''}.`}
       >
         <CostLabel cost={MISSILE.cost} have={ctx.resources} compact />
       </CardButton>
@@ -223,7 +225,7 @@ export function SiloButtons({ b, runtime }: { b: SelectedBuildingInfo; runtime: 
           blocked={prepBlock !== null}
           short={prepBlock}
           onClick={() => (prepBlock ? warn(`Lançamento: ${prepBlock}`) : runtime.startAirTarget('missile', b.id))}
-          title="Escolha o alvo (território de um país em guerra, à vista ou junto de um edifício descoberto). A preparação leva 10s e o lançamento ainda exige autorização."
+          title={`Escolha o alvo (território de um país em guerra, à vista ou junto de um edifício descoberto). A preparação leva ${spec.prepareSeconds}s e o lançamento ainda exige autorização.`}
         />
       )}
       {active && (active.state === 'preparing' || active.state === 'armed') && (
@@ -318,11 +320,11 @@ export function HoldToConfirm({ label, onConfirm, ms = 1500 }: { label: string; 
 }
 
 /** Dica do modo de escolha de alvo (e confirmação do alvo do míssil). */
-export function airTargetText(purpose: 'recon' | 'strike' | 'missile', touch: boolean, hasTarget: boolean): { title: string; text: string } {
+export function airTargetText(purpose: 'recon' | 'strike' | 'missile', touch: boolean, hasTarget: boolean, missileGen = 1): { title: string; text: string } {
   const act = touch ? 'Toque' : 'Clique';
   if (purpose === 'recon') return { title: 'Reconhecimento aéreo', text: `${act} no ponto a reconhecer, dentro do anel de alcance. Botão direito ou Cancelar desiste.` };
   if (purpose === 'strike') return { title: 'Ataque aéreo', text: `${act} num edifício inimigo já descoberto, dentro do anel de alcance.` };
   return hasTarget
-    ? { title: 'Alvo do míssil marcado', text: `Confira o anel vermelho. Confirmar inicia a preparação (${MISSILE.prepareSeconds}s de abastecimento); o lançamento ainda exige autorização no silo.` }
+    ? { title: 'Alvo do míssil marcado', text: `Confira o anel vermelho. Confirmar inicia a preparação (${missileSpec(missileGen).prepareSeconds}s de abastecimento); o lançamento ainda exige autorização no silo.` }
     : { title: 'Alvo do míssil', text: `${act} no alvo: território de um país com quem você está em guerra, à vista ou junto de um edifício descoberto.` };
 }

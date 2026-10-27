@@ -8,7 +8,7 @@ import { glowTexture, volumetricSmokeTexture } from './textures.ts';
 
 type Flight = AirView['flights'][number];
 type Launch = AirView['launches'][number];
-type Kind = 'fighter' | 'gripen' | 'recon' | 'transport' | 'missile';
+type Kind = 'fighter' | 'gripen' | 'recon' | 'transport' | 'missile' | 'missile2';
 
 const ALTITUDE = 7;
 /** Altitude no fundo do mergulho de ataque. */
@@ -114,7 +114,7 @@ const models = new Map<Kind, ModelLayers>();
 function model(kind: Kind): ModelLayers {
   let m = models.get(kind);
   if (!m) {
-    m = kind === 'missile' ? missileModel() : aircraftModel(kind);
+    m = kind === 'missile' ? missileModel(1) : kind === 'missile2' ? missileModel(2) : aircraftModel(kind);
     models.set(kind, m);
   }
   return m;
@@ -172,6 +172,9 @@ export function missilePoint(l: Pick<Launch, 'fx' | 'fy' | 'tx' | 'ty'>, k: numb
 }
 
 const AXIS = new THREE.Vector3(1, 0, 0);
+/** Escala do míssil pesado (2ª geração) e a distância da base ao centro do modelo (unidades do modelo). */
+const MISSILE2_SCALE = 3;
+const MISSILE2_BASE = 0.64;
 const tmpA = new THREE.Vector3();
 const tmpB = new THREE.Vector3();
 /**
@@ -256,13 +259,15 @@ export class AirLayer {
     this.launches = air.launches;
     const live = new Set<number>();
     for (const l of air.launches) {
-      if (l.state !== 'flight' && l.state !== 'launching') continue;
+      // o míssil pesado (2ª geração) aparece já no abastecimento: sobe do silo e fica de pé na torre
+      const standing = l.gen >= 2 && (l.state === 'preparing' || l.state === 'armed');
+      if (l.state !== 'flight' && l.state !== 'launching' && !standing) continue;
       live.add(l.id);
       let m = this.missiles.get(l.id);
       if (!m) {
-        const group = meshes(model('missile'), l.owner, false);
+        const group = meshes(model(l.gen >= 2 ? 'missile2' : 'missile'), l.owner, l.gen >= 2);
         // um pouco maior que a escala real: precisa ser legível com a câmera afastada
-        group.scale.setScalar(2.4);
+        group.scale.setScalar(l.gen >= 2 ? MISSILE2_SCALE : 2.4);
         const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: '#ffb36b', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
         glow.scale.setScalar(1.4);
         glow.position.set(-0.55, 0, 0);
@@ -485,7 +490,8 @@ export class AirLayer {
     for (const m of this.missiles.values()) {
       const l = m.snap;
       const k = Math.min(1, m.prev + (m.curr - m.prev) * alpha);
-      if (l.state === 'launching') this.frameLaunching(m, l, k, dt);
+      if (l.state === 'preparing' || l.state === 'armed') this.frameStanding(m, l, l.state === 'armed' ? 1 : k, dt);
+      else if (l.state === 'launching') this.frameLaunching(m, l, k, dt);
       else this.frameFlight(m, l, k, dt);
     }
     this.framePuffs(dt);
@@ -520,10 +526,75 @@ export class AirLayer {
   }
 
   /**
+   * Míssil pesado no abastecimento: o elevador o traz do fundo do silo até ficar de pé entre as
+   * torres (primeiros 45%); depois o propelente criogênico solta vapor branco pelos respiros, que
+   * escorre e se espalha. Armado, o vapor continua em lufadas mais espaçadas.
+   */
+  private frameStanding(m: TrackedMissile, l: Launch, k: number, dt: number): void {
+    const len = (MISSILE2_BASE + 0.83) * MISSILE2_SCALE;
+    const rise = smooth(0, 0.45, k);
+    const base = -len + (len + 0.3) * rise;
+    m.group.position.set(l.fx, base + MISSILE2_BASE * MISSILE2_SCALE, l.fy + 0.1);
+    m.group.quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
+    m.flame.visible = false;
+    m.glow.visible = false;
+    if (rise < 1) return;
+    m.trailAcc += dt;
+    const every = k >= 1 ? 0.28 : 0.1;
+    if (m.trailAcc > every) {
+      m.trailAcc = 0;
+      const side = Math.random() < 0.5 ? -1 : 1;
+      const h = 0.3 + (0.35 + Math.random() * 0.45) * len;
+      this.emit(tmpA.set(l.fx + side * 0.2, h, l.fy + 0.1 + (Math.random() - 0.5) * 0.3), {
+        life: 2.2 + Math.random(),
+        size0: 0.35,
+        size1: 1.6 + Math.random(),
+        peak: 0.55,
+        tone: 1.05,
+        vx: side * (0.5 + Math.random() * 0.5),
+        vy: -0.35,
+        vz: (Math.random() - 0.5) * 0.4,
+      });
+    }
+  }
+
+  /**
    * Contagem final (3 s): o míssil sobe devagar na boca do silo, de pé; vapor escapa rente ao
-   * chão e, no último segundo, a base acende (pré-ignição).
+   * chão e, no último segundo, a base acende (pré-ignição). O pesado já está de pé na torre: a
+   * pré-ignição começa antes, com mais fumaça e luz, e a estrutura treme.
    */
   private frameLaunching(m: TrackedMissile, l: Launch, k: number, dt: number): void {
+    if (l.gen >= 2) {
+      const len = (MISSILE2_BASE + 0.83) * MISSILE2_SCALE;
+      const pre = Math.max(0, (k - 0.35) / 0.65);
+      const shake = pre * pre * 0.05;
+      m.group.position.set(l.fx + (Math.random() - 0.5) * shake, 0.3 + MISSILE2_BASE * MISSILE2_SCALE + pre * pre * 0.5, l.fy + 0.1 + (Math.random() - 0.5) * shake);
+      m.group.quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
+      m.flame.visible = pre > 0;
+      m.flame.scale.set(0.4 + pre * 0.9 * (0.8 + Math.random() * 0.4), 1 + pre * 0.6, 1 + pre * 0.6);
+      m.glow.visible = pre > 0;
+      m.glow.scale.setScalar(1 + pre * 3.2);
+      (m.glow.material as THREE.SpriteMaterial).opacity = pre;
+      m.trailAcc += dt;
+      if (m.trailAcc > 0.04) {
+        m.trailAcc = 0;
+        // o jato bate no defletor e sai em leque pela frente, rolando pelo chão
+        for (let i = 0; i < (pre > 0 ? 2 : 1); i++) {
+          const a = Math.PI / 2 + (Math.random() - 0.5) * 2.2;
+          const v = 1.6 + Math.random() * 1.6 + pre * 4;
+          this.emit(tmpA.set(l.fx, 0.3, l.fy + 0.6), { life: 2 + pre * 2, size0: 1, size1: 3.6 + pre * 3.5, peak: 0.75, tone: 1, vx: Math.cos(a) * v, vy: 0.3 + pre * 1.2, vz: Math.sin(a) * v });
+        }
+        if (pre === 0) this.emit(tmpA.set(l.fx + 0.2, 0.3 + len * 0.6, l.fy + 0.1), { life: 1.8, size0: 0.35, size1: 1.4, peak: 0.45, tone: 1.05, vx: 0.6, vy: -0.3 });
+      }
+      if (pre > 0) {
+        m.lightAcc += dt;
+        if (m.lightAcc > 0.12) {
+          m.lightAcc = 0;
+          this.effects.light(tmpA.set(l.fx, 1, l.fy), '#ffc27a', 80 + pre * 220, 22, 0.18);
+        }
+      }
+      return;
+    }
     m.group.position.set(l.fx, -0.4 + k * 1.3, l.fy + 0.1);
     m.group.quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
     const pre = Math.max(0, (k - 0.65) / 0.35);
@@ -556,6 +627,12 @@ export class AirLayer {
   private frameFlight(m: TrackedMissile, l: Launch, k: number, dt: number): void {
     const pos = missilePoint(l, k, tmpA);
     const ahead = missilePoint(l, Math.min(1, k + 0.004), tmpB);
+    // o pesado sai de pé da torre (centro mais alto): a diferença some no começo da subida
+    if (l.gen >= 2) {
+      const lift = 1.7 * Math.pow(1 - Math.min(1, k * 8), 2);
+      pos.y += lift;
+      ahead.y += 1.7 * Math.pow(1 - Math.min(1, (k + 0.004) * 8), 2);
+    }
     const dir = ahead.sub(pos);
     if (dir.lengthSq() > 1e-8) m.group.quaternion.setFromUnitVectors(AXIS, dir.normalize());
     m.group.position.copy(pos);
@@ -575,13 +652,14 @@ export class AirLayer {
     const steps = Math.min(12, Math.floor(gap / 0.3));
     for (let i = 1; i <= steps; i++) {
       const at = m.last.clone().lerp(tail, i / steps);
-      this.emit(at, { life: 3.6 + Math.random(), size0: 0.7, size1: 3.6, peak: 0.8 * (1 - reentry * 0.4), tone: 0.9, vx: 0.5, vy: 0.15, vz: 0.2 });
+      const heavy = l.gen >= 2 ? 1.45 : 1;
+      this.emit(at, { life: (3.6 + Math.random()) * heavy, size0: 0.7 * heavy, size1: 3.6 * heavy, peak: 0.8 * (1 - reentry * 0.4), tone: 0.9, vx: 0.5, vy: 0.15, vz: 0.2 });
     }
     if (steps > 0) m.last.copy(tail);
     m.lightAcc += dt;
     if (m.lightAcc > 0.12) {
       m.lightAcc = 0;
-      this.effects.light(pos, reentry > 0 ? '#ffe9c8' : '#ffb36b', 70, 18, 0.16);
+      this.effects.light(pos, reentry > 0 ? '#ffe9c8' : '#ffb36b', l.gen >= 2 ? 120 : 70, l.gen >= 2 ? 26 : 18, 0.16);
     }
   }
 

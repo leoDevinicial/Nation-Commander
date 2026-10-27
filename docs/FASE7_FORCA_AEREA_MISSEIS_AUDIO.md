@@ -89,6 +89,33 @@ base avançada encurta o voo (menos combustível, menos tempo exposto e manuten�
   atingidos perdem petróleo na mesma regra.
 - **Interceptação:** 20% por bateria antiaérea do país-alvo a até 10 do alvo, com teto de 60%.
 
+### Silo nível 2: míssil pesado de nova geração
+
+A melhoria do silo (nível 2: 220 pedra, 280 ferro, 90 petróleo, 160 suprimentos + US$ 45 mi, 50 s) troca o
+poço simples por uma **torre de lançamento** e passa a usar o **míssil pesado**:
+
+| | Nível 1 | Nível 2 (pesado) |
+|---|---|---|
+| Abastecimento | 10 s | 5 s |
+| Contagem final | 3 s | 2 s |
+| Velocidade | 25 | 32 |
+| Dano no centro | 700 | 1150 |
+| Raio | 4 | 5,5 |
+| Interceptação | 20% por bateria, teto 60% | 13% por bateria, teto 45% |
+
+- **Visual da torre:**
+  - duas torres treliçadas com plataformas de serviço;
+  - braços umbilicais e luz de balizamento;
+  - defletor de chamas e tanques de propelente.
+- **Abastecimento:** o míssil sobe do fundo do silo e fica de pé entre as torres soltando vapor branco.
+- **Lançamento:** a pré-ignição começa antes. O jato bate no defletor e sai em leque pela frente, a torre
+  treme e a ignição traz um clarão maior, uma nuvem enorme, uma onda de choque e um estrondo.
+- **Míssil:** mais grosso e longo, com ogiva escura, asas cruciformes no meio do corpo, aletas de cauda largas
+  e faixas de alerta. O rastro de fumaça é mais largo.
+- **Impacto:** o impacto comum maior, com um segundo clarão, um anel de explosões em volta, brasas lançadas
+  para todos os lados, mais poeira, três ondas de choque e um tremor forte da câmera.
+- **Geração:** vale a do silo no momento da preparação e fica gravada no lançamento, também nas partidas salvas.
+
 ### Segurança contra lançamento acidental (celular e desktop)
 1. "Preparar lançamento" abre a escolha de alvo. O toque ou clique só **marca** o alvo (anel vermelho).
 2. "Confirmar alvo" inicia a preparação. Ainda dá para abortar, e o míssil volta ao silo.

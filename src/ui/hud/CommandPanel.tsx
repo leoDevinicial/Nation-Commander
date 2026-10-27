@@ -145,7 +145,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
               )}
             </div>
           )}
-          {mode.kind === 'air_target' && <ModeHint {...airTargetText(mode.purpose, touch, mode.target !== null)} />}
+          {mode.kind === 'air_target' && <ModeHint {...airTargetText(mode.purpose, touch, mode.target !== null, runtime.missileGenOf(mode.sourceId))} />}
           {mode.kind === 'attack_move' && <ModeHint title="Avançar atacando" text={`${touch ? 'Toque' : 'Clique'} no destino. As unidades atacam o que encontrarem pelo caminho.`} />}
           {mode.kind === 'normal' && units.length > 0 && <UnitsInfo units={units} />}
           {mode.kind === 'normal' && units.length === 0 && building && <BuildingInfo b={building} runtime={runtime} />}

@@ -100,10 +100,14 @@ export interface BuildingEffects {
   sightAdd: number;
   /** Base aérea: geração dos caças que saem dela (1 = F-5EM Tiger II, 2 = F-39 Gripen). */
   fighterGen: number;
+  /** Silo de mísseis: geração do míssil que sai dele (2 = míssil pesado de nova geração). */
+  missileGen: number;
 }
 
 /** Nível da base aérea a partir do qual os caças são de nova geração (F-39 Gripen). */
 export const FIGHTER_GEN2_LEVEL = 3;
+/** Nível do silo de mísseis com o lançador eretor e o míssil pesado de 2ª geração. */
+export const MISSILE_GEN2_LEVEL = 2;
 
 /** Ganho linear por nível acima do 1 (k = nível − 1). Multiplicadores: 1 + passo·k. */
 interface LevelScaling {
@@ -597,6 +601,18 @@ export const UPGRADES: Partial<Record<BuildingType, UpgradeTrack>> = {
     timeGrowth: 1.15,
     perLevel: { hpMul: 0.12, sightAdd: 1, upkeepSupplies: 0.03 },
   },
+  missile_silo: {
+    // nível 2: lançador eretor e míssil pesado de nova geração (abastece mais rápido, voa mais
+    // rápido, dano e raio maiores, mais difícil de interceptar)
+    maxLevel: 2,
+    cost: { stone: 220, iron: 280, oil: 90, supplies: 160 },
+    costGrowth: 1,
+    usdM: 45,
+    usdGrowth: 1,
+    seconds: 50,
+    timeGrowth: 1,
+    perLevel: { hpMul: 0.35, sightAdd: 1, upkeepSupplies: 0.04 },
+  },
 };
 
 export function upgradeTrack(type: BuildingType): UpgradeTrack | undefined {
@@ -681,6 +697,7 @@ export function buildingEffects(type: BuildingType, level = 1, spec: SpecId | nu
     rangeAdd: round3((pl.rangeAdd ?? 0) * k + (m.rangeAdd ?? 0)),
     sightAdd: round3((pl.sightAdd ?? 0) * k),
     fighterGen: type === 'airbase' && lv >= FIGHTER_GEN2_LEVEL ? 2 : 1,
+    missileGen: type === 'missile_silo' && lv >= MISSILE_GEN2_LEVEL ? 2 : 1,
   });
   effectsCache.set(key, fx);
   return fx;
@@ -947,5 +964,6 @@ export function compareEffects(type: BuildingType, a: BuildingEffects, b: Buildi
   }
   add('sight', 'Visão', def.sight + a.sightAdd, def.sight + b.sightAdd, '');
   if (type === 'airbase') add('fighterGen', 'Caças (1: F-5EM Tiger II · 2: F-39 Gripen)', a.fighterGen, b.fighterGen, '');
+  if (type === 'missile_silo') add('missileGen', 'Míssil (1: balístico · 2: pesado de nova geração, mais rápido e destrutivo)', a.missileGen, b.missileGen, '');
   return out;
 }

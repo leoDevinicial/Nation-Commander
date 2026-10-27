@@ -4,6 +4,7 @@ import type { SpecId } from '../../../../shared/sim/upgrades.ts';
 import { C, type PartBuilder } from './kit.ts';
 import { tractor } from './crops.ts';
 import { staticPumpjack } from './pumpjack.ts';
+import { strut } from './rigging.ts';
 
 /**
  * Evolução visual das melhorias (Fase 4): módulos procedurais que se somam ao modelo base
@@ -1422,6 +1423,64 @@ const RESIDENTIAL: UpgradeModule[] = [
   { level: 10, height: 4.6, build: (t) => t.a.box(2.62, 0.16, 0.02, '#ffffff', [0, 3.4, 0.565]) },
 ];
 
+/**
+ * Silo de mísseis nível 2: torre de lançamento do míssil pesado. Duas torres treliçadas ao lado da
+ * boca do silo, com plataformas de serviço, braços umbilicais e luz de balizamento; defletor de
+ * chamas e faixas de alerta no chão. O míssil sobe do silo e fica de pé entre as torres durante o
+ * abastecimento (camada aérea).
+ */
+const MISSILE_SILO: UpgradeModule[] = [
+  {
+    level: 2,
+    height: 4.6,
+    build: (t) => {
+      const { b, a } = t;
+      const z0 = 0.1;
+      const top = 4.1;
+      for (const sx of [-1, 1]) {
+        const x = sx * 0.6;
+        // quatro montantes e travessas em X a cada 0,5
+        const w = 0.11;
+        for (const dx of [-w, w]) for (const dz of [-w, w]) b.box(0.035, top, 0.035, '#c9c6bd', [x + dx, 0.16 + top / 2, z0 + dz]);
+        for (let y = 0.4; y < top; y += 0.5) {
+          for (const dz of [-w, w]) strut(b, [x - w, y, z0 + dz], [x + w, y + 0.5, z0 + dz], 0.014, '#b3b0a7');
+          for (const dx of [-w, w]) strut(b, [x + dx, y, z0 - w], [x + dx, y + 0.5, z0 + w], 0.014, '#b3b0a7');
+          b.box(w * 2 + 0.04, 0.025, w * 2 + 0.04, '#8f8c84', [x, y, z0]);
+        }
+        // base de concreto com faixas de alerta
+        b.box(0.42, 0.14, 0.42, C.concreteDark, [x, 0.23, z0]);
+        for (let i = 0; i < 4; i++) b.box(0.43, 0.035, 0.1, i % 2 ? C.yellow : '#25272a', [x, 0.31, z0 - 0.15 + i * 0.1]);
+        // plataformas de serviço e braços umbilicais apontando para o míssil
+        for (const [y, len] of [
+          [1.3, 0.36],
+          [2.4, 0.34],
+          [3.4, 0.3],
+        ] as const) {
+          b.box(len, 0.03, 0.2, '#9d9a92', [x - sx * (w + len / 2), y, z0]);
+          b.box(len, 0.012, 0.012, C.steel, [x - sx * (w + len / 2), y + 0.12, z0 + 0.1]);
+          b.box(len, 0.012, 0.012, C.steel, [x - sx * (w + len / 2), y + 0.12, z0 - 0.1]);
+          b.cyl(0.02, 0.02, len * 0.9, '#2b2d30', [x - sx * (w + len / 2), y - 0.06, z0 + 0.04], [0, 0, Math.PI / 2], 6);
+        }
+        // topo: casa de máquinas, para-raios e luz de balizamento
+        b.box(0.3, 0.16, 0.3, '#a9a69d', [x, top + 0.24, z0]);
+        b.cyl(0.008, 0.008, 0.35, C.steel, [x, top + 0.5, z0], undefined, 4);
+        b.box(0.05, 0.05, 0.05, C.red, [x, top + 0.34, z0 + 0.16]);
+        a.box(0.2, 0.08, 0.005, '#ffffff', [x, 0.9, z0 + w + 0.02]);
+      }
+      // pórtico no alto ligando as torres
+      b.box(1.42, 0.08, 0.14, '#b3b0a7', [0, top + 0.08, z0]);
+      // defletor de chamas: rampa escura saindo da boca do silo
+      b.box(0.9, 0.04, 0.5, '#2a2a28', [0, 0.11, z0 + 0.62], [-0.18, 0, 0]);
+      for (const sx of [-1, 1]) b.box(0.05, 0.12, 0.5, C.concreteDark, [sx * 0.47, 0.16, z0 + 0.62]);
+      // tanques de propelente e tubulação até a torre
+      t.b.cyl(0.14, 0.14, 0.55, C.white, [-0.72, 0.16 + 0.28, -0.25], undefined, 12);
+      t.b.cyl(0.14, 0.14, 0.55, '#d8dde3', [-0.72, 0.16 + 0.28, 0.55], undefined, 12);
+      strut(b, [-0.72, 0.5, -0.11], [-0.6, 0.6, z0 - 0.11], 0.02, C.steel, true);
+      strut(b, [-0.72, 0.5, 0.41], [-0.6, 0.6, z0 + 0.11], 0.02, C.steel, true);
+    },
+  },
+];
+
 const TOWER: UpgradeModule[] = [
   {
     level: 2,
@@ -1480,6 +1539,7 @@ export const UPGRADE_MODULES: Partial<Record<BuildingType, UpgradeModule[]>> = {
   house: HOUSE,
   residential: RESIDENTIAL,
   tower: TOWER,
+  missile_silo: MISSILE_SILO,
 };
 
 /** Módulos visíveis em `level` com `spec` (os da especialização só a partir do nível dela). */

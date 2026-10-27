@@ -34,7 +34,7 @@ import { PostFx } from './render/PostFx.ts';
 import { CitizenLayer } from './render/CitizenLayer.ts';
 import { CargoLayer, disposeCargoModels } from './render/CargoLayer.ts';
 import { AirLayer, disposeAirModels } from './render/AirLayer.ts';
-import { AIRCRAFT, MISSILE } from '../../shared/sim/air.ts';
+import { AIRCRAFT, missileSpec } from '../../shared/sim/air.ts';
 import { PRODUCTION_SOUND, audio } from './audio/AudioService.ts';
 import { useSettingsStore } from '../state/useSettingsStore.ts';
 import { AdaptiveExposure, EnvironmentProbe, ShadowFollow } from './render/Lighting.ts';
@@ -584,17 +584,22 @@ export class GameRuntime {
       this.effects.explosion(new THREE.Vector3(e.pos.x, 6.5, e.pos.y), false);
       this.effects.flash(new THREE.Vector3(e.pos.x, 6.5, e.pos.y), 1.1, '#ffd38a', 0.4);
     } else if (e.type === 'missile') {
+      const heavy = (e.gen ?? 1) >= 2;
+      const radius = missileSpec(e.gen ?? 1).radius;
       if (e.state === 'flight') {
         // ignição: clarão, luz forte e nuvem de fumaça rolando a partir do silo
-        this.effects.ignition(new THREE.Vector3(e.from.x, 0.4, e.from.y));
-        this.airLayer.shockwave(e.from, 3);
-        this.shakeNear(e.from, 0.35);
+        if (heavy) this.effects.heavyIgnition(new THREE.Vector3(e.from.x, 0.4, e.from.y));
+        else this.effects.ignition(new THREE.Vector3(e.from.x, 0.4, e.from.y));
+        this.airLayer.shockwave(e.from, heavy ? 6 : 3);
+        this.shakeNear(e.from, heavy ? 0.7 : 0.35);
       } else if (e.state === 'impact') {
-        this.effects.missileImpact(new THREE.Vector3(e.target.x, 0, e.target.y), MISSILE.radius);
-        // duas ondas: o clarão rápido e a poeira mais lenta e larga
-        this.airLayer.shockwave(e.target, MISSILE.radius);
-        this.airLayer.shockwave(e.target, MISSILE.radius * 2.2);
-        this.shakeNear(e.target, 0.95);
+        if (heavy) this.effects.heavyMissileImpact(new THREE.Vector3(e.target.x, 0, e.target.y), radius);
+        else this.effects.missileImpact(new THREE.Vector3(e.target.x, 0, e.target.y), radius);
+        // duas ondas: o clarão rápido e a poeira mais lenta e larga (três no pesado)
+        this.airLayer.shockwave(e.target, radius);
+        this.airLayer.shockwave(e.target, radius * 2.2);
+        if (heavy) this.airLayer.shockwave(e.target, radius * 3.4);
+        this.shakeNear(e.target, heavy ? 1.3 : 0.95);
       } else if (e.state === 'intercepted') {
         // interceptação: estouro alto no céu, sem dano no chão
         this.effects.airburst(new THREE.Vector3(e.target.x, 10, e.target.y));
@@ -1044,6 +1049,12 @@ export class GameRuntime {
 
   // ------------------------------------------------------------ Sandbox
 
+  /** Geração do míssil que sai deste silo (2 no nível 2). */
+  missileGenOf(siloId: number): number {
+    const t = this.buildings.get(siloId);
+    return t && t.snap.type === 'missile_silo' ? buildingEffects('missile_silo', t.snap.level).missileGen : 1;
+  }
+
   sandboxToggle(key: SandboxToggle, value: boolean): void {
     this.send({ type: 'sandbox_toggle', key, value });
   }
@@ -1231,7 +1242,7 @@ export class GameRuntime {
     const src = this.positionOf(m.sourceId);
     const types = m.aircraftIds.map((id) => this.snapshot?.air?.aircraft.find((a) => a.id === id)?.type).filter((t) => t !== undefined);
     const range = types.length ? Math.min(...types.map((t) => AIRCRAFT[t].range)) : 0;
-    this.airLayer.setTargeting(src && range ? { x: src.x, y: src.y, r: range } : null, m.target ? { x: m.target.x, y: m.target.y, r: MISSILE.radius } : null);
+    this.airLayer.setTargeting(src && range ? { x: src.x, y: src.y, r: range } : null, m.target ? { x: m.target.x, y: m.target.y, r: missileSpec(this.missileGenOf(m.sourceId)).radius } : null);
   }
 
   startAttackMove(): void {
@@ -1488,11 +1499,14 @@ export class GameRuntime {
         else if (own && e.state === 'aborted') audio.stopAlarm(e.launchId);
         else if (e.state === 'flight') {
           audio.playAt('missile_launch', e.from.x, e.from.y);
+          // o pesado sai com um estrondo grave a mais
+          if ((e.gen ?? 1) >= 2) audio.playAt('explosion_big', e.from.x, e.from.y);
           // o país-alvo ouve o alarme mesmo com a câmera longe
           if (mine(e.targetOwner)) audio.ui('alert');
         } else if (e.state === 'impact') {
           if (own || mine(e.targetOwner)) audio.play('missile_impact', 0.55);
           audio.playAt('missile_impact', e.target.x, e.target.y);
+          if ((e.gen ?? 1) >= 2) audio.playAt('explosion_big', e.target.x, e.target.y);
         } else if (e.state === 'intercepted') audio.playAt('intercept', e.target.x, e.target.y);
         break;
       }
