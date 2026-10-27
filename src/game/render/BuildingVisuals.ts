@@ -165,6 +165,10 @@ export class BuildingVisual {
   private fields: THREE.Mesh | null = null;
   /** Partes animadas genéricas (serras, toras, guindaste, polias...). */
   private anims: { group: THREE.Group; anim: ModelAnim }[] = [];
+  /** Folhas da tampa do silo, abertura atual (0 fechada, 1 aberta) e o alvo. */
+  private readonly hatch: { group: THREE.Group; side: 1 | -1 }[] = [];
+  private hatchK = 0;
+  private hatchWant = 0;
   private smoke: Smoke | null = null;
   private smokeKey = '';
   private t = Math.random() * 10;
@@ -227,6 +231,13 @@ export class BuildingVisual {
       }
       this.poseAnims(0);
     }
+    for (const h of def.hatch ?? []) {
+      const group = new THREE.Group();
+      group.position.set(...h.pivot);
+      for (const m of layerMeshes(h.layers, owner)) group.add(m);
+      this.model.add(group);
+      this.hatch.push({ group, side: h.side });
+    }
     if (opts.claims?.length) this.fields = buildClaimMarkers(type, opts, this.group.position);
     if (this.fields) this.group.add(this.fields);
     this.scaffold = buildScaffold(this.size, def.height);
@@ -273,6 +284,16 @@ export class BuildingVisual {
         this.model.add(this.smoke.group);
       }
     }
+  }
+
+  /** Tampa do silo: abre para o míssil subir e fecha depois do lançamento. */
+  setHatch(open: boolean): void {
+    this.hatchWant = open ? 1 : 0;
+  }
+
+  /** Abertura atual da tampa (0..1). */
+  get hatchOpen(): number {
+    return this.hatchK;
   }
 
   /** O marcador de reunião é filho da cena, não do edifício. */
@@ -332,6 +353,13 @@ export class BuildingVisual {
       else if (this.movingKind === 'pump') this.posePump(this.workT * PUMP_SPEED);
     }
     if (done && this.anims.length && !this.remembered) this.poseAnims(this.workT);
+    if (this.hatch.length) {
+      // abre em ~0,7 s (motor hidráulico) e fecha mais devagar; começa e termina suave
+      const step = dt * (this.hatchWant > this.hatchK ? 1.5 : 0.8);
+      this.hatchK = this.hatchWant > this.hatchK ? Math.min(this.hatchWant, this.hatchK + step) : Math.max(this.hatchWant, this.hatchK - step);
+      const e = this.hatchK * this.hatchK * (3 - 2 * this.hatchK);
+      for (const h of this.hatch) h.group.rotation.z = -h.side * 1.52 * e;
+    }
     this.hp.set(hpFraction);
     this.hp.group.visible = showHp && !this.remembered;
     if (showHp) this.hp.face(camera);
@@ -494,6 +522,7 @@ export class PlacementGhost {
     if (model.moving) parts.push([model.moving.layers, model.moving.pivot]);
     if (model.pump) parts.push([model.pump.crank, model.pump.crankPivot], [model.pump.rod, model.pump.rodPivot]);
     if (model.anims) model.anims.forEach((x, i) => parts.push([x.layers, animRestPivot(model.anims!, i)]));
+    for (const h of model.hatch ?? []) parts.push([h.layers, h.pivot]);
     for (const [l, at] of parts)
       for (const [geo, m] of [
         [l.body, body],

@@ -126,3 +126,24 @@ describe('canos e casulo', () => {
     rl.dispose();
   });
 });
+
+describe('tampa do silo de mísseis', () => {
+  it('abre em menos de 1 s quando o lançamento é preparado e fecha depois', async () => {
+    const { BuildingVisual } = await import('../game/render/BuildingVisuals.ts');
+    const silo = new BuildingVisual(11, 'missile_silo', 0, true, { center: new THREE.Vector2(0, 0), cellSize: 2, mapWidth: 64, level: 2 });
+    const tick = (n: number) => {
+      for (let i = 0; i < n; i++) silo.update(1 / 30, 1, 1, false, cam, null, false, false, true);
+    };
+    tick(10);
+    expect(silo.hatchOpen).toBe(0);
+    silo.setHatch(true);
+    tick(24); // 0,8 s
+    expect(silo.hatchOpen).toBe(1);
+    silo.setHatch(false);
+    tick(15);
+    expect(silo.hatchOpen).toBeGreaterThan(0); // fecha mais devagar
+    tick(60);
+    expect(silo.hatchOpen).toBe(0);
+    silo.dispose();
+  });
+});

@@ -426,9 +426,17 @@ export function buildMissileSiloModel(): Built {
   // laje do silo e tampa blindada em duas folhas
   b.cyl(0.62, 0.66, 0.16, C.concrete, [0, 0.16, 0.1], undefined, 16);
   b.cyl(0.46, 0.46, 0.02, '#2a2b2c', [0, 0.25, 0.1], undefined, 16);
-  for (const sx of [-1, 1]) {
-    b.box(0.46, 0.08, 0.92, '#6b6f70', [sx * 0.235, 0.29, 0.1]);
-    for (let i = 0; i < 3; i++) b.box(0.44, 0.012, 0.03, '#55595a', [sx * 0.235, 0.335, -0.2 + i * 0.3]);
+  // tampa blindada em duas folhas articuladas (animadas: abrem para o míssil subir)
+  const hatch: NonNullable<BuildingModel['hatch']> = [];
+  for (const sx of [-1, 1] as const) {
+    const leaf = layers();
+    // no referencial da dobradiça (borda de fora da folha): a folha se estende para o centro
+    leaf.body.box(0.46, 0.08, 0.92, '#6b6f70', [-sx * 0.23, 0, 0]);
+    for (let i = 0; i < 3; i++) leaf.body.box(0.44, 0.012, 0.03, '#55595a', [-sx * 0.23, 0.045, -0.3 + i * 0.3]);
+    // faixas de alerta na borda que encontra a outra folha e as dobradiças
+    leaf.body.box(0.05, 0.085, 0.92, C.yellow, [-sx * 0.435, 0, 0]);
+    for (const z of [-0.3, 0.3]) leaf.body.cyl(0.03, 0.03, 0.12, C.metalDark, [0, -0.01, z], [Math.PI / 2, 0, 0], 8);
+    hatch.push({ layers: leaf.build(), pivot: [sx * 0.465, 0.29, 0.1], side: sx });
   }
   for (let i = 0; i < 6; i++) b.box(0.18, 0.01, 0.05, i % 2 ? C.yellow : '#2b2d30', [-0.45 + i * 0.18, 0.245, 0.74]);
   // trilhos de abertura da tampa
@@ -454,7 +462,7 @@ export function buildMissileSiloModel(): Built {
   ant.body.box(0.02, 0.02, 0.2, C.steel, [0, 0, 0]);
   const anims: ModelAnim[] = [{ layers: ant.build(), pivot: [0, 0.48, -0.7], motion: { kind: 'spin', axis: 'y', speed: 0.8 } }];
   strut(b, [0, 0.38, -0.7], [0, 0.48, -0.7], 0.02, C.steel, true);
-  return { base: l.build(), moving: null, anims, height: 0.9 };
+  return { base: l.build(), moving: null, anims, hatch, height: 0.9 };
 }
 
 // ------------------------------------------------------------------ em voo

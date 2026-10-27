@@ -25,6 +25,12 @@ export interface BuildingModel {
   pump?: Omit<PumpRig, 'beam' | 'pivot'>;
   /** Outras partes animadas (serras, toras na esteira, guindaste, polias, vagonetes...). */
   anims?: ModelAnim[];
+  /**
+   * Folhas da tampa do silo de mísseis: giram na dobradiça (`pivot`, na borda de fora) para cima e
+   * para fora; `side` diz para que lado a folha fica (+1 à direita). Abrem e fecham pelo estado do
+   * lançamento, não pelo tempo.
+   */
+  hatch?: { layers: ModelLayers; pivot: [number, number, number]; side: 1 | -1 }[];
   height: number;
   /** Topos de chaminé que soltam fumaça (coordenadas locais). */
   smoke?: [number, number, number][];
@@ -133,6 +139,7 @@ export function buildingModel(type: BuildingType, level = 1, spec: SpecId | null
     moving: base.moving,
     ...(base.pump ? { pump: base.pump } : {}),
     ...(base.anims ? { anims: base.anims } : {}),
+    ...(base.hatch ? { hatch: base.hatch } : {}),
     height,
     ...(smoke.length ? { smoke } : {}),
   };

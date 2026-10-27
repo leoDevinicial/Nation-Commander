@@ -532,7 +532,8 @@ export class AirLayer {
    */
   private frameStanding(m: TrackedMissile, l: Launch, k: number, dt: number): void {
     const len = (MISSILE2_BASE + 0.83) * MISSILE2_SCALE;
-    const rise = smooth(0, 0.45, k);
+    // a tampa do silo abre primeiro; o elevador só sobe depois
+    const rise = smooth(0.16, 0.55, k);
     const base = -len + (len + 0.3) * rise;
     m.group.position.set(l.fx, base + MISSILE2_BASE * MISSILE2_SCALE, l.fy + 0.1);
     m.group.quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);

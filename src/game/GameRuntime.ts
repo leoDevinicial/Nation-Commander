@@ -544,10 +544,22 @@ export class GameRuntime {
       }
     }
     this.clearDecorUnderBuildings();
+    this.updateSiloHatches(s);
 
     this.updateFog();
     for (const e of s.events) this.handleEvent(e);
     if (this.mode.kind === 'place') this.updateGhost();
+  }
+
+  /**
+   * Tampas dos silos de mísseis: abertas na preparação, armado, contagem final e no começo do voo
+   * (o míssil acabou de sair); fechadas no resto do tempo.
+   */
+  private updateSiloHatches(s: Snapshot): void {
+    const open = new Set<number>();
+    for (const l of s.air?.launches ?? [])
+      if (l.state === 'preparing' || l.state === 'armed' || l.state === 'launching' || (l.state === 'flight' && l.progress < 0.3)) open.add(l.siloId);
+    for (const t of this.buildings.values()) if (t.snap.type === 'missile_silo') t.visual.setHatch(open.has(t.snap.id));
   }
 
   /** Chave do conjunto de construções já aplicado à vegetação (só recalcula quando muda). */

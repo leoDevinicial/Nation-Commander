@@ -86,6 +86,7 @@ export function renderThumbnails(renderer: THREE.WebGLRenderer, slot: number): P
       if (m.detail) add(g, m.detail);
       if (m.moving) add(g, m.moving.layers, m.moving.pivot);
       if (m.anims) m.anims.forEach((x, i) => add(g, x.layers, animRestPivot(m.anims!, i)));
+      for (const h of m.hatch ?? []) add(g, h.layers, h.pivot);
       if (m.pump) {
         add(g, m.pump.crank, m.pump.crankPivot);
         add(g, m.pump.rod, m.pump.rodPivot);
