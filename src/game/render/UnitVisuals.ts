@@ -25,7 +25,7 @@ const box = (key: string, w: number, h: number, d: number) => sharedGeometry(`mo
  * caixa de sensores, escapamento do motor novo e placa de colete. O equipamento de cada unidade
  * fica reconhecível em campo, mesmo sem selecioná-la.
  */
-function equipmentParts(type: UnitType, mods: readonly ModId[], radius: number, turretTop: [number, number, number] | null): THREE.Object3D[] {
+function equipmentParts(type: UnitType, mods: readonly ModId[], fit: EquipmentFit): THREE.Object3D[] {
   const out: THREE.Object3D[] = [];
   const vehicle = UNITS[type].armor === 'vehicle';
   const add = (geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number) => {
@@ -35,27 +35,83 @@ function equipmentParts(type: UnitType, mods: readonly ModId[], radius: number, 
     out.push(m);
     return m;
   };
+  const { min, max } = fit.hull;
+  const len = max.x - min.x;
+  const midX = (min.x + max.x) / 2;
+  const side = Math.max(Math.abs(min.z), Math.abs(max.z));
   for (const id of mods) {
     if (id === 'composite_armor' && vehicle) {
-      const len = radius * 1.7;
-      for (const side of [-1, 1]) add(box(`skirt-${type}`, len, 0.26, 0.07), plateMat(), 0, 0.42, side * radius * 0.92);
+      // placas coladas na lateral do casco (por fora das rodas/esteiras), cobrindo o terço de cima
+      const w = len * 0.72;
+      const key = `skirt-${type}-${w.toFixed(2)}`;
+      for (const sz of [-1, 1]) add(box(key, w, 0.24, 0.05), plateMat(), midX + len * 0.06, Math.min(0.5, fit.deck * 0.62), sz * (side + 0.03));
     } else if (id === 'body_armor' && !vehicle) {
       add(box('vest', 0.2, 0.22, 0.3), plateMat(), 0, 0.72, 0);
     } else if (id === 'digital_radio') {
       const h = vehicle ? 1.0 : 0.5;
-      const mast = add(sharedGeometry(`mod-mast-${h}`, () => new THREE.CylinderGeometry(0.018, 0.024, h, 5)), darkMat(), vehicle ? -radius * 0.6 : -0.12, (vehicle ? 0.8 : 0.85) + h / 2, vehicle ? radius * 0.45 : 0.08);
+      const mast = add(
+        sharedGeometry(`mod-mast-${h}`, () => new THREE.CylinderGeometry(0.018, 0.024, h, 5)),
+        darkMat(),
+        vehicle ? min.x + len * 0.18 : -0.12,
+        (vehicle ? fit.deck : 0.85) + h / 2,
+        vehicle ? side * 0.45 : 0.08,
+      );
       mast.castShadow = false;
     } else if (id === 'thermal_optics' && vehicle) {
-      const [x, y, z] = turretTop ?? [radius * 0.2, 0.9, 0];
-      add(box('optic', 0.24, 0.16, 0.2), darkMat(), x, y + 0.1, z - 0.22);
-      add(box('lens', 0.03, 0.09, 0.12), lensMat(), x + 0.13, y + 0.1, z - 0.22);
+      // na torre (gira com ela); sem torre, sobre o convés
+      const [x, y, z] = fit.turretTop ?? [max.x * 0.35, fit.deck, 0];
+      for (const m of [add(box('optic', 0.24, 0.16, 0.2), darkMat(), x, y + 0.08, z - 0.22), add(box('lens', 0.03, 0.09, 0.12), lensMat(), x + 0.13, y + 0.08, z - 0.22)])
+        m.userData.onTurret = fit.turretTop !== null;
     } else if (id === 'efficient_engine' && vehicle) {
-      for (const side of [-1, 1]) add(box('exhaust', 0.12, 0.12, 0.1), darkMat(), -radius * 0.98, 0.62, side * radius * 0.35);
+      for (const sz of [-1, 1]) add(box('exhaust', 0.12, 0.12, 0.1), darkMat(), min.x + 0.04, Math.min(0.62, fit.deck - 0.06), sz * side * 0.35);
     } else if (id === 'guided_munitions' && vehicle) {
-      add(box('fcs', 0.14, 0.1, 0.14), lensMat(), radius * 0.35, 0.95, radius * 0.3);
+      const [x, y, z] = fit.turretTop ?? [max.x * 0.3, fit.deck, 0];
+      add(box('fcs', 0.14, 0.1, 0.14), lensMat(), x + 0.12, y + 0.06, z + 0.22).userData.onTurret = fit.turretTop !== null;
     }
   }
   return out;
+}
+
+/**
+ * Medidas reais do modelo para assentar o equipamento: caixa do casco (sem antenas), altura do
+ * convés e topo da torre (no referencial do corpo).
+ */
+interface EquipmentFit {
+  hull: THREE.Box3;
+  deck: number;
+  /** Topo da torre no referencial da própria torre (null sem torre). */
+  turretTop: [number, number, number] | null;
+}
+
+const fits = new Map<UnitType, EquipmentFit>();
+function equipmentFit(type: UnitType): EquipmentFit {
+  let f = fits.get(type);
+  if (f) return f;
+  const model = unitModel(type);
+  const hull = new THREE.Box3().setFromBufferAttribute(model.hull.body.getAttribute('position') as THREE.BufferAttribute);
+  // rodas e esteiras ficam fora da caixa do casco, mas a placa precisa passar por fora delas
+  for (const w of model.motion.wheels) for (const at of w.at) hull.expandByPoint(new THREE.Vector3(at[0], at[1], at[2] + Math.sign(at[2]) * 0.03));
+  // convés: a altura mais comum do topo (ignora antenas e mastros finos pelo percentil)
+  const pos = model.hull.body.getAttribute('position') as THREE.BufferAttribute;
+  const ys: number[] = [];
+  for (let i = 0; i < pos.count; i++) ys.push(pos.getY(i));
+  ys.sort((a, b) => a - b);
+  const deck = ys[Math.floor(ys.length * 0.92)] ?? 0.7;
+  let turretTop: [number, number, number] | null = null;
+  if (model.turret) {
+    const tb = new THREE.Box3().setFromBufferAttribute(model.turret.body.getAttribute('position') as THREE.BufferAttribute);
+    // teto da torre: só o miolo (perto do pivô), sem o cano, o radar ou o casulo elevados
+    const tys: number[] = [];
+    const tp = model.turret.body.getAttribute('position') as THREE.BufferAttribute;
+    for (let i = 0; i < tp.count; i++) if (Math.abs(tp.getX(i)) < 0.4 && Math.abs(tp.getZ(i)) < 0.45) tys.push(tp.getY(i));
+    tys.sort((a, b) => a - b);
+    const top = Math.min(tys[Math.floor(tys.length * 0.7)] ?? tb.max.y, 0.6);
+    // no referencial da torre (as peças ali giram com ela)
+    turretTop = [0, top, 0];
+  }
+  f = { hull, deck, turretTop };
+  fits.set(type, f);
+  return f;
 }
 
 function layerMeshes(l: ModelLayers, owner: number): THREE.Mesh[] {
@@ -89,6 +145,8 @@ export class UnitVisual {
   facing = 0;
   turretAngle = 0;
   private equipment = new THREE.Group();
+  /** Equipamento montado na torre (mira térmica, direção de tiro). */
+  private readonly turretEquipment = new THREE.Group();
   private equipmentKey = '';
   private readonly refitRing: THREE.Mesh;
   private refitPulse = 0;
@@ -149,6 +207,7 @@ export class UnitVisual {
     // ordem de giro: rolagem e arfagem no referencial do veículo, depois o rumo
     this.body.rotation.order = 'YZX';
     this.body.add(this.equipment);
+    this.turret?.add(this.turretEquipment);
     this.buildMotion(model.motion);
     const vehicle = UNITS[type].armor === 'vehicle';
     this.hp = new HealthBar(vehicle ? 1.8 : 1.2, type === 'artillery' || type === 'rocket_artillery' ? 2.4 : type === 'mbt' ? 2.3 : vehicle ? 2.1 : 1.6);
@@ -221,9 +280,8 @@ export class UnitVisual {
     if (key === this.equipmentKey) return;
     this.equipmentKey = key;
     this.equipment.clear();
-    const model = unitModel(this.type);
-    const top: [number, number, number] | null = model.turret ? [model.turretPivot[0], model.turretPivot[1] + 0.25, model.turretPivot[2]] : null;
-    for (const part of equipmentParts(this.type, mods, UNITS[this.type].radius, top)) this.equipment.add(part);
+    this.turretEquipment.clear();
+    for (const part of equipmentParts(this.type, mods, equipmentFit(this.type))) (part.userData.onTurret && this.turret ? this.turretEquipment : this.equipment).add(part);
   }
 
   onFire(): void {
