@@ -22,6 +22,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
   const pausedBy = useHudStore((s) => s.pausedBy);
   const speed = useHudStore((s) => s.speed);
   const showFps = useSettingsStore((s) => s.showFps);
+  const closeUp = useHudStore((s) => s.closeUp);
   const roster = useAppStore((s) => s.match?.players ?? []);
   const sandbox = useAppStore((s) => s.match?.mode === 'sandbox');
   const connStatus = useAppStore((s) => s.connStatus);
@@ -160,6 +161,15 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
           onClick={() => runtime.setSpeed(nextSpeed)}
         >
           {speed}×
+        </button>
+        <button
+          className={`btn min-h-8 px-2 py-1 text-xs whitespace-nowrap ${closeUp ? 'btn-primary' : ''}`}
+          onClick={() => runtime.toggleCloseUp()}
+          title="Visão aproximada: a câmera desce perto das tropas e acompanha a seleção; role para chegar mais perto e use Q/E para girar (V; Esc sai)"
+          aria-label="Visão aproximada"
+          aria-pressed={closeUp}
+        >
+          🎥<span className="hidden lg:inline">De perto</span>
         </button>
         <button
           className={`btn min-h-8 px-2 py-1 text-xs whitespace-nowrap ${globeOpen ? 'btn-primary' : ''}`}

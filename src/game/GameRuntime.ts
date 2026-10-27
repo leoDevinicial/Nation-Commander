@@ -14,6 +14,7 @@ import { CameraController } from './render/CameraController.ts';
 import { Effects } from './render/Effects.ts';
 import { disposeSharedResources } from './render/palette.ts';
 import { RocketLayer } from './render/RocketLayer.ts';
+import { TrackMarks } from './render/TrackMarks.ts';
 import { BIOME_TINT, buildTerrain, type TerrainHandle } from './render/TerrainFactory.ts';
 import { cloudUniforms, disposeMaterials, fogUniforms, setCloudShadows, weatherUniforms } from './render/materials.ts';
 import { disposeBuildingModels } from './render/models/buildingModels.ts';
@@ -109,6 +110,9 @@ const DRAG_THRESHOLD = 6;
  * Coordena cena 3D, entrada e comunicação com o servidor. O estado autoritativo vem dos
  * snapshots do servidor; aqui ficam apenas interpolação, seleção e intenções do jogador.
  */
+/** Edifícios em que a tecla V produz uma tropa (nos outros casos, V liga a visão aproximada). */
+const PRODUCERS_WITH_V: readonly BuildingType[] = (Object.keys(UNITS) as UnitType[]).filter((u) => UNITS[u].hotkey === 'V').map((u) => UNITS[u].producedBy);
+
 export class GameRuntime {
   readonly map: MapData;
   readonly mySlot: number;
@@ -144,6 +148,10 @@ export class GameRuntime {
   /** Aeronaves, mísseis, faróis dos silos e alvos (Fase 7). */
   private readonly airLayer: AirLayer;
   private readonly rocketLayer: RocketLayer;
+  private readonly trackMarks: TrackMarks;
+  /** Visão aproximada: entidade acompanhada pela câmera e o zoom de antes (para voltar). */
+  private follow: number | null = null;
+  private zoomBeforeCloseUp = 48;
   private readonly buildings = new Map<number, TrackedBuilding>();
   private readonly selection = new Set<number>();
   private readonly raycaster = new THREE.Raycaster();
@@ -281,6 +289,9 @@ export class GameRuntime {
     this.scene.add(this.airLayer.group);
     this.rocketLayer = new RocketLayer(this.effects, (at, k) => this.shakeNear(at, k), 72, opts.profile.maxEffects > 60 ? 220 : 110);
     this.scene.add(this.rocketLayer.group);
+    // rastros de esteira: menos marcas guardadas nos presets leves
+    this.trackMarks = new TrackMarks(opts.profile.maxEffects > 60 ? 3000 : 1200);
+    this.scene.add(this.trackMarks.mesh);
 
     this.selectionBox = document.createElement('div');
     this.selectionBox.className = 'selection-box';
@@ -440,6 +451,7 @@ export class GameRuntime {
       let t = this.units.get(u.id);
       if (!t) {
         const visual = new UnitVisual(u.id, u.type, u.owner, u.owner === this.mySlot);
+        visual.treadMarks = this.trackMarks;
         const p = new THREE.Vector2(u.x, u.y);
         t = { visual, prev: p.clone(), curr: p.clone(), prevFacing: u.facing, currFacing: u.facing, snap: u };
         visual.renderPos.copy(p);
@@ -676,6 +688,7 @@ export class GameRuntime {
       this.cameraCtl.distance = this.intro.from + (this.intro.to - this.intro.from) * e;
       if (this.intro.t >= 1) this.intro = null;
     }
+    this.updateFollow(dt);
     this.cameraCtl.tick(dt);
     this.cameraCtl.apply();
     if (this.opts.profile.cinematic) {
@@ -709,6 +722,7 @@ export class GameRuntime {
     this.cargo.frame(alpha, dt);
     this.airLayer.frame(alpha, dt);
     this.rocketLayer.update(dt);
+    this.trackMarks.update(dt);
     this.updateAirTargeting();
     if (this.hudActive) {
       audio.setListener(this.cameraCtl.target.x, this.cameraCtl.target.z, this.cameraCtl.distance, this.cameraCtl.yaw);
@@ -941,7 +955,10 @@ export class GameRuntime {
       if (this.pointer.y < r.top + m) dz += speed;
       if (this.pointer.y > r.bottom - m) dz -= speed;
     }
-    if (dx || dz) this.cameraCtl.pan(dx, dz);
+    if (dx || dz) {
+      this.cameraCtl.pan(dx, dz);
+      this.follow = null;
+    }
     if (k.has('KeyQ')) this.cameraCtl.rotate(dt * 1.6);
     if (k.has('KeyE')) this.cameraCtl.rotate(-dt * 1.6);
   }
@@ -1023,6 +1040,7 @@ export class GameRuntime {
       mode: this.mode,
       fps: this.fps,
       sandbox: s.sandbox ?? null,
+      closeUp: this.cameraCtl.closeUp,
     });
   }
 
@@ -1048,6 +1066,57 @@ export class GameRuntime {
   }
 
   // ------------------------------------------------------------ Sandbox
+
+  // ------------------------------------------------------------ visão aproximada
+
+  get closeUp(): boolean {
+    return this.cameraCtl.closeUp;
+  }
+
+  toggleCloseUp(): void {
+    this.setCloseUp(!this.cameraCtl.closeUp);
+  }
+
+  /**
+   * Visão aproximada: a câmera desce perto das tropas e acompanha a seleção (a primeira unidade
+   * ou o edifício escolhido). Mexer a câmera solta o acompanhamento; sair volta ao zoom de antes.
+   */
+  setCloseUp(on: boolean): void {
+    if (on === this.cameraCtl.closeUp) return;
+    const ctl = this.cameraCtl;
+    if (on) {
+      this.zoomBeforeCloseUp = ctl.distance;
+      ctl.closeUp = true;
+      this.intro = null;
+      const id = [...this.selection].find((x) => this.units.has(x)) ?? [...this.selection][0] ?? null;
+      this.follow = id;
+      const b = id !== null ? this.buildings.get(id) : undefined;
+      ctl.zoomTo(b ? 4 + BUILDINGS[b.snap.type].size * 2.6 : 6.5);
+    } else {
+      ctl.closeUp = false;
+      this.follow = null;
+      ctl.zoomTo(Math.max(16, this.zoomBeforeCloseUp));
+    }
+    this.publishHud();
+  }
+
+  /** Acompanha a entidade seguida (e troca para a nova seleção única, na visão aproximada). */
+  private updateFollow(dt: number): void {
+    if (!this.cameraCtl.closeUp) return;
+    if (this.selection.size === 1) {
+      const only = [...this.selection][0]!;
+      if (only !== this.follow && (this.units.has(only) || this.buildings.has(only))) this.follow = only;
+    }
+    if (this.follow === null) return;
+    const p = this.positionOf(this.follow);
+    if (!p) {
+      this.follow = null;
+      return;
+    }
+    const k = 1 - Math.exp(-dt * 6);
+    const t = this.cameraCtl.target;
+    this.cameraCtl.lookAt(t.x + (p.x - t.x) * k, t.z + (p.y - t.z) * k);
+  }
 
   /** Geração do míssil que sai deste silo (2 no nível 2). */
   missileGenOf(siloId: number): number {
@@ -1588,6 +1657,7 @@ export class GameRuntime {
     switch (e.code) {
       case 'Escape':
         if (this.mode.kind !== 'normal') this.cancelMode();
+        else if (this.cameraCtl.closeUp) this.setCloseUp(false);
         else this.clearSelection();
         break;
       case 'KeyF':
@@ -1610,6 +1680,11 @@ export class GameRuntime {
         // atalhos de construção (com o Centro de Comando selecionado) e de produção
         const key = e.code.replace(/^Key/, '');
         const b = this.selectedOwnBuilding();
+        // V: visão aproximada (com um quartel ou fábrica selecionado, V continua produzindo)
+        if (key === 'V' && (!b || b.snap.progress < 1 || !PRODUCERS_WITH_V.includes(b.snap.type))) {
+          this.toggleCloseUp();
+          break;
+        }
         if (!b || b.snap.progress < 1) break;
         if (b.snap.type === 'hq') {
           if (key === CITIZEN.hotkey) {
@@ -1683,7 +1758,10 @@ export class GameRuntime {
     if (d?.button === 1) {
       // botão do meio: arrasta o mapa; com Alt ou Ctrl, gira
       if (e.altKey || e.ctrlKey) this.cameraCtl.rotate(-dx * 0.006);
-      else this.cameraCtl.pan(-dx * 0.08, dy * 0.08);
+      else {
+        this.cameraCtl.pan(-dx * 0.08, dy * 0.08);
+        this.follow = null;
+      }
       return;
     }
     if (d?.button === 0) {
@@ -2113,6 +2191,7 @@ export class GameRuntime {
       this.cargo.dispose();
       this.airLayer.dispose();
       this.rocketLayer.dispose();
+      this.trackMarks.dispose();
       this.terrain.dispose();
       this.territoryLayer.dispose();
       this.fogTexture.dispose();
@@ -2136,6 +2215,7 @@ export class GameRuntime {
     disposeCargoModels();
     this.airLayer.dispose();
       this.rocketLayer.dispose();
+      this.trackMarks.dispose();
     disposeAirModels();
     disposeBuildingModels();
     disposeMaterials();

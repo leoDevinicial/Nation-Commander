@@ -112,6 +112,8 @@ export interface HudState {
   perf: PerfHud | null;
   /** Opções do modo Sandbox (null nas partidas normais). */
   sandbox: { instant: boolean; aiActive: boolean; reveal: boolean } | null;
+  /** Visão aproximada da câmera ligada. */
+  closeUp: boolean;
   /** Interface de toque ativa (aparelho de toque ou toque detectado nesta partida). */
   touchUi: boolean;
   touchTool: TouchTool;
@@ -145,6 +147,7 @@ export const useHudStore = create<HudState>((set) => ({
   fps: 0,
   perf: null,
   sandbox: null,
+  closeUp: false,
   touchUi: false,
   touchTool: 'select',
   touchAdditive: false,

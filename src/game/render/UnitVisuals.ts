@@ -6,6 +6,7 @@ import type { ModelLayers } from './models/kit.ts';
 import { unitModel } from './models/unitModels.ts';
 import type { ModId } from '../../../shared/sim/modernization.ts';
 import { sharedGeometry, sharedMaterial } from './palette.ts';
+import type { TrackMarks } from './TrackMarks.ts';
 
 const plateMat = () => sharedMaterial('mod-plate', () => new THREE.MeshStandardMaterial({ color: '#4b5143', roughness: 0.85, metalness: 0.25 }));
 const darkMat = () => sharedMaterial('mod-dark', () => new THREE.MeshStandardMaterial({ color: '#23272b', roughness: 0.6, metalness: 0.4 }));
@@ -100,6 +101,14 @@ export class UnitVisual {
   private travel = 0;
   private gait = 0;
   private readonly lastPos = new THREE.Vector2(NaN, NaN);
+  /** Rastros de esteira no chão (veículos de lagartas): distância desde a última marca. */
+  treadMarks: TrackMarks | null = null;
+  private markAcc = 0;
+  /** Suspensão: velocidade e rumo do quadro anterior e a inclinação atual (rolagem e arfagem). */
+  private lastSpeed = 0;
+  private lastFacing = NaN;
+  private roll = 0;
+  private pitchTilt = 0;
   /** Casulo de foguetes articulado (lança-foguetes) e sua elevação atual. */
   private pod: THREE.Group | null = null;
   private podElev = 0;
@@ -134,6 +143,8 @@ export class UnitVisual {
     // anel âmbar pulsante: unidade parada na instalação recebendo um pacote
     this.refitRing = selectionRing(UNITS[type].radius + 0.55, '#f0b84a');
     this.group.add(this.refitRing);
+    // ordem de giro: rolagem e arfagem no referencial do veículo, depois o rumo
+    this.body.rotation.order = 'YZX';
     this.body.add(this.equipment);
     this.buildMotion(model.motion);
     const vehicle = UNITS[type].armor === 'vehicle';
@@ -286,6 +297,16 @@ export class UnitVisual {
       if (dx * dx + dy * dy < 9) step = dx * Math.cos(this.facing) + dy * Math.sin(this.facing);
     }
     this.lastPos.copy(this.renderPos);
+    const treads = unitModel(this.type).motion.treads;
+    if (treads && this.treadMarks && step !== 0) {
+      // um par de marcas a cada trecho do comprimento de uma "pegada" da esteira
+      this.markAcc += Math.abs(step);
+      const spacing = 0.34;
+      if (this.markAcc >= spacing) {
+        this.markAcc %= spacing;
+        this.treadMarks.add(this.renderPos.x, this.renderPos.y, this.facing, treads.gauge, treads.width * 0.95, spacing * 1.08);
+      }
+    }
     const going = moving && Math.abs(step) > 1e-4;
     this.gait += ((going ? 1 : 0) - this.gait) * Math.min(1, dt * 8);
     if (step !== 0 || this.gait > 0.01) {
@@ -297,10 +318,27 @@ export class UnitVisual {
       const stride = (this.travel / STRIDE) * Math.PI * 2;
       this.body.position.y = Math.abs(Math.sin(stride)) * 0.06 * this.gait;
       this.body.rotation.z = -0.08 * this.gait;
-    } else if (moving) {
-      // leve balanço do chassi em movimento
-      this.bob += dt * 9;
-      this.body.rotation.z = Math.sin(this.bob) * 0.015;
+    } else {
+      // suspensão: o chassi inclina para fora nas curvas, afunda a traseira ao acelerar e a
+      // frente ao frear; tudo amortecido (mola), mais um leve balanço do terreno em movimento
+      const speed = dt > 0 ? step / dt : 0;
+      let turn = 0;
+      if (!Number.isNaN(this.lastFacing) && dt > 0) turn = Math.atan2(Math.sin(this.facing - this.lastFacing), Math.cos(this.facing - this.lastFacing)) / dt;
+      this.lastFacing = this.facing;
+      // velocidade filtrada: a interpolação entre snapshots tem pequenos trancos que não são aceleração
+      const smoothSpeed = this.lastSpeed + (speed - this.lastSpeed) * (1 - Math.exp(-dt * 4));
+      const accel = dt > 0 ? (smoothSpeed - this.lastSpeed) / dt : 0;
+      this.lastSpeed = smoothSpeed;
+      const tracked = !!unitModel(this.type).motion.treads;
+      const wantRoll = THREE.MathUtils.clamp(-turn * smoothSpeed * (tracked ? 0.006 : 0.012), -0.07, 0.07);
+      const wantPitch = THREE.MathUtils.clamp(accel * (tracked ? 0.006 : 0.009), -0.06, 0.06);
+      const k = 1 - Math.exp(-dt * 7);
+      this.roll += (wantRoll - this.roll) * k;
+      this.pitchTilt += (wantPitch - this.pitchTilt) * k;
+      if (moving) this.bob += dt * 9;
+      const rumble = moving ? Math.sin(this.bob) * 0.012 + Math.sin(this.bob * 2.3) * 0.006 : 0;
+      this.body.rotation.x = this.roll;
+      this.body.rotation.z = this.pitchTilt + rumble;
     }
     this.hp.set(hpFraction);
     this.hp.group.visible = showHp;
