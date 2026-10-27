@@ -411,6 +411,8 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
       return e.seller === slot || e.buyer === slot || sim.isVisibleTo(slot, e.pos);
     case 'shot':
       return sim.isVisibleTo(slot, e.from) || sim.isVisibleTo(slot, e.to);
+    case 'salvo_impact':
+      return e.owner === slot || sim.isVisibleTo(slot, e.pos);
     case 'destroyed':
       return e.owner === slot || e.killerOwner === slot || sim.isVisibleTo(slot, e.pos);
     case 'construction_started':

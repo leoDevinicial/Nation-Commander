@@ -15,6 +15,12 @@ export interface UnitModel {
   muzzle: [number, number, number];
   /** Peças que se movem conforme a distância percorrida (esteiras, rodas, pernas). */
   motion: UnitMotion;
+  /**
+   * Casulo de foguetes articulado (lança-foguetes): gira na dobradiça `hinge` (referencial da
+   * torre) entre `stowed` (deitado, em deslocamento) e `raised` (erguido para a salva). `tubes`
+   * são as bocas dos tubos no referencial do casulo, que aponta para +x.
+   */
+  pod?: { layers: ModelLayers; hinge: [number, number, number]; tubes: [number, number, number][]; stowed: number; raised: number };
 }
 
 type V3 = [number, number, number];
@@ -105,7 +111,7 @@ export function unitModel(type: UnitType): UnitModel {
 
 export function disposeUnitModels(): void {
   for (const m of cache.values()) {
-    for (const l of [m.hull, m.turret]) if (l) for (const g of [l.body, l.accent, l.glass]) g.dispose();
+    for (const l of [m.hull, m.turret, m.pod?.layers]) if (l) for (const g of [l.body, l.accent, l.glass]) g.dispose();
     m.motion.treads?.top.dispose();
     m.motion.treads?.bottom.dispose();
     for (const w of m.motion.wheels) w.geo.dispose();
@@ -657,26 +663,57 @@ function buildRocketArtillery(): BuiltUnit {
   hull.accent.box(0.3, 0.14, 0.02, '#ffffff', [0.85, 0.75, 0.453]);
   hull.accent.box(0.3, 0.14, 0.02, '#ffffff', [0.85, 0.75, -0.453]);
 
+  // berço do casulo sobre a carroceria
+  b.box(1.2, 0.08, 0.7, C.oliveDark, [-0.55, 0.62, 0]);
+
+  // plataforma giratória com os braços da dobradiça e a cabine do operador
   const turret = layers();
   const t = turret.body;
-  // base giratória e casulo de 12 tubos elevado ~30°
-  t.cyl(0.32, 0.36, 0.14, C.oliveDark, [0, 0.07, 0], undefined, 10);
-  const elev = 0.5;
-  const rot: [number, number, number] = [0, 0, elev];
-  t.box(1.5, 0.56, 0.74, C.olive, [0.15, 0.55, 0], rot);
-  const cx = 0.15 + Math.cos(elev) * 0.76;
-  const cy = 0.55 + Math.sin(elev) * 0.76;
+  t.cyl(0.36, 0.4, 0.12, C.oliveDark, [0, 0.06, 0], undefined, 12);
+  for (const z of [0.36, -0.36]) t.box(0.24, 0.26, 0.06, C.metalDark, [-0.5, 0.2, z]);
+  t.box(0.3, 0.22, 0.3, C.olive, [0.25, 0.2, 0.3]);
+  turret.glass.box(0.02, 0.1, 0.22, '#ffffff', [0.41, 0.24, 0.3]);
+
+  // casulo com 12 tubos (3 × 4), em camuflagem de faixas: dobradiça atrás, bocas à frente
+  const pod = layers();
+  const pb = pod.body;
+  const L = 1.62;
+  pb.box(L, 0.5, 0.74, '#9b6a43', [L / 2, 0.3, 0]);
+  // faixas de camuflagem verde (laterais e topo)
+  for (const [x, w] of [
+    [0.3, 0.32],
+    [0.95, 0.26],
+    [1.4, 0.2],
+  ] as const) {
+    for (const z of [0.373, -0.373]) pb.box(w, 0.5, 0.012, '#5a6440', [x, 0.3, z], [0.5, 0, 0]);
+    pb.box(w * 0.9, 0.012, 0.74, '#5a6440', [x + 0.08, 0.553, 0], [0, 0.4, 0]);
+  }
+  // nervuras de reforço e cintas
+  for (const x of [0.12, 0.62, 1.12, 1.52]) pb.box(0.05, 0.54, 0.78, C.oliveDark, [x, 0.3, 0]);
+  // face dos tubos: moldura e bocas escuras
+  pb.box(0.04, 0.52, 0.76, C.metalDark, [L + 0.01, 0.3, 0]);
+  const tubes: [number, number, number][] = [];
   for (let r = 0; r < 3; r++)
     for (let c = 0; c < 4; c++) {
-      const dy = (r - 1) * 0.16;
-      const dz = (c - 1.5) * 0.16;
-      t.cyl(0.055, 0.055, 0.04, '#1c1d1b', [cx - Math.sin(elev) * dy, cy + Math.cos(elev) * dy, dz], [0, 0, -(Math.PI / 2 - elev)], 8);
+      const y = 0.14 + r * 0.16;
+      const z = (c - 1.5) * 0.17;
+      pb.cyl(0.062, 0.062, 0.03, '#141513', [L + 0.035, y, z], [0, 0, -Math.PI / 2], 10);
+      pb.cyl(0.03, 0.03, 0.032, '#e8e2cf', [L + 0.04, y, z], [0, 0, -Math.PI / 2], 8); // ogiva do foguete no tubo
+      tubes.push([L + 0.06, y, z]);
     }
-  t.box(0.2, 0.6, 0.06, C.metalDark, [-0.2, 0.35, 0.4], [0, 0, elev]);
-  t.box(0.2, 0.6, 0.06, C.metalDark, [-0.2, 0.35, -0.4], [0, 0, elev]);
-  turret.accent.box(0.6, 0.1, 0.02, '#ffffff', [0.15, 0.55, 0.375], rot);
-  turret.accent.box(0.6, 0.1, 0.02, '#ffffff', [0.15, 0.55, -0.375], rot);
-  return { hull: hull.build(), turret: turret.build(), turretPivot: [-0.55, 0.6, 0], muzzle: [cx + 0.1, cy, 0] };
+  // traseira: saída dos gases (tampas abertas)
+  pb.box(0.03, 0.5, 0.74, '#20211e', [-0.005, 0.3, 0]);
+  // macacos hidráulicos (vão junto com o casulo)
+  for (const z of [0.3, -0.3]) pb.cyl(0.04, 0.04, 0.5, C.steel, [0.55, -0.12, z], [0, 0, 0.9], 8);
+  pod.accent.box(0.5, 0.12, 0.02, '#ffffff', [0.7, 0.36, 0.376]);
+  pod.accent.box(0.5, 0.12, 0.02, '#ffffff', [0.7, 0.36, -0.376]);
+  return {
+    hull: hull.build(),
+    turret: turret.build(),
+    turretPivot: [-0.45, 0.62, 0],
+    muzzle: [1.1, 1.2, 0],
+    pod: { layers: pod.build(), hinge: [-0.62, 0.16, 0], tubes, stowed: 0.03, raised: 0.72 },
+  };
 }
 
 /** Antiaérea autopropulsada: chassi de lagartas, torre com dois canhões e radar de busca. */

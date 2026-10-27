@@ -114,6 +114,8 @@ export interface SimulationSave {
   air?: AirSave;
   /** Militares fora do teatro em operações expedicionárias, por jogador (Fase 8). */
   detached?: number[];
+  /** Salvas de foguetes ainda em voo. */
+  salvos?: SalvoInFlight[];
   battle?: boolean;
   sandbox?: SandboxState;
 }
@@ -152,6 +154,26 @@ export const RESEARCH_CANCEL_REFUND = 0.75;
 export const SPLASH_FRACTION = 0.6;
 
 /** Multiplicador de dano de uma arma contra um alvo (antitanque contra veículos, etc.). */
+/** Salva de foguetes disparada e ainda no ar: o dano cai na área de `at` no tick do impacto. */
+export interface SalvoInFlight {
+  owner: Slot;
+  attackerId: EntityId;
+  unitType: UnitType;
+  targetId: EntityId;
+  at: Vec2;
+  impactTick: number;
+  /** Dano base já com os pacotes de modernização do lançador. */
+  base: number;
+}
+
+/** Preparo do lança-foguetes ao parar para atirar (estabilizar e erguer o casulo). */
+export const SALVO_DEPLOY_TICKS = Math.round(1.4 * TICK_RATE);
+
+/** Ticks de voo de uma salva: um instante na rampa mais o tempo de cruzar a distância. */
+export function salvoFlightTicks(distance: number): number {
+  return Math.round((0.9 + distance / 26) * TICK_RATE);
+}
+
 export function targetMultiplier(w: WeaponDef, target: Entity): number {
   if (target.kind === 'building') return w.vsBuilding ?? 1;
   return UNITS[target.type].armor === 'vehicle' ? (w.vsVehicle ?? 1) : (w.vsInfantry ?? 1);
@@ -191,6 +213,8 @@ export class Simulation {
   private events: SimEvent[] = [];
   private nextId = 1;
   private lastAlertTick: number[];
+  /** Salvas de foguetes em voo (o dano chega no impacto). */
+  private salvos: SalvoInFlight[] = [];
   winner: Slot | null = null;
   ended = false;
   /** Pares em guerra formal ("a:b", a < b). Sem guerra não há disparo nem ordem de ataque. */
@@ -305,6 +329,7 @@ export class Simulation {
       trade: this.trade.toSave(),
       air: this.air.toSave(),
       detached: [...this.detached],
+      ...(this.salvos.length ? { salvos: this.salvos.map((v) => ({ ...v, at: { ...v.at } })) } : {}),
       ...(this.battle ? { battle: true } : {}),
       ...(this.sandbox ? { sandbox: { ...this.sandbox, slots: [...this.sandbox.slots] } } : {}),
     };
@@ -359,6 +384,7 @@ export class Simulation {
     sim.trade.load(data.trade);
     sim.air.load(data.air);
     sim.detached = [...(data.detached ?? [])];
+    sim.salvos = (data.salvos ?? []).map((v) => ({ ...v, at: { ...v.at } }));
     sim.battle = !!data.battle;
     sim.sandbox = data.sandbox ? { ...data.sandbox, slots: [...data.sandbox.slots] } : null;
     return sim;
@@ -1278,6 +1304,7 @@ export class Simulation {
     this.trade.step();
     this.air.step();
     for (const u of this.units) this.updateUnit(u);
+    this.updateSalvos();
     this.updateAttrition();
     if (this.tick % TICK_RATE === 0) this.evacuateForeignTerritory();
     for (const b of this.buildings) this.updateBuildingWeapon(b);
@@ -1809,7 +1836,7 @@ export class Simulation {
         return;
       }
       case 'attackMove': {
-        const target = this.validEngageTarget(u, reach * 1.5) ?? this.acquireTarget(u.pos, u.owner, reach);
+        const target = this.validEngageTarget(u, reach * 1.5) ?? this.acquireTarget(u.pos, u.owner, reach, def.weapon.minRange) ?? this.acquireTarget(u.pos, u.owner, reach);
         if (target) {
           if (u.engageId !== target.id) {
             u.engageId = target.id;
@@ -1836,7 +1863,7 @@ export class Simulation {
         return;
       }
       case 'idle': {
-        const target = this.validEngageTarget(u, reach * 1.5) ?? this.acquireTarget(u.pos, u.owner, reach);
+        const target = this.validEngageTarget(u, reach * 1.5) ?? this.acquireTarget(u.pos, u.owner, reach, def.weapon.minRange) ?? this.acquireTarget(u.pos, u.owner, reach);
         if (!target) {
           u.engageId = null;
           u.activity = 'idle';
@@ -1865,14 +1892,14 @@ export class Simulation {
    * Seleção de alvo determinística: inimigo (em guerra) visível mais próximo dentro do raio, unidades antes
    * de edifícios; empate resolvido pelo menor id. Respeita a névoa de guerra do dono.
    */
-  acquireTarget(from: Vec2, owner: Slot, radius: number): Entity | null {
+  acquireTarget(from: Vec2, owner: Slot, radius: number, minRadius = 0): Entity | null {
     let best: Entity | null = null;
     let bestScore = Infinity;
     for (const e of this.entities.values()) {
       if (e.hp <= 0 || !this.hostile(owner, e.owner)) continue;
       if (!this.canSee(owner, e)) continue;
       const d = this.distanceToEdge(from, e);
-      if (d > radius) continue;
+      if (d > radius || d < minRadius) continue;
       const score = d + (e.kind === 'building' ? 1000 : 0);
       if (score < bestScore || (score === bestScore && best !== null && e.id < best.id)) {
         best = e;
@@ -1887,7 +1914,14 @@ export class Simulation {
     // armamento conforme o equipamento instalado nesta unidade
     const fx = combineMods(u.mods);
     const d = this.distanceToEdge(u.pos, target);
+    // alcance mínimo (lança-foguetes): perto demais, recua para a distância de tiro
+    if (weapon.minRange !== undefined && d < weapon.minRange) {
+      this.backOff(u, target, weapon.minRange);
+      return;
+    }
     if (d <= weapon.range + fx.rangeAdd) {
+      // lança-foguetes: ao parar, baixa os macacos e ergue o casulo antes da primeira salva
+      if (weapon.salvo && u.activity !== 'attacking') u.cooldown = Math.max(u.cooldown, SALVO_DEPLOY_TICKS);
       u.activity = 'attacking';
       u.path = [];
       u.facing = Math.atan2(target.pos.y - u.pos.y, target.pos.x - u.pos.x);
@@ -1905,11 +1939,96 @@ export class Simulation {
         return;
       }
     }
+    if (this.followPath(u) && u.path.length === 0 && u.halt === 'standoff') {
+      // não chega mais perto das construções inimigas: o alvo ficou fora do alcance
+      u.halt = null;
+      if (u.order.kind === 'attack') this.setIdle(u);
+      else u.engageId = null;
+    }
+  }
+
+  /** Recuo do lançador quando o alvo está dentro do alcance mínimo. */
+  private backOff(u: Unit, target: Entity, minRange: number): void {
+    u.activity = 'moving';
+    u.repathTimer--;
+    if (u.repathTimer <= 0 || u.pathIndex >= u.path.length) {
+      u.repathTimer = CHASE_REPATH_TICKS;
+      let dx = u.pos.x - target.pos.x;
+      let dy = u.pos.y - target.pos.y;
+      const len = Math.hypot(dx, dy) || 1;
+      dx /= len;
+      dy /= len;
+      const want = minRange + this.entityRadius(target) + 2.5;
+      // tenta direto para trás e, se não der, em leque para os lados
+      let ok = false;
+      for (const turn of [0, 0.6, -0.6, 1.2, -1.2]) {
+        const c = Math.cos(turn);
+        const s = Math.sin(turn);
+        const away = this.clampToMap({ x: target.pos.x + (dx * c - dy * s) * want, y: target.pos.y + (dx * s + dy * c) * want });
+        if (this.planPath(u, away)) {
+          ok = true;
+          break;
+        }
+      }
+      if (!ok) {
+        if (u.order.kind === 'attack') this.setIdle(u);
+        else u.engageId = null;
+        return;
+      }
+    }
     this.followPath(u);
+  }
+
+  /**
+   * Distância mínima das construções inimigas para unidades com alcance mínimo (lança-foguetes):
+   * elas disparam de longe e não entram até a beira das bases.
+   */
+  private violatesStandoff(u: Unit, p: Vec2): boolean {
+    const min = UNITS[u.type].weapon.minRange;
+    if (min === undefined) return false;
+    for (const e of this.entities.values()) {
+      if (e.kind !== 'building' || e.hp <= 0 || !this.hostile(u.owner, e.owner)) continue;
+      if (this.distanceToEdge(p, e) < min) return true;
+    }
+    return false;
+  }
+
+  /** Impacto das salvas de foguetes que chegaram neste tick. */
+  private updateSalvos(): void {
+    if (!this.salvos.length) return;
+    const due = this.salvos.filter((v) => v.impactTick <= this.tick);
+    if (!due.length) return;
+    this.salvos = this.salvos.filter((v) => v.impactTick > this.tick);
+    for (const v of due) {
+      const w = UNITS[v.unitType].weapon;
+      const radius = w.splash ?? 2;
+      for (const e of [...this.entities.values()]) {
+        if (e.hp <= 0 || !this.hostile(v.owner, e.owner)) continue;
+        if (this.distanceToEdge(v.at, e) > radius) continue;
+        // o alvo marcado leva a salva inteira; quem estava em volta, a fração de área
+        const dmg = v.base * targetMultiplier(w, e) * (e.id === v.targetId ? 1 : SPLASH_FRACTION);
+        this.players[v.owner]!.stats.damageDealt += Math.min(dmg, e.hp);
+        e.hp -= dmg;
+        if (this.tick - (this.lastAlertTick[e.owner] ?? -Infinity) >= UNDER_ATTACK_ALERT_TICKS) {
+          this.lastAlertTick[e.owner] = this.tick;
+          this.emit({ type: 'under_attack', tick: this.tick, id: e.id, owner: e.owner, pos: { ...e.pos } });
+        }
+        if (e.hp <= 0) this.markDestroyed(e, v.owner);
+      }
+      this.emit({ type: 'salvo_impact', tick: this.tick, owner: v.owner, attackerId: v.attackerId, pos: { ...v.at }, radius, rockets: w.salvo ?? 1 });
+    }
   }
 
   private fire(attacker: Unit | Building, target: Entity, damage: number, cooldownSeconds: number, splash?: { radius: number; weapon: WeaponDef; base: number }): void {
     if (target.hp <= 0) return;
+    // salva de foguetes: sai agora, o dano chega à área do alvo depois do voo
+    if (attacker.kind === 'unit' && splash?.weapon.salvo) {
+      attacker.cooldown = Math.round(cooldownSeconds * TICK_RATE);
+      const flightTicks = salvoFlightTicks(dist(attacker.pos, target.pos));
+      this.salvos.push({ owner: attacker.owner, attackerId: attacker.id, unitType: attacker.type, targetId: target.id, at: { ...target.pos }, impactTick: this.tick + flightTicks, base: splash.base });
+      this.emit({ type: 'shot', tick: this.tick, attackerId: attacker.id, targetId: target.id, from: { ...attacker.pos }, to: { ...target.pos }, damage: Math.round(damage), salvo: splash.weapon.salvo, flightTicks });
+      return;
+    }
     // dano em área (foguetes): quem estiver perto do ponto de impacto recebe 60% do dano
     if (splash) {
       for (const e of [...this.entities.values()]) {
@@ -2064,6 +2183,12 @@ export class Simulation {
     // a fronteira pode ter avançado depois do planejamento: não cruza para território proibido
     if (!this.canEnterWorld(u.owner, next) && this.canEnterWorld(u.owner, u.pos)) {
       u.path = [];
+      return true;
+    }
+    // lança-foguetes: para antes de chegar perto das construções inimigas
+    if (this.violatesStandoff(u, next) && !this.violatesStandoff(u, u.pos)) {
+      u.path = [];
+      u.halt = 'standoff';
       return true;
     }
     u.pos = this.stepToward(u.pos, next);

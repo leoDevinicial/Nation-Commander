@@ -52,6 +52,8 @@ export interface Unit {
   replans: number;
   lastProgressDist: number;
   repathTimer: number;
+  /** Por que o último caminho parou antes do fim (lança-foguetes perto de construções inimigas). */
+  halt?: 'standoff' | null;
   /** Sofrendo atrito em território inimigo neste momento (sem linha de suprimento). */
   attrition: boolean;
 }
@@ -205,7 +207,20 @@ export interface MapData {
 }
 
 export type SimEvent =
-  | { type: 'shot'; tick: number; attackerId: EntityId; targetId: EntityId; from: Vec2; to: Vec2; damage: number }
+  | {
+      type: 'shot';
+      tick: number;
+      attackerId: EntityId;
+      targetId: EntityId;
+      from: Vec2;
+      to: Vec2;
+      damage: number;
+      /** Salva de foguetes: quantos saíram e quantos ticks até chegarem (o impacto vem em `salvo_impact`). */
+      salvo?: number;
+      flightTicks?: number;
+    }
+  /** Chegada de uma salva de foguetes: explosões espalhadas na área (dano já aplicado). */
+  | { type: 'salvo_impact'; tick: number; owner: Slot; attackerId: EntityId; pos: Vec2; radius: number; rockets: number }
   | { type: 'destroyed'; tick: number; id: EntityId; owner: Slot; entity: 'unit' | 'building'; entityType: string; pos: Vec2; killerOwner: Slot | null }
   | { type: 'construction_started'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; pos: Vec2 }
   | { type: 'construction_completed'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; pos: Vec2 }

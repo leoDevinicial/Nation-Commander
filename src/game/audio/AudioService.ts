@@ -20,7 +20,7 @@ export type Volumes = Record<Channel | 'master', number>;
 export const DEFAULT_VOLUMES: Volumes = { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 };
 
 export type UiSound = 'click' | 'confirm' | 'error' | 'alert' | 'success' | 'hold';
-export type CombatSound = 'rifle' | 'cannon' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept';
+export type CombatSound = 'rifle' | 'cannon' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket';
 export type MissileCue = 'prepare' | 'armed' | 'authorize';
 
 /** Som de trabalho de cada edifício (os demais usam o zumbido genérico). */
@@ -54,6 +54,7 @@ const PRIORITY: Record<CombatSound, number> = {
   tower: 1,
   flak: 2,
   cannon: 2,
+  rocket: 2,
   jet: 2,
   explosion: 3,
   bomb: 4,
@@ -64,7 +65,7 @@ const PRIORITY: Record<CombatSound, number> = {
 };
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
-const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.035, tower: 0.06, cannon: 0.08, explosion: 0.06, flak: 0.05, jet: 0.4 };
+const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.035, tower: 0.06, cannon: 0.08, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4 };
 
 /**
  * Atenuação e panorâmica de um ponto do mapa para quem olha `L` (ponto da câmera, distância e giro).
@@ -303,6 +304,26 @@ export class AudioService {
         end = burst('lowpass', 900, 0.8, 0.003, 0.9, 0.45);
         thump(110, 38, 0.004, 0.9, 0.38);
         break;
+      case 'rocket': {
+        // foguete da salva: estalo da ignição e um sopro que sobe de tom e some
+        burst('highpass', 2200, 0.8, 0.002, 0.5, 0.08);
+        const n = this.noiseSource();
+        const f = ctx.createBiquadFilter();
+        f.type = 'bandpass';
+        f.Q.value = 1.4;
+        f.frequency.setValueAtTime(500, t);
+        f.frequency.exponentialRampToValueAtTime(2600, t + 0.55);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.65, t + 0.05);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+        n.connect(f).connect(g).connect(out);
+        n.start(t);
+        n.stop(t + 0.75);
+        nodes.push(n);
+        end = t + 0.75;
+        break;
+      }
       case 'flak':
         end = burst('bandpass', 1500, 2, 0.002, 0.6, 0.18);
         burst('highpass', 3000, 0.7, 0.001, 0.3, 0.05, t + 0.03);

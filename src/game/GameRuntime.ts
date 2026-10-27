@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { GameSpeed, MatchStartInfo, ServerMessage } from '../../shared/protocol.ts';
 import type { Command, SandboxToggle } from '../../shared/sim/commands.ts';
-import { BUILDINGS, CITIZEN, MILITARY_RESEARCH, MILITARY_RESEARCH_IDS, RECRUIT, RESOURCE_TYPES, UNITS, emptyStockpile, type BuildingType, type MilitaryResearchId, type Terrain, type UnitType } from '../../shared/sim/config.ts';
+import { BUILDINGS, CITIZEN, MILITARY_RESEARCH, MILITARY_RESEARCH_IDS, RECRUIT, RESOURCE_TYPES, TICK_RATE, UNITS, emptyStockpile, type BuildingType, type MilitaryResearchId, type Terrain, type UnitType } from '../../shared/sim/config.ts';
 import { MOD_IDS, MODS, checkModernize, pickRefitFacility, type FacilityInfo, type ModId, type ModernizeCheck } from '../../shared/sim/modernization.ts';
 import { anchorForCursor, placementError } from '../../shared/sim/placement.ts';
 import type { BuildingSnapshot, Snapshot, UnitSnapshot } from '../../shared/sim/snapshot.ts';
@@ -13,6 +13,7 @@ import { renderThumbnails } from './render/Thumbnails.ts';
 import { CameraController } from './render/CameraController.ts';
 import { Effects } from './render/Effects.ts';
 import { disposeSharedResources } from './render/palette.ts';
+import { RocketLayer } from './render/RocketLayer.ts';
 import { BIOME_TINT, buildTerrain, type TerrainHandle } from './render/TerrainFactory.ts';
 import { cloudUniforms, disposeMaterials, fogUniforms, setCloudShadows, weatherUniforms } from './render/materials.ts';
 import { disposeBuildingModels } from './render/models/buildingModels.ts';
@@ -142,6 +143,7 @@ export class GameRuntime {
   private readonly heardFlights = new Set<number>();
   /** Aeronaves, mísseis, faróis dos silos e alvos (Fase 7). */
   private readonly airLayer: AirLayer;
+  private readonly rocketLayer: RocketLayer;
   private readonly buildings = new Map<number, TrackedBuilding>();
   private readonly selection = new Set<number>();
   private readonly raycaster = new THREE.Raycaster();
@@ -277,6 +279,8 @@ export class GameRuntime {
     this.effects = new Effects(this.scene, opts.profile.maxEffects, opts.profile.dynamicLights, opts.profile.cinematic ? 'cinematic' : opts.profile.ultra ? 'volumetric' : 'basic');
     this.airLayer = new AirLayer(this.effects, this.mySlot, (id) => this.positionOf(id), opts.profile.maxEffects > 60 ? 140 : 60);
     this.scene.add(this.airLayer.group);
+    this.rocketLayer = new RocketLayer(this.effects, (at, k) => this.shakeNear(at, k), 72, opts.profile.maxEffects > 60 ? 220 : 110);
+    this.scene.add(this.rocketLayer.group);
 
     this.selectionBox = document.createElement('div');
     this.selectionBox.className = 'selection-box';
@@ -504,14 +508,65 @@ export class GameRuntime {
         this.selection.delete(id);
       }
     }
+    this.clearDecorUnderBuildings();
 
     this.updateFog();
     for (const e of s.events) this.handleEvent(e);
     if (this.mode.kind === 'place') this.updateGhost();
   }
 
+  /** Chave do conjunto de construções já aplicado à vegetação (só recalcula quando muda). */
+  private decorKey = '';
+
+  /** Árvores, arbustos e pedras decorativos somem sob as construções (e voltam quando elas caem). */
+  private clearDecorUnderBuildings(): void {
+    const key = [...this.buildings.keys()].join(',');
+    if (key === this.decorKey) return;
+    this.decorKey = key;
+    const cs = this.map.cellSize;
+    const rects = [...this.buildings.values()].map(({ snap: b }) => {
+      const size = BUILDINGS[b.type].size;
+      return { x0: b.cx * cs, z0: b.cy * cs, x1: (b.cx + size) * cs, z1: (b.cy + size) * cs };
+    });
+    if (this.terrain.clearUnder(rects)) this.shadowDirty = true;
+  }
+
   private handleEvent(e: SimEvent): void {
-    if (e.type === 'shot') {
+    if (e.type === 'shot' && e.salvo) {
+      // salva do lança-foguetes: os foguetes saem dos tubos do casulo, um a um
+      const attacker = this.units.get(e.attackerId);
+      const from = new THREE.Vector3(e.from.x, 1.4, e.from.y);
+      this.rocketLayer.salvo({
+        attackerId: e.attackerId,
+        count: e.salvo,
+        flight: (e.flightTicks ?? TICK_RATE) / TICK_RATE / this.speed,
+        target: e.to,
+        spread: UNITS.rocket_artillery.weapon.splash ?? 3,
+        tube: (i, pos, dir) => {
+          const v = this.units.get(e.attackerId)?.visual;
+          if (v) v.tubeWorld(i, pos, dir);
+          else {
+            pos.copy(from);
+            dir.set(e.to.x - e.from.x, 0, e.to.y - e.from.y).normalize().setY(0.8).normalize();
+          }
+        },
+        onLaunch: () => {
+          this.units.get(e.attackerId)?.visual.rocketKick();
+          audio.playAt('rocket', e.from.x, e.from.y);
+        },
+      });
+      attacker?.visual.onFire();
+    } else if (e.type === 'salvo_impact') {
+      // os foguetes visíveis explodem por conta própria; sem eles (névoa), a área explode aqui
+      if (!this.rocketLayer.pending(e.attackerId))
+        for (let i = 0; i < Math.min(6, e.rockets); i++) {
+          const a = Math.random() * Math.PI * 2;
+          const r = Math.sqrt(Math.random()) * e.radius * 0.85;
+          this.effects.explosion(new THREE.Vector3(e.pos.x + Math.cos(a) * r, 0, e.pos.y + Math.sin(a) * r), i === 0);
+        }
+      this.effects.scorch(e.pos, e.radius * 0.8, 25);
+      this.shakeNear(e.pos, 0.18);
+    } else if (e.type === 'shot') {
       const attacker = this.units.get(e.attackerId);
       const heavy = attacker ? attacker.visual.type === 'tank' : true;
       attacker?.visual.onFire();
@@ -636,7 +691,7 @@ export class GameRuntime {
       const frac = t.snap.hp / t.snap.maxHp;
       const selected = this.selection.has(t.snap.id);
       v.setSelected(selected);
-      v.update(dt, t.snap.activity === 'moving' || t.snap.activity === 'chasing', aim, frac, selected || frac < 0.999, this.camera);
+      v.update(dt, t.snap.activity === 'moving' || t.snap.activity === 'chasing', aim, frac, selected || frac < 0.999, this.camera, t.snap.activity === 'attacking');
     }
     for (const t of this.buildings.values()) {
       const frac = t.snap.hp / t.snap.maxHp;
@@ -648,6 +703,7 @@ export class GameRuntime {
     }
     this.cargo.frame(alpha, dt);
     this.airLayer.frame(alpha, dt);
+    this.rocketLayer.update(dt);
     this.updateAirTargeting();
     if (this.hudActive) {
       audio.setListener(this.cameraCtl.target.x, this.cameraCtl.target.z, this.cameraCtl.distance, this.cameraCtl.yaw);
@@ -1395,11 +1451,16 @@ export class GameRuntime {
     const mine = (o: number) => o === this.mySlot;
     switch (e.type) {
       case 'shot': {
+        // a salva toca um sopro por foguete (na saída de cada um)
+        if (e.salvo) break;
         const attacker = this.units.get(e.attackerId);
         const sound = attacker ? (['tank', 'mbt', 'artillery', 'rocket_artillery', 'mobile_aa'].includes(attacker.visual.type) ? 'cannon' : 'rifle') : 'tower';
         audio.playAt(sound, e.from.x, e.from.y);
         break;
       }
+      case 'salvo_impact':
+        audio.playAt('explosion_big', e.pos.x, e.pos.y);
+        break;
       case 'destroyed':
         audio.playAt(e.entity === 'building' || e.entityType === 'tank' ? 'explosion_big' : 'explosion', e.pos.x, e.pos.y);
         break;
@@ -2037,6 +2098,7 @@ export class GameRuntime {
       // (caches de módulo) e continuam em uso por ele; só o que é desta cena é liberado
       this.cargo.dispose();
       this.airLayer.dispose();
+      this.rocketLayer.dispose();
       this.terrain.dispose();
       this.territoryLayer.dispose();
       this.fogTexture.dispose();
@@ -2059,6 +2121,7 @@ export class GameRuntime {
     this.cargo.dispose();
     disposeCargoModels();
     this.airLayer.dispose();
+      this.rocketLayer.dispose();
     disposeAirModels();
     disposeBuildingModels();
     disposeMaterials();

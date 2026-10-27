@@ -189,6 +189,13 @@ export interface WeaponDef {
   vsBuilding?: number;
   /** Raio de dano em área (foguetes): quem estiver perto do alvo recebe 60% do dano. */
   splash?: number;
+  /**
+   * Salva de foguetes: quantos saem do lançador a cada disparo. O dano chega à área do alvo
+   * depois do voo (quem sair dali a tempo escapa), não no instante do disparo.
+   */
+  salvo?: number;
+  /** Alcance mínimo: alvos mais perto que isso não podem ser atingidos (o lançador recua). */
+  minRange?: number;
 }
 
 export interface UnitDef {
@@ -321,9 +328,10 @@ export const UNITS: Record<UnitType, UnitDef> = {
     speed: 3.4,
     radius: 0.9,
     sight: 9,
-    weapon: { damage: 32, range: 18, cooldown: 6, splash: 3.5, vsBuilding: 1.2 },
+    weapon: { damage: 40, range: 24, cooldown: 7, splash: 3.5, vsBuilding: 1.6, salvo: 12, minRange: 7 },
     producedBy: 'factory',
-    description: 'Salvas de foguetes de longo alcance com dano em área: desfaz grupos de tropas. Frágil e lento para recarregar.',
+    description:
+      'Salvas de 12 foguetes de longo alcance com dano em área: arrasa construções e grupos de tropas de longe. Não atira em alvos a menos de 7 de distância e não se aproxima das construções inimigas. Frágil e lento para recarregar.',
     hotkey: 'L',
     armor: 'vehicle',
     requires: 'rocket_systems',

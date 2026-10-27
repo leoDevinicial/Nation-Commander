@@ -4,7 +4,7 @@ import { parseCommand } from '../sim/commands.ts';
 import { RESEARCH_CANCEL_REFUND, SPLASH_FRACTION, Simulation, targetMultiplier, type NationalLink } from '../sim/Simulation.ts';
 import { MISSILE } from '../sim/air.ts';
 import { makeSnapshot } from '../sim/snapshot.ts';
-import type { Building, Unit } from '../sim/types.ts';
+import type { Building, SimEvent, Unit } from '../sim/types.ts';
 import { militaryResearchSpeed } from '../strategic/params.ts';
 import { flatMap } from './helpers.ts';
 
@@ -185,25 +185,101 @@ describe('progressão militar — tropas novas em combate', () => {
     expect(at.filter((u) => u.hp > 0).length).toBeGreaterThanOrEqual(2);
   });
 
-  it('lança-foguetes: o impacto atinge também quem está perto do alvo (60%)', () => {
+  it('lança-foguetes: salva de 12 foguetes; o dano chega no impacto e atinge quem está perto do alvo (60%)', () => {
     const { sim } = setup();
     const rl = sim.spawnUnitNear(sim.hqOf(0)!, 'rocket_artillery')!;
     const hq1 = sim.hqOf(1)!;
     const a = sim.spawnUnitNear(hq1, 'infantry')!;
     const b = sim.spawnUnitNear(hq1, 'infantry')!;
-    // dentro da visão do próprio lança-foguetes (ele enxerga pouco: precisa de alvos à vista)
-    a.pos = { x: rl.pos.x + 7, y: rl.pos.y };
-    b.pos = { x: rl.pos.x + 8, y: rl.pos.y + 1 };
+    // à vista do lançador e além do alcance mínimo
+    a.pos = { x: rl.pos.x + 8.6, y: rl.pos.y };
+    b.pos = { x: rl.pos.x + 9.2, y: rl.pos.y + 0.8 };
     sim.drainEvents();
-    // parado, o lança-foguetes dispara sozinho contra o primeiro alvo à vista; mede o tick do
-    // disparo (fora dele só há atrito, ínfimo)
-    let drop = 0;
-    for (let i = 0; i < TICK_RATE * 5 && drop === 0; i++) {
-      const before = b.hp;
+    let shot: Extract<SimEvent, { type: 'shot' }> | null = null;
+    const pa = { ...a.pos };
+    const pb = { ...b.pos };
+    for (let i = 0; i < TICK_RATE * 5 && !shot; i++) {
+      // os alvos ficam no lugar (sem isso a infantaria avançaria contra o lançador)
+      a.pos = { ...pa };
+      b.pos = { ...pb };
       sim.step();
-      if (sim.drainEvents().some((e) => e.type === 'shot' && e.attackerId === rl.id)) drop = before - b.hp;
+      shot = sim.drainEvents().find((e): e is Extract<SimEvent, { type: 'shot' }> => e.type === 'shot' && e.attackerId === rl.id) ?? null;
     }
-    expect(drop).toBeCloseTo(UNITS.rocket_artillery.weapon.damage * SPLASH_FRACTION, 0);
+    expect(shot?.salvo).toBe(12);
+    // no disparo, ninguém foi atingido ainda (só o atrito, ínfimo, no território inimigo)
+    expect(a.hp).toBeGreaterThan(a.maxHp - 3);
+    expect(b.hp).toBeGreaterThan(b.maxHp - 3);
+    let impact = false;
+    let dropA = 0;
+    let dropB = 0;
+    for (let i = 0; i < shot!.flightTicks! && !impact; i++) {
+      a.pos = { ...pa };
+      b.pos = { ...pb };
+      const [ha, hb] = [a.hp, b.hp];
+      sim.step();
+      impact = sim.drainEvents().some((e) => e.type === 'salvo_impact' && e.attackerId === rl.id);
+      // dano do tick do impacto (fora dele só há atrito, ínfimo)
+      if (impact) [dropA, dropB] = [ha - a.hp, hb - b.hp];
+    }
+    expect(impact).toBe(true);
+    expect(sim.tick).toBe(shot!.tick + shot!.flightTicks!);
+    expect(dropA).toBeCloseTo(UNITS.rocket_artillery.weapon.damage, 0);
+    expect(dropB).toBeCloseTo(UNITS.rocket_artillery.weapon.damage * SPLASH_FRACTION, 0);
+  });
+
+  it('lança-foguetes: quem sai da área durante o voo escapa; salvar e carregar mantém a salva no ar', () => {
+    const { sim } = setup();
+    const rl = sim.spawnUnitNear(sim.hqOf(0)!, 'rocket_artillery')!;
+    const a = sim.spawnUnitNear(sim.hqOf(1)!, 'infantry')!;
+    a.pos = { x: rl.pos.x + 8.6, y: rl.pos.y };
+    const pa = { ...a.pos };
+    let shot = false;
+    for (let i = 0; i < TICK_RATE * 5 && !shot; i++) {
+      a.pos = { ...pa };
+      sim.step();
+      shot = sim.drainEvents().some((e) => e.type === 'shot' && e.attackerId === rl.id);
+    }
+    expect(shot).toBe(true);
+    const copy = Simulation.deserialize(sim.serialize());
+    const a2 = copy.get(a.id) as Unit;
+    // no original, a infantaria corre para longe; na cópia, fica parada no ponto do impacto
+    const stay = { ...a2.pos };
+    const away = { x: a.pos.x + 12, y: a.pos.y + 6 };
+    for (let i = 0; i < TICK_RATE * 3; i++) {
+      a.pos = { ...away };
+      a2.pos = { ...stay };
+      sim.step();
+      copy.step();
+    }
+    // longe da área só sobra o atrito; na cópia, a salva acerta em cheio
+    expect(a.maxHp - a.hp).toBeLessThan(5);
+    expect(a2.maxHp - a2.hp).toBeGreaterThan(UNITS.rocket_artillery.weapon.damage * 0.9);
+  });
+
+  it('lança-foguetes: não atira dentro do alcance mínimo (recua) nem se aproxima das construções inimigas', () => {
+    const { sim } = setup();
+    const rl = sim.spawnUnitNear(sim.hqOf(0)!, 'rocket_artillery')!;
+    const a = sim.spawnUnitNear(sim.hqOf(1)!, 'infantry')!;
+    a.pos = { x: rl.pos.x + 3, y: rl.pos.y };
+    a.order = { kind: 'idle' };
+    const start = { ...rl.pos };
+    let fired = false;
+    for (let i = 0; i < TICK_RATE * 2 && !fired; i++) {
+      a.pos = { x: rl.pos.x + 3, y: rl.pos.y };
+      sim.step();
+      fired = sim.drainEvents().some((e) => e.type === 'shot' && e.attackerId === rl.id);
+    }
+    expect(fired).toBe(false);
+    expect(Math.hypot(rl.pos.x - start.x, rl.pos.y - start.y)).toBeGreaterThan(1);
+
+    // ordem de ir até o QG inimigo: para antes, à distância mínima das construções
+    sim.get(a.id)!.hp = 0;
+    sim.step();
+    const hq1 = sim.hqOf(1)!;
+    expect(sim.applyCommand(0, { type: 'move', unitIds: [rl.id], x: hq1.pos.x, y: hq1.pos.y })).toBeNull();
+    for (let i = 0; i < TICK_RATE * 90 && rl.order.kind === 'move'; i++) sim.step();
+    for (const b of sim.buildings) if (b.owner === 1) expect(sim.distanceToEdge(rl.pos, b)).toBeGreaterThanOrEqual(UNITS.rocket_artillery.weapon.minRange! - 0.5);
+    expect(sim.distanceToEdge(rl.pos, hq1)).toBeLessThan(UNITS.rocket_artillery.weapon.range);
   });
 
   it('antiaérea móvel perto do alvo intercepta mísseis como uma bateria', () => {

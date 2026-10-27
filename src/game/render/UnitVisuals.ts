@@ -100,6 +100,10 @@ export class UnitVisual {
   private travel = 0;
   private gait = 0;
   private readonly lastPos = new THREE.Vector2(NaN, NaN);
+  /** Casulo de foguetes articulado (lança-foguetes) e sua elevação atual. */
+  private pod: THREE.Group | null = null;
+  private podElev = 0;
+  private podKick = 0;
 
   constructor(
     readonly id: number,
@@ -115,6 +119,14 @@ export class UnitVisual {
       this.turret.position.set(...model.turretPivot);
       for (const m of layerMeshes(model.turret, owner)) this.turret.add(m);
       this.body.add(this.turret);
+    }
+    if (model.pod && this.turret) {
+      this.pod = new THREE.Group();
+      this.pod.position.set(...model.pod.hinge);
+      for (const m of layerMeshes(model.pod.layers, owner)) this.pod.add(m);
+      this.podElev = model.pod.stowed;
+      this.pod.rotation.z = this.podElev;
+      this.turret.add(this.pod);
     }
     this.muzzleLocal = new THREE.Vector3(...model.muzzle);
     this.ring = selectionRing(UNITS[type].radius + 0.3, friendly ? '#8fe0a4' : '#ff8a7a');
@@ -204,6 +216,34 @@ export class UnitVisual {
     this.recoil = 1;
   }
 
+  /** Cada foguete que sai sacode o casulo um pouco (sem mexer no chassi). */
+  rocketKick(): void {
+    this.podKick = 1;
+  }
+
+  /**
+   * Boca de um tubo do casulo e a direção de saída, em coordenadas de mundo (lança-foguetes).
+   * Sem casulo, usa a boca do cano.
+   */
+  tubeWorld(index: number, outPos: THREE.Vector3, outDir: THREE.Vector3): void {
+    const pod = unitModel(this.type).pod;
+    if (!this.pod || !pod) {
+      this.muzzleWorld(outPos);
+      outDir.set(Math.cos(this.facing), 0.6, Math.sin(this.facing)).normalize();
+      return;
+    }
+    this.pod.updateWorldMatrix(true, false);
+    const tube = pod.tubes[index % pod.tubes.length]!;
+    outPos.set(...tube).applyMatrix4(this.pod.matrixWorld);
+    outDir.set(1, 0, 0).transformDirection(this.pod.matrixWorld);
+  }
+
+  /** Casulo já erguido o bastante para a salva sair na direção certa. */
+  get podReady(): boolean {
+    const pod = unitModel(this.type).pod;
+    return !pod || this.podElev > pod.raised - 0.08;
+  }
+
   /** Posição de mundo da boca do cano (para efeitos de disparo). */
   muzzleWorld(out = new THREE.Vector3()): THREE.Vector3 {
     const parent = this.turret ?? this.body;
@@ -212,7 +252,7 @@ export class UnitVisual {
   }
 
   /** Atualiza transformações a cada frame. */
-  update(dt: number, moving: boolean, aimAngle: number | null, hpFraction: number, showHp: boolean, camera: THREE.Camera): void {
+  update(dt: number, moving: boolean, aimAngle: number | null, hpFraction: number, showHp: boolean, camera: THREE.Camera, deployed = false): void {
     this.group.position.set(this.renderPos.x, 0, this.renderPos.y);
     // facing da simulação: ângulo no plano (x, y) → rotação em torno do eixo Y (x, z)
     this.body.rotation.y = -this.facing;
@@ -225,6 +265,15 @@ export class UnitVisual {
       this.turret.position.x = unitModel(this.type).turretPivot[0] - this.recoil * 0.08;
     }
     this.recoil = Math.max(0, this.recoil - dt * 4);
+    const podDef = unitModel(this.type).pod;
+    if (this.pod && podDef) {
+      // ergue para atirar e só baixa depois de parado o disparo; movimento suave (hidráulico)
+      const want = deployed && !moving ? podDef.raised : podDef.stowed;
+      const k = 1 - Math.exp(-dt * (want > this.podElev ? 2.6 : 3.4));
+      this.podElev += (want - this.podElev) * k;
+      this.podKick = Math.max(0, this.podKick - dt * 9);
+      this.pod.rotation.z = this.podElev + Math.sin(this.podKick * Math.PI) * 0.025;
+    }
     if (this.refitRing.visible) {
       this.refitPulse += dt * 3;
       (this.refitRing.material as THREE.MeshBasicMaterial).opacity = 0.55 + 0.35 * Math.sin(this.refitPulse);

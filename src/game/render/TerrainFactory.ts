@@ -163,6 +163,11 @@ export interface TerrainHandle {
   update: (time: number) => void;
   /** Controle do reflexo planar da água (null sem reflexo planar). */
   reflection: WaterHandle['reflection'];
+  /**
+   * Esconde árvores, arbustos e pedras decorativos que ficam sob construções (retângulos em
+   * coordenadas de mundo) e devolve os que voltaram a ficar livres. Retorna true se algo mudou.
+   */
+  clearUnder: (rects: readonly DecorRect[]) => boolean;
   dispose: () => void;
 }
 
@@ -181,6 +186,25 @@ export const BIOME_TINT: Record<'temperate' | 'arid' | 'tropical' | 'cold' | 'gr
   arid: [1.36, 1.06, 0.66],
   cold: [0.9, 0.97, 1.06],
 };
+
+export interface DecorRect {
+  x0: number;
+  z0: number;
+  x1: number;
+  z1: number;
+}
+
+/** Instâncias de decoração que podem ser escondidas sob construções (matriz original guardada). */
+interface DecorTrack {
+  mesh: THREE.InstancedMesh;
+  items: readonly { x: number; z: number }[];
+  base: THREE.Matrix4[];
+  hidden: Uint8Array;
+}
+
+/** Folga em volta do terreno da construção: a copa ou o arbusto não invade a borda do prédio. */
+const DECOR_MARGIN = 0.35;
+const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 
 export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: WaterReflection = 'sky', ultra = false, cinematic = false, tint: [number, number, number] = [1, 1, 1]): TerrainHandle {
   const group = new THREE.Group();
@@ -264,11 +288,42 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
     }
   }
 
+  // decoração que some sob construções (as malhas são registradas ao serem criadas)
+  let tracks: DecorTrack[] = [];
+  const track = (mesh: THREE.InstancedMesh, items: readonly { x: number; z: number }[]): void => {
+    const base = items.map((_, i) => {
+      const m = new THREE.Matrix4();
+      mesh.getMatrixAt(i, m);
+      return m;
+    });
+    tracks.push({ mesh, items, base, hidden: new Uint8Array(items.length) });
+  };
+  let lastRects: readonly DecorRect[] = [];
+  const clearUnder = (rects: readonly DecorRect[]): boolean => {
+    lastRects = rects;
+    let changed = false;
+    for (const t of tracks) {
+      let dirty = false;
+      t.items.forEach((it, i) => {
+        const hide = rects.some((r) => it.x > r.x0 - DECOR_MARGIN && it.x < r.x1 + DECOR_MARGIN && it.z > r.z0 - DECOR_MARGIN && it.z < r.z1 + DECOR_MARGIN) ? 1 : 0;
+        if (hide === t.hidden[i]) return;
+        t.hidden[i] = hide;
+        t.mesh.setMatrixAt(i, hide ? ZERO : t.base[i]!);
+        dirty = true;
+      });
+      if (dirty) {
+        t.mesh.instanceMatrix.needsUpdate = true;
+        changed = true;
+      }
+    }
+    return changed;
+  };
+
   // árvores com folhagem detalhada (procedurais, prontas na hora); rochas e arbustos podem
   // trocar pelos modelos do Nature Kit em seguida
-  group.add(detailedTrees(trees, { lite: quality === 'low', tint: FOLIAGE_TINT, hash: hash2 }, disposables));
+  group.add(detailedTrees(trees, { lite: quality === 'low', tint: FOLIAGE_TINT, hash: hash2, track }, disposables));
   const decor = new THREE.Group();
-  decor.add(proceduralRocks(rocks));
+  decor.add(proceduralRocks(rocks, track));
   group.add(decor);
 
   // veios de minério: blocos ferruginosos entre as rochas da montanha
@@ -327,9 +382,15 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
     const rockKit = (await Promise.all(ROCK_MODELS.map((n) => load(n, 0.85)))).filter((x) => x !== null);
     const bushKit = (await Promise.all(BUSH_MODELS.map((n) => load(n, 0.4)))).filter((x) => x !== null);
     if (rockKit.length === 0) return; // mantém o procedural
+    // as malhas antigas de rochas saem do registro; as novas entram já respeitando as construções
+    tracks = tracks.filter((t) => t.mesh.parent?.parent !== decor);
     decor.clear();
-    decor.add(instanced(rockKit, rocks, 1.5, -0.1, true, ROCK_TINT));
-    if (bushKit.length) decor.add(instanced(bushKit, bushes, 0.7, 0, true, FOLIAGE_TINT));
+    decor.add(instanced(rockKit, rocks, 1.5, -0.1, true, ROCK_TINT, track));
+    if (bushKit.length) decor.add(instanced(bushKit, bushes, 0.7, 0, true, FOLIAGE_TINT, track));
+    const rects = lastRects;
+    lastRects = [];
+    for (const t of tracks) t.hidden.fill(0);
+    clearUnder(rects);
     for (const k of [...rockKit, ...bushKit]) disposables.push(k.geo, k.mat);
   };
 
@@ -339,6 +400,7 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
     water: water.mesh,
     update: water.update,
     reflection: water.reflection,
+    clearUnder,
     dispose: () => {
       for (const d of disposables) d.dispose();
     },
@@ -373,6 +435,7 @@ function instanced(
   y: number,
   shadows = true,
   tint?: (h: number, out: THREE.Color) => THREE.Color,
+  track?: (mesh: THREE.InstancedMesh, items: readonly { x: number; z: number }[]) => void,
 ): THREE.Group {
   const g = new THREE.Group();
   kit.forEach((k, idx) => {
@@ -393,11 +456,12 @@ function instanced(
     im.castShadow = shadows;
     im.receiveShadow = true;
     g.add(im);
+    track?.(im, mine);
   });
   return g;
 }
 
-function proceduralRocks(points: { x: number; z: number; s: number; r: number }[]): THREE.Group {
+function proceduralRocks(points: { x: number; z: number; s: number; r: number }[], track?: (mesh: THREE.InstancedMesh, items: readonly { x: number; z: number }[]) => void): THREE.Group {
   const g = new THREE.Group();
   if (points.length === 0) return g;
   const rocks = new THREE.InstancedMesh(
@@ -415,5 +479,6 @@ function proceduralRocks(points: { x: number; z: number; s: number; r: number }[
   rocks.castShadow = true;
   rocks.receiveShadow = true;
   g.add(rocks);
+  track?.(rocks, points);
   return g;
 }

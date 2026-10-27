@@ -245,7 +245,7 @@ function conifer(seed: number, lite: boolean): TreeVariant {
  */
 export function detailedTrees(
   items: readonly TreeInstance[],
-  opts: { lite: boolean; tint: (h: number, out: THREE.Color) => THREE.Color; hash: (x: number, z: number) => number },
+  opts: { lite: boolean; tint: (h: number, out: THREE.Color) => THREE.Color; hash: (x: number, z: number) => number; track?: (mesh: THREE.InstancedMesh, items: readonly TreeInstance[]) => void },
   disposables: { dispose: () => void }[],
 ): THREE.Group {
   const g = new THREE.Group();
@@ -281,6 +281,7 @@ export function detailedTrees(
       im.castShadow = true;
       im.receiveShadow = true;
       g.add(im);
+      opts.track?.(im, mine);
     }
     disposables.push(variant.solid, variant.leaves);
   });

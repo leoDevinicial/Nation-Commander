@@ -97,6 +97,14 @@ export function renderThumbnails(renderer: THREE.WebGLRenderer, slot: number): P
       const g = new THREE.Group();
       add(g, m.hull);
       if (m.turret) add(g, m.turret, m.turretPivot);
+      if (m.pod) {
+        // casulo de foguetes erguido, como no disparo
+        const pod = new THREE.Group();
+        pod.position.set(m.turretPivot[0] + m.pod.hinge[0], m.turretPivot[1] + m.pod.hinge[1], m.turretPivot[2] + m.pod.hinge[2]);
+        pod.rotation.z = m.pod.raised * 0.7;
+        add(pod, m.pod.layers);
+        g.add(pod);
+      }
       // peças animadas em repouso: esteiras, rodas e pernas
       const still = (geo: THREE.BufferGeometry, at: [number, number, number] = [0, 0, 0]) => {
         const mesh = new THREE.Mesh(geo, mats.body);
