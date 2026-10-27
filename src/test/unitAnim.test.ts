@@ -74,3 +74,15 @@ describe('animações das construções', () => {
     b.dispose();
   });
 });
+
+describe('modelos dos soldados', () => {
+  it('recruta (desenhado em lote, sem animação) tem pernas até o chão', async () => {
+    const { recruitModel, unitModel, disposeCitizenModel } = await import('../game/render/models/unitModels.ts');
+    disposeCitizenModel();
+    const geo = recruitModel().body;
+    geo.computeBoundingBox();
+    expect(geo.boundingBox!.min.y).toBeLessThan(0.05);
+    // na infantria (animada) as pernas ficam fora do corpo, nas peças de passada
+    expect(unitModel('infantry').motion.legs.length).toBeGreaterThan(0);
+  });
+});

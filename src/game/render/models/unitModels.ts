@@ -86,12 +86,8 @@ function finishRig(r: Rig): UnitMotion {
   }
   const legs: UnitMotion['legs'] = [];
   for (const [color, hips] of r.legs) {
-    const s = 1.25;
     const g = new PartBuilder();
-    // perna (quadril na origem), joelheira e bota
-    g.box(0.1 * s, 0.36 * s, 0.1 * s, color, [0, -0.18 * s, 0]);
-    g.box(0.04 * s, 0.05 * s, 0.11 * s, C.oliveDark, [0.07 * s, -0.15 * s, 0]);
-    g.box(0.16 * s, 0.06 * s, 0.11 * s, C.boot, [0.03 * s, -0.37 * s, 0]);
+    legParts(g, color, [0, 0, 0]);
     legs.push({ geo: g.build(), hips });
   }
   return { treads, wheels, legs };
@@ -123,8 +119,26 @@ export function disposeUnitModels(): void {
 }
 
 /** Perna animada (o quadril fica a 0,4 da altura do soldado). */
+/** Perna com o quadril em `hip`: coxa e canela, joelheira e bota. */
+function legParts(g: PartBuilder, color: string, hip: V3): void {
+  const s = 1.25;
+  const [x, y, z] = hip;
+  g.box(0.1 * s, 0.36 * s, 0.1 * s, color, [x, y - 0.18 * s, z]);
+  g.box(0.04 * s, 0.05 * s, 0.11 * s, C.oliveDark, [x + 0.07 * s, y - 0.15 * s, z]);
+  g.box(0.16 * s, 0.06 * s, 0.11 * s, C.boot, [x + 0.03 * s, y - 0.37 * s, z]);
+}
+
+/**
+ * Onde as pernas vão quando o modelo não tem animação (recrutas parados, desenhados em lote):
+ * presas ao próprio corpo. Sem isto, o soldado ficaria sem pernas fora do rig.
+ */
+let staticLegs: PartBuilder | null = null;
+
 function leg(color: string, hip: V3): void {
-  if (!rig) return;
+  if (!rig) {
+    if (staticLegs) legParts(staticLegs, color, hip);
+    return;
+  }
   const list = rig.legs.get(color) ?? [];
   list.push(hip);
   rig.legs.set(color, list);
@@ -812,7 +826,13 @@ let recruitCache: ModelLayers | null = null;
 export function recruitModel(): ModelLayers {
   if (recruitCache) return recruitCache;
   const l = layers();
-  soldier(l.body, l.accent, 0, 0, 0);
+  // recrutas são desenhados em lote, sem animação: as pernas vão fixas no corpo
+  staticLegs = l.body;
+  try {
+    soldier(l.body, l.accent, 0, 0, 0);
+  } finally {
+    staticLegs = null;
+  }
   recruitCache = l.build();
   return recruitCache;
 }
