@@ -6,15 +6,18 @@ export class HealthBar {
   readonly group = new THREE.Group();
   private readonly fg: THREE.Mesh;
   private readonly width: number;
+  private readonly fixedColor: string | null;
 
-  constructor(width: number, height: number) {
+  /** `color` fixa a cor da barra (ex.: recarga); sem ela, a cor acompanha a fração (vida). */
+  constructor(width: number, height: number, color: string | null = null, thickness = 1) {
+    this.fixedColor = color;
     this.width = width;
     const geo = sharedGeometry('hpbar-plane', () => new THREE.PlaneGeometry(1, 1));
     const bg = new THREE.Mesh(geo, sharedMaterial('hp-bg', () => new THREE.MeshBasicMaterial({ color: '#0b0f14', depthTest: false, transparent: true, opacity: 0.85 })));
-    bg.scale.set(width + 0.12, 0.26, 1);
+    bg.scale.set(width + 0.12, 0.26 * thickness, 1);
     bg.renderOrder = 10;
-    this.fg = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: '#5cc47a', depthTest: false, transparent: true }));
-    this.fg.scale.set(width, 0.16, 1);
+    this.fg = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: color ?? '#5cc47a', depthTest: false, transparent: true }));
+    this.fg.scale.set(width, 0.16 * thickness, 1);
     this.fg.position.z = 0.001;
     this.fg.renderOrder = 11;
     this.group.add(bg, this.fg);
@@ -26,6 +29,7 @@ export class HealthBar {
     const f = Math.max(0, Math.min(1, fraction));
     this.fg.scale.x = this.width * f;
     this.fg.position.x = -(this.width * (1 - f)) / 2;
+    if (this.fixedColor) return;
     const m = this.fg.material as THREE.MeshBasicMaterial;
     m.color.set(f > 0.6 ? '#5cc47a' : f > 0.3 ? '#e0b44c' : '#e05a4c');
   }

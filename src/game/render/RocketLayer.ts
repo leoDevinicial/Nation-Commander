@@ -88,6 +88,8 @@ export class RocketLayer {
     private readonly effects: Effects,
     /** Treme a câmera conforme a distância (lançamentos e impactos perto da tela). */
     private readonly shake: (at: { x: number; y: number }, strength: number) => void,
+    /** Som de cada foguete que cai (o motor agrupa estouros muito juntos). */
+    private readonly onImpact: (x: number, z: number) => void = () => {},
     capacity = 72,
     trailBudget = 220,
   ) {
@@ -211,6 +213,7 @@ export class RocketLayer {
     this.effects.light(at, '#ff9a48', 70, 8, 0.35);
     this.emit(tmpB.set(at.x, 0.4, at.z), { life: 3.4, size0: 1.2, size1: 3.6, peak: 0.6, tone: 0.55, vy: 0.5 });
     this.shake({ x: at.x, y: at.z }, 0.09);
+    this.onImpact(at.x, at.z);
   }
 
   /** Posição e tangente da curva no progresso `k`. */

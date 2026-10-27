@@ -1,9 +1,9 @@
-import { BUILDINGS, RESOURCE_TYPES, TICK_RATE, type BuildingType, type DepositSize, type MilitaryResearchId, type ProducibleType, type Stockpile, type UnitType } from './config.ts';
+import { BUILDINGS, RESOURCE_TYPES, TICK_RATE, UNITS, type BuildingType, type DepositSize, type MilitaryResearchId, type ProducibleType, type Stockpile, type UnitType } from './config.ts';
 import type { Population, Simulation } from './Simulation.ts';
 import { encodeTerritory } from './territory.ts';
 import type { BuildingStatus, EntityId, SimEvent, Slot, UnitActivity, Vec2 } from './types.ts';
 import type { SpecId } from './upgrades.ts';
-import type { ModId } from './modernization.ts';
+import { combineMods, type ModId } from './modernization.ts';
 import { AIRCRAFT, MISSILE, missileSpec, type AircraftState, type AircraftType, type LaunchState, type MissionKind, type MissionResult, type MissionState } from './air.ts';
 import { TRADE_RESOURCES, TRANSPORT_MODES, type ShipmentState, type TradeContract, type TradeOffer, type TradeResource, type TransportMode } from './trade.ts';
 
@@ -24,7 +24,8 @@ export interface UnitSnapshot {
   /** Pacotes de modernização instalados (equipamento visível no próprio veículo/soldado). */
   mods?: ModId[];
   /** Modernização em andamento (só para o dono). */
-  refit?: { mod: ModId; progress: number; facility: EntityId };
+  refit?: { mod: ModId; progress: number; facility: EntityId };  /** Recarga da salva (lança-foguetes): 0 recém-disparado → 1 pronto; ausente quando pronto. */
+  reload?: number;
 }
 
 export interface BuildingSnapshot {
@@ -188,6 +189,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         targetId: e.order.kind === 'attack' ? e.order.targetId : e.engageId,
         ...(e.attrition ? { attrition: true as const } : {}),
         ...(e.mods.length ? { mods: [...e.mods] } : {}),
+        ...(UNITS[e.type].weapon.salvo && e.cooldown > 0 ? { reload: r2(Math.max(0, 1 - e.cooldown / Math.max(1, UNITS[e.type].weapon.cooldown * combineMods(e.mods).cooldownMul * TICK_RATE))) } : {}),
         ...(e.refit && (!viewer || e.owner === viewer.slot) ? { refit: { mod: e.refit.mod, progress: r2(1 - e.refit.remainingTicks / e.refit.totalTicks), facility: e.refit.facilityId } } : {}),
       });
     } else {

@@ -342,4 +342,24 @@ describe('progressão militar — tropas novas em combate', () => {
     // salvar e carregar mantém a geração do lançamento
     expect(Simulation.deserialize(sim.serialize()).air.launches.at(-1)!.gen).toBe(2);
   });
+  it('lança-foguetes: o snapshot mostra a recarga da salva (0 recém-disparado → some quando pronto)', () => {
+    const { sim } = setup();
+    const rl = sim.spawnUnitNear(sim.hqOf(0)!, 'rocket_artillery')!;
+    const a = sim.spawnUnitNear(sim.hqOf(1)!, 'infantry')!;
+    a.pos = { x: rl.pos.x + 8.6, y: rl.pos.y };
+    const pa = { ...a.pos };
+    let shot = false;
+    for (let i = 0; i < TICK_RATE * 5 && !shot; i++) {
+      a.pos = { ...pa };
+      sim.step();
+      shot = sim.drainEvents().some((e) => e.type === 'shot' && e.attackerId === rl.id);
+    }
+    const snap = () => makeSnapshot(sim, [], undefined).units.find((u) => u.id === rl.id)!;
+    expect(snap().reload).toBeLessThan(0.05);
+    a.hp = 0;
+    for (let i = 0; i < TICK_RATE * 3.5; i++) sim.step();
+    expect(snap().reload).toBeGreaterThan(0.4);
+    for (let i = 0; i < TICK_RATE * 5; i++) sim.step();
+    expect(snap().reload).toBeUndefined();
+  });
 });

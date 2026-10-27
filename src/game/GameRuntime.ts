@@ -294,7 +294,7 @@ export class GameRuntime {
     this.effects = new Effects(this.scene, opts.profile.maxEffects, opts.profile.dynamicLights, opts.profile.cinematic ? 'cinematic' : opts.profile.ultra ? 'volumetric' : 'basic');
     this.airLayer = new AirLayer(this.effects, this.mySlot, (id) => this.positionOf(id), opts.profile.maxEffects > 60 ? 140 : 60);
     this.scene.add(this.airLayer.group);
-    this.rocketLayer = new RocketLayer(this.effects, (at, k) => this.shakeNear(at, k), 72, opts.profile.maxEffects > 60 ? 220 : 110);
+    this.rocketLayer = new RocketLayer(this.effects, (at, k) => this.shakeNear(at, k), (x, z) => audio.playAt('explosion', x, z), 72, opts.profile.maxEffects > 60 ? 220 : 110);
     this.scene.add(this.rocketLayer.group);
     // rastros de esteira: menos marcas guardadas nos presets leves
     this.trackMarks = new TrackMarks(opts.profile.maxEffects > 60 ? 3000 : 1200);
@@ -775,6 +775,7 @@ export class GameRuntime {
       v.setSelected(selected);
       // na visão aproximada a barra de vida (em escala do mundo) cobriria a tela: fica só no painel
       v.update(dt, t.snap.activity === 'moving' || t.snap.activity === 'chasing', aim, frac, (selected || frac < 0.999) && !this.cameraCtl.closeUp, this.camera, t.snap.activity === 'attacking');
+      v.setReload(t.snap.reload !== undefined && !this.cameraCtl.closeUp ? t.snap.reload : null, this.camera);
     }
     for (const t of this.buildings.values()) {
       const frac = t.snap.hp / t.snap.maxHp;

@@ -178,6 +178,18 @@ export class UnitVisual {
   private readonly loaded: boolean[] = [];
   private reloadAt = 0;
   private reloadClock = 0;
+  /** Barra de recarga (lança-foguetes). */
+  private reloadBar: HealthBar | null = null;
+
+  /** Recarga da salva: fração pronta (0..1) ou null quando pronta/oculta. */
+  setReload(fraction: number | null, camera: THREE.Camera): void {
+    if (!this.reloadBar) return;
+    this.reloadBar.group.visible = fraction !== null && !this.death;
+    if (fraction === null) return;
+    this.reloadBar.set(fraction);
+    this.reloadBar.face(camera);
+  }
+
   /** Casulo de foguetes articulado (lança-foguetes) e sua elevação atual. */
   private pod: THREE.Group | null = null;
   private podElev = 0;
@@ -242,6 +254,11 @@ export class UnitVisual {
     const vehicle = UNITS[type].armor === 'vehicle';
     this.hp = new HealthBar(vehicle ? 1.8 : 1.2, type === 'artillery' || type === 'rocket_artillery' ? 2.4 : type === 'mbt' ? 2.3 : vehicle ? 2.1 : 1.6);
     this.group.add(this.hp.group);
+    if (UNITS[type].weapon.salvo) {
+      // barra de recarga da salva, logo abaixo da de vida (só enquanto recarrega)
+      this.reloadBar = new HealthBar(vehicle ? 1.5 : 1, (type === 'rocket_artillery' ? 2.4 : 2.1) - 0.3, '#f0b84a', 0.6);
+      this.group.add(this.reloadBar.group);
+    }
     this.group.userData.entityId = id;
   }
 
@@ -406,6 +423,7 @@ export class UnitVisual {
     this.ring.visible = false;
     this.refitRing.visible = false;
     this.hp.group.visible = false;
+    if (this.reloadBar) this.reloadBar.group.visible = false;
   }
 
   get dying(): boolean {
@@ -534,6 +552,7 @@ export class UnitVisual {
     this.noses?.dispose();
     for (const l of this.legSets) l.mesh.dispose();
     this.hp.dispose();
+    this.reloadBar?.dispose();
     this.group.removeFromParent();
   }
 }
