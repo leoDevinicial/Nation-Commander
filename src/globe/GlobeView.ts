@@ -450,6 +450,8 @@ export class GlobeView {
     });
     this.disposables.forEach((d) => d.dispose());
     this.renderer.dispose();
+    // libera o contexto WebGL já (o navegador limita ~16 contextos ativos por página)
+    this.renderer.forceContextLoss();
     this.renderer.domElement.remove();
   }
 

@@ -222,6 +222,8 @@ export class GameRuntime {
     container.appendChild(this.renderer.domElement);
     this.renderer.domElement.style.display = 'block';
     this.renderer.domElement.addEventListener('webglcontextlost', (e) => {
+      // perda provocada pelo próprio encerramento da cena (forceContextLoss): não é um problema
+      if (this.disposed) return;
       e.preventDefault();
       this.kaics?.setCondition('contextLost', true);
       useHudStore.getState().pushEvent({ tick: 0, text: 'Contexto gráfico perdido. Tentando restaurar…', tone: 'bad' });
@@ -1988,6 +1990,7 @@ export class GameRuntime {
       this.territoryLayer.dispose();
       this.fogTexture.dispose();
       this.renderer.dispose();
+      this.renderer.forceContextLoss();
       this.renderer.domElement.remove();
       return;
     }
@@ -2020,6 +2023,9 @@ export class GameRuntime {
     cloudUniforms.uCloudStrength.value = 0;
     setCloudShadows(false);
     this.renderer.dispose();
+    // libera o contexto WebGL já: o navegador limita ~16 contextos ativos e, passando disso, derruba
+    // o mais antigo — depois de várias partidas na mesma sessão, poderia ser o do globo ou da cena atual
+    this.renderer.forceContextLoss();
     this.renderer.domElement.remove();
   }
 }

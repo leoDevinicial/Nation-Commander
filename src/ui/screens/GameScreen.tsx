@@ -164,6 +164,22 @@ export function GameScreen() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Esc fecha a camada de cima (menu → globo → painel nacional) antes de chegar à cena; o mapa
+  // operacional trata o próprio Esc. Fase de captura: a cena não cancela a seleção ao mesmo tempo.
+  useEffect(() => {
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || useOpsStore.getState().opMap !== null) return;
+      const st = useNationalStore.getState();
+      if (menuOpen) setMenuOpen(false);
+      else if (st.globeOpen) st.closeGlobe();
+      else if (st.panelOpen) st.setPanelOpen(false);
+      else return;
+      e.stopPropagation();
+    };
+    window.addEventListener('keydown', onEsc, true);
+    return () => window.removeEventListener('keydown', onEsc, true);
+  }, [menuOpen]);
+
   if (!match) return null;
 
   return (

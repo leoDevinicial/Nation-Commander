@@ -1,5 +1,5 @@
 import { DEFAULT_COUNTRY } from '../../shared/data/countries.ts';
-import { gameClient } from '../net/client.ts';
+import { currentMatch, gameClient, isSameMatch } from '../net/client.ts';
 import { supabase, type Profile } from '../lib/supabase.ts';
 import { useAppStore } from '../state/useAppStore.ts';
 import { screenAfterLogin } from '../ui/manual.ts';
@@ -28,13 +28,16 @@ export function wireGameClient(): void {
         }
         break;
       }
-      case 'match_start':
+      case 'match_start': {
         if (app.match?.seed !== msg.match.seed) {
           useNationalStore.getState().reset();
           useOpsStore.getState().reset();
         }
-        useAppStore.setState({ match: msg.match, matchEnd: null, screen: 'game' });
+        // mesma partida (reconexão): mantém o objeto, e com ele a cena 3D montada
+        const same = isSameMatch(currentMatch(), msg.match);
+        useAppStore.setState({ match: same ? app.match : msg.match, matchEnd: null, screen: 'game' });
         break;
+      }
       case 'national':
         applyNationalMessage(msg.day, msg.date, msg.nations, msg.events, msg.diplomacy);
         break;
