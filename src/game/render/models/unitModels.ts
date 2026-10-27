@@ -1,5 +1,6 @@
+import type * as THREE from 'three';
 import type { UnitType } from '../../../../shared/sim/config.ts';
-import { C, layers, type ModelLayers, type PartBuilder } from './kit.ts';
+import { C, layers, PartBuilder, type ModelLayers } from './kit.ts';
 
 /**
  * Modelos de unidades (frente = +x). Cada unidade tem chassi fixo e, quando aplicável, uma torre
@@ -12,6 +13,80 @@ export interface UnitModel {
   turretPivot: [number, number, number];
   /** Ponta do cano no referencial da torre (para o clarão do disparo). */
   muzzle: [number, number, number];
+  /** Peças que se movem conforme a distância percorrida (esteiras, rodas, pernas). */
+  motion: UnitMotion;
+}
+
+type V3 = [number, number, number];
+
+/** Peças animadas pelo deslocamento; cada geometria usa o material do corpo (cores de vértice). */
+export interface UnitMotion {
+  /** Elos da esteira: ramo superior (corre para a frente) e inferior (para trás); passo dos elos. */
+  treads: { top: THREE.BufferGeometry; bottom: THREE.BufferGeometry; pitch: number } | null;
+  /** Rodas que giram: raios das rodas de apoio (veículos de esteira) ou a roda inteira (rodas). */
+  wheels: { geo: THREE.BufferGeometry; at: V3[]; r: number }[];
+  /** Pernas dos soldados: geometria de uma perna com o quadril na origem e os quadris (pares). */
+  legs: { geo: THREE.BufferGeometry; hips: V3[] }[];
+}
+
+/** Coleta as peças animadas enquanto um modelo é montado (ver `tracks`, `roadWheels`, `soldier`). */
+interface Rig {
+  treads: { length: number; z: number; height: number; width: number }[];
+  spokes: Map<number, V3[]>;
+  rolling: Map<string, { r: number; w: number; at: V3[] }>;
+  legs: Map<string, V3[]>;
+}
+let rig: Rig | null = null;
+
+const LINK_PITCH = 0.09;
+
+function finishRig(r: Rig): UnitMotion {
+  let treads: UnitMotion['treads'] = null;
+  if (r.treads.length) {
+    const top = new PartBuilder();
+    const bottom = new PartBuilder();
+    for (const t of r.treads) {
+      const L = t.length / 2;
+      for (let x = -L + 0.04; x <= L - 0.04 - LINK_PITCH; x += LINK_PITCH) {
+        top.box(0.035, 0.02, t.width + 0.012, C.rubber, [x, t.height + 0.006, t.z]);
+        bottom.box(0.035, 0.03, t.width + 0.03, C.rubber, [x, 0.06, t.z]);
+      }
+    }
+    treads = { top: top.build(), bottom: bottom.build(), pitch: LINK_PITCH };
+  }
+  const wheels: UnitMotion['wheels'] = [];
+  for (const [rad, at] of r.spokes) {
+    // raios sobre o cubo da roda de apoio: o giro fica visível
+    const g = new PartBuilder();
+    for (let k = 0; k < 3; k++) g.box(rad * 1.5, 0.028, 0.014, C.metalDark, [0, 0, 0], [0, 0, (k * Math.PI) / 3]);
+    wheels.push({ geo: g.build(), at, r: rad });
+  }
+  for (const { r: rad, w, at } of r.rolling.values()) {
+    const g = new PartBuilder();
+    g.cyl(rad, rad, w, C.rubber, [0, 0, 0], [Math.PI / 2, 0, 0], 12);
+    g.cyl(rad * 0.46, rad * 0.46, w + 0.02, C.metal, [0, 0, 0], [Math.PI / 2, 0, 0], 8);
+    // porcas e banda de rodagem: marcas que mostram a roda girando
+    for (let k = 0; k < 5; k++) {
+      const a = (k / 5) * Math.PI * 2;
+      g.box(0.035, 0.035, w + 0.04, C.metalDark, [Math.cos(a) * rad * 0.3, Math.sin(a) * rad * 0.3, 0]);
+    }
+    for (let k = 0; k < 10; k++) {
+      const a = (k / 10) * Math.PI * 2;
+      g.box(0.05, 0.03, w + 0.01, '#1c1d1e', [Math.cos(a) * rad, Math.sin(a) * rad, 0], [0, 0, a]);
+    }
+    wheels.push({ geo: g.build(), at, r: rad });
+  }
+  const legs: UnitMotion['legs'] = [];
+  for (const [color, hips] of r.legs) {
+    const s = 1.25;
+    const g = new PartBuilder();
+    // perna (quadril na origem), joelheira e bota
+    g.box(0.1 * s, 0.36 * s, 0.1 * s, color, [0, -0.18 * s, 0]);
+    g.box(0.04 * s, 0.05 * s, 0.11 * s, C.oliveDark, [0.07 * s, -0.15 * s, 0]);
+    g.box(0.16 * s, 0.06 * s, 0.11 * s, C.boot, [0.03 * s, -0.37 * s, 0]);
+    legs.push({ geo: g.build(), hips });
+  }
+  return { treads, wheels, legs };
 }
 
 const cache = new Map<UnitType, UnitModel>();
@@ -19,7 +94,10 @@ const cache = new Map<UnitType, UnitModel>();
 export function unitModel(type: UnitType): UnitModel {
   let m = cache.get(type);
   if (!m) {
-    m = BUILDERS[type]();
+    rig = { treads: [], spokes: new Map(), rolling: new Map(), legs: new Map() };
+    const built = BUILDERS[type]();
+    m = { ...built, motion: finishRig(rig) };
+    rig = null;
     cache.set(type, m);
   }
   return m;
@@ -28,11 +106,34 @@ export function unitModel(type: UnitType): UnitModel {
 export function disposeUnitModels(): void {
   for (const m of cache.values()) {
     for (const l of [m.hull, m.turret]) if (l) for (const g of [l.body, l.accent, l.glass]) g.dispose();
+    m.motion.treads?.top.dispose();
+    m.motion.treads?.bottom.dispose();
+    for (const w of m.motion.wheels) w.geo.dispose();
+    for (const l of m.motion.legs) l.geo.dispose();
   }
   cache.clear();
 }
 
-const BUILDERS: Record<UnitType, () => UnitModel> = {
+/** Perna animada (o quadril fica a 0,4 da altura do soldado). */
+function leg(color: string, hip: V3): void {
+  if (!rig) return;
+  const list = rig.legs.get(color) ?? [];
+  list.push(hip);
+  rig.legs.set(color, list);
+}
+
+/** Roda de veículo sobre rodas, que gira inteira (pneu, cubo, porcas). */
+function rollingWheel(at: V3, r: number, w: number): void {
+  if (!rig) return;
+  const key = `${r}|${w}`;
+  const e = rig.rolling.get(key) ?? { r, w, at: [] };
+  e.at.push(at);
+  rig.rolling.set(key, e);
+}
+
+type BuiltUnit = Omit<UnitModel, 'motion'>;
+
+const BUILDERS: Record<UnitType, () => BuiltUnit> = {
   infantry: buildInfantry,
   apc: buildApc,
   tank: buildTank,
@@ -49,11 +150,9 @@ const BUILDERS: Record<UnitType, () => UnitModel> = {
 function soldier(b: PartBuilder, a: PartBuilder, x: number, z: number, variant: number): void {
   const s = 1.25;
   const p = (dx: number, dy: number, dz: number): [number, number, number] => [x + dx * s, dy * s, z + dz * s];
-  // pernas e botas
-  b.box(0.1 * s, 0.36 * s, 0.1 * s, C.oliveDark, p(0, 0.22, 0.065));
-  b.box(0.1 * s, 0.36 * s, 0.1 * s, C.oliveDark, p(variant ? 0.04 : -0.02, 0.22, -0.065));
-  b.box(0.16 * s, 0.06 * s, 0.11 * s, C.boot, p(0.03, 0.03, 0.065));
-  b.box(0.16 * s, 0.06 * s, 0.11 * s, C.boot, p(0.03, 0.03, -0.065));
+  // pernas e botas: animadas (marcha), fora do corpo fundido
+  leg(C.oliveDark, p(0, 0.4, 0.065));
+  leg(C.oliveDark, p(variant ? 0.04 : -0.02, 0.4, -0.065));
   // tronco, colete e cinto
   b.box(0.2 * s, 0.32 * s, 0.27 * s, C.olive, p(0, 0.56, 0));
   b.box(0.23 * s, 0.22 * s, 0.29 * s, C.oliveDark, p(0.01, 0.6, 0));
@@ -72,8 +171,6 @@ function soldier(b: PartBuilder, a: PartBuilder, x: number, z: number, variant: 
   b.box(0.05 * s, 0.1 * s, 0.04 * s, C.metalDark, p(0.2, 0.57, 0.04));
   // equipamento: bolsas de munição no colete, joelheiras, carregador e luvas
   for (const dz of [-0.07, 0.07]) b.box(0.05 * s, 0.08 * s, 0.07 * s, C.khaki, p(0.125, 0.55, dz));
-  b.box(0.04 * s, 0.05 * s, 0.11 * s, C.oliveDark, p(0.07, 0.25, 0.065));
-  b.box(0.04 * s, 0.05 * s, 0.11 * s, C.oliveDark, p(0.07, 0.25, -0.065));
   b.box(0.04 * s, 0.09 * s, 0.035 * s, C.metalDark, p(0.27, 0.57, 0.04), [0, 0, 0.12]);
   b.box(0.05 * s, 0.05 * s, 0.06 * s, C.boot, p(0.26, 0.63, 0.15));
   // faixa do capacete e óculos de proteção
@@ -105,10 +202,8 @@ function operator(b: PartBuilder, a: PartBuilder, x: number, z: number, variant:
   const p = (dx: number, dy: number, dz: number): [number, number, number] => [x + dx * s, dy * s, z + dz * s];
   const cloth = '#2f3436';
   const gear = '#3d3a2e';
-  b.box(0.1 * s, 0.36 * s, 0.1 * s, cloth, p(0, 0.22, 0.065));
-  b.box(0.1 * s, 0.36 * s, 0.1 * s, cloth, p(variant ? 0.05 : -0.02, 0.22, -0.065));
-  b.box(0.16 * s, 0.06 * s, 0.11 * s, C.boot, p(0.03, 0.03, 0.065));
-  b.box(0.16 * s, 0.06 * s, 0.11 * s, C.boot, p(0.03, 0.03, -0.065));
+  leg(cloth, p(0, 0.4, 0.065));
+  leg(cloth, p(variant ? 0.05 : -0.02, 0.4, -0.065));
   b.box(0.2 * s, 0.32 * s, 0.27 * s, cloth, p(0, 0.56, 0));
   b.box(0.24 * s, 0.24 * s, 0.3 * s, gear, p(0.01, 0.6, 0));
   for (const dz of [-0.08, 0, 0.08]) b.box(0.05 * s, 0.09 * s, 0.06 * s, '#4a4636', p(0.135, 0.56, dz));
@@ -129,7 +224,7 @@ function operator(b: PartBuilder, a: PartBuilder, x: number, z: number, variant:
   a.box(0.06 * s, 0.07 * s, 0.03 * s, '#ffffff', p(0, 0.66, -0.16));
 }
 
-function buildAtInfantry(): UnitModel {
+function buildAtInfantry(): BuiltUnit {
   const l = layers();
   soldier(l.body, l.accent, 0.26, 0, 0);
   launcher(l.body, 0.26, 0);
@@ -141,7 +236,7 @@ function buildAtInfantry(): UnitModel {
   return { hull: l.build(), turret: null, turretPivot: [0, 0, 0], muzzle: [0.95, 1.05, 0.14] };
 }
 
-function buildSpecialForces(): UnitModel {
+function buildSpecialForces(): BuiltUnit {
   const l = layers();
   operator(l.body, l.accent, 0.3, 0.05, 0);
   operator(l.body, l.accent, -0.2, 0.38, 1);
@@ -149,7 +244,7 @@ function buildSpecialForces(): UnitModel {
   return { hull: l.build(), turret: null, turretPivot: [0, 0, 0], muzzle: [0.75, 0.86, 0.05] };
 }
 
-function buildInfantry(): UnitModel {
+function buildInfantry(): BuiltUnit {
   const l = layers();
   soldier(l.body, l.accent, 0.26, 0, 0);
   soldier(l.body, l.accent, -0.24, 0.36, 1);
@@ -163,6 +258,11 @@ function roadWheels(b: PartBuilder, xs: number[], y: number, z: number, r: numbe
   for (const x of xs) {
     b.cyl(r, r, width, color, [x, y, z], [Math.PI / 2, 0, 0], 10);
     b.cyl(r * 0.45, r * 0.45, width + 0.02, C.metal, [x, y, z], [Math.PI / 2, 0, 0], 8);
+    if (rig) {
+      const list = rig.spokes.get(r) ?? [];
+      list.push([x, y, z + Math.sign(z) * (width / 2 + 0.018)]);
+      rig.spokes.set(r, list);
+    }
   }
 }
 
@@ -189,7 +289,8 @@ function tracks(b: PartBuilder, length: number, z: number, height: number, width
  */
 function trackDetail(b: PartBuilder, length: number, z: number, height: number, width: number): void {
   const L = length / 2;
-  for (let x = -L + 0.04; x <= L - 0.04; x += 0.09) b.box(0.035, 0.018, width + 0.01, C.rubber, [x, height + 0.005, z]);
+  // os elos dos ramos superior e inferior são animados (ver `finishRig`)
+  rig?.treads.push({ length, z, height, width });
   for (let y = 0.12; y < height; y += 0.09) {
     b.box(0.018, 0.035, width + 0.01, C.rubber, [L + 0.08, y, z], [0, 0, -0.6]);
     b.box(0.018, 0.035, width + 0.01, C.rubber, [-L - 0.08, y, z], [0, 0, 0.6]);
@@ -217,7 +318,7 @@ function skirts(b: PartBuilder, length: number, z: number, y: number, h: number,
   }
 }
 
-function buildTank(): UnitModel {
+function buildTank(): BuiltUnit {
   const hull = layers();
   const b = hull.body;
   // casco com glacis inclinado
@@ -306,7 +407,7 @@ function buildTank(): UnitModel {
   return { hull: hull.build(), turret: turret.build(), turretPivot: [-0.08, 0.7, 0], muzzle: [2.15, 0.17, 0] };
 }
 
-function buildApc(): UnitModel {
+function buildApc(): BuiltUnit {
   const hull = layers();
   const b = hull.body;
   b.side(
@@ -321,12 +422,7 @@ function buildApc(): UnitModel {
     1.1,
     C.olive,
   );
-  for (const x of [-0.8, -0.28, 0.28, 0.8]) {
-    for (const z of [0.5, -0.5]) {
-      b.cyl(0.24, 0.24, 0.2, C.rubber, [x, 0.25, z], [Math.PI / 2, 0, 0], 12);
-      b.cyl(0.11, 0.11, 0.22, C.metal, [x, 0.25, z], [Math.PI / 2, 0, 0], 8);
-    }
-  }
+  for (const x of [-0.8, -0.28, 0.28, 0.8]) for (const z of [0.5, -0.5]) rollingWheel([x, 0.25, z], 0.24, 0.2);
   b.box(2.2, 0.06, 0.08, C.oliveDark, [0, 0.52, 0.58]); // saia lateral
   b.box(2.2, 0.06, 0.08, C.oliveDark, [0, 0.52, -0.58]);
   b.box(0.5, 0.16, 0.08, C.oliveDark, [-0.45, 0.72, 0.58]);
@@ -387,7 +483,7 @@ function buildApc(): UnitModel {
   return { hull: hull.build(), turret: turret.build(), turretPivot: [0.1, 0.96, 0], muzzle: [1.1, 0.13, 0] };
 }
 
-function buildArtillery(): UnitModel {
+function buildArtillery(): BuiltUnit {
   const hull = layers();
   const b = hull.body;
   b.side(
@@ -460,7 +556,7 @@ function buildArtillery(): UnitModel {
 // ------------------------------------------------------------------ veículos liberados por pesquisa
 
 /** Tanque de batalha moderno: casco mais longo, torre em cunha com blindagem reativa e canhão longo. */
-function buildMbt(): UnitModel {
+function buildMbt(): BuiltUnit {
   const hull = layers();
   const b = hull.body;
   const green = '#565f3e';
@@ -532,15 +628,11 @@ function buildMbt(): UnitModel {
 }
 
 /** Lança-foguetes sobre caminhão 6×6: cabine, chassi e casulo de tubos elevado (gira como torre). */
-function buildRocketArtillery(): UnitModel {
+function buildRocketArtillery(): BuiltUnit {
   const hull = layers();
   const b = hull.body;
   b.box(2.3, 0.18, 0.86, C.oliveDark, [-0.1, 0.5, 0]); // chassi
-  for (const x of [-0.85, -0.35, 0.8])
-    for (const z of [0.46, -0.46]) {
-      b.cyl(0.25, 0.25, 0.2, C.rubber, [x, 0.26, z], [Math.PI / 2, 0, 0], 12);
-      b.cyl(0.11, 0.11, 0.22, C.metal, [x, 0.26, z], [Math.PI / 2, 0, 0], 8);
-    }
+  for (const x of [-0.85, -0.35, 0.8]) for (const z of [0.46, -0.46]) rollingWheel([x, 0.26, z], 0.25, 0.2);
   // cabine blindada com para-brisa
   b.side(
     [
@@ -588,7 +680,7 @@ function buildRocketArtillery(): UnitModel {
 }
 
 /** Antiaérea autopropulsada: chassi de lagartas, torre com dois canhões e radar de busca. */
-function buildMobileAa(): UnitModel {
+function buildMobileAa(): BuiltUnit {
   const hull = layers();
   const b = hull.body;
   b.side(

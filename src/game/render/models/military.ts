@@ -14,42 +14,273 @@ import type { BuildingModel, ModelAnim } from './buildingModels.ts';
 type Built = Omit<BuildingModel, 'detail'>;
 type V3 = [number, number, number];
 
-const CAMO = '#6c7363';
-const CAMO_DARK = '#4f5548';
 
-/** Caça a jato (nariz para +x), na escala usada parado no pátio e em voo. */
+/**
+ * Fuselagem torneada ao longo de x: `prof` dá o raio em cada estação (x, r), da cauda ao nariz.
+ * `phi` recorta um setor (manchas de camuflagem sobre a fuselagem); `squash` achata em y e z.
+ */
+function lathe(b: PartBuilder, prof: [number, number][], color: string, at: V3, s: number, squash: [number, number] = [1, 1], phi?: [number, number], seg = 16): void {
+  const pts = prof.map(([x, r]) => new THREE.Vector2(r * s, x * s));
+  const g = phi ? new THREE.LatheGeometry(pts, Math.max(4, Math.round((seg * phi[1]) / (Math.PI * 2))), phi[0], phi[1]) : new THREE.LatheGeometry(pts, seg);
+  g.rotateZ(-Math.PI / 2);
+  b.add(g, color, { pos: at, scale: [1, squash[0], squash[1]] });
+}
+
+/** Ângulos do torno (após girar para +x): topo, lados e barriga da fuselagem. */
+const TOP = Math.PI * 1.5;
+
+/** Planta espelhada em z (asa, canard, estabilizador): pontos (x, z) só do lado +z. */
+function mirrored(b: PartBuilder, half: [number, number][], thick: number, color: string, at: V3): void {
+  const pts: [number, number][] = [...half, ...half.slice(1, -1).reverse().map(([x, z]) => [x, -z] as [number, number])];
+  b.plan(pts, thick, color, at);
+}
+
+/** Míssil ar-ar na ponta da asa (Sidewinder/IRIS-T): corpo branco, ogiva e aletas. */
+function wingtipMissile(b: PartBuilder, x: number, y: number, z: number, s: number): void {
+  b.cyl(0.018 * s, 0.018 * s, 0.5 * s, '#dcdcd6', [x, y, z], [0, 0, Math.PI / 2], 8);
+  b.cyl(0, 0.018 * s, 0.07 * s, '#5b6066', [x + 0.285 * s, y, z], [0, 0, -Math.PI / 2], 8);
+  for (const r of [0, Math.PI / 2]) b.box(0.07 * s, 0.006 * s, 0.09 * s, '#b9bab4', [x - 0.2 * s, y, z], [r, 0, 0]);
+  for (const r of [0, Math.PI / 2]) b.box(0.05 * s, 0.006 * s, 0.07 * s, '#b9bab4', [x + 0.16 * s, y, z], [r, 0, 0]);
+}
+
+const F5 = { base: '#a2aaa3', green: '#5b6f50', dark: '#3e4f3d', metal: '#3a3d40' };
+
+/**
+ * F-5EM Tiger II da FAB (nariz para +x): fuselagem fina e longa com nariz pontudo, asa trapezoidal
+ * baixa com mísseis nas pontas, estabilizadores baixos, deriva única, dois bocais, tanque ventral
+ * e camuflagem em verde e cinza.
+ */
 function fighter(b: PartBuilder, a: PartBuilder, g: PartBuilder, at: V3, s = 1): void {
   const [x, y, z] = at;
-  b.cyl(0.07 * s, 0.09 * s, 0.9 * s, CAMO, [x, y, z], [0, 0, Math.PI / 2], 8);
-  b.cyl(0.0, 0.07 * s, 0.28 * s, CAMO, [x + 0.59 * s, y, z], [0, 0, -Math.PI / 2], 8);
-  g.sphere(0.06 * s, '#ffffff', [x + 0.28 * s, y + 0.06 * s, z], [1.8, 0.8, 0.9]);
-  // asa em delta e estabilizadores
-  b.plan(
+  const P = (dx: number, dy: number, dz: number): V3 => [x + dx * s, y + dy * s, z + dz * s];
+  const body: [number, number][] = [
+    [-1.0, 0.07],
+    [-0.94, 0.1],
+    [-0.6, 0.12],
+    [-0.2, 0.13],
+    [0.15, 0.125],
+    [0.45, 0.105],
+    [0.7, 0.075],
+    [0.9, 0.042],
+    [1.07, 0.012],
+    [1.12, 0],
+  ];
+  lathe(b, body, F5.base, at, s, [0.95, 0.85]);
+  // camuflagem: manchas verdes sobre o dorso e os flancos
+  const patch = (x0: number, x1: number, a0: number, len: number, color: string) =>
+    lathe(
+      b,
+      body.filter(([px]) => px >= x0 && px <= x1).map(([px, r]) => [px, r * 1.02] as [number, number]),
+      color,
+      at,
+      s,
+      [0.95, 0.85],
+      [a0, len],
+    );
+  patch(-0.94, -0.2, TOP - 0.9, 1.4, F5.green);
+  patch(-0.6, 0.15, 0.3, 1.1, F5.dark);
+  patch(0.15, 0.7, TOP - 0.2, 1.3, F5.dark);
+  patch(-0.2, 0.45, Math.PI + 0.2, 1.0, F5.green);
+  // cabine em gota e moldura
+  g.sphere(0.08 * s, '#ffffff', P(0.47, 0.105, 0), [2.4, 0.95, 0.85], 10);
+  b.box(0.03 * s, 0.07 * s, 0.13 * s, F5.metal, P(0.33, 0.1, 0));
+  b.box(0.3 * s, 0.05 * s, 0.1 * s, F5.base, P(0.18, 0.1, 0));
+  // entradas de ar laterais (com a boca escura) e LERX
+  for (const sz of [1, -1]) {
+    b.box(0.42 * s, 0.11 * s, 0.07 * s, F5.base, P(0.0, -0.005, sz * 0.12));
+    b.box(0.02 * s, 0.09 * s, 0.055 * s, '#1c1e20', P(0.215, -0.005, sz * 0.125));
+  }
+  mirrored(
+    b,
     [
-      [0.18 * s, 0],
-      [-0.28 * s, 0.42 * s],
-      [-0.38 * s, 0.42 * s],
-      [-0.3 * s, 0],
-      [-0.38 * s, -0.42 * s],
-      [-0.28 * s, -0.42 * s],
+      [0.55, 0],
+      [0.22, 0.17],
+      [0.0, 0.12],
     ],
-    0.02 * s,
-    CAMO_DARK,
-    [x, y - 0.02 * s, z],
+    0.012 * s,
+    F5.base,
+    P(0, -0.01, 0),
+  );
+  // asa trapezoidal enflechada, com mísseis nas pontas
+  const wing: [number, number][] = [
+    [0.22 * s, 0],
+    [-0.31 * s, 0.78 * s],
+    [-0.47 * s, 0.78 * s],
+    [-0.42 * s, 0],
+  ];
+  mirrored(b, wing, 0.024 * s, F5.base, P(0, -0.045, 0));
+  // manchas nas asas
+  for (const sz of [1, -1]) {
+    b.plan(
+      [
+        [0.05 * s, 0.18 * s * sz],
+        [-0.18 * s, 0.55 * s * sz],
+        [-0.36 * s, 0.5 * s * sz],
+        [-0.25 * s, 0.2 * s * sz],
+      ],
+      0.004 * s,
+      sz > 0 ? F5.green : F5.dark,
+      P(0, -0.02, 0),
+    );
+    wingtipMissile(b, x - 0.33 * s, y - 0.045 * s, z + 0.8 * s * sz, s);
+    // cocar nacional na asa
+    a.cyl(0.07 * s, 0.07 * s, 0.006 * s, '#ffffff', P(-0.28, -0.017, 0.48 * sz), undefined, 14);
+  }
+  // estabilizadores horizontais baixos e deriva enflechada
+  mirrored(
+    b,
+    [
+      [-0.72, 0],
+      [-0.9, 0.36],
+      [-0.99, 0.36],
+      [-0.96, 0],
+    ].map((p) => [p[0]! * s, p[1]! * s] as [number, number]),
+    0.016 * s,
+    F5.green,
+    P(0, -0.03, 0),
   );
   b.side(
     [
-      [-0.45 * s, 0],
-      [-0.28 * s, 0],
-      [-0.42 * s, 0.24 * s],
-      [-0.5 * s, 0.24 * s],
+      [-1.0 * s, 0.07 * s],
+      [-0.6 * s, 0.07 * s],
+      [-0.86 * s, 0.5 * s],
+      [-1.0 * s, 0.5 * s],
     ],
-    0.02 * s,
-    CAMO_DARK,
-    [x, y + 0.05 * s, z],
+    0.022 * s,
+    F5.green,
+    P(0, 0, 0),
   );
-  b.cyl(0.06 * s, 0.05 * s, 0.06 * s, '#2b2d30', [x - 0.48 * s, y, z], [0, 0, Math.PI / 2], 8);
-  a.box(0.12 * s, 0.012 * s, 0.1 * s, '#ffffff', [x - 0.3 * s, y + 0.005 * s, z + 0.3 * s]);
+  b.side(
+    [
+      [-0.88 * s, 0.3 * s],
+      [-0.74 * s, 0.3 * s],
+      [-0.82 * s, 0.44 * s],
+      [-0.94 * s, 0.44 * s],
+    ],
+    0.026 * s,
+    F5.dark,
+    P(0, 0, 0),
+  );
+  a.box(0.1 * s, 0.07 * s, 0.03 * s, '#ffffff', P(-0.92, 0.42, 0));
+  // dois bocais e tanque ventral
+  for (const sz of [1, -1]) b.cyl(0.05 * s, 0.045 * s, 0.1 * s, F5.metal, P(-1.02, -0.005, 0.045 * sz), [0, 0, Math.PI / 2], 10);
+  lathe(
+    b,
+    [
+      [-0.42, 0],
+      [-0.35, 0.045],
+      [0.05, 0.06],
+      [0.3, 0.045],
+      [0.42, 0],
+    ],
+    '#b4bbb5',
+    P(-0.1, -0.17, 0),
+    s,
+  );
+  b.box(0.2 * s, 0.06 * s, 0.015 * s, F5.base, P(-0.1, -0.12, 0));
+  // tubo de pitot no nariz
+  b.cyl(0.006 * s, 0.006 * s, 0.14 * s, F5.metal, P(1.18, 0, 0), [0, 0, Math.PI / 2], 4);
+}
+
+const GRIPEN = { base: '#8e979d', light: '#a4acb1', metal: '#3a3e42' };
+
+/**
+ * F-39 Gripen E (nariz para +x): asa em delta com canards à frente, entradas de ar em "D" ao lado
+ * da cabine, deriva grande e enflechada, um bocal largo e mísseis nas pontas — cinza uniforme.
+ */
+function gripen(b: PartBuilder, a: PartBuilder, g: PartBuilder, at: V3, s = 1): void {
+  const [x, y, z] = at;
+  const P = (dx: number, dy: number, dz: number): V3 => [x + dx * s, y + dy * s, z + dz * s];
+  lathe(
+    b,
+    [
+      [-1.1, 0.1],
+      [-0.95, 0.14],
+      [-0.4, 0.15],
+      [0.1, 0.14],
+      [0.5, 0.115],
+      [0.8, 0.08],
+      [1.03, 0.04],
+      [1.2, 0.01],
+      [1.22, 0],
+    ],
+    GRIPEN.base,
+    at,
+    s,
+    [1, 0.9],
+  );
+  // dorso mais claro (espinha) e cabine em bolha
+  lathe(
+    b,
+    [
+      [-0.85, 0.145],
+      [-0.2, 0.15],
+      [0.3, 0.13],
+    ].map((p) => [p[0]!, p[1]! * 1.02] as [number, number]),
+    GRIPEN.light,
+    at,
+    s,
+    [1, 0.9],
+    [TOP - 0.5, 1.0],
+  );
+  g.sphere(0.085 * s, '#ffffff', P(0.6, 0.11, 0), [2.5, 1.05, 0.9], 12);
+  b.box(0.03 * s, 0.08 * s, 0.14 * s, GRIPEN.metal, P(0.42, 0.11, 0));
+  // entradas de ar em "D" e canards
+  for (const sz of [1, -1]) {
+    b.box(0.5 * s, 0.15 * s, 0.08 * s, GRIPEN.base, P(0.2, -0.01, sz * 0.15));
+    b.box(0.02 * s, 0.12 * s, 0.065 * s, '#1c1e20', P(0.455, -0.01, sz * 0.155));
+  }
+  mirrored(
+    b,
+    [
+      [0.62, 0],
+      [0.38, 0.42],
+      [0.3, 0.42],
+      [0.3, 0],
+    ].map((p) => [p[0]! * s, p[1]! * s] as [number, number]),
+    0.014 * s,
+    GRIPEN.base,
+    P(0, 0.05, 0),
+  );
+  // asa em delta com pontas cortadas (trilhos de míssil)
+  mirrored(
+    b,
+    [
+      [0.15, 0],
+      [-0.62, 0.78],
+      [-0.84, 0.78],
+      [-0.92, 0],
+    ].map((p) => [p[0]! * s, p[1]! * s] as [number, number]),
+    0.026 * s,
+    GRIPEN.base,
+    P(0, -0.04, 0),
+  );
+  for (const sz of [1, -1]) {
+    wingtipMissile(b, x - 0.62 * s, y - 0.04 * s, z + 0.8 * s * sz, s);
+    // cabides sob a asa com mísseis de médio alcance
+    b.box(0.2 * s, 0.04 * s, 0.02 * s, GRIPEN.metal, P(-0.45, -0.07, 0.42 * sz));
+    b.cyl(0.02 * s, 0.02 * s, 0.55 * s, '#cfd0ca', P(-0.4, -0.11, 0.42 * sz), [0, 0, Math.PI / 2], 8);
+    a.cyl(0.06 * s, 0.06 * s, 0.006 * s, '#ffffff', P(-0.62, -0.012, 0.55 * sz), undefined, 14);
+  }
+  // deriva grande e enflechada, com farol na ponta
+  b.side(
+    [
+      [-1.08 * s, 0.1 * s],
+      [-0.52 * s, 0.1 * s],
+      [-0.86 * s, 0.64 * s],
+      [-1.04 * s, 0.64 * s],
+    ],
+    0.024 * s,
+    GRIPEN.base,
+    P(0, 0, 0),
+  );
+  b.box(0.2 * s, 0.03 * s, 0.035 * s, GRIPEN.metal, P(-0.95, 0.65, 0));
+  a.box(0.12 * s, 0.07 * s, 0.03 * s, '#ffffff', P(-0.92, 0.5, 0));
+  // bocal único, largo, com anel interno escuro
+  b.cyl(0.11 * s, 0.095 * s, 0.16 * s, GRIPEN.metal, P(-1.16, 0, 0), [0, 0, Math.PI / 2], 14);
+  b.cyl(0.075 * s, 0.075 * s, 0.17 * s, '#141516', P(-1.17, 0, 0), [0, 0, Math.PI / 2], 12);
+  // tubo de pitot longo
+  b.cyl(0.006 * s, 0.006 * s, 0.2 * s, GRIPEN.metal, P(1.31, 0, 0), [0, 0, Math.PI / 2], 4);
 }
 
 /** Avião de reconhecimento: asa reta e longa, hélice dupla e radome. */
@@ -110,7 +341,7 @@ export function buildAirbaseModel(): Built {
   b.box(0.06, 0.95, 0.12, '#6d7378', [hx - 0.92, 0.5, hz + 1.0]);
   b.box(0.06, 0.95, 0.12, '#6d7378', [hx + 0.92, 0.5, hz + 1.0]);
   a.box(0.8, 0.14, 0.02, '#ffffff', [hx, 0.98, hz + 0.98]);
-  fighter(b, a, g, [hx + 0.1, 0.2, hz + 1.5], 0.95);
+  fighter(b, a, g, [hx + 0.1, 0.2, hz + 1.5], 0.52);
   // torre de controle com cabine envidraçada
   const tx = 2.3;
   const tz = -2.2;
@@ -134,7 +365,7 @@ export function buildAirbaseModel(): Built {
   b.box(0.5, 0.18, 0.2, '#c8c3b4', [2.25, 0.2, -0.6]);
   b.box(0.18, 0.2, 0.2, '#5b6650', [2.6, 0.2, -0.6]);
   for (const dx of [-0.15, 0.15, 0.55]) for (const sz of [-1, 1]) b.cyl(0.05, 0.05, 0.04, C.rubber, [2.25 + dx, 0.11, -0.6 + sz * 0.11], [Math.PI / 2, 0, 0], 8);
-  fighter(b, a, g, [0.35, 0.18, -0.15], 0.9);
+  fighter(b, a, g, [0.35, 0.18, -0.15], 0.5);
   // mastro da bandeira e biruta
   strut(b, [-2.7, 0.05, 0.9], [-2.7, 1.3, 0.9], 0.03, C.steel, true);
   a.box(0.02, 0.24, 0.38, '#ffffff', [-2.7, 1.18, 1.1]);
@@ -229,10 +460,11 @@ export function buildMissileSiloModel(): Built {
 // ------------------------------------------------------------------ em voo
 
 /** Aeronave em voo (nariz para +x), com a cor da nação nas marcas. */
-export function aircraftModel(type: 'fighter' | 'recon' | 'transport'): ModelLayers {
+export function aircraftModel(type: 'fighter' | 'gripen' | 'recon' | 'transport'): ModelLayers {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
-  if (type === 'fighter') fighter(b, a, g, [0, 0, 0], 1.4);
+  if (type === 'fighter') fighter(b, a, g, [0, 0, 0], 0.85);
+  else if (type === 'gripen') gripen(b, a, g, [0, 0, 0], 0.82);
   else if (type === 'recon') reconPlane(b, a, g, [0, 0, 0], 1.4);
   else transportPlane(b, a, g, [0, 0, 0], 1.4);
   return l.build();

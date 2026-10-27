@@ -10,6 +10,13 @@ import { sharedGeometry, sharedMaterial } from './palette.ts';
 const plateMat = () => sharedMaterial('mod-plate', () => new THREE.MeshStandardMaterial({ color: '#4b5143', roughness: 0.85, metalness: 0.25 }));
 const darkMat = () => sharedMaterial('mod-dark', () => new THREE.MeshStandardMaterial({ color: '#23272b', roughness: 0.6, metalness: 0.4 }));
 const lensMat = () => sharedMaterial('mod-lens', () => new THREE.MeshStandardMaterial({ color: '#1b2c36', roughness: 0.15, metalness: 0.7, emissive: '#2a6d8f', emissiveIntensity: 0.6 }));
+const tmpM = new THREE.Matrix4();
+const tmpQ = new THREE.Quaternion();
+const tmpV = new THREE.Vector3();
+const ONE = new THREE.Vector3(1, 1, 1);
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
+/** Comprimento de um ciclo de passada dos soldados (unidades do mundo). */
+const STRIDE = 1.1;
 const box = (key: string, w: number, h: number, d: number) => sharedGeometry(`mod-box-${key}`, () => new THREE.BoxGeometry(w, h, d));
 
 /**
@@ -84,6 +91,15 @@ export class UnitVisual {
   private equipmentKey = '';
   private readonly refitRing: THREE.Mesh;
   private refitPulse = 0;
+  /** Esteiras, rodas e pernas (giram/balançam com a distância percorrida). */
+  private treadTop: THREE.Mesh | null = null;
+  private treadBottom: THREE.Mesh | null = null;
+  private readonly wheelSets: { mesh: THREE.InstancedMesh; at: [number, number, number][]; r: number }[] = [];
+  private readonly legSets: { mesh: THREE.InstancedMesh; hips: [number, number, number][] }[] = [];
+  /** Distância percorrida (para frente, em unidades do mundo) e ritmo atual da passada. */
+  private travel = 0;
+  private gait = 0;
+  private readonly lastPos = new THREE.Vector2(NaN, NaN);
 
   constructor(
     readonly id: number,
@@ -107,10 +123,65 @@ export class UnitVisual {
     this.refitRing = selectionRing(UNITS[type].radius + 0.55, '#f0b84a');
     this.group.add(this.refitRing);
     this.body.add(this.equipment);
+    this.buildMotion(model.motion);
     const vehicle = UNITS[type].armor === 'vehicle';
     this.hp = new HealthBar(vehicle ? 1.8 : 1.2, type === 'artillery' || type === 'rocket_artillery' ? 2.4 : type === 'mbt' ? 2.3 : vehicle ? 2.1 : 1.6);
     this.group.add(this.hp.group);
     this.group.userData.entityId = id;
+  }
+
+  private buildMotion(motion: ReturnType<typeof unitModel>['motion']): void {
+    const mat = bodyMaterial();
+    if (motion.treads) {
+      this.treadTop = new THREE.Mesh(motion.treads.top, mat);
+      this.treadBottom = new THREE.Mesh(motion.treads.bottom, mat);
+      for (const m of [this.treadTop, this.treadBottom]) {
+        m.castShadow = true;
+        this.body.add(m);
+      }
+    }
+    for (const w of motion.wheels) {
+      const mesh = new THREE.InstancedMesh(w.geo, mat, w.at.length);
+      mesh.castShadow = true;
+      mesh.frustumCulled = false;
+      this.body.add(mesh);
+      this.wheelSets.push({ mesh, at: w.at, r: w.r });
+    }
+    for (const l of motion.legs) {
+      const mesh = new THREE.InstancedMesh(l.geo, mat, l.hips.length);
+      mesh.castShadow = true;
+      mesh.frustumCulled = false;
+      this.body.add(mesh);
+      this.legSets.push({ mesh, hips: l.hips });
+    }
+    this.poseMotion(0);
+  }
+
+  /**
+   * Posiciona esteiras, rodas e pernas para a distância percorrida: o ramo superior da esteira
+   * corre para a frente e o inferior para trás (fica parado em relação ao chão), cada roda gira
+   * d/r e as pernas alternam a passada (soldados da mesma esquadra levemente fora de sincronia).
+   */
+  private poseMotion(gait: number): void {
+    const pitch = unitModel(this.type).motion.treads?.pitch ?? 1;
+    const shift = ((this.travel % pitch) + pitch) % pitch;
+    if (this.treadTop) this.treadTop.position.x = shift;
+    if (this.treadBottom) this.treadBottom.position.x = -shift;
+    for (const w of this.wheelSets) {
+      tmpQ.setFromAxisAngle(Z_AXIS, -this.travel / w.r);
+      for (let i = 0; i < w.at.length; i++) w.mesh.setMatrixAt(i, tmpM.compose(tmpV.set(...w.at[i]!), tmpQ, ONE));
+      w.mesh.instanceMatrix.needsUpdate = true;
+    }
+    const stride = (this.travel / STRIDE) * Math.PI * 2;
+    for (const l of this.legSets) {
+      for (let i = 0; i < l.hips.length; i++) {
+        const soldier = i >> 1;
+        const swing = Math.sin(stride + soldier * 1.3 + (i & 1) * Math.PI) * 0.6 * gait;
+        tmpQ.setFromAxisAngle(Z_AXIS, swing);
+        l.mesh.setMatrixAt(i, tmpM.compose(tmpV.set(...l.hips[i]!), tmpQ, ONE));
+      }
+      l.mesh.instanceMatrix.needsUpdate = true;
+    }
   }
 
   setSelected(v: boolean): void {
@@ -158,9 +229,25 @@ export class UnitVisual {
       this.refitPulse += dt * 3;
       (this.refitRing.material as THREE.MeshBasicMaterial).opacity = 0.55 + 0.35 * Math.sin(this.refitPulse);
     }
+    // deslocamento real neste quadro, no sentido da frente da unidade (dá ré: valor negativo)
+    let step = 0;
+    if (!Number.isNaN(this.lastPos.x)) {
+      const dx = this.renderPos.x - this.lastPos.x;
+      const dy = this.renderPos.y - this.lastPos.y;
+      if (dx * dx + dy * dy < 9) step = dx * Math.cos(this.facing) + dy * Math.sin(this.facing);
+    }
+    this.lastPos.copy(this.renderPos);
+    const going = moving && Math.abs(step) > 1e-4;
+    this.gait += ((going ? 1 : 0) - this.gait) * Math.min(1, dt * 8);
+    if (step !== 0 || this.gait > 0.01) {
+      this.travel += step;
+      this.poseMotion(this.gait);
+    }
     if (UNITS[this.type].armor === 'infantry') {
-      this.bob += dt * (moving ? 12 : 0);
-      this.body.position.y = moving ? Math.abs(Math.sin(this.bob)) * 0.05 : 0;
+      // marcha: o corpo sobe a cada passo e inclina um pouco para a frente
+      const stride = (this.travel / STRIDE) * Math.PI * 2;
+      this.body.position.y = Math.abs(Math.sin(stride)) * 0.06 * this.gait;
+      this.body.rotation.z = -0.08 * this.gait;
     } else if (moving) {
       // leve balanço do chassi em movimento
       this.bob += dt * 9;
@@ -172,6 +259,8 @@ export class UnitVisual {
   }
 
   dispose(): void {
+    for (const w of this.wheelSets) w.mesh.dispose();
+    for (const l of this.legSets) l.mesh.dispose();
     this.hp.dispose();
     this.group.removeFromParent();
   }

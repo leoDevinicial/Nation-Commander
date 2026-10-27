@@ -98,7 +98,12 @@ export interface BuildingEffects {
   damageMul: number;
   rangeAdd: number;
   sightAdd: number;
+  /** Base aérea: geração dos caças que saem dela (1 = F-5EM Tiger II, 2 = F-39 Gripen). */
+  fighterGen: number;
 }
+
+/** Nível da base aérea a partir do qual os caças são de nova geração (F-39 Gripen). */
+export const FIGHTER_GEN2_LEVEL = 3;
 
 /** Ganho linear por nível acima do 1 (k = nível − 1). Multiplicadores: 1 + passo·k. */
 interface LevelScaling {
@@ -580,6 +585,18 @@ export const UPGRADES: Partial<Record<BuildingType, UpgradeTrack>> = {
     perLevel: { productionTimeMul: -0.1, hpMul: 0.1, upkeepSupplies: 0.03 },
     workersAt: [4],
   },
+  airbase: {
+    // pista reforçada, hangares e manutenção: mais vida e alcance do radar; a partir do nível 3 a
+    // força aérea recebe caças de nova geração (F-39 Gripen) no lugar dos F-5 modernizados
+    maxLevel: 5,
+    cost: { stone: 160, iron: 140, oil: 40, supplies: 90 },
+    costGrowth: 1.35,
+    usdM: 25,
+    usdGrowth: 1.4,
+    seconds: 30,
+    timeGrowth: 1.15,
+    perLevel: { hpMul: 0.12, sightAdd: 1, upkeepSupplies: 0.03 },
+  },
 };
 
 export function upgradeTrack(type: BuildingType): UpgradeTrack | undefined {
@@ -663,6 +680,7 @@ export function buildingEffects(type: BuildingType, level = 1, spec: SpecId | nu
     damageMul: round3(mul(pl.damageMul) * (m.damageMul ?? 1)),
     rangeAdd: round3((pl.rangeAdd ?? 0) * k + (m.rangeAdd ?? 0)),
     sightAdd: round3((pl.sightAdd ?? 0) * k),
+    fighterGen: type === 'airbase' && lv >= FIGHTER_GEN2_LEVEL ? 2 : 1,
   });
   effectsCache.set(key, fx);
   return fx;
@@ -926,5 +944,6 @@ export function compareEffects(type: BuildingType, a: BuildingEffects, b: Buildi
     add('range', 'Alcance da defesa', round3(def.weapon.range + a.rangeAdd), round3(def.weapon.range + b.rangeAdd), '');
   }
   add('sight', 'Visão', def.sight + a.sightAdd, def.sight + b.sightAdd, '');
+  if (type === 'airbase') add('fighterGen', 'Caças (1: F-5EM Tiger II · 2: F-39 Gripen)', a.fighterGen, b.fighterGen, '');
   return out;
 }

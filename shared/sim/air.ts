@@ -1,5 +1,5 @@
 import { BUILDINGS, TICK_RATE, UNITS, canAfford, type Cost } from './config.ts';
-import { missingText } from './upgrades.ts';
+import { buildingEffects, missingText } from './upgrades.ts';
 import type { Simulation } from './Simulation.ts';
 import type { Building, EntityId, Slot, Vec2 } from './types.ts';
 
@@ -164,6 +164,8 @@ export interface AirMission {
   legTicks: number;
   fuel: number;
   result: MissionResult | null;
+  /** Geração dos caças (pelo nível da base na decolagem): 1 = F-5EM, 2 = F-39 Gripen. Só visual. */
+  gen?: number;
 }
 
 export type LaunchState = 'preparing' | 'armed' | 'launching' | 'flight' | 'impact' | 'intercepted' | 'aborted';
@@ -374,6 +376,7 @@ export class AirSystem {
       legTicks: Math.max(1, Math.round((d / speed) * TICK_RATE)),
       fuel: Math.round(fuel * 10) / 10,
       result: null,
+      gen: buildingEffects('airbase', base.level).fighterGen,
     };
     for (const a of planes) {
       a.state = 'mission';

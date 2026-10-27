@@ -434,3 +434,17 @@ describe('verba de obras no orçamento nacional', () => {
     expect(nat.nation(0)!.works.ledger.at(-1)!.description).toMatch(/Centro de Comando → nível 2/);
   });
 });
+
+describe('base aérea: geração dos caças', () => {
+  it('F-5EM até o nível 2; F-39 Gripen a partir do nível 3, mostrado no ganho da melhoria', async () => {
+    const { buildingEffects, compareEffects, FIGHTER_GEN2_LEVEL } = await import('../sim/upgrades.ts');
+    expect(FIGHTER_GEN2_LEVEL).toBe(3);
+    expect(buildingEffects('airbase', 1).fighterGen).toBe(1);
+    expect(buildingEffects('airbase', 2).fighterGen).toBe(1);
+    expect(buildingEffects('airbase', 3).fighterGen).toBe(2);
+    expect(buildingEffects('airbase', 5).maxHp).toBeGreaterThan(buildingEffects('airbase', 1).maxHp);
+    const gain = compareEffects('airbase', buildingEffects('airbase', 2), buildingEffects('airbase', 3)).find((g) => g.key === 'fighterGen');
+    expect(gain).toMatchObject({ before: 1, after: 2 });
+    expect(buildingEffects('barracks', 5).fighterGen).toBe(1);
+  });
+});

@@ -97,6 +97,18 @@ export function renderThumbnails(renderer: THREE.WebGLRenderer, slot: number): P
       const g = new THREE.Group();
       add(g, m.hull);
       if (m.turret) add(g, m.turret, m.turretPivot);
+      // peças animadas em repouso: esteiras, rodas e pernas
+      const still = (geo: THREE.BufferGeometry, at: [number, number, number] = [0, 0, 0]) => {
+        const mesh = new THREE.Mesh(geo, mats.body);
+        mesh.position.set(...at);
+        g.add(mesh);
+      };
+      if (m.motion.treads) {
+        still(m.motion.treads.top);
+        still(m.motion.treads.bottom);
+      }
+      for (const w of m.motion.wheels) for (const at of w.at) still(w.geo, at);
+      for (const l of m.motion.legs) for (const at of l.hips) still(l.geo, at);
       // frente (+x) virada para a câmera
       g.rotation.y = -0.35;
       shoot(type, g);

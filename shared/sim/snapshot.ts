@@ -113,7 +113,11 @@ export interface AirView {
   /** Aeronaves próprias. `progress`: produção ou manutenção (0..1). */
   aircraft: { id: number; type: AircraftType; baseId: EntityId; state: AircraftState; progress: number }[];
   /** Voos no mapa: os próprios e os inimigos visíveis. */
-  flights: { id: number; owner: Slot; kind: MissionKind; state: MissionState; x: number; y: number; heading: number; count: number }[];
+  /**
+   * Voos em andamento. `gen`: modelo dos caças (1 = F-5EM, 2 = F-39 Gripen); `bx/by`: base de
+   * origem; `tx/ty`: alvo (só nos voos próprios ou que atacam este jogador).
+   */
+  flights: { id: number; owner: Slot; kind: MissionKind; state: MissionState; x: number; y: number; heading: number; count: number; gen: number; bx: number; by: number; tx?: number; ty?: number }[];
   /** Missões próprias recentes, com o resultado registrado. */
   missions: { id: number; kind: MissionKind; state: MissionState; baseId: EntityId; targetType: string | null; fuel: number; count: number; result: MissionResult | null }[];
   silos: { id: EntityId; missiles: number; building: number }[];
@@ -334,6 +338,10 @@ export function airView(sim: Simulation, slot: Slot): AirView {
       y: r2(p.y),
       heading: r2(Math.atan2((m.target.y - m.from.y) * dir, (m.target.x - m.from.x) * dir)),
       count: m.aircraft.length,
+      gen: m.gen ?? 1,
+      bx: r2(m.from.x),
+      by: r2(m.from.y),
+      ...(m.owner === slot || (m.targetId !== null && sim.entities.get(m.targetId)?.owner === slot) ? { tx: r2(m.target.x), ty: r2(m.target.y) } : {}),
     });
   }
   const live = (st: LaunchState) => st === 'preparing' || st === 'armed' || st === 'launching' || st === 'flight';
