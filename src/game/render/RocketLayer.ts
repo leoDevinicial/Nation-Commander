@@ -203,7 +203,6 @@ export class RocketLayer {
         vz: tmpA.z * 2.4 + (Math.random() - 0.5),
       });
     this.emit(tmpB.set(tmpPos.x, 0.25, tmpPos.z), { life: 2.4, size0: 1, size1: 3.2, peak: 0.45, tone: 0.85, vx: (Math.random() - 0.5) * 1.6, vy: 0.15, vz: (Math.random() - 0.5) * 1.6 });
-    this.shake({ x: tmpPos.x, y: tmpPos.z }, 0.05);
   }
 
   private land(r: Rocket): void {

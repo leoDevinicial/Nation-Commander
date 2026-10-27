@@ -27,6 +27,19 @@ describe('visão aproximada', () => {
   });
 });
 
+describe('tremor leve dos disparos pesados', () => {
+  it('tremores leves somados não passam do teto, e não reduzem um tremor maior', () => {
+    const ctl = new CameraController(new THREE.PerspectiveCamera(), 100, 100);
+    const trauma = () => (ctl as unknown as { trauma: number }).trauma;
+    for (let i = 0; i < 12; i++) ctl.shake(0.07, 0.5);
+    expect(trauma()).toBeCloseTo(0.5, 5);
+    ctl.shake(0.9);
+    expect(trauma()).toBeCloseTo(1, 5);
+    ctl.shake(0.07, 0.5);
+    expect(trauma()).toBeCloseTo(1, 5);
+  });
+});
+
 describe('rastros de esteira', () => {
   it('cada marca vira um par sob as duas esteiras, perpendicular à frente, e some com o tempo', () => {
     const tm = new TrackMarks(8);

@@ -79,8 +79,10 @@ export class CameraController {
   }
 
   /** Tremor de câmera (ignição de míssil, impacto). Soma ao tremor atual, até 1. */
-  shake(amount: number): void {
-    this.trauma = Math.min(1, this.trauma + amount);
+  shake(amount: number, cap = 1): void {
+    // `cap`: tremores leves não passam do teto, mesmo somados (mas não reduzem um tremor maior)
+    if (this.trauma >= cap) return;
+    this.trauma = Math.min(cap, this.trauma + amount);
   }
 
   /** Decai o tremor e anda as transições; chamar uma vez por quadro antes de `apply`. */

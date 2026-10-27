@@ -114,6 +114,9 @@ const DRAG_THRESHOLD = 6;
 /** Edifícios em que a tecla V produz uma tropa (nos outros casos, V liga a visão aproximada). */
 const PRODUCERS_WITH_V: readonly BuildingType[] = (Object.keys(UNITS) as UnitType[]).filter((u) => UNITS[u].hotkey === 'V').map((u) => UNITS[u].producedBy);
 
+/** Tremor (visão aproximada) por disparo dos veículos pesados; no lança-foguetes, por foguete. */
+const HEAVY_FIRE_SHAKE: Partial<Record<UnitType, number>> = { tank: 0.22, mbt: 0.26, artillery: 0.32, rocket_artillery: 0.07 };
+
 export class GameRuntime {
   readonly map: MapData;
   readonly mySlot: number;
@@ -584,6 +587,7 @@ export class GameRuntime {
         },
         onLaunch: (i) => {
           this.units.get(e.attackerId)?.visual.rocketKick(i);
+          this.closeUpRecoilShake(e.from, 'rocket_artillery');
           audio.playAt('rocket', e.from.x, e.from.y);
         },
       });
@@ -606,6 +610,7 @@ export class GameRuntime {
       const tp = target ? target.visual.renderPos : new THREE.Vector2(e.to.x, e.to.y);
       const ty = target ? (UNITS[target.visual.type].armor === 'vehicle' ? 0.6 : 0.7) : 1.2;
       attacker.visual.onFire();
+      this.closeUpRecoilShake(attacker.visual.renderPos, attacker.visual.type);
       this.projectiles.fire(kind, { x: tp.x, y: ty, z: tp.y }, (pos, dir) => attacker.visual.fireGun(pos, dir));
     } else if (e.type === 'shot') {
       const attacker = this.units.get(e.attackerId);
@@ -662,6 +667,20 @@ export class GameRuntime {
     const d = Math.hypot(at.x - this.cameraCtl.target.x, at.y - this.cameraCtl.target.z);
     const near = 1 - Math.min(1, d / (this.cameraCtl.distance * 1.6));
     if (near > 0) this.cameraCtl.shake(amount * near);
+  }
+
+  /**
+   * Tremor do disparo dos veículos pesados, só na visão aproximada: bem fraco, some com a
+   * distância do veículo à câmera e não soma além de um teto (rajadas não viram terremoto).
+   */
+  private closeUpRecoilShake(at: { x: number; y: number }, type: UnitType): void {
+    if (!this.cameraCtl.closeUp) return;
+    const amount = HEAVY_FIRE_SHAKE[type];
+    if (!amount) return;
+    if (this.suspended || useSettingsStore.getState().reducedMotion || prefersReducedMotion()) return;
+    const d = Math.hypot(at.x - this.cameraCtl.target.x, at.y - this.cameraCtl.target.z);
+    const near = 1 - Math.min(1, d / 14);
+    if (near > 0) this.cameraCtl.shake(amount * near, 0.5);
   }
 
   /**
