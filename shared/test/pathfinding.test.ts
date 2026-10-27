@@ -50,3 +50,28 @@ describe('A*', () => {
     expect(path.some((c) => c.cy === 2)).toBe(true);
   });
 });
+
+describe('linha reta livre (esticar caminho)', () => {
+  it('percorre toda célula cortada: não atravessa a quina de uma pedra entre amostras', () => {
+    // linha rasante que corta só a pontinha da célula (2,1)
+    const g = grid(['.....', '..#..', '.....']);
+    const a = { x: 0.5 * 2, y: 0.5 * 2 };
+    const b = { x: 4.5 * 2, y: 1.95 * 2 };
+    expect(g.lineWalkable(a, b)).toBe(false);
+    expect(g.lineWalkable({ x: 1, y: 1 }, { x: 9, y: 1 })).toBe(true);
+  });
+
+  it('com folga, recusa a linha que passa colada na borda bloqueada', () => {
+    const g = grid(['.....', '.....', '#####']);
+    // centro a 0,1 célula da borda da pedra: o corpo da unidade rasparia
+    const y = 1.9 * 2;
+    expect(g.lineWalkable({ x: 1, y }, { x: 9, y })).toBe(true);
+    expect(g.lineWalkable({ x: 1, y }, { x: 9, y }, 0.3)).toBe(false);
+    expect(g.lineWalkable({ x: 1, y: 3 }, { x: 9, y: 3 }, 0.3)).toBe(true);
+  });
+
+  it('não corta a diagonal entre duas células bloqueadas', () => {
+    const g = grid(['.#', '#.']);
+    expect(g.lineWalkable({ x: 1, y: 1 }, { x: 3, y: 3 })).toBe(false);
+  });
+});

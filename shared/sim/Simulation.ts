@@ -144,6 +144,8 @@ export const ATTRITION_PER_SECOND = 0.012;
 export const SUPPLY_LINE_RADIUS = 12;
 
 const UNDER_ATTACK_ALERT_TICKS = TICK_RATE * 6;
+/** Folga lateral (em células) ao esticar caminhos: a linha reta não raspa quinas bloqueadas. */
+const PATH_CLEARANCE = 0.3;
 /** Fração devolvida ao cancelar uma pesquisa militar. */
 export const RESEARCH_CANCEL_REFUND = 0.75;
 /** Fração do dano que atinge quem está no raio de uma arma de área. */
@@ -2032,7 +2034,7 @@ export class Simulation {
     let i = 0;
     while (i < pts.length) {
       let j = pts.length - 1;
-      while (j > i && !this.grid.lineWalkable(anchor, pts[j]!)) j--;
+      while (j > i && !this.grid.lineWalkable(anchor, pts[j]!, PATH_CLEARANCE)) j--;
       out.push(pts[j]!);
       anchor = pts[j]!;
       i = j + 1;
@@ -2064,7 +2066,7 @@ export class Simulation {
       u.path = [];
       return true;
     }
-    if (this.grid.isWorldPassable(next)) u.pos = next;
+    u.pos = this.stepToward(u.pos, next);
 
     // detecção de bloqueio persistente → replanejamento limitado
     if (d < u.lastProgressDist - 0.05) {
@@ -2080,6 +2082,25 @@ export class Simulation {
       if (!this.planPath(u, final)) return true;
     }
     return false;
+  }
+
+  /**
+   * Passo de movimento sem ficar preso na quina: se o ponto seguinte cai em célula bloqueada,
+   * desliza pelo eixo livre (ao longo da parede, da margem do lago ou da pedra). Uma unidade que
+   * já está numa célula bloqueada (ex.: empurrada para dentro) pode sair dela.
+   */
+  private stepToward(from: Vec2, next: Vec2): Vec2 {
+    const g = this.grid;
+    if (g.isWorldPassable(next)) return next;
+    if (!g.isWorldPassable(from)) return next;
+    const slideX = { x: next.x, y: from.y };
+    const slideY = { x: from.x, y: next.y };
+    const okX = g.isWorldPassable(slideX);
+    const okY = g.isWorldPassable(slideY);
+    if (okX && okY) return Math.abs(next.x - from.x) >= Math.abs(next.y - from.y) ? slideX : slideY;
+    if (okX) return slideX;
+    if (okY) return slideY;
+    return from;
   }
 
   /** Separação simples entre unidades para reduzir empilhamento. */

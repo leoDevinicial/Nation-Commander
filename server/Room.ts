@@ -864,28 +864,33 @@ export class Room {
     let recorded = false;
     if (realUsers.length > 0) {
       try {
-        recorded = await this.deps.record({
-          room_code: this.code,
-          mode: this.mode,
-          map_seed: this.seed,
-          started_at: new Date(this.startedAt).toISOString(),
-          ended_at: new Date(endedAt).toISOString(),
-          duration_seconds: durationSeconds,
-          end_reason: reason,
-          winner_id: winner && !winner.isAI && winner.userId && !winner.userId.startsWith('guest:') ? winner.userId : null,
-          game_version: GAME_VERSION,
-          players: this.players.map((p) => ({
-            slot: p.slot,
-            player_id: p.isAI || !p.userId || p.userId.startsWith('guest:') ? null : p.userId,
-            is_ai: p.isAI,
-            display_name: p.name,
-            country_id: p.countryId,
-            result: result(p.slot),
-            stats: sim.players[p.slot]!.stats,
-            national: this.nationalSummary(p.slot),
-          })),
-          balance_mode: this.balanceMode,
-        });
+        // a gravação nunca segura o fim da partida: sem resposta do banco em 8 s, o resultado sai assim mesmo
+        recorded = await withTimeout(
+          this.deps.record({
+            room_code: this.code,
+            mode: this.mode,
+            map_seed: this.seed,
+            started_at: new Date(this.startedAt).toISOString(),
+            ended_at: new Date(endedAt).toISOString(),
+            duration_seconds: durationSeconds,
+            end_reason: reason,
+            winner_id: winner && !winner.isAI && winner.userId && !winner.userId.startsWith('guest:') ? winner.userId : null,
+            game_version: GAME_VERSION,
+            players: this.players.map((p) => ({
+              slot: p.slot,
+              player_id: p.isAI || !p.userId || p.userId.startsWith('guest:') ? null : p.userId,
+              is_ai: p.isAI,
+              display_name: p.name,
+              country_id: p.countryId,
+              result: result(p.slot),
+              stats: sim.players[p.slot]!.stats,
+              national: this.nationalSummary(p.slot),
+            })),
+            balance_mode: this.balanceMode,
+          }),
+          RECORD_TIMEOUT_MS,
+          false,
+        );
       } catch (err) {
         log.error('Erro ao gravar partida', { err: String(err) });
       }
@@ -1004,4 +1009,18 @@ function publicPlayer(p: RoomPlayer): RoomPlayerInfo {
 
 function countryForAI(humanCountry: string): string {
   return humanCountry === 'ARG' ? 'BRA' : 'ARG';
+}
+
+const RECORD_TIMEOUT_MS = 8000;
+
+/** Espera a promessa até `ms`; depois disso, segue com `fallback` (a promessa continua por conta própria). */
+function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<T>((resolve) => {
+    timer = setTimeout(() => {
+      log.warn('Gravação da partida demorou demais; resultado enviado sem confirmação');
+      resolve(fallback);
+    }, ms);
+  });
+  return Promise.race([p.finally(() => clearTimeout(timer)), late]);
 }

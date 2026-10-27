@@ -193,7 +193,7 @@ export function GameScreen() {
         <div className="absolute inset-0 flex items-center justify-center bg-ink-950/90 p-8 text-center">
           <div className="panel max-w-md p-6">
             <p className="mb-4">{error}</p>
-            <button className="btn" onClick={() => gameClient.send({ t: 'surrender' })}>
+            <button className="btn" onClick={() => (gameClient.send({ t: 'surrender' }) ? undefined : useAppStore.setState({ screen: 'menu', match: null, matchEnd: null, room: null, chat: [] }))}>
               Abandonar partida
             </button>
           </div>

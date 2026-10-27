@@ -94,15 +94,54 @@ export class Grid {
     return null;
   }
 
-  /** Verifica se o segmento a→b atravessa apenas células passáveis (amostragem densa). */
-  lineWalkable(a: Vec2, b: Vec2): boolean {
+  /**
+   * Verifica se o segmento a→b atravessa apenas células passáveis. Percorre exatamente as células
+   * cortadas pela linha (DDA, sem pular quinas) e, com `clearance` (em células), também duas linhas
+   * paralelas a essa distância — o corpo da unidade não raspa pedra, água nem parede.
+   */
+  lineWalkable(a: Vec2, b: Vec2, clearance = 0): boolean {
+    if (!this.cellsClear(a, b)) return false;
+    if (clearance <= 0) return true;
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    if (len < 1e-9) return true;
+    const ox = (-(b.y - a.y) / len) * clearance * this.cellSize;
+    const oy = ((b.x - a.x) / len) * clearance * this.cellSize;
+    return this.cellsClear({ x: a.x + ox, y: a.y + oy }, { x: b.x + ox, y: b.y + oy }) && this.cellsClear({ x: a.x - ox, y: a.y - oy }, { x: b.x - ox, y: b.y - oy });
+  }
+
+  /** Travessia de grade (Amanatides & Woo): toda célula tocada pelo segmento precisa ser passável. */
+  private cellsClear(a: Vec2, b: Vec2): boolean {
+    const cs = this.cellSize;
+    let cx = Math.floor(a.x / cs);
+    let cy = Math.floor(a.y / cs);
+    const ex = Math.floor(b.x / cs);
+    const ey = Math.floor(b.y / cs);
+    if (!this.isPassable(cx, cy)) return false;
     const dx = b.x - a.x;
     const dy = b.y - a.y;
-    const dist = Math.hypot(dx, dy);
-    const steps = Math.max(1, Math.ceil(dist / (this.cellSize * 0.25)));
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      if (!this.isWorldPassable({ x: a.x + dx * t, y: a.y + dy * t })) return false;
+    const sx = dx > 0 ? 1 : -1;
+    const sy = dy > 0 ? 1 : -1;
+    const tdx = dx !== 0 ? Math.abs(cs / dx) : Infinity;
+    const tdy = dy !== 0 ? Math.abs(cs / dy) : Infinity;
+    let tx = dx !== 0 ? (sx > 0 ? (cx + 1) * cs - a.x : a.x - cx * cs) / Math.abs(dx) : Infinity;
+    let ty = dy !== 0 ? (sy > 0 ? (cy + 1) * cs - a.y : a.y - cy * cs) / Math.abs(dy) : Infinity;
+    for (let n = Math.abs(ex - cx) + Math.abs(ey - cy); n > 0; n--) {
+      if (Math.abs(tx - ty) < 1e-9) {
+        // passa exatamente pela quina: as duas vizinhas também contam (não corta canto)
+        if (!this.isPassable(cx + sx, cy) || !this.isPassable(cx, cy + sy)) return false;
+        cx += sx;
+        cy += sy;
+        tx += tdx;
+        ty += tdy;
+        n--;
+      } else if (tx < ty) {
+        cx += sx;
+        tx += tdx;
+      } else {
+        cy += sy;
+        ty += tdy;
+      }
+      if (!this.isPassable(cx, cy)) return false;
     }
     return true;
   }

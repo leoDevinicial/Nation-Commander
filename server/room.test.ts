@@ -219,6 +219,7 @@ describe('servidor de partidas', () => {
     expect(rec.balance_mode).toBe('realistic');
     expect(rec.players[0]!.national?.countryId).toBe('USA');
     expect(rec.players[0]!.national?.days).toBe(1);
+    await vi.waitFor(() => expect(a.last('match_end')).toBeDefined());
     expect(a.last('match_end')!.end.players[1]!.national?.countryId).toBe('ZAF');
   });
 
@@ -379,5 +380,23 @@ describe('operações expedicionárias pela rede (Fase 8)', () => {
     for (let i = 0; i < op.travelDays * 20 + 5; i++) room.advance();
     expect(sim.units.filter((u) => u.owner === 0)).toHaveLength(mine.length);
     expect(a.last('operations')!.ops.ops[0]!.state).toBe('done');
+  });
+  it('render-se não fica preso se o banco não responder: o resultado sai após o limite de espera', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const rooms = new RoomManager({ reconnectGraceMs: 1000, record: () => new Promise<boolean>(() => {}), autoLoop: false, seed: 5, now: () => 0 }, 10);
+      const deps: HandlerDeps = { rooms, allowGuests: false, sessions: new Map(), verify: async (token) => ({ id: token, name: token }) };
+      const a = fakeConn();
+      const send = (raw: object) => handleMessage(a.conn, parseClientMessage(JSON.stringify(raw))!, deps);
+      await send({ t: 'hello', protocol: PROTOCOL_VERSION, token: 'alice' });
+      await send({ t: 'create_room', mode: 'vs_ai', countryId: 'BRA' });
+      await send({ t: 'start' });
+      await send({ t: 'surrender' });
+      expect(a.last('match_end')).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(8000);
+      expect(a.last('match_end')!.end).toMatchObject({ reason: 'forfeit', recorded: false });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
