@@ -274,7 +274,7 @@ export class GameRuntime {
     this.scene.add(this.citizens.group);
     this.scene.add(this.cargo.group);
     this.effects = new Effects(this.scene, opts.profile.maxEffects, opts.profile.dynamicLights, opts.profile.cinematic ? 'cinematic' : opts.profile.ultra ? 'volumetric' : 'basic');
-    this.airLayer = new AirLayer(this.effects, this.mySlot, (id) => this.positionOf(id));
+    this.airLayer = new AirLayer(this.effects, this.mySlot, (id) => this.positionOf(id), opts.profile.maxEffects > 60 ? 140 : 60);
     this.scene.add(this.airLayer.group);
 
     this.selectionBox = document.createElement('div');
@@ -529,23 +529,33 @@ export class GameRuntime {
       this.effects.flash(new THREE.Vector3(e.pos.x, 6.5, e.pos.y), 1.1, '#ffd38a', 0.4);
     } else if (e.type === 'missile') {
       if (e.state === 'flight') {
-        // ignição: clarão branco e nuvem de fumaça na boca do silo
-        this.effects.flash(new THREE.Vector3(e.from.x, 1, e.from.y), 1.6, '#fff4d0', 0.5);
-        for (let i = 0; i < 6; i++) this.effects.flash(new THREE.Vector3(e.from.x + (Math.random() - 0.5) * 2, 0.6, e.from.y + (Math.random() - 0.5) * 2), 0.9, '#cfccc4', 1.6);
+        // ignição: clarão, luz forte e nuvem de fumaça rolando a partir do silo
+        this.effects.ignition(new THREE.Vector3(e.from.x, 0.4, e.from.y));
+        this.airLayer.shockwave(e.from, 3);
+        this.shakeNear(e.from, 0.35);
       } else if (e.state === 'impact') {
-        for (let i = 0; i < 4; i++) this.effects.explosion(new THREE.Vector3(e.target.x + (Math.random() - 0.5) * MISSILE.radius, 0, e.target.y + (Math.random() - 0.5) * MISSILE.radius), i < 2);
-        this.effects.flash(new THREE.Vector3(e.target.x, 1.5, e.target.y), MISSILE.radius * 0.8, '#fff0c0', 0.35);
+        this.effects.missileImpact(new THREE.Vector3(e.target.x, 0, e.target.y), MISSILE.radius);
+        // duas ondas: o clarão rápido e a poeira mais lenta e larga
         this.airLayer.shockwave(e.target, MISSILE.radius);
+        this.airLayer.shockwave(e.target, MISSILE.radius * 2.2);
+        this.shakeNear(e.target, 0.95);
       } else if (e.state === 'intercepted') {
         // interceptação: estouro alto no céu, sem dano no chão
-        const at = new THREE.Vector3(e.target.x, 10, e.target.y);
-        this.effects.flash(at, 1.8, '#ffffff', 0.25);
-        this.effects.explosion(at, false);
+        this.effects.airburst(new THREE.Vector3(e.target.x, 10, e.target.y));
+        this.shakeNear(e.target, 0.2);
       }
     }
     this.eventSound(e);
     const text = describeEvent(e, this.mySlot);
     if (text) useHudStore.getState().pushEvent({ tick: e.tick, text: text.text, tone: text.tone });
+  }
+
+  /** Tremor de câmera proporcional à proximidade do que o jogador está olhando (sem movimento reduzido). */
+  private shakeNear(at: { x: number; y: number }, amount: number): void {
+    if (this.suspended || useSettingsStore.getState().reducedMotion || prefersReducedMotion()) return;
+    const d = Math.hypot(at.x - this.cameraCtl.target.x, at.y - this.cameraCtl.target.z);
+    const near = 1 - Math.min(1, d / (this.cameraCtl.distance * 1.6));
+    if (near > 0) this.cameraCtl.shake(amount * near);
   }
 
   /**
@@ -603,6 +613,7 @@ export class GameRuntime {
       this.cameraCtl.distance = this.intro.from + (this.intro.to - this.intro.from) * e;
       if (this.intro.t >= 1) this.intro = null;
     }
+    this.cameraCtl.tick(dt);
     this.cameraCtl.apply();
     if (this.opts.profile.cinematic) {
       // as nuvens andam com o mesmo vento da fumaça (≈2,4 unidades/s)

@@ -224,6 +224,163 @@ export class Effects {
     }, () => m.dispose());
   }
 
+  // ------------------------------------------------------------ míssil balístico (cinematográfico)
+
+  /** Luz pontual de curta duração (usa o conjunto fixo de luzes do preset; sem luzes, não faz nada). */
+  light(at: THREE.Vector3, color: string, peak: number, range: number, life: number): void {
+    this.glow(at, color, peak, range, life);
+  }
+
+  /**
+   * Nuvem de fumaça grande e lenta (ignição e cogumelo do impacto). `ground` espalha rente ao chão
+   * em anel; senão sobe em coluna e, no topo (`cap`), abre para os lados como um cogumelo.
+   */
+  plume(at: THREE.Vector3, o: { count: number; size: number; rise: number; life: number; spread: number; ground?: boolean; cap?: boolean; tone?: number; delay?: number }): void {
+    const map = this.smokeMode === 'cinematic' ? cinematicSmokeTexture() : volumetricSmokeTexture();
+    for (let i = 0; i < o.count; i++) {
+      if (this.items.length >= this.maxItems) return;
+      const m = new THREE.SpriteMaterial({ map, color: '#3a3835', transparent: true, depthWrite: false, opacity: 0 });
+      const sp = new THREE.Sprite(m);
+      const angle = (i / o.count) * Math.PI * 2 + Math.random() * 0.6;
+      const reach = o.spread * (0.6 + Math.random() * 0.5);
+      const rise = o.rise * (0.75 + Math.random() * 0.5);
+      const sz = o.size * (0.75 + Math.random() * 0.5);
+      const spin = (Math.random() - 0.5) * 0.6;
+      const delay = (o.delay ?? 0) + (i / o.count) * 0.12;
+      const tone = o.tone ?? 0.5;
+      sp.position.copy(at);
+      this.add(sp, o.life * (0.85 + Math.random() * 0.3), (t) => {
+        const k = Math.max(0, (t - delay) / (1 - delay));
+        const out = 1 - Math.pow(1 - k, 2.5);
+        if (o.ground) {
+          sp.position.set(at.x + Math.cos(angle) * reach * out, at.y + 0.3 + k * 0.8, at.z + Math.sin(angle) * reach * out);
+        } else if (o.cap) {
+          // sobe e, já no alto, abre para fora (o "chapéu" do cogumelo)
+          const up = Math.pow(Math.min(1, k * 1.6), 0.6);
+          const side = Math.max(0, k * 1.6 - 0.6) * reach;
+          sp.position.set(at.x + Math.cos(angle) * side + k * 1.2, at.y + rise * up, at.z + Math.sin(angle) * side + k * 0.4);
+        } else {
+          sp.position.set(at.x + Math.cos(angle) * reach * 0.3 * out + k * 0.8, at.y + 0.5 + Math.pow(k, 0.55) * rise, at.z + Math.sin(angle) * reach * 0.3 * out);
+        }
+        sp.scale.setScalar(sz * (0.45 + k * 1.9));
+        const c = tone * 0.45 + k * 0.32;
+        m.color.setRGB(c, c * 0.97, c * 0.93);
+        m.opacity = Math.min(1, k * 8) * Math.pow(1 - k, 1.2) * 0.88;
+        m.rotation += spin * 0.016;
+      }, () => m.dispose());
+    }
+  }
+
+  /** Clarão grande e macio (sprite com brilho radial): sem a borda poligonal de uma esfera. */
+  softFlash(at: THREE.Vector3, size: number, color: string, life: number): void {
+    const m = new THREE.SpriteMaterial({ map: glowTexture(), color, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending });
+    const sp = new THREE.Sprite(m);
+    sp.position.copy(at);
+    sp.renderOrder = 20;
+    // o clarão principal não conta no limite de efeitos: é um só e marca o instante
+    this.scene.add(sp);
+    this.items.push({
+      obj: sp,
+      age: 0,
+      life,
+      update: (t) => {
+        sp.scale.setScalar(size * (0.6 + Math.pow(t, 0.4) * 0.8));
+        m.opacity = Math.pow(1 - t, 2);
+      },
+      dispose: () => m.dispose(),
+    });
+  }
+
+  /** Bola de fogo aditiva (todos os presets; no Ultra+ o brilho ainda passa pelo bloom). */
+  blast(at: THREE.Vector3, size: number, life: number, count = 8): void {
+    const map = glowTexture();
+    for (let i = 0; i < count; i++) {
+      if (this.items.length >= this.maxItems) return;
+      const m = new THREE.SpriteMaterial({ map, color: '#fff2c8', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 });
+      const sp = new THREE.Sprite(m);
+      const ox = (Math.random() - 0.5) * size * 0.5;
+      const oz = (Math.random() - 0.5) * size * 0.5;
+      const up = size * (0.4 + Math.random() * 0.6);
+      const sz = size * (0.8 + Math.random() * 0.6);
+      const delay = (i / count) * 0.15;
+      sp.position.copy(at);
+      this.add(sp, life * (0.8 + Math.random() * 0.4), (t) => {
+        const k = Math.max(0, (t - delay) / (1 - delay));
+        sp.position.set(at.x + ox * (1 + k), at.y + 0.6 + k * up, at.z + oz * (1 + k));
+        sp.scale.setScalar(sz * (0.3 + Math.pow(k, 0.45)));
+        m.color.setRGB(1, Math.max(0.2, 0.95 - k * 0.8), Math.max(0.04, 0.75 - k * 0.85));
+        m.opacity = Math.min(1, k * 16) * Math.pow(1 - k, 1.1);
+      }, () => m.dispose());
+    }
+  }
+
+  /** Marca escura de queimado no chão, que esmaece devagar. */
+  scorch(at: { x: number; y: number }, radius: number, life: number): void {
+    const material = new THREE.MeshBasicMaterial({ map: glowTexture(), color: '#000000', transparent: true, depthWrite: false, opacity: 0 });
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(at.x, 0.12, at.y);
+    m.scale.setScalar(radius * 2.6);
+    m.renderOrder = 2;
+    // a marca não conta no limite de efeitos (é uma só e precisa durar)
+    this.scene.add(m);
+    this.items.push({
+      obj: m,
+      age: 0,
+      life,
+      update: (t) => (material.opacity = Math.min(1, t * 40) * 0.75 * (1 - Math.pow(t, 3))),
+      dispose: () => {
+        m.geometry.dispose();
+        material.dispose();
+      },
+    });
+  }
+
+  /** Ignição no silo: clarão, luz forte e uma nuvem de fumaça que rola pelo chão e sobe. */
+  ignition(at: THREE.Vector3): void {
+    this.light(at, '#ffd9a0', 260, 26, 1.4);
+    this.softFlash(at.clone().setY(1.5), 14, '#fff3d6', 0.5);
+    this.blast(at, 2.6, 0.9, 6);
+    this.plume(at, { count: 16, size: 3.4, rise: 1.4, life: 7.5, spread: 7, ground: true, tone: 1 });
+    this.plume(at, { count: 8, size: 3, rise: 11, life: 8.5, spread: 2, tone: 0.95, delay: 0.05 });
+  }
+
+  /** Impacto do míssil: clarão cegante, bola de fogo, cogumelo de fumaça, poeira e queimado. */
+  missileImpact(at: THREE.Vector3, radius: number): void {
+    this.light(at, '#fff0c8', 520, radius * 9, 1.8);
+    this.softFlash(at.clone().setY(3), radius * 9, '#ffffff', 0.45);
+    this.softFlash(at.clone().setY(2), radius * 4, '#ffd28a', 1.2);
+    this.blast(at, radius * 1.3, 1.8, 12);
+    for (let i = 0; i < 4; i++) this.explosion(new THREE.Vector3(at.x + (Math.random() - 0.5) * radius * 1.6, 0, at.z + (Math.random() - 0.5) * radius * 1.6), i < 2);
+    // cogumelo: haste escura que sobe e um chapéu que abre no alto
+    this.plume(at, { count: 10, size: radius * 1.1, rise: radius * 3.2, life: 10, spread: radius * 0.4, tone: 0.35 });
+    this.plume(at, { count: 14, size: radius * 1.4, rise: radius * 3.8, life: 12, spread: radius * 1.5, cap: true, tone: 0.5, delay: 0.04 });
+    this.plume(at, { count: 18, size: radius * 1, rise: 1, life: 6.5, spread: radius * 2.8, ground: true, tone: 0.8 });
+    this.scorch({ x: at.x, y: at.z }, radius, 40);
+  }
+
+  /** Interceptação: estouro no céu, nuvem que fica pairando e fragmentos incandescentes caindo. */
+  airburst(at: THREE.Vector3): void {
+    this.light(at, '#ffffff', 220, 30, 0.6);
+    this.softFlash(at, 16, '#ffffff', 0.35);
+    this.blast(at, 2.6, 1, 6);
+    this.plume(at.clone().setY(at.y - 0.6), { count: 8, size: 1.8, rise: 1.5, life: 6, spread: 3, tone: 0.7 });
+    for (let i = 0; i < 7; i++) {
+      if (this.items.length >= this.maxItems) return;
+      const m = new THREE.SpriteMaterial({ map: glowTexture(), color: '#ffb35a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+      const sp = new THREE.Sprite(m);
+      const vx = (Math.random() - 0.5) * 6;
+      const vz = (Math.random() - 0.5) * 6;
+      const vy = Math.random() * 3;
+      sp.scale.setScalar(0.35);
+      this.add(sp, 1.6 + Math.random() * 0.6, (t) => {
+        const s = t * 1.8;
+        sp.position.set(at.x + vx * s, Math.max(0.2, at.y + vy * s - 4.9 * s * s), at.z + vz * s);
+        m.opacity = 1 - t;
+      }, () => m.dispose());
+    }
+  }
+
   private add(obj: THREE.Object3D, life: number, update: (t: number) => void, dispose: () => void): void {
     this.scene.add(obj);
     this.items.push({ obj, age: 0, life, update, dispose });

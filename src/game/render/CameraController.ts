@@ -10,6 +10,9 @@ export class CameraController {
   readonly maxDistance = 110;
   panSpeed = 1;
   private readonly bounds: { w: number; h: number };
+  /** Tremor (0..1), que decai sozinho; o deslocamento cresce com o quadrado (pancadas secas). */
+  private trauma = 0;
+  private shakeTime = 0;
 
   constructor(
     readonly camera: THREE.PerspectiveCamera,
@@ -37,6 +40,17 @@ export class CameraController {
     this.distance = THREE.MathUtils.clamp(this.distance * factor, this.minDistance, this.maxDistance);
   }
 
+  /** Tremor de câmera (ignição de míssil, impacto). Soma ao tremor atual, até 1. */
+  shake(amount: number): void {
+    this.trauma = Math.min(1, this.trauma + amount);
+  }
+
+  /** Decai o tremor; chamar uma vez por quadro antes de `apply`. */
+  tick(dt: number): void {
+    this.shakeTime += dt;
+    this.trauma = Math.max(0, this.trauma - dt * 0.9);
+  }
+
   rotate(delta: number): void {
     this.yaw += delta;
   }
@@ -53,6 +67,14 @@ export class CameraController {
       Math.sin(this.pitch) * this.distance,
       this.target.z + Math.cos(this.yaw) * horiz,
     );
+    if (this.trauma > 0) {
+      // ruído suave (senos de frequências primas): treme sem "saltar" de quadro em quadro
+      const a = this.trauma * this.trauma * (0.4 + this.distance * 0.012);
+      const t = this.shakeTime * 31;
+      this.camera.position.x += a * (Math.sin(t) * 0.6 + Math.sin(t * 2.3) * 0.4);
+      this.camera.position.y += a * (Math.sin(t * 1.7 + 1) * 0.6 + Math.sin(t * 3.1) * 0.4) * 0.6;
+      this.camera.position.z += a * (Math.sin(t * 1.3 + 2) * 0.6 + Math.sin(t * 2.9) * 0.4);
+    }
     this.camera.lookAt(this.target);
   }
 }
