@@ -1,10 +1,11 @@
 # Balanceamento, progressão e ideias de design
 
-Análise do estado do jogo e propostas de melhoria, em três lotes:
+Análise do estado do jogo e propostas de melhoria, em quatro lotes:
 
 1. **Diagnóstico de balanceamento e progressão**, com elementos de city builder inspirados em *Tropico 5* e *Tropico 6*.
 2. **Elementos inspirados em *Rise of Nations*** que ainda não existem no jogo.
 3. **Estradas construídas pelo jogador e Engenheiro de Combate** (com minas terrestres).
+4. **Mapas maiores, partidas com mais jogadores e tipos de mapa.**
 
 Nada aqui está implementado: são propostas para discussão. Os números do diagnóstico saem das tabelas do código
 (`shared/sim/config.ts`, `shared/sim/TacticalAI.ts`, `shared/sim/Simulation.ts`, `shared/sim/upgrades.ts`,
@@ -356,3 +357,69 @@ de Pesquisa Militar.
 
 **IA:** precisa evitar as minas que conhece e mandar engenheiros à frente das ondas. Sem isso, as minas viram um novo
 jeito de vencê-la de graça, como já acontece com a artilharia de longo alcance (lote 1, seção 1.1).
+
+---
+
+# Lote 4 — Mapas e partidas com mais jogadores
+
+## 1. Número de jogadores
+
+As partidas deixam de ser só 1v1 e passam a aceitar jogadores humanos e bots (IA) juntos:
+
+| Versão | Máximo de nações na partida (jogadores + bots) |
+|---|---|
+| **Grátis** | até **4** |
+| **Assinante** | até **6** |
+
+Modos possíveis: todos contra todos, 2v2, 3v3 e times desiguais com bots. A diplomacia já tem alianças, então os times
+podem nascer de alianças formais.
+
+## 2. Mapas maiores
+
+O mapa atual de 64×64 é pequeno demais para estradas, Centros Regionais, comércio marítimo e força aérea. O tamanho deve
+crescer com o número de nações, por exemplo:
+
+| Nações | Tamanho sugerido (a calibrar) |
+|---|---|
+| 2 | 96×96 |
+| 3–4 | 128×128 |
+| 5–6 | 160×160 |
+
+**O que precisa mudar**
+- **Gerador de mapas:** o `MapGen.ts` hoje usa simetria por rotação de 180°, que só serve para 2 jogadores. Para 3 a 6 é
+  preciso simetria por rotação em N partes (ou espelhamento), para cada nação começar com recursos equivalentes.
+- **IA tática:** hoje sempre mira o QG adversário mais próximo. Com vários rivais precisa escolher alvo, aproveitar quem
+  está enfraquecido, respeitar alianças e não ficar entre dois fogos.
+- **Desempenho:** mapas maiores aumentam o custo do A*, da névoa de guerra e dos snapshots enviados 10 vezes por segundo.
+  Medir cedo o servidor e o cliente (`KGPS`).
+
+## 3. Tipos de mapa
+
+| Tipo | Descrição | Destaques |
+|---|---|---|
+| **Continental** | Terra contínua com florestas, montanhas e planícies | Padrão; estradas e Centros Regionais |
+| **Rios e Pontes** | Rios largos que só se cruzam por pontes ou vaus | Pontos de estrangulamento; o Engenheiro constrói e destrói pontes |
+| **Montanhoso** | Cordilheiras com poucos passos | Defesa forte, minas de ferro ricas, artilharia valorizada |
+| **Deserto** | Pouca comida e madeira, muito petróleo | Economia de comércio; veículos dominam |
+| **Oceano Central** | Nações nas extremidades, oceano no meio | Batalhas navais, desembarques, porta-aviões |
+| **Arquipélago** | Cada nação numa ilha ou grupo de ilhas | Domínio naval e aéreo; portos essenciais |
+
+**Ordem sugerida:** batalha naval exige conteúdo antes do mapa. Hoje o mar só tem navios mercantes do comércio; sem
+navios de guerra e desembarque, Oceano Central e Arquipélago ficariam injogáveis (só aviões e mísseis decidiriam a
+partida). Por isso:
+1. mapas terrestres maiores para até 4 e 6 nações;
+2. Rios e Pontes, Montanhoso e Deserto;
+3. conteúdo naval: navio de transporte com desembarque, fragata (antinavio e antiaérea), submarino e, no fim do jogo,
+   porta-aviões;
+4. Oceano Central e Arquipélago.
+
+## 4. Geografia real dos países
+
+Com até 4 ou 6 nações por partida, o tipo de mapa **não** pode ser derivado da combinação de países (por exemplo,
+"Brasil contra Japão gera mar no meio" não funciona quando há quatro países de continentes diferentes). O tipo de mapa é
+escolhido pelo anfitrião ou sorteado.
+
+A geografia real entra em escala menor: **a região inicial de cada nação** reflete o país dentro do tipo de mapa escolhido.
+Por exemplo, o Brasil começa com mais floresta e rios, a Arábia Saudita com mais petróleo e deserto, o Japão com mais
+costa e montanhas. O equilíbrio é mantido por compensações declaradas (quem tem menos de um recurso tem mais de outro),
+como na escolha entre os modos paridade e escala real.
