@@ -31,6 +31,10 @@ export class Effects {
   private readonly lineMatLight = new THREE.LineBasicMaterial({ color: '#ffe7a3', transparent: true });
   private readonly lineMatHeavy = new THREE.LineBasicMaterial({ color: '#ffb36b', transparent: true });
   private readonly maxItems: number;
+  /** Fração do máximo de efeitos em uso (o KGPS reduz quando o jogo pesa). */
+  private budgetFrac = 1;
+  /** Fumaça das explosões novas (o KGPS pode baixar até a básica; as em curso terminam como estão). */
+  private smokeMode: ExplosionSmoke;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -40,9 +44,10 @@ export class Effects {
      * Ultra: fumaça volumétrica (várias partículas com volume e giro). Ultra+: coluna mais alta e
      * duradoura, que o vento deita e espalha, com poeira rasteira nas explosões grandes.
      */
-    private readonly smokeMode: ExplosionSmoke = 'basic',
+    readonly topSmoke: ExplosionSmoke = 'basic',
   ) {
     this.maxItems = maxItems;
+    this.smokeMode = topSmoke;
     for (let i = 0; i < dynamicLights; i++) {
       const light = new THREE.PointLight('#ffb36b', 0, 10, 2);
       light.castShadow = false;
@@ -68,7 +73,7 @@ export class Effects {
   }
 
   tracer(from: THREE.Vector3, to: THREE.Vector3, heavy: boolean): void {
-    if (this.items.length >= this.maxItems) return;
+    if (this.items.length >= this.cap) return;
     const geo = new THREE.BufferGeometry().setFromPoints([from, to]);
     const material = (heavy ? this.lineMatHeavy : this.lineMatLight).clone();
     const line = new THREE.Line(geo, material);
@@ -84,7 +89,7 @@ export class Effects {
   }
 
   flash(at: THREE.Vector3, size: number, color: string, life: number): void {
-    if (this.items.length >= this.maxItems) return;
+    if (this.items.length >= this.cap) return;
     const material = new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false });
     const m = new THREE.Mesh(this.sphereGeo, material);
     m.position.copy(at);
@@ -93,6 +98,28 @@ export class Effects {
       material.opacity = 1 - t;
       m.scale.setScalar(size * (1 + t * 0.8));
     }, () => material.dispose());
+  }
+
+  /** Limite de efeitos simultâneos em vigor (nunca menos que 8: tiros e explosões continuam visíveis). */
+  private get cap(): number {
+    return Math.max(8, Math.round(this.maxItems * this.budgetFrac));
+  }
+
+  get budget(): number {
+    return this.budgetFrac;
+  }
+
+  get smoke(): ExplosionSmoke {
+    return this.smokeMode;
+  }
+
+  /**
+   * Orçamento de efeitos (KAICS Adaptables+ · K-05): fração do máximo do preset e a fumaça das
+   * explosões novas. Não recompila shaders: só limita quantos efeitos nascem e quão densa é a fumaça.
+   */
+  setBudget(fraction: number, smoke: ExplosionSmoke): void {
+    this.budgetFrac = Math.max(0.1, Math.min(1, fraction));
+    this.smokeMode = smoke;
   }
 
   explosion(at: THREE.Vector3, big: boolean): void {
@@ -164,7 +191,7 @@ export class Effects {
     const n = big ? 7 : 4;
     const map = glowTexture();
     for (let i = 0; i < n; i++) {
-      if (this.items.length >= this.maxItems) return;
+      if (this.items.length >= this.cap) return;
       const m = new THREE.SpriteMaterial({ map, color: '#ffd28a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 });
       const sp = new THREE.Sprite(m);
       const r = big ? 1.1 : 0.5;
@@ -190,7 +217,7 @@ export class Effects {
    * (`ground`) corre rente ao chão na direção `angle` e assenta.
    */
   private smokePuff(at: THREE.Vector3, big: boolean, map: THREE.Texture, delay: number, ground: boolean, angle = 0): void {
-    if (this.items.length >= this.maxItems) return;
+    if (this.items.length >= this.cap) return;
     const m = new THREE.SpriteMaterial({ map, color: '#3a3835', transparent: true, depthWrite: false, opacity: 0 });
     const sp = new THREE.Sprite(m);
     const spread = big ? 1.8 : 0.9;
@@ -238,7 +265,7 @@ export class Effects {
   plume(at: THREE.Vector3, o: { count: number; size: number; rise: number; life: number; spread: number; ground?: boolean; cap?: boolean; tone?: number; delay?: number }): void {
     const map = this.smokeMode === 'cinematic' ? cinematicSmokeTexture() : volumetricSmokeTexture();
     for (let i = 0; i < o.count; i++) {
-      if (this.items.length >= this.maxItems) return;
+      if (this.items.length >= this.cap) return;
       const m = new THREE.SpriteMaterial({ map, color: '#3a3835', transparent: true, depthWrite: false, opacity: 0 });
       const sp = new THREE.Sprite(m);
       const angle = (i / o.count) * Math.PI * 2 + Math.random() * 0.6;
@@ -276,7 +303,7 @@ export class Effects {
    * poucos centésimos de segundo; respeita a profundidade (não aparece por cima dos prédios).
    */
   muzzleFlash(at: THREE.Vector3, dir: THREE.Vector3, size: number): void {
-    if (this.items.length >= this.maxItems) return;
+    if (this.items.length >= this.cap) return;
     const map = glowTexture();
     const parts: [number, number, string][] = [
       [0, 1, '#ffe6a8'],
@@ -319,7 +346,7 @@ export class Effects {
   blast(at: THREE.Vector3, size: number, life: number, count = 8): void {
     const map = glowTexture();
     for (let i = 0; i < count; i++) {
-      if (this.items.length >= this.maxItems) return;
+      if (this.items.length >= this.cap) return;
       const m = new THREE.SpriteMaterial({ map, color: '#fff2c8', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 });
       const sp = new THREE.Sprite(m);
       const ox = (Math.random() - 0.5) * size * 0.5;
@@ -412,7 +439,7 @@ export class Effects {
     }
     this.plume(at, { count: 22, size: radius * 1.1, rise: 1.4, life: 9, spread: radius * 3.8, ground: true, tone: 0.75, delay: 0.08 });
     for (let i = 0; i < 16; i++) {
-      if (this.items.length >= this.maxItems) return;
+      if (this.items.length >= this.cap) return;
       const m = new THREE.SpriteMaterial({ map: glowTexture(), color: '#ffa648', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
       const sp = new THREE.Sprite(m);
       const a = Math.random() * Math.PI * 2;
@@ -434,7 +461,7 @@ export class Effects {
     this.blast(at, 2.6, 1, 6);
     this.plume(at.clone().setY(at.y - 0.6), { count: 8, size: 1.8, rise: 1.5, life: 6, spread: 3, tone: 0.7 });
     for (let i = 0; i < 7; i++) {
-      if (this.items.length >= this.maxItems) return;
+      if (this.items.length >= this.cap) return;
       const m = new THREE.SpriteMaterial({ map: glowTexture(), color: '#ffb35a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
       const sp = new THREE.Sprite(m);
       const vx = (Math.random() - 0.5) * 6;

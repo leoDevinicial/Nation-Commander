@@ -1,10 +1,15 @@
 import * as THREE from 'three';
 import { factionColor } from '../factions.ts';
+import { withFog } from './materials.ts';
 
 /**
  * Fronteiras no terreno, no estilo do mapa político de Rise of Nations: um tom suave da cor da
  * nação sobre o território e uma faixa contínua na borda. Reconstruído só quando o território
  * muda (o servidor envia a grade nova apenas nesses momentos).
+ *
+ * O tom passa pela névoa de guerra como o chão embaixo dele: sem isso, onde o chão fica quase
+ * preto (fora de visão), só o azul sobrava e o território virava uma mancha azul-marinho (E3).
+ * A faixa da borda continua sempre visível, como num mapa político.
  */
 export class TerritoryLayer {
   readonly group = new THREE.Group();
@@ -29,7 +34,7 @@ export class TerritoryLayer {
     const W = width * cellSize;
     const H = height * cellSize;
     const geo = new THREE.PlaneGeometry(W, H);
-    this.fill = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: this.texture, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+    this.fill = new THREE.Mesh(geo, withFog(new THREE.MeshBasicMaterial({ map: this.texture, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 })));
     this.fill.rotation.x = -Math.PI / 2;
     this.fill.position.set(W / 2, 0.06, H / 2);
     this.fill.renderOrder = 1;

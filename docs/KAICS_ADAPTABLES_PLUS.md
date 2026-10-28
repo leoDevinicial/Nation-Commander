@@ -4,8 +4,8 @@
 | Campo | Valor |
 |---|---|
 | Documento | KAP-KGPS-SPEC |
-| Versão | 2.0. Revisa a 1.0 (rascunho do autor, genérica) e a ancora no código real. |
-| Estado | Aprovada para implementação em ondas. As decisões da seção 0.5 têm padrão definido. |
+| Versão | 2.1. Revisa a 1.0 (rascunho do autor, genérica) e a ancora no código real. A 2.1 registra o que a Onda 1 aprendeu ao ser implementada (seção 36.1). |
+| Estado | **Onda 1 implementada** (aguardando os testes de campo F-01 a F-07). Ondas 2 e 3 pendentes. As decisões da seção 0.5 seguem o padrão definido. |
 | Base atual | KGPS/KAICS v1 em produção: `src/game/perf/` e `GameRuntime.setupPerf`. Descrição em `docs/KGPS_KAICS.md`. |
 | Público | Agente de implementação, desenvolvedor e o jogador que testa no aparelho. |
 | Idioma | Português (Brasil). |
@@ -199,7 +199,7 @@ O padrão recomendado vale até o dono do produto decidir outra coisa.
 |---|---|---|---|
 | E1 | Celular do jogador (modelo não informado), Ultra+, economia de bateria **ligada**, Sandbox, início da partida, câmera sobre a capital | ~7 qps | Print do jogo |
 | E2 | Mesmo celular, Mobile/Baixo, economia de bateria **desligada** (cena não informada) | ~30 qps | Relato do jogador |
-| E3 | Print de E1: grandes áreas azul-escuras perto da fronteira e manchas alaranjadas e arroxeadas no centro do território | Artefato visual; causa **não confirmada** | Print do jogo |
+| E3 | Print de E1: grandes áreas azul-escuras perto da fronteira e manchas alaranjadas e arroxeadas no centro do território | Artefato visual. **Causa confirmada e corrigida na Onda 1** (seção 36.1): não era a GPU do celular | Print do jogo; reproduzido no PC |
 
 **O que E1 e E2 provam:**
 - A distância entre os extremos é de ~4,3× em qps. Ela mistura preset e economia de bateria; ainda falta isolar cada fator (protocolo F-01 a F-04).
@@ -225,7 +225,7 @@ O padrão recomendado vale até o dono do produto decidir outra coisa.
 | G5 | Limite externo só implícito (pausa) | O painel não diz "economia de bateria/navegador provável" | C3 (O1) |
 | G6 | Sem tempo de GPU, mesmo quando disponível | Gargalo sempre estimado | C2 (O2) |
 | G7 | Painel não exportável | Impossível ajustar com dados reais do aparelho | C8 (O1) |
-| G8 | Artefato visual E3 no celular | Imagem errada; pode ser bug de precisão ou de camada | C7 (O1) |
+| G8 | Artefato visual E3 no celular | Imagem errada; era bug de camada (tom do território fora da névoa), em qualquer aparelho | C7 (O1) — **fechada** |
 | G9 | Travadas na primeira explosão ou unidade nova (compilação de shader) | Hitches no início das batalhas | C7 (O2) |
 | G10 | Perfil aprendido não sabe que o visual do jogo mudou | Pode reaplicar ajustes antigos depois de um update gráfico | C8 (O1) |
 
@@ -332,7 +332,7 @@ Consultor* ◄── resumo da sessão (fim da partida) → recomendação para 
 | ID | Requisito | Prio. | Verif. |
 |---|---|---|---|
 | R-DEV-01 | A classe DEVE ser derivada de evidência, com fonte registrada. **Software:** nome do renderizador contém SwiftShader, llvmpipe ou Software. **Celular:** ponteiro grosso + toque + lado curto < 820 px CSS. **PC:** o resto. Nunca por marca ou modelo comercial. | P0 | T-12 |
-| R-DEV-02 | A taxa da tela DEVE ser estimada pela mediana dos intervalos no aquecimento, arredondada para 30, 60, 90, 120 ou 144 Hz. Ela é o teto da meta (`inferida`). | P0 | T-13 |
+| R-DEV-02 | A taxa da tela DEVE ser estimada pelos quadros mais rápidos de cada janela (p10 dos intervalos), reconhecendo 60, 90, 120 ou 144 Hz (tolerância de 7% do período). A maior taxa já evidenciada é o teto da meta (`inferida`). Quadros presos em 33,3 ms **não** DEVEM virar estimativa de 30 Hz: numa tela de 60 Hz, uma carga entre 17 e 33 ms produz o mesmo padrão. Esse caso é tratado pelo limite externo (R-TGT-04). | P0 | T-13 |
 | R-DEV-03 | Com `EXT_disjoint_timer_query_webgl2`, o tempo de GPU DEVERIA ser amostrado (1 a cada 10 quadros, descartando resultados disjuntos) e usado no diagnóstico como `medido`. | P1 | T (simulado) + F |
 | R-DEV-04 | Contexto restaurado, redimensionamento e mudança de densidade (troca de monitor) DEVEM invalidar a densidade base, a taxa da tela e a janela atual. | P1 | T |
 | R-DEV-05 | `renderer.info.memory` (geometrias e texturas) PODE alimentar um indício de vazamento: crescimento contínuo por 10 min sem troca de cena vira incidente. | P2 | T |
@@ -606,7 +606,7 @@ export interface Decision { at: number; kind: DecisionKind; text: string; eviden
 | ID | Cenário | Requisitos |
 |---|---|---|
 | T-01 | Classe celular, quadros estáveis a 33,3 ms → nenhum passo aplicado | R-TGT-01/02 |
-| T-02 | Tela estimada em 30 Hz → meta limitada a 30 | R-TGT-03, R-DEV-02 |
+| T-02 | Meta limitada pela taxa estimada da tela; 33,3 ms presos não viram estimativa de 30 Hz | R-TGT-03, R-DEV-02 |
 | T-03 | Travado em 33,3 ms com CPU baixa e reduções inúteis → `externalCap`, tudo desfeito, nada mais reduzido | R-TGT-04 |
 | T-04 | ~143 ms por quadro (7 qps) que melhora a cada passo → chega a ≤ 1,15× sem esperar 2 janelas por passo; antes e depois registrados | R-EMG-01/02/05 |
 | T-05 | Emergência sem ganho → tudo desfeito, marcado "limite não gráfico/externo" | R-EMG-03 |
@@ -692,6 +692,36 @@ export interface Decision { at: number; kind: DecisionKind; text: string; eviden
 8. Testes, documentação e commit. O jogador então roda F-01 a F-07.
 
 **Saída:** critérios da Onda 1 cumpridos.
+
+### 36.1 Onda 1 — o que a implementação mudou ou descobriu
+**Estado:** itens 1 a 8 entregues. Automáticos: T-01 a T-15, T-17 e T-18 passando, com typecheck,
+lint e build. Falta o campo (F-01 a F-07).
+
+1. **Taxa da tela (R-DEV-02 e T-02 reescritos).** A mediana do aquecimento não serve: 33,3 ms
+   presos são ambíguos (tela de 30 Hz ou carga entre 17 e 33 ms numa tela de 60 Hz). A estimativa
+   usa o p10 de cada janela e só reconhece 60/90/120/144 Hz; o padrão de 30 qps é resolvido pelo
+   limite externo, que exige uma cadeia de reduções sem efeito antes de concluir.
+2. **Descida rápida e o padrão de 30 qps.** Uma janela presa em 33,3 ms com a CPU folgada não
+   dispara a descida rápida: a cadeia passo a passo resolve a dúvida primeiro.
+3. **T-18 (regressão).** O teste do v1 "tela travada em 30 Hz" mudou de expectativa de propósito:
+   em vez de pausar 5 min, o KGPS entra em `externalCap` (R-TGT-04). Os outros 18 testes do v1
+   passam sem mudança.
+4. **Custos visuais implementados** (definem a ordem efetiva; a seção 22 é a intenção):
+   K-01 só céu 3; K-02 níveis de emergência 5; K-03 3 (100→75) / 4 (75→50); K-04 2;
+   K-05 2 (100→70) / 4 (70→40). Com eles, a resolução de emergência fica por último e o reflexo só
+   céu entra antes de desligar a oclusão.
+5. **E3 — causa e correção (R-SHD-01).** Reproduzido no PC (Chromium com SwiftShader, preset
+   Equilibrado), então **não** é GPU nem precisão do celular. O tom do território (camada
+   transparente com a cor da nação) era desenhado sem a névoa de guerra. Nas partes do próprio
+   território fora de visão e nunca exploradas, o chão fica quase preto e só o azul sobrava: as
+   "áreas azul-escuras perto da fronteira". As "manchas alaranjadas e arroxeadas" eram as texturas
+   de terra e asfalto sob o mesmo véu azul, na transição da névoa. Correção:
+   - o tom do território passa pela névoa como o chão embaixo dele;
+   - o próprio território conta no mínimo como explorado (só o visual do chão; o servidor continua
+     escondendo as unidades fora de visão);
+   - a faixa da fronteira continua sempre visível.
+6. **Portão `compilando`.** Na Onda 1 ele cobre 1,5 s depois que os modelos do Nature Kit chegam
+   (troca de malhas no meio da partida). O pré-aquecimento com `compileAsync` (R-SHD-02) é da Onda 2.
 
 **Onda 2 — precisão e próxima partida (P1).**
 - consultor e aviso por aparelho;

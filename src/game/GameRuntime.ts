@@ -42,10 +42,13 @@ import { useSettingsStore } from '../state/useSettingsStore.ts';
 import { AdaptiveExposure, EnvironmentProbe, ShadowFollow } from './render/Lighting.ts';
 import { describeEvent } from './eventText.ts';
 import type { GraphicsProfile } from '../lib/graphics.ts';
-import { isTouchDevice, prefersReducedMotion } from '../lib/graphics.ts';
+import { GRAPHICS_REVISION, isTouchDevice, prefersReducedMotion } from '../lib/graphics.ts';
 import { TouchGestures, type TouchPoint } from './input/TouchGestures.ts';
 import { Kaics, probeCapabilities } from './perf/kaics.ts';
-import { Kgps, localProfileStore } from './perf/kgps.ts';
+import { KGPS_CONFIG, Kgps, localProfileStore } from './perf/kgps.ts';
+import { profileKey, targetFor } from './perf/device.ts';
+import { buildReport } from './perf/report.ts';
+import type { ExplosionSmoke } from './render/Effects.ts';
 import type { PerfHud, TouchTool } from '../state/useHudStore.ts';
 import { effectiveFund, effectiveStability, effectiveTechs } from '../state/sandbox.ts';
 
@@ -132,6 +135,8 @@ export class GameRuntime {
   private kaics!: Kaics;
   private kgps!: Kgps;
   private perfGate: string | null = null;
+  /** Modelos novos (Nature Kit) chegaram: os shaders compilam nos primeiros quadros — sem medir. */
+  private compilingUntil = 0;
   private lastPerf = 0;
   private frameNo = 0;
   /** Mapa de sombra: redesenhado uma vez por quadro (ou a cada N), não a cada passe de render. */
@@ -421,7 +426,10 @@ export class GameRuntime {
     // modelos do Nature Kit chegam depois; até lá, vegetação procedural
     this.terrain
       .upgrade()
-      .then(() => this.sharpenTextures(this.terrain.group))
+      .then(() => {
+        this.sharpenTextures(this.terrain.group);
+        this.compilingUntil = performance.now() + 1500;
+      })
       .catch((err: unknown) => console.warn('Nature Kit indisponível', err));
   }
 
@@ -756,6 +764,9 @@ export class GameRuntime {
     for (let i = 0; i < w * h; i++) {
       if (visible[i]) this.fogState[i] = 2;
       else if (this.fogState[i] === 2) this.fogState[i] = 1;
+      // o próprio território é terra conhecida: no mínimo explorado (só o visual do chão; o
+      // servidor continua escondendo as unidades fora de visão)
+      else if (this.fogState[i] === 0 && this.territory[i] === this.mySlot) this.fogState[i] = 1;
       tex[i] = this.fogState[i] === 2 ? 255 : this.fogState[i] === 1 ? 115 : 0;
     }
     this.fogTexture.needsUpdate = true;
@@ -876,18 +887,25 @@ export class GameRuntime {
     const r = this.renderer;
     const kaics = new Kaics(probeCapabilities(r.getContext(), r.capabilities.maxTextureSize), this.opts.adaptive ?? true);
     this.kaics = kaics;
+    // classe do aparelho: celular (e renderização por software) tem pisos de emergência mais fundos
+    const deep = kaics.device.value !== 'pc';
     const refl = this.terrain.reflection;
     if (refl)
       kaics.register({
         id: 'reflections',
         label: 'Reflexo da água',
-        levels: ['a cada 3 quadros', 'a cada 2 quadros', 'todo quadro'],
-        baseline: 2,
-        floor: 0,
+        levels: ['só céu', 'a cada 3 quadros', 'a cada 2 quadros', 'todo quadro'],
+        baseline: 3,
+        floor: 1,
+        // só céu: sem a passada que redesenha a cena (uniforme; não recompila)
+        emergencyFloor: 0,
         helps: ['gpu', 'cpu'],
-        stepCost: () => 1,
-        apply: (l) => refl.setInterval(3 - l),
-        read: () => 3 - refl.interval,
+        stepCost: (from) => (from === 1 ? 3 : 1),
+        apply: (l) => {
+          refl.setSky(l === 0);
+          if (l > 0) refl.setInterval(4 - l);
+        },
+        read: () => (refl.sky ? 0 : 4 - refl.interval),
       });
     if (this.probe)
       kaics.register({
@@ -964,18 +982,74 @@ export class GameRuntime {
         read: () => sizes.indexOf(sun.shadow.mapSize.x),
       });
     }
+    // decoração (árvores, arbustos, pedras): sombra e densidade, sem recompilar shaders
+    const terrain = this.terrain;
+    if (this.opts.shadows)
+      kaics.register({
+        id: 'vegShadow',
+        label: 'Sombra da vegetação e pedras',
+        levels: ['sem sombra', 'com sombra'],
+        baseline: 1,
+        floor: 0,
+        helps: ['gpu', 'cpu'],
+        stepCost: () => 2,
+        apply: (l) => {
+          terrain.setDecorShadows(l === 1);
+          this.shadowDirty = true;
+        },
+        read: () => (terrain.decorShadows ? 1 : 0),
+      });
+    const fxLevels = [0.4, 0.7, 1];
+    const lowerSmoke: Record<ExplosionSmoke, ExplosionSmoke> = { cinematic: 'volumetric', volumetric: 'basic', basic: 'basic' };
+    const fxSmoke = (l: number): ExplosionSmoke => (l >= 2 ? this.effects.topSmoke : l === 1 ? lowerSmoke[this.effects.topSmoke] : 'basic');
+    kaics.register({
+      id: 'effects',
+      label: 'Efeitos (explosões, fumaça)',
+      levels: ['40%', '70%', '100%'],
+      baseline: 2,
+      floor: 1,
+      emergencyFloor: 0,
+      helps: ['gpu', 'cpu'],
+      stepCost: (from) => (from === 2 ? 2 : 4),
+      apply: (l) => this.effects.setBudget(fxLevels[l]!, fxSmoke(l)),
+      read: () => {
+        const l = fxLevels.findIndex((f) => Math.abs(f - this.effects.budget) < 1e-6);
+        return l >= 0 && this.effects.smoke === fxSmoke(l) ? l : -1;
+      },
+    });
+    const vegLevels = [0.5, 0.75, 1];
+    kaics.register({
+      id: 'vegetation',
+      label: 'Densidade da vegetação e pedras',
+      levels: ['50%', '75%', '100%'],
+      baseline: 2,
+      floor: 1,
+      // no PC a vegetação para em 75% (o resto é com o consultor da próxima partida)
+      ...(deep ? { emergencyFloor: 0 } : {}),
+      helps: ['gpu', 'cpu'],
+      stepCost: (from) => (from === 2 ? 3 : 4),
+      apply: (l) => {
+        if (terrain.setDecorDensity(vegLevels[l]!)) this.shadowDirty = true;
+      },
+      read: () => vegLevels.findIndex((d) => Math.abs(d - terrain.decorDensity) < 1e-6),
+    });
     const base = r.getPixelRatio();
-    const factors = [0.6, 0.7, 0.8, 0.9, 1].filter((f) => base * f >= Math.min(base, MIN_PIXEL_RATIO) - 1e-6);
+    // celular: níveis de emergência abaixo de 60% da densidade base, até 0,7 px por px CSS (o piso
+    // absoluto do preset mínimo); no PC a resolução fica no piso normal
+    const extra = deep ? [0.3, 0.4, 0.5].filter((f) => base * f >= MIN_PIXEL_RATIO - 1e-6) : [];
+    const factors = [...extra, ...[0.6, 0.7, 0.8, 0.9, 1].filter((f) => base * f >= Math.min(base, MIN_PIXEL_RATIO) - 1e-6)];
     const ratios = factors.map((f) => (f === 1 ? base : base * f));
     const top = ratios.length - 1;
+    const resFloor = extra.length;
     kaics.register({
       id: 'resolution',
       label: 'Resolução interna',
       levels: factors.map((f) => `${Math.round(f * 100)}%`),
       baseline: top,
-      floor: 0,
+      floor: resFloor,
+      ...(extra.length ? { emergencyFloor: 0 } : {}),
       helps: ['gpu'],
-      stepCost: (from) => (from === top ? 2 : from === top - 1 ? 3 : 4),
+      stepCost: (from) => (from <= resFloor ? 5 : from === top ? 2 : from === top - 1 ? 3 : 4),
       apply: (l) => {
         r.setPixelRatio(ratios[l]!);
         this.resize();
@@ -988,8 +1062,18 @@ export class GameRuntime {
         return ratios.findIndex((x) => Math.abs(x - pr) < 1e-3);
       },
     });
-    const key = `${this.opts.preset ?? 'custom'}|${Math.round(window.devicePixelRatio * 100)}|${this.battleOp === null ? 'teatro' : 'batalha'}`;
-    this.kgps = new Kgps(kaics, performance.now(), localProfileStore(key));
+    // meta de quadros da classe do aparelho (30 no celular, 60 no PC) e o ajuste aprendido sob as
+    // mesmas condições (versão gráfica, preset, densidade de tela, cena, classe e meta)
+    const target = targetFor(kaics.device.value);
+    const key = profileKey({
+      revision: GRAPHICS_REVISION,
+      preset: this.opts.preset ?? 'custom',
+      dpr: window.devicePixelRatio,
+      scene: this.battleOp === null ? 'teatro' : 'batalha',
+      deviceClass: kaics.device.value,
+      fps: target.fps,
+    });
+    this.kgps = new Kgps(kaics, performance.now(), localProfileStore(key), KGPS_CONFIG, target);
     this.cleanup.push(useSettingsStore.subscribe((st) => this.kgps.setAdaptive(st.adaptiveQuality, performance.now())));
   }
 
@@ -999,6 +1083,8 @@ export class GameRuntime {
     k.setCondition('suspended', this.suspended);
     k.setCondition('hidden', typeof document !== 'undefined' && document.hidden);
     k.setCondition('intro', this.intro !== null);
+    k.setCondition('loading', this.snapshot === null);
+    k.setCondition('compiling', now < this.compilingUntil);
     const gate = k.gate();
     if (gate !== this.perfGate) {
       this.kgps.invalidate(now, gate ?? `${this.perfGate} — retomado`);
@@ -1009,7 +1095,26 @@ export class GameRuntime {
 
   private perfReport(now: number): PerfHud {
     const info = this.renderer.info.render;
-    return { ...this.kgps.summary(now), drawCalls: info.calls, triangles: info.triangles, caps: this.kaics.capabilities };
+    const summary = this.kgps.summary(now);
+    return {
+      ...summary,
+      drawCalls: info.calls,
+      triangles: info.triangles,
+      caps: this.kaics.capabilities,
+      preset: this.opts.preset ?? 'custom',
+      // relatório completo só quando o jogador pede (botão "Copiar relatório")
+      exportReport: () =>
+        buildReport({
+          revision: GRAPHICS_REVISION,
+          preset: this.opts.preset ?? 'custom',
+          scene: this.battleOp === null ? 'teatro' : 'batalha',
+          summary: this.kgps.summary(performance.now()),
+          caps: this.kaics.capabilities,
+          windows: this.kgps.recentWindows(),
+          decisions: this.kgps.log,
+          render: { drawCalls: info.calls, triangles: info.triangles, geometries: this.renderer.info.memory.geometries, textures: this.renderer.info.memory.textures },
+        }),
+    };
   }
 
   /** Rota inspecionada pelo painel de comércio: linha no mapa e câmera centrada uma vez. */
@@ -2319,6 +2424,7 @@ export class GameRuntime {
   dispose(): void {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
+    this.kaics?.dispose();
     this.unsubscribe();
     for (const fn of this.cleanup) fn();
     for (const t of this.units.values()) t.visual.dispose();

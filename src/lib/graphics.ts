@@ -6,6 +6,13 @@ export type GraphicsPreset = 'low' | 'balanced' | 'high' | 'ultra' | 'ultraplus'
 
 export const GRAPHICS_PRESETS: readonly GraphicsPreset[] = ['low', 'balanced', 'high', 'ultra', 'ultraplus'];
 
+/**
+ * Versão do visual dos presets: sobe quando o custo ou a aparência dos presets mudam (novos
+ * efeitos, modelos, água…). O ajuste aprendido pelo KGPS em cada aparelho vale só para a mesma
+ * versão (ver `profileKey`), para não reaplicar ajustes de um visual antigo.
+ */
+export const GRAPHICS_REVISION = 2;
+
 /** Presets que pedem confirmação (aviso de desempenho) antes de serem ativados. */
 export const HEAVY_PRESETS: readonly GraphicsPreset[] = ['ultraplus'];
 

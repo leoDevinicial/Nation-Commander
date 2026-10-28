@@ -226,7 +226,13 @@ export interface WaterHandle {
    * Reflexo planar (preset Alto+): o espelho redesenha a cena inteira; com intervalo N ele é
    * atualizado só a cada N quadros (o KGPS usa isso quando o quadro está pesado).
    */
-  reflection: { readonly interval: number; setInterval(n: number): void } | null;
+  reflection: {
+    readonly interval: number;
+    setInterval(n: number): void;
+    /** Só céu: sem a passada do espelho (o reflexo analítico do céu assume, sem recompilar). */
+    readonly sky: boolean;
+    setSky(on: boolean): void;
+  } | null;
 }
 
 export interface WaterOptions {
@@ -259,8 +265,9 @@ export function createWater(W: number, H: number, mode: WaterReflection, opts: W
     const draw = reflector.onBeforeRender.bind(reflector);
     let interval = 1;
     let frame = 0;
+    let sky = false;
     reflector.onBeforeRender = (renderer, scene, camera, geometry, mat, group) => {
-      if (frame++ % interval === 0) draw(renderer, scene, camera, geometry, mat, group);
+      if (!sky && frame++ % interval === 0) draw(renderer, scene, camera, geometry, mat, group);
     };
     reflection = {
       get interval() {
@@ -268,6 +275,15 @@ export function createWater(W: number, H: number, mode: WaterReflection, opts: W
       },
       setInterval: (n) => {
         interval = Math.max(1, Math.round(n));
+        frame = 0;
+      },
+      get sky() {
+        return sky;
+      },
+      setSky: (on) => {
+        sky = on;
+        // uniforme, não define: o mesmo programa de shader serve aos dois modos
+        material.uniforms.uPlanar!.value = on ? 0 : 1;
         frame = 0;
       },
     };

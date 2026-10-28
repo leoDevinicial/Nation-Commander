@@ -177,7 +177,7 @@ describe('KGPS: decisões com evidência', () => {
     expect(refl.state.level).toBeLessThan(2);
   });
 
-  it('desfaz reduções que não ajudam e pausa quando o limite é da tela (30 Hz travados)', () => {
+  it('desfaz reduções que não ajudam e reconhece o limite externo (30 Hz travados)', () => {
     const res = knob('res', { levels: 4, helps: ['gpu'] });
     const sh = knob('sombra', { levels: 3, helps: ['gpu'] });
     const ao = knob('ao', { levels: 2, helps: ['gpu'] });
@@ -186,9 +186,12 @@ describe('KGPS: decisões com evidência', () => {
     const r = runner(kgps, () => ({ cpu: 3, gpu: 5 }), { vsync: 1000 / 30 });
     r.run(60_000);
     expect([res.state.level, sh.state.level, ao.state.level]).toEqual([3, 2, 1]);
-    expect(kgps.log.filter((d) => d.kind === 'revert').length).toBe(KGPS_CONFIG.ineffectiveLimit);
-    expect(kgps.state(r.clock.now)).toBe('frozen');
-    expect(kgps.summary(r.clock.now).frozenReason).toMatch(/tela, do navegador ou do sistema/);
+    // v2: uma cadeia sem efeito com quadros presos em 30 qps já basta (antes: duas e uma pausa)
+    expect(kgps.log.filter((d) => d.kind === 'revert').length).toBe(1);
+    expect(kgps.state(r.clock.now)).toBe('externalCap');
+    const hold = kgps.log.find((d) => d.kind === 'hold')!;
+    expect(hold.text).toMatch(/limite do navegador ou do sistema provável \(ex\.: economia de bateria\)/);
+    expect(hold.evidence).toBe('hipotese');
   });
 
   it('recupera a qualidade quando a cena alivia', () => {

@@ -7,6 +7,7 @@ import { withFog } from './materials.ts';
 import { createWater, groundHeightTexture, type WaterHandle, type WaterReflection } from './Water.ts';
 import { asphaltTexture, dirtTexture, grassTexture, rockTexture } from './textures.ts';
 import { C, PartBuilder } from './models/kit.ts';
+import { decorKept } from './decorThinning.ts';
 import { detailedTrees } from './Trees.ts';
 
 /** Tom aplicado sobre a textura de cada terreno (1 = textura pura). */
@@ -168,6 +169,16 @@ export interface TerrainHandle {
    * coordenadas de mundo) e devolve os que voltaram a ficar livres. Retorna true se algo mudou.
    */
   clearUnder: (rects: readonly DecorRect[]) => boolean;
+  /**
+   * Densidade da decoração (árvores, arbustos, pedras) para o KGPS: 1 = toda; abaixo disso, um
+   * subconjunto fixo por posição (ver `decorKept`). As instâncias visíveis são compactadas no
+   * começo do buffer, então as escondidas não custam nem vértices. Devolve true se algo mudou.
+   */
+  setDecorDensity: (density: number) => boolean;
+  readonly decorDensity: number;
+  /** Sombra projetada pela decoração (só afeta o passe de sombra; não recompila shaders). */
+  setDecorShadows: (on: boolean) => void;
+  readonly decorShadows: boolean;
   dispose: () => void;
 }
 
@@ -194,17 +205,22 @@ export interface DecorRect {
   z1: number;
 }
 
-/** Instâncias de decoração que podem ser escondidas sob construções (matriz original guardada). */
+/**
+ * Instâncias de decoração que podem ser escondidas sob construções ou rareadas pelo KGPS (matriz e
+ * cor originais guardadas; as visíveis vão para o começo do buffer).
+ */
 interface DecorTrack {
   mesh: THREE.InstancedMesh;
   items: readonly { x: number; z: number }[];
   base: THREE.Matrix4[];
+  colors: THREE.Color[] | null;
   hidden: Uint8Array;
+  /** A malha foi criada projetando sombra (o KGPS só desliga e religa o que o preset ligou). */
+  shadow: boolean;
 }
 
 /** Folga em volta do terreno da construção: a copa ou o arbusto não invade a borda do prédio. */
 const DECOR_MARGIN = 0.35;
-const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 
 export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: WaterReflection = 'sky', ultra = false, cinematic = false, tint: [number, number, number] = [1, 1, 1]): TerrainHandle {
   const group = new THREE.Group();
@@ -288,35 +304,73 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
     }
   }
 
-  // decoração que some sob construções (as malhas são registradas ao serem criadas)
+  // decoração que some sob construções e que o KGPS pode rarear (as malhas são registradas ao
+  // serem criadas)
   let tracks: DecorTrack[] = [];
+  let density = 1;
+  let decorShadows = true;
   const track = (mesh: THREE.InstancedMesh, items: readonly { x: number; z: number }[]): void => {
     const base = items.map((_, i) => {
       const m = new THREE.Matrix4();
       mesh.getMatrixAt(i, m);
       return m;
     });
-    tracks.push({ mesh, items, base, hidden: new Uint8Array(items.length) });
+    const colors = mesh.instanceColor
+      ? items.map((_, i) => {
+          const c = new THREE.Color();
+          mesh.getColorAt(i, c);
+          return c;
+        })
+      : null;
+    const shadow = mesh.castShadow;
+    mesh.castShadow = shadow && decorShadows;
+    tracks.push({ mesh, items, base, colors, hidden: new Uint8Array(items.length), shadow });
   };
   let lastRects: readonly DecorRect[] = [];
-  const clearUnder = (rects: readonly DecorRect[]): boolean => {
-    lastRects = rects;
+  /** Recalcula o que fica visível e compacta as instâncias visíveis no começo do buffer. */
+  const refresh = (force = false): boolean => {
     let changed = false;
     for (const t of tracks) {
-      let dirty = false;
+      let dirty = force;
       t.items.forEach((it, i) => {
-        const hide = rects.some((r) => it.x > r.x0 - DECOR_MARGIN && it.x < r.x1 + DECOR_MARGIN && it.z > r.z0 - DECOR_MARGIN && it.z < r.z1 + DECOR_MARGIN) ? 1 : 0;
+        const under = lastRects.some((r) => it.x > r.x0 - DECOR_MARGIN && it.x < r.x1 + DECOR_MARGIN && it.z > r.z0 - DECOR_MARGIN && it.z < r.z1 + DECOR_MARGIN);
+        const hide = under || !decorKept(it.x, it.z, density) ? 1 : 0;
         if (hide === t.hidden[i]) return;
         t.hidden[i] = hide;
-        t.mesh.setMatrixAt(i, hide ? ZERO : t.base[i]!);
         dirty = true;
       });
-      if (dirty) {
-        t.mesh.instanceMatrix.needsUpdate = true;
-        changed = true;
+      if (!dirty) continue;
+      let n = 0;
+      for (let i = 0; i < t.items.length; i++) {
+        if (t.hidden[i]) continue;
+        t.mesh.setMatrixAt(n, t.base[i]!);
+        if (t.colors) t.mesh.setColorAt(n, t.colors[i]!);
+        n++;
       }
+      t.mesh.count = n;
+      t.mesh.instanceMatrix.needsUpdate = true;
+      if (t.mesh.instanceColor) t.mesh.instanceColor.needsUpdate = true;
+      // o volume de recorte é recalculado sobre as instâncias visíveis (senão pode ficar menor que
+      // o conjunto quando ele volta a crescer e a câmera recortaria árvores visíveis)
+      t.mesh.boundingSphere = null;
+      t.mesh.boundingBox = null;
+      changed = true;
     }
     return changed;
+  };
+  const clearUnder = (rects: readonly DecorRect[]): boolean => {
+    lastRects = rects;
+    return refresh();
+  };
+  const setDecorDensity = (d: number): boolean => {
+    const next = Math.max(0, Math.min(1, d));
+    if (next === density) return false;
+    density = next;
+    return refresh();
+  };
+  const setDecorShadows = (on: boolean): void => {
+    decorShadows = on;
+    for (const t of tracks) t.mesh.castShadow = on && t.shadow;
   };
 
   // árvores com folhagem detalhada (procedurais, prontas na hora); rochas e arbustos podem
@@ -428,10 +482,11 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
     decor.clear();
     decor.add(instanced(rockKit, rocks, 1.5, -0.1, true, ROCK_TINT, track));
     if (bushKit.length) decor.add(instanced(bushKit, bushes, 0.7, 0, true, FOLIAGE_TINT, track));
-    const rects = lastRects;
-    lastRects = [];
-    for (const t of tracks) t.hidden.fill(0);
-    clearUnder(rects);
+    for (const t of tracks) {
+      t.hidden.fill(0);
+      t.mesh.castShadow = decorShadows && t.shadow;
+    }
+    refresh(true);
     for (const k of [...rockKit, ...bushKit]) disposables.push(k.geo, k.mat);
   };
 
@@ -442,6 +497,14 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
     update: water.update,
     reflection: water.reflection,
     clearUnder,
+    setDecorDensity,
+    get decorDensity() {
+      return density;
+    },
+    setDecorShadows,
+    get decorShadows() {
+      return decorShadows;
+    },
     dispose: () => {
       for (const d of disposables) d.dispose();
     },

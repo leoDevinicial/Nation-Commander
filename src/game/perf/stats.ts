@@ -12,6 +12,8 @@ export interface WindowStats {
   /** Duração real coberta pela janela (ms). */
   spanMs: number;
   fps: number;
+  /** Quadros mais rápidos da janela: indicam a taxa da tela quando há folga (ver `estimateRefreshHz`). */
+  p10: number;
   p50: number;
   p95: number;
   p99: number;
@@ -24,7 +26,17 @@ export interface WindowStats {
    * Reduzir qualidade não resolve isso, então eles ficam fora dos percentis (só são contados).
    */
   stalls: number;
+  /**
+   * Fração dos intervalos presos em ~33,3 ms (30 Hz). Perto de 1, com CPU baixa, o quadro pode estar
+   * travado pelo navegador ou pelo sistema (ex.: economia de bateria) — ou por uma carga entre 17 e
+   * 33 ms numa tela de 60 Hz. Só uma redução sem efeito separa os dois casos (ver `externalCap`).
+   */
+  lock30: number;
 }
+
+/** Período de 30 Hz e a tolerância para considerar um intervalo "preso" nele. */
+export const LOCK30_MS = 1000 / 30;
+export const LOCK30_TOL_MS = 1.5;
 
 const CAP = 2048;
 export const STALL_MS = 1000;
@@ -73,15 +85,18 @@ export class FrameWindow {
     const p50 = percentile(iv, 0.5);
     let sum = 0;
     let hitches = 0;
+    let locked = 0;
     for (let i = 0; i < this.n; i++) {
       const v = this.intervals[i]!;
       sum += v;
       if (v > 50 && v > p50 * 2.5) hitches++;
+      if (Math.abs(v - LOCK30_MS) <= LOCK30_TOL_MS) locked++;
     }
     return {
       samples: this.n,
       spanMs: Math.max(0, now - this.startedAt),
       fps: sum > 0 ? (this.n * 1000) / sum : 0,
+      p10: percentile(iv, 0.1),
       p50,
       p95: percentile(iv, 0.95),
       p99: percentile(iv, 0.99),
@@ -89,6 +104,7 @@ export class FrameWindow {
       cpuP95: percentile(cp, 0.95),
       hitches,
       stalls: this.stalls,
+      lock30: locked / this.n,
     };
   }
 }
@@ -111,11 +127,28 @@ export type Bottleneck = 'gpu' | 'cpu' | 'unknown';
  * JavaScript: se o quadro demora 25 ms mas o JS leva 4 ms, o resto é espera pela GPU (ou pela
  * tela). É uma hipótese, não uma certeza: por isso cada mudança é medida e desfeita se não ajudar.
  */
-export function classifyBottleneck(s: WindowStats, minSamples: number, budgetMs = Infinity): { kind: Bottleneck; ratio: number } {
+export function classifyBottleneck(s: Pick<WindowStats, 'samples' | 'p50' | 'cpuP50'>, minSamples: number, budgetMs = Infinity): { kind: Bottleneck; ratio: number } {
   if (s.samples < minSamples || s.p50 <= 0) return { kind: 'unknown', ratio: 0 };
   const ratio = s.cpuP50 / s.p50;
   // o JavaScript sozinho já estoura o orçamento do quadro: a CPU limita, arredonde a tela como for
   if (ratio >= 0.7 || s.cpuP50 >= budgetMs * 0.9) return { kind: 'cpu', ratio };
   if (ratio <= 0.45) return { kind: 'gpu', ratio };
   return { kind: 'unknown', ratio };
+}
+
+/** Taxas de tela reconhecidas e o período de cada uma (ms). */
+const REFRESH_RATES = [144, 120, 90, 60] as const;
+
+/**
+ * Taxa da tela inferida pelos quadros mais rápidos (p10) de uma janela: com folga, eles caem no
+ * período da tela (16,7 ms a 60 Hz, 8,3 ms a 120 Hz…). Quadros presos em 33,3 ms são ambíguos —
+ * tela/navegador a 30 Hz ou carga entre 17 e 33 ms numa tela de 60 Hz — e não viram estimativa
+ * (null): esse caso só se resolve medindo o efeito de uma redução (ver `externalCap` no KGPS).
+ */
+export function estimateRefreshHz(p10: number): number | null {
+  for (const hz of REFRESH_RATES) {
+    const period = 1000 / hz;
+    if (Math.abs(p10 - period) <= period * 0.07) return hz;
+  }
+  return null;
 }

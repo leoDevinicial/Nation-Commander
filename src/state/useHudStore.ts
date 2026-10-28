@@ -78,7 +78,15 @@ export interface ProductionEntry {
 export type TouchTool = 'select' | 'order' | 'box';
 
 /** Resumo do KGPS mais dados do renderizador e do aparelho (KAICS). */
-export type PerfHud = PerfSummary & { drawCalls: number; triangles: number; caps: Capabilities };
+export type PerfHud = PerfSummary & {
+  drawCalls: number;
+  triangles: number;
+  caps: Capabilities;
+  /** Preset escolhido (para o rótulo "· adaptado"). */
+  preset: string;
+  /** Relatório de desempenho em JSON, gerado sob demanda (botão "Copiar relatório"). */
+  exportReport: () => string;
+};
 
 export interface HudState {
   tick: number;

@@ -12,8 +12,15 @@
  *
  * O jogo continua dono das regras e do laço de renderização; o KAICS só arbitra o acesso aos
  * parâmetros gráficos que o jogo expôs.
+ *
+ * v2 (KAICS Adaptables+, ver docs/KAICS_ADAPTABLES_PLUS.md):
+ * - níveis de emergência abaixo do piso normal, liberados só na descida rápida do KGPS;
+ * - auditoria: um botão mudado por fora do KAICS vira incidente e o novo nível é adotado;
+ * - portões de carregamento e de compilação de shaders;
+ * - classe do aparelho (celular, PC, renderização por software) derivada das capacidades.
  */
 import type { Bottleneck } from './stats.ts';
+import { classifyDevice, type DeviceClass, type Observed } from './device.ts';
 
 export interface KnobSpec {
   id: string;
@@ -22,8 +29,13 @@ export interface KnobSpec {
   levels: readonly string[];
   /** Nível da qualidade escolhida pelo jogador (o KGPS nunca passa disso). */
   baseline: number;
-  /** Nível mais baixo que o KGPS pode usar (piso de qualidade). */
+  /** Nível mais baixo que o KGPS pode usar no ajuste normal (piso de qualidade). */
   floor: number;
+  /**
+   * Piso da descida rápida (≤ `floor`): níveis entre ele e o piso normal só são usados quando o jogo
+   * está muito abaixo da meta. Ausente = sem níveis de emergência.
+   */
+  emergencyFloor?: number;
   /** Gargalos que reduzir este botão alivia. */
   helps: readonly Exclude<Bottleneck, 'unknown'>[];
   /** Custo visual (1 = imperceptível … 5 = muito visível) de descer do nível `from` para `from - 1`. */
@@ -31,6 +43,9 @@ export interface KnobSpec {
   apply: (level: number) => void;
   /** Nível realmente em vigor, lido do renderizador (-1 se não corresponder a nenhum nível). */
   read: () => number;
+  /** Ligar/desligar recursos do adaptador (chamados no máximo uma vez cada). */
+  attach?: () => void;
+  detach?: () => void;
 }
 
 export type KnobStatus = 'ok' | 'quarantined' | 'faulted';
@@ -39,6 +54,9 @@ export interface KnobEntry {
   spec: KnobSpec;
   status: KnobStatus;
   reason?: string;
+  /** Último nível confirmado pelo KAICS (a auditoria compara com o lido). */
+  last: number;
+  attached?: boolean;
 }
 
 export interface Capabilities {
@@ -51,16 +69,27 @@ export interface Capabilities {
   cores: number | null;
   memoryGb: number | null;
   touch: boolean;
+  /** Lado curto da tela em px CSS (para separar celular de tablet grande/PC com toque). */
+  shortSide?: number;
 }
 
-export type Condition = 'contextLost' | 'suspended' | 'hidden' | 'intro';
+export type Condition = 'contextLost' | 'suspended' | 'hidden' | 'intro' | 'loading' | 'compiling';
 
 const CONDITION_TEXT: Record<Condition, string> = {
   contextLost: 'contexto gráfico perdido',
   suspended: 'cena oculta (globo ou outra cena aberta)',
   hidden: 'jogo em segundo plano',
   intro: 'câmera de entrada em andamento',
+  loading: 'cena carregando',
+  compiling: 'preparando shaders de modelos novos',
 };
+
+/** Mudança de nível feita por fora do KAICS, detectada na auditoria. */
+export interface ExternalChange {
+  id: string;
+  from: number;
+  to: number;
+}
 
 export type SetResult = { ok: true } | { ok: false; reason: string };
 
@@ -72,20 +101,25 @@ export class Kaics {
   private userEnabled: boolean;
   /** Incidentes de integração (leitura que não bate, restauração que falhou). */
   readonly incidents: string[] = [];
+  /** Classe do aparelho (celular, PC ou renderização por software), com a fonte da conclusão. */
+  readonly device: Observed<DeviceClass>;
 
   constructor(
     readonly capabilities: Capabilities,
     adaptive: boolean,
   ) {
     this.userEnabled = adaptive;
+    this.device = classifyDevice(capabilities);
   }
 
   /** Aceita um botão só se a declaração for coerente e o estado lido bater com o nível base. */
   register(spec: KnobSpec): boolean {
     // nada a adaptar (ex.: sombra já no tamanho mínimo): fica de fora, sem ser incidente
-    if (spec.levels.length < 2 || spec.floor === spec.baseline) return false;
+    const lowest = spec.emergencyFloor ?? spec.floor;
+    if (spec.levels.length < 2 || lowest === spec.baseline) return false;
     let problem: string | null = null;
-    if (!(spec.floor >= 0 && spec.floor < spec.baseline && spec.baseline < spec.levels.length)) problem = 'piso/nível base fora dos limites';
+    if (!(spec.floor >= 0 && spec.floor <= spec.baseline && spec.baseline < spec.levels.length)) problem = 'piso/nível base fora dos limites';
+    else if (!(lowest >= 0 && lowest <= spec.floor)) problem = 'piso de emergência acima do piso normal';
     else {
       let current: number;
       try {
@@ -95,9 +129,59 @@ export class Kaics {
       }
       if (current !== spec.baseline) problem = `estado lido (${current}) diferente do declarado (${spec.baseline})`;
     }
-    this.knobs.set(spec.id, problem ? { spec, status: 'quarantined', reason: problem } : { spec, status: 'ok' });
-    if (problem) this.incidents.push(`${spec.label}: em quarentena (${problem})`);
-    return !problem;
+    this.knobs.set(spec.id, problem ? { spec, status: 'quarantined', reason: problem, last: -1 } : { spec, status: 'ok', last: spec.baseline });
+    if (problem) {
+      this.incidents.push(`${spec.label}: em quarentena (${problem})`);
+      return false;
+    }
+    const entry = this.knobs.get(spec.id)!;
+    try {
+      spec.attach?.();
+      entry.attached = true;
+    } catch {
+      entry.status = 'quarantined';
+      entry.reason = 'falha ao ligar o adaptador';
+      this.incidents.push(`${spec.label}: em quarentena (falha ao ligar o adaptador)`);
+      return false;
+    }
+    return true;
+  }
+
+  /** Nível mais baixo permitido agora para o botão (o de emergência só na descida rápida). */
+  minLevel(id: string, emergency = false): number {
+    const k = this.knobs.get(id);
+    if (!k) return 0;
+    return emergency ? (k.spec.emergencyFloor ?? k.spec.floor) : k.spec.floor;
+  }
+
+  /**
+   * Auditoria (R-CORE-03): compara o nível lido de cada botão com o último confirmado. Se alguém
+   * mudou o botão por fora do KAICS, registra o incidente e adota o nível lido (não briga).
+   */
+  audit(): ExternalChange[] {
+    const out: ExternalChange[] = [];
+    for (const [id, k] of this.knobs) {
+      if (k.status !== 'ok') continue;
+      const now = this.level(id);
+      if (now < 0 || now === k.last) continue;
+      out.push({ id, from: k.last, to: now });
+      this.incidents.push(`${k.spec.label}: alterado fora do KAICS (${k.spec.levels[k.last] ?? k.last} → ${k.spec.levels[now] ?? now}); novo nível adotado`);
+      k.last = now;
+    }
+    return out;
+  }
+
+  /** Fim da cena: desliga os adaptadores (uma vez só, mesmo se chamado de novo). */
+  dispose(): void {
+    for (const k of this.knobs.values()) {
+      if (!k.attached) continue;
+      k.attached = false;
+      try {
+        k.spec.detach?.();
+      } catch {
+        // o adaptador já não existe; nada a fazer
+      }
+    }
   }
 
   setCondition(c: Condition, on: boolean): void {
@@ -138,7 +222,7 @@ export class Kaics {
    * renderizador não ficou no nível pedido, tenta voltar ao anterior. Se nem a volta funcionar,
    * o botão é marcado com defeito e sai do controle automático.
    */
-  set(id: string, level: number, opts: { force?: boolean } = {}): SetResult {
+  set(id: string, level: number, opts: { force?: boolean; emergency?: boolean } = {}): SetResult {
     const k = this.knobs.get(id);
     if (!k) return { ok: false, reason: 'botão desconhecido' };
     if (k.status !== 'ok') return { ok: false, reason: `botão ${k.status === 'faulted' ? 'com defeito' : 'em quarentena'}` };
@@ -147,15 +231,24 @@ export class Kaics {
       if (blocked) return { ok: false, reason: blocked };
       if (!this.userEnabled) return { ok: false, reason: 'qualidade adaptativa desligada' };
     }
-    if (!Number.isInteger(level) || level < k.spec.floor || level > k.spec.baseline) return { ok: false, reason: 'nível fora dos limites permitidos' };
+    const min = opts.force ? (k.spec.emergencyFloor ?? k.spec.floor) : this.minLevel(id, opts.emergency);
+    if (!Number.isInteger(level) || level < min || level > k.spec.baseline) return { ok: false, reason: 'nível fora dos limites permitidos' };
     const before = this.level(id);
-    if (before === level) return { ok: true };
+    if (before === level) {
+      k.last = level;
+      return { ok: true };
+    }
+    let threw = false;
     try {
       k.spec.apply(level);
     } catch {
       // segue para a verificação: a leitura decide se algo mudou
+      threw = true;
     }
-    if (this.level(id) === level) return { ok: true };
+    if (this.level(id) === level) {
+      k.last = level;
+      return { ok: true };
+    }
     // não aplicou como esperado: restaura
     try {
       if (before >= 0) k.spec.apply(before);
@@ -163,6 +256,14 @@ export class Kaics {
       // verificado abaixo
     }
     if (before >= 0 && this.level(id) === before) {
+      k.last = before;
+      if (threw) {
+        // o adaptador quebrou (exceção): só este botão sai do controle, o resto segue (R-CORE-05)
+        k.status = 'quarantined';
+        k.reason = 'exceção no adaptador';
+        this.incidents.push(`${k.spec.label}: exceção ao aplicar; estado anterior restaurado e botão em quarentena`);
+        return { ok: false, reason: 'exceção no adaptador (restaurado)' };
+      }
       this.incidents.push(`${k.spec.label}: mudança não confirmada pela leitura; estado anterior restaurado`);
       return { ok: false, reason: 'mudança não confirmada (restaurado)' };
     }
@@ -206,5 +307,6 @@ export function probeCapabilities(gl: WebGLRenderingContext | WebGL2RenderingCon
     cores: nav.hardwareConcurrency || null,
     memoryGb: nav.deviceMemory ?? null,
     touch: typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches,
+    shortSide: typeof window !== 'undefined' ? Math.min(window.screen?.width ?? window.innerWidth, window.screen?.height ?? window.innerHeight) : undefined,
   };
 }
