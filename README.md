@@ -294,6 +294,10 @@ inimigos sobem de patente (Veterano, Elite, Herói), com mais dano e vida e ins�
 marcial), facções com exigências ligadas ao teatro e pedidos das grandes potências com prazo. Detalhes em
 `docs/POLITICA_DECRETOS_FACCOES.md`.
 
+**Bônus por país e armas nucleares:** cada país tem um bônus único (por exemplo, guerra na selva para o Brasil e
+artilharia em massa para a Rússia). Com a pesquisa Armas nucleares, o silo produz ogivas nucleares; todo lançamento
+derruba a economia de todos os países por meses. Detalhes em `docs/BONUS_PAISES_E_NUCLEAR.md`.
+
 **Qualidade adaptativa (KGPS + KAICS)**, ligada por padrão: durante a partida, o KGPS mede o tempo de
 cada quadro. Se o jogo fica lento, alivia primeiro o que menos aparece (reflexos, efeitos de tela,
 sombras, resolução), um ajuste por vez, e desfaz o que não ajudou. Com folga, devolve a qualidade do

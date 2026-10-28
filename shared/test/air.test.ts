@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { TICK_RATE, type BuildingType } from '../sim/config.ts';
 import { parseCommand } from '../sim/commands.ts';
 import { Simulation, type NationalLink } from '../sim/Simulation.ts';
-import { AIR, AIRCRAFT, MISSILE, type AirMission } from '../sim/air.ts';
+import { AIR, AIRCRAFT, MISSILE, NUCLEAR, type AirMission } from '../sim/air.ts';
 import { airView } from '../sim/snapshot.ts';
-import type { Building } from '../sim/types.ts';
+import type { Building, SimEvent } from '../sim/types.ts';
 import { flatMap } from './helpers.ts';
 import { NationalSimulation } from '../strategic/NationalSimulation.ts';
 
@@ -558,5 +558,64 @@ describe('Fase 7 — consequências nacionais', () => {
     expect(nat.diplomacy.relation(0, 1)).toBeLessThan(before.victim);
     expect(nat.diplomacy.relation(0, third)).toBeLessThan(before.third);
     expect(nat.nation(0)!.casualties30d[0]).toBe(1);
+  });
+});
+
+describe('ogiva nuclear e choque econômico global', () => {
+  it('exige a pesquisa; produz, prepara e detona com raio enorme', () => {
+    const s = setup({ techs: ['guided_munitions', 'ballistic_missiles'] });
+    const silo = s.place(0, 'missile_silo', [2, 8], [12, 14]);
+    const target = s.place(1, 'oil_tank', [24, 24], [33, 33]);
+    run(s.sim, 35);
+    expect(s.sim.applyCommand(0, { type: 'build_missile', buildingId: silo.id, nuclear: true })).toMatch(/Armas nucleares/);
+    s.N.st.techs = ['guided_munitions', 'ballistic_missiles', 'nuclear_weapons'];
+    expect(s.sim.applyCommand(0, { type: 'build_missile', buildingId: silo.id, nuclear: true })).toBeNull();
+    run(s.sim, NUCLEAR.buildSeconds + 1);
+    expect(s.sim.air.silo(silo.id).nuclear).toBe(1);
+    // o convencional não serve: só há ogiva nuclear no silo
+    s.sim.air.known[0] = new Set([target.id]);
+    expect(s.sim.applyCommand(0, { type: 'missile_prepare', buildingId: silo.id, x: target.pos.x, y: target.pos.y })).toMatch(/convencional/);
+    expect(s.sim.applyCommand(0, { type: 'missile_prepare', buildingId: silo.id, x: target.pos.x, y: target.pos.y, nuclear: true })).toBeNull();
+    run(s.sim, MISSILE.prepareSeconds + 1);
+    const l = s.sim.air.launches.at(-1)!;
+    expect(l.nuclear).toBe(true);
+    expect(s.sim.applyCommand(0, { type: 'missile_authorize', launchId: l.id })).toBeNull();
+    const events: SimEvent[] = [];
+    for (let i = 0; i < 40 * TICK_RATE && l.state !== 'impact' && l.state !== 'intercepted'; i++) {
+      s.sim.step();
+      events.push(...s.sim.drainEvents());
+    }
+    expect(events.some((e) => e.type === 'missile' && e.nuclear && e.state === 'flight')).toBe(true);
+    expect(target.hp).toBeLessThanOrEqual(0);
+  });
+
+  it('todo lançamento nuclear derruba a economia de todos, inclusive de quem lançou, e decai', () => {
+    const players = [
+      { slot: 0, countryId: 'BRA' },
+      { slot: 1, countryId: 'ARG' },
+    ];
+    const calm = new NationalSimulation(players, 3, 'parity');
+    const war = new NationalSimulation(players, 3, 'parity');
+    for (let d = 0; d < 10; d++) {
+      calm.stepDay();
+      war.stepDay();
+    }
+    war.registerTacticalEvents([{ type: 'missile', tick: 0, owner: 0, launchId: 1, state: 'flight', text: '', from: { x: 0, y: 0 }, target: { x: 0, y: 0 }, targetOwner: 1, nuclear: true }]);
+    expect(war.shockLevel()).toBeCloseTo(1);
+    expect(war.shockTheaterMul()).toBeCloseTo(0.7);
+    expect(war.drainEvents().some((e) => e.type === 'nuclear_shock' && e.slot === 0)).toBe(true);
+    for (let d = 0; d < 30; d++) {
+      calm.stepDay();
+      war.stepDay();
+    }
+    for (const slot of [0, 1]) expect(war.nation(slot)!.realGrowthPct).toBeLessThan(calm.nation(slot)!.realGrowthPct - 2);
+    // um país de fora da partida também sente
+    expect(war.npcs[0]!.realGrowthPct).toBeLessThan(calm.npcs[0]!.realGrowthPct - 2);
+    expect(war.diplomacy.relation(0, war.npcs[0]!.slot)).toBeLessThan(calm.diplomacy.relation(0, calm.npcs[0]!.slot));
+    for (let d = 0; d < 300; d++) war.stepDay();
+    expect(war.shockLevel()).toBeLessThan(0.05);
+    const copy = new NationalSimulation(players, 3, 'parity');
+    copy.load(war.toSave());
+    expect(copy.shocks).toEqual(war.shocks);
   });
 });

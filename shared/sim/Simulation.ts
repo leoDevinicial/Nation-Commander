@@ -1,5 +1,6 @@
 import { prepTicks, type Difficulty } from './difficulty.ts';
 import { rankDamageMul, rankFor, rankHpMul } from './veterancy.ts';
+import { countryBonus, type CountryBonus } from './countryBonus.ts';
 import { decodeNonFinite, encodeNonFinite } from './json.ts';
 import {
   BUILDINGS,
@@ -9,6 +10,7 @@ import {
   STARTING_RESOURCES,
   STUCK_TICKS,
   TERRAIN,
+  Terrain,
   TICK_RATE,
   TICK_SECONDS,
   UNITS,
@@ -683,7 +685,7 @@ export class Simulation {
     if (eff <= 0) return 0;
     if (b.depositId !== null && (this.deposits.deposits[b.depositId]?.remaining ?? 0) <= 0) return 0;
     const cells = def.gather.terrain === null ? 1 : b.claims.filter((i) => this.territory[i] === b.owner).length;
-    return gatherRate(b.type, cells) * this.fx(b).rateMul * eff * (p.modifiers.gatherMul ?? 1);
+    return gatherRate(b.type, cells) * this.fx(b).rateMul * eff * (p.modifiers.gatherMul ?? 1) * (this.bonusOf(b.owner).gatherMul?.[def.gather.resource] ?? 1);
   }
 
   /** Fração dos postos de trabalho ocupados (1 se o edifício não precisa de trabalhadores). */
@@ -893,6 +895,7 @@ export class Simulation {
           techs: this.national ? this.national.techs(slot) : null,
           militaryResearch: this.isSandbox(slot) ? MILITARY_RESEARCH_IDS : (player.militaryResearch ?? []),
           recruitCostMul: player.modifiers.recruitCostMul ?? 1,
+          bonus: this.bonusOf(slot),
         });
         if (check.blocker) return check.blocker;
         const cost = check.cost;
@@ -907,7 +910,7 @@ export class Simulation {
         }
         const def = UNITS[cmd.unitType];
         player.recruits--;
-        const ticks = this.duration(slot, def.buildSeconds * TICK_RATE * player.modifiers.productionTimeMul * bfx.productionTimeMul);
+        const ticks = this.duration(slot, def.buildSeconds * TICK_RATE * player.modifiers.productionTimeMul * bfx.productionTimeMul * (this.bonusOf(slot).unitTimeMul ?? 1));
         b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks, paid: cost, mods: [...check.mods] });
         return null;
       }
@@ -1072,9 +1075,9 @@ export class Simulation {
           ...(cmd.x !== undefined && cmd.y !== undefined ? { x: cmd.x, y: cmd.y } : {}),
         });
       case 'build_missile':
-        return this.air.buildMissile(slot, cmd.buildingId);
+        return this.air.buildMissile(slot, cmd.buildingId, !!cmd.nuclear);
       case 'missile_prepare':
-        return this.air.prepare(slot, cmd.buildingId, cmd.x, cmd.y);
+        return this.air.prepare(slot, cmd.buildingId, cmd.x, cmd.y, !!cmd.nuclear);
       case 'missile_authorize':
         return this.air.authorize(slot, cmd.launchId);
       case 'missile_abort':
@@ -1266,6 +1269,11 @@ export class Simulation {
     if (target.kind !== 'building' || this.isVisibleTo(target.owner, from)) return;
     const p = this.players[target.owner];
     if (p && p.slot !== attacker) p.unseenFire = { tick: this.tick, x: from.x, y: from.y };
+  }
+
+  /** Bônus único do país do jogador (nenhum nos testes sem país). */
+  bonusOf(slot: Slot): CountryBonus {
+    return countryBonus(this.countries[slot]);
   }
 
   /** Recursos entregues ao jogador (recompensa de facção), até a capacidade de armazenamento. */
@@ -1782,7 +1790,7 @@ export class Simulation {
         this.emit({ type: 'recruit_trained', tick: this.tick, owner: b.owner, pos: { ...b.pos } });
         continue;
       }
-      const u = this.spawnUnitNear(b, item.unitType, this.fx(b).unitHpMul, item.mods ?? []);
+      const u = this.spawnUnitNear(b, item.unitType, this.fx(b).unitHpMul * (this.bonusOf(b.owner).unitHpMul?.[item.unitType] ?? 1), item.mods ?? []);
       if (!u) {
         item.remainingTicks = TICK_RATE; // sem espaço: tenta de novo em 1 s
         continue;
@@ -1842,7 +1850,7 @@ export class Simulation {
       u.attrition = hostileGround && !supplied;
       if (!u.attrition) continue;
       if (!was) this.emit({ type: 'attrition', tick: this.tick, owner: u.owner, pos: { ...u.pos } });
-      u.hp -= u.maxHp * ATTRITION_PER_SECOND * combineMods(u.mods).attritionMul * TICK_SECONDS;
+      u.hp -= u.maxHp * ATTRITION_PER_SECOND * combineMods(u.mods).attritionMul * (this.bonusOf(u.owner).attritionMul ?? 1) * TICK_SECONDS;
       if (u.hp <= 0) this.markDestroyed(u, owner);
     }
   }
@@ -2267,7 +2275,9 @@ export class Simulation {
     const wp = u.path[u.pathIndex];
     if (!wp) return true;
     const cell = this.grid.worldToCell(u.pos);
-    const terrainMul = this.grid.inBounds(cell.cx, cell.cy) ? TERRAIN[this.grid.terrainAt(cell.cx, cell.cy)].speedMultiplier : 1;
+    const terrain = this.grid.inBounds(cell.cx, cell.cy) ? this.grid.terrainAt(cell.cx, cell.cy) : null;
+    let terrainMul = terrain !== null ? TERRAIN[terrain].speedMultiplier : 1;
+    if (terrain === Terrain.Forest) terrainMul *= this.bonusOf(u.owner).forestSpeedMul ?? 1;
     const speed = UNITS[u.type].speed * combineMods(u.mods).speedMul * Math.max(terrainMul, 0.3) * TICK_SECONDS;
     const dx = wp.x - u.pos.x;
     const dy = wp.y - u.pos.y;
@@ -2410,7 +2420,7 @@ export class Simulation {
       research: null,
       progress,
       builtTicks: 0,
-      buildTicks: this.duration(owner, def.buildSeconds * TICK_RATE * (this.players[owner]?.modifiers.constructionTimeMul ?? 1)),
+      buildTicks: this.duration(owner, def.buildSeconds * TICK_RATE * (this.players[owner]?.modifiers.constructionTimeMul ?? 1) * (this.bonusOf(owner).buildTimeMul ?? 1)),
       queue: [],
       rally: null,
       cooldown: 0,

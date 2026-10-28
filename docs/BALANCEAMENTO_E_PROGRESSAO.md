@@ -442,3 +442,5 @@ como na escolha entre os modos paridade e escala real.
 | Lote 1, §3.2 — veterania (patentes, insígnia, painel) | Feito | `shared/sim/veterancy.ts` |
 | Lote 1, §1.1 — IA usa aviões (reconhecimento, ataques) e mísseis, conforme a dificuldade | Feito | `TacticalAI.planAir` |
 | Lote 1, §4 — decretos, facções e pedidos das potências | Feito | `shared/strategic/policies.ts`, aba Política |
+| Lote 2, item 12 — bônus único por país (21 países) | Feito | `shared/sim/countryBonus.ts` |
+| Lote 2, item 14 — ogiva nuclear e choque econômico global | Feito | `NUCLEAR` em `air.ts`, `NationalSimulation.nuclearShock` |

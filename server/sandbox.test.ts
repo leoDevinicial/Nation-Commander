@@ -113,6 +113,9 @@ describe('modo Sandbox', () => {
     expect(await cmd({ type: 'sandbox_toggle', key: 'aiActive', value: true })).toBeNull();
     run(60);
     expect(sim.buildings.filter((b) => b.owner === 1).length).toBeGreaterThan(aiBuildings);
+    // sem as próprias tropas perto da base inimiga, ela volta à névoa
+    expect(await cmd({ type: 'sandbox_clear', who: 'mine' })).toBeNull();
+    run(1);
     expect(sim.isVisibleTo(0, enemyHq.pos)).toBe(false);
     expect(await cmd({ type: 'sandbox_toggle', key: 'reveal', value: true })).toBeNull();
     expect(sim.isVisibleTo(0, enemyHq.pos)).toBe(true);

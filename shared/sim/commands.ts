@@ -37,8 +37,8 @@ export type Command =
   /** Força aérea e mísseis (Fase 7). */
   | { type: 'build_aircraft'; buildingId: EntityId; aircraftType: AircraftType }
   | { type: 'air_mission'; buildingId: EntityId; aircraftIds: number[]; mission: MissionKind; targetId?: EntityId; x?: number; y?: number }
-  | { type: 'build_missile'; buildingId: EntityId }
-  | { type: 'missile_prepare'; buildingId: EntityId; x: number; y: number }
+  | { type: 'build_missile'; buildingId: EntityId; nuclear?: boolean }
+  | { type: 'missile_prepare'; buildingId: EntityId; x: number; y: number; nuclear?: boolean }
   | { type: 'missile_authorize'; launchId: number }
   | { type: 'missile_abort'; launchId: number }
   /** Operações expedicionárias (Fase 8): lançar contra um setor de um país em guerra e recuar. */
@@ -164,10 +164,10 @@ export function parseCommand(raw: unknown): Command | null {
     }
     case 'build_missile':
       if (!isId(raw.buildingId)) return null;
-      return { type: 'build_missile', buildingId: raw.buildingId };
+      return raw.nuclear === true ? { type: 'build_missile', buildingId: raw.buildingId, nuclear: true } : { type: 'build_missile', buildingId: raw.buildingId };
     case 'missile_prepare':
       if (!isId(raw.buildingId) || !isFiniteNum(raw.x) || !isFiniteNum(raw.y)) return null;
-      return { type: 'missile_prepare', buildingId: raw.buildingId, x: raw.x, y: raw.y };
+      return { type: 'missile_prepare', buildingId: raw.buildingId, x: raw.x, y: raw.y, ...(raw.nuclear === true ? { nuclear: true } : {}) };
     case 'missile_authorize':
     case 'missile_abort':
       if (!isId(raw.launchId)) return null;

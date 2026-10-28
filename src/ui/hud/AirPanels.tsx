@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { canAfford, emptyStockpile } from '../../../shared/sim/config.ts';
-import { AIR, AIRCRAFT, AIRCRAFT_TYPES, MISSILE, missileSpec, type AircraftState, type AircraftType, type LaunchState } from '../../../shared/sim/air.ts';
+import { useMyBonus } from '../../state/myCountry.ts';
+import { AIR, AIRCRAFT_TYPES, aircraftFor, MISSILE, NUCLEAR, missileSpec, type AircraftState, type AircraftType, type LaunchState } from '../../../shared/sim/air.ts';
 import { TECHNOLOGIES } from '../../../shared/strategic/technologies.ts';
 import { buildingEffects, formatUsd } from '../../../shared/sim/upgrades.ts';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
@@ -36,7 +37,8 @@ function useMe() {
   const me = useHudStore((s) => s.players.find((p) => p.slot === s.mySlot));
   const mySlot = useHudStore((s) => s.mySlot);
   const nation = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot));
-  return { resources: me?.resources ?? emptyStockpile(), recruits: me?.population?.recruits ?? 0, techs: effectiveTechs(nation?.research.done ?? []), fund: effectiveFund(nation?.works.fundUsd ?? null) };
+  const bonus = useMyBonus();
+  return { resources: me?.resources ?? emptyStockpile(), recruits: me?.population?.recruits ?? 0, techs: effectiveTechs(nation?.research.done ?? []), fund: effectiveFund(nation?.works.fundUsd ?? null), bonus };
 }
 
 function Bar({ value, tone = 'bg-brass-400' }: { value: number; tone?: string }) {
@@ -87,7 +89,7 @@ export function AirbaseInfo({ b }: { b: SelectedBuildingInfo }) {
 }
 
 function aircraftBlocker(type: AircraftType, ctx: ReturnType<typeof useMe>, inHangar: number, baseLevel: number): string | null {
-  const def = AIRCRAFT[type];
+  const def = aircraftFor(type, ctx.bonus);
   if (def.minBaseLevel && baseLevel < def.minBaseLevel) return `exige base nível ${def.minBaseLevel}`;
   if (inHangar >= AIR.hangarPerBase) return 'hangar cheio';
   if (ctx.recruits < 1) return 'sem piloto (recruta)';
@@ -112,7 +114,7 @@ export function AirbaseButtons({ b, runtime }: { b: SelectedBuildingInfo; runtim
   return (
     <>
       {AIRCRAFT_TYPES.map((t) => {
-        const def = AIRCRAFT[t];
+        const def = aircraftFor(t, ctx.bonus);
         const blocker = aircraftBlocker(t, ctx, planes.length, b.level);
         return (
           <CardButton
@@ -172,10 +174,11 @@ export function SiloInfo({ b }: { b: SelectedBuildingInfo }) {
     <div className="mt-1.5 text-xs">
       <div className="text-ink-400">
         Mísseis no silo: <span className="font-mono text-ink-100">{silo?.missiles ?? 0}</span>/{MISSILE.capacityPerSilo}
+        {(silo?.nuclear ?? 0) > 0 && <span className="text-red-300"> (☢ {silo!.nuclear} nuclear)</span>}
         {silo && silo.building > 0 && (
           <span>
             {' '}
-            · produzindo <Bar value={silo.building} /> {Math.round(silo.building * 100)}%
+            · produzindo{silo.buildingNuclear ? ' ogiva nuclear' : ''} <Bar value={silo.building} /> {Math.round(silo.building * 100)}%
           </span>
         )}
       </div>
@@ -218,9 +221,23 @@ export function SiloButtons({ b, runtime }: { b: SelectedBuildingInfo; runtime: 
           : ctx.fund !== null && ctx.fund < MISSILE.usd
             ? 'verba insuficiente'
             : null;
-  const prepBlock = missiles < 1 ? 'sem míssil' : active ? 'em andamento' : null;
+  const nukes = silo?.nuclear ?? 0;
+  const prepBlock = missiles - nukes < 1 ? 'sem míssil' : active ? 'em andamento' : null;
   const gen = buildingEffects('missile_silo', b.level).missileGen;
   const spec = missileSpec(gen);
+  const hasNukeTech = (ctx.techs as readonly string[]).includes(NUCLEAR.tech);
+  const nukeBuildBlock = !hasNukeTech
+    ? 'exige Armas nucleares'
+    : silo && silo.building > 0
+      ? 'em produção'
+      : full
+        ? 'silo cheio'
+        : !canAfford(ctx.resources, NUCLEAR.cost)
+          ? 'recursos insuficientes'
+          : ctx.fund !== null && ctx.fund < NUCLEAR.usd
+            ? 'verba insuficiente'
+            : null;
+  const nukePrepBlock = nukes < 1 ? 'sem ogiva nuclear' : active ? 'em andamento' : null;
   return (
     <>
       <CardButton
@@ -241,6 +258,28 @@ export function SiloButtons({ b, runtime }: { b: SelectedBuildingInfo; runtime: 
           short={prepBlock}
           onClick={() => (prepBlock ? warn(`Lançamento: ${prepBlock}`) : runtime.startAirTarget('missile', b.id))}
           title={`Escolha o alvo (território de um país em guerra, à vista ou junto de um edifício descoberto). A preparação leva ${spec.prepareSeconds}s e o lançamento ainda exige autorização.`}
+        />
+      )}
+      {hasNukeTech && (
+        <CardButton
+          icon="☢"
+          label="Ogiva nuclear"
+          blocked={nukeBuildBlock !== null}
+          short={nukeBuildBlock}
+          onClick={() => (nukeBuildBlock ? warn(`Ogiva nuclear: ${nukeBuildBlock}`) : runtime.send({ type: 'build_missile', buildingId: b.id, nuclear: true }))}
+          title={`Míssil com ogiva nuclear: ${formatUsd(NUCLEAR.usd)} + materiais · ${timeText(NUCLEAR.buildSeconds)} · dano ${NUCLEAR.damage} em raio ${NUCLEAR.radius}. Todo lançamento derruba a economia de todos os países por meses, inclusive a nossa.`}
+        >
+          <CostLabel cost={NUCLEAR.cost} have={ctx.resources} compact />
+        </CardButton>
+      )}
+      {!active && nukes > 0 && (
+        <CardButton
+          icon="☢"
+          label="Lançamento nuclear"
+          blocked={nukePrepBlock !== null}
+          short={nukePrepBlock}
+          onClick={() => (nukePrepBlock ? warn(`Lançamento nuclear: ${nukePrepBlock}`) : runtime.startAirTarget('missile', b.id, [], true))}
+          title="Escolha o alvo do míssil nuclear. Depois da preparação, a autorização exige manter pressionado. Choque econômico global por meses e perda enorme de reputação."
         />
       )}
       {active && (active.state === 'preparing' || active.state === 'armed') && (

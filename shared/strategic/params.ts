@@ -123,6 +123,20 @@ export const COEF = {
   parityGdpUsd: 1e12,
 } as const;
 
+/**
+ * Choque econômico global de um lançamento nuclear (lote 2, item 14): vale para todas as nações,
+ * inclusive quem lançou, e decai em ~90 dias. Lançamentos seguidos se somam (até 2×).
+ */
+export const NUCLEAR_SHOCK = {
+  decayDays: 90,
+  maxLevel: 2,
+  /** Por nível: p.p. de crescimento a menos, p.p. de inflação-alvo a mais, aprovação e renda no teatro. */
+  growth: 6,
+  inflation: 4,
+  approval: -4,
+  theaterMul: 0.3,
+};
+
 /** Suprimentos/s enviados ao teatro por um gasto de defesa anual (US$ bi), antes dos bônus. */
 export function theaterSupply(defenseBn: number): number {
   const x = COEF.theaterSupplyK * Math.sqrt(Math.max(0, defenseBn));

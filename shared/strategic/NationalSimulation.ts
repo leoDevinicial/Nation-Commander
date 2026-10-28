@@ -15,6 +15,7 @@ import {
   WORKS_LEDGER_MAX,
   WORKS_SHARE_OF_INFRA,
   WORKS_START_FRACTION,
+  NUCLEAR_SHOCK,
   theaterSupply,
 } from './params.ts';
 import { countryReference, type ReferenceKey } from './reference.ts';
@@ -218,12 +219,16 @@ export type NationalEvent =
     }
   /** Decretos, exigências das facções e pedidos das potências. */
   | { type: 'policy'; day: number; slot: Slot; text: string; tone: 'good' | 'bad' | 'info' }
+  /** Lançamento nuclear: choque econômico global (todas as nações sabem). */
+  | { type: 'nuclear_shock'; day: number; slot: Slot; victim: Slot; level: number }
   | { type: 'military_strike'; day: number; slot: Slot; victim: Slot; kind: 'air' | 'missile'; target: string; damage: number; oilLost: number; destroyed: number; intercepted: boolean }
   | { type: 'diplomacy'; day: number; event: DiplomaticEvent };
 
 export interface NationalSave {
   day: number;
   rng: number;
+  /** Lançamentos nucleares (choque econômico global). */
+  shocks?: { day: number; by: number }[];
   nations: NationState[];
   npcs: NationState[];
   events: NationalEvent[];
@@ -243,6 +248,8 @@ export class NationalSimulation {
   private readonly rng: Random;
   private events: NationalEvent[] = [];
   private theater: TheaterLink | null = null;
+  /** Lançamentos nucleares da partida (dia e autor). */
+  shocks: { day: number; by: number }[] = [];
 
   constructor(
     players: { slot: Slot; countryId: string }[],
@@ -285,7 +292,7 @@ export class NationalSimulation {
   /** Estado completo (JSON) para salvar a partida; o vínculo com o teatro é refeito por quem carrega. */
   toSave(): NationalSave {
     return JSON.parse(
-      JSON.stringify({ day: this.day, rng: this.rng.seedState, nations: this.nations, npcs: this.npcs, events: this.events, diplomacy: this.diplomacy.toSave() }, encodeNonFinite),
+      JSON.stringify({ day: this.day, rng: this.rng.seedState, nations: this.nations, npcs: this.npcs, events: this.events, diplomacy: this.diplomacy.toSave(), ...(this.shocks.length ? { shocks: this.shocks } : {}) }, encodeNonFinite),
       decodeNonFinite,
     ) as NationalSave;
   }
@@ -299,6 +306,7 @@ export class NationalSimulation {
     this.nations.splice(0, this.nations.length, ...c.nations);
     this.npcs.splice(0, this.npcs.length, ...c.npcs);
     this.events = c.events;
+    this.shocks = c.shocks ?? [];
     this.diplomacy.load(c.diplomacy);
   }
 
@@ -391,6 +399,7 @@ export class NationalSimulation {
       if (e.type === 'protest') return knows(e.slot);
       if (e.type === 'operation') return e.slot === viewer || e.target === viewer || (knows(e.slot) && knows(e.target));
       if (e.type === 'military_strike') return e.slot === viewer || e.victim === viewer || (knows(e.slot) && knows(e.victim));
+      if (e.type === 'nuclear_shock') return true;
       if (e.type !== 'diplomacy') return e.slot === viewer;
       const ev = e.event;
       switch (ev.type) {
@@ -554,6 +563,29 @@ export class NationalSimulation {
     this.events.push(e);
   }
 
+  /**
+   * Lançamento nuclear: choque econômico global para todas as nações (inclusive quem lançou) e
+   * perda enorme de reputação. O efeito decai em ~90 dias; lançamentos seguidos se somam.
+   */
+  nuclearShock(by: Slot, victim: Slot): void {
+    this.shocks.push({ day: this.day, by });
+    this.diplomacy.recordAttack(by, victim, 'nuclear');
+    this.events.push({ type: 'nuclear_shock', day: this.day, slot: by, victim, level: round2(this.shockLevel()) });
+    for (const n of [...this.nations, ...this.npcs]) this.recompute(n, 0);
+  }
+
+  /** Intensidade atual do choque nuclear global (0 = nenhum; 1 = um lançamento recente). */
+  shockLevel(day = this.day): number {
+    let s = 0;
+    for (const x of this.shocks) if (day >= x.day) s += Math.exp(-(day - x.day) / NUCLEAR_SHOCK.decayDays);
+    return Math.min(NUCLEAR_SHOCK.maxLevel, s);
+  }
+
+  /** Multiplicador da renda no teatro sob o choque nuclear (coleta e logística). */
+  shockTheaterMul(): number {
+    return Math.max(0.2, 1 - NUCLEAR_SHOCK.theaterMul * this.shockLevel());
+  }
+
   /** Contabiliza baixas e vitórias táticas para a opinião pública e registra ataques estratégicos. */
   registerTacticalEvents(events: SimEvent[]): void {
     for (const e of events) {
@@ -576,6 +608,10 @@ export class NationalSimulation {
           destroyed: e.destroyed ? 1 : 0,
           intercepted: false,
         });
+        continue;
+      }
+      if (e.type === 'missile' && e.nuclear && e.state === 'flight') {
+        this.nuclearShock(e.owner, e.targetOwner);
         continue;
       }
       if (e.type === 'missile' && (e.state === 'impact' || e.state === 'intercepted')) {
@@ -635,6 +671,8 @@ export class NationalSimulation {
       { key: 'trade', label: 'Acordos comerciais', value: diplo.trade },
       { key: 'sanctions', label: 'Sanções (sofridas e aplicadas)', value: diplo.sanctions },
     ];
+    const shock = this.shockLevel();
+    if (shock > 0.01) growthFactors.push({ key: 'nuclear', label: 'Choque global de lançamento nuclear', value: -NUCLEAR_SHOCK.growth * shock });
     const prevGrowth = n.realGrowthPct;
     n.realGrowthPct = clamp(sum(growthFactors), -15, 15);
     n.growthFactors = growthFactors.map((f) => ({ ...f, value: round2(f.value) }));
@@ -649,7 +687,7 @@ export class NationalSimulation {
     const anchor = COEF.inflationAnchor + (n.base.inflationPct - COEF.inflationAnchor) * Math.exp(-years / COEF.disinflationYears);
     const deficitExcess = Math.max(0, n.deficitPctGdp - Math.max(3, n.base.deficitPctGdp));
     const pol = policyEffects(n.policies);
-    const target = anchor + COEF.deficitInflation * deficitExcess + 0.3 * (n.realGrowthPct - n.trendGrowthPct) + pol.inflation;
+    const target = anchor + COEF.deficitInflation * deficitExcess + 0.3 * (n.realGrowthPct - n.trendGrowthPct) + pol.inflation + NUCLEAR_SHOCK.inflation * shock;
     const prevInflation = n.inflationPct;
     n.inflationPct += (target - n.inflationPct) * Math.min(1, COEF.inflationAdjust * dt);
 
@@ -882,6 +920,8 @@ export class NationalSimulation {
     ];
     const pol = policyEffects(n.policies);
     if (Math.abs(pol.approval) >= 0.01) factors.push({ key: 'policy', label: 'Decretos e facções', value: pol.approval });
+    const shock = this.shockLevel();
+    if (shock > 0.01) factors.push({ key: 'nuclear', label: 'Medo e crise do lançamento nuclear', value: NUCLEAR_SHOCK.approval * shock });
     const target = clamp(COEF.approvalBase + sum(factors), 0, 100);
     const prev = n.approval;
     n.approval += (target - n.approval) / COEF.approvalDays;

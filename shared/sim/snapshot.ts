@@ -4,7 +4,7 @@ import { encodeTerritory } from './territory.ts';
 import type { BuildingStatus, EntityId, SimEvent, Slot, UnitActivity, Vec2 } from './types.ts';
 import type { SpecId } from './upgrades.ts';
 import { combineMods, type ModId } from './modernization.ts';
-import { AIRCRAFT, MISSILE, missileSpec, type AircraftState, type AircraftType, type LaunchState, type MissionKind, type MissionResult, type MissionState } from './air.ts';
+import { AIRCRAFT, MISSILE, NUCLEAR, missileSpec, type AircraftState, type AircraftType, type LaunchState, type MissionKind, type MissionResult, type MissionState } from './air.ts';
 import { TRADE_RESOURCES, TRANSPORT_MODES, type ShipmentState, type TradeContract, type TradeOffer, type TradeResource, type TransportMode } from './trade.ts';
 
 export interface UnitSnapshot {
@@ -127,9 +127,9 @@ export interface AirView {
   flights: { id: number; owner: Slot; kind: MissionKind; state: MissionState; x: number; y: number; heading: number; count: number; gen: number; plane: AircraftType; engaged?: boolean; bx: number; by: number; tx?: number; ty?: number }[];
   /** Missões próprias recentes, com o resultado registrado. */
   missions: { id: number; kind: MissionKind; state: MissionState; baseId: EntityId; targetType: string | null; fuel: number; count: number; result: MissionResult | null }[];
-  silos: { id: EntityId; missiles: number; building: number }[];
+  silos: { id: EntityId; missiles: number; building: number; nuclear?: number; buildingNuclear?: boolean }[];
   /** Lançamentos próprios, e os inimigos em voo que miram este jogador ou estão à vista. */
-  launches: { id: number; owner: Slot; siloId: EntityId; state: LaunchState; progress: number; x: number; y: number; fx: number; fy: number; tx: number; ty: number; targetOwner: Slot; gen: number }[];
+  launches: { id: number; owner: Slot; siloId: EntityId; state: LaunchState; progress: number; x: number; y: number; fx: number; fy: number; tx: number; ty: number; targetOwner: Slot; gen: number; nuclear?: boolean }[];
   /** Áreas reveladas pelo reconhecimento próprio (névoa do cliente). */
   reveals: { x: number; y: number; r: number }[];
   /** Edifícios inimigos já descobertos (alvos válidos de ataque aéreo). */
@@ -387,6 +387,7 @@ export function airView(sim: Simulation, slot: Slot): AirView {
       ty: r2(l.target.y),
       targetOwner: l.targetOwner,
       gen: l.gen ?? 1,
+      ...(l.nuclear ? { nuclear: true } : {}),
     });
   }
   return {
@@ -405,7 +406,14 @@ export function airView(sim: Simulation, slot: Slot): AirView {
       .filter((b) => b.owner === slot && b.type === 'missile_silo')
       .map((b) => {
         const st = air.silos[b.id];
-        return { id: b.id, missiles: st?.missiles ?? 0, building: st && st.building > 0 ? r2(1 - st.building / (MISSILE.buildSeconds * TICK_RATE)) : 0 };
+        const secs = st?.buildingNuclear ? NUCLEAR.buildSeconds : MISSILE.buildSeconds;
+        return {
+          id: b.id,
+          missiles: st?.missiles ?? 0,
+          building: st && st.building > 0 ? r2(1 - st.building / (secs * TICK_RATE)) : 0,
+          ...(st?.nuclear ? { nuclear: st.nuclear } : {}),
+          ...(st?.buildingNuclear && st.building > 0 ? { buildingNuclear: true } : {}),
+        };
       }),
     launches,
     known: sim.buildings.filter((b) => b.owner !== slot && air.isKnown(slot, b.id)).map((b) => b.id),

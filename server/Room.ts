@@ -704,15 +704,17 @@ export class Room {
     for (const n of this.national.nations) {
       const fx = this.national.effects(n.slot);
       const pol = policyEffects(n.policies);
+      // choque nuclear global: a coleta e a logística de todos caem enquanto durar
+      const shock = this.national.shockTheaterMul();
       this.sim.setModifiers(n.slot, {
         constructionTimeMul: fx.constructionTimeMul,
         productionTimeMul: fx.productionTimeMul * pol.productionTimeMul,
         recruitCostMul: pol.recruitCostMul,
         foodUpkeepMul: pol.foodUpkeepMul,
-        externalIncome: n.theaterSupplyPerSec,
+        externalIncome: n.theaterSupplyPerSec * shock,
         territoryMul: fx.territoryMul,
         // bônus declarado de coleta da IA (só no Brutal)
-        gatherMul: (this.players.find((p) => p.slot === n.slot)?.isAI ? 1 + DIFFICULTY[this.difficulty].gatherBonus : 1) * pol.gatherMul,
+        gatherMul: (this.players.find((p) => p.slot === n.slot)?.isAI ? 1 + DIFFICULTY[this.difficulty].gatherBonus : 1) * pol.gatherMul * shock,
       });
     }
   }

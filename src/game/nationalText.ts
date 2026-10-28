@@ -65,6 +65,13 @@ export function describeNationalEvent(e: NationalEvent, mySlot: number, nameOf: 
       return mine ? { text: `Novo orçamento em vigor: saldo de ${formatPct(-e.deficitPctGdp)} do PIB`, tone: 'info' } : null;
     case 'policy':
       return mine ? { text: e.text, tone: e.tone } : null;
+    case 'nuclear_shock': {
+      const victim = e.victim === mySlot ? 'nosso país' : nameOf(e.victim);
+      return {
+        text: `☢ ${mine ? 'Lançamos' : `${nameOf(e.slot)} lançou`} um míssil nuclear contra ${victim}. A economia mundial entra em choque por meses: crescimento, inflação e renda no teatro de todos os países pioram.`,
+        tone: 'bad',
+      };
+    }
   }
 }
 

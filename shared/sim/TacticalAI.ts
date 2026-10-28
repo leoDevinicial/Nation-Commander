@@ -306,6 +306,8 @@ export class TacticalAI {
           popCap: Infinity,
           techs,
           militaryResearch: unlocked,
+          recruitCostMul: me.modifiers.recruitCostMul ?? 1,
+          bonus: sim.bonusOf(this.slot),
         });
         if (check.blocker || !take(check.cost)) continue;
         cmds.push({ type: 'produce', buildingId: b.id, unitType });

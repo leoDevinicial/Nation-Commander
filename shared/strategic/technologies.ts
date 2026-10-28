@@ -21,7 +21,8 @@ export type TechId =
   | 'digital_comms'
   | 'sensor_optics'
   | 'efficient_propulsion'
-  | 'ballistic_missiles';
+  | 'ballistic_missiles'
+  | 'nuclear_weapons';
 
 /** Categoria de investimento: em que área do orçamento de P&D a pesquisa compete. */
 export type TechCategory = 'military' | 'industry' | 'resources' | 'state';
@@ -227,6 +228,20 @@ export const TECHNOLOGIES: Record<TechId, TechDef> = {
     prereqs: ['guided_munitions'],
     effect: {},
     unlocks: ['Silo de mísseis (até 2 mísseis por silo)', 'Lançamento com preparação, autorização e interceptação pela antiaérea'],
+  },
+  nuclear_weapons: {
+    id: 'nuclear_weapons',
+    label: 'Armas nucleares',
+    category: 'military',
+    description: 'Enriquecimento, ogiva e miniaturização para o míssil balístico.',
+    cost: 0.08,
+    minDays: 60,
+    prereqs: ['ballistic_missiles'],
+    effect: {},
+    unlocks: [
+      'Ogiva nuclear nos silos de mísseis: dano e raio enormes, mais difícil de interceptar',
+      'Todo lançamento nuclear derruba a economia global por meses, inclusive a sua, e custa muita reputação',
+    ],
   },
 };
 

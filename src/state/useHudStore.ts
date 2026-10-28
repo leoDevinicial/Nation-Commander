@@ -69,7 +69,7 @@ export type PointerMode =
    * Escolha de alvo da força aérea (Fase 7): ponto do reconhecimento, edifício inimigo descoberto
    * do ataque, ou ponto do míssil — este último fica marcado e só segue com "Confirmar alvo".
    */
-  | { kind: 'air_target'; purpose: 'recon' | 'strike' | 'missile'; sourceId: EntityId; aircraftIds: number[]; target: { x: number; y: number } | null };
+  | { kind: 'air_target'; purpose: 'recon' | 'strike' | 'missile'; sourceId: EntityId; aircraftIds: number[]; target: { x: number; y: number } | null; nuclear?: boolean };
 
 /** Fila de produção de um edifício próprio (para o resumo de produção do HUD). */
 export interface ProductionEntry {

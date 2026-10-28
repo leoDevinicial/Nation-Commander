@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { RANK_DAMAGE, RANK_HP, RANKS } from '../../../shared/sim/veterancy.ts';
 import { policyEffects } from '../../../shared/strategic/policies.ts';
+import { useMyBonus } from '../../state/myCountry.ts';
 import {
   BUILDINGS,
   CITIZEN,
@@ -330,6 +331,7 @@ function ProduceButton({ b, unit, hotkey, label, title, onRun }: { b: SelectedBu
   const me = useHudStore((s) => s.players.find((p) => p.slot === s.mySlot));
   const mySlot = useHudStore((s) => s.mySlot);
   const myNation = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot));
+  const bonus = useMyBonus();
   const techs = effectiveTechs(myNation?.research.done ?? null);
   const check = checkProduce(unit, {
     buildingType: b.type,
@@ -344,6 +346,7 @@ function ProduceButton({ b, unit, hotkey, label, title, onRun }: { b: SelectedBu
     techs,
     militaryResearch: effectiveMilitaryResearch(me?.militaryResearch ?? []),
     recruitCostMul: policyEffects(myNation?.policies).recruitCostMul,
+    bonus,
   });
   const queued = b.queue.filter((q) => q.unitType === unit).length;
   const thumb = useHudStore((s) => s.thumbs[unit]);

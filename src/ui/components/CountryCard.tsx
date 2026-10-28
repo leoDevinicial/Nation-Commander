@@ -1,4 +1,5 @@
 import { countryName } from '../../../shared/data/countries.ts';
+import { countryBonus } from '../../../shared/sim/countryBonus.ts';
 import { COEF, theaterSupply } from '../../../shared/strategic/params.ts';
 import { countryReference, REFERENCE_META, type ReferenceKey, type SourcedValue } from '../../../shared/strategic/reference.ts';
 import { formatCount, formatNumber, formatPct, formatUsd } from '../../lib/format.ts';
@@ -68,6 +69,7 @@ export function CountryCard({ id, balanceMode }: { id: string; balanceMode: 'par
   const level = factors.length >= 3 ? 'Alta' : factors.length >= 1 ? 'Moderada' : 'Baixa';
   const l = ref.leaders;
   const militaryUsd = ref.values.militaryUsd.value;
+  const bonus = countryBonus(id);
   return (
     <div className="rounded border border-ink-700 bg-ink-950 p-3 text-xs">
       <div className="mb-1 flex items-baseline justify-between">
@@ -85,6 +87,11 @@ export function CountryCard({ id, balanceMode }: { id: string; balanceMode: 'par
             </>
           )}{' '}
           <span className="text-[10px]">(em {ref.leadersReferenceDate.split('-').reverse().join('/')})</span>
+        </p>
+      )}
+      {bonus.title && (
+        <p className="mb-2 rounded border border-brass-400/40 bg-brass-400/10 px-2 py-1 text-ink-200">
+          <span className="font-semibold text-brass-400">★ {bonus.title}:</span> {bonus.description}
         </p>
       )}
       <table className="w-full">

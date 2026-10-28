@@ -96,6 +96,9 @@ export const DIPLO = {
   strikeReputation: -1,
   missileVictimMemory: -10,
   missileReputation: -4,
+  /** Lançamento nuclear: memória do atingido e reputação com todos os demais. */
+  nuclearVictimMemory: -60,
+  nuclearReputation: -25,
   /** Ocupação de uma região do país inimigo (Fase 8). */
   occupationVictimMemory: -12,
   occupationReputation: -3,
@@ -309,10 +312,11 @@ export class Diplomacy {
    * Consequência diplomática de um ataque aéreo ou de míssil: o país atingido guarda memória do
    * ataque e os demais registram a perda de reputação de quem atacou (decai como as demais).
    */
-  recordAttack(actor: NationId, victim: NationId, kind: 'air' | 'missile' | 'occupation'): void {
+  recordAttack(actor: NationId, victim: NationId, kind: 'air' | 'missile' | 'occupation' | 'nuclear'): void {
     if (actor === victim) return;
-    this.pair(actor, victim).memory += kind === 'missile' ? DIPLO.missileVictimMemory : kind === 'occupation' ? DIPLO.occupationVictimMemory : DIPLO.strikeVictimMemory;
-    const rep = kind === 'missile' ? DIPLO.missileReputation : kind === 'occupation' ? DIPLO.occupationReputation : DIPLO.strikeReputation;
+    this.pair(actor, victim).memory +=
+      kind === 'nuclear' ? DIPLO.nuclearVictimMemory : kind === 'missile' ? DIPLO.missileVictimMemory : kind === 'occupation' ? DIPLO.occupationVictimMemory : DIPLO.strikeVictimMemory;
+    const rep = kind === 'nuclear' ? DIPLO.nuclearReputation : kind === 'missile' ? DIPLO.missileReputation : kind === 'occupation' ? DIPLO.occupationReputation : DIPLO.strikeReputation;
     for (const n of this.all()) if (n.slot !== actor && n.slot !== victim) this.pair(actor, n.slot).memory += rep;
   }
 

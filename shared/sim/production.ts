@@ -1,6 +1,7 @@
 import { BUILDINGS, MILITARY_RESEARCH, CITIZEN, POP_ABSOLUTE_CAP, PRODUCTION_QUEUE_LIMIT, RECRUIT, RESOURCE_TYPES, UNITS, canAfford, type BuildingType, type Cost, type ProducibleType, type Stockpile } from './config.ts';
 import { buildingEffects, missingText, scaledCost, type SpecId } from './upgrades.ts';
 import { addCost, productionStandard, type ModId } from './modernization.ts';
+import type { CountryBonus } from './countryBonus.ts';
 
 /**
  * Regra única de produção (cidadão, recruta e unidades militares): o servidor valida com ela e o
@@ -24,6 +25,8 @@ export interface ProduceContext {
   militaryResearch: readonly string[];
   /** Decreto de alistamento: multiplicador do custo dos recrutas (padrão 1). */
   recruitCostMul?: number;
+  /** Bônus único do país (custo de tropas e recrutas). */
+  bonus?: CountryBonus;
 }
 
 export interface ProduceCheck {
@@ -58,7 +61,9 @@ export function checkProduce(unit: ProducibleType, c: ProduceContext): ProduceCh
   const fx = buildingEffects(c.buildingType, c.level, c.spec);
   const civil = unit === 'citizen' || unit === 'recruit';
   const std = civil ? { mods: [] as ModId[], extra: {} as Cost } : productionStandard(unit, c.techs);
-  const base = unit === 'citizen' ? CITIZEN.cost : unit === 'recruit' ? scaledCost(RECRUIT.cost, fx.recruitCostMul * (c.recruitCostMul ?? 1)) : scaledCost(UNITS[unit].cost, fx.unitCostMul, fx.unitOilMul);
+  const base = unit === 'citizen' ? CITIZEN.cost : unit === 'recruit'
+        ? scaledCost(RECRUIT.cost, fx.recruitCostMul * (c.recruitCostMul ?? 1) * (c.bonus?.recruitCostMul ?? 1))
+        : scaledCost(UNITS[unit].cost, fx.unitCostMul * (c.bonus?.unitCostMul?.[unit] ?? 1), fx.unitOilMul);
   let cost = addCost(base, std.extra);
   let eq = { mods: std.mods, equipmentCost: std.extra };
   let basic = false;

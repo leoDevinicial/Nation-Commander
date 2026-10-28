@@ -1,4 +1,5 @@
 import { BUILDINGS, TICK_RATE, UNITS, canAfford, type Cost } from './config.ts';
+import type { CountryBonus } from './countryBonus.ts';
 import { buildingEffects, missingText } from './upgrades.ts';
 import type { Simulation } from './Simulation.ts';
 import type { Building, EntityId, Slot, Vec2 } from './types.ts';
@@ -149,6 +150,21 @@ export const MISSILE = {
 };
 
 /**
+ * Ogiva nuclear (pesquisa nacional "Armas nucleares"): muito mais cara e lenta de produzir, raio e
+ * dano enormes, mais difícil de interceptar. Todo lançamento derruba a economia global por meses
+ * (`NationalSimulation.nuclearShock`), inclusive a de quem lançou.
+ */
+export const NUCLEAR = {
+  tech: 'nuclear_weapons',
+  cost: { iron: 220, oil: 160, supplies: 220 } as Cost,
+  usd: 40_000_000,
+  buildSeconds: 90,
+  damage: 6000,
+  radius: 14,
+  interceptMul: 0.5,
+};
+
+/**
  * Ficha do míssil por geração. A 2ª geração (silo no nível 2) é o míssil pesado do lançador
  * eretor: abastece em metade do tempo, contagem final curta, voa mais rápido, ogiva maior e é
  * mais difícil de interceptar.
@@ -234,10 +250,16 @@ export interface MissileLaunch {
   result: { damage: number; destroyed: number; casualties: number; intercepted: boolean } | null;
   /** Geração do míssil (2 = silo no nível 2); ausente nos salvamentos antigos = 1. */
   gen?: number;
+  /** Ogiva nuclear. */
+  nuclear?: boolean;
 }
 
 export interface SiloState {
   missiles: number;
+  /** Quantos dos mísseis guardados têm ogiva nuclear. */
+  nuclear?: number;
+  /** O míssil em produção tem ogiva nuclear. */
+  buildingNuclear?: boolean;
   /** Ticks restantes do míssil em produção (0 = nenhum). */
   building: number;
   paid: Cost;
@@ -350,7 +372,7 @@ export class AirSystem {
   buildBlocker(slot: Slot, baseId: EntityId, type: AircraftType): string | null {
     const base = this.building(baseId);
     if (!this.operational(base, 'airbase', slot)) return 'Base aérea inválida ou inoperante';
-    const def = AIRCRAFT[type];
+    const def = this.aircraftCost(slot, type);
     if (def.minBaseLevel && base.level < def.minBaseLevel) return `${def.label} exige Base Aérea nível ${def.minBaseLevel}`;
     if (this.aircraftAt(baseId).length >= AIR.hangarPerBase) return `Hangar cheio: ${AIR.hangarPerBase} aeronaves por base`;
     const p = this.sim.players[slot]!;
@@ -361,10 +383,15 @@ export class AirSystem {
     return null;
   }
 
+  /** Ficha da aeronave com o bônus do país (custo em recursos e US$). */
+  aircraftCost(slot: Slot, type: AircraftType): AircraftDef {
+    return aircraftFor(type, this.sim.bonusOf(slot));
+  }
+
   build(slot: Slot, baseId: EntityId, type: AircraftType): string | null {
     const err = this.buildBlocker(slot, baseId, type);
     if (err) return err;
-    const def = AIRCRAFT[type];
+    const def = this.aircraftCost(slot, type);
     if (this.sim.national && !this.sim.national.chargeWorks(slot, def.usd, `${def.label}`)) return 'Verba de obras insuficiente para a aeronave';
     this.sim.spendResources(slot, def.cost);
     this.sim.players[slot]!.recruits--;
@@ -459,12 +486,12 @@ export class AirSystem {
     for (const b of this.sim.buildings) {
       if (!enemy(b.owner) || b.progress < 1 || b.hp <= 0) continue;
       const d = dist(b.pos, m.target);
-      if (b.type === 'aa_battery' && d <= AIR.aaRange) chance += AIR.aaChance;
+      if (b.type === 'aa_battery' && d <= AIR.aaRange) chance += AIR.aaChance * (this.sim.bonusOf(b.owner).aaMul ?? 1);
       else if (b.type === 'tower' && d <= AIR.aaRange * 0.7) chance += AIR.towerAaChance;
       else if (b.type === 'airbase' && d <= AIR.interceptRadius) chance += AIR.fighterInterceptChance * this.aircraftAt(b.id).filter((a) => a.type === 'fighter' && a.state === 'ready').length;
     }
     // antiaérea móvel acompanhando as tropas: como uma bateria, um pouco menos eficaz
-    for (const u of this.sim.units) if (enemy(u.owner) && u.hp > 0 && UNITS[u.type].airDefense && dist(u.pos, m.target) <= AIR.aaRange) chance += AIR.aaChance * MOBILE_AA_FACTOR;
+    for (const u of this.sim.units) if (enemy(u.owner) && u.hp > 0 && UNITS[u.type].airDefense && dist(u.pos, m.target) <= AIR.aaRange) chance += AIR.aaChance * MOBILE_AA_FACTOR * (this.sim.bonusOf(u.owner).aaMul ?? 1);
     chance = Math.min(AIR.maxShootDown, chance);
     let shotDown = 0;
     for (const a of planes) {
@@ -553,38 +580,43 @@ export class AirSystem {
     return (this.silos[id] ??= { missiles: 0, building: 0, paid: {}, usd: 0 });
   }
 
-  missileBuildBlocker(slot: Slot, siloId: EntityId): string | null {
+  missileBuildBlocker(slot: Slot, siloId: EntityId, nuclear = false): string | null {
     const b = this.building(siloId);
     if (!this.operational(b, 'missile_silo', slot)) return 'Silo de mísseis inválido ou inoperante';
     if (!this.techs(slot).includes(MISSILE.tech)) return 'Exige a pesquisa Mísseis balísticos';
+    if (nuclear && !this.techs(slot).includes(NUCLEAR.tech)) return 'Exige a pesquisa Armas nucleares';
+    const price = nuclear ? NUCLEAR : MISSILE;
     const s = this.silo(siloId);
     if (s.building > 0) return 'Já há um míssil em produção neste silo';
     const reserved = this.launches.filter((l) => l.siloId === siloId && (l.state === 'preparing' || l.state === 'armed' || l.state === 'launching')).length;
     if (s.missiles + reserved >= MISSILE.capacityPerSilo) return `Silo cheio: ${MISSILE.capacityPerSilo} mísseis por silo`;
     const p = this.sim.players[slot]!;
-    if (!canAfford(p.resources, MISSILE.cost)) return `Recursos insuficientes: faltam ${missingText(p.resources, MISSILE.cost)}`;
+    if (!canAfford(p.resources, price.cost)) return `Recursos insuficientes: faltam ${missingText(p.resources, price.cost)}`;
     const f = this.funds(slot);
-    if (f !== null && f + 1e-6 < MISSILE.usd) return 'Verba de obras insuficiente para o míssil';
+    if (f !== null && f + 1e-6 < price.usd) return 'Verba de obras insuficiente para o míssil';
     return null;
   }
 
-  buildMissile(slot: Slot, siloId: EntityId): string | null {
-    const err = this.missileBuildBlocker(slot, siloId);
+  buildMissile(slot: Slot, siloId: EntityId, nuclear = false): string | null {
+    const err = this.missileBuildBlocker(slot, siloId, nuclear);
     if (err) return err;
-    if (this.sim.national && !this.sim.national.chargeWorks(slot, MISSILE.usd, 'Míssil balístico')) return 'Verba de obras insuficiente para o míssil';
-    this.sim.spendResources(slot, MISSILE.cost);
+    const price = nuclear ? NUCLEAR : MISSILE;
+    if (this.sim.national && !this.sim.national.chargeWorks(slot, price.usd, nuclear ? 'Míssil com ogiva nuclear' : 'Míssil balístico')) return 'Verba de obras insuficiente para o míssil';
+    this.sim.spendResources(slot, price.cost);
     const s = this.silo(siloId);
-    s.building = this.sim.duration(slot, MISSILE.buildSeconds * TICK_RATE);
-    s.paid = { ...MISSILE.cost };
-    s.usd = this.sim.national ? MISSILE.usd : 0;
+    s.building = this.sim.duration(slot, price.buildSeconds * TICK_RATE);
+    s.buildingNuclear = nuclear;
+    s.paid = { ...price.cost };
+    s.usd = this.sim.national ? price.usd : 0;
     return null;
   }
 
-  prepareBlocker(slot: Slot, siloId: EntityId, x: number, y: number): string | null {
+  prepareBlocker(slot: Slot, siloId: EntityId, x: number, y: number, nuclear = false): string | null {
     const b = this.building(siloId);
     if (!this.operational(b, 'missile_silo', slot)) return 'Silo de mísseis inválido ou inoperante';
     if (!this.techs(slot).includes(MISSILE.tech)) return 'Exige a pesquisa Mísseis balísticos';
-    if (this.silo(siloId).missiles < 1) return 'Sem míssil no silo';
+    const s = this.silo(siloId);
+    if (nuclear ? (s.nuclear ?? 0) < 1 : s.missiles - (s.nuclear ?? 0) < 1) return nuclear ? 'Sem míssil nuclear no silo' : 'Sem míssil convencional no silo';
     if (this.launches.some((l) => l.siloId === siloId && (l.state === 'preparing' || l.state === 'armed' || l.state === 'launching'))) return 'O silo já tem um lançamento em andamento';
     const p = this.sim.clampToMap({ x, y });
     const c = this.sim.grid.worldToCell(p);
@@ -596,13 +628,15 @@ export class AirSystem {
     return null;
   }
 
-  prepare(slot: Slot, siloId: EntityId, x: number, y: number): string | null {
-    const err = this.prepareBlocker(slot, siloId, x, y);
+  prepare(slot: Slot, siloId: EntityId, x: number, y: number, nuclear = false): string | null {
+    const err = this.prepareBlocker(slot, siloId, x, y, nuclear);
     if (err) return err;
     const b = this.building(siloId)!;
     const p = this.sim.clampToMap({ x, y });
     const c = this.sim.grid.worldToCell(p);
-    this.silo(siloId).missiles--;
+    const st = this.silo(siloId);
+    st.missiles--;
+    if (nuclear) st.nuclear = (st.nuclear ?? 0) - 1;
     const gen = buildingEffects('missile_silo', b.level).missileGen;
     const spec = missileSpec(gen);
     const l: MissileLaunch = {
@@ -618,6 +652,7 @@ export class AirSystem {
       startTick: this.sim.tick,
       result: null,
       gen,
+      ...(nuclear ? { nuclear: true } : {}),
     };
     this.launches.push(l);
     this.missileEvent(l, 'Míssil em preparação (abastecimento)');
@@ -644,25 +679,28 @@ export class AirSystem {
     if (l.state !== 'preparing' && l.state !== 'armed') return 'Não é mais possível abortar';
     l.state = 'aborted';
     l.endTick = this.sim.tick;
-    this.silo(l.siloId).missiles++;
+    const st = this.silo(l.siloId);
+    st.missiles++;
+    if (l.nuclear) st.nuclear = (st.nuclear ?? 0) + 1;
     this.missileEvent(l, 'Lançamento abortado: míssil devolvido ao silo');
     return null;
   }
 
   private missileEvent(l: MissileLaunch, text: string): void {
     const r = l.result && !l.result.intercepted ? { damage: l.result.damage, destroyed: l.result.destroyed, casualties: l.result.casualties } : {};
-    this.sim.emitTrade({ type: 'missile', tick: this.sim.tick, owner: l.owner, launchId: l.id, state: l.state, text, from: { ...l.from }, target: { ...l.target }, targetOwner: l.targetOwner, gen: l.gen ?? 1, ...r });
+    this.sim.emitTrade({ type: 'missile', tick: this.sim.tick, owner: l.owner, launchId: l.id, state: l.state, text, from: { ...l.from }, target: { ...l.target }, targetOwner: l.targetOwner, gen: l.gen ?? 1, ...(l.nuclear ? { nuclear: true } : {}), ...r });
   }
 
   private impact(l: MissileLaunch): void {
-    const spec = missileSpec(l.gen ?? 1);
+    const base = missileSpec(l.gen ?? 1);
+    const spec = l.nuclear ? { ...base, damage: NUCLEAR.damage, radius: NUCLEAR.radius, interceptChance: base.interceptChance * NUCLEAR.interceptMul, maxIntercept: base.maxIntercept * NUCLEAR.interceptMul } : base;
     // interceptação pelas baterias antiaéreas perto do alvo
     let chance = 0;
     for (const b of this.sim.buildings)
       if (b.owner === l.targetOwner && b.type === 'aa_battery' && b.progress >= 1 && b.hp > 0 && dist(b.pos, l.target) <= MISSILE.interceptRange) chance += spec.interceptChance;
     for (const u of this.sim.units)
       if (u.owner === l.targetOwner && u.hp > 0 && UNITS[u.type].airDefense && dist(u.pos, l.target) <= MISSILE.interceptRange) chance += spec.interceptChance * MOBILE_AA_FACTOR;
-    chance = Math.min(spec.maxIntercept, chance);
+    chance = Math.min(spec.maxIntercept, chance * (this.sim.bonusOf(l.targetOwner).aaMul ?? 1));
     if (this.rand() < chance) {
       l.state = 'intercepted';
       l.endTick = this.sim.tick;
@@ -749,7 +787,10 @@ export class AirSystem {
       if (s.building > 0 && !b.unpaid && --s.building <= 0) {
         s.building = 0;
         s.missiles++;
-        this.sim.emitTrade({ type: 'missile', tick, owner: b.owner, launchId: 0, state: 'stored', text: 'Míssil pronto no silo', from: { ...b.pos }, target: { ...b.pos }, targetOwner: b.owner });
+        if (s.buildingNuclear) s.nuclear = (s.nuclear ?? 0) + 1;
+        const nuc = !!s.buildingNuclear;
+        s.buildingNuclear = false;
+        this.sim.emitTrade({ type: 'missile', tick, owner: b.owner, launchId: 0, state: 'stored', text: nuc ? 'Míssil com ogiva nuclear pronto no silo' : 'Míssil pronto no silo', from: { ...b.pos }, target: { ...b.pos }, targetOwner: b.owner });
       }
     }
     for (const l of this.launches) {
@@ -920,6 +961,16 @@ export class AirSystem {
     const k = 1 - l.timer / l.flightTicks;
     return { x: l.from.x + (l.target.x - l.from.x) * k, y: l.from.y + (l.target.y - l.from.y) * k };
   }
+}
+
+/** Ficha da aeronave com o bônus do país aplicado ao custo (mesma regra no servidor e no HUD). */
+export function aircraftFor(type: AircraftType, bonus?: CountryBonus): AircraftDef {
+  const def = AIRCRAFT[type];
+  const mul = bonus?.aircraftCostMul ?? 1;
+  if (mul === 1) return def;
+  const cost: Cost = {};
+  for (const [r, v] of Object.entries(def.cost) as [keyof Cost, number][]) cost[r] = Math.max(1, Math.round(v * mul));
+  return { ...def, cost, usd: Math.round(def.usd * mul) };
 }
 
 export const isAircraftType = (v: unknown): v is AircraftType => typeof v === 'string' && (AIRCRAFT_TYPES as string[]).includes(v);

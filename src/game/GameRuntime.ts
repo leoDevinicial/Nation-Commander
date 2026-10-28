@@ -36,7 +36,7 @@ import { PostFx } from './render/PostFx.ts';
 import { CitizenLayer } from './render/CitizenLayer.ts';
 import { CargoLayer, disposeCargoModels } from './render/CargoLayer.ts';
 import { AirLayer, disposeAirModels } from './render/AirLayer.ts';
-import { AIRCRAFT, missileSpec } from '../../shared/sim/air.ts';
+import { AIRCRAFT, NUCLEAR, missileSpec } from '../../shared/sim/air.ts';
 import { PRODUCTION_SOUND, audio } from './audio/AudioService.ts';
 import { useSettingsStore } from '../state/useSettingsStore.ts';
 import { AdaptiveExposure, EnvironmentProbe, ShadowFollow } from './render/Lighting.ts';
@@ -717,14 +717,22 @@ export class GameRuntime {
       this.effects.explosion(at, false);
       this.effects.flash(at, 1.1, '#ffd38a', 0.4);
     } else if (e.type === 'missile') {
-      const heavy = (e.gen ?? 1) >= 2;
-      const radius = missileSpec(e.gen ?? 1).radius;
+      const heavy = (e.gen ?? 1) >= 2 || !!e.nuclear;
+      const radius = e.nuclear ? NUCLEAR.radius : missileSpec(e.gen ?? 1).radius;
       if (e.state === 'flight') {
         // ignição: clarão, luz forte e nuvem de fumaça rolando a partir do silo
         if (heavy) this.effects.heavyIgnition(new THREE.Vector3(e.from.x, 0.4, e.from.y));
         else this.effects.ignition(new THREE.Vector3(e.from.x, 0.4, e.from.y));
         this.airLayer.shockwave(e.from, heavy ? 6 : 3);
         this.shakeNear(e.from, heavy ? 0.7 : 0.35);
+      } else if (e.state === 'impact' && e.nuclear) {
+        // detonação nuclear: clarão branco enorme, bola de fogo, várias ondas de choque e tremor forte
+        const at = new THREE.Vector3(e.target.x, 0, e.target.y);
+        this.effects.flash(new THREE.Vector3(e.target.x, 8, e.target.y), radius * 2.6, '#fff6de', 1.6);
+        this.effects.heavyMissileImpact(at, radius * 0.6);
+        this.effects.heavyMissileImpact(at, radius);
+        for (const k of [1, 1.8, 2.8, 4]) this.airLayer.shockwave(e.target, radius * k);
+        this.shakeNear(e.target, 2.2);
       } else if (e.state === 'impact') {
         if (heavy) this.effects.heavyMissileImpact(new THREE.Vector3(e.target.x, 0, e.target.y), radius);
         else this.effects.missileImpact(new THREE.Vector3(e.target.x, 0, e.target.y), radius);
@@ -1920,15 +1928,15 @@ export class GameRuntime {
   }
 
   /** Escolha de alvo da força aérea: reconhecimento (ponto), ataque (edifício) ou míssil (ponto). */
-  startAirTarget(purpose: 'recon' | 'strike' | 'missile', sourceId: number, aircraftIds: number[] = []): void {
-    this.setMode({ kind: 'air_target', purpose, sourceId, aircraftIds, target: null });
+  startAirTarget(purpose: 'recon' | 'strike' | 'missile', sourceId: number, aircraftIds: number[] = [], nuclear = false): void {
+    this.setMode({ kind: 'air_target', purpose, sourceId, aircraftIds, target: null, ...(nuclear ? { nuclear: true } : {}) });
   }
 
   /** Míssil: envia a preparação do alvo marcado (o lançamento ainda exige autorização). */
   confirmAirTarget(): void {
     const m = this.mode;
     if (m.kind !== 'air_target' || m.purpose !== 'missile' || !m.target) return;
-    this.send({ type: 'missile_prepare', buildingId: m.sourceId, x: m.target.x, y: m.target.y });
+    this.send({ type: 'missile_prepare', buildingId: m.sourceId, x: m.target.x, y: m.target.y, ...(m.nuclear ? { nuclear: true } : {}) });
     this.cancelMode();
   }
 
