@@ -455,7 +455,7 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
 
   const upgrade = async (): Promise<void> => {
     const loader = new GLTFLoader();
-    const load = async (name: string, weather: number): Promise<{ geo: THREE.BufferGeometry; mat: THREE.Material; height: number } | null> => {
+    const load = async (name: string, weather: number, sway = 0): Promise<{ geo: THREE.BufferGeometry; mat: THREE.Material; height: number } | null> => {
       try {
         const gltf = await loader.loadAsync(`${NATURE_URL}${name}.glb`);
         let found: THREE.Mesh | null = null;
@@ -468,7 +468,8 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
         const geo = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
         geo.computeBoundingBox();
         const height = geo.boundingBox!.max.y - geo.boundingBox!.min.y;
-        const mat = withFog((mesh.material as THREE.Material).clone(), { weather });
+        // arbustos balançam ao vento: amplitude relativa à altura do modelo (o topo anda ~4% dela)
+        const mat = withFog((mesh.material as THREE.Material).clone(), { weather, sway: sway && height > 0 ? Math.round((sway / height) * 1e4) / 1e4 : 0 });
         // Ultra: sombreamento suave (copas e rochas sem facetas marcadas)
         if ('flatShading' in mat) (mat as THREE.MeshStandardMaterial).flatShading = !ultra;
         return { geo, mat, height };
@@ -477,7 +478,7 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
       }
     };
     const rockKit = (await Promise.all(ROCK_MODELS.map((n) => load(n, 0.85)))).filter((x) => x !== null);
-    const bushKit = (await Promise.all(BUSH_MODELS.map((n) => load(n, 0.4)))).filter((x) => x !== null);
+    const bushKit = (await Promise.all(BUSH_MODELS.map((n) => load(n, 0.4, 0.04)))).filter((x) => x !== null);
     if (rockKit.length === 0) return; // mantém o procedural
     // as malhas antigas de rochas saem do registro; as novas entram já respeitando as construções
     tracks = tracks.filter((t) => t.mesh.parent?.parent !== decor);

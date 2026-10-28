@@ -22,6 +22,11 @@ export const weatherUniforms = {
  * luz direta (sol e clarões) é atenuada — a luz do céu continua, como numa tarde parcialmente
  * nublada. `uCloudStrength` 0 desliga sem recompilar.
  */
+/** Vento da vegetação: tempo (s) atualizado a cada quadro pela cena ativa. */
+export const windUniforms = {
+  uWindTime: { value: 0 },
+};
+
 export const cloudUniforms = {
   uCloudMap: { value: null as THREE.Texture | null },
   uCloudOffset: { value: new THREE.Vector2() },
@@ -77,6 +82,11 @@ interface EnhanceOpts {
   seams?: boolean;
   /** Vidros com caixilhos (grade de janelas em vez de desgaste). */
   panes?: boolean;
+  /**
+   * Balanço ao vento (folhas e arbustos): deslocamento por unidade de altura do modelo. Cada
+   * instância tem sua fase (pela posição), e a base fica parada. 0 = sem vento.
+   */
+  sway?: number;
 }
 
 /**
@@ -87,9 +97,11 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
   const weather = opts.weather ?? 0;
   const panes = opts.panes ?? false;
   const ch = opts.seams ? 'g' : 'r';
+  const sway = opts.sway ?? 0;
   const clouds = cloudShadows;
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uFogMap = fogUniforms.uFogMap;
+    if (sway) shader.uniforms.uWindTime = windUniforms.uWindTime;
     shader.uniforms.uFogSize = fogUniforms.uFogSize;
     if (clouds) {
       shader.uniforms.uCloudMap = cloudUniforms.uCloudMap;
@@ -109,6 +121,24 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
         vFogXZ = fogWp.xz;`,
       );
     if (weather || panes) vs = vs.replace('#include <begin_vertex>', '#include <begin_vertex>\nvObjPos = position;\nvObjNormal = normal;');
+    if (sway)
+      vs = vs.replace('#include <common>', '#include <common>\nuniform float uWindTime;').replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        {
+          // vento: rajadas lentas + tremor fino; mais forte no alto, nada na base
+          vec3 wBase = vec3(0.0);
+          #ifdef USE_INSTANCING
+            wBase = instanceMatrix[3].xyz;
+          #endif
+          float wH = max(position.y, 0.0) * ${sway.toFixed(4)};
+          float wPh = dot(wBase.xz, vec2(0.37, 0.53));
+          float wT = uWindTime;
+          float gust = 0.65 + 0.35 * sin(wT * 0.45 + wPh * 0.2);
+          transformed.x += (sin(wT * 1.6 + wPh) * 0.7 + sin(wT * 3.3 + wPh * 1.7 + position.z * 2.0) * 0.3) * wH * gust;
+          transformed.z += (sin(wT * 1.2 + wPh * 1.3 + 1.7) * 0.5 + sin(wT * 2.9 + position.x * 2.0) * 0.25) * wH * gust;
+        }`,
+      );
     shader.vertexShader = vs;
     let fs = shader.fragmentShader.replace(
       '#include <common>',
@@ -179,7 +209,7 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
         ${FOG_GLSL}`,
     );
   };
-  material.customProgramCacheKey = () => `nc-fog-v6-w${weather}-p${panes ? 1 : 0}-${ch}-c${clouds ? 1 : 0}`;
+  material.customProgramCacheKey = () => `nc-fog-v6-w${weather}-p${panes ? 1 : 0}-${ch}-c${clouds ? 1 : 0}-s${sway}`;
   return material;
 }
 

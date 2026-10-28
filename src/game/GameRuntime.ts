@@ -17,7 +17,7 @@ import { RocketLayer } from './render/RocketLayer.ts';
 import { TrackMarks } from './render/TrackMarks.ts';
 import { Projectiles } from './render/Projectiles.ts';
 import { BIOME_TINT, buildTerrain, type TerrainHandle } from './render/TerrainFactory.ts';
-import { cloudUniforms, disposeMaterials, fogUniforms, setCloudShadows, weatherUniforms } from './render/materials.ts';
+import { cloudUniforms, disposeMaterials, fogUniforms, setCloudShadows, weatherUniforms, windUniforms } from './render/materials.ts';
 import { disposeBuildingModels } from './render/models/buildingModels.ts';
 import { disposeCitizenModel, disposeUnitModels, unitModel } from './render/models/unitModels.ts';
 import { setModelDetail } from './render/models/kit.ts';
@@ -889,6 +889,8 @@ export class GameRuntime {
       this.sky.position.copy(this.camera.position);
       (this.sky.material as THREE.ShaderMaterial).uniforms.uTime!.value = now / 1000;
       this.terrain.update(now / 1000);
+      // vento das folhas (movimento reduzido: parado)
+      windUniforms.uWindTime.value = useSettingsStore.getState().reducedMotion || prefersReducedMotion() ? 0 : now / 1000;
       this.shadowFollow?.update(this.cameraCtl.target, this.cameraCtl.distance);
       // tempo de GPU do quadro inteiro (sombra, cena, reflexo, pós-processamento), 1 a cada 10 quadros
       this.gpuTimer?.begin();
