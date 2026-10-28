@@ -1,9 +1,10 @@
 # Balanceamento, progressão e ideias de design
 
-Análise do estado do jogo e propostas de melhoria, em dois lotes:
+Análise do estado do jogo e propostas de melhoria, em três lotes:
 
 1. **Diagnóstico de balanceamento e progressão**, com elementos de city builder inspirados em *Tropico 5* e *Tropico 6*.
 2. **Elementos inspirados em *Rise of Nations*** que ainda não existem no jogo.
+3. **Estradas construídas pelo jogador e Engenheiro de Combate** (com minas terrestres).
 
 Nada aqui está implementado: são propostas para discussão. Os números do diagnóstico saem das tabelas do código
 (`shared/sim/config.ts`, `shared/sim/TacticalAI.ts`, `shared/sim/Simulation.ts`, `shared/sim/upgrades.ts`,
@@ -111,7 +112,7 @@ jogador vê e sente a nação evoluir, em vez de acumular só porcentagens.
 | Era | Requisito | Aparência das construções | Tropas e veículos liberados | Construções liberadas |
 |---|---|---|---|---|
 | **1. Guerra Fria** (início) | — | Concreto aparente, tijolo, telhado de zinco, pintura verde-oliva, antenas simples | Infantaria, Veículo Blindado | Centro de Comando, Casa, Fazenda, Serraria, Pedreira, Mina, Poço de Petróleo, Armazém, Silo, Tanque de Petróleo, Base Militar, Fábrica de Veículos, Torre de Vigilância |
-| **2. Pós-Guerra Fria** | QG nível 3 | Galpões metálicos pré-fabricados, cercas e guaritas, primeiros radares | Tanque, Artilharia, Infantaria Antitanque | Centro de Pesquisa Militar, Prédio Residencial, Terminal Comercial, Porto, Estação Ferroviária, Bateria Antiaérea |
+| **2. Pós-Guerra Fria** | QG nível 3 | Galpões metálicos pré-fabricados, cercas e guaritas, primeiros radares | Tanque, Artilharia, Infantaria Antitanque, Engenheiro de Combate (lote 3) | Centro de Pesquisa Militar, Prédio Residencial, Terminal Comercial, Porto, Estação Ferroviária, Bateria Antiaérea |
 | **3. Era Digital** | QG nível 5 | Vidro e aço, antenas de telecomunicação, painéis solares, camuflagem digital nos veículos | Antiaérea Móvel, Forças Especiais, Lança-Foguetes; caças de 1ª geração | Base Aérea; melhorias até o nível 8 |
 | **4. Futuro Próximo** | QG nível 7 | Estruturas compostas, telas e iluminação de LED, drones de vigilância decorativos, pistas iluminadas | Tanque Moderno; caças de nova geração | Silo de Mísseis, Grandes Projetos Nacionais (lote 2, item 13); melhorias até o nível 10 |
 
@@ -264,7 +265,8 @@ O Grande Projeto mais ambicioso e **a construção mais cara do jogo**, pensada 
   4. O evento é anunciado a todos os jogadores.
 - **Efeito: satélite em órbita.** A nação dona do satélite fica **sem névoa de guerra** e **vê todo o mapa em tempo real**:
   todas as unidades e construções inimigas, sempre atualizadas. No servidor, isso significa enviar a esse jogador o
-  snapshot completo, sem o filtro de visão.
+  snapshot completo, sem o filtro de visão. Exceção: o satélite **não revela minas terrestres** (lote 3), senão anularia
+  a mecânica.
 - **No globo diplomático:** o satélite **aparece orbitando a Terra**, com a bandeira do país, à vista de todos os
   jogadores.
 - **Pontos a decidir no balanceamento:**
@@ -293,3 +295,64 @@ O Grande Projeto mais ambicioso e **a construção mais cara do jogo**, pensada 
 3. **Choque econômico do lançamento nuclear (14):** custo baixo, porque o sistema de mísseis e a simulação econômica já
    existem, e impacto estratégico alto.
 4. **Bônus únicos por país (12):** pouco código, muita identidade.
+
+---
+
+# Lote 3 — Estradas e Engenharia de Combate
+
+## 1. Estradas construídas pelo jogador
+
+**O que já existe:** `Terrain.Road` é um terreno com velocidade 1,3× e custo de caminho 0,7 no A*
+(`shared/sim/config.ts`). As tropas **já preferem estradas automaticamente** quando elas encurtam a viagem, e todas as
+unidades andam mais rápido nelas. Hoje a única estrada é a que o gerador de mapa desenha entre as bases; falta deixar o
+jogador construir.
+
+**Proposta**
+- **Construção no estilo OpenTTD, simplificada:** o jogador arrasta uma linha na grade (horizontal e vertical, talvez
+  diagonal), com prévia do traçado e do custo antes de confirmar. Sem junções, sinais ou pontes complexas.
+- **Movimento:** tropas continuam se movendo livremente como hoje, mas o caminho escolhe a estrada quando ela torna a
+  viagem mais rápida. Todas as unidades ganham velocidade sobre a estrada.
+- **Comboios e caravanas:** seguem as estradas e ganham o mesmo multiplicador de velocidade. Hoje os comboios do comércio
+  andam com velocidade fixa (`TRANSPORT.road.speed` em `shared/sim/trade.ts`), então é preciso aplicar o multiplicador do
+  terreno a eles. As Caravanas entre cidades (lote 2, item 6) usam a malha rodoviária.
+- **Custo:** pedra por célula e US$ do orçamento nacional de **infraestrutura**, mais uma manutenção pequena. O orçamento
+  de infraestrutura passa a ter efeito visível no mapa.
+- **Onde construir:** dentro do próprio território; fora dele, só com o Engenheiro de Combate (seção 2).
+- **Felicidade da população:** casas e prédios residenciais ligados à estrada dão bônus de aprovação ("bairro
+  pavimentado"), como a cobertura de serviços do *Tropico*.
+
+**Decisões de design**
+- **Mão dupla:** o inimigo em guerra também usa a sua estrada. Pavimentar até a fronteira acelera a sua defesa e também
+  o ataque dele.
+- **Contra o "pavimenta tudo":** custo por célula e manutenção impedem que o bônus vire universal.
+- **Celular:** o arrasto da linha precisa de um modo dedicado, como a ferramenta Área do toque.
+- **Mapas:** o ganho rende mais com mapas maiores e Centros Regionais (lote 2, item 1), em que as distâncias pesam.
+
+## 2. Engenheiro de Combate e minas terrestres
+
+Unidade multifunção da Base Militar, liberada na era **Pós-Guerra Fria** (lote 1, seção 3.1) por uma pesquisa do Centro
+de Pesquisa Militar.
+
+**Funções**
+- **Colocar minas terrestres.**
+- **Detectar e remover minas** (o contra-jogo vem na mesma unidade).
+- **Construir estradas fora do próprio território.**
+- **Erguer pequenas fortificações:** sacos de areia e obstáculos antitanque.
+
+**Regras das minas**
+- **Começar só com minas antitanque:** detonam apenas com veículos; a infantaria passa por cima. Cria um contra natural
+  (infantaria ou engenheiros na frente) e evita perder tropas baratas sem ver nada.
+- **Visibilidade:** o dono vê as próprias minas. O inimigo só as vê com Engenheiro, Forças Especiais, avião de
+  reconhecimento ou depois que uma explode. O satélite do Programa Espacial não as revela.
+- **Limites:** custo por mina (ferro e suprimentos), máximo por engenheiro ou por nação, e tempo de instalação parado
+  (não dá para minar no meio do combate).
+- **Sinergia com as estradas:** estradas são rápidas e previsíveis, então são o lugar óbvio para minar. Dá à estrada um
+  custo de risco e ao engenheiro um papel constante.
+
+**Camada geopolítica**
+- Se minas **antipessoal** forem adicionadas depois, elas custam relação com os países signatários do **Tratado de
+  Ottawa**.
+- Minas que sobram depois do fim de uma guerra reduzem a aprovação até serem removidas.
+
+**IA:** precisa evitar as minas que conhece e mandar engenheiros à frente das ondas. Sem isso, as minas viram um novo
+jeito de vencê-la de graça, como já acontece com a artilharia de longo alcance (lote 1, seção 1.1).
