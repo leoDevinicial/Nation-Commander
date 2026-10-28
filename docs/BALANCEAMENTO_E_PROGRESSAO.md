@@ -215,11 +215,12 @@ o que falta e como se encaixaria.
 - **Proposta:** programa espacial, usina nuclear, rede 5G nacional, hidrelétrica, centro financeiro. Custam recursos do
   teatro e US$ do orçamento, levam anos de jogo para concluir e dão bônus globais.
 
-**14. Relógio do Juízo Final**
-- **No RoN:** cada arma nuclear lançada avança o relógio do Armagedom; no limite, todos perdem.
-- **Proposta:** relógio global em que cada lançamento de míssil balístico avança o contador, derruba as relações com todos
-  os países e gera sanções automáticas. No limite, a partida termina sem vencedor. Torna o míssil uma decisão moral e
-  estratégica.
+**14. Choque econômico global do lançamento nuclear**
+- **No RoN:** armas nucleares têm consequências que afetam todos os jogadores, não só o alvo.
+- **Proposta:** todo lançamento nuclear causa um **debuff temporário gigante na economia global**: queda forte do
+  crescimento do PIB, alta da inflação e do desemprego, e redução da renda no teatro de **todas** as nações (jogadores e
+  governos de IA, inclusive quem lançou). O efeito dura alguns meses de jogo e decai aos poucos. Torna o lançamento uma
+  decisão estratégica com custo para todos, não só dano no alvo.
 
 **15. Condições de vitória variadas**
 - **No RoN:** conquista, território, maravilhas e pontuação.
@@ -230,5 +231,6 @@ o que falta e como se encaixaria.
 ## Prioridade sugerida (lote 2)
 1. **Cidades secundárias com captura (1 e 2):** resolvem a falta de expansão e dão objetivos intermediários.
 2. **Grandes Projetos Nacionais (13):** ligam a camada nacional ao teatro e dão sensação de "construir uma nação".
-3. **Relógio do Juízo Final (14):** custo baixo, porque o sistema de mísseis já existe, e impacto narrativo alto.
+3. **Choque econômico do lançamento nuclear (14):** custo baixo, porque o sistema de mísseis e a simulação econômica já
+   existem, e impacto estratégico alto.
 4. **Bônus únicos por país (12):** pouco código, muita identidade.
