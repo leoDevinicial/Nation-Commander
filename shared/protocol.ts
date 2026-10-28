@@ -6,12 +6,20 @@ import type { PlayerStats, Slot } from './sim/types.ts';
 import type { Snapshot } from './sim/snapshot.ts';
 import type { OperationResult, OperationsView, SectorView } from './strategic/operations.ts';
 import type { Difficulty } from './sim/difficulty.ts';
+import type { DecreeId } from './strategic/policies.ts';
 
 /** `sandbox`: modo livre contra uma IA (recursos ilimitados, tudo liberado, ferramentas de teste). */
 export type RoomMode = 'pvp' | 'vs_ai' | 'sandbox';
 export type { BalanceMode };
 
-export type NationalCommand = { type: 'set_budget'; budget: Budget } | { type: 'set_research'; techId: TechId | null } | { type: 'diplomacy'; action: DiplomaticAction };
+export type NationalCommand =
+  | { type: 'set_budget'; budget: Budget }
+  | { type: 'set_research'; techId: TechId | null }
+  | { type: 'diplomacy'; action: DiplomaticAction }
+  /** Decreta ou revoga (política interna). */
+  | { type: 'decree'; id: DecreeId; active: boolean }
+  /** Responde ao pedido de uma potência (recusar custa relação). */
+  | { type: 'request_respond'; accept: boolean };
 
 /** Visão geopolítica do jogador: só países com quem tem contato trazem dados (ver `viewFor`). */
 export type DiplomacyView = GeopoliticalView;

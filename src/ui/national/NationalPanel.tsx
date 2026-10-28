@@ -13,6 +13,7 @@ import { OverviewTab } from './OverviewTab.tsx';
 import { ResearchTab } from './ResearchTab.tsx';
 import { DiplomacyTab } from './DiplomacyTab.tsx';
 import { TradeTab } from './TradeTab.tsx';
+import { PolicyTab } from './PolicyTab.tsx';
 import { makeNameOf } from '../../game/nationalText.ts';
 import type { DiplomaticAction } from '../../../shared/strategic/Diplomacy.ts';
 
@@ -20,6 +21,7 @@ const TABS = [
   { id: 'overview', label: 'Visão Geral' },
   { id: 'budget', label: 'Orçamento' },
   { id: 'research', label: 'Pesquisa' },
+  { id: 'policy', label: 'Política' },
   { id: 'diplomacy', label: 'Diplomacia' },
   { id: 'trade', label: 'Comércio' },
   { id: 'diagnosis', label: 'Diagnóstico' },
@@ -84,6 +86,14 @@ export function NationalPanel({ onClose }: { onClose: () => void }) {
           <BudgetTab nation={nation} onApply={applyBudget} balanceMode={balanceMode} />
         ) : tab === 'research' ? (
           <ResearchTab nation={nation} onSelect={selectResearch} />
+        ) : tab === 'policy' ? (
+          <PolicyTab
+            nation={nation}
+            day={day}
+            nameOf={nameOf}
+            onDecree={(id, active) => gameClient.send({ t: 'national', cmd: { type: 'decree', id, active } })}
+            onRespond={(accept) => gameClient.send({ t: 'national', cmd: { type: 'request_respond', accept } })}
+          />
         ) : tab === 'trade' ? (
           <TradeTab
             nation={nation}

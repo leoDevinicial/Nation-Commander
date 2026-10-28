@@ -304,6 +304,20 @@ describe('servidor de partidas', () => {
     expect(me.resources.wood).toBe(wood0 - cost.wood! + Math.floor(cost.wood! * UPGRADE_CANCEL_REFUND));
   });
 
+  it('decreto pelo painel nacional: vale na sala e chega ao teatro (recrutas mais baratos)', async () => {
+    const { send, rooms } = setup();
+    const a = fakeConn();
+    await send(a.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-dec' });
+    await send(a.conn, { t: 'create_room', mode: 'vs_ai', countryId: 'BRA' });
+    await send(a.conn, { t: 'start' });
+    const room = rooms.get(a.last('room')!.room!.code)!;
+    await send(a.conn, { t: 'national', cmd: { type: 'decree', id: 'conscription', active: true } });
+    room.advance();
+    expect(room.national!.nation(0)!.policies!.decrees.map((d) => d.id)).toEqual(['conscription']);
+    expect(room.sim!.players[0]!.modifiers.recruitCostMul).toBeCloseTo(0.6);
+    expect(a.last('national')!.nations[0]!.policies!.decrees).toHaveLength(1);
+  });
+
   it('a IA declara guerra pelo caminho validado antes de causar qualquer dano', async () => {
     const { send, rooms } = setup();
     const a = fakeConn();

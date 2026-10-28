@@ -440,3 +440,5 @@ como na escolha entre os modos paridade e escala real.
 | Lote 1, §2.6 — incidentes de fronteira no preparo | Feito | `Simulation.startIncident`, `TacticalAI.planHarass` |
 | Lote 1, §2.7 — curva de defesa (raiz com saturação suave) | Feito | `theaterSupply` em `shared/strategic/params.ts` |
 | Lote 1, §3.2 — veterania (patentes, insígnia, painel) | Feito | `shared/sim/veterancy.ts` |
+| Lote 1, §1.1 — IA usa aviões (reconhecimento, ataques) e mísseis, conforme a dificuldade | Feito | `TacticalAI.planAir` |
+| Lote 1, §4 — decretos, facções e pedidos das potências | Feito | `shared/strategic/policies.ts`, aba Política |

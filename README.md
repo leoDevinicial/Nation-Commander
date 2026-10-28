@@ -290,6 +290,10 @@ O QG não cai e nada conta no histórico. Detalhes em `docs/MODO_SANDBOX.md`.
 inimigos sobem de patente (Veterano, Elite, Herói), com mais dano e vida e insígnia. Detalhes em
 `docs/DIFICULDADE_VETERANIA.md`.
 
+**Política (Nação → Política):** decretos com ganho e custo (alistamento, economia de guerra, racionamento, lei
+marcial), facções com exigências ligadas ao teatro e pedidos das grandes potências com prazo. Detalhes em
+`docs/POLITICA_DECRETOS_FACCOES.md`.
+
 **Qualidade adaptativa (KGPS + KAICS)**, ligada por padrão: durante a partida, o KGPS mede o tempo de
 cada quadro. Se o jogo fica lento, alivia primeiro o que menos aparece (reflexos, efeitos de tela,
 sombras, resolução), um ajuste por vez, e desfaz o que não ajudou. Com folga, devolve a qualidade do

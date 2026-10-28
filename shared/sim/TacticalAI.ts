@@ -9,6 +9,7 @@ import { MOD_IDS, MODS, checkModernize } from './modernization.ts';
 import { BASE_PRICE } from './trade.ts';
 import { DIPLO } from '../strategic/Diplomacy.ts';
 import { DIFFICULTY } from './difficulty.ts';
+import { AIRCRAFT, MISSILE, type AircraftType } from './air.ts';
 
 /** Com que frequência a IA reavalia a situação. */
 export const AI_THINK_TICKS = TICK_RATE;
@@ -53,6 +54,13 @@ export const AI_FIRST_WAVE = DIFFICULTY.normal.firstWave;
 
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
 
+/** Força aérea da IA: base aérea a partir de 9 min; reconhecimento a cada 60 s; ataques a cada 45 s. */
+export const AI_AIR_TICK = TICK_RATE * 60 * 9;
+export const AI_RECON_EVERY_TICKS = TICK_RATE * 60;
+export const AI_STRIKE_EVERY_TICKS = TICK_RATE * 45;
+/** Alvos preferidos dos ataques aéreos e mísseis (os primeiros da lista primeiro). */
+const AIR_TARGETS: BuildingType[] = ['airbase', 'missile_silo', 'factory', 'research_center', 'barracks', 'oil_well', 'oil_tank', 'mine', 'hq'];
+
 /** Força defensiva enviada contra a força inimiga vista perto da base. */
 export const AI_DEFENSE_RATIO = 1.5;
 /** Contra-bateria: tiro recente (até 10 s), no máximo um grupo a cada 20 s, de até 5 unidades. */
@@ -87,6 +95,8 @@ export interface TacticalAISave {
   citySite?: { tick: number; ok: boolean } | null;
   lastCounterTick?: number | null;
   lastHarassTick?: number | null;
+  lastReconTick?: number | null;
+  lastStrikeTick?: number | null;
 }
 
 export class TacticalAI {
@@ -104,6 +114,9 @@ export class TacticalAI {
   private peakTick = 0;
   /** Último grupo de contra-bateria enviado. */
   private lastCounterTick = -Infinity;
+  /** Últimas missões aéreas (reconhecimento e ataque). */
+  private lastReconTick = -Infinity;
+  private lastStrikeTick = -Infinity;
   /** País contra o qual a IA quer declarar guerra (lido e processado pelo servidor). */
   wantsWarWith: Slot | null = null;
 
@@ -122,6 +135,8 @@ export class TacticalAI {
       citySite: this.citySite ? { ...this.citySite } : null,
       lastCounterTick: Number.isFinite(this.lastCounterTick) ? this.lastCounterTick : null,
       lastHarassTick: Number.isFinite(this.lastHarassTick) ? this.lastHarassTick : null,
+      lastReconTick: Number.isFinite(this.lastReconTick) ? this.lastReconTick : null,
+      lastStrikeTick: Number.isFinite(this.lastStrikeTick) ? this.lastStrikeTick : null,
     };
   }
 
@@ -136,6 +151,8 @@ export class TacticalAI {
     this.peakTick = s.peakTick ?? 0;
     this.lastCounterTick = s.lastCounterTick ?? -Infinity;
     this.lastHarassTick = s.lastHarassTick ?? -Infinity;
+    this.lastReconTick = s.lastReconTick ?? -Infinity;
+    this.lastStrikeTick = s.lastStrikeTick ?? -Infinity;
   }
 
   think(sim: Simulation): Command[] {
@@ -179,6 +196,7 @@ export class TacticalAI {
       cmds.push({ type: 'build', buildingType: type, cx: cell.cx, cy: cell.cy });
       return true;
     };
+    const natTechs = sim.national?.techs(this.slot) ?? [];
     const housingInProgress = mine.some((b) => (b.type === 'house' || b.type === 'residential') && b.progress < 1);
     const wellsWithoutTank = mine.some(
       (w) => w.type === 'oil_well' && !mine.some((t) => t.type === 'oil_tank' && dist(t.pos, w.pos) / sim.map.cellSize <= OIL_TANK_RANGE),
@@ -214,6 +232,9 @@ export class TacticalAI {
       ['factory', count('factory') < 2 && budget.supplies > 350 && budget.oil > 150],
       ['barracks', count('barracks') < 2 && budget.food > 250],
       ['oil_well', count('oil_well') < 3 && army.length >= 10],
+      // força aérea (Normal ou mais): base aérea depois da economia militar; silo quando houver a pesquisa
+      ['airbase', level.airPower && count('airbase') === 0 && done('factory') && done('research_center') && sim.tick >= AI_AIR_TICK],
+      ['missile_silo', level.missiles && count('missile_silo') === 0 && done('airbase') && natTechs.includes(MISSILE.tech)],
     ];
     let built: BuildingType | null = null;
     for (const [type, wanted] of plan)
@@ -246,6 +267,7 @@ export class TacticalAI {
     let crew = preparing ? Math.min(pop.recruits, garrisonRoom) : pop.recruits;
     // pesquisa militar: o centro pesquisa na ordem; a produção usa o que já foi liberado
     this.planResearch(sim, mine, airThreat, take, cmds);
+    if (level.airPower) this.planAir(sim, mine, level.missiles, natTechs, take, cmds);
     const unlocked = me.militaryResearch ?? [];
     const has = (u: UnitType) => !UNITS[u].requires || unlocked.includes(UNITS[u].requires!);
     const enemyArmor = sim.units.filter((u) => sim.hostile(this.slot, u.owner) && UNITS[u.type].armor === 'vehicle' && sim.canSee(this.slot, u)).length;
@@ -373,6 +395,73 @@ export class TacticalAI {
       if (strays.length > 0) cmds.push({ type: 'move', unitIds: strays.map((u) => u.id), x: rally.x, y: rally.y });
     }
     return cmds;
+  }
+
+  /**
+   * Força aérea e mísseis (dificuldade Normal ou mais), pelos mesmos comandos e regras do jogador:
+   * aeronaves na base aérea (reconhecimento, caças e, com a base no nível 2, bombardeiros),
+   * reconhecimento sobre a base inimiga, ataques a edifícios já descobertos e, com a pesquisa,
+   * mísseis contra o alvo descoberto mais valioso. Só ataca em guerra declarada.
+   */
+  private planAir(sim: Simulation, mine: Building[], missiles: boolean, natTechs: readonly string[], take: (c: Cost) => boolean, cmds: Command[]): void {
+    const air = sim.air;
+    const enemy = this.enemyObjective(sim);
+    const atWar = enemy !== null && sim.formalWar(this.slot, enemy.slot);
+    for (const base of mine) {
+      if (base.type !== 'airbase' || base.progress < 1 || base.hp <= 0) continue;
+      const planes = air.aircraftAt(base.id);
+      const has = (t: AircraftType) => planes.filter((a) => a.type === t).length;
+      const want: AircraftType | null = has('recon') === 0 ? 'recon' : has('fighter') < 2 ? 'fighter' : base.level >= 2 && has('bomber') < 1 ? 'bomber' : null;
+      if (want && !planes.some((a) => a.state === 'building') && air.buildBlocker(this.slot, base.id, want) === null && take(AIRCRAFT[want].cost)) {
+        cmds.push({ type: 'build_aircraft', buildingId: base.id, aircraftType: want });
+      }
+      if (!atWar || !enemy) continue;
+      const ready = (types: AircraftType[]) => planes.filter((a) => a.state === 'ready' && types.includes(a.type)).map((a) => a.id);
+      const known = sim.buildings.filter((b) => b.owner === enemy.slot && b.hp > 0 && air.isKnown(this.slot, b.id));
+      // reconhecimento: sobre a base inimiga enquanto não houver alvos conhecidos (ou a cada minuto)
+      const recon = ready(['recon']);
+      if (recon.length && sim.tick - this.lastReconTick >= AI_RECON_EVERY_TICKS) {
+        const at = known.length < 4 ? enemy.pos : (known[(sim.tick / AI_RECON_EVERY_TICKS) % known.length | 0]?.pos ?? enemy.pos);
+        if (air.missionBlocker(this.slot, base.id, recon, 'recon', { x: at.x, y: at.y }) === null) {
+          cmds.push({ type: 'air_mission', buildingId: base.id, aircraftIds: recon, mission: 'recon', x: at.x, y: at.y });
+          this.lastReconTick = sim.tick;
+        }
+      }
+      // ataque: caças e bombardeiros prontos contra o alvo conhecido mais valioso
+      const strikers = ready(['fighter', 'bomber']);
+      if (strikers.length && sim.tick - this.lastStrikeTick >= AI_STRIKE_EVERY_TICKS) {
+        const target = this.airTarget(known);
+        if (target && air.missionBlocker(this.slot, base.id, strikers, 'strike', { buildingId: target.id }) === null) {
+          cmds.push({ type: 'air_mission', buildingId: base.id, aircraftIds: strikers, mission: 'strike', targetId: target.id });
+          this.lastStrikeTick = sim.tick;
+        }
+      }
+    }
+    if (!missiles || !natTechs.includes(MISSILE.tech)) return;
+    for (const silo of mine) {
+      if (silo.type !== 'missile_silo' || silo.progress < 1 || silo.hp <= 0) continue;
+      if (air.missileBuildBlocker(this.slot, silo.id) === null && take(MISSILE.cost)) cmds.push({ type: 'build_missile', buildingId: silo.id });
+      if (!atWar || !enemy) continue;
+      const known = sim.buildings.filter((b) => b.owner === enemy.slot && b.hp > 0 && air.isKnown(this.slot, b.id));
+      const target = this.airTarget(known);
+      if (target && air.prepareBlocker(this.slot, silo.id, target.pos.x, target.pos.y) === null) cmds.push({ type: 'missile_prepare', buildingId: silo.id, x: target.pos.x, y: target.pos.y });
+    }
+    // lançamentos armados: autoriza (a mesma confirmação do jogador)
+    for (const l of air.launches) if (l.owner === this.slot && l.state === 'armed') cmds.push({ type: 'missile_authorize', launchId: l.id });
+  }
+
+  private airTarget(known: Building[]): Building | null {
+    let best: Building | null = null;
+    let bestScore = Infinity;
+    for (const b of known) {
+      const rank = AIR_TARGETS.indexOf(b.type);
+      const score = (rank < 0 ? AIR_TARGETS.length : rank) * 10000 + b.id;
+      if (score < bestScore) {
+        bestScore = score;
+        best = b;
+      }
+    }
+    return best;
   }
 
   /**

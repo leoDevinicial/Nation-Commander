@@ -389,7 +389,8 @@ export class AirSystem {
       const t = target.buildingId !== undefined ? this.sim.entities.get(target.buildingId) : undefined;
       // só alvos já descobertos: o ataque não ignora a névoa de guerra
       if (!t || t.kind !== 'building' || !this.isKnown(slot, t.id)) return 'Alvo não descoberto: faça reconhecimento ou aviste o edifício antes';
-      if (t.owner === slot || !this.sim.hostile(slot, t.owner)) return 'Sem estado de guerra com o dono do alvo';
+      // ataques aéreos exigem guerra declarada (um incidente de fronteira não basta)
+      if (t.owner === slot || !this.sim.formalWar(slot, t.owner)) return 'Sem estado de guerra com o dono do alvo';
       pos = t.pos;
     } else {
       if (target.x === undefined || target.y === undefined) return 'Escolha um ponto para o reconhecimento';
@@ -589,7 +590,7 @@ export class AirSystem {
     const c = this.sim.grid.worldToCell(p);
     const owner = this.sim.territoryOwner(c.cx, c.cy);
     // alvo: território de um país com quem há guerra, num ponto que o jogador vê ou cujo edifício já descobriu
-    if (owner < 0 || owner === slot || !this.sim.hostile(slot, owner)) return 'O alvo precisa estar no território de um país com quem você está em guerra';
+    if (owner < 0 || owner === slot || !this.sim.formalWar(slot, owner)) return 'O alvo precisa estar no território de um país com quem você está em guerra';
     const seen = this.sim.isVisibleTo(slot, p) || this.sim.buildings.some((bb) => bb.owner === owner && this.isKnown(slot, bb.id) && dist(bb.pos, p) <= MISSILE.radius + 2);
     if (!seen) return 'Alvo não observado: precisa estar à vista ou junto de um edifício já descoberto';
     return null;
@@ -628,7 +629,7 @@ export class AirSystem {
     const l = this.launches.find((x) => x.id === launchId);
     if (!l || l.owner !== slot) return 'Lançamento inválido';
     if (l.state !== 'armed') return l.state === 'preparing' ? 'Aguarde o fim da preparação' : 'Lançamento não está aguardando autorização';
-    if (!this.sim.hostile(slot, l.targetOwner)) return 'Sem estado de guerra com o dono do alvo: lançamento bloqueado';
+    if (!this.sim.formalWar(slot, l.targetOwner)) return 'Sem estado de guerra com o dono do alvo: lançamento bloqueado';
     if (!this.operational(this.building(l.siloId), 'missile_silo', slot)) return 'Silo inoperante';
     l.state = 'launching';
     l.timer = missileSpec(l.gen ?? 1).launchSeconds * TICK_RATE;

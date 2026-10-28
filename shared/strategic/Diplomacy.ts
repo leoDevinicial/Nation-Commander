@@ -316,6 +316,11 @@ export class Diplomacy {
     for (const n of this.all()) if (n.slot !== actor && n.slot !== victim) this.pair(actor, n.slot).memory += rep;
   }
 
+  /** Favor ou desfeita pontual (pedidos das potências): soma à memória da relação, que decai. */
+  adjustRelation(a: NationId, b: NationId, delta: number): void {
+    if (a !== b) this.pair(a, b).memory += delta;
+  }
+
   drainEvents(): DiplomaticEvent[] {
     const e = this.events;
     this.events = [];

@@ -2,6 +2,7 @@ import type { Slot } from '../sim/types.ts';
 import { spendPct, type Budget, type NationalSimulation } from './NationalSimulation.ts';
 import { researchBlocker, TECH_IDS, type TechId } from './technologies.ts';
 import type { DiplomaticAction } from './Diplomacy.ts';
+import type { DecreeId } from './policies.ts';
 
 /** Ordem de pesquisa da IA: primeiro o que ajuda no teatro, depois a economia. */
 const AI_RESEARCH_ORDER: TechId[] = [
@@ -24,13 +25,20 @@ const AI_RESEARCH_ORDER: TechId[] = [
  * Governo controlado pela IA. Revisa o orçamento uma vez por mês com regras explícitas e
  * limitadas — nada de recursos ocultos: usa os mesmos comandos do jogador.
  */
+/** Com a força aérea e os mísseis na dificuldade: munição guiada e mísseis vêm primeiro. */
+const AI_MILITARY_FIRST: TechId[] = ['logistics', 'digital_comms', 'guided_munitions', 'ballistic_missiles'];
+
 export class NationalAI {
-  constructor(readonly slot: Slot) {}
+  constructor(
+    readonly slot: Slot,
+    /** Prioriza as pesquisas que liberam ataques aéreos e mísseis (dificuldade Difícil ou Brutal). */
+    private readonly militaryFirst = false,
+  ) {}
 
   /** Retorna o orçamento a aplicar (ou null para manter) e a pesquisa desejada. */
-  think(sim: NationalSimulation): { budget: Budget | null; research: TechId | null | undefined; diplomacy: DiplomaticAction[] } {
+  think(sim: NationalSimulation): { budget: Budget | null; research: TechId | null | undefined; diplomacy: DiplomaticAction[]; decrees: { id: DecreeId; active: boolean }[] } {
     const n = sim.nation(this.slot);
-    if (!n) return { budget: null, research: undefined, diplomacy: [] };
+    if (!n) return { budget: null, research: undefined, diplomacy: [], decrees: [] };
     const b: Budget = { ...n.budget };
     const ref = n.referenceBudget;
     let changed = false;
@@ -64,9 +72,26 @@ export class NationalAI {
     if (!n.research.current) {
       // a primeira da lista cujos pré-requisitos já estão prontos (mesma regra do jogador)
       const ready = (t: TechId) => researchBlocker(t, n.research.done) === null;
-      research = AI_RESEARCH_ORDER.find(ready) ?? TECH_IDS.find(ready) ?? null;
+      research = (this.militaryFirst ? AI_MILITARY_FIRST.find(ready) : undefined) ?? AI_RESEARCH_ORDER.find(ready) ?? TECH_IDS.find(ready) ?? null;
     }
-    return { budget: changed ? b : null, research, diplomacy: this.diplomacy(sim) };
+    return { budget: changed ? b : null, research, diplomacy: this.diplomacy(sim), decrees: this.decrees(sim, n) };
+  }
+
+  /**
+   * Decretos pela mesma regra do jogador: em guerra, economia de guerra e (com aprovação folgada)
+   * alistamento; lei marcial se a estabilidade desabar. Com a aprovação baixa, revoga o que pesa nela.
+   */
+  private decrees(sim: NationalSimulation, n: NonNullable<ReturnType<NationalSimulation['nation']>>): { id: DecreeId; active: boolean }[] {
+    const on = new Set((n.policies?.decrees ?? []).map((d) => d.id));
+    const out: { id: DecreeId; active: boolean }[] = [];
+    const atWar = sim.nations.some((x) => x.slot !== this.slot && sim.diplomacy.atWar(this.slot, x.slot));
+    if (atWar && !on.has('war_economy') && n.inflationPct < n.base.inflationPct + 8) out.push({ id: 'war_economy', active: true });
+    if (atWar && !on.has('conscription') && n.approval > 52) out.push({ id: 'conscription', active: true });
+    if (!on.has('martial_law') && n.stability < 25) out.push({ id: 'martial_law', active: true });
+    if (n.approval < 35) for (const id of ['conscription', 'rationing'] as const) if (on.has(id)) out.push({ id, active: false });
+    if (on.has('martial_law') && n.stability > 45) out.push({ id: 'martial_law', active: false });
+    if (on.has('war_economy') && (!atWar || n.inflationPct > n.base.inflationPct + 15)) out.push({ id: 'war_economy', active: false });
+    return out;
   }
 
   /**

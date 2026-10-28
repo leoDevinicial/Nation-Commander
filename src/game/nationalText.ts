@@ -63,6 +63,8 @@ export function describeNationalEvent(e: NationalEvent, mySlot: number, nameOf: 
     }
     case 'budget_changed':
       return mine ? { text: `Novo orçamento em vigor: saldo de ${formatPct(-e.deficitPctGdp)} do PIB`, tone: 'info' } : null;
+    case 'policy':
+      return mine ? { text: e.text, tone: e.tone } : null;
   }
 }
 

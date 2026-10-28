@@ -742,7 +742,7 @@ export class Simulation {
       for (const r of RESOURCE_TYPES) inc[r] -= fx.upkeep[r] ?? 0;
       if (def.gather && b.status === 'ok') inc[def.gather.resource] += this.buildingRate(b);
     }
-    inc.food -= this.population(slot).total * FOOD_UPKEEP_PER_POP;
+    inc.food -= this.population(slot).total * FOOD_UPKEEP_PER_POP * (this.players[slot]!.modifiers.foodUpkeepMul ?? 1);
     return inc;
   }
 
@@ -892,6 +892,7 @@ export class Simulation {
           popCap: this.isSandbox(slot) ? Infinity : pop.cap,
           techs: this.national ? this.national.techs(slot) : null,
           militaryResearch: this.isSandbox(slot) ? MILITARY_RESEARCH_IDS : (player.militaryResearch ?? []),
+          recruitCostMul: player.modifiers.recruitCostMul ?? 1,
         });
         if (check.blocker) return check.blocker;
         const cost = check.cost;
@@ -1265,6 +1266,16 @@ export class Simulation {
     if (target.kind !== 'building' || this.isVisibleTo(target.owner, from)) return;
     const p = this.players[target.owner];
     if (p && p.slot !== attacker) p.unseenFire = { tick: this.tick, x: from.x, y: from.y };
+  }
+
+  /** Recursos entregues ao jogador (recompensa de facção), até a capacidade de armazenamento. */
+  grantResources(slot: Slot, cost: Cost): void {
+    const p = this.players[slot];
+    if (!p || p.defeated) return;
+    for (const r of RESOURCE_TYPES) {
+      const v = Math.floor(cost[r] ?? 0);
+      if (v > 0) p.stats.resourcesGathered += this.store(slot, r, v);
+    }
   }
 
   /** Petróleo derramado de um tanque atingido: nunca mais do que havia nele. Retorna o perdido. */
@@ -1651,7 +1662,7 @@ export class Simulation {
     for (const p of this.players) {
       if (p.defeated) continue;
       const pop = this.population(p.slot).total;
-      p.upkeepAcc.food += pop * FOOD_UPKEEP_PER_POP * TICK_SECONDS;
+      p.upkeepAcc.food += pop * FOOD_UPKEEP_PER_POP * (p.modifiers.foodUpkeepMul ?? 1) * TICK_SECONDS;
       const food = Math.floor(p.upkeepAcc.food);
       if (food > 0) {
         p.upkeepAcc.food -= food;

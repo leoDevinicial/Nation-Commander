@@ -175,6 +175,9 @@ export interface TacticalModifiers {
   territoryMul: number;
   /** Multiplicador da coleta (bônus declarado da IA no Brutal, decretos, facções). Padrão 1. */
   gatherMul?: number;
+  /** Decretos: custo dos recrutas e consumo de comida (padrão 1). */
+  recruitCostMul?: number;
+  foodUpkeepMul?: number;
 }
 
 export interface PlayerState {

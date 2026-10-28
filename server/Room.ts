@@ -21,6 +21,7 @@ import { Simulation } from '../shared/sim/Simulation.ts';
 import { FogMemory, makeSnapshot } from '../shared/sim/snapshot.ts';
 import { AI_THINK_TICKS, AI_HARASS_SECONDS, TacticalAI, type TacticalAISave } from '../shared/sim/TacticalAI.ts';
 import { DIFFICULTY, type Difficulty } from '../shared/sim/difficulty.ts';
+import { policyEffects, type TheaterStats } from '../shared/strategic/policies.ts';
 import type { BuildingSnapshot } from '../shared/sim/snapshot.ts';
 import type { EntityId, SimEvent, Slot } from '../shared/sim/types.ts';
 import { NationalAI } from '../shared/strategic/NationalAI.ts';
@@ -288,7 +289,7 @@ export class Room {
       this.seed,
       this.balanceMode,
     );
-    this.nationalAIs = this.players.filter((p) => p.isAI).map((p) => new NationalAI(p.slot));
+    this.nationalAIs = this.players.filter((p) => p.isAI).map((p) => new NationalAI(p.slot, DIFFICULTY[this.difficulty].missiles));
     if (this.mode === 'sandbox') this.sim.sandbox = { slots: this.players.filter((p) => !p.isAI).map((p) => p.slot), instant: true, aiActive: false, reveal: false };
     this.wire();
     const sim = this.sim;
@@ -322,6 +323,8 @@ export class Room {
       resources: (slot) => sim.players[slot]?.resources ?? null,
       spend: (slot, cost) => void sim.spendResources(slot, cost),
       setWar: (a, b) => sim.setWar(a, b, true),
+      stats: (slot) => theaterStats(sim, slot),
+      grant: (slot, cost) => sim.grantResources(slot, cost),
     });
     // melhorias de construções consultam pesquisas, condições nacionais e a verba de obras
     // Sandbox: tudo pesquisado, estabilidade máxima e verba de obras ilimitada (sem mexer no orçamento)
@@ -439,7 +442,7 @@ export class Room {
       const st = save.ais.find((x) => x.slot === a.slot);
       if (st) a.load(st.state);
     }
-    room.nationalAIs = room.players.filter((p) => p.isAI).map((p) => new NationalAI(p.slot));
+    room.nationalAIs = room.players.filter((p) => p.isAI).map((p) => new NationalAI(p.slot, DIFFICULTY[room.difficulty].missiles));
     for (const [slot, usd] of save.gdpStart) room.gdpStart.set(slot, usd);
     for (const [slot, known] of save.fog) {
       const m = new FogMemory();
@@ -661,9 +664,19 @@ export class Room {
     national.registerTacticalEvents(tickEvents);
     let diplomacyChanged = false;
     for (const { slot, cmd, conn } of this.pendingNational.splice(0, this.pendingNational.length)) {
-      const err = cmd.type === 'set_budget' ? national.setBudget(slot, cmd.budget) : cmd.type === 'set_research' ? national.setResearch(slot, cmd.techId) : national.diplomaticAction(slot, cmd.action);
+      const err =
+        cmd.type === 'set_budget'
+          ? national.setBudget(slot, cmd.budget)
+          : cmd.type === 'set_research'
+            ? national.setResearch(slot, cmd.techId)
+            : cmd.type === 'decree'
+              ? national.setDecree(slot, cmd.id, cmd.active)
+              : cmd.type === 'request_respond'
+                ? national.respondRequest(slot, cmd.accept)
+                : national.diplomaticAction(slot, cmd.action);
       if (err) conn?.send({ t: 'cmd_rejected', reason: err });
-      else if (cmd.type === 'diplomacy') diplomacyChanged = true;
+      else if (cmd.type === 'diplomacy' || cmd.type === 'decree' || cmd.type === 'request_respond') diplomacyChanged = true;
+      if (!err && cmd.type === 'decree') this.applyNationalModifiers();
     }
     if (sim.tick % TICKS_PER_DAY !== 0) {
       // decisões diplomáticas (contato, guerra, tratados) aparecem na hora, sem esperar o dia virar
@@ -676,6 +689,7 @@ export class Room {
       for (const ai of this.nationalAIs) {
         const r = ai.think(national);
         if (r.budget) national.setBudget(ai.slot, r.budget);
+        for (const d of r.decrees) national.setDecree(ai.slot, d.id, d.active);
         if (r.research !== undefined) national.setResearch(ai.slot, r.research);
         for (const action of r.diplomacy) national.diplomaticAction(ai.slot, action);
       }
@@ -689,13 +703,16 @@ export class Room {
     if (!this.national || !this.sim) return;
     for (const n of this.national.nations) {
       const fx = this.national.effects(n.slot);
+      const pol = policyEffects(n.policies);
       this.sim.setModifiers(n.slot, {
         constructionTimeMul: fx.constructionTimeMul,
-        productionTimeMul: fx.productionTimeMul,
+        productionTimeMul: fx.productionTimeMul * pol.productionTimeMul,
+        recruitCostMul: pol.recruitCostMul,
+        foodUpkeepMul: pol.foodUpkeepMul,
         externalIncome: n.theaterSupplyPerSec,
         territoryMul: fx.territoryMul,
         // bônus declarado de coleta da IA (só no Brutal)
-        gatherMul: this.players.find((p) => p.slot === n.slot)?.isAI ? 1 + DIFFICULTY[this.difficulty].gatherBonus : 1,
+        gatherMul: (this.players.find((p) => p.slot === n.slot)?.isAI ? 1 + DIFFICULTY[this.difficulty].gatherBonus : 1) * pol.gatherMul,
       });
     }
   }
@@ -1046,4 +1063,12 @@ function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
     }, ms);
   });
   return Promise.race([p.finally(() => clearTimeout(timer)), late]);
+}
+
+/** O que as facções observam no teatro de um jogador. */
+function theaterStats(sim: Simulation, slot: Slot): TheaterStats {
+  const buildings: TheaterStats['buildings'] = {};
+  for (const b of sim.buildings) if (b.owner === slot && b.progress >= 1 && b.hp > 0) buildings[b.type] = (buildings[b.type] ?? 0) + 1;
+  const pop = sim.population(slot);
+  return { buildings, military: sim.units.filter((u) => u.owner === slot).length, workers: pop.employed, food: sim.players[slot]?.resources.food ?? 0 };
 }

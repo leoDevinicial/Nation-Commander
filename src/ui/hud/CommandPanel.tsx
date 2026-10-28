@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { RANK_DAMAGE, RANK_HP, RANKS } from '../../../shared/sim/veterancy.ts';
+import { policyEffects } from '../../../shared/strategic/policies.ts';
 import {
   BUILDINGS,
   CITIZEN,
@@ -328,7 +329,8 @@ type SelectedBuilding = NonNullable<ReturnType<typeof useHudStore.getState>['sel
 function ProduceButton({ b, unit, hotkey, label, title, onRun }: { b: SelectedBuilding; unit: ProducibleType; hotkey: string; label: string; title: string; onRun: () => void }) {
   const me = useHudStore((s) => s.players.find((p) => p.slot === s.mySlot));
   const mySlot = useHudStore((s) => s.mySlot);
-  const techs = effectiveTechs(useNationalStore((s) => s.nations.find((n) => n.slot === mySlot)?.research.done ?? null));
+  const myNation = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot));
+  const techs = effectiveTechs(myNation?.research.done ?? null);
   const check = checkProduce(unit, {
     buildingType: b.type,
     level: b.level,
@@ -341,6 +343,7 @@ function ProduceButton({ b, unit, hotkey, label, title, onRun }: { b: SelectedBu
     popCap: effectivePopCap(me?.population?.cap ?? 0),
     techs,
     militaryResearch: effectiveMilitaryResearch(me?.militaryResearch ?? []),
+    recruitCostMul: policyEffects(myNation?.policies).recruitCostMul,
   });
   const queued = b.queue.filter((q) => q.unitType === unit).length;
   const thumb = useHudStore((s) => s.thumbs[unit]);

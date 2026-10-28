@@ -22,6 +22,24 @@ import { combineEffects, researchBlocker, researchDailyProgress, TECH_IDS, type 
 import { COUNTRIES } from '../data/countries.ts';
 import { DIPLO, Diplomacy, warPreview, type DiplomacySave, type DiplomaticAction, type DiplomaticEvent, type NationId, type RelationView, type Treaty, type WarPreview } from './Diplomacy.ts';
 import type { Cost, Stockpile } from '../sim/config.ts';
+import {
+  DECREE_MIN_DAYS,
+  DECREES,
+  FACTION,
+  FACTION_IDS,
+  FACTIONS,
+  REQUEST,
+  createPolicies,
+  demandText,
+  policyEffects,
+  requestText,
+  type DecreeId,
+  type Demand,
+  type PolicyState,
+  type PowerRequest,
+  type RequestState,
+  type TheaterStats,
+} from './policies.ts';
 
 /**
  * Ligação com o teatro de operações (a simulação tática). A declaração de guerra cobra
@@ -31,6 +49,10 @@ export interface TheaterLink {
   resources(slot: Slot): Stockpile | null;
   spend(slot: Slot, cost: Cost): void;
   setWar(a: Slot, b: Slot): void;
+  /** O que as facções observam no teatro (edifícios prontos, tropas, trabalhadores, comida). */
+  stats?(slot: Slot): TheaterStats | null;
+  /** Recompensa de uma facção entregue no teatro (limitada pela capacidade de armazenamento). */
+  grant?(slot: Slot, cost: Cost): void;
 }
 
 /** O que um país sabe de outro. `intel` só existe com missão diplomática ativa (ou para si mesmo). */
@@ -168,6 +190,8 @@ export interface NationState {
   /** Dívida/PIB na data de referência. */
   baseDebtPctGdp: number;
   history: HistoryPoint[];
+  /** Decretos, facções e pedidos das potências (ausente em salvamentos antigos). */
+  policies?: PolicyState;
   /** Linha de base (valores de referência) para medir desvios. */
   base: { inflationPct: number; growthPct: number; taxPct: number; servicesPct: number; totalSpendPct: number; deficitPctGdp: number };
 }
@@ -192,6 +216,8 @@ export type NationalEvent =
       usd: number;
       occupied: boolean;
     }
+  /** Decretos, exigências das facções e pedidos das potências. */
+  | { type: 'policy'; day: number; slot: Slot; text: string; tone: 'good' | 'bad' | 'info' }
   | { type: 'military_strike'; day: number; slot: Slot; victim: Slot; kind: 'air' | 'missile'; target: string; damage: number; oilLost: number; destroyed: number; intercepted: boolean }
   | { type: 'diplomacy'; day: number; event: DiplomaticEvent };
 
@@ -622,7 +648,8 @@ export class NationalSimulation {
     const years = this.day / DAYS_PER_YEAR;
     const anchor = COEF.inflationAnchor + (n.base.inflationPct - COEF.inflationAnchor) * Math.exp(-years / COEF.disinflationYears);
     const deficitExcess = Math.max(0, n.deficitPctGdp - Math.max(3, n.base.deficitPctGdp));
-    const target = anchor + COEF.deficitInflation * deficitExcess + 0.3 * (n.realGrowthPct - n.trendGrowthPct);
+    const pol = policyEffects(n.policies);
+    const target = anchor + COEF.deficitInflation * deficitExcess + 0.3 * (n.realGrowthPct - n.trendGrowthPct) + pol.inflation;
     const prevInflation = n.inflationPct;
     n.inflationPct += (target - n.inflationPct) * Math.min(1, COEF.inflationAdjust * dt);
 
@@ -638,12 +665,12 @@ export class NationalSimulation {
 
     // --- opinião pública
     this.updateApproval(n);
-    const stabilityTarget = clamp(30 + 0.7 * n.approval - Math.min(15, 0.2 * Math.max(0, debtPct - 100)) - Math.min(20, 0.3 * Math.max(0, n.inflationPct - 20)), 0, 100);
+    const stabilityTarget = clamp(30 + pol.stability + 0.7 * n.approval - Math.min(15, 0.2 * Math.max(0, debtPct - 100)) - Math.min(20, 0.3 * Math.max(0, n.inflationPct - 20)), 0, 100);
     n.stability += ((stabilityTarget - n.stability) * 1) / COEF.stabilityDays;
 
     // --- protesto: risco probabilístico com causas registradas
     if (n.approval < COEF.protestApprovalThreshold) {
-      const chance = COEF.protestMaxDailyChance * ((COEF.protestApprovalThreshold - n.approval) / COEF.protestApprovalThreshold);
+      const chance = COEF.protestMaxDailyChance * ((COEF.protestApprovalThreshold - n.approval) / COEF.protestApprovalThreshold) * pol.protestMul;
       if (this.rng.next() < chance) {
         n.approval = Math.max(0, n.approval - 2);
         n.stability = Math.max(0, n.stability - 4);
@@ -686,6 +713,157 @@ export class NationalSimulation {
     this.crossing(n, 'growth', prevGrowth, n.realGrowthPct, [0]);
 
     if (this.day % HISTORY_EVERY_DAYS === 0) this.pushHistory(n);
+    if (!this.isNpc(n.slot)) this.stepPolicies(n);
+  }
+
+  // ------------------------------------------------------------ decretos, facções e pedidos
+
+  /** Decreta ou revoga. Revogar exige o tempo mínimo de vigência. */
+  setDecree(slot: Slot, id: DecreeId, active: boolean): string | null {
+    const n = this.nations.find((x) => x.slot === slot);
+    if (!n) return 'Nação inválida';
+    const p = (n.policies ??= createPolicies());
+    const cur = p.decrees.find((d) => d.id === id);
+    if (active) {
+      if (cur) return 'Decreto já em vigor';
+      p.decrees.push({ id, sinceDay: this.day });
+      this.events.push({ type: 'policy', day: this.day, slot, text: `Decreto em vigor: ${DECREES[id].label} — ${DECREES[id].gain}; ${DECREES[id].cost}`, tone: 'info' });
+    } else {
+      if (!cur) return 'Decreto não está em vigor';
+      const left = DECREE_MIN_DAYS - (this.day - cur.sinceDay);
+      if (left > 0) return `O decreto precisa vigorar mais ${left} dias antes de ser revogado`;
+      p.decrees = p.decrees.filter((d) => d.id !== id);
+      this.events.push({ type: 'policy', day: this.day, slot, text: `Decreto revogado: ${DECREES[id].label}`, tone: 'info' });
+    }
+    return null;
+  }
+
+  /** Recusa o pedido de uma potência (custa relação) ou confirma que vai cumprir. */
+  respondRequest(slot: Slot, accept: boolean): string | null {
+    const n = this.nations.find((x) => x.slot === slot);
+    const r = n?.policies?.request;
+    if (!n || !r) return 'Nenhum pedido em aberto';
+    if (accept) return null;
+    this.diplomacy.adjustRelation(slot, r.from, REQUEST.relationDecline);
+    this.events.push({ type: 'policy', day: this.day, slot, text: `Pedido recusado: ${countryOf(this, r.from)} não gostou (relação ${REQUEST.relationDecline})`, tone: 'bad' });
+    n.policies!.request = null;
+    n.policies!.nextRequestDay = this.day + REQUEST.gapDays;
+    return null;
+  }
+
+  private stepPolicies(n: NationState): void {
+    const p = (n.policies ??= createPolicies());
+    const day = this.day;
+    const stats = this.theater?.stats?.(n.slot) ?? null;
+    p.favor = Math.max(0, p.favor - FACTION.favor / FACTION.favorDays);
+    // satisfação: volta devagar a 50 e deriva com os decretos em vigor
+    for (const id of FACTION_IDS) {
+      const f = p.factions[id];
+      let drift = (50 - f.satisfaction) * FACTION.drift * 0.1;
+      for (const d of p.decrees) drift += DECREES[d.id].factions[id] ?? 0;
+      const before = f.satisfaction;
+      f.satisfaction = clamp(f.satisfaction + drift, 0, 100);
+      if (before >= FACTION.unrestBelow && f.satisfaction < FACTION.unrestBelow)
+        this.events.push({ type: 'policy', day, slot: n.slot, text: `${FACTIONS[id].label} em protesto: ${FACTIONS[id].unrest} até a satisfação voltar a ${FACTION.unrestBelow}`, tone: 'bad' });
+      // exigência em curso: cumpriu, falhou ou o prazo venceu
+      if (f.demand) {
+        const st = this.demandStatus(n, f.demand.demand, stats);
+        const due = day >= f.demand.dueDay;
+        if (st === 'met' && (f.demand.demand.kind !== 'casualties_max' || due)) {
+          f.satisfaction = clamp(f.satisfaction + FACTION.win, 0, 100);
+          p.favor = Math.min(10, p.favor + FACTION.favor);
+          this.theater?.grant?.(n.slot, FACTIONS[id].reward);
+          this.events.push({ type: 'policy', day, slot: n.slot, text: `${FACTIONS[id].label} satisfeitas: "${demandText(f.demand.demand)}" cumprido (+aprovação e recursos no teatro)`, tone: 'good' });
+          f.demand = null;
+          f.nextDay = day + FACTION.gapDays;
+        } else if (st === 'failed' || due) {
+          f.satisfaction = clamp(f.satisfaction - FACTION.loss, 0, 100);
+          this.events.push({ type: 'policy', day, slot: n.slot, text: `${FACTIONS[id].label} frustradas: "${demandText(f.demand.demand)}" não foi cumprido`, tone: 'bad' });
+          f.demand = null;
+          f.nextDay = day + FACTION.gapDays;
+        }
+      } else if (day >= f.nextDay) {
+        const options = FACTIONS[id].demands({ refDefensePct: n.referenceBudget.defensePct, naturalUnemploymentPct: n.naturalUnemploymentPct }).filter((d) => this.demandStatus(n, d, stats) !== 'met' && (stats || !needsTheater(d)));
+        if (options.length) {
+          const demand = options[Math.floor(this.rng.next() * options.length)]!;
+          f.demand = { demand, startDay: day, dueDay: day + FACTION.deadlineDays };
+          this.events.push({ type: 'policy', day, slot: n.slot, text: `${FACTIONS[id].label} exigem: ${demandText(demand)} em ${FACTION.deadlineDays} dias`, tone: 'info' });
+        } else f.nextDay = day + FACTION.gapDays;
+      }
+    }
+    // pedido de uma potência
+    const r = p.request;
+    if (r) {
+      const st = this.requestStatus(n, r);
+      if (st === 'met') {
+        this.diplomacy.adjustRelation(n.slot, r.from, REQUEST.relationWin);
+        const aid = n.gdpUsd * REQUEST.aidGdpShare;
+        n.debtUsd = Math.max(0, n.debtUsd - aid);
+        this.events.push({ type: 'policy', day, slot: n.slot, text: `Pedido de ${countryOf(this, r.from)} cumprido: relação +${REQUEST.relationWin} e ajuda de US$ ${Math.round(aid / 1e6)} mi`, tone: 'good' });
+        p.request = null;
+        p.nextRequestDay = day + REQUEST.gapDays;
+      } else if (st === 'failed' || day >= r.dueDay) {
+        this.diplomacy.adjustRelation(n.slot, r.from, REQUEST.relationLoss);
+        this.events.push({ type: 'policy', day, slot: n.slot, text: `Pedido de ${countryOf(this, r.from)} não cumprido: relação ${REQUEST.relationLoss}`, tone: 'bad' });
+        p.request = null;
+        p.nextRequestDay = day + REQUEST.gapDays;
+      }
+    } else if (day >= p.nextRequestDay) {
+      const powers = [...this.npcs].filter((x) => this.diplomacy.knows(n.slot, x.slot) && !this.diplomacy.atWar(n.slot, x.slot)).sort((a, b) => b.gdpUsd - a.gdpUsd || a.slot - b.slot).slice(0, 3);
+      const rivals = this.nations.filter((x) => x.slot !== n.slot && !this.diplomacy.atWar(n.slot, x.slot));
+      if (!powers.length) {
+        p.nextRequestDay = day + REQUEST.gapDays;
+        return;
+      }
+      const from = powers[Math.floor(this.rng.next() * powers.length)]!.slot;
+      const kinds: PowerRequest[] = [
+        { kind: 'export_usd', usd: REQUEST.exportUsd, baseUsd: n.trade.exportsUsd },
+        { kind: 'defense', pct: Math.round((n.budget.defensePct + 0.5) * 10) / 10 },
+        { kind: 'research', baseDone: n.research.done.length },
+        ...rivals.map((x): PowerRequest => ({ kind: 'no_war', target: x.slot })),
+      ];
+      const request = kinds[Math.floor(this.rng.next() * kinds.length)]!;
+      p.request = { from, request, startDay: day, dueDay: day + REQUEST.deadlineDays };
+      this.events.push({ type: 'policy', day, slot: n.slot, text: `${countryOf(this, from)} pede: ${requestText(request, (id) => countryOf(this, id))} em ${REQUEST.deadlineDays} dias`, tone: 'info' });
+    }
+  }
+
+  /** Situação de uma exigência agora: cumprida, ainda em aberto ou já impossível. */
+  demandStatus(n: NationState, d: Demand, stats: TheaterStats | null): 'met' | 'open' | 'failed' {
+    const casualties = n.casualties30d.reduce((a, c) => a + c, 0);
+    switch (d.kind) {
+      case 'buildings':
+        return stats && (stats.buildings[d.building] ?? 0) >= d.count ? 'met' : 'open';
+      case 'army':
+        return stats && stats.military >= d.count ? 'met' : 'open';
+      case 'food':
+        return stats && stats.food >= d.amount ? 'met' : 'open';
+      case 'workers':
+        return stats && stats.workers >= d.count ? 'met' : 'open';
+      case 'casualties_max':
+        return casualties > d.count ? 'failed' : 'met';
+      case 'services':
+        return n.budget.educationPct + n.budget.healthPct + n.budget.socialPct >= n.base.servicesPct - 1e-9 ? 'met' : 'open';
+      case 'defense':
+        return n.budget.defensePct >= d.pct - 1e-9 ? 'met' : 'open';
+      case 'unemployment':
+        return n.unemploymentPct <= d.pct ? 'met' : 'open';
+    }
+  }
+
+  private requestStatus(n: NationState, r: RequestState): 'met' | 'open' | 'failed' {
+    const q = r.request;
+    switch (q.kind) {
+      case 'export_usd':
+        return n.trade.exportsUsd - q.baseUsd >= q.usd ? 'met' : 'open';
+      case 'defense':
+        return n.budget.defensePct >= q.pct - 1e-9 ? 'met' : 'open';
+      case 'research':
+        return n.research.done.length > q.baseDone ? 'met' : 'open';
+      case 'no_war':
+        if (this.diplomacy.atWar(n.slot, q.target)) return 'failed';
+        return this.day >= r.dueDay ? 'met' : 'open';
+    }
   }
 
   private updateApproval(n: NationState): void {
@@ -702,6 +880,8 @@ export class NationalSimulation {
       { key: 'victories', label: 'Vitórias militares (30 dias)', value: clamp(COEF.approvalVictories * victories, 0, 8) },
       { key: 'sanctions', label: 'Sanções internacionais contra o país', value: Math.max(-10, DIPLO.sanctionsApproval * this.diplomacy.sanctionsAgainst(n.slot)) },
     ];
+    const pol = policyEffects(n.policies);
+    if (Math.abs(pol.approval) >= 0.01) factors.push({ key: 'policy', label: 'Decretos e facções', value: pol.approval });
     const target = clamp(COEF.approvalBase + sum(factors), 0, 100);
     const prev = n.approval;
     n.approval += (target - n.approval) / COEF.approvalDays;
@@ -834,6 +1014,7 @@ export function createNation(slot: Slot, countryId: string): NationState {
     trade: { exportsUsd: 0, importsUsd: 0, freightUsd: 0 },
     research: { current: null, progress, done: [], invested: Object.fromEntries(TECH_IDS.map((id) => [id, 0])) as Record<TechId, number>, idleUsd: 0, doneDay: {} },
     works: { fundUsd: 0, capUsd: 0, spentUsd: 0, ledger: [] },
+    policies: createPolicies(),
     theaterSupplyPerSec: 0,
     allianceAidPerSec: 0,
     casualties30d: [0],
@@ -889,4 +1070,14 @@ function sum(fs: { value: number }[]): number {
 
 function round2(v: number): number {
   return Math.round(v * 100) / 100;
+}
+
+/** Exigência que só se mede no teatro (sem teatro ligado, não é sorteada). */
+function needsTheater(d: Demand): boolean {
+  return d.kind === 'buildings' || d.kind === 'army' || d.kind === 'food' || d.kind === 'workers';
+}
+
+function countryOf(sim: NationalSimulation, id: number): string {
+  const c = sim.nation(id)?.countryId ?? '';
+  return COUNTRIES.find((x) => x.id === c)?.name ?? c;
 }

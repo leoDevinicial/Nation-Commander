@@ -22,6 +22,8 @@ export interface ProduceContext {
   techs: readonly string[] | null;
   /** Pesquisas militares concluídas no Centro de Pesquisa (liberam tropas novas). */
   militaryResearch: readonly string[];
+  /** Decreto de alistamento: multiplicador do custo dos recrutas (padrão 1). */
+  recruitCostMul?: number;
 }
 
 export interface ProduceCheck {
@@ -56,7 +58,7 @@ export function checkProduce(unit: ProducibleType, c: ProduceContext): ProduceCh
   const fx = buildingEffects(c.buildingType, c.level, c.spec);
   const civil = unit === 'citizen' || unit === 'recruit';
   const std = civil ? { mods: [] as ModId[], extra: {} as Cost } : productionStandard(unit, c.techs);
-  const base = unit === 'citizen' ? CITIZEN.cost : unit === 'recruit' ? scaledCost(RECRUIT.cost, fx.recruitCostMul) : scaledCost(UNITS[unit].cost, fx.unitCostMul, fx.unitOilMul);
+  const base = unit === 'citizen' ? CITIZEN.cost : unit === 'recruit' ? scaledCost(RECRUIT.cost, fx.recruitCostMul * (c.recruitCostMul ?? 1)) : scaledCost(UNITS[unit].cost, fx.unitCostMul, fx.unitOilMul);
   let cost = addCost(base, std.extra);
   let eq = { mods: std.mods, equipmentCost: std.extra };
   let basic = false;

@@ -1,3 +1,4 @@
+import { isDecreeId } from '../shared/strategic/policies.ts';
 import { isDifficulty } from '../shared/sim/difficulty.ts';
 import { isCountryId } from '../shared/data/countries.ts';
 import { GAME_SPEEDS, MAX_CHAT_LENGTH, type ClientMessage, type GameSpeed } from '../shared/protocol.ts';
@@ -63,6 +64,8 @@ export function parseClientMessage(raw: string): ClientMessage | null {
         const action = parseDiplomaticAction(cmd.action);
         return action ? { t: 'national', cmd: { type: 'diplomacy', action } } : null;
       }
+      if (cmd.type === 'decree') return isDecreeId(cmd.id) && typeof cmd.active === 'boolean' ? { t: 'national', cmd: { type: 'decree', id: cmd.id, active: cmd.active } } : null;
+      if (cmd.type === 'request_respond') return typeof cmd.accept === 'boolean' ? { t: 'national', cmd: { type: 'request_respond', accept: cmd.accept } } : null;
       if (cmd.type === 'set_research') {
         if (cmd.techId === null) return { t: 'national', cmd: { type: 'set_research', techId: null } };
         if (typeof cmd.techId === 'string' && Object.hasOwn(TECHNOLOGIES, cmd.techId)) {
