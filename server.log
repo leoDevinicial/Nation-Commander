@@ -1,0 +1,3 @@
+{"time":"2026-10-28T23:58:33.795Z","level":"info","msg":"Partidas em andamento NÃO são salvas (sem Supabase nem MATCH_STORE_DIR)","store":null}
+{"time":"2026-10-28T23:58:33.795Z","level":"warn","msg":"SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes: login e gravação de partidas desativados.","allowGuests":true}
+{"time":"2026-10-28T23:58:33.799Z","level":"info","msg":"Servidor de jogo ativo","port":8787,"version":"0.1.0","origins":[]}
