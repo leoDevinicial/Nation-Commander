@@ -358,9 +358,25 @@ Por isso a convergência completa (reduzir → confirmar → devolver) foi verif
 automáticos. Esse ensaio também levou a uma melhoria: congelamentos acima de 1 s ficam fora dos
 percentis (reduzir qualidade não resolve compilação de shader nem aba parada).
 
-**A conferir em aparelho real**
+**Versão 2 (Onda 1) no navegador** (mesmo ambiente: Chromium com SwiftShader, Sandbox, Equilibrado)
+- **E3 reproduzido e corrigido.** Antes: o anel do próprio território fora de visão (239 de 408
+  células) aparecia azul-marinho, como no print do celular. Depois: terra explorada, escurecida,
+  com a faixa da fronteira; o minimapa acompanha.
+- **Painel v2:** classe "renderização por software (observada: renderizador ANGLE … SwiftShader)",
+  meta 30 qps (33,3 ms, padrão do aparelho), aviso de renderização por software, qualidade
+  adaptada 100%, os 7 botões do Equilibrado validados (reflexo da água, exposição, sombras, sombra
+  da vegetação, efeitos, vegetação e resolução), custo do KGPS de 22 µs por quadro.
+- **Copiar relatório:** gerou o JSON (1,5 KB) com todos os campos da seção 31 da especificação e o
+  mostrou antes de copiar.
+- **Limite do ambiente, de novo:** os congelamentos do SwiftShader derrubaram a conexão e
+  encerraram a partida antes do clique final em "Copiar" e antes de janelas completas. A descida
+  rápida, o limite externo e a recuperação estão verificados nos testes automáticos (T-01 a T-15,
+  T-17, T-18).
+
+**A conferir em aparelho real** (protocolo F-01 a F-07 da especificação)
 Com "Mostrar FPS" ligado, toque no contador e confira no painel as medidas, os ajustes e as
-decisões, de preferência num PC com placa dedicada (Alto/Ultra) e num celular (Mobile/Baixo).
+decisões; depois toque em "Copiar relatório" e cole na conversa. Prioridade: o mesmo celular de
+E1/E2, no Ultra+ com e sem economia de bateria e no Mobile/Baixo.
 
 ## 9. Próximas ondas (ver a seção 36 da especificação)
 
