@@ -20,7 +20,7 @@ export type Volumes = Record<Channel | 'master', number>;
 export const DEFAULT_VOLUMES: Volumes = { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 };
 
 export type UiSound = 'click' | 'confirm' | 'error' | 'alert' | 'success' | 'hold';
-export type CombatSound = 'rifle' | 'cannon' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket';
+export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket';
 export type MissileCue = 'prepare' | 'armed' | 'authorize';
 
 /** Som de trabalho de cada edifício (os demais usam o zumbido genérico). */
@@ -54,6 +54,7 @@ const PRIORITY: Record<CombatSound, number> = {
   tower: 1,
   flak: 2,
   cannon: 2,
+  howitzer: 4,
   rocket: 2,
   jet: 2,
   explosion: 3,
@@ -65,7 +66,7 @@ const PRIORITY: Record<CombatSound, number> = {
 };
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
-const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.035, tower: 0.06, cannon: 0.08, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4 };
+const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.035, tower: 0.06, cannon: 0.08, howitzer: 0.3, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4 };
 
 /**
  * Atenuação e panorâmica de um ponto do mapa para quem olha `L` (ponto da câmera, distância e giro).
@@ -187,6 +188,21 @@ export class AudioService {
     return buf;
   }
 
+  private drive: Float32Array<ArrayBuffer> | null = null;
+
+  /** Curva de saturação suave (tanh): engrossa os graves do disparo sem estourar. */
+  private driveCurve(): Float32Array<ArrayBuffer> {
+    if (!this.drive) {
+      const n = 1024;
+      this.drive = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        const x = (i / (n - 1)) * 2 - 1;
+        this.drive[i] = Math.tanh(x * 2.6) / Math.tanh(2.6);
+      }
+    }
+    return this.drive;
+  }
+
   private noiseSource(loop = false): AudioBufferSourceNode {
     const s = this.ctx!.createBufferSource();
     s.buffer = this.noise;
@@ -263,27 +279,27 @@ export class AudioService {
     const vary = 1 + (Math.random() - 0.5) * 0.18;
     const nodes: AudioScheduledSourceNode[] = [];
     const out = this.out('combat', gain, pan);
-    const burst = (type: BiquadFilterType, freq: number, q: number, attack: number, peak: number, decay: number, at = t): number => {
+    const burst = (type: BiquadFilterType, freq: number, q: number, attack: number, peak: number, decay: number, at = t, dest: AudioNode = out): number => {
       const n = this.noiseSource();
       const f = ctx.createBiquadFilter();
       f.type = type;
       f.frequency.value = freq * vary;
       f.Q.value = q;
       const g = ctx.createGain();
-      n.connect(f).connect(g).connect(out);
+      n.connect(f).connect(g).connect(dest);
       const end = this.env(g, at, attack, peak, decay);
       n.start(at, Math.random());
       n.stop(end + 0.05);
       nodes.push(n);
       return end;
     };
-    const thump = (from: number, to: number, attack: number, peak: number, decay: number, at = t, type: OscillatorType = 'sine'): number => {
+    const thump = (from: number, to: number, attack: number, peak: number, decay: number, at = t, type: OscillatorType = 'sine', dest: AudioNode = out): number => {
       const o = ctx.createOscillator();
       o.type = type;
       o.frequency.setValueAtTime(from * vary, at);
       o.frequency.exponentialRampToValueAtTime(to * vary, at + attack + decay);
       const g = ctx.createGain();
-      o.connect(g).connect(out);
+      o.connect(g).connect(dest);
       const end = this.env(g, at, attack, peak, decay);
       o.start(at);
       o.stop(end + 0.05);
@@ -304,6 +320,36 @@ export class AudioService {
         end = burst('lowpass', 900, 0.8, 0.003, 0.9, 0.45);
         thump(110, 38, 0.004, 0.9, 0.38);
         break;
+      case 'howitzer': {
+        // obus de 155 mm: estampido supersônico seco, onda de pressão subgrave saturada que "empurra"
+        // o ar, jato lateral do freio de boca, estalos do recuo e do retorno do tubo, e o eco do
+        // disparo rolando pelo terreno por alguns segundos
+        const drive = ctx.createWaveShaper();
+        drive.curve = this.driveCurve();
+        drive.oversample = '2x';
+        const body = ctx.createGain();
+        body.gain.value = 0.85;
+        drive.connect(body).connect(out);
+        // estampido: rasgo de banda larga muito curto
+        burst('highpass', 1400, 0.6, 0.0015, 1.3, 0.07);
+        burst('bandpass', 3200, 0.9, 0.001, 0.7, 0.035);
+        // onda de choque: dois graves descendentes saturados (o "soco" no peito)
+        thump(78, 24, 0.004, 1.6, 0.85, t, 'sine', drive);
+        thump(44, 16, 0.006, 1.1, 1.3, t, 'triangle', drive);
+        // corpo do disparo: ruído grave denso e o jato do freio de boca saindo para os lados
+        burst('lowpass', 420, 0.7, 0.004, 1.5, 1.25, t, drive);
+        burst('bandpass', 850, 1.1, 0.003, 0.9, 0.32, t + 0.012);
+        burst('lowpass', 1600, 0.5, 0.01, 0.6, 0.6, t + 0.02);
+        // mecânica: recuo batendo no fim do curso e o tubo voltando (metal pesado)
+        burst('bandpass', 2400, 9, 0.002, 0.22, 0.12, t + 0.24);
+        thump(190, 120, 0.003, 0.18, 0.15, t + 0.24, 'square');
+        burst('bandpass', 1800, 10, 0.002, 0.14, 0.1, t + 0.62);
+        // eco: reflexões graves e cada vez mais abafadas, rolando até sumir
+        burst('lowpass', 300, 0.6, 0.05, 0.7, 1.1, t + 0.35);
+        burst('lowpass', 220, 0.6, 0.08, 0.45, 1.4, t + 0.85);
+        end = burst('lowpass', 160, 0.5, 0.12, 0.3, 1.9, t + 1.45);
+        break;
+      }
       case 'rocket': {
         // foguete da salva: estalo da ignição e um sopro que sobe de tom e some
         burst('highpass', 2200, 0.8, 0.002, 0.5, 0.08);

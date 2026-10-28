@@ -1636,7 +1636,13 @@ export class GameRuntime {
         // a salva toca um sopro por foguete (na saída de cada um)
         if (e.salvo) break;
         const attacker = this.units.get(e.attackerId);
-        const sound = attacker ? (['tank', 'mbt', 'artillery', 'rocket_artillery', 'mobile_aa'].includes(attacker.visual.type) ? 'cannon' : 'rifle') : 'tower';
+        const sound = attacker
+          ? attacker.visual.type === 'artillery'
+            ? 'howitzer'
+            : ['tank', 'mbt', 'rocket_artillery', 'mobile_aa'].includes(attacker.visual.type)
+              ? 'cannon'
+              : 'rifle'
+          : 'tower';
         audio.playAt(sound, e.from.x, e.from.y);
         break;
       }
