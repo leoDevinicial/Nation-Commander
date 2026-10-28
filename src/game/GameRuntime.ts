@@ -417,8 +417,12 @@ export class GameRuntime {
     const tint = this.opts.battle?.biome ? BIOME_TINT[this.opts.battle.biome] : undefined;
     this.terrain = buildTerrain(this.map, this.opts.profile.terrain, this.opts.profile.reflections, this.opts.profile.ultra, this.opts.profile.cinematic, tint);
     this.scene.add(this.terrain.group);
+    this.sharpenTextures(this.terrain.group);
     // modelos do Nature Kit chegam depois; até lá, vegetação procedural
-    this.terrain.upgrade().catch((err: unknown) => console.warn('Nature Kit indisponível', err));
+    this.terrain
+      .upgrade()
+      .then(() => this.sharpenTextures(this.terrain.group))
+      .catch((err: unknown) => console.warn('Nature Kit indisponível', err));
   }
 
   // ------------------------------------------------------------ snapshots
@@ -1358,6 +1362,30 @@ export class GameRuntime {
   clearSelection(): void {
     this.selection.clear();
     this.citizens?.selected.clear();
+  }
+
+  /**
+   * Filtro anisotrópico no máximo da placa (até 16×) nas texturas do terreno e da vegetação: com a
+   * câmera inclinada do RTS, o chão ao longe deixa de borrar. No preset Baixo fica em 4× (custo).
+   */
+  private sharpenTextures(root: THREE.Object3D): void {
+    const level = this.opts.profile.terrain === 'low' ? 4 : Math.min(16, this.renderer.capabilities.getMaxAnisotropy());
+    const seen = new Set<THREE.Texture>();
+    const fix = (t: unknown) => {
+      // texturas de render (reflexo da água, mapa de névoa) não são enviadas pela CPU: ficam de fora
+      if (!(t instanceof THREE.Texture) || t.isRenderTargetTexture || t instanceof THREE.DataTexture || !t.image || seen.has(t) || t.anisotropy >= level) return;
+      seen.add(t);
+      t.anisotropy = level;
+      t.needsUpdate = true;
+    };
+    root.traverse((o) => {
+      const m = (o as THREE.Mesh).material;
+      for (const mat of Array.isArray(m) ? m : m ? [m] : []) {
+        for (const v of Object.values(mat)) fix(v);
+        const u = (mat as THREE.ShaderMaterial).uniforms;
+        if (u) for (const k of Object.keys(u)) fix(u[k]?.value);
+      }
+    });
   }
 
   /** Escolha de alvo da força aérea: reconhecimento (ponto), ataque (edifício) ou míssil (ponto). */
