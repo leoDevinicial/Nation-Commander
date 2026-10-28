@@ -314,6 +314,64 @@ function transportPlane(b: PartBuilder, a: PartBuilder, g: PartBuilder, at: V3, 
   a.box(0.3 * s, 0.05 * s, 0.01 * s, '#ffffff', [x - 0.1 * s, y + 0.03 * s, z + 0.111 * s]);
 }
 
+/**
+ * Bombardeiro estratégico de asa em flecha (perfil B-1/Tu-160, nariz para +x): fuselagem longa e
+ * afilada com dorso, nariz pontudo, cabine escalonada, asas em flecha presas a uma luva fixa,
+ * quatro motores em duas naceles sob a raiz das asas, deriva alta inclinada e portas do
+ * compartimento de bombas sob a barriga.
+ */
+function bomberPlane(b: PartBuilder, a: PartBuilder, g: PartBuilder, at: V3, s = 1): void {
+  const [x, y, z] = at;
+  const P = (dx: number, dy: number, dz: number): V3 => [x + dx * s, y + dy * s, z + dz * s];
+  const X: V3 = [0, 0, Math.PI / 2];
+  const tip: V3 = [0, 0, -Math.PI / 2];
+  const col = '#646a70';
+  const dark = '#3f4347';
+  const belly = '#8b9196';
+  // fuselagem: seção central, transição para o nariz, cone do nariz e cauda afilada
+  b.cyl(0.13 * s, 0.13 * s, 1.1 * s, col, P(0, 0, 0), X, 14);
+  b.cyl(0.075 * s, 0.13 * s, 0.55 * s, col, P(0.825, 0, 0), tip, 14);
+  b.cyl(0.006 * s, 0.075 * s, 0.32 * s, dark, P(1.26, -0.005, 0), tip, 14);
+  b.cyl(0.055 * s, 0.13 * s, 0.6 * s, col, P(-0.85, 0.02, 0), X, 14);
+  b.box(1.0 * s, 0.03 * s, 0.2 * s, belly, P(0.05, -0.12, 0));
+  // dorso (espinha) e cabine
+  b.box(1.4 * s, 0.07 * s, 0.11 * s, col, P(-0.15, 0.12, 0));
+  b.box(0.3 * s, 0.07 * s, 0.13 * s, col, P(0.92, 0.07, 0), [0, 0, -0.18]);
+  g.box(0.2 * s, 0.05 * s, 0.13 * s, '#ffffff', P(1.0, 0.08, 0), [0, 0, -0.3]);
+  // portas do compartimento de bombas
+  for (const dz of [-0.04, 0.04]) b.box(0.62 * s, 0.012 * s, 0.07 * s, dark, P(0.1, -0.137, dz));
+  const sweep = 0.62;
+  for (const sz of [-1, 1]) {
+    // luva fixa junto à fuselagem e asa em flecha a partir dela
+    b.box(0.75 * s, 0.045 * s, 0.26 * s, col, P(0.12, 0.0, sz * 0.24), [0, sz * 0.35, 0]);
+    const root: V3 = [0.02, 0, sz * 0.34];
+    const len = 1.15;
+    const cx = root[0] - Math.sin(sweep) * len * 0.5;
+    const cz = root[2] + sz * Math.cos(sweep) * len * 0.5;
+    b.box(0.3 * s, 0.025 * s, len * s, col, P(cx, 0.01, cz), [0, -sz * sweep, 0]);
+    // bordo de ataque claro e ponta da asa
+    const lx = cx + Math.cos(sweep) * 0.15;
+    const lz = cz + sz * Math.sin(sweep) * 0.15;
+    b.box(0.03 * s, 0.028 * s, len * s, belly, P(lx, 0.01, lz), [0, -sz * sweep, 0]);
+    const tx = root[0] - Math.sin(sweep) * len * 0.92;
+    const tz = root[2] + sz * Math.cos(sweep) * len * 0.92;
+    a.box(0.1 * s, 0.03 * s, 0.1 * s, '#ffffff', P(tx, 0.012, tz));
+    // dois motores por lado em nacele dupla sob a raiz da asa
+    b.box(0.5 * s, 0.1 * s, 0.24 * s, dark, P(-0.28, -0.11, sz * 0.27));
+    for (const e of [0.2, 0.34]) {
+      b.cyl(0.055 * s, 0.06 * s, 0.56 * s, dark, P(-0.3, -0.12, sz * e), X, 10);
+      b.cyl(0.05 * s, 0.05 * s, 0.05 * s, '#151617', P(-0.6, -0.12, sz * e), X, 10);
+    }
+    b.box(0.06 * s, 0.11 * s, 0.25 * s, '#1f2123', P(0.0, -0.11, sz * 0.27));
+    // estabilizadores horizontais em flecha
+    b.box(0.22 * s, 0.022 * s, 0.5 * s, col, P(-1.02, 0.12, sz * 0.26), [0, -sz * 0.55, 0]);
+  }
+  // deriva alta inclinada para trás, com a marca da nação dos dois lados
+  b.box(0.42 * s, 0.46 * s, 0.035 * s, col, P(-1.0, 0.33, 0), [0, 0, 0.42]);
+  for (const sz of [-1, 1]) a.box(0.18 * s, 0.1 * s, 0.006 * s, '#ffffff', P(-1.02, 0.36, sz * 0.02), [0, 0, 0.42]);
+  b.cyl(0.006 * s, 0.006 * s, 0.18 * s, dark, P(1.48, 0, 0), X, 4);
+}
+
 // ------------------------------------------------------------------ base aérea
 
 export function buildAirbaseModel(): Built {
@@ -468,11 +526,12 @@ export function buildMissileSiloModel(): Built {
 // ------------------------------------------------------------------ em voo
 
 /** Aeronave em voo (nariz para +x), com a cor da nação nas marcas. */
-export function aircraftModel(type: 'fighter' | 'gripen' | 'recon' | 'transport'): ModelLayers {
+export function aircraftModel(type: 'fighter' | 'gripen' | 'bomber' | 'recon' | 'transport'): ModelLayers {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
   if (type === 'fighter') fighter(b, a, g, [0, 0, 0], 0.85);
   else if (type === 'gripen') gripen(b, a, g, [0, 0, 0], 0.82);
+  else if (type === 'bomber') bomberPlane(b, a, g, [0, 0, 0], 1.3);
   else if (type === 'recon') reconPlane(b, a, g, [0, 0, 0], 1.4);
   else transportPlane(b, a, g, [0, 0, 0], 1.4);
   return l.build();

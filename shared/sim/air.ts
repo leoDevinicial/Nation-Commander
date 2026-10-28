@@ -21,8 +21,8 @@ import type { Building, EntityId, Slot, Vec2 } from './types.ts';
  * Toda aleatoriedade usa um gerador determinístico guardado no estado (salvar/carregar idêntico).
  */
 
-export type AircraftType = 'fighter' | 'recon' | 'transport';
-export const AIRCRAFT_TYPES: AircraftType[] = ['fighter', 'recon', 'transport'];
+export type AircraftType = 'fighter' | 'bomber' | 'recon' | 'transport';
+export const AIRCRAFT_TYPES: AircraftType[] = ['fighter', 'bomber', 'recon', 'transport'];
 
 export interface AircraftDef {
   label: string;
@@ -40,6 +40,8 @@ export interface AircraftDef {
   maintenanceSeconds: number;
   /** Dano de ataque por aeronave (antes da precisão). */
   strikeDamage: number;
+  /** Nível mínimo da base aérea para produzir. */
+  minBaseLevel?: number;
 }
 
 export const AIRCRAFT: Record<AircraftType, AircraftDef> = {
@@ -56,6 +58,20 @@ export const AIRCRAFT: Record<AircraftType, AircraftDef> = {
     upkeep: 0.04,
     maintenanceSeconds: 25,
     strikeDamage: 180,
+  },
+  bomber: {
+    label: 'Bombardeiro',
+    role: 'Bombardeio em tapete: muito dano ao edifício-alvo e aos vizinhos; lento e sem defesa contra caças',
+    cost: { iron: 110, oil: 70, supplies: 80 },
+    usd: 6_000_000,
+    buildSeconds: 45,
+    range: 190,
+    speed: 4.6,
+    fuelPerWorld: 0.2,
+    upkeep: 0.07,
+    maintenanceSeconds: 40,
+    strikeDamage: 520,
+    minBaseLevel: 2,
   },
   recon: {
     label: 'Reconhecimento',
@@ -101,6 +117,16 @@ export const AIR = {
   precisionMinGuided: 0.75,
   /** Pesquisa exigida para atacar infraestrutura. */
   strikeTech: 'guided_munitions',
+  /** Bombardeio em tapete: precisão mínima e raio em que os edifícios vizinhos também são atingidos. */
+  bomberPrecisionMin: 0.7,
+  carpetRadius: 5,
+  carpetSplash: 0.4,
+  /** Combate aéreo: distância de engajamento, rodadas (1 por segundo) e chance de abate por disparo. */
+  dogfightRange: 9,
+  dogfightRounds: 3,
+  dogfightKill: 0.22,
+  /** Metralhadoras defensivas do bombardeiro: chance pequena de derrubar um caça por rodada. */
+  bomberGunKill: 0.05,
 };
 
 /** Eficácia da antiaérea móvel em relação a uma bateria fixa. */
@@ -177,6 +203,16 @@ export interface AirMission {
   result: MissionResult | null;
   /** Geração dos caças (pelo nível da base na decolagem): 1 = F-5EM, 2 = F-39 Gripen. Só visual. */
   gen?: number;
+  /** Missões inimigas com que esta já travou combate aéreo (cada par luta uma vez). */
+  fought?: number[];
+}
+
+/** Combate aéreo em andamento entre duas esquadrilhas: as duas ficam presas no lugar até acabar. */
+export interface Dogfight {
+  a: number;
+  b: number;
+  round: number;
+  nextTick: number;
 }
 
 export type LaunchState = 'preparing' | 'armed' | 'launching' | 'flight' | 'impact' | 'intercepted' | 'aborted';
@@ -224,6 +260,7 @@ export interface AirSave {
   silos: Record<number, SiloState>;
   reveals: Reveal[];
   known: Record<number, number[]>;
+  dogfights?: Dogfight[];
 }
 
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -236,6 +273,7 @@ export class AirSystem {
   launches: MissileLaunch[] = [];
   silos: Record<number, SiloState> = {};
   reveals: Reveal[] = [];
+  dogfights: Dogfight[] = [];
   /** Edifícios inimigos já descobertos por cada jogador (visão ou reconhecimento). */
   known: Record<number, Set<number>> = {};
 
@@ -253,7 +291,7 @@ export class AirSystem {
     const known: Record<number, number[]> = {};
     for (const [k, v] of Object.entries(this.known)) known[Number(k)] = [...v].sort((a, b) => a - b);
     return JSON.parse(
-      JSON.stringify({ nextId: this.nextId, seed: this.seed, aircraft: this.aircraft, missions: this.missions, launches: this.launches, silos: this.silos, reveals: this.reveals, known }),
+      JSON.stringify({ nextId: this.nextId, seed: this.seed, aircraft: this.aircraft, missions: this.missions, launches: this.launches, silos: this.silos, reveals: this.reveals, known, dogfights: this.dogfights }),
     ) as AirSave;
   }
 
@@ -267,6 +305,7 @@ export class AirSystem {
     this.launches = c.launches;
     this.silos = c.silos;
     this.reveals = c.reveals;
+    this.dogfights = c.dogfights ?? [];
     this.known = Object.fromEntries(Object.entries(c.known).map(([k, v]) => [Number(k), new Set(v)]));
   }
 
@@ -312,6 +351,7 @@ export class AirSystem {
     const base = this.building(baseId);
     if (!this.operational(base, 'airbase', slot)) return 'Base aérea inválida ou inoperante';
     const def = AIRCRAFT[type];
+    if (def.minBaseLevel && base.level < def.minBaseLevel) return `${def.label} exige Base Aérea nível ${def.minBaseLevel}`;
     if (this.aircraftAt(baseId).length >= AIR.hangarPerBase) return `Hangar cheio: ${AIR.hangarPerBase} aeronaves por base`;
     const p = this.sim.players[slot]!;
     if (p.recruits < 1) return 'Nenhum recruta para piloto: aliste recrutas na base militar';
@@ -341,8 +381,8 @@ export class AirSystem {
     const planes = ids.map((id) => this.aircraft.find((a) => a.id === id));
     if (!planes.length || planes.some((a) => !a || a.owner !== slot || a.baseId !== baseId)) return 'Aeronaves inválidas';
     if (planes.some((a) => a!.state !== 'ready')) return 'Há aeronaves indisponíveis (em produção, em missão, em manutenção ou sem manutenção paga)';
-    const need: AircraftType = kind === 'strike' ? 'fighter' : 'recon';
-    if (planes.some((a) => a!.type !== need)) return kind === 'strike' ? 'Ataque: só caças' : 'Reconhecimento: só aeronaves de reconhecimento';
+    const allowed: AircraftType[] = kind === 'strike' ? ['fighter', 'bomber'] : ['recon'];
+    if (planes.some((a) => !allowed.includes(a!.type))) return kind === 'strike' ? 'Ataque: só caças e bombardeiros' : 'Reconhecimento: só aeronaves de reconhecimento';
     let pos: Vec2;
     if (kind === 'strike') {
       if (!this.techs(slot).includes(AIR.strikeTech)) return 'Ataque aéreo a infraestrutura exige a pesquisa Munição guiada';
@@ -450,12 +490,33 @@ export class AirSystem {
       if (!t) r.text = 'Alvo já não existia na chegada';
       else if (m.aircraft.length) {
         const guided = this.techs(m.owner).includes('guided_munitions');
+        let bombers = 0;
+        let carpet = 0;
         for (const id of m.aircraft) {
           const a = this.aircraft.find((x) => x.id === id)!;
-          const min = guided ? AIR.precisionMinGuided : AIR.precisionMin;
-          r.damage += AIRCRAFT[a.type].strikeDamage * (min + (1 - min) * this.rand());
+          const bomber = a.type === 'bomber';
+          const min = bomber ? AIR.bomberPrecisionMin : guided ? AIR.precisionMinGuided : AIR.precisionMin;
+          const dmg = AIRCRAFT[a.type].strikeDamage * (min + (1 - min) * this.rand());
+          r.damage += dmg;
+          if (bomber) {
+            bombers++;
+            carpet += dmg * AIR.carpetSplash;
+          }
         }
         r.damage = Math.round(r.damage);
+        // tapete de bombas: os edifícios inimigos em volta do alvo também são atingidos
+        let splashHit = 0;
+        let splashDestroyed = 0;
+        if (carpet > 0)
+          for (const o of [...this.sim.buildings]) {
+            if (o.id === t.id || o.hp <= 0 || o.owner === m.owner || !this.sim.hostile(m.owner, o.owner)) continue;
+            const d = dist(o.pos, t.pos);
+            if (d > AIR.carpetRadius + this.sim.entityRadius(o)) continue;
+            const dmg = Math.round(carpet * Math.max(0.35, 1 - d / (AIR.carpetRadius + 1)));
+            if (o.type === 'oil_tank' && o.stored > 0) this.sim.loseTankOil(o, o.stored * Math.min(1, dmg / Math.max(1, o.hp)));
+            splashHit++;
+            if (this.sim.damageBuilding(o, dmg, m.owner)) splashDestroyed++;
+          }
         const before = t.hp;
         // petróleo perdido: proporcional ao dano e limitado ao que estava no tanque no impacto
         if (t.type === 'oil_tank' && t.stored > 0) {
@@ -464,6 +525,7 @@ export class AirSystem {
         }
         r.destroyed = this.sim.damageBuilding(t, r.damage, m.owner);
         r.text = `${BUILDINGS[t.type].label}: ${r.damage} de dano${r.destroyed ? ' (destruído)' : ''}${r.oilLost ? `, ${r.oilLost} de petróleo perdidos` : ''}`;
+        if (splashHit) r.text += ` · bombardeio atingiu mais ${splashHit} edifício(s)${splashDestroyed ? ` (${splashDestroyed} destruído(s))` : ''}`;
         this.sim.emitTrade({
           type: 'air_strike',
           tick: this.sim.tick,
@@ -474,6 +536,7 @@ export class AirSystem {
           oilLost: r.oilLost,
           destroyed: r.destroyed,
           pos: { ...t.pos },
+          ...(bombers ? { bombers, dir: Math.round(Math.atan2(t.pos.y - m.from.y, t.pos.x - m.from.x) * 100) / 100 } : {}),
         });
       } else r.text = 'Todas as aeronaves abatidas antes do alvo';
     }
@@ -649,6 +712,7 @@ export class AirSystem {
         this.aircraft = this.aircraft.filter((x) => x.id !== a.id);
         this.sim.emitTrade({ type: 'aircraft_lost', tick, owner: a.owner, aircraftType: a.type, pos: { ...a.home } });
       }
+    this.stepDogfights(tick);
     for (const m of this.missions) {
       if (m.state === 'done') continue;
       const t = tick - m.launchTick;
@@ -707,6 +771,98 @@ export class AirSystem {
       }
     }
     if (tick % (TICK_RATE * 30) === 0) this.launches = this.launches.filter((l) => !['impact', 'intercepted', 'aborted'].includes(l.state) || tick - (l.endTick ?? l.startTick) < TICK_RATE * 120);
+  }
+
+  // -------------------------------------------------------------- combate aéreo
+
+  private inFlight(m: AirMission | undefined): m is AirMission {
+    return !!m && (m.state === 'outbound' || m.state === 'returning') && m.aircraft.length > 0;
+  }
+
+  private planesOf(m: AirMission): Aircraft[] {
+    return m.aircraft.map((id) => this.aircraft.find((a) => a.id === id)).filter((a): a is Aircraft => !!a);
+  }
+
+  /** Missão presa num combate aéreo em andamento (não avança enquanto luta). */
+  engaged(missionId: number): boolean {
+    return this.dogfights.some((d) => d.a === missionId || d.b === missionId);
+  }
+
+  /**
+   * Esquadrilhas de países em guerra que se cruzam no ar travam combate (se ao menos uma tiver
+   * caças): as duas param no lugar e trocam tiros por algumas rodadas. Cada caça tem uma chance
+   * de derrubar uma aeronave inimiga por rodada; o bombardeiro só se defende com metralhadoras.
+   */
+  private stepDogfights(tick: number): void {
+    // novos engajamentos
+    const flying = this.missions.filter((m) => this.inFlight(m) && !this.engaged(m.id));
+    for (let i = 0; i < flying.length; i++)
+      for (let j = i + 1; j < flying.length; j++) {
+        const a = flying[i]!;
+        const b = flying[j]!;
+        if (a.owner === b.owner || !this.sim.hostile(a.owner, b.owner) || a.fought?.includes(b.id)) continue;
+        if (this.engaged(a.id) || this.engaged(b.id)) continue;
+        if (!this.planesOf(a).some((p) => p.type === 'fighter') && !this.planesOf(b).some((p) => p.type === 'fighter')) continue;
+        if (dist(this.missionPos(a), this.missionPos(b)) > AIR.dogfightRange) continue;
+        (a.fought ??= []).push(b.id);
+        (b.fought ??= []).push(a.id);
+        this.dogfights.push({ a: a.id, b: b.id, round: 0, nextTick: tick });
+      }
+    for (const d of [...this.dogfights]) {
+      const a = this.missions.find((m) => m.id === d.a);
+      const b = this.missions.find((m) => m.id === d.b);
+      const over = !this.inFlight(a) || !this.inFlight(b) || d.round >= AIR.dogfightRounds || !this.sim.hostile(a.owner, b.owner);
+      if (over) {
+        this.dogfights = this.dogfights.filter((x) => x !== d);
+        continue;
+      }
+      // as duas esquadrilhas ficam no lugar durante o combate (o relógio da missão não corre)
+      a.launchTick++;
+      b.launchTick++;
+      if (tick < d.nextTick) continue;
+      d.round++;
+      d.nextTick = tick + TICK_RATE;
+      this.dogfightRound(a, b);
+    }
+  }
+
+  private dogfightRound(a: AirMission, b: AirMission): void {
+    const pa = this.missionPos(a);
+    const pb = this.missionPos(b);
+    // disparos simultâneos: quem atira nesta rodada é decidido antes das perdas
+    const shots: { from: AirMission; to: AirMission; chance: number }[] = [];
+    for (const [from, to] of [
+      [a, b],
+      [b, a],
+    ] as const)
+      for (const p of this.planesOf(from)) {
+        const chance = p.type === 'fighter' ? AIR.dogfightKill : p.type === 'bomber' ? AIR.bomberGunKill : 0;
+        if (chance > 0) shots.push({ from, to, chance });
+      }
+    for (const s of shots) {
+      const victims = this.planesOf(s.to);
+      if (!victims.length) continue;
+      const kill = this.rand() < s.chance;
+      const at = s.from === a ? pa : pb;
+      const to = s.from === a ? pb : pa;
+      this.sim.emitTrade({ type: 'dogfight', tick: this.sim.tick, owner: s.from.owner, victim: s.to.owner, missionId: s.from.id, targetMissionId: s.to.id, from: { ...at }, to: { ...to }, kill });
+      if (!kill) continue;
+      // caças inimigos são o alvo preferido; sem eles, qualquer aeronave da esquadrilha
+      const fighters = victims.filter((v) => v.type === 'fighter');
+      const pool = fighters.length ? fighters : victims;
+      const v = pool[Math.floor(this.rand() * pool.length)]!;
+      this.aircraft = this.aircraft.filter((x) => x.id !== v.id);
+      s.to.aircraft = s.to.aircraft.filter((id) => id !== v.id);
+      this.sim.emitTrade({ type: 'aircraft_lost', tick: this.sim.tick, owner: v.owner, aircraftType: v.type, pos: { ...to }, air: true });
+    }
+    for (const m of [a, b]) {
+      if (m.aircraft.length) continue;
+      // esquadrilha inteira abatida no combate
+      const pos = this.missionPos(m);
+      m.state = 'done';
+      m.result = { shotDown: 0, damage: 0, oilLost: 0, destroyed: false, revealed: 0, text: 'Esquadrilha abatida em combate aéreo' };
+      this.sim.emitTrade({ type: 'air_mission', tick: this.sim.tick, owner: m.owner, missionId: m.id, kind: m.kind, phase: 'result', text: m.result.text, pos });
+    }
   }
 
   /** Suprimentos por segundo de manutenção das aeronaves do jogador (cobrados com os edifícios). */

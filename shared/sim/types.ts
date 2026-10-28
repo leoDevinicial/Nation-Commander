@@ -246,7 +246,11 @@ export type SimEvent =
   | { type: 'shipment_delivered'; tick: number; shipmentId: number; contractId: number; seller: number; buyer: number; resource: string; quantity: number }
   | { type: 'shipment_lost'; tick: number; shipmentId: number; contractId: number; seller: number; buyer: number; resource: string; quantity: number; reason: string; pos: Vec2 }
   | { type: 'air_mission'; tick: number; owner: Slot; missionId: number; kind: 'strike' | 'recon'; phase: 'launched' | 'result'; text: string; pos: Vec2 }
-  | { type: 'aircraft_lost'; tick: number; owner: Slot; aircraftType: string; pos: Vec2 }
-  | { type: 'air_strike'; tick: number; owner: Slot; victim: Slot; buildingType: BuildingType; damage: number; oilLost: number; destroyed: boolean; pos: Vec2 }
+  /** `air`: abatida em combate aéreo (a explosão é no ar, longe do alvo). */
+  | { type: 'aircraft_lost'; tick: number; owner: Slot; aircraftType: string; pos: Vec2; air?: boolean }
+  /** `bombers`/`dir`: bombardeio em tapete (quantos bombardeiros e o rumo da passagem, em radianos). */
+  | { type: 'air_strike'; tick: number; owner: Slot; victim: Slot; buildingType: BuildingType; damage: number; oilLost: number; destroyed: boolean; pos: Vec2; bombers?: number; dir?: number }
+  /** Um disparo num combate aéreo entre esquadrilhas (`kill`: derrubou uma aeronave). */
+  | { type: 'dogfight'; tick: number; owner: Slot; victim: Slot; missionId: number; targetMissionId: number; from: Vec2; to: Vec2; kill: boolean }
   | { type: 'missile'; tick: number; owner: Slot; launchId: number; state: string; text: string; from: Vec2; target: Vec2; targetOwner: Slot; gen?: number; damage?: number; destroyed?: number; casualties?: number }
   | { type: 'modernize_cancelled'; tick: number; id: EntityId; owner: Slot; unitType: UnitType; mod: ModId; reason: 'player' | 'facility_lost'; pos: Vec2 };

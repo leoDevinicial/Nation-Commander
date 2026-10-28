@@ -11,8 +11,8 @@ import { CardButton } from './CardButton.tsx';
 import { audio } from '../../game/audio/AudioService.ts';
 import { effectiveFund, effectiveTechs, timeText } from '../../state/sandbox.ts';
 
-const ICON: Record<AircraftType, string> = { fighter: '✈', recon: '🔭', transport: '📦' };
-const SHORT: Record<AircraftType, string> = { fighter: 'Caça', recon: 'Reconhecimento', transport: 'Cargueiro' };
+const ICON: Record<AircraftType, string> = { fighter: '✈', bomber: '💣', recon: '🔭', transport: '📦' };
+const SHORT: Record<AircraftType, string> = { fighter: 'Caça', bomber: 'Bombardeiro', recon: 'Reconhecimento', transport: 'Cargueiro' };
 const STATE: Record<AircraftState, string> = {
   building: 'em produção',
   ready: 'pronta',
@@ -86,8 +86,9 @@ export function AirbaseInfo({ b }: { b: SelectedBuildingInfo }) {
   );
 }
 
-function aircraftBlocker(type: AircraftType, ctx: ReturnType<typeof useMe>, inHangar: number): string | null {
+function aircraftBlocker(type: AircraftType, ctx: ReturnType<typeof useMe>, inHangar: number, baseLevel: number): string | null {
   const def = AIRCRAFT[type];
+  if (def.minBaseLevel && baseLevel < def.minBaseLevel) return `exige base nível ${def.minBaseLevel}`;
   if (inHangar >= AIR.hangarPerBase) return 'hangar cheio';
   if (ctx.recruits < 1) return 'sem piloto (recruta)';
   if (!canAfford(ctx.resources, def.cost)) return 'recursos insuficientes';
@@ -103,12 +104,16 @@ export function AirbaseButtons({ b, runtime }: { b: SelectedBuildingInfo; runtim
   const ready = (t: AircraftType) => planes.filter((a) => a.type === t && a.state === 'ready').map((a) => a.id);
   const fighters = ready('fighter');
   const recon = ready('recon');
-  const strikeBlock = !ctx.techs.includes('guided_munitions') ? `exige ${TECHNOLOGIES.guided_munitions.label}` : fighters.length === 0 ? 'nenhum caça pronto' : null;
+  const bombers = ready('bomber');
+  const noTech = !ctx.techs.includes('guided_munitions') ? `exige ${TECHNOLOGIES.guided_munitions.label}` : null;
+  const strikeBlock = noTech ?? (fighters.length === 0 ? 'nenhum caça pronto' : null);
+  const bombBlock = noTech ?? (bombers.length === 0 ? 'nenhum bombardeiro pronto' : null);
+  const hasBombers = planes.some((a) => a.type === 'bomber');
   return (
     <>
       {AIRCRAFT_TYPES.map((t) => {
         const def = AIRCRAFT[t];
-        const blocker = aircraftBlocker(t, ctx, planes.length);
+        const blocker = aircraftBlocker(t, ctx, planes.length, b.level);
         return (
           <CardButton
             key={t}
@@ -139,8 +144,18 @@ export function AirbaseButtons({ b, runtime }: { b: SelectedBuildingInfo; runtim
         blocked={strikeBlock !== null}
         short={strikeBlock}
         onClick={() => (strikeBlock ? warn(`Ataque aéreo: ${strikeBlock}`) : runtime.startAirTarget('strike', b.id, fighters.slice(0, 4)))}
-        title={`Ataque com os caças prontos (até 4) contra um edifício inimigo já descoberto, em guerra e no alcance. Antiaérea e caças inimigos podem derrubar aeronaves; o dano costuma ser parcial.`}
+        title={`Ataque com os caças prontos (até 4) contra um edifício inimigo já descoberto, em guerra e no alcance. Antiaérea e caças inimigos podem derrubar aeronaves; o dano costuma ser parcial. Caças que cruzam com uma esquadrilha inimiga entram em combate aéreo.`}
       />
+      {hasBombers && (
+        <CardButton
+          icon="💣"
+          label="Bombardeio"
+          blocked={bombBlock !== null}
+          short={bombBlock}
+          onClick={() => (bombBlock ? warn(`Bombardeio: ${bombBlock}`) : runtime.startAirTarget('strike', b.id, bombers.slice(0, 4)))}
+          title={`Bombardeio em tapete com os bombardeiros prontos (até 4): muito dano ao edifício-alvo e ${Math.round(AIR.carpetSplash * 100)}% aos edifícios inimigos num raio de ${AIR.carpetRadius}. Lentos e sem escolta: caças inimigos os derrubam com facilidade.`}
+        />
+      )}
     </>
   );
 }

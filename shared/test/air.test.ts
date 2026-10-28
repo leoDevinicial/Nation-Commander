@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { TICK_RATE, type BuildingType } from '../sim/config.ts';
 import { parseCommand } from '../sim/commands.ts';
 import { Simulation, type NationalLink } from '../sim/Simulation.ts';
-import { AIR, AIRCRAFT, MISSILE } from '../sim/air.ts';
+import { AIR, AIRCRAFT, MISSILE, type AirMission } from '../sim/air.ts';
 import { airView } from '../sim/snapshot.ts';
 import type { Building } from '../sim/types.ts';
 import { flatMap } from './helpers.ts';
@@ -233,6 +233,142 @@ describe('Fase 7 — aeronaves e bases aéreas', () => {
   });
 });
 
+const bombers = (sim: Simulation) => sim.air.aircraft.filter((a) => a.type === 'bomber' && a.state === 'ready').map((a) => a.id);
+
+describe('Bombardeiro e combate aéreo', () => {
+  it('bombardeiro exige base aérea nível 2', () => {
+    const { sim, base } = withBase({ fighters: 0, recon: 0 });
+    expect(sim.applyCommand(0, { type: 'build_aircraft', buildingId: base.id, aircraftType: 'bomber' })).toMatch(/nível 2/);
+    base.level = 2;
+    expect(sim.applyCommand(0, { type: 'build_aircraft', buildingId: base.id, aircraftType: 'bomber' })).toBeNull();
+    run(sim, AIRCRAFT.bomber.buildSeconds + 1);
+    expect(bombers(sim)).toHaveLength(1);
+  });
+
+  it('bombardeio em tapete: muito mais dano que o caça e atinge os edifícios inimigos vizinhos', () => {
+    const { sim, base, tank, place } = withBase({ fighters: 0, recon: 0 });
+    const near = place(1, 'oil_tank', [24, 24], [33, 33]);
+    expect(Math.hypot(near.pos.x - tank.pos.x, near.pos.y - tank.pos.y)).toBeLessThan(AIR.carpetRadius);
+    base.level = 2;
+    for (let i = 0; i < 2; i++) expect(sim.applyCommand(0, { type: 'build_aircraft', buildingId: base.id, aircraftType: 'bomber' })).toBeNull();
+    run(sim, AIRCRAFT.bomber.buildSeconds + 1);
+    sim.air.known[0] = new Set([tank.id]);
+    tank.hp = tank.maxHp = 5000;
+    near.hp = near.maxHp = 5000;
+    sim.drainEvents();
+    expect(sim.applyCommand(0, { type: 'air_mission', buildingId: base.id, aircraftIds: bombers(sim), mission: 'strike', targetId: tank.id })).toBeNull();
+    const m = sim.air.missions[0]!;
+    run(sim, m.legTicks / TICK_RATE + 0.5);
+    const r = m.result!;
+    // dois bombardeiros: pelo menos 2 × 520 × 70% e bem acima do máximo de dois caças
+    expect(r.damage).toBeGreaterThanOrEqual(2 * AIRCRAFT.bomber.strikeDamage * AIR.bomberPrecisionMin - 1);
+    expect(r.damage).toBeGreaterThan(2 * AIRCRAFT.fighter.strikeDamage);
+    expect(tank.hp).toBe(5000 - r.damage);
+    expect(near.hp).toBeLessThan(5000);
+    expect(near.hp).toBeGreaterThan(5000 - r.damage * AIR.carpetSplash - 1);
+    expect(r.text).toMatch(/mais 1 edifício/);
+    const ev = sim.drainEvents().find((e) => e.type === 'air_strike');
+    expect(ev && ev.type === 'air_strike' && ev.bombers).toBe(2);
+  });
+
+  /** Dois países em guerra com caças no ar, em rotas que se cruzam no meio do caminho. */
+  function crossing() {
+    const { sim, base, tank, place } = withBase({ recon: 0 });
+    const base1 = place(1, 'airbase', [16, 16], [34, 34]);
+    const target0 = sim.hqOf(0)!;
+    run(sim, 30);
+    for (let i = 0; i < 2; i++) expect(sim.applyCommand(1, { type: 'build_aircraft', buildingId: base1.id, aircraftType: 'fighter' })).toBeNull();
+    run(sim, AIRCRAFT.fighter.buildSeconds + 1);
+    sim.air.known[0] = new Set([tank.id]);
+    sim.air.known[1] = new Set([target0.id]);
+    const own = (slot: number) => sim.air.aircraft.filter((a) => a.owner === slot && a.type === 'fighter' && a.state === 'ready').map((a) => a.id);
+    expect(sim.applyCommand(0, { type: 'air_mission', buildingId: base.id, aircraftIds: own(0), mission: 'strike', targetId: tank.id })).toBeNull();
+    expect(sim.applyCommand(1, { type: 'air_mission', buildingId: base1.id, aircraftIds: own(1), mission: 'strike', targetId: target0.id })).toBeNull();
+    const [a, b] = sim.air.missions.slice(-2) as [AirMission, AirMission];
+    // rotas espelhadas: as esquadrilhas se encontram na metade da ida
+    b.from = { ...a.target };
+    b.target = { ...a.from };
+    b.legTicks = a.legTicks;
+    sim.drainEvents();
+    return { sim, a, b };
+  }
+
+  it('caças de países em guerra que se cruzam no ar travam combate: param, trocam tiros e lutam uma vez só', () => {
+    const { sim, a, b } = crossing();
+    let engagedAt = -1;
+    for (let i = 0; i < a.legTicks && engagedAt < 0; i++) {
+      sim.step();
+      if (sim.air.engaged(a.id)) engagedAt = sim.tick;
+    }
+    expect(engagedAt).toBeGreaterThan(0);
+    expect(sim.air.engaged(b.id)).toBe(true);
+    expect(a.fought).toContain(b.id);
+    // presas no lugar durante o combate
+    const pa = sim.air.missionPos(a);
+    run(sim, 1);
+    expect(sim.air.missionPos(a)).toEqual(pa);
+    run(sim, AIR.dogfightRounds + 1);
+    expect(sim.air.engaged(a.id)).toBe(false);
+    const ev = sim.drainEvents();
+    const shots = ev.filter((e) => e.type === 'dogfight');
+    expect(shots.length).toBeGreaterThan(0);
+    expect(shots.every((e) => e.type === 'dogfight' && (e.missionId === a.id || e.missionId === b.id))).toBe(true);
+    const kills = shots.filter((e) => e.type === 'dogfight' && e.kill).length;
+    expect(ev.filter((e) => e.type === 'aircraft_lost' && e.air).length).toBe(kills);
+    expect(a.aircraft.length + b.aircraft.length).toBe(4 - kills);
+    // as que sobreviveram seguem viagem e não voltam a lutar entre si
+    run(sim, 3);
+    expect(sim.air.dogfights).toHaveLength(0);
+  });
+
+  it('esquadrilha inteira abatida no combate termina a missão; reconhecimento sem escolta não revida', () => {
+    const kill = AIR.dogfightKill;
+    AIR.dogfightKill = 1;
+    try {
+      const { sim, a, b } = crossing();
+      run(sim, a.legTicks / TICK_RATE);
+      expect(a.state).toBe('done');
+      expect(b.state).toBe('done');
+      expect(a.result?.text).toMatch(/combate aéreo/);
+      expect(sim.air.aircraft.filter((x) => x.type === 'fighter')).toHaveLength(0);
+    } finally {
+      AIR.dogfightKill = kill;
+    }
+    const { sim, a, b } = crossing();
+    // a esquadrilha de 1 vira reconhecimento: só a de 0 atira
+    for (const id of b.aircraft) sim.air.aircraft.find((x) => x.id === id)!.type = 'recon';
+    run(sim, a.legTicks / TICK_RATE);
+    const shots = sim.drainEvents().filter((e) => e.type === 'dogfight');
+    expect(shots.length).toBeGreaterThan(0);
+    expect(shots.every((e) => e.type === 'dogfight' && e.owner === 0)).toBe(true);
+    expect(a.aircraft).toHaveLength(2);
+  });
+
+  it('sem guerra não há combate; salvar no meio do combate e continuar é idêntico', () => {
+    const peace = crossing();
+    peace.sim.setWar(0, 1, false);
+    run(peace.sim, peace.a.legTicks / TICK_RATE);
+    expect(peace.sim.drainEvents().some((e) => e.type === 'dogfight')).toBe(false);
+
+    const { sim, a } = crossing();
+    while (!sim.air.engaged(a.id) && sim.tick < 1e5) sim.step();
+    sim.step();
+    const copy = Simulation.deserialize(sim.serialize());
+    copy.national = sim.national;
+    run(sim, 6);
+    run(copy, 6);
+    expect(copy.serialize()).toBe(sim.serialize());
+  });
+
+  it('a esquadrilha aparece no snapshot com o tipo de avião e o estado de combate', () => {
+    const { sim, a } = crossing();
+    while (!sim.air.engaged(a.id) && sim.tick < 1e5) sim.step();
+    const f = airView(sim, 0).flights.find((x) => x.id === a.id)!;
+    expect(f.plane).toBe('fighter');
+    expect(f.engaged).toBe(true);
+  });
+});
+
 describe('Fase 7 — mísseis', () => {
   function silo(opts: { techs?: string[]; war?: boolean } = {}) {
     const s = setup(opts);
@@ -362,7 +498,8 @@ describe('Fase 7 — persistência, comandos e comércio aéreo', () => {
 
   it('parseCommand valida a forma dos comandos aéreos', () => {
     expect(parseCommand({ type: 'build_aircraft', buildingId: 3, aircraftType: 'fighter' })).toEqual({ type: 'build_aircraft', buildingId: 3, aircraftType: 'fighter' });
-    expect(parseCommand({ type: 'build_aircraft', buildingId: 3, aircraftType: 'bomber' })).toBeNull();
+    expect(parseCommand({ type: 'build_aircraft', buildingId: 3, aircraftType: 'bomber' })).toEqual({ type: 'build_aircraft', buildingId: 3, aircraftType: 'bomber' });
+    expect(parseCommand({ type: 'build_aircraft', buildingId: 3, aircraftType: 'zeppelin' })).toBeNull();
     expect(parseCommand({ type: 'air_mission', buildingId: 3, aircraftIds: [1, 1, 2], mission: 'strike', targetId: 9 })).toEqual({ type: 'air_mission', buildingId: 3, aircraftIds: [1, 2], mission: 'strike', targetId: 9 });
     expect(parseCommand({ type: 'air_mission', buildingId: 3, aircraftIds: [1], mission: 'nuke' })).toBeNull();
     expect(parseCommand({ type: 'air_mission', buildingId: 3, aircraftIds: [1], mission: 'recon', x: 1 })).toBeNull();

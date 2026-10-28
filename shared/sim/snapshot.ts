@@ -118,7 +118,7 @@ export interface AirView {
    * Voos em andamento. `gen`: modelo dos caças (1 = F-5EM, 2 = F-39 Gripen); `bx/by`: base de
    * origem; `tx/ty`: alvo (só nos voos próprios ou que atacam este jogador).
    */
-  flights: { id: number; owner: Slot; kind: MissionKind; state: MissionState; x: number; y: number; heading: number; count: number; gen: number; bx: number; by: number; tx?: number; ty?: number }[];
+  flights: { id: number; owner: Slot; kind: MissionKind; state: MissionState; x: number; y: number; heading: number; count: number; gen: number; plane: AircraftType; engaged?: boolean; bx: number; by: number; tx?: number; ty?: number }[];
   /** Missões próprias recentes, com o resultado registrado. */
   missions: { id: number; kind: MissionKind; state: MissionState; baseId: EntityId; targetType: string | null; fuel: number; count: number; result: MissionResult | null }[];
   silos: { id: EntityId; missiles: number; building: number }[];
@@ -344,6 +344,8 @@ export function airView(sim: Simulation, slot: Slot): AirView {
       heading: r2(Math.atan2((m.target.y - m.from.y) * dir, (m.target.x - m.from.x) * dir)),
       count: m.aircraft.length,
       gen: m.gen ?? 1,
+      plane: air.aircraft.find((a) => a.id === m.aircraft[0])?.type ?? (m.kind === 'recon' ? 'recon' : 'fighter'),
+      ...(air.engaged(m.id) ? { engaged: true } : {}),
       bx: r2(m.from.x),
       by: r2(m.from.y),
       ...(m.owner === slot || (m.targetId !== null && sim.entities.get(m.targetId)?.owner === slot) ? { tx: r2(m.target.x), ty: r2(m.target.y) } : {}),
@@ -446,6 +448,8 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
       return e.owner === slot || sim.isVisibleTo(slot, e.pos);
     case 'air_strike':
       return e.owner === slot || e.victim === slot || sim.isVisibleTo(slot, e.pos);
+    case 'dogfight':
+      return e.owner === slot || e.victim === slot || sim.isVisibleTo(slot, e.from) || sim.isVisibleTo(slot, e.to);
     case 'missile':
       // o dono acompanha cada etapa; o país-alvo é alertado no lançamento e no impacto
       return (

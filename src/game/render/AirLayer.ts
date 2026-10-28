@@ -8,7 +8,7 @@ import { glowTexture, volumetricSmokeTexture } from './textures.ts';
 
 type Flight = AirView['flights'][number];
 type Launch = AirView['launches'][number];
-type Kind = 'fighter' | 'gripen' | 'recon' | 'transport' | 'missile' | 'missile2';
+type Kind = 'fighter' | 'gripen' | 'bomber' | 'recon' | 'transport' | 'missile' | 'missile2';
 
 const ALTITUDE = 7;
 /** Altitude no fundo do mergulho de ataque. */
@@ -19,6 +19,13 @@ const ATTACK_RADIUS = 16;
 const AIRFIELD_RADIUS = 10;
 /** Raio das curvas da esquadrilha (a volta no alvo vira uma curva em U, não uma inversão seca). */
 const TURN_RADIUS = 6.5;
+/** Combate aéreo: raio e velocidade angular da órbita das esquadrilhas engajadas. */
+const DOGFIGHT_ORBIT = 4.5;
+const DOGFIGHT_SPIN = 1.3;
+/** Bombardeio em tapete: bombas por bombardeiro, altura de soltura e tempo de queda (s). */
+const BOMBS_PER_BOMBER = 6;
+const BOMB_DROP_ALT = 7.5;
+const BOMB_FALL = 1.05;
 /** Formação em "V" (até 4 aeronaves por missão): (atrás, lado). */
 const FORMATION: [number, number][] = [
   [0, 0],
@@ -56,6 +63,29 @@ interface TrackedFlight {
   t: number;
   phase: number;
 }
+
+/** Bomba em queda (visual): parte do bombardeiro e explode no chão. */
+interface Bomb {
+  mesh: THREE.Mesh;
+  from: THREE.Vector3;
+  to: THREE.Vector3;
+  age: number;
+  delay: number;
+  onImpact: (at: THREE.Vector3, index: number) => void;
+  index: number;
+}
+
+/** Destroço de uma aeronave abatida: cai girando e soltando fumaça preta. */
+interface Wreck {
+  plane: Plane | null;
+  group: THREE.Group;
+  vel: THREE.Vector3;
+  spin: THREE.Vector3;
+  smokeAcc: number;
+}
+
+let bombGeo: THREE.BufferGeometry | null = null;
+let bombMat: THREE.MeshStandardMaterial | null = null;
 
 const smooth = (e0: number, e1: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
@@ -196,6 +226,13 @@ export class AirLayer {
   private time = 0;
   private readonly puffs: TrailPuff[] = [];
   private puffNext = 0;
+  private readonly bombs: Bomb[] = [];
+  private readonly wrecks: Wreck[] = [];
+  /**
+   * Aviões que saíram do snapshot (abatidos, pousados ou fora da vista), escondidos por um
+   * instante: se o evento de abate chegar, viram destroço de onde estavam; senão são descartados.
+   */
+  private readonly orphans: { pl: Plane; owner: number; age: number }[] = [];
 
   constructor(
     private readonly effects: Effects,
@@ -247,12 +284,14 @@ export class AirLayer {
         t.curr.copy(p);
       }
       // aeronave perdida no caminho (ou troca de modelo): a formação é refeita
-      if (t.planes.length !== Math.min(4, f.count) || t.snap.gen !== f.gen) this.rebuildPlanes(t, f);
+      const want = Math.min(4, f.count);
+      if (want < t.planes.length && t.snap.gen === f.gen && t.snap.plane === f.plane) for (const pl of t.planes.splice(want)) this.orphan(pl, f.owner);
+      else if (t.planes.length !== want || t.snap.gen !== f.gen || t.snap.plane !== f.plane) this.rebuildPlanes(t, f);
       t.snap = f;
     }
     for (const [id, t] of this.flights)
       if (!seen.has(id)) {
-        for (const pl of t.planes) this.disposePlane(pl);
+        for (const pl of t.planes) this.orphan(pl, t.snap.owner);
         this.flights.delete(id);
       }
 
@@ -332,18 +371,23 @@ export class AirLayer {
   private rebuildPlanes(t: TrackedFlight, f: Flight): void {
     for (const pl of t.planes) this.disposePlane(pl);
     t.planes = [];
-    const kind: Kind = f.kind === 'recon' ? 'recon' : f.gen >= 2 ? 'gripen' : 'fighter';
+    const kind: Kind = f.kind === 'recon' ? 'recon' : f.plane === 'bomber' ? 'bomber' : f.gen >= 2 ? 'gripen' : 'fighter';
     for (let i = 0; i < Math.min(4, f.count); i++) {
       const group = new THREE.Group();
       group.add(meshes(model(kind), f.owner, false));
       // brilho do motor (pós-combustor) atrás de cada caça
       const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: '#ffb46a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-      glow.position.set(kind === 'gripen' ? -1.1 : -0.95, 0, 0);
-      glow.scale.setScalar(0.45);
+      glow.position.set(kind === 'bomber' ? -0.8 : kind === 'gripen' ? -1.1 : -0.95, kind === 'bomber' ? -0.16 : 0, 0);
+      glow.scale.setScalar(kind === 'bomber' ? 0.6 : 0.45);
       group.add(glow);
       this.group.add(group);
       t.planes.push({ group, glow, prevLat: 0, prevAlt: 0, trailAcc: Math.random() * 0.1 });
     }
+  }
+
+  private orphan(pl: Plane, owner: number): void {
+    pl.group.visible = false;
+    this.orphans.push({ pl, owner, age: 0 });
   }
 
   private disposePlane(pl: Plane): void {
@@ -358,11 +402,21 @@ export class AirLayer {
   private frameSquadron(t: TrackedFlight, alpha: number, dt: number): void {
     const f = t.snap;
     t.t += dt;
-    const cx = t.prev.x + (t.curr.x - t.prev.x) * alpha;
-    const cy = t.prev.y + (t.curr.y - t.prev.y) * alpha;
+    let cx = t.prev.x + (t.curr.x - t.prev.x) * alpha;
+    let cy = t.prev.y + (t.curr.y - t.prev.y) * alpha;
     // velocidade do servidor, suavizada (some quando o jogo está pausado)
     if (t.lastC && dt > 0) t.speed += (Math.hypot(cx - t.lastC.x, cy - t.lastC.y) / dt - t.speed) * Math.min(1, dt * 3);
     t.lastC = (t.lastC ?? new THREE.Vector2()).set(cx, cy);
+    const bomber = f.plane === 'bomber';
+    if (f.engaged && dt > 0) {
+      // combate aéreo: o centro fica parado no servidor; a esquadrilha circula em volta dele,
+      // as duas em sentidos opostos, cruzando-se a cada volta
+      const dir = f.owner % 2 ? 1 : -1;
+      const ang = t.t * DOGFIGHT_SPIN * dir + t.phase;
+      cx += Math.cos(ang) * DOGFIGHT_ORBIT;
+      cy += Math.sin(ang) * DOGFIGHT_ORBIT;
+      t.speed += (DOGFIGHT_ORBIT * DOGFIGHT_SPIN * 1.1 - t.speed) * Math.min(1, dt * 2);
+    }
     const dx = cx - t.pos.x;
     const dy = cy - t.pos.y;
     const dist = Math.hypot(dx, dy);
@@ -388,11 +442,11 @@ export class AirLayer {
     // altitude: decolagem/pouso perto da base e mergulho perto do alvo
     const nearBase = smooth(1.5, AIRFIELD_RADIUS, Math.hypot(t.pos.x - f.bx, t.pos.y - f.by));
     let dive = 0;
-    if (f.kind === 'strike' && f.tx !== undefined && f.ty !== undefined) {
+    if (f.kind === 'strike' && !bomber && f.tx !== undefined && f.ty !== undefined) {
       const dt2 = Math.hypot(t.pos.x - f.tx, t.pos.y - f.ty);
       dive = f.state === 'outbound' ? smooth(ATTACK_RADIUS, 4, dt2) : smooth(ATTACK_RADIUS * 0.8, 2, dt2);
     }
-    const wantAlt = 0.35 + (ALTITUDE + (f.kind === 'recon' ? 1.5 : 0) - 0.35) * nearBase;
+    const wantAlt = 0.35 + (ALTITUDE + (f.kind === 'recon' ? 1.5 : bomber ? 0.8 : 0) - 0.35) * nearBase;
     const targetAlt = wantAlt + (DIVE_ALTITUDE - wantAlt) * dive * nearBase;
     const prevAlt = t.alt;
     t.alt += (targetAlt - t.alt) * Math.min(1, dt * 1.6);
@@ -405,13 +459,15 @@ export class AirLayer {
     // lado direito no plano do mapa (+z do modelo)
     const rgtX = -fwdY;
     const rgtY = fwdX;
-    const cruise = nearBase * (1 - dive);
+    // bombardeiros voam em formação rígida e larga, sem acrobacias
+    const cruise = bomber ? 0 : nearBase * (1 - dive);
+    const spread = bomber ? 2.5 : 1;
     for (let i = 0; i < t.planes.length; i++) {
       const pl = t.planes[i]!;
       const [back, side] = FORMATION[i]!;
       const tt = t.t + t.phase;
-      let lat = side;
-      let along = back;
+      let lat = side * spread;
+      let along = back * spread;
       let up = i * 0.12;
       let roll = 0;
       if (i > 0) {
@@ -440,7 +496,7 @@ export class AirLayer {
       up = up * (1 - dive) + i * 0.5 * dive;
       // decolagem/pouso: fila indiana sobre a pista
       lat *= nearBase;
-      along = along * nearBase - i * 1.6 * (1 - nearBase);
+      along = along * nearBase - i * 1.6 * spread * (1 - nearBase);
       const x = t.pos.x + fwdX * along + rgtX * lat;
       const y = t.pos.y + fwdY * along + rgtY * lat;
       const alt = t.alt + up * nearBase;
@@ -495,6 +551,8 @@ export class AirLayer {
       else this.frameFlight(m, l, k, dt);
     }
     this.framePuffs(dt);
+    this.frameBombs(dt);
+    this.frameWrecks(dt);
     for (const [id, sp] of this.beacons) {
       const p = this.posOf(id);
       if (!p) continue;
@@ -685,6 +743,140 @@ export class AirLayer {
     }
   }
 
+  /** Aviões em voo (posição no mundo) de uma missão; vazio se ela não está à vista. */
+  private planesOf(missionId: number): THREE.Group[] {
+    return this.flights.get(missionId)?.planes.map((p) => p.group) ?? [];
+  }
+
+  /**
+   * Um disparo do combate aéreo: rajada de traçantes de um avião da esquadrilha atiradora até um
+   * avião da outra (ou entre os centros, se uma delas não está à vista).
+   */
+  dogfightShot(e: { missionId: number; targetMissionId: number; from: { x: number; y: number }; to: { x: number; y: number }; kill: boolean }): void {
+    const shooters = this.planesOf(e.missionId);
+    const victims = this.planesOf(e.targetMissionId);
+    const from = shooters.length ? shooters[Math.floor(Math.random() * shooters.length)]!.position.clone() : new THREE.Vector3(e.from.x, ALTITUDE, e.from.y);
+    const to = victims.length ? victims[Math.floor(Math.random() * victims.length)]!.position.clone() : new THREE.Vector3(e.to.x, ALTITUDE, e.to.y);
+    // a rajada sai do nariz e erra por pouco (o abate é decidido no servidor)
+    const dir = to.clone().sub(from).normalize();
+    const nose = from.clone().addScaledVector(dir, 0.8);
+    for (let i = 0; i < 3; i++) {
+      const miss = e.kill && i === 2 ? 0 : 0.6;
+      const end = to.clone().add(new THREE.Vector3((Math.random() - 0.5) * miss, (Math.random() - 0.5) * miss, (Math.random() - 0.5) * miss));
+      this.effects.tracer(nose, end, false);
+    }
+    if (e.kill) this.effects.flash(to, 0.8, '#ffd38a', 0.2);
+  }
+
+  /**
+   * Aeronave abatida no ar: explode onde está o avião mais próximo do ponto do servidor e o
+   * destroço cai girando com um rastro de fumaça preta. Devolve onde explodiu.
+   */
+  planeDown(at: { x: number; y: number }, owner: number): THREE.Vector3 {
+    let best = -1;
+    let bestD = 25;
+    this.orphans.forEach((o, i) => {
+      const d = Math.hypot(o.pl.group.position.x - at.x, o.pl.group.position.z - at.y);
+      if (o.owner === owner && d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    });
+    if (best < 0) return new THREE.Vector3(at.x, ALTITUDE, at.y);
+    const pl = this.orphans.splice(best, 1)[0]!.pl;
+    pl.group.visible = true;
+    pl.glow.visible = false;
+    const fwd = new THREE.Vector3(1, 0, 0).applyEuler(pl.group.rotation);
+    this.wrecks.push({ plane: pl, group: pl.group, vel: fwd.multiplyScalar(4).setY(-0.5), spin: new THREE.Vector3(3 + Math.random() * 3, 0.6, 1.2), smokeAcc: 0 });
+    return pl.group.position.clone();
+  }
+
+  private frameWrecks(dt: number): void {
+    for (let i = this.wrecks.length - 1; i >= 0; i--) {
+      const w = this.wrecks[i]!;
+      w.vel.y -= 6 * dt;
+      w.vel.x *= 1 - dt * 0.3;
+      w.vel.z *= 1 - dt * 0.3;
+      w.group.position.addScaledVector(w.vel, dt);
+      w.group.rotation.x += w.spin.x * dt;
+      w.group.rotation.y += w.spin.y * dt;
+      w.group.rotation.z += w.spin.z * dt;
+      w.smokeAcc += dt;
+      if (w.smokeAcc > 0.05) {
+        w.smokeAcc = 0;
+        this.emit(w.group.position, { life: 2.6, size0: 0.4, size1: 1.8, peak: 0.85, tone: 0.22 });
+      }
+      if (w.group.position.y <= 0.2) {
+        this.effects.explosion(w.group.position.clone().setY(0), false);
+        if (w.plane) this.disposePlane(w.plane);
+        else w.group.removeFromParent();
+        this.wrecks.splice(i, 1);
+      }
+    }
+    for (let i = this.orphans.length - 1; i >= 0; i--) {
+      const o = this.orphans[i]!;
+      o.age += dt;
+      if (o.age > 1) {
+        this.disposePlane(o.pl);
+        this.orphans.splice(i, 1);
+      }
+    }
+  }
+
+  /**
+   * Bombardeio em tapete: cada bombardeiro solta uma fileira de bombas que caem ao longo do rumo
+   * da passagem; as fileiras correm lado a lado, como na formação. `onImpact` faz a explosão.
+   */
+  dropBombs(at: { x: number; y: number }, dir: number, bombers: number, onImpact: (at: THREE.Vector3, index: number) => void): void {
+    if (!bombGeo || !bombMat) {
+      bombGeo = new THREE.CapsuleGeometry(0.07, 0.32, 3, 8);
+      bombGeo.rotateZ(Math.PI / 2);
+      bombMat = new THREE.MeshStandardMaterial({ color: '#3d4136', roughness: 0.6, metalness: 0.4 });
+    }
+    const fx = Math.cos(dir);
+    const fz = Math.sin(dir);
+    let index = 0;
+    for (let b = 0; b < Math.min(4, bombers); b++) {
+      const [back, side] = FORMATION[b]!;
+      for (let i = 0; i < BOMBS_PER_BOMBER; i++) {
+        // fileira de ~8 unidades centrada no alvo, deslocada pela posição do avião na formação
+        const along = -4 + (8 * i) / (BOMBS_PER_BOMBER - 1) + back * 1.2 + (Math.random() - 0.5) * 0.6;
+        const lat = side * 1.3 + (Math.random() - 0.5) * 0.8;
+        const to = new THREE.Vector3(at.x + fx * along - fz * lat, 0, at.y + fz * along + fx * lat);
+        // a bomba herda a velocidade do avião: é solta antes do ponto de impacto
+        const from = to.clone().addScaledVector(new THREE.Vector3(fx, 0, fz), -3.2).setY(BOMB_DROP_ALT);
+        const mesh = new THREE.Mesh(bombGeo, bombMat);
+        mesh.visible = false;
+        mesh.castShadow = true;
+        this.group.add(mesh);
+        this.bombs.push({ mesh, from, to, age: 0, delay: i * 0.11 - back * 0.08, onImpact, index: index++ });
+      }
+    }
+  }
+
+  private frameBombs(dt: number): void {
+    for (let i = this.bombs.length - 1; i >= 0; i--) {
+      const b = this.bombs[i]!;
+      b.age += dt;
+      const t = (b.age - b.delay) / BOMB_FALL;
+      if (t < 0) continue;
+      if (t >= 1) {
+        b.onImpact(b.to, b.index);
+        b.mesh.removeFromParent();
+        this.bombs.splice(i, 1);
+        continue;
+      }
+      // horizontal constante, queda acelerada: o nariz aponta para a velocidade
+      b.mesh.visible = true;
+      const x = b.from.x + (b.to.x - b.from.x) * t;
+      const z = b.from.z + (b.to.z - b.from.z) * t;
+      const y = b.from.y * (1 - t * t);
+      b.mesh.position.set(x, y, z);
+      tmpB.set((b.to.x - b.from.x) / BOMB_FALL, (-2 * b.from.y * t) / BOMB_FALL, (b.to.z - b.from.z) / BOMB_FALL).normalize();
+      b.mesh.quaternion.setFromUnitVectors(AXIS, tmpB);
+    }
+  }
+
   /** Onda de choque do impacto: anel que se abre rente ao chão. */
   shockwave(at: { x: number; y: number }, radius: number): void {
     const r = ring('#ffd9a0', 0.9);
@@ -712,6 +904,15 @@ export class AirLayer {
     }
     this.targetRings.clear();
     this.waves.length = 0;
+    for (const b of this.bombs) b.mesh.removeFromParent();
+    this.bombs.length = 0;
+    for (const w of this.wrecks) {
+      if (w.plane) this.disposePlane(w.plane);
+      else w.group.removeFromParent();
+    }
+    this.wrecks.length = 0;
+    for (const o of this.orphans) this.disposePlane(o.pl);
+    this.orphans.length = 0;
     this.group.removeFromParent();
   }
 }
@@ -723,6 +924,10 @@ export function disposeAirModels(): void {
   mats.clear();
   flameGeo?.dispose();
   flameGeo = null;
+  bombGeo?.dispose();
+  bombGeo = null;
+  bombMat?.dispose();
+  bombMat = null;
   for (const m of flameMats) m.dispose();
   flameMats.length = 0;
 }

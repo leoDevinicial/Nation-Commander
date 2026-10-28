@@ -639,12 +639,24 @@ export class GameRuntime {
       if (e.entity === 'unit' && (UNITS as Record<string, { armor: string }>)[e.entityType]?.armor === 'vehicle')
         this.effects.plume(new THREE.Vector3(e.pos.x, 0.4, e.pos.y), { count: 7, size: 1.3, rise: 5, life: 6.5, spread: 0.6, tone: 0.25, delay: 0.15 });
     } else if (e.type === 'air_strike') {
-      // bombas guiadas: impactos em sequência sobre o alvo
-      for (let i = 0; i < 3; i++) this.effects.explosion(new THREE.Vector3(e.pos.x + (Math.random() - 0.5) * 1.6, 0, e.pos.y + (Math.random() - 0.5) * 1.6), i === 0 && (e.destroyed || e.oilLost > 0));
+      if (e.bombers) {
+        // bombardeio em tapete: as fileiras de bombas caem e explodem em sequência pelo rumo da passagem
+        this.airLayer.dropBombs(e.pos, e.dir ?? 0, e.bombers, (at, i) => {
+          this.effects.explosion(at, i % 3 === 0);
+          if (i % 4 === 0) this.effects.plume(at.clone().setY(0.3), { count: 3, size: 1.1, rise: 3.5, life: 4, spread: 0.5, tone: 0.3 });
+          if (i % 2 === 0) audio.playAt('bomb', at.x, at.z);
+          if (i % 5 === 0) this.shakeNear({ x: at.x, y: at.z }, 0.3);
+        });
+      } else
+        // bombas guiadas: impactos em sequência sobre o alvo
+        for (let i = 0; i < 3; i++) this.effects.explosion(new THREE.Vector3(e.pos.x + (Math.random() - 0.5) * 1.6, 0, e.pos.y + (Math.random() - 0.5) * 1.6), i === 0 && (e.destroyed || e.oilLost > 0));
+    } else if (e.type === 'dogfight') {
+      this.airLayer.dogfightShot(e);
     } else if (e.type === 'aircraft_lost') {
-      // abatida em voo: explosão no ar
-      this.effects.explosion(new THREE.Vector3(e.pos.x, 6.5, e.pos.y), false);
-      this.effects.flash(new THREE.Vector3(e.pos.x, 6.5, e.pos.y), 1.1, '#ffd38a', 0.4);
+      // abatida em voo: explosão no ar (no combate aéreo, onde estava o avião; o destroço cai)
+      const at = e.air ? this.airLayer.planeDown(e.pos, e.owner) : new THREE.Vector3(e.pos.x, 6.5, e.pos.y);
+      this.effects.explosion(at, false);
+      this.effects.flash(at, 1.1, '#ffd38a', 0.4);
     } else if (e.type === 'missile') {
       const heavy = (e.gen ?? 1) >= 2;
       const radius = missileSpec(e.gen ?? 1).radius;
@@ -1623,7 +1635,11 @@ export class GameRuntime {
         audio.playAt(e.entity === 'building' || e.entityType === 'tank' ? 'explosion_big' : 'explosion', e.pos.x, e.pos.y);
         break;
       case 'air_strike':
-        audio.playAt('bomb', e.pos.x, e.pos.y);
+        // no bombardeio em tapete o som sai com cada bomba que cai
+        if (!e.bombers) audio.playAt('bomb', e.pos.x, e.pos.y);
+        break;
+      case 'dogfight':
+        audio.playAt('rifle', e.from.x, e.from.y);
         break;
       case 'aircraft_lost':
         audio.playAt('flak', e.pos.x, e.pos.y);
