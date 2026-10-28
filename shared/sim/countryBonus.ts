@@ -52,6 +52,12 @@ export const COUNTRY_BONUS: Record<string, CountryBonus> = {
   TUR: { title: 'Indústria de defesa', description: 'Antiaérea Móvel e Veículo Blindado 15% mais baratos.', unitCostMul: { mobile_aa: 0.85, apc: 0.85 } },
   KOR: { title: 'Defesa antiaérea superior', description: 'Antiaérea própria 30% mais eficaz contra aviões e mísseis.', aaMul: 1.3 },
   PRK: { title: 'Exército de massa', description: 'Artilharia 20% mais barata e recrutas 15% mais baratos.', unitCostMul: { artillery: 0.8 }, recruitCostMul: 0.85 },
+  NGA: { title: 'Gigante do petróleo africano', description: '+20% de petróleo extraído e recrutas 10% mais baratos.', gatherMul: { oil: 1.2 }, recruitCostMul: 0.9 },
+  IDN: { title: 'Guerra nas ilhas e matas', description: 'Tropas 20% mais rápidas na floresta e +15% de madeira.', forestSpeedMul: 1.2, gatherMul: { wood: 1.15 } },
+  IRN: { title: 'Dissuasão por foguetes', description: 'Lança-Foguetes 20% mais barato e antiaérea própria 15% mais eficaz.', unitCostMul: { rocket_artillery: 0.8 }, aaMul: 1.15 },
+  POL: { title: 'Muralha blindada do leste', description: 'Tanques Modernos 15% mais baratos e Artilharia 10% mais barata.', unitCostMul: { mbt: 0.85, artillery: 0.9 } },
+  COL: { title: 'Contrainsurgência', description: 'Forças Especiais com 15% mais vida e tropas 15% mais rápidas na floresta.', unitHpMul: { special_forces: 1.15 }, forestSpeedMul: 1.15 },
+  PAK: { title: 'Exército de montanha', description: 'Infantaria e Infantaria Antitanque 15% mais baratas.', unitCostMul: { infantry: 0.85, at_infantry: 0.85 } },
 };
 
 const NONE: CountryBonus = { title: '', description: '' };

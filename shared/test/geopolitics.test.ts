@@ -32,9 +32,9 @@ describe('contato e descoberta', () => {
     expect(sim.diplomacy.knows(0, npc('USA').slot)).toBe(true);
     expect(sim.diplomacy.knows(0, npc('JPN').slot)).toBe(false);
     expect(sim.diplomacy.knows(0, 1)).toBe(true);
-    // África do Sul não tem vizinhos regionais no cenário: começa sem contatos
+    // na região África do cenário só estão África do Sul e Nigéria: conhecem uma à outra e ninguém mais
     const zaf = npc('ZAF').slot;
-    expect(sim.npcs.filter((n) => n.slot !== zaf && sim.diplomacy.knows(zaf, n.slot))).toEqual([]);
+    expect(sim.npcs.filter((n) => n.slot !== zaf && sim.diplomacy.knows(zaf, n.slot)).map((n) => n.countryId)).toEqual(['NGA']);
   });
 
   it('país não descoberto não aceita negociação; missão de contato tem custo e prazo e gera evento rastreável', () => {

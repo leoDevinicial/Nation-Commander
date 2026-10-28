@@ -8,6 +8,11 @@ on:
         type: choice
         options: [todas, banco-mundial, fmi]
         default: todas
+      paises:
+        description: 'Só estes países (ISO alfa-3 separados por vírgula, ex.: NGA,IDN). Vazio = todos'
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -22,12 +27,20 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Validar lista de países
+        id: only
+        env:
+          PAISES: ${{ inputs.paises }}
+        run: |
+          if [ -z "$PAISES" ]; then echo "arg=" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if ! printf '%s' "$PAISES" | grep -Eq '^[A-Z]{3}(,[A-Z]{3})*$'; then echo "Lista inválida: use ISO alfa-3 separados por vírgula"; exit 1; fi
+          echo "arg=--only=$PAISES" >> "$GITHUB_OUTPUT"
       - name: Importar Banco Mundial
         if: inputs.source == 'todas' || inputs.source == 'banco-mundial'
-        run: npm run data:import:wb
+        run: npm run data:import:wb -- ${{ steps.only.outputs.arg }}
       - name: Importar FMI
         if: inputs.source == 'todas' || inputs.source == 'fmi'
-        run: npm run data:import:imf
+        run: npm run data:import:imf -- ${{ steps.only.outputs.arg }}
       - name: Commit dos dados atualizados
         run: |
           if git diff --quiet; then
@@ -37,5 +50,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add shared/data/reference/
-          git commit -m "Atualiza dados de referência (${{ inputs.source }})"
+          git commit -m "Atualiza dados de referência (${{ inputs.source }}) ${{ steps.only.outputs.arg }}"
           git push

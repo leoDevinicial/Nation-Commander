@@ -45,6 +45,12 @@ export const COUNTRY_GEO: readonly CountryGeo[] = [
   { id: 'TUR', region: 'middle_east', isoNumeric: '792', capital: { name: 'Ancara', lat: 39.93, lon: 32.86 } },
   { id: 'KOR', region: 'asia_pacific', isoNumeric: '410', capital: { name: 'Seul', lat: 37.57, lon: 126.98 } },
   { id: 'PRK', region: 'asia_pacific', isoNumeric: '408', capital: { name: 'Pyongyang', lat: 39.04, lon: 125.76 } },
+  { id: 'NGA', region: 'africa', isoNumeric: '566', capital: { name: 'Abuja', lat: 9.08, lon: 7.4 } },
+  { id: 'IDN', region: 'asia_pacific', isoNumeric: '360', capital: { name: 'Jacarta', lat: -6.21, lon: 106.85 } },
+  { id: 'IRN', region: 'middle_east', isoNumeric: '364', capital: { name: 'Teerã', lat: 35.69, lon: 51.39 } },
+  { id: 'POL', region: 'europe', isoNumeric: '616', capital: { name: 'Varsóvia', lat: 52.23, lon: 21.01 } },
+  { id: 'COL', region: 'americas', isoNumeric: '170', capital: { name: 'Bogotá', lat: 4.71, lon: -74.07 } },
+  { id: 'PAK', region: 'asia_pacific', isoNumeric: '586', capital: { name: 'Islamabad', lat: 33.69, lon: 73.05 } },
 ];
 
 export function geoOf(id: string): CountryGeo | undefined {

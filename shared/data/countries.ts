@@ -30,6 +30,13 @@ export const COUNTRIES: readonly CountryProfile[] = [
   { id: 'TUR', name: 'Turquia' },
   { id: 'KOR', name: 'Coreia do Sul' },
   { id: 'PRK', name: 'Coreia do Norte' },
+  // lote 3 (Fase 10): diversidade geográfica, econômica e militar
+  { id: 'NGA', name: 'Nigéria' },
+  { id: 'IDN', name: 'Indonésia' },
+  { id: 'IRN', name: 'Irã' },
+  { id: 'POL', name: 'Polônia' },
+  { id: 'COL', name: 'Colômbia' },
+  { id: 'PAK', name: 'Paquistão' },
 ];
 
 export const DEFAULT_COUNTRY = 'BRA';

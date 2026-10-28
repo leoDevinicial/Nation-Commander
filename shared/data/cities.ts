@@ -25,6 +25,12 @@ export const CITY_NAMES: Record<string, readonly string[]> = {
   TUR: ['Istambul', 'Esmirna', 'Bursa', 'Antália', 'Adana', 'Konya', 'Gaziantep', 'Diyarbakır', 'Kayseri', 'Mersin', 'Eskişehir', 'Samsun', 'Trabzon', 'Erzurum', 'Malatya', 'Van'],
   KOR: ['Busan', 'Incheon', 'Daegu', 'Daejeon', 'Gwangju', 'Suwon', 'Ulsan', 'Changwon', 'Goyang', 'Seongnam', 'Cheongju', 'Jeonju', 'Pohang', 'Jeju', 'Gangneung', 'Chuncheon'],
   PRK: ['Hamhung', 'Chongjin', 'Nampo', 'Wonsan', 'Sinuiju', 'Tanchon', 'Kaechon', 'Kaesong', 'Sariwon', 'Hyesan', 'Kanggye', 'Haeju', 'Anju', 'Rason', 'Kimchaek', 'Songnim'],
+  NGA: ['Lagos', 'Kano', 'Ibadan', 'Port Harcourt', 'Benin City', 'Kaduna', 'Maiduguri', 'Zaria', 'Aba', 'Jos', 'Ilorin', 'Onitsha', 'Enugu', 'Abeokuta', 'Sokoto', 'Calabar'],
+  IDN: ['Surabaia', 'Bandung', 'Medan', 'Bekasi', 'Semarang', 'Palembang', 'Macassar', 'Tangerang', 'Depok', 'Batam', 'Pekanbaru', 'Malang', 'Bandar Lampung', 'Padang', 'Denpasar', 'Samarinda'],
+  IRN: ['Mashhad', 'Isfahan', 'Karaj', 'Shiraz', 'Tabriz', 'Qom', 'Ahvaz', 'Kermanshah', 'Urmia', 'Rasht', 'Zahedan', 'Hamadan', 'Kerman', 'Yazd', 'Ardabil', 'Bandar Abbas'],
+  POL: ['Cracóvia', 'Łódź', 'Breslávia', 'Poznań', 'Gdańsk', 'Szczecin', 'Bydgoszcz', 'Lublin', 'Białystok', 'Katowice', 'Gdynia', 'Częstochowa', 'Radom', 'Toruń', 'Kielce', 'Rzeszów'],
+  COL: ['Medellín', 'Cali', 'Barranquilla', 'Cartagena', 'Cúcuta', 'Bucaramanga', 'Soacha', 'Ibagué', 'Soledad', 'Santa Marta', 'Villavicencio', 'Pereira', 'Valledupar', 'Montería', 'Manizales', 'Pasto'],
+  PAK: ['Karachi', 'Lahore', 'Faisalabad', 'Rawalpindi', 'Gujranwala', 'Peshawar', 'Multan', 'Hyderabad', 'Quetta', 'Sargodha', 'Sialkot', 'Bahawalpur', 'Sukkur', 'Larkana', 'Abbottabad', 'Gwadar'],
 };
 
 /**

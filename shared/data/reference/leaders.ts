@@ -90,4 +90,22 @@ export const LEADERS: Record<string, LeaderRecord> = {
     headOfState: { title: 'Presidente dos Assuntos de Estado', name: 'Kim Jong Un' },
     headOfGovernment: { title: 'Primeiro-ministro', name: 'Pak Thae-song' },
   },
+  NGA: { system: 'República presidencialista federal', headOfState: { title: 'Presidente', name: 'Bola Ahmed Tinubu' }, headOfGovernment: null },
+  IDN: { system: 'República presidencialista', headOfState: { title: 'Presidente', name: 'Prabowo Subianto' }, headOfGovernment: null },
+  IRN: {
+    system: 'República islâmica',
+    headOfState: { title: 'Líder Supremo', name: 'Ali Khamenei' },
+    headOfGovernment: { title: 'Presidente', name: 'Masoud Pezeshkian' },
+  },
+  POL: {
+    system: 'República parlamentarista',
+    headOfState: { title: 'Presidente', name: 'Karol Nawrocki' },
+    headOfGovernment: { title: 'Primeiro-ministro', name: 'Donald Tusk' },
+  },
+  COL: { system: 'República presidencialista', headOfState: { title: 'Presidente', name: 'Gustavo Petro' }, headOfGovernment: null },
+  PAK: {
+    system: 'República parlamentarista federal',
+    headOfState: { title: 'Presidente', name: 'Asif Ali Zardari' },
+    headOfGovernment: { title: 'Primeiro-ministro', name: 'Shehbaz Sharif' },
+  },
 };

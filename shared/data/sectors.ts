@@ -156,6 +156,36 @@ export const SECTORS: readonly SectorDef[] = [
   S('PRK', 'pyongyang', 'Pyongyang e Planície Ocidental', 39, 125.75, 'cold', { river: true }, ['road', 'rail', 'industry', 'airfield'], 0.4),
   S('PRK', 'nampo', 'Nampo e Costa Oeste', 38.73, 125.4, 'cold', { coast: true }, ['road', 'port', 'industry'], 0.15),
   S('PRK', 'leste', 'Costa Leste (Hamhung e Wonsan)', 39.9, 127.5, 'cold', { coast: true, mountains: true }, ['road', 'rail', 'port'], 0.2),
+
+  S('NGA', 'lagos', 'Lagos e Sudoeste', 6.5, 3.4, 'tropical', { coast: true }, ['road', 'port', 'industry', 'airfield'], 0.35),
+  S('NGA', 'delta', 'Delta do Níger (Port Harcourt)', 4.8, 7, 'tropical', { coast: true, river: true }, ['road', 'port', 'oil'], 0.2),
+  S('NGA', 'norte', 'Norte (Kano e Kaduna)', 11.5, 8.5, 'arid', {}, ['road', 'rail', 'airfield'], 0.15),
+  S('NGA', 'centro', 'Centro (Abuja)', 9.1, 7.4, 'grassland', { river: true }, ['road', 'airfield'], 0.08),
+
+  S('IDN', 'java', 'Java Ocidental (Jacarta e Bandung)', -6.6, 107.2, 'tropical', { coast: true, mountains: true }, ['road', 'rail', 'port', 'industry', 'airfield'], 0.45),
+  S('IDN', 'java_leste', 'Java Oriental (Surabaia)', -7.3, 112.7, 'tropical', { coast: true }, ['road', 'rail', 'port', 'industry'], 0.15),
+  S('IDN', 'sumatra', 'Sumatra (Medan e Riau)', 1.5, 101, 'tropical', { coast: true, river: true }, ['road', 'port', 'oil'], 0.2),
+  S('IDN', 'kalimantan', 'Kalimantan Oriental', -0.5, 117, 'tropical', { coast: true, river: true }, ['road', 'port', 'oil'], 0.07),
+
+  S('IRN', 'teera', 'Teerã e Planalto Central', 35.7, 51.4, 'arid', { mountains: true }, ['road', 'rail', 'industry', 'airfield'], 0.4),
+  S('IRN', 'cuzistao', 'Cuzistão (campos de petróleo)', 31.3, 48.7, 'arid', { coast: true, river: true }, ['road', 'rail', 'port', 'oil'], 0.15),
+  S('IRN', 'isfahan', 'Isfahan e Centro', 32.65, 51.67, 'arid', { mountains: true }, ['road', 'rail', 'industry', 'airfield'], 0.12),
+  S('IRN', 'golfo', 'Bandar Abbas e Golfo', 27.2, 56.3, 'arid', { coast: true }, ['road', 'port', 'oil'], 0.08),
+
+  S('POL', 'mazovia', 'Varsóvia e Mazóvia', 52.2, 21, 'temperate', { river: true }, ['road', 'rail', 'industry', 'airfield'], 0.3),
+  S('POL', 'silesia', 'Silésia e Pequena Polônia (Katowice e Cracóvia)', 50.2, 19.4, 'temperate', { mountains: true }, ['road', 'rail', 'industry'], 0.2),
+  S('POL', 'pomerania', 'Pomerânia (Gdańsk)', 54.35, 18.6, 'temperate', { coast: true }, ['road', 'rail', 'port', 'industry'], 0.1),
+  S('POL', 'grande_polonia', 'Grande Polônia (Poznań)', 52.4, 16.9, 'grassland', {}, ['road', 'rail', 'industry'], 0.1),
+
+  S('COL', 'bogota', 'Bogotá e Cundinamarca', 4.7, -74.1, 'temperate', { mountains: true }, ['road', 'industry', 'airfield'], 0.32),
+  S('COL', 'antioquia', 'Antioquia (Medellín)', 6.25, -75.6, 'tropical', { mountains: true, river: true }, ['road', 'industry'], 0.15),
+  S('COL', 'caribe', 'Costa do Caribe (Barranquilla e Cartagena)', 10.7, -75, 'tropical', { coast: true, river: true }, ['road', 'port', 'industry'], 0.12),
+  S('COL', 'llanos', 'Llanos Orientais (Meta e Casanare)', 4.2, -72.5, 'grassland', { river: true }, ['road', 'oil'], 0.07),
+
+  S('PAK', 'punjab', 'Punjab (Lahore e Faisalabad)', 31.5, 73.5, 'grassland', { river: true }, ['road', 'rail', 'industry', 'airfield'], 0.45),
+  S('PAK', 'sindh', 'Karachi e Sindh', 24.9, 67.1, 'arid', { coast: true, river: true }, ['road', 'rail', 'port', 'industry'], 0.25),
+  S('PAK', 'norte', 'Islamabad e Norte', 33.7, 73.05, 'cold', { mountains: true }, ['road', 'airfield'], 0.08),
+  S('PAK', 'baluchistao', 'Baluchistão (Quetta e Gwadar)', 28, 65, 'arid', { coast: true, mountains: true }, ['road', 'port'], 0.03),
 ];
 
 export function sectorsOf(countryId: string): SectorDef[] {
