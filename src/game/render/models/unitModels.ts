@@ -1,4 +1,4 @@
-import type * as THREE from 'three';
+import * as THREE from 'three';
 import type { UnitType } from '../../../../shared/sim/config.ts';
 import { C, layers, PartBuilder, type ModelLayers } from './kit.ts';
 
@@ -167,9 +167,36 @@ type BuiltUnit = Omit<UnitModel, 'motion'>;
  * Boca do cano aberta: anel de aço na ponta e o furo escuro (a alma do cano) à mostra, no
  * referencial do cano (aponta para +x).
  */
-function bore(b: PartBuilder, x: number, r: number, ring = r * 1.25): void {
-  b.cyl(ring, ring, 0.05, C.metalDark, [x - 0.025, 0, 0], [0, 0, Math.PI / 2], 14);
-  b.cyl(r, r, 0.012, '#060606', [x + 0.002, 0, 0], [0, 0, Math.PI / 2], 14);
+/** Tubo aberto ao longo de x (de x0 a x1); `inside` vira as faces para dentro (parede interna). */
+function tube(b: PartBuilder, x0: number, x1: number, r: number, color: THREE.ColorRepresentation, inside = false, segments = 16): void {
+  let g: THREE.BufferGeometry = new THREE.CylinderGeometry(r, r, x1 - x0, segments, 1, true);
+  if (inside) {
+    // inverte a ordem dos vértices de cada triângulo e as normais: a parede passa a ser vista por dentro
+    g = g.toNonIndexed();
+    const pos = g.getAttribute('position') as THREE.BufferAttribute;
+    const nor = g.getAttribute('normal') as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i += 3)
+      for (const a of [pos, nor]) {
+        const t = [a.getX(i + 1), a.getY(i + 1), a.getZ(i + 1)];
+        a.setXYZ(i + 1, a.getX(i + 2), a.getY(i + 2), a.getZ(i + 2));
+        a.setXYZ(i + 2, t[0]!, t[1]!, t[2]!);
+      }
+    for (let i = 0; i < nor.count; i++) nor.setXYZ(i, -nor.getX(i), -nor.getY(i), -nor.getZ(i));
+  }
+  b.add(g, color, { pos: [(x0 + x1) / 2, 0, 0], rot: [0, 0, -Math.PI / 2] });
+}
+
+/**
+ * Boca aberta de verdade na ponta de um cano (eixo x): colar externo, face anelar (a espessura da
+ * parede do tubo), alma escura vista por dentro e o fundo preto recuado — de frente se vê o furo
+ * com profundidade, não um disco pintado. O colar ocupa de `x - len` a `x` (o cano termina em
+ * `x - len`).
+ */
+function openMuzzle(b: PartBuilder, x: number, len: number, rOut: number, rIn: number, color: THREE.ColorRepresentation, segments = 18): void {
+  tube(b, x - len, x, rOut, color, false, segments);
+  b.add(new THREE.RingGeometry(rIn, rOut, segments), color, { pos: [x, 0, 0], rot: [0, Math.PI / 2, 0] });
+  tube(b, x - len, x, rIn, '#1c1c1b', true, segments);
+  b.add(new THREE.CircleGeometry(rIn, segments), '#040404', { pos: [x - len + 0.002, 0, 0], rot: [0, Math.PI / 2, 0] });
 }
 
 const BUILDERS: Record<UnitType, () => BuiltUnit> = {
@@ -480,7 +507,8 @@ function t90(modern: boolean): BuiltUnit {
   gb.cyl(0.05, 0.066, gun, dark, [gun / 2, 0, 0], [0, 0, Math.PI / 2], 14);
   for (const x of [0.95, 1.35, 1.95, 2.25]) gb.cyl(0.07, 0.07, 0.04, green, [x * s - g0, 0, 0], [0, 0, Math.PI / 2], 12);
   gb.cyl(0.082, 0.082, 0.24, green, [1.62 * s - g0, 0, 0], [0, 0, Math.PI / 2], 14);
-  bore(gb, gun + 0.03, 0.036, 0.06);
+  // boca do canhão de alma lisa: parede grossa, furo largo e fundo escuro
+  openMuzzle(gb, gun + 0.16, 0.16, 0.066, 0.042, dark, 20);
   // Shtora: bloqueadores infravermelhos (caixa com lente vermelha) dos dois lados do canhão
   for (const z of [0.22, -0.22]) {
     t.box(0.14, 0.12, 0.15, dark, [0.5 * s, 0.36, z * s]);
@@ -517,8 +545,8 @@ function t90(modern: boolean): BuiltUnit {
     hull: hull.build(),
     turret: turret.build(),
     turretPivot: [-0.1 * s, 0.68, 0],
-    muzzle: [g0 + gun + 0.06, 0.18, 0],
-    guns: [{ layers: gunL.build(), pivot: [g0, 0.18, 0], elev: 0, muzzle: [gun + 0.06, 0, 0], recoil: 0.32 }],
+    muzzle: [g0 + gun + 0.18, 0.18, 0],
+    guns: [{ layers: gunL.build(), pivot: [g0, 0.18, 0], elev: 0, muzzle: [gun + 0.18, 0, 0], recoil: 0.32 }],
     shot: 'apfsds',
   };
 }
@@ -591,7 +619,7 @@ function buildApc(): BuiltUnit {
   // canhão automático (peça própria) com a boca aberta
   const gunL = layers();
   gunL.body.cyl(0.032, 0.04, 0.82, C.metalDark, [0.41, 0, 0], [0, 0, Math.PI / 2], 10);
-  bore(gunL.body, 0.84, 0.022, 0.042);
+  openMuzzle(gunL.body, 0.9, 0.08, 0.04, 0.022, C.metalDark);
   t.box(0.1, 0.1, 0.12, C.metalDark, [0.18, 0.31, 0.12]);
   t.cyl(0.01, 0.01, 0.6, C.metalDark, [-0.2, 0.5, -0.15], [0, 0, -0.2], 4);
   // lançadores de fumaça e caixa de munição do canhão
@@ -604,7 +632,7 @@ function buildApc(): BuiltUnit {
     turret: turret.build(),
     turretPivot: [0.1, 0.96, 0],
     muzzle: [1.11, 0.13, 0],
-    guns: [{ layers: gunL.build(), pivot: [0.26, 0.13, 0], elev: 0, muzzle: [0.85, 0, 0], recoil: 0.1 }],
+    guns: [{ layers: gunL.build(), pivot: [0.26, 0.13, 0], elev: 0, muzzle: [0.92, 0, 0], recoil: 0.1 }],
     shot: 'autocannon',
   };
 }
@@ -661,12 +689,31 @@ function buildArtillery(): BuiltUnit {
   // janelas laterais e a boca aberta
   const gunL = layers();
   const gb = gunL.body;
-  gb.cyl(0.072, 0.09, 2.2, C.oliveDark, [1.1, 0, 0], [0, 0, Math.PI / 2], 14);
-  gb.cyl(0.11, 0.11, 0.26, C.oliveDark, [1.3, 0, 0], [0, 0, Math.PI / 2], 12);
-  gb.cyl(0.085, 0.085, 0.3, C.metalDark, [2.32, 0, 0], [0, 0, Math.PI / 2], 14);
-  for (const x of [2.21, 2.43]) gb.cyl(0.13, 0.13, 0.05, C.metalDark, [x, 0, 0], [0, 0, Math.PI / 2], 14);
-  for (const z of [0.088, -0.088]) for (const x of [2.27, 2.37]) gb.box(0.06, 0.1, 0.012, '#0b0b0b', [x, 0, z]);
-  bore(gb, 2.47, 0.05, 0.075);
+  gb.cyl(0.072, 0.09, 2.1, C.oliveDark, [1.05, 0, 0], [0, 0, Math.PI / 2], 16);
+  // evacuador de gases (bojo no meio do tubo) com cintas
+  gb.cyl(0.1, 0.1, 0.34, C.oliveDark, [1.3, 0, 0], [0, 0, Math.PI / 2], 16);
+  for (const x of [1.14, 1.46]) gb.cyl(0.09, 0.1, 0.05, C.oliveDark, [x, 0, 0], [0, 0, Math.PI / 2], 16);
+  // freio de boca de dupla câmara (M109): dois blocos achatados nas laterais, com o vão aberto
+  // entre eles e a saída de gases para os lados; o projétil sai pelo furo central
+  const brake = C.oliveDark;
+  gb.cyl(0.074, 0.074, 0.1, brake, [2.14, 0, 0], [0, 0, Math.PI / 2], 16);
+  for (const [x0, x1] of [
+    [2.19, 2.28],
+    [2.37, 2.46],
+  ] as const) {
+    const xm = (x0 + x1) / 2;
+    // câmara: bloco achatado, mais largo que alto, com as quinas chanfradas
+    gb.box(x1 - x0, 0.12, 0.27, brake, [xm, 0, 0]);
+    gb.box(x1 - x0, 0.17, 0.2, brake, [xm, 0, 0]);
+    // aberturas laterais escuras (os gases saem para os lados)
+    for (const z of [0.136, -0.136]) gb.box(x1 - x0 - 0.025, 0.08, 0.006, '#0a0a0a', [xm, 0, z]);
+    // face da câmara com o furo de passagem do projétil
+    gb.add(new THREE.CircleGeometry(0.05, 18), '#050505', { pos: [x1 + 0.002, 0, 0], rot: [0, Math.PI / 2, 0] });
+  }
+  // vão aberto entre as câmaras: só o núcleo escuro e duas barras de ligação em cima e embaixo
+  gb.cyl(0.05, 0.05, 0.09, '#151515', [2.325, 0, 0], [0, 0, Math.PI / 2], 14);
+  for (const y of [0.075, -0.075]) gb.box(0.09, 0.02, 0.12, brake, [2.325, y, 0]);
+  openMuzzle(gb, 2.5, 0.04, 0.075, 0.05, brake, 18);
   // berço do cano (fica na torre, não recua)
   t.cyl(0.1, 0.1, 0.5, C.olive, at(0.25), [0, 0, -(Math.PI / 2 - elev)], 10);
   // telêmetro, escotilhas e metralhadora do teto
@@ -821,11 +868,19 @@ function buildMobileAa(): BuiltUnit {
     t.box(0.34, 0.3, 0.18, C.oliveDark, [0.15, 0.32, z]);
     // canhão de tiro rápido (peça própria): tubo, quebra-chamas com fendas e boca aberta
     const gl = layers();
-    gl.body.cyl(0.032, 0.045, 1.25, C.metalDark, [0.7, 0, 0], [0, 0, Math.PI / 2], 10);
-    gl.body.cyl(0.055, 0.055, 0.16, C.metalDark, [1.32, 0, 0], [0, 0, Math.PI / 2], 12);
-    for (const dz of [0.056, -0.056]) gl.body.box(0.1, 0.022, 0.01, '#0b0b0b', [1.32, 0, dz]);
-    bore(gl.body, 1.41, 0.024, 0.04);
-    guns.push({ layers: gl.build(), pivot: [0.15, 0.32, z], elev, muzzle: [1.42, 0, 0], recoil: 0.12 });
+    // cano fino e reto, com luva de reforço na raiz
+    gl.body.cyl(0.03, 0.03, 1.22, C.metalDark, [0.63, 0, 0], [0, 0, Math.PI / 2], 12);
+    gl.body.cyl(0.044, 0.044, 0.22, C.metalDark, [0.13, 0, 0], [0, 0, Math.PI / 2], 12);
+    // freio de boca em gaiola (Gepard): três anéis finos ligados por barras, com a alma escura
+    // aparecendo nas janelas largas entre eles, e a boca aberta na frente
+    gl.body.cyl(0.024, 0.024, 0.2, '#121212', [1.33, 0, 0], [0, 0, Math.PI / 2], 12);
+    for (const x of [1.245, 1.305, 1.365]) gl.body.cyl(0.054, 0.054, 0.02, C.metalDark, [x, 0, 0], [0, 0, Math.PI / 2], 18);
+    for (let k = 0; k < 4; k++) {
+      const a = Math.PI / 4 + (k * Math.PI) / 2;
+      gl.body.box(0.2, 0.014, 0.014, C.metalDark, [1.33, Math.sin(a) * 0.047, Math.cos(a) * 0.047], [a, 0, 0]);
+    }
+    openMuzzle(gl.body, 1.44, 0.05, 0.054, 0.026, C.metalDark, 18);
+    guns.push({ layers: gl.build(), pivot: [0.15, 0.32, z], elev, muzzle: [1.45, 0, 0], recoil: 0.12 });
   }
   // radar de busca (prato) atrás e radar de tiro na frente
   t.cyl(0.04, 0.04, 0.3, C.metalDark, [-0.3, 0.65, 0], undefined, 6);
@@ -838,7 +893,7 @@ function buildMobileAa(): BuiltUnit {
     hull: hull.build(),
     turret: turret.build(),
     turretPivot: [-0.1, 0.66, 0],
-    muzzle: [0.15 + Math.cos(elev) * 1.42, 0.32 + Math.sin(elev) * 1.42, 0.52],
+    muzzle: [0.15 + Math.cos(elev) * 1.45, 0.32 + Math.sin(elev) * 1.45, 0.52],
     guns,
     shot: 'flak',
   };
