@@ -1,4 +1,4 @@
-# Modern Geopolitical Real Strategy 3d Game
+# 3D Modern Geopolitical RTS
 
 RTS geopolítico 3D multijogador para navegador (repositório e nome de trabalho: *Nation Commander*).
 Implementa as **Fases 1, 2 e 3** da [especificação](PROJETO_RTS_GEOPOLITICO_CLAUDE.md) e, do

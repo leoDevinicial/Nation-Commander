@@ -96,7 +96,7 @@ export function IntroOverlay() {
           <span className="intro-shine pointer-events-none absolute inset-0" aria-hidden />
         </h1>
         <div className="intro-line mt-4 h-px w-[min(34rem,80vw)]" aria-hidden />
-        <div className="intro-sub mt-4 text-[10px] tracking-[0.45em] text-white/60 sm:text-xs">MODERN GEOPOLITICAL REAL STRATEGY</div>
+        <div className="intro-sub mt-4 text-[10px] tracking-[0.45em] text-white/60 sm:text-xs">3D MODERN GEOPOLITICAL RTS</div>
       </div>
 
       <div className="intro-status absolute bottom-[max(2rem,env(safe-area-inset-bottom))] left-1/2 w-[min(22rem,80vw)] -translate-x-1/2 text-center" aria-hidden>

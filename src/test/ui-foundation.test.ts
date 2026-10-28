@@ -15,7 +15,7 @@ const base: Settings = { quality: 'balanced', shadows: true, adaptiveQuality: tr
 
 describe('identidade', () => {
   it('título exato do jogo', () => {
-    expect(GAME_TITLE).toBe('Modern Geopolitical Real Strategy 3d Game');
+    expect(GAME_TITLE).toBe('3D Modern Geopolitical RTS');
   });
 });
 

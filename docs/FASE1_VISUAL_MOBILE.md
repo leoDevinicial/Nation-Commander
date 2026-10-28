@@ -4,7 +4,7 @@
 
 | Tema | Implementação | Arquivos |
 |---|---|---|
-| Título | "Modern Geopolitical Real Strategy 3d Game" no menu, no login e na aba do navegador (`GAME_TITLE`) | `shared/version.ts`, `index.html` |
+| Título | "3D Modern Geopolitical RTS" no menu, no login e na aba do navegador (`GAME_TITLE`) | `shared/version.ts`, `index.html` |
 | Globo do menu | Terra 3D com oceano, países, fronteiras e litoral em camadas separadas, halo atmosférico, nuvens (fora do preset baixo), estrelas e marcadores das capitais jogáveis. Gira continuamente (~80 s por volta; ~5 min com "reduzir movimento"). Carregado sob demanda. Sem WebGL, fica um fundo em CSS | `src/globe/`, `src/ui/components/GlobeBackdrop.tsx` |
 | Enquadramento | Tela larga: menu à esquerda e globo à direita. Retrato estreito: horizonte planetário embaixo. Outras telas: globo esmaecido e centralizado. É sempre o mesmo globo, que não é recriado ao trocar de tela | `globeFraming()` |
 | Tokens visuais | Superfícies, metal escovado, detalhe oxidado, acento latão, sinais, estados diplomáticos e militares (aliado, amistoso, neutro, hostil, guerra, sanção, desconhecido), raios, durações e alvo de toque | `src/index.css` |
@@ -93,7 +93,7 @@ Ao abrir o jogo, antes da tela de login/registro, toca uma abertura no estilo RT
 - fundo preto com grade tática que deriva devagar, radar com varredura dourada e cantoneiras de visor;
 - **NATIONS COMMANDER** em branco, fonte Michroma (OFL, embutida via `@fontsource/michroma`, sem depender de serviço
   externo), letra a letra: cada uma surge como um brilho difuso que se condensa em letra nítida;
-- uma linha dourada se abre sob o título, um reflexo de luz o atravessa e surge "Modern Geopolitical Real Strategy";
+- uma linha dourada se abre sob o título, um reflexo de luz o atravessa e surge "3D Modern Geopolitical RTS";
 - barra de inicialização com mensagens de status e coordenadas "varrendo" o globo;
 - fade de 0,8 s para a tela de login/registro, que entra por baixo com a própria animação — sem corte seco. Se a
   sessão já estava aberta, vai direto ao manual ou ao menu.
