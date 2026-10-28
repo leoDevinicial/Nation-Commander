@@ -10,6 +10,7 @@ import { barracksDetail, factoryDetail, houseDetail, oilTankDetail, siloDetail, 
 import { buildMineModel, buildQuarryModel, buildSawmillModel } from './industry.ts';
 import { buildMarketModel, buildPortModel, buildRailStationModel } from './logistics.ts';
 import { buildAaBatteryModel, buildAirbaseModel, buildMissileSiloModel, buildResearchCenterModel } from './military.ts';
+import { buildCityHallModel } from './civic.ts';
 
 /**
  * Modelos de edifícios centrados na origem (piso em y = 0). Concreto, vidros azulados e detalhes
@@ -182,6 +183,7 @@ const BUILDERS: Record<BuildingType, () => Omit<BuildingModel, 'detail'>> = {
   aa_battery: buildAaBatteryModel,
   missile_silo: buildMissileSiloModel,
   research_center: buildResearchCenterModel,
+  city_hall: buildCityHallModel,
 };
 
 /** Fileira de janelas numa fachada (normal ±x ou ±z). */

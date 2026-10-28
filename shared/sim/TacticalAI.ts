@@ -65,6 +65,7 @@ export interface TacticalAISave {
   wantsWarWith: Slot | null;
   armyPeak?: number;
   peakTick?: number;
+  citySite?: { tick: number; ok: boolean } | null;
 }
 
 export class TacticalAI {
@@ -90,6 +91,7 @@ export class TacticalAI {
       wantsWarWith: this.wantsWarWith,
       armyPeak: this.armyPeak,
       peakTick: this.peakTick,
+      citySite: this.citySite ? { ...this.citySite } : null,
     };
   }
 
@@ -98,6 +100,7 @@ export class TacticalAI {
     this.produced = s.produced;
     this.attacking = s.attacking;
     this.lastWaveTick = s.lastWaveTick ?? -Infinity;
+    this.citySite = s.citySite ? { ...s.citySite } : null;
     this.wantsWarWith = s.wantsWarWith;
     this.armyPeak = s.armyPeak ?? 0;
     this.peakTick = s.peakTick ?? 0;
@@ -147,9 +150,12 @@ export class TacticalAI {
     );
     // ameaça aérea (Fase 7): base aérea ou silo inimigo conhecido pede defesa antiaérea perto do QG
     const airThreat = sim.buildings.some((b) => b.owner !== this.slot && (b.type === 'airbase' || b.type === 'missile_silo') && sim.hostile(this.slot, b.owner) && sim.air.isKnown(this.slot, b.id));
+    // cidades: duas prefeituras na fronteira depois da economia básica (economiza pedra para elas)
+    const cityWanted = count('city_hall') < 2 && done('factory') && done('tower') && this.citySiteExists(sim, hq);
     const plan: [BuildingType, boolean][] = [
       ['house', pop.total >= pop.cap - 2 && pop.cap < POP_ABSOLUTE_CAP && !housingInProgress && count('house') + count('residential') < 14],
       ['oil_tank', wellsWithoutTank || (mine.some((b) => b.type === 'oil_well' && b.status === 'storage_full') && count('oil_tank') < 5)],
+      ['city_hall', cityWanted],
       ['farm', res.food < 30 && done('farm') && count('farm') < 5],
       ['warehouse', ((nearlyFull('wood') && done('sawmill')) || (nearlyFull('stone') && done('quarry')) || (nearlyFull('iron') && done('mine'))) && count('warehouse') < 4],
       ['silo', nearlyFull('food') && done('farm') && count('silo') < 4],
@@ -174,10 +180,16 @@ export class TacticalAI {
       ['barracks', count('barracks') < 2 && budget.food > 250],
       ['oil_well', count('oil_well') < 3 && army.length >= 10],
     ];
-    for (const [type, wanted] of plan) if (wanted && tryBuild(type)) break;
+    let built: BuildingType | null = null;
+    for (const [type, wanted] of plan)
+      if (wanted && tryBuild(type)) {
+        built = type;
+        break;
+      }
 
     // --- melhorias (Fase 4): uma obra por vez, só com folga de recursos e de manutenção
-    this.planUpgrade(sim, mine, budget, take, cmds);
+    // (guardando material enquanto junta para a próxima prefeitura)
+    if (!cityWanted || built === 'city_hall') this.planUpgrade(sim, mine, budget, take, cmds);
 
     // --- população: forma cidadãos para preencher postos e manter reserva para recrutamento
     const vacancies = mine.reduce((a, b) => a + (b.progress >= 1 ? Math.max(0, Math.min(b.workerTarget, sim.fx(b).workers) - b.workers) : 0), 0);
@@ -462,11 +474,22 @@ export class TacticalAI {
    * Busca uma posição válida. Edifícios de coleta preferem o local que reivindica mais células de
    * recurso; os demais, posições próximas ao QG voltadas para o centro do mapa.
    */
-  private findBuildSpot(sim: Simulation, hq: Building, type: BuildingType): Cell | null {
+  private citySite: { tick: number; ok: boolean } | null = null;
+
+  /** Há lugar para uma prefeitura (mesmo sem material ainda)? Reavaliado a cada 30 s. */
+  private citySiteExists(sim: Simulation, hq: Building): boolean {
+    if (this.citySite && sim.tick - this.citySite.tick < 30 * TICK_RATE) return this.citySite.ok;
+    const ok = this.findBuildSpot(sim, hq, 'city_hall', true) !== null;
+    this.citySite = { tick: sim.tick, ok };
+    return ok;
+  }
+
+  private findBuildSpot(sim: Simulation, hq: Building, type: BuildingType, ignoreCost = false): Cell | null {
     const mid = { x: (sim.map.width * sim.map.cellSize) / 2, y: (sim.map.height * sim.map.cellSize) / 2 };
     const gather = BUILDINGS[type].gather;
     const claimed = gather ? claimedBy(sim.buildings, type) : null;
-    const reach = gather ? 13 : 9;
+    // prefeituras ficam longe do QG (espaçamento mínimo entre cidades)
+    const reach = gather ? 13 : type === 'city_hall' ? 17 : 9;
     const candidates: { cell: Cell; score: number }[] = [];
     for (let dy = -reach; dy <= reach; dy++) {
       for (let dx = -reach; dx <= reach; dx++) {
@@ -481,7 +504,8 @@ export class TacticalAI {
     }
     candidates.sort((a, b) => a.score - b.score || a.cell.cy - b.cell.cy || a.cell.cx - b.cell.cx);
     for (const { cell } of candidates) {
-      if (sim.placementError(this.slot, type, cell) !== null) continue;
+      const err = sim.placementError(this.slot, type, cell);
+      if (err !== null && !(ignoreCost && err === 'Recursos insuficientes')) continue;
       // deixa um corredor livre de 1 célula ao redor para as unidades circularem
       if (!this.hasClearance(sim, cell, BUILDINGS[type].size)) continue;
       return cell;

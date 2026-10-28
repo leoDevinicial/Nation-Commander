@@ -269,6 +269,8 @@ export class Room {
     this.seed = this.deps.seed ?? (Math.random() * 0xffffffff) >>> 0;
     const map = generateMap(this.seed);
     this.sim = new Simulation({ map, playerCount: this.players.length });
+    // os nomes das cidades (prefeituras e capital) vêm do país de cada jogador
+    for (const p of this.players) this.sim.countries[p.slot] = p.countryId;
     this.ais = this.players.filter((p) => p.isAI).map((p) => new TacticalAI(p.slot));
     this.national = new NationalSimulation(
       this.players.map((p) => ({ slot: p.slot, countryId: p.countryId })),

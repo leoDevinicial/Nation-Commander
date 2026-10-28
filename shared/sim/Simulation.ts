@@ -1,6 +1,7 @@
 import { decodeNonFinite, encodeNonFinite } from './json.ts';
 import {
   BUILDINGS,
+  CITY,
   CHASE_REPATH_TICKS,
   MAX_REPLANS,
   STARTING_RESOURCES,
@@ -37,6 +38,8 @@ import { computeTerritory, NO_OWNER, type TerritorySource } from './territory.ts
 import type { Command, SandboxToggle } from './commands.ts';
 import { findPath } from './pathfinding/AStar.ts';
 import { placementError } from './placement.ts';
+import { nextCityName } from '../data/cities.ts';
+import { geoOf } from '../data/geography.ts';
 import { Grid } from './pathfinding/Grid.ts';
 import { checkProduce } from './production.ts';
 import { TradeSystem, type TradeLink, type TradeSave } from './trade.ts';
@@ -116,6 +119,7 @@ export interface SimulationSave {
   detached?: number[];
   /** Salvas de foguetes ainda em voo. */
   salvos?: SalvoInFlight[];
+  countries?: string[];
   battle?: boolean;
   sandbox?: SandboxState;
 }
@@ -239,6 +243,8 @@ export class Simulation {
   battle = false;
   /** Modo Sandbox (null numa partida normal). */
   sandbox: SandboxState | null = null;
+  /** País de cada jogador (código ISO-3), para os nomes das cidades; vazio nos testes. */
+  countries: string[] = [];
 
   /** Liga o comércio à diplomacia e ao tesouro nacionais. */
   setTradeLink(link: TradeLink | null): void {
@@ -331,6 +337,7 @@ export class Simulation {
       detached: [...this.detached],
       ...(this.salvos.length ? { salvos: this.salvos.map((v) => ({ ...v, at: { ...v.at } })) } : {}),
       ...(this.battle ? { battle: true } : {}),
+      ...(this.countries.length ? { countries: [...this.countries] } : {}),
       ...(this.sandbox ? { sandbox: { ...this.sandbox, slots: [...this.sandbox.slots] } } : {}),
     };
     return JSON.parse(JSON.stringify(data, encodeNonFinite), decodeNonFinite) as SimulationSave;
@@ -386,6 +393,7 @@ export class Simulation {
     sim.detached = [...(data.detached ?? [])];
     sim.salvos = (data.salvos ?? []).map((v) => ({ ...v, at: { ...v.at } }));
     sim.battle = !!data.battle;
+    sim.countries = [...(data.countries ?? [])];
     sim.sandbox = data.sandbox ? { ...data.sandbox, slots: [...data.sandbox.slots] } : null;
     return sim;
   }
@@ -816,6 +824,7 @@ export class Simulation {
         const def = BUILDINGS[cmd.buildingType];
         this.spend(player, def.cost);
         const b = this.addBuilding(cmd.buildingType, slot, cell, 0);
+        if (b.type === 'city_hall') b.city = this.nextCity(slot);
         this.emit({ type: 'construction_started', tick: this.tick, id: b.id, owner: slot, buildingType: b.type, pos: { ...b.pos } });
         return null;
       }
@@ -2422,6 +2431,11 @@ export class Simulation {
       e.hp = e.maxHp;
       return;
     }
+    // prefeitura pronta destruída por um inimigo: a cidade muda de dono em vez de sumir
+    if (e.kind === 'building' && e.type === 'city_hall' && e.progress >= 1 && killerOwner !== null && killerOwner !== e.owner && this.players[killerOwner] && !this.players[killerOwner]!.defeated) {
+      this.captureCity(e, killerOwner);
+      return;
+    }
     const victim = this.players[e.owner]!;
     const killer = killerOwner !== null ? this.players[killerOwner] : undefined;
     if (e.kind === 'unit') {
@@ -2441,6 +2455,65 @@ export class Simulation {
       pos: { ...e.pos },
       killerOwner,
     });
+  }
+
+  // ---------------------------------------------------------------- cidades
+
+  /** Nome de cidade de um edifício: o da prefeitura, ou a capital do país para o QG. */
+  cityName(b: Building): string | undefined {
+    if (b.city) return b.city;
+    if (b.type === 'hq') return geoOf(this.countries[b.owner] ?? '')?.capital.name;
+    return undefined;
+  }
+
+  /** Próximo nome real de cidade do país do jogador (sem repetir nomes já usados na partida). */
+  private nextCity(slot: Slot): string {
+    const used = new Set<string>();
+    for (const b of this.buildings) {
+      const n = this.cityName(b);
+      if (n) used.add(n);
+    }
+    return nextCityName(this.countries[slot], used);
+  }
+
+  /**
+   * Captura (estilo Rise of Nations): a prefeitura destruída passa ao inimigo com pouca vida, e com
+   * ela os edifícios do antigo dono no raio da cidade (exceto o QG). Filas, obras de melhoria e
+   * pesquisas param; os trabalhadores voltam para casa; os aviões do antigo dono no hangar se
+   * perdem e lançamentos de mísseis em preparação são abortados.
+   */
+  private captureCity(hall: Building, captor: Slot): void {
+    const victim = hall.owner;
+    const radius = CITY.radiusCells * this.grid.cellSize;
+    const taken = this.buildings.filter((b) => b === hall || (b.owner === victim && b.type !== 'hq' && b.hp > 0 && Math.hypot(b.pos.x - hall.pos.x, b.pos.y - hall.pos.y) <= radius));
+    this.players[victim]!.stats.structuresLost += taken.length;
+    this.players[captor]!.stats.structuresDestroyed += taken.length;
+    for (const b of taken) {
+      const def = BUILDINGS[b.type];
+      // petróleo guardado num tanque capturado muda de dono junto
+      if (b.type === 'oil_tank' && b.stored > 0) {
+        this.players[victim]!.resources.oil -= b.stored;
+        this.players[captor]!.resources.oil += b.stored;
+      }
+      b.owner = captor;
+      b.queue = [];
+      b.upgrade = null;
+      b.research = null;
+      b.rally = null;
+      b.engageId = null;
+      b.cooldown = 0;
+      b.workers = 0;
+      b.workerTarget = def.workers;
+      b.unpaid = false;
+      b.status = 'ok';
+      for (const u of this.units) if (u.owner === victim && u.refit?.facilityId === b.id) this.cancelRefit(u, 'facility_lost');
+      this.air.onCaptured(b, victim);
+      if (def.territoryRadius > 0 && b.progress >= 1) this.territoryDirty = true;
+    }
+    hall.hp = Math.max(1, Math.round(hall.maxHp * CITY.captureHpFrac));
+    // o antigo dono perde a capacidade de armazenamento da cidade (o excedente se perde)
+    this.clampToCapacity(victim, 'destroyed');
+    this.emit({ type: 'city_captured', tick: this.tick, owner: captor, victim, id: hall.id, city: hall.city ?? BUILDINGS.city_hall.label, buildings: taken.length - 1, pos: { ...hall.pos } });
   }
 
   private removeDead(): void {

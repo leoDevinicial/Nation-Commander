@@ -113,6 +113,10 @@ export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone
       return e.owner === mySlot ? { text: e.phase === 'launched' ? e.text : `Missão aérea: ${e.text}`, tone: e.phase === 'launched' ? 'info' : 'good' } : null;
     case 'aircraft_lost':
       return e.owner === mySlot ? { text: `Aeronave perdida: ${AIRCRAFT[e.aircraftType as AircraftType]?.label ?? e.aircraftType}`, tone: 'bad' } : null;
+    case 'city_captured':
+      if (e.owner === mySlot) return { text: `Cidade conquistada: ${e.city}${e.buildings ? ` e mais ${e.buildings} edifício(s)` : ''} agora são nossos`, tone: 'good' };
+      if (e.victim === mySlot) return { text: `Cidade perdida: ${e.city} foi tomada pelo inimigo${e.buildings ? ` com mais ${e.buildings} edifício(s)` : ''}`, tone: 'bad' };
+      return null;
     case 'dogfight':
       if (!e.kill) return null;
       if (e.owner === mySlot) return { text: 'Combate aéreo: aeronave inimiga abatida', tone: 'good' };

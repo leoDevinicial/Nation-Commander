@@ -133,6 +133,8 @@ export interface Building {
   upgrade: UpgradeWork | null;
   /** Pesquisa militar em andamento (Centro de Pesquisa). */
   research?: MilitaryResearchWork | null;
+  /** Nome da cidade (prefeituras): uma cidade real do país de quem a fundou. */
+  city?: string;
 }
 
 export interface MilitaryResearchWork {
@@ -252,5 +254,7 @@ export type SimEvent =
   | { type: 'air_strike'; tick: number; owner: Slot; victim: Slot; buildingType: BuildingType; damage: number; oilLost: number; destroyed: boolean; pos: Vec2; bombers?: number; dir?: number }
   /** Um disparo num combate aéreo entre esquadrilhas (`kill`: derrubou uma aeronave). */
   | { type: 'dogfight'; tick: number; owner: Slot; victim: Slot; missionId: number; targetMissionId: number; from: Vec2; to: Vec2; kill: boolean }
+  /** Prefeitura destruída por um inimigo: ele toma a cidade e os edifícios vinculados a ela. */
+  | { type: 'city_captured'; tick: number; owner: Slot; victim: Slot; id: EntityId; city: string; buildings: number; pos: Vec2 }
   | { type: 'missile'; tick: number; owner: Slot; launchId: number; state: string; text: string; from: Vec2; target: Vec2; targetOwner: Slot; gen?: number; damage?: number; destroyed?: number; casualties?: number }
   | { type: 'modernize_cancelled'; tick: number; id: EntityId; owner: Slot; unitType: UnitType; mod: ModId; reason: 'player' | 'facility_lost'; pos: Vec2 };

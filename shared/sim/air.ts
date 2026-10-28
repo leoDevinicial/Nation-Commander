@@ -719,7 +719,9 @@ export class AirSystem {
       if (m.state === 'outbound' && t >= m.legTicks) this.resolve(m);
       else if (m.state === 'returning' && t >= m.legTicks * 2) {
         m.state = 'done';
-        const base = this.building(m.baseId);
+        const home = this.building(m.baseId);
+        // base capturada pelo inimigo: não há onde pousar
+        const base = home && home.owner === m.owner ? home : null;
         for (const id of m.aircraft) {
           const a = this.aircraft.find((x) => x.id === id);
           if (!a) continue;
@@ -771,6 +773,26 @@ export class AirSystem {
       }
     }
     if (tick % (TICK_RATE * 30) === 0) this.launches = this.launches.filter((l) => !['impact', 'intercepted', 'aborted'].includes(l.state) || tick - (l.endTick ?? l.startTick) < TICK_RATE * 120);
+  }
+
+  /**
+   * Edifício capturado (prefeitura tomada): os aviões do antigo dono naquela base se perdem (os
+   * que estão em voo não têm onde pousar) e o lançamento em preparação no silo é abortado.
+   */
+  onCaptured(b: Building, prevOwner: Slot): void {
+    if (b.type === 'airbase')
+      for (const a of [...this.aircraft])
+        if (a.baseId === b.id && a.owner === prevOwner && a.state !== 'mission') {
+          this.aircraft = this.aircraft.filter((x) => x.id !== a.id);
+          this.sim.emitTrade({ type: 'aircraft_lost', tick: this.sim.tick, owner: a.owner, aircraftType: a.type, pos: { ...a.home } });
+        }
+    if (b.type === 'missile_silo')
+      for (const l of this.launches)
+        if (l.siloId === b.id && l.owner === prevOwner && (l.state === 'preparing' || l.state === 'armed' || l.state === 'launching')) {
+          l.state = 'aborted';
+          l.endTick = this.sim.tick;
+          this.missileEvent(l, 'Lançamento abortado: o silo foi capturado');
+        }
   }
 
   // -------------------------------------------------------------- combate aéreo

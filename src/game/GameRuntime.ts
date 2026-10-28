@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { GameSpeed, MatchStartInfo, ServerMessage } from '../../shared/protocol.ts';
 import type { Command, SandboxToggle } from '../../shared/sim/commands.ts';
-import { BUILDINGS, CITIZEN, MILITARY_RESEARCH, MILITARY_RESEARCH_IDS, RECRUIT, RESOURCE_TYPES, TICK_RATE, UNITS, emptyStockpile, type BuildingType, type MilitaryResearchId, type Terrain, type UnitType } from '../../shared/sim/config.ts';
+import { BUILDINGS, CITIZEN, CITY, MILITARY_RESEARCH, MILITARY_RESEARCH_IDS, RECRUIT, RESOURCE_TYPES, TICK_RATE, UNITS, emptyStockpile, type BuildingType, type MilitaryResearchId, type Terrain, type UnitType } from '../../shared/sim/config.ts';
 import { MOD_IDS, MODS, checkModernize, pickRefitFacility, type FacilityInfo, type ModId, type ModernizeCheck } from '../../shared/sim/modernization.ts';
 import { anchorForCursor, placementError } from '../../shared/sim/placement.ts';
 import type { BuildingSnapshot, Snapshot, UnitSnapshot } from '../../shared/sim/snapshot.ts';
@@ -504,6 +504,13 @@ export class GameRuntime {
     for (const b of s.buildings) {
       seenB.add(b.id);
       let t = this.buildings.get(b.id);
+      // cidade capturada: o edifício muda de dono (cores e anel de seleção são refeitos)
+      if (t && t.snap.owner !== b.owner) {
+        t.visual.dispose();
+        this.buildings.delete(b.id);
+        this.selection.delete(b.id);
+        t = undefined;
+      }
       if (!t) {
         const size = BUILDINGS[b.type].size;
         const center = new THREE.Vector2((b.cx + size / 2) * this.map.cellSize, (b.cy + size / 2) * this.map.cellSize);
@@ -526,6 +533,7 @@ export class GameRuntime {
         this.buildings.set(b.id, t);
       } else t.snap = b;
       t.visual.remembered = b.remembered === true;
+      t.visual.setCity(b.city);
       // o modelo acompanha o nível e a especialização registrados na simulação
       t.visual.setVariant(b.level, b.spec);
     }
@@ -652,6 +660,10 @@ export class GameRuntime {
         for (let i = 0; i < 3; i++) this.effects.explosion(new THREE.Vector3(e.pos.x + (Math.random() - 0.5) * 1.6, 0, e.pos.y + (Math.random() - 0.5) * 1.6), i === 0 && (e.destroyed || e.oilLost > 0));
     } else if (e.type === 'dogfight') {
       this.airLayer.dogfightShot(e);
+    } else if (e.type === 'city_captured') {
+      // a cidade troca de bandeira: clarão e onda na cor do novo dono
+      this.effects.flash(new THREE.Vector3(e.pos.x, 2, e.pos.y), 2.2, '#fff1c4', 0.5);
+      this.airLayer.shockwave(e.pos, CITY.radiusCells * this.map.cellSize);
     } else if (e.type === 'aircraft_lost') {
       // abatida em voo: explosão no ar (no combate aéreo, onde estava o avião; o destroço cai)
       const at = e.air ? this.airLayer.planeDown(e.pos, e.owner) : new THREE.Vector3(e.pos.x, 6.5, e.pos.y);
@@ -1640,6 +1652,10 @@ export class GameRuntime {
         break;
       case 'dogfight':
         audio.playAt('rifle', e.from.x, e.from.y);
+        break;
+      case 'city_captured':
+        if (mine(e.owner)) audio.ui('success');
+        else if (mine(e.victim)) audio.ui('alert');
         break;
       case 'aircraft_lost':
         audio.playAt('flak', e.pos.x, e.pos.y);

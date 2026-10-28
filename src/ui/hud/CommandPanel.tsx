@@ -51,6 +51,7 @@ const BUILD_OPTIONS: BuildingType[] = [
   'research_center',
   'tower',
   'residential',
+  'city_hall',
   'market',
   'rail_station',
   'port',

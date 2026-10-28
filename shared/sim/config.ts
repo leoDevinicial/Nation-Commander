@@ -172,7 +172,8 @@ export type BuildingType =
   | 'airbase'
   | 'aa_battery'
   | 'missile_silo'
-  | 'research_center';
+  | 'research_center'
+  | 'city_hall';
 
 /** O que uma fila de produção pode produzir. */
 export type ProducibleType = UnitType | 'citizen' | 'recruit';
@@ -507,6 +508,16 @@ export interface BuildingDef {
   requiresTech?: string;
 }
 
+/**
+ * Cidades (prefeituras, estilo Rise of Nations): distância mínima entre prefeituras e QGs, raio em
+ * que os edifícios ficam vinculados à cidade e vida com que a prefeitura capturada passa ao novo dono.
+ */
+export const CITY = {
+  spacingCells: 10,
+  radiusCells: 8,
+  captureHpFrac: 0.3,
+};
+
 /** Distância máxima (células, centro a centro) entre um poço e um tanque de petróleo válido. */
 export const OIL_TANK_RANGE = 9;
 
@@ -809,6 +820,24 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     description:
       'Laboratórios e campo de provas: pesquisa armamentos que liberam tropas novas (antitanque, antiaérea móvel, forças especiais, lança-foguetes, tanque moderno). A pesquisa anda com os 3 pesquisadores e acelera com o orçamento nacional de P&D. Melhorias liberam as pesquisas mais avançadas.',
     hotkey: 'T',
+  },
+  city_hall: {
+    ...NONE,
+    label: 'Prefeitura',
+    cost: { wood: 200, stone: 120, supplies: 150 },
+    buildSeconds: 35,
+    maxHp: 1200,
+    size: 2,
+    income: { supplies: 1 },
+    sight: 11,
+    territoryRadius: 10,
+    territoryWeight: 1.4,
+    housing: 10,
+    storage: { supplies: 200, food: 100, wood: 100, stone: 100 },
+    buildable: true,
+    description:
+      'Funda uma cidade com o nome de uma cidade real do seu país: amplia bastante a fronteira, abriga 10, guarda recursos e rende suprimentos. Fica a pelo menos 10 células de outra prefeitura ou do QG. Se um inimigo a destruir, ele toma a cidade e os edifícios dela num raio de 8 células.',
+    hotkey: 'G',
   },
   missile_silo: {
     ...NONE,

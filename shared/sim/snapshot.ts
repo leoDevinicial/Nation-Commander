@@ -59,6 +59,8 @@ export interface BuildingSnapshot {
   remembered?: boolean;
   /** Pesquisa militar em andamento (só edifícios próprios). */
   research?: { id: MilitaryResearchId; progress: number };
+  /** Nome da cidade (prefeituras; a capital no QG). */
+  city?: string;
 }
 
 export interface PlayerSnapshot {
@@ -205,6 +207,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         progress: r2(e.progress),
         level: e.level,
         spec: e.spec,
+        ...(sim.cityName(e) ? { city: sim.cityName(e) } : {}),
         ...(own && e.research ? { research: { id: e.research.id, progress: r2(1 - e.research.remaining / e.research.total) } } : {}),
         ...(e.upgrade ? { upgrade: own ? { toLevel: e.upgrade.toLevel, progress: r2(e.upgrade.builtTicks / e.upgrade.totalTicks), spec: e.upgrade.spec } : { visible: true as const } } : {}),
         // fila e ponto de reunião de edifícios inimigos não são observáveis
@@ -447,6 +450,8 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
     case 'aircraft_lost':
       return e.owner === slot || sim.isVisibleTo(slot, e.pos);
     case 'air_strike':
+      return e.owner === slot || e.victim === slot || sim.isVisibleTo(slot, e.pos);
+    case 'city_captured':
       return e.owner === slot || e.victim === slot || sim.isVisibleTo(slot, e.pos);
     case 'dogfight':
       return e.owner === slot || e.victim === slot || sim.isVisibleTo(slot, e.from) || sim.isVisibleTo(slot, e.to);

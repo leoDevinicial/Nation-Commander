@@ -305,6 +305,25 @@ export class BuildingVisual {
     this.ring.visible = v;
   }
 
+  private cityTag: THREE.Sprite | null = null;
+  private cityText: string | undefined;
+
+  /** Placa com o nome da cidade acima da prefeitura (e da capital, no QG). */
+  setCity(name: string | undefined): void {
+    if (name === this.cityText) return;
+    this.cityText = name;
+    if (this.cityTag) {
+      this.cityTag.material.map?.dispose();
+      this.cityTag.material.dispose();
+      this.cityTag.removeFromParent();
+      this.cityTag = null;
+    }
+    if (!name) return;
+    this.cityTag = nameTag(name, factionColor(this.owner), this.type === 'hq');
+    this.cityTag.position.y = this.height + 1.1;
+    this.group.add(this.cityTag);
+  }
+
   /** Ritmo das máquinas (0 parado, 1 normal) e o tempo de animação acumulado nesse ritmo. */
   private workRate = 1;
   // fase inicial própria: construções iguais não ficam em sincronia perfeita
@@ -360,6 +379,7 @@ export class BuildingVisual {
       const e = this.hatchK * this.hatchK * (3 - 2 * this.hatchK);
       for (const h of this.hatch) h.group.rotation.z = -h.side * 1.52 * e;
     }
+    if (this.cityTag) this.cityTag.position.y = this.height + 1.1;
     this.hp.set(hpFraction);
     this.hp.group.visible = showHp && !this.remembered;
     if (showHp) this.hp.face(camera);
@@ -415,6 +435,7 @@ export class BuildingVisual {
   }
 
   dispose(): void {
+    this.setCity(undefined);
     this.hp.dispose();
     this.smoke?.dispose();
     this.fields?.geometry.dispose();
@@ -422,6 +443,45 @@ export class BuildingVisual {
     this.rally.removeFromParent();
     this.group.removeFromParent();
   }
+}
+
+/**
+ * Placa de nome (sprite com textura de texto): faixa escura translúcida com o nome em branco e um
+ * filete na cor da nação; a capital ganha uma estrela. Tamanho fixo no mundo (some ao longe).
+ */
+function nameTag(text: string, color: THREE.ColorRepresentation, capital: boolean): THREE.Sprite {
+  const label = capital ? `★ ${text}` : text;
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const font = '600 44px system-ui, sans-serif';
+  let w = 300;
+  if (ctx) {
+    ctx.font = font;
+    w = Math.ceil(ctx.measureText(label).width) + 48;
+  }
+  canvas.width = w;
+  canvas.height = 76;
+  if (ctx) {
+    ctx.fillStyle = 'rgba(16, 20, 24, 0.62)';
+    ctx.beginPath();
+    ctx.roundRect(0, 0, w, 64, 14);
+    ctx.fill();
+    ctx.fillStyle = new THREE.Color(color).getStyle();
+    ctx.fillRect(14, 56, w - 28, 6);
+    ctx.font = font;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#f4f1e8';
+    ctx.fillText(label, w / 2, 31);
+  }
+  const map = new THREE.CanvasTexture(canvas);
+  map.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map, transparent: true, depthWrite: false, depthTest: false, fog: false }));
+  const h = 1.1;
+  sprite.scale.set((h * canvas.width) / canvas.height, h, 1);
+  sprite.renderOrder = 20;
+  sprite.name = 'city-tag';
+  return sprite;
 }
 
 /** Guindaste de obra (torre treliçada com lança giratória) para as melhorias. */

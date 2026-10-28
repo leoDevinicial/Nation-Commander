@@ -1,4 +1,4 @@
-import { BUILDINGS, canAfford, TERRAIN, UNITS, type BuildingType, type Stockpile, type Terrain, type UnitType } from './config.ts';
+import { BUILDINGS, canAfford, CITY, TERRAIN, UNITS, type BuildingType, type Stockpile, type Terrain, type UnitType } from './config.ts';
 import type { DepositIndex } from './deposits.ts';
 import { chooseClaims, claimedBy, sitesByDeposit } from './gathering.ts';
 import type { Cell, Slot } from './types.ts';
@@ -46,6 +46,16 @@ export function placementError(w: PlacementWorld, slot: Slot, type: BuildingType
   }
   if (foreign >= 0) return 'Território de outra nação: não é possível construir aqui';
   if (outside) return 'Fora do seu território: amplie a fronteira com casas, bases ou torres';
+  if (type === 'city_hall') {
+    // cidades espaçadas: a prefeitura precisa de distância de outra prefeitura e de qualquer QG
+    const c = { x: cell.cx + def.size / 2, y: cell.cy + def.size / 2 };
+    for (const b of buildings) {
+      if (b.type !== 'city_hall' && b.type !== 'hq') continue;
+      const s = BUILDINGS[b.type].size;
+      if (Math.hypot(b.cell.cx + s / 2 - c.x, b.cell.cy + s / 2 - c.y) < CITY.spacingCells)
+        return `Muito perto de ${b.type === 'hq' ? 'um Centro de Comando' : 'outra cidade'}: prefeituras ficam a pelo menos ${CITY.spacingCells} células de outra prefeitura ou do QG`;
+    }
+  }
   const cs = w.cellSize;
   const minX = cell.cx * cs;
   const minY = cell.cy * cs;
