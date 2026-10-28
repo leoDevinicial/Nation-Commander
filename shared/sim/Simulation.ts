@@ -168,6 +168,8 @@ export interface SalvoInFlight {
   impactTick: number;
   /** Dano base já com os pacotes de modernização do lançador. */
   base: number;
+  /** Posição do lançador no disparo (contra-bateria). */
+  from?: Vec2;
 }
 
 /** Preparo do lança-foguetes ao parar para atirar (estabilizar e erguer o casulo). */
@@ -1213,6 +1215,13 @@ export class Simulation {
     return false;
   }
 
+  /** Edifício atingido por quem o dono não vê: guarda a origem do tiro (contra-bateria da IA). */
+  private noteUnseenFire(target: Entity, attacker: Slot, from: Vec2): void {
+    if (target.kind !== 'building' || this.isVisibleTo(target.owner, from)) return;
+    const p = this.players[target.owner];
+    if (p && p.slot !== attacker) p.unseenFire = { tick: this.tick, x: from.x, y: from.y };
+  }
+
   /** Petróleo derramado de um tanque atingido: nunca mais do que havia nele. Retorna o perdido. */
   loseTankOil(t: Building, amount: number): number {
     const lost = Math.max(0, Math.min(t.stored, amount));
@@ -2016,6 +2025,7 @@ export class Simulation {
         if (this.distanceToEdge(v.at, e) > radius) continue;
         // o alvo marcado leva a salva inteira; quem estava em volta, a fração de área
         const dmg = v.base * targetMultiplier(w, e) * (e.id === v.targetId ? 1 : SPLASH_FRACTION);
+        if (v.from) this.noteUnseenFire(e, v.owner, v.from);
         this.players[v.owner]!.stats.damageDealt += Math.min(dmg, e.hp);
         e.hp -= dmg;
         if (this.tick - (this.lastAlertTick[e.owner] ?? -Infinity) >= UNDER_ATTACK_ALERT_TICKS) {
@@ -2034,7 +2044,7 @@ export class Simulation {
     if (attacker.kind === 'unit' && splash?.weapon.salvo) {
       attacker.cooldown = Math.round(cooldownSeconds * TICK_RATE);
       const flightTicks = salvoFlightTicks(dist(attacker.pos, target.pos));
-      this.salvos.push({ owner: attacker.owner, attackerId: attacker.id, unitType: attacker.type, targetId: target.id, at: { ...target.pos }, impactTick: this.tick + flightTicks, base: splash.base });
+      this.salvos.push({ owner: attacker.owner, attackerId: attacker.id, unitType: attacker.type, targetId: target.id, at: { ...target.pos }, impactTick: this.tick + flightTicks, base: splash.base, from: { ...attacker.pos } });
       this.emit({ type: 'shot', tick: this.tick, attackerId: attacker.id, targetId: target.id, from: { ...attacker.pos }, to: { ...target.pos }, damage: Math.round(damage), salvo: splash.weapon.salvo, flightTicks });
       return;
     }
@@ -2050,6 +2060,7 @@ export class Simulation {
       }
     }
     attacker.cooldown = Math.round(cooldownSeconds * TICK_RATE);
+    this.noteUnseenFire(target, attacker.owner, attacker.pos);
     const dealt = Math.min(damage, target.hp);
     target.hp -= damage;
     this.players[attacker.owner]!.stats.damageDealt += dealt;

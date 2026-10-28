@@ -17,9 +17,10 @@ Supabase para contas e histórico). O jogo é todo em português.
   adaptativa (`perf/`: KGPS e KAICS, ver `docs/KGPS_KAICS.md` e `docs/KAICS_ADAPTABLES_PLUS.md`).
 - `docs/` — uma página por fase ou sistema já feito; `docs/AUDITORIA_ADENDO.md` diz o estado de cada fase.
 
-## Próximas direções de design (propostas, nada implementado)
+## Próximas direções de design
 Documento completo: [`docs/BALANCEAMENTO_E_PROGRESSAO.md`](docs/BALANCEAMENTO_E_PROGRESSAO.md). Consultar antes de mexer
-em balanceamento, IA, progressão, mapas ou modos de partida. Resumo do que já foi decidido em conversa:
+em balanceamento, IA, progressão, mapas ou modos de partida. A seção "Estado da implementação" no fim dele diz o que
+já foi feito; atualizar a tabela a cada entrega. Resumo do que já foi decidido em conversa:
 
 - **Balanceamento rápido:** blindagem por classe (fuzil com `vsVehicle` baixo), Lança-Foguetes muito mais forte que
   hoje, contra-bateria e defesa proporcional da IA, níveis de dificuldade (Fácil / Normal / Difícil / Brutal),

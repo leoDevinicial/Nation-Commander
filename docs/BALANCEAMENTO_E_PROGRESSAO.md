@@ -7,7 +7,8 @@ Análise do estado do jogo e propostas de melhoria, em quatro lotes:
 3. **Estradas construídas pelo jogador e Engenheiro de Combate** (com minas terrestres).
 4. **Mapas maiores, partidas com mais jogadores e tipos de mapa.**
 
-Nada aqui está implementado: são propostas para discussão. Os números do diagnóstico saem das tabelas do código
+O que já foi implementado está na seção **Estado da implementação**, no fim do documento; o resto são propostas.
+Os números do diagnóstico saem das tabelas do código
 (`shared/sim/config.ts`, `shared/sim/TacticalAI.ts`, `shared/sim/Simulation.ts`, `shared/sim/upgrades.ts`,
 `shared/strategic/params.ts`) na data da análise; não vêm de partidas medidas.
 
@@ -423,3 +424,15 @@ A geografia real entra em escala menor: **a região inicial de cada nação** re
 Por exemplo, o Brasil começa com mais floresta e rios, a Arábia Saudita com mais petróleo e deserto, o Japão com mais
 costa e montanhas. O equilíbrio é mantido por compensações declaradas (quem tem menos de um recurso tem mais de outro),
 como na escolha entre os modos paridade e escala real.
+
+---
+
+# Estado da implementação
+
+| Item | Estado | Onde |
+|---|---|---|
+| Lote 1, §2.1 — blindagem por classe (fuzil ×0,35 em veículos; blindado dano 8 e ×0,6; tanque recarga 1,7 s) | Feito | `shared/sim/config.ts` |
+| Lote 1, §2.2 — Lança-Foguetes com 120 de dano por salva | Feito | `shared/sim/config.ts` |
+| Lote 1, §2.3 — contra-bateria da IA e torre com alcance 13 | Feito | `PlayerState.unseenFire`, `TacticalAI` |
+| Lote 1, §2.4 — defesa proporcional (≈1,5× a força vista) | Feito | `TacticalAI` |
+| Lote 1, §1.6 — texto do README sobre depósitos finitos | Feito | `README.md` |

@@ -61,6 +61,11 @@ uma classe de blindagem: infantaria ou veículo.
 
 A dica do botão de cada tropa lista as vantagens dela, por exemplo "×3 contra veículos".
 
+**Blindagem por classe** (balanceamento, ver `docs/BALANCEAMENTO_E_PROGRESSAO.md`): o fuzil da infantaria causa
+35% do dano em veículos, e a metralhadora do Veículo Blindado (dano 8) causa 60% em outros veículos. O Tanque
+recarrega em 1,7 s. Assim cada pesquisa de veículo é melhor que a anterior, e o blindado inicial volta a ser
+reconhecimento e apoio.
+
 ## Modernização sem travar a produção
 
 Antes, se faltasse ferro para o equipamento de linha (Fase 5), nenhuma tropa saía. Agora a tropa sai **básica**,
@@ -85,10 +90,10 @@ sem os pacotes, e o botão avisa "sai básica". Ela pode ser modernizada depois 
 
 O lança-foguetes funciona como um lançador múltiplo real (estilo Astros II), e não como um canhão.
 
-- **Salva:** cada disparo lança 12 foguetes, um a um, do casulo de tubos. O dano (40, ×1,6 contra construções)
+- **Salva:** cada disparo lança 12 foguetes, um a um, do casulo de tubos. O dano (120, ×1,6 contra construções)
   cai na **área do alvo no fim do voo**, entre 1 e 2 segundos depois, conforme a distância. Quem sai da área a
   tempo escapa; quem fica em volta leva 60%.
-- **Alcance:** 24, o maior entre as tropas, contra 9 a 10 das torres e do QG. Bate em construções de longe.
+- **Alcance:** 24, o maior entre as tropas, contra 13 da torre e 9 do QG. Bate em construções de longe.
 - **Alcance mínimo de 7:** alvos mais perto não podem ser atingidos. O lançador recua para a distância de
   tiro e, parado, prefere alvos fora dessa faixa.
 - **Distância das bases:** o lançador não avança até a beira das construções inimigas. Uma ordem de

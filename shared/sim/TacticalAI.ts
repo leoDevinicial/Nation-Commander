@@ -47,6 +47,19 @@ const AI_MAX_WAVE = 24;
 
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
 
+/** Força defensiva enviada contra a força inimiga vista perto da base. */
+export const AI_DEFENSE_RATIO = 1.5;
+/** Contra-bateria: tiro recente (até 10 s), no máximo um grupo a cada 20 s, de até 5 unidades. */
+export const AI_COUNTER_FRESH_TICKS = TICK_RATE * 10;
+export const AI_COUNTER_COOLDOWN_TICKS = TICK_RATE * 20;
+export const AI_COUNTER_GROUP = 5;
+
+/** Força aproximada de uma unidade: dano por segundo × vida (raiz, para ficar na escala do custo). */
+export function unitStrength(u: Unit): number {
+  const w = UNITS[u.type].weapon;
+  return Math.sqrt((w.damage / w.cooldown) * Math.max(1, u.hp));
+}
+
 /**
  * IA tática. Separa avaliação (o que fazer) da execução (comandos), e emite os mesmos
  * comandos que um jogador humano — sem recursos ocultos nem visão total: só reage a
@@ -66,6 +79,7 @@ export interface TacticalAISave {
   armyPeak?: number;
   peakTick?: number;
   citySite?: { tick: number; ok: boolean } | null;
+  lastCounterTick?: number | null;
 }
 
 export class TacticalAI {
@@ -76,6 +90,8 @@ export class TacticalAI {
   /** Maior exército desde a última onda e quando foi atingido (detecta produção estagnada). */
   private armyPeak = 0;
   private peakTick = 0;
+  /** Último grupo de contra-bateria enviado. */
+  private lastCounterTick = -Infinity;
   /** País contra o qual a IA quer declarar guerra (lido e processado pelo servidor). */
   wantsWarWith: Slot | null = null;
 
@@ -92,6 +108,7 @@ export class TacticalAI {
       armyPeak: this.armyPeak,
       peakTick: this.peakTick,
       citySite: this.citySite ? { ...this.citySite } : null,
+      lastCounterTick: Number.isFinite(this.lastCounterTick) ? this.lastCounterTick : null,
     };
   }
 
@@ -104,6 +121,7 @@ export class TacticalAI {
     this.wantsWarWith = s.wantsWarWith;
     this.armyPeak = s.armyPeak ?? 0;
     this.peakTick = s.peakTick ?? 0;
+    this.lastCounterTick = s.lastCounterTick ?? -Infinity;
   }
 
   think(sim: Simulation): Command[] {
@@ -258,16 +276,42 @@ export class TacticalAI {
       }
     }
 
-    // --- defesa: inimigos visíveis perto da base
+    // --- defesa: inimigos visíveis perto da base. Responde com cerca de 1,5× a força inimiga
+    // vista (as tropas mais próximas primeiro), em vez de puxar o exército inteiro para uma isca.
+    const committed = new Set<number>();
     const threat = this.nearestThreat(sim, mine);
     if (threat) {
-      const defenders = army.filter((u) => u.order.kind !== 'attack' && dist(u.pos, threat.pos) < 45);
+      const enemies = sim.units.filter((e) => sim.hostile(this.slot, e.owner) && dist(e.pos, threat.pos) < 14 && sim.canSee(this.slot, e));
+      const need = AI_DEFENSE_RATIO * enemies.reduce((a, e) => a + unitStrength(e), 0);
+      const pool = army.filter((u) => u.order.kind !== 'attack' && !u.refit && dist(u.pos, threat.pos) < 45).sort((a, b) => dist(a.pos, threat.pos) - dist(b.pos, threat.pos) || a.id - b.id);
+      let sent = 0;
+      const defenders: Unit[] = [];
+      for (const u of pool) {
+        if (sent >= need) break;
+        defenders.push(u);
+        sent += unitStrength(u);
+      }
       if (defenders.length > 0) {
         cmds.push({ type: 'attack_move', unitIds: defenders.map((u) => u.id), x: threat.pos.x, y: threat.pos.y });
+        for (const u of defenders) committed.add(u.id);
       }
-      return cmds;
     }
 
+    // --- contra-bateria: edifício atingido por quem não se vê (artilharia de longe). Um grupo
+    // rápido vai na direção de onde veio o tiro.
+    const hit = me.unseenFire;
+    if (hit && sim.tick - hit.tick <= AI_COUNTER_FRESH_TICKS && sim.tick - this.lastCounterTick >= AI_COUNTER_COOLDOWN_TICKS) {
+      const from = { x: hit.x, y: hit.y };
+      const raiders = army
+        .filter((u) => !committed.has(u.id) && u.order.kind !== 'attack' && !u.refit && UNITS[u.type].weapon.minRange === undefined && UNITS[u.type].weapon.range < 12)
+        .sort((a, b) => UNITS[b.type].speed - UNITS[a.type].speed || dist(a.pos, from) - dist(b.pos, from) || a.id - b.id)
+        .slice(0, AI_COUNTER_GROUP);
+      if (raiders.length > 0) {
+        cmds.push({ type: 'attack_move', unitIds: raiders.map((u) => u.id), x: from.x, y: from.y });
+        for (const u of raiders) committed.add(u.id);
+        this.lastCounterTick = sim.tick;
+      }
+    }
     // --- comércio (Fase 6): responde a ofertas de outros jogadores pela mesma regra de aceitação
     for (const o of sim.trade.offers) {
       if (o.status !== 'pending' || o.to !== this.slot || o.from >= 100) continue;
@@ -279,7 +323,7 @@ export class TacticalAI {
     if (!this.attacking) this.planModernize(sim, army, take, cmds);
 
     // --- ataque em ondas (unidades em modernização não contam: estão indisponíveis)
-    const idle = army.filter((u) => u.order.kind === 'idle' && u.engageId === null && !u.refit);
+    const idle = army.filter((u) => u.order.kind === 'idle' && u.engageId === null && !u.refit && !committed.has(u.id));
     const ready = sim.tick >= AI_FIRST_ATTACK_TICK && sim.tick - this.lastWaveTick >= AI_WAVE_COOLDOWN_TICKS;
     // exército parado de crescer (recursos esgotados ao alcance): ataca com o que tem
     if (army.length > this.armyPeak) {

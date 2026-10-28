@@ -155,7 +155,8 @@ Só se constrói dentro do próprio território, que cresce com o QG, torres, ba
 Cada edifício de coleta **reivindica** as células de recurso livres ao seu alcance (fazenda até 8
 de solo fértil, serraria até 10 árvores, pedreira até 8 rochas) e rende por célula — dois edifícios
 do mesmo tipo não dividem as mesmas células. Ao posicionar, o painel mostra quantas células livres
-estão ao alcance e a renda resultante. Recursos não se esgotam. Construções exigem estar perto das
+estão ao alcance e a renda resultante. Madeira, pedra, ferro e petróleo vêm de depósitos finitos (o solo fértil
+é renovável): um depósito esgotado pede outro edifício em outro lugar. Construções exigem estar perto das
 suas estruturas; poços podem ser erguidos em qualquer jazida livre.
 
 ### Névoa de guerra

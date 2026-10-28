@@ -195,6 +195,11 @@ export interface PlayerState {
   stats: PlayerStats;
   /** Pesquisas militares concluídas (liberam tropas). */
   militaryResearch?: MilitaryResearchId[];
+  /**
+   * Último disparo contra um edifício deste jogador vindo de um atacante que ele não via
+   * (artilharia de longe): de onde veio e quando. A IA usa para a contra-bateria.
+   */
+  unseenFire?: { tick: number; x: number; y: number } | null;
 }
 
 export interface MapData {
