@@ -114,6 +114,23 @@ function equipmentFit(type: UnitType): EquipmentFit {
   return f;
 }
 
+/** Divisas em V (uma por patente), douradas e sempre por cima, no estilo das barras de vida. */
+function rankChevrons(rank: number): THREE.Group {
+  const g = new THREE.Group();
+  const geo = sharedGeometry('rank-bar', () => new THREE.PlaneGeometry(0.3, 0.07));
+  const mat = sharedMaterial('rank-gold', () => new THREE.MeshBasicMaterial({ color: '#f0c24a', depthTest: false, transparent: true }));
+  for (let i = 0; i < rank; i++) {
+    for (const side of [-1, 1]) {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(side * 0.11, i * 0.13, 0);
+      m.rotation.z = side * -0.55;
+      m.renderOrder = 12;
+      g.add(m);
+    }
+  }
+  return g;
+}
+
 function layerMeshes(l: ModelLayers, owner: number): THREE.Mesh[] {
   const out: THREE.Mesh[] = [];
   for (const [geo, mat] of [
@@ -190,6 +207,29 @@ export class UnitVisual {
     if (fraction === null) return;
     this.reloadBar.set(fraction);
     this.reloadBar.face(camera);
+  }
+
+  /** Insígnia de patente (veterania): divisas douradas sobre a barra de vida. */
+  private rankBadge: THREE.Group | null = null;
+  private rankShown = 0;
+
+  setRank(rank: number, show: boolean, camera: THREE.Camera): void {
+    if (rank !== this.rankShown) {
+      this.rankShown = rank;
+      if (this.rankBadge) this.group.remove(this.rankBadge);
+      this.rankBadge = rank > 0 ? rankChevrons(rank) : null;
+      if (this.rankBadge) {
+        this.rankBadge.position.y = this.hp.group.position.y + 0.34;
+        this.group.add(this.rankBadge);
+      }
+    }
+    const badge = this.rankBadge;
+    if (!badge) return;
+    badge.visible = show && !this.death;
+    if (!badge.visible) return;
+    badge.quaternion.copy(camera.quaternion);
+    this.group.getWorldQuaternion(tmpQ);
+    badge.quaternion.premultiply(tmpQ.invert());
   }
 
   /** Casulo de foguetes articulado (lança-foguetes) e sua elevação atual. */

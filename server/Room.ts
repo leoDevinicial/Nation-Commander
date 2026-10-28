@@ -19,7 +19,8 @@ import { TICK_RATE } from '../shared/sim/config.ts';
 import { generateMap } from '../shared/sim/MapGen.ts';
 import { Simulation } from '../shared/sim/Simulation.ts';
 import { FogMemory, makeSnapshot } from '../shared/sim/snapshot.ts';
-import { AI_THINK_TICKS, TacticalAI, type TacticalAISave } from '../shared/sim/TacticalAI.ts';
+import { AI_THINK_TICKS, AI_HARASS_SECONDS, TacticalAI, type TacticalAISave } from '../shared/sim/TacticalAI.ts';
+import { DIFFICULTY, type Difficulty } from '../shared/sim/difficulty.ts';
 import type { BuildingSnapshot } from '../shared/sim/snapshot.ts';
 import type { EntityId, SimEvent, Slot } from '../shared/sim/types.ts';
 import { NationalAI } from '../shared/strategic/NationalAI.ts';
@@ -90,6 +91,7 @@ export class Room {
   hostUserId = '';
   readonly maxPlayers = 2;
   balanceMode: BalanceMode = 'parity';
+  difficulty: Difficulty = 'normal';
   national: NationalSimulation | null = null;
   private nationalAIs: NationalAI[] = [];
   private pendingNational: { slot: Slot; cmd: NationalCommand; conn: Connection | null }[] = [];
@@ -161,6 +163,7 @@ export class Room {
       players: this.players.map(publicPlayer),
       maxPlayers: this.maxPlayers,
       balanceMode: this.balanceMode,
+      ...(this.mode !== 'pvp' ? { difficulty: this.difficulty } : {}),
     };
   }
 
@@ -254,6 +257,13 @@ export class Room {
     this.broadcastRoom();
   }
 
+  setDifficulty(conn: Connection, difficulty: Difficulty): void {
+    if (this.status !== 'lobby' || conn.user?.id !== this.hostUserId || this.mode === 'pvp') return;
+    this.difficulty = difficulty;
+    this.system(`Dificuldade da IA: ${DIFFICULTY[difficulty].label} — ${DIFFICULTY[difficulty].description}`);
+    this.broadcastRoom();
+  }
+
   start(conn: Connection): string | null {
     if (this.status !== 'lobby') return 'A partida já começou';
     if (conn.user!.id !== this.hostUserId) return 'Apenas o anfitrião pode iniciar';
@@ -269,6 +279,7 @@ export class Room {
     this.seed = this.deps.seed ?? (Math.random() * 0xffffffff) >>> 0;
     const map = generateMap(this.seed);
     this.sim = new Simulation({ map, playerCount: this.players.length });
+    this.sim.difficulty = this.difficulty;
     // os nomes das cidades (prefeituras e capital) vêm do país de cada jogador
     for (const p of this.players) this.sim.countries[p.slot] = p.countryId;
     this.ais = this.players.filter((p) => p.isAI).map((p) => new TacticalAI(p.slot));
@@ -413,6 +424,7 @@ export class Room {
     for (const p of save.players) room.players.push({ ...p, ready: true, connected: p.isAI, conn: null, disconnectedAt: p.isAI ? null : now });
     room.players.sort((a, b) => a.slot - b.slot);
     room.sim = Simulation.deserialize(save.sim);
+    room.difficulty = room.sim.difficulty;
     room.national = new NationalSimulation(
       room.players.map((p) => ({ slot: p.slot, countryId: p.countryId })),
       save.seed,
@@ -462,6 +474,7 @@ export class Room {
       snapshotEvery: SNAPSHOT_EVERY,
       canControlSpeed: this.mode !== 'pvp',
       mode: this.mode,
+      difficulty: this.difficulty,
       balanceMode: this.balanceMode,
       scenarioStart: SCENARIO_START,
       ticksPerDay: TICKS_PER_DAY,
@@ -501,7 +514,13 @@ export class Room {
     // Sandbox: a IA inimiga só age quando o jogador liga (senão a base fica parada como alvo)
     if (sim.tick % AI_THINK_TICKS === 0 && (!sim.sandbox || sim.sandbox.aiActive)) {
       for (const ai of this.ais) {
-        for (const cmd of ai.think(sim)) sim.applyCommand(ai.slot, cmd);
+        const cmds = ai.think(sim);
+        // incidente de fronteira (assédio no preparo): abre antes das ordens, para as tropas entrarem
+        if (ai.wantsIncident) {
+          sim.startIncident(ai.slot, ai.wantsIncident.victim, AI_HARASS_SECONDS, ai.wantsIncident.pos);
+          ai.wantsIncident = null;
+        }
+        for (const cmd of cmds) sim.applyCommand(ai.slot, cmd);
         // a IA pede a guerra pelo mesmo caminho validado do jogador; se faltar algo, tenta depois
         if (ai.wantsWarWith !== null && this.national && !this.national.diplomaticAction(ai.slot, { type: 'declare_war', target: ai.wantsWarWith })) {
           ai.wantsWarWith = null;
@@ -675,6 +694,8 @@ export class Room {
         productionTimeMul: fx.productionTimeMul,
         externalIncome: n.theaterSupplyPerSec,
         territoryMul: fx.territoryMul,
+        // bônus declarado de coleta da IA (só no Brutal)
+        gatherMul: this.players.find((p) => p.slot === n.slot)?.isAI ? 1 + DIFFICULTY[this.difficulty].gatherBonus : 1,
       });
     }
   }

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { NationView } from '../../../shared/protocol.ts';
 import { interestRate, spendPct, type Budget } from '../../../shared/strategic/NationalSimulation.ts';
-import { COEF, LIMITS, WORKS_SHARE_OF_INFRA } from '../../../shared/strategic/params.ts';
+import { COEF, LIMITS, WORKS_SHARE_OF_INFRA, theaterSupply } from '../../../shared/strategic/params.ts';
 import { formatPct, formatSigned, formatUsd } from '../../lib/format.ts';
 
 const ROWS: { key: keyof Budget; label: string; limits: readonly [number, number]; hint: string }[] = [
@@ -26,7 +26,7 @@ export function BudgetTab({ nation, onApply, balanceMode }: { nation: NationView
     const spend = spendPct(draft);
     const balance = draft.taxPct - spend - interestPct;
     const gdpForTheater = balanceMode === 'parity' ? COEF.parityGdpUsd : nation.gdpUsd;
-    const supply = COEF.theaterSupplyK * Math.log10(1 + ((draft.defensePct / 100) * gdpForTheater) / 1e9);
+    const supply = theaterSupply(((draft.defensePct / 100) * gdpForTheater) / 1e9);
     const worksCap = (draft.infrastructurePct / 100) * gdpForTheater * WORKS_SHARE_OF_INFRA;
     return { interestPct, spend, balance, supplyBase: supply, worksCap };
   }, [draft, nation, balanceMode]);

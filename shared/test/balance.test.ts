@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { BUILDINGS, RECRUIT, TICK_RATE, UNITS, costTotal, type UnitType } from '../sim/config.ts';
+import { BUILDINGS, PREPARATION_TICKS, RECRUIT, TICK_RATE, UNITS, costTotal, type UnitType } from '../sim/config.ts';
+import { DIFFICULTIES, DIFFICULTY, prepTicks, type Difficulty } from '../sim/difficulty.ts';
 import { Simulation, targetMultiplier } from '../sim/Simulation.ts';
-import { AI_COUNTER_GROUP, TacticalAI } from '../sim/TacticalAI.ts';
+import { AI_COUNTER_GROUP, AI_HARASS_FIRST_TICK, TacticalAI } from '../sim/TacticalAI.ts';
+import { rankDamageMul, rankFor, rankHpMul } from '../sim/veterancy.ts';
+import { COEF, theaterSupply } from '../strategic/params.ts';
 import { flatMap } from './helpers.ts';
 
 /** Ajustes rápidos do lote 1 (docs/BALANCEAMENTO_E_PROGRESSAO.md, seção 2). */
@@ -96,5 +99,109 @@ describe('defesa proporcional', () => {
     if (cmd?.type !== 'attack_move') return;
     expect(cmd.unitIds.length).toBeGreaterThanOrEqual(2);
     expect(cmd.unitIds.length).toBeLessThanOrEqual(3);
+  });
+});
+
+describe('níveis de dificuldade', () => {
+  it('o preparo muda com a dificuldade (12 / 8 / 5 / 3 min) e é salvo na partida', () => {
+    expect(DIFFICULTIES.map((d) => prepTicks(d) / TICK_RATE / 60)).toEqual([12, 8, 5, 3]);
+    expect(prepTicks('normal')).toBe(PREPARATION_TICKS);
+    const sim = sim2();
+    sim.difficulty = 'brutal';
+    expect(Simulation.fromSave(sim.toSave()).difficulty).toBe('brutal');
+  });
+
+  it('no Difícil a primeira onda sai aos 5 min; no Fácil ainda não', () => {
+    const wave = (d: Difficulty) => {
+      const sim = sim2();
+      sim.difficulty = d;
+      const ai = new TacticalAI(1);
+      for (let i = 0; i < 30; i++) sim.addUnit('infantry', 1, { x: 50, y: 50 });
+      sim.tick = prepTicks('hard') + 1;
+      return ai.think(sim).some((c) => c.type === 'attack_move' && c.unitIds.length >= DIFFICULTY[d].firstWave);
+    };
+    expect(wave('hard')).toBe(true);
+    expect(wave('easy')).toBe(false);
+  });
+
+  it('Brutal: bônus de coleta declarado só para quem tem o modificador', () => {
+    const sim = sim2();
+    const farm = sim.addBuilding('farm', 1, { cx: 24, cy: 22 }, 1);
+    farm.workers = 3;
+    farm.claims = [22 * 32 + 22, 22 * 32 + 23, 23 * 32 + 22];
+    sim.territory.fill(1);
+    const base = sim.buildingRate(farm);
+    sim.setModifiers(1, { gatherMul: 1 + DIFFICULTY.brutal.gatherBonus });
+    expect(sim.buildingRate(farm)).toBeCloseTo(base * 1.15);
+  });
+});
+
+describe('incidentes de fronteira (assédio no preparo)', () => {
+  it('hostilidade só pelo prazo, sem guerra declarada; sobrevive a salvar e carregar', () => {
+    const sim = new Simulation({ map: flatMap(), playerCount: 2, startingUnits: [] });
+    expect(sim.hostile(0, 1)).toBe(false);
+    sim.startIncident(1, 0, 10, null);
+    expect(sim.hostile(0, 1)).toBe(true);
+    expect(sim.formalWar(0, 1)).toBe(false);
+    expect(sim.drainEvents().some((e) => e.type === 'border_incident' && e.aggressor === 1 && e.victim === 0)).toBe(true);
+    const copy = Simulation.fromSave(sim.toSave());
+    expect(copy.hostile(0, 1)).toBe(true);
+    for (let i = 0; i < 10 * TICK_RATE; i++) sim.step();
+    expect(sim.hostile(0, 1)).toBe(false);
+  });
+
+  it('a IA manda 2 a 3 tropas à borda do vizinho no preparo (Normal), nunca no Fácil', () => {
+    const harass = (d: Difficulty) => {
+      const sim = new Simulation({ map: flatMap(), playerCount: 2, startingUnits: [] });
+      sim.difficulty = d;
+      sim.step();
+      const ai = new TacticalAI(1);
+      const hq = sim.hqOf(1)!;
+      for (let i = 0; i < 6; i++) sim.addUnit('infantry', 1, { x: hq.pos.x - 6 + i, y: hq.pos.y - 6 });
+      sim.tick = AI_HARASS_FIRST_TICK;
+      const cmds = ai.think(sim);
+      return { ai, cmds };
+    };
+    const normal = harass('normal');
+    expect(normal.ai.wantsIncident?.victim).toBe(0);
+    const raid = normal.cmds.find((c) => c.type === 'attack_move');
+    expect(raid?.type === 'attack_move' && raid.unitIds.length).toBeGreaterThanOrEqual(2);
+    expect(raid?.type === 'attack_move' && raid.unitIds.length).toBeLessThanOrEqual(3);
+    expect(harass('easy').ai.wantsIncident).toBeNull();
+  });
+});
+
+describe('veterania', () => {
+  it('abates sobem a patente: mais vida e mais dano, com evento', () => {
+    const sim = sim2();
+    const vet = sim.addUnit('tank', 0, { x: 30, y: 30 });
+    const hp0 = vet.maxHp;
+    for (let k = 0; k < 2; k++) {
+      const victim = sim.addUnit('infantry', 1, { x: 36, y: 30 });
+      victim.hp = 1;
+      for (let i = 0; i < 4 * TICK_RATE && victim.hp > 0; i++) sim.step();
+      expect(victim.hp).toBeLessThanOrEqual(0);
+    }
+    expect(vet.kills).toBe(2);
+    expect(vet.rank).toBe(1);
+    expect(rankFor(10)).toBe(3);
+    expect(vet.maxHp).toBe(Math.round(hp0 * rankHpMul(1)));
+    expect(sim.drainEvents().some((e) => e.type === 'unit_promoted' && e.id === vet.id && e.rank === 1)).toBe(true);
+    // dano do próximo tiro com +10%
+    const target = sim.addUnit('apc', 1, { x: 36, y: 30 });
+    const before = target.hp;
+    for (let i = 0; i < 3 * TICK_RATE && target.hp === before; i++) sim.step();
+    expect(before - target.hp).toBeCloseTo(UNITS.tank.weapon.damage * rankDamageMul(1), 5);
+  });
+});
+
+describe('curva do orçamento de defesa', () => {
+  it('na paridade, de 1% para 10% do PIB a logística sobe mais de 2 suprimentos/s', () => {
+    const at = (pct: number) => theaterSupply(((pct / 100) * COEF.parityGdpUsd) / 1e9);
+    expect(at(10) - at(1)).toBeGreaterThan(2);
+    expect(at(2)).toBeGreaterThan(at(1));
+    // saturação suave: nunca passa do teto, mas continua subindo
+    expect(theaterSupply(5000)).toBeLessThan(COEF.theaterSupplyMax);
+    expect(theaterSupply(5000)).toBeGreaterThan(theaterSupply(1000));
   });
 });

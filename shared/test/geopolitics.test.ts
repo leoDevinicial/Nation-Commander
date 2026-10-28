@@ -212,7 +212,8 @@ describe('guerra no teatro tático', () => {
     sim.tick = AI_FIRST_ATTACK_TICK - 20;
     const cmds = ai.think(sim);
     expect(ai.wantsWarWith).toBeNull();
-    expect(cmds.some((c) => c.type === 'attack_move' || c.type === 'attack')).toBe(false);
+    // no máximo um incidente de fronteira (2 a 3 tropas), nunca uma ofensiva
+    expect(cmds.some((c) => c.type === 'attack' || (c.type === 'attack_move' && c.unitIds.length > 3))).toBe(false);
   });
 
   it('no preparo a IA mantém só uma guarnição e investe na economia', () => {

@@ -5,6 +5,7 @@ import type { DiplomaticAction } from './strategic/Diplomacy.ts';
 import type { PlayerStats, Slot } from './sim/types.ts';
 import type { Snapshot } from './sim/snapshot.ts';
 import type { OperationResult, OperationsView, SectorView } from './strategic/operations.ts';
+import type { Difficulty } from './sim/difficulty.ts';
 
 /** `sandbox`: modo livre contra uma IA (recursos ilimitados, tudo liberado, ferramentas de teste). */
 export type RoomMode = 'pvp' | 'vs_ai' | 'sandbox';
@@ -62,6 +63,8 @@ export interface RoomInfo {
   players: RoomPlayerInfo[];
   maxPlayers: number;
   balanceMode: BalanceMode;
+  /** Dificuldade da IA (contra a IA e no Sandbox). */
+  difficulty?: Difficulty;
 }
 
 export interface MatchStartInfo {
@@ -84,6 +87,8 @@ export interface MatchStartInfo {
   ticksPerDay: number;
   /** Modo da sala (o cliente esconde a economia e mostra as ferramentas no Sandbox). */
   mode?: RoomMode;
+  /** Dificuldade da IA (o cliente mostra o preparo certo). */
+  difficulty?: Difficulty;
 }
 
 export interface BattleInfo {
@@ -116,6 +121,7 @@ export type ClientMessage =
   | { t: 'cmd'; cmd: Command; scope?: 'battle' }
   | { t: 'national'; cmd: NationalCommand }
   | { t: 'set_balance'; mode: BalanceMode }
+  | { t: 'set_difficulty'; difficulty: Difficulty }
   | { t: 'pause'; paused: boolean }
   | { t: 'speed'; speed: GameSpeed }
   | { t: 'surrender' }

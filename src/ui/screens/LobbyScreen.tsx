@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { countryName } from '../../../shared/data/countries.ts';
+import { DIFFICULTIES, DIFFICULTY } from '../../../shared/sim/difficulty.ts';
 import { gameClient } from '../../net/client.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { factionColor } from '../../game/factions.ts';
@@ -95,6 +96,26 @@ export function LobbyScreen() {
             </div>
             {!isHost && <p className="mt-1 text-[11px] text-ink-400">Só o anfitrião escolhe a regra.</p>}
           </fieldset>
+          {room.mode !== 'pvp' && (
+            <fieldset className="mt-4 rounded border border-ink-700 p-3">
+              <legend className="label px-1">Dificuldade da IA</legend>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {DIFFICULTIES.map((d) => {
+                  const on = (room.difficulty ?? 'normal') === d;
+                  return (
+                    <label key={d} className={`flex cursor-pointer gap-2 rounded border p-2 text-xs ${on ? 'border-brass-400 bg-ink-850' : 'border-ink-700'} ${isHost ? '' : 'cursor-default opacity-80'}`}>
+                      <input type="radio" name="difficulty" className="mt-0.5 accent-[#e0b44c]" checked={on} disabled={!isHost} onChange={() => gameClient.send({ t: 'set_difficulty', difficulty: d })} />
+                      <span>
+                        <span className="block font-semibold text-ink-100">{DIFFICULTY[d].label}</span>
+                        <span className="text-ink-400">{DIFFICULTY[d].description}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="mt-1 text-[11px] text-ink-400">Em todos os níveis a IA joga com as mesmas regras e a mesma névoa de guerra que você; o bônus do Brutal é o único extra.</p>
+            </fieldset>
+          )}
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
             {room.players.map((p) => (
               <CountryCard key={p.slot} id={p.countryId} balanceMode={room.balanceMode} />

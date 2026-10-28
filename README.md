@@ -285,6 +285,11 @@ regras nem resultados da simulação.
 
 O QG não cai e nada conta no histórico. Detalhes em `docs/MODO_SANDBOX.md`.
 
+**Dificuldade e veterania:** contra a IA, o anfitrião escolhe Fácil, Normal, Difícil ou Brutal, que mudam o preparo
+(12 a 3 min), as ondas, o uso de aviões e mísseis e os incidentes de fronteira no preparo. Tropas que abatem
+inimigos sobem de patente (Veterano, Elite, Herói), com mais dano e vida e insígnia. Detalhes em
+`docs/DIFICULDADE_VETERANIA.md`.
+
 **Qualidade adaptativa (KGPS + KAICS)**, ligada por padrão: durante a partida, o KGPS mede o tempo de
 cada quadro. Se o jogo fica lento, alivia primeiro o que menos aparece (reflexos, efeitos de tela,
 sombras, resolução), um ajuste por vez, e desfaz o que não ajudou. Com folga, devolve a qualidade do

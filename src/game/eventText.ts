@@ -1,6 +1,6 @@
 import { MODS } from '../../shared/sim/modernization.ts';
 import { AIRCRAFT, type AircraftType } from '../../shared/sim/air.ts';
-import { BUILDINGS, MILITARY_RESEARCH, RESOURCE_LABELS, UNITS, type BuildingType, type UnitType } from '../../shared/sim/config.ts';
+import { BUILDINGS, MILITARY_RESEARCH, RESOURCE_LABELS, TICK_RATE, UNITS, type BuildingType, type UnitType } from '../../shared/sim/config.ts';
 import type { BuildingStatus } from '../../shared/sim/types.ts';
 
 const HALT_TEXT: Partial<Record<BuildingStatus, string>> = {
@@ -12,6 +12,7 @@ const HALT_TEXT: Partial<Record<BuildingStatus, string>> = {
 };
 import type { SimEvent } from '../../shared/sim/types.ts';
 import { specDef, type SpecId } from '../../shared/sim/upgrades.ts';
+import { RANK_DAMAGE, RANK_HP, RANKS } from '../../shared/sim/veterancy.ts';
 
 function specLabel(type: BuildingType, spec: SpecId): string {
   return specDef(type, spec)?.label ?? spec;
@@ -134,6 +135,14 @@ export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone
             ? { text: 'Míssil inimigo interceptado pela nossa antiaérea', tone: 'good' }
             : { text: 'Impacto de míssil inimigo no nosso território', tone: 'bad' };
       return null;
+    case 'unit_promoted':
+      return e.owner === mySlot ? { text: `${UNITS[e.unitType].label} promovido a ${RANKS[e.rank]?.label ?? 'veterano'}: +${Math.round(RANK_DAMAGE * e.rank * 100)}% de dano e +${Math.round(RANK_HP * e.rank * 100)}% de vida`, tone: 'good' } : null;
+    case 'border_incident': {
+      const secs = Math.round((e.untilTick - e.tick) / TICK_RATE);
+      if (e.victim === mySlot) return { text: `Incidente de fronteira: tropas inimigas atacam a nossa borda. Podemos revidar por ${secs} s, sem guerra declarada.`, tone: 'bad' };
+      if (e.aggressor === mySlot) return { text: `Incidente de fronteira provocado: troca de tiros por ${secs} s, sem guerra declarada.`, tone: 'warn' };
+      return null;
+    }
     case 'player_defeated':
       return { text: e.slot === mySlot ? 'Nosso QG caiu.' : 'Forças inimigas derrotadas!', tone: e.slot === mySlot ? 'bad' : 'good' };
     default:

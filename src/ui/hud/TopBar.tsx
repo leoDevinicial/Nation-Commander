@@ -1,5 +1,6 @@
 import { GAME_SPEEDS } from '../../../shared/protocol.ts';
-import { POP_ABSOLUTE_CAP, PREPARATION_TICKS, RESOURCE_LABELS, RESOURCE_TYPES, STORAGE_LABEL, TICK_RATE } from '../../../shared/sim/config.ts';
+import { DIFFICULTY, prepTicks } from '../../../shared/sim/difficulty.ts';
+import { POP_ABSOLUTE_CAP, RESOURCE_LABELS, RESOURCE_TYPES, STORAGE_LABEL, TICK_RATE } from '../../../shared/sim/config.ts';
 import { ResourceIcon } from '../components/Resources.tsx';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { factionColor } from '../../game/render/palette.ts';
@@ -25,6 +26,8 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
   const closeUp = useHudStore((s) => s.closeUp);
   const roster = useAppStore((s) => s.match?.players ?? []);
   const sandbox = useAppStore((s) => s.match?.mode === 'sandbox');
+  const difficulty = useAppStore((s) => s.match?.difficulty ?? 'normal');
+  const prep = prepTicks(difficulty);
   const connStatus = useAppStore((s) => s.connStatus);
   const connDetail = useAppStore((s) => s.connDetail);
   const me = players.find((p) => p.slot === mySlot);
@@ -92,11 +95,14 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
           </span>
           <span className="font-mono">{formatDuration(Math.floor(tick / TICK_RATE))}</span>
         </div>
-        {!sandbox && tick < PREPARATION_TICKS && (
-          <div className="flex shrink-0 items-center gap-1.5 text-emerald-300" title="Período de preparo: os governos de IA não declaram guerra nem atacam. Use para montar a economia e as defesas.">
+        {!sandbox && tick < prep && (
+          <div
+            className="flex shrink-0 items-center gap-1.5 text-emerald-300"
+            title={`Período de preparo (${DIFFICULTY[difficulty].label}): os governos de IA não declaram guerra nem lançam ofensivas.${DIFFICULTY[difficulty].harassment ? ' Podem provocar incidentes de fronteira com poucas tropas.' : ''} Use para montar a economia e as defesas.`}
+          >
             <span aria-hidden>🛡</span>
             <span className="hidden sm:inline">Preparo</span>
-            <span className="font-mono">{formatDuration(Math.ceil((PREPARATION_TICKS - tick) / TICK_RATE))}</span>
+            <span className="font-mono">{formatDuration(Math.ceil((prep - tick) / TICK_RATE))}</span>
           </div>
         )}
         {date && (

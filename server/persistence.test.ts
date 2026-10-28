@@ -271,6 +271,8 @@ describe('IA e progressão militar (partida real, com economia nacional)', () =>
     const a = fakeConn();
     await s.send(a.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-pesq' });
     await s.send(a.conn, { t: 'create_room', mode: 'vs_ai', countryId: 'BRA' });
+    // Fácil: 12 min de preparo, para a IA chegar à pesquisa antes de vencer um jogador parado
+    await s.send(a.conn, { t: 'set_difficulty', difficulty: 'easy' });
     await s.send(a.conn, { t: 'start' });
     const room = s.rooms.get(a.last('room')!.room!.code)!;
     const sim = room.sim!;

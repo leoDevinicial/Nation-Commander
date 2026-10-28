@@ -111,11 +111,23 @@ export const COEF = {
   /** Probabilidade diária máxima de protesto quando a aprovação chega a zero. */
   protestMaxDailyChance: 0.02,
   protestApprovalThreshold: 35,
-  /** Logística do teatro: suprimentos/s = k · log10(1 + gasto de defesa anual em US$ bi). */
-  theaterSupplyK: 1.2,
+  /**
+   * Logística do teatro: x = k · √(gasto de defesa anual em US$ bi), com saturação suave em
+   * `theaterSupplyMax` (suprimentos/s = máx · (1 − e^(−x/máx))). A raiz (no lugar do log₁₀) faz a
+   * decisão de orçamento aparecer no campo: na paridade, de 1% para 10% do PIB a logística vai de
+   * ~1,3 para ~3,6 suprimentos/s; na escala real, as maiores economias se aproximam do teto.
+   */
+  theaterSupplyK: 0.45,
+  theaterSupplyMax: 10,
   /** PIB usado no modo paridade (todos os países com a mesma escala econômica). */
   parityGdpUsd: 1e12,
 } as const;
+
+/** Suprimentos/s enviados ao teatro por um gasto de defesa anual (US$ bi), antes dos bônus. */
+export function theaterSupply(defenseBn: number): number {
+  const x = COEF.theaterSupplyK * Math.sqrt(Math.max(0, defenseBn));
+  return COEF.theaterSupplyMax * (1 - Math.exp(-x / COEF.theaterSupplyMax));
+}
 
 /**
  * Ritmo da pesquisa militar (Centro de Pesquisa) pelo orçamento nacional de P&D (% do PIB):

@@ -23,6 +23,10 @@ export interface UnitSnapshot {
   attrition?: true;
   /** Pacotes de modernização instalados (equipamento visível no próprio veículo/soldado). */
   mods?: ModId[];
+  /** Patente (veterania), visível como insígnia para todos; ausente = recruta. */
+  rank?: number;
+  /** Abates (só para o dono). */
+  kills?: number;
   /** Modernização em andamento (só para o dono). */
   refit?: { mod: ModId; progress: number; facility: EntityId };  /** Recarga da salva (lança-foguetes): 0 recém-disparado → 1 pronto; ausente quando pronto. */
   reload?: number;
@@ -191,6 +195,8 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         targetId: e.order.kind === 'attack' ? e.order.targetId : e.engageId,
         ...(e.attrition ? { attrition: true as const } : {}),
         ...(e.mods.length ? { mods: [...e.mods] } : {}),
+        ...(e.rank ? { rank: e.rank } : {}),
+        ...(e.kills && (!viewer || e.owner === viewer.slot) ? { kills: e.kills } : {}),
         ...(UNITS[e.type].weapon.salvo && e.cooldown > 0 ? { reload: r2(Math.max(0, 1 - e.cooldown / Math.max(1, UNITS[e.type].weapon.cooldown * combineMods(e.mods).cooldownMul * TICK_RATE))) } : {}),
         ...(e.refit && (!viewer || e.owner === viewer.slot) ? { refit: { mod: e.refit.mod, progress: r2(1 - e.refit.remainingTicks / e.refit.totalTicks), facility: e.refit.facilityId } } : {}),
       });
@@ -462,6 +468,10 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
         (e.targetOwner === slot && (e.state === 'flight' || e.state === 'impact' || e.state === 'intercepted')) ||
         ((e.state === 'impact' || e.state === 'intercepted') && sim.isVisibleTo(slot, e.target))
       );
+    case 'unit_promoted':
+      return e.owner === slot;
+    case 'border_incident':
+      return e.aggressor === slot || e.victim === slot;
     case 'player_defeated':
       return true;
   }

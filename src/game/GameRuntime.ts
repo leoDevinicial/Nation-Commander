@@ -857,6 +857,7 @@ export class GameRuntime {
       const animate = !far || ((this.frameNo + t.snap.id) & 1) === 0;
       v.update(dt, t.snap.activity === 'moving' || t.snap.activity === 'chasing', aim, frac, (selected || frac < 0.999) && !this.cameraCtl.closeUp, this.camera, t.snap.activity === 'attacking', animate);
       v.setReload(t.snap.reload !== undefined && !this.cameraCtl.closeUp ? t.snap.reload : null, this.camera);
+      v.setRank(t.snap.rank ?? 0, !this.cameraCtl.closeUp, this.camera);
     }
     for (const t of this.buildings.values()) {
       const frac = t.snap.hp / t.snap.maxHp;
@@ -1607,6 +1608,8 @@ export class GameRuntime {
             order: u.snap.order,
             mods: u.snap.mods ?? [],
             refit: u.snap.refit ? { mod: u.snap.refit.mod, progress: u.snap.refit.progress } : null,
+            rank: u.snap.rank ?? 0,
+            kills: u.snap.kills ?? 0,
           });
         else inspected = { kind: 'unit' as const, type: u.snap.type, owner: u.snap.owner, hp: u.snap.hp, maxHp: u.snap.maxHp, level: 1, spec: null };
         continue;
@@ -2230,6 +2233,12 @@ export class GameRuntime {
         break;
       case 'under_attack':
         if (mine(e.owner)) audio.ui('alert');
+        break;
+      case 'unit_promoted':
+        if (mine(e.owner)) audio.ui('success');
+        break;
+      case 'border_incident':
+        if (mine(e.victim)) audio.ui('alert');
         break;
       case 'construction_completed':
       case 'upgrade_completed':

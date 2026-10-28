@@ -1,3 +1,4 @@
+import { isDifficulty } from '../shared/sim/difficulty.ts';
 import { isCountryId } from '../shared/data/countries.ts';
 import { GAME_SPEEDS, MAX_CHAT_LENGTH, type ClientMessage, type GameSpeed } from '../shared/protocol.ts';
 import { parseCommand } from '../shared/sim/commands.ts';
@@ -72,6 +73,8 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     }
     case 'set_balance':
       return data.mode === 'parity' || data.mode === 'realistic' ? { t: 'set_balance', mode: data.mode } : null;
+    case 'set_difficulty':
+      return isDifficulty(data.difficulty) ? { t: 'set_difficulty', difficulty: data.difficulty } : null;
     case 'pause':
       return typeof data.paused === 'boolean' ? { t: 'pause', paused: data.paused } : null;
     case 'speed':

@@ -22,6 +22,9 @@ export interface SelectedUnitInfo {
   mods: ModId[];
   /** Modernização em andamento numa instalação. */
   refit: { mod: ModId; progress: number } | null;
+  /** Veterania: patente (0 = recruta) e abates. */
+  rank: number;
+  kills: number;
 }
 
 export interface SelectedBuildingInfo {

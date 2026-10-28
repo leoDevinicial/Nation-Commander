@@ -91,9 +91,9 @@ export function OverviewTab({ nation, history, day, balanceMode }: { nation: Nat
           orçamento de defesa ({formatPct(nation.budget.defensePct)} do PIB).
         </div>
         <div className="mt-1 text-[11px] text-ink-400">
-          Fórmula: {COEF.theaterSupplyK} × log₁₀(1 + gasto de defesa anual em US$ bi)
+          Fórmula: {COEF.theaterSupplyK} × √(gasto de defesa anual em US$ bi), com saturação suave em {COEF.theaterSupplyMax}/s
           {balanceMode === 'parity' ? ', calculado sobre um PIB de referência de US$ 1 tri (regra de paridade)' : ', calculado sobre o PIB real do país (regra realista)'}
-          , × bônus de pesquisa. Retornos decrescentes: dobrar a defesa não dobra os suprimentos.
+          , × bônus de pesquisa. Retornos decrescentes: quadruplicar a defesa dobra os suprimentos.
         </div>
       </div>
     </div>

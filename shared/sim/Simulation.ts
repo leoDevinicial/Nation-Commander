@@ -1,3 +1,5 @@
+import { prepTicks, type Difficulty } from './difficulty.ts';
+import { rankDamageMul, rankFor, rankHpMul } from './veterancy.ts';
 import { decodeNonFinite, encodeNonFinite } from './json.ts';
 import {
   BUILDINGS,
@@ -106,6 +108,8 @@ export interface SimulationSave {
   ended: boolean;
   wars: string[];
   alliances: string[];
+  incidents?: [string, number][];
+  difficulty?: Difficulty;
   /** Quantidade restante de cada depósito, na ordem determinística de `findDeposits`. */
   depositsRemaining: number[];
   territory: number[];
@@ -225,6 +229,10 @@ export class Simulation {
   ended = false;
   /** Pares em guerra formal ("a:b", a < b). Sem guerra não há disparo nem ordem de ataque. */
   private readonly wars = new Set<string>();
+  /** Incidentes de fronteira em curso ("a:b" → tick em que acabam). */
+  private readonly incidents = new Map<string, number>();
+  /** Dificuldade da IA (preparo, ondas, aviões e mísseis). */
+  difficulty: Difficulty = 'normal';
   /** Pares aliados: podem atravessar o território um do outro mesmo sem guerra. */
   private readonly alliances = new Set<string>();
   /** Depósitos naturais (quantidades finitas e limite de instalações). */
@@ -330,6 +338,8 @@ export class Simulation {
       ended: this.ended,
       wars: [...this.wars],
       alliances: [...this.alliances],
+      ...(this.incidents.size ? { incidents: [...this.incidents] } : {}),
+      ...(this.difficulty !== 'normal' ? { difficulty: this.difficulty } : {}),
       depositsRemaining: this.deposits.deposits.map((d) => d.remaining),
       territory: [...this.territory],
       territoryVersion: this.territoryVersion,
@@ -381,6 +391,8 @@ export class Simulation {
     for (const k of data.wars) sim.wars.add(k);
     sim.alliances.clear();
     for (const k of data.alliances) sim.alliances.add(k);
+    for (const [k, v] of data.incidents ?? []) sim.incidents.set(k, v);
+    sim.difficulty = data.difficulty ?? 'normal';
     data.depositsRemaining.forEach((v, i) => {
       const d = sim.deposits.deposits[i];
       if (d) d.remaining = v;
@@ -408,9 +420,42 @@ export class Simulation {
     else this.wars.delete(k);
   }
 
-  /** Só há hostilidade entre lados em guerra formal. */
+  /**
+   * Há hostilidade entre lados em guerra formal ou durante um incidente de fronteira (prazo curto,
+   * sem guerra declarada).
+   */
   hostile(a: Slot, b: Slot): boolean {
+    if (a === b) return false;
+    const k = a < b ? `${a}:${b}` : `${b}:${a}`;
+    return this.wars.has(k) || (this.incidents.get(k) ?? -1) > this.tick;
+  }
+
+  /** Guerra declarada (sem contar incidentes de fronteira). */
+  formalWar(a: Slot, b: Slot): boolean {
     return a !== b && this.wars.has(a < b ? `${a}:${b}` : `${b}:${a}`);
+  }
+
+  /** Incidente de fronteira em curso entre os dois (tick em que acaba), ou null. */
+  incidentUntil(a: Slot, b: Slot): number | null {
+    const until = this.incidents.get(a < b ? `${a}:${b}` : `${b}:${a}`);
+    return until !== undefined && until > this.tick ? until : null;
+  }
+
+  /**
+   * Incidente de fronteira (assédio no preparo): por `seconds`, os dois lados podem trocar tiros
+   * como numa guerra, mas não há guerra declarada nem efeitos diplomáticos.
+   */
+  startIncident(aggressor: Slot, victim: Slot, seconds: number, pos: Vec2 | null): void {
+    if (aggressor === victim || this.formalWar(aggressor, victim)) return;
+    const k = aggressor < victim ? `${aggressor}:${victim}` : `${victim}:${aggressor}`;
+    const untilTick = this.tick + Math.round(seconds * TICK_RATE);
+    this.incidents.set(k, untilTick);
+    this.emit({ type: 'border_incident', tick: this.tick, aggressor, victim, untilTick, pos: pos ? { ...pos } : null });
+  }
+
+  /** Fim do período de preparo da dificuldade escolhida (tick). */
+  get prepTicks(): number {
+    return prepTicks(this.difficulty);
   }
 
   setAlliance(a: Slot, b: Slot, allied: boolean): void {
@@ -638,7 +683,7 @@ export class Simulation {
     if (eff <= 0) return 0;
     if (b.depositId !== null && (this.deposits.deposits[b.depositId]?.remaining ?? 0) <= 0) return 0;
     const cells = def.gather.terrain === null ? 1 : b.claims.filter((i) => this.territory[i] === b.owner).length;
-    return gatherRate(b.type, cells) * this.fx(b).rateMul * eff;
+    return gatherRate(b.type, cells) * this.fx(b).rateMul * eff * (p.modifiers.gatherMul ?? 1);
   }
 
   /** Fração dos postos de trabalho ocupados (1 se o edifício não precisa de trabalhadores). */
@@ -1943,7 +1988,9 @@ export class Simulation {
       u.activity = 'attacking';
       u.path = [];
       u.facing = Math.atan2(target.pos.y - u.pos.y, target.pos.x - u.pos.x);
-      if (u.cooldown <= 0) this.fire(u, target, weapon.damage * fx.damageMul * targetMultiplier(weapon, target), weapon.cooldown * fx.cooldownMul, weapon.splash ? { radius: weapon.splash, weapon, base: weapon.damage * fx.damageMul } : undefined);
+      // veterania: cada patente soma dano aos pacotes instalados
+      const dmgMul = fx.damageMul * rankDamageMul(u.rank ?? 0);
+      if (u.cooldown <= 0) this.fire(u, target, weapon.damage * dmgMul * targetMultiplier(weapon, target), weapon.cooldown * fx.cooldownMul, weapon.splash ? { radius: weapon.splash, weapon, base: weapon.damage * dmgMul } : undefined);
       return;
     }
     u.activity = 'chasing';
@@ -2032,7 +2079,10 @@ export class Simulation {
           this.lastAlertTick[e.owner] = this.tick;
           this.emit({ type: 'under_attack', tick: this.tick, id: e.id, owner: e.owner, pos: { ...e.pos } });
         }
-        if (e.hp <= 0) this.markDestroyed(e, v.owner);
+        if (e.hp <= 0) {
+          this.markDestroyed(e, v.owner);
+          this.creditKill(this.entities.get(v.attackerId));
+        }
       }
       this.emit({ type: 'salvo_impact', tick: this.tick, owner: v.owner, attackerId: v.attackerId, pos: { ...v.at }, radius, rockets: w.salvo ?? 1 });
     }
@@ -2056,7 +2106,10 @@ export class Simulation {
         const dmg = splash.base * SPLASH_FRACTION * targetMultiplier(splash.weapon, e);
         this.players[attacker.owner]!.stats.damageDealt += Math.min(dmg, e.hp);
         e.hp -= dmg;
-        if (e.hp <= 0) this.markDestroyed(e, attacker.owner);
+        if (e.hp <= 0) {
+          this.markDestroyed(e, attacker.owner);
+          this.creditKill(attacker);
+        }
       }
     }
     attacker.cooldown = Math.round(cooldownSeconds * TICK_RATE);
@@ -2077,7 +2130,24 @@ export class Simulation {
       this.lastAlertTick[target.owner] = this.tick;
       this.emit({ type: 'under_attack', tick: this.tick, id: target.id, owner: target.owner, pos: { ...target.pos } });
     }
-    if (target.hp <= 0) this.markDestroyed(target, attacker.owner);
+    if (target.hp <= 0) {
+      this.markDestroyed(target, attacker.owner);
+      this.creditKill(attacker);
+    }
+  }
+
+  /** Abate creditado a uma unidade: conta para a patente (veterania), com mais dano e vida. */
+  private creditKill(attacker: Entity | undefined): void {
+    if (!attacker || attacker.kind !== 'unit' || attacker.hp <= 0) return;
+    attacker.kills = (attacker.kills ?? 0) + 1;
+    const before = attacker.rank ?? 0;
+    const after = rankFor(attacker.kills);
+    if (after <= before) return;
+    attacker.rank = after;
+    const mul = rankHpMul(after) / rankHpMul(before);
+    attacker.maxHp = Math.round(attacker.maxHp * mul);
+    attacker.hp = Math.min(attacker.maxHp, attacker.hp * mul);
+    this.emit({ type: 'unit_promoted', tick: this.tick, owner: attacker.owner, id: attacker.id, unitType: attacker.type, rank: after, pos: { ...attacker.pos } });
   }
 
   private updateBuildingWeapon(b: Building): void {

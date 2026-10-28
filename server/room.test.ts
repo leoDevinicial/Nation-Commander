@@ -319,12 +319,17 @@ describe('servidor de partidas', () => {
     room.advance();
     expect(a.last('cmd_rejected')?.reason).toMatch(/Sem estado de guerra|fora de visão/);
     let warTick = -1;
-    // período de preparo (12 min) + tempo para formar a primeira onda
+    let incidents = 0;
+    // período de preparo (8 min no Normal) + tempo para formar a primeira onda; antes da guerra,
+    // só há dano durante os incidentes de fronteira (curtos e anunciados)
     for (let i = 0; i < 20 * 60 * 24 && warTick < 0; i++) {
+      const before = sim.players[1]!.stats.damageDealt;
       room.advance();
       if (room.national!.diplomacy.atWar(0, 1)) warTick = sim.tick;
-      else expect(sim.players[1]!.stats.damageDealt).toBe(0);
+      else if (sim.incidentUntil(0, 1) === null) expect(sim.players[1]!.stats.damageDealt).toBe(before);
+      else incidents++;
     }
+    expect(incidents).toBeGreaterThan(0);
     expect(warTick).toBeGreaterThanOrEqual(PREPARATION_TICKS);
     const msg = a.last('national')!;
     expect(msg.diplomacy.wars).toEqual([[0, 1]]);

@@ -15,6 +15,7 @@ import {
   WORKS_LEDGER_MAX,
   WORKS_SHARE_OF_INFRA,
   WORKS_START_FRACTION,
+  theaterSupply,
 } from './params.ts';
 import { countryReference, type ReferenceKey } from './reference.ts';
 import { combineEffects, researchBlocker, researchDailyProgress, TECH_IDS, type TechEffects, type TechId } from './technologies.ts';
@@ -724,7 +725,7 @@ export class NationalSimulation {
     n.works.capUsd = Math.round((b.infrastructurePct / 100) * gdpFor(n) * WORKS_SHARE_OF_INFRA);
     if (n.works.fundUsd > n.works.capUsd) n.works.fundUsd = n.works.capUsd;
     n.allianceAidPerSec = this.diplomacy.allianceAid(n.slot, gdpFor);
-    n.theaterSupplyPerSec = COEF.theaterSupplyK * Math.log10(1 + defenseBn) * fx.theaterSupplyMul + n.allianceAidPerSec;
+    n.theaterSupplyPerSec = theaterSupply(defenseBn) * fx.theaterSupplyMul + n.allianceAidPerSec;
   }
 
   private crossing(n: NationState, indicator: 'debt' | 'inflation' | 'approval' | 'growth', before: number, after: number, thresholds: number[]): void {

@@ -436,3 +436,7 @@ como na escolha entre os modos paridade e escala real.
 | Lote 1, §2.3 — contra-bateria da IA e torre com alcance 13 | Feito | `PlayerState.unseenFire`, `TacticalAI` |
 | Lote 1, §2.4 — defesa proporcional (≈1,5× a força vista) | Feito | `TacticalAI` |
 | Lote 1, §1.6 — texto do README sobre depósitos finitos | Feito | `README.md` |
+| Lote 1, §2.5 — dificuldade Fácil / Normal / Difícil / Brutal (preparo, ondas, bônus do Brutal) | Feito | `shared/sim/difficulty.ts`, sala |
+| Lote 1, §2.6 — incidentes de fronteira no preparo | Feito | `Simulation.startIncident`, `TacticalAI.planHarass` |
+| Lote 1, §2.7 — curva de defesa (raiz com saturação suave) | Feito | `theaterSupply` em `shared/strategic/params.ts` |
+| Lote 1, §3.2 — veterania (patentes, insígnia, painel) | Feito | `shared/sim/veterancy.ts` |

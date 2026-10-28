@@ -1,5 +1,5 @@
 import { countryName } from '../../../shared/data/countries.ts';
-import { COEF } from '../../../shared/strategic/params.ts';
+import { COEF, theaterSupply } from '../../../shared/strategic/params.ts';
 import { countryReference, REFERENCE_META, type ReferenceKey, type SourcedValue } from '../../../shared/strategic/reference.ts';
 import { formatCount, formatNumber, formatPct, formatUsd } from '../../lib/format.ts';
 
@@ -101,7 +101,7 @@ export function CountryCard({ id, balanceMode }: { id: string; balanceMode: 'par
           <div className="mt-1">
             Logística inicial no teatro:{' '}
             <span className="font-mono text-ink-100">
-              +{(COEF.theaterSupplyK * Math.log10(1 + ((balanceMode === 'parity' ? (ref.values.militaryPctGdp.value ?? 0) / 100 * COEF.parityGdpUsd : militaryUsd) / 1e9))).toFixed(2)}/s
+              +{theaterSupply((balanceMode === 'parity' ? ((ref.values.militaryPctGdp.value ?? 0) / 100) * COEF.parityGdpUsd : militaryUsd) / 1e9).toFixed(2)}/s
             </span>{' '}
             ({balanceMode === 'parity' ? 'regra de paridade' : 'regra realista'}).
           </div>

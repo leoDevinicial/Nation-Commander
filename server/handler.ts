@@ -113,6 +113,9 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
     case 'set_balance':
       room?.setBalance(conn, msg.mode);
       return;
+    case 'set_difficulty':
+      room?.setDifficulty(conn, msg.difficulty);
+      return;
     case 'pause':
       room?.setPaused(conn, msg.paused);
       return;

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RANK_DAMAGE, RANK_HP, RANKS } from '../../../shared/sim/veterancy.ts';
 import {
   BUILDINGS,
   CITIZEN,
@@ -673,6 +674,17 @@ function UnitsInfo({ units }: { units: ReturnType<typeof useHudStore.getState>['
         <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs text-ink-400">
           <dt>Estado</dt>
           <dd className="text-ink-200">{u.refit ? 'Em modernização' : (ACTIVITY[u.activity] ?? u.activity)}</dd>
+          <dt>Patente</dt>
+          <dd className="text-ink-200" title="Veterania: cada patente dá +10% de dano e +8% de vida máxima">
+            {u.rank > 0 && <span className="text-brass-400">{'︽'.repeat(u.rank)} </span>}
+            {RANKS[u.rank]?.label ?? 'Recruta'}
+            {u.rank > 0 && <span className="text-ink-400"> (+{Math.round(RANK_DAMAGE * u.rank * 100)}% dano, +{Math.round(RANK_HP * u.rank * 100)}% vida)</span>}
+            <span className="text-ink-400">
+              {' '}
+              · {u.kills} {u.kills === 1 ? 'abate' : 'abates'}
+              {RANKS[u.rank + 1] ? `, próxima em ${RANKS[u.rank + 1]!.kills}` : ''}
+            </span>
+          </dd>
           {lines.map((l) => (
             <FragmentStat key={l.key} label={l.label} base={l.base} value={l.value} unit={l.unit} sources={l.sources} />
           ))}

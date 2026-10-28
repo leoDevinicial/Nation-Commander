@@ -56,6 +56,9 @@ export interface Unit {
   halt?: 'standoff' | null;
   /** Sofrendo atrito em território inimigo neste momento (sem linha de suprimento). */
   attrition: boolean;
+  /** Abates desta unidade e patente atual (veterania; ausentes = 0). */
+  kills?: number;
+  rank?: number;
 }
 
 export interface Refit {
@@ -170,6 +173,8 @@ export interface TacticalModifiers {
   externalIncome: number;
   /** Multiplicador do raio de território (pesquisa de administração territorial). */
   territoryMul: number;
+  /** Multiplicador da coleta (bônus declarado da IA no Brutal, decretos, facções). Padrão 1. */
+  gatherMul?: number;
 }
 
 export interface PlayerState {
@@ -260,6 +265,10 @@ export type SimEvent =
   /** Um disparo num combate aéreo entre esquadrilhas (`kill`: derrubou uma aeronave). */
   | { type: 'dogfight'; tick: number; owner: Slot; victim: Slot; missionId: number; targetMissionId: number; from: Vec2; to: Vec2; kill: boolean }
   /** Prefeitura destruída por um inimigo: ele toma a cidade e os edifícios vinculados a ela. */
+  /** Unidade subiu de patente (veterania). */
+  | { type: 'unit_promoted'; tick: number; owner: Slot; id: EntityId; unitType: UnitType; rank: number; pos: Vec2 }
+  /** Incidente de fronteira: hostilidade limitada e com prazo, sem guerra declarada. */
+  | { type: 'border_incident'; tick: number; aggressor: Slot; victim: Slot; untilTick: number; pos: Vec2 | null }
   | { type: 'city_captured'; tick: number; owner: Slot; victim: Slot; id: EntityId; city: string; buildings: number; pos: Vec2 }
   | { type: 'missile'; tick: number; owner: Slot; launchId: number; state: string; text: string; from: Vec2; target: Vec2; targetOwner: Slot; gen?: number; damage?: number; destroyed?: number; casualties?: number }
   | { type: 'modernize_cancelled'; tick: number; id: EntityId; owner: Slot; unitType: UnitType; mod: ModId; reason: 'player' | 'facility_lost'; pos: Vec2 };

@@ -5,11 +5,12 @@
 
 export const TICK_RATE = 20; // atualizações de simulação por segundo
 /**
- * Período de preparo (tempo de jogo): os governos de IA não declaram guerra nem lançam ofensivas,
- * e mantêm só uma guarnição pequena, priorizando a economia. Pensado para partidas de 30–60 min:
- * dá tempo de montar a base antes da primeira onda. O jogador pode declarar guerra antes, se quiser.
+ * Período de preparo (tempo de jogo) na dificuldade Normal: os governos de IA não declaram guerra
+ * nem lançam ofensivas, e mantêm só uma guarnição pequena, priorizando a economia. Cada dificuldade
+ * tem o seu (`shared/sim/difficulty.ts`, `Simulation.prepTicks`). O jogador pode declarar guerra
+ * antes, se quiser.
  */
-export const PREPARATION_TICKS = TICK_RATE * 60 * 12;
+export const PREPARATION_TICKS = TICK_RATE * 60 * 8;
 export const TICK_SECONDS = 1 / TICK_RATE;
 
 export const MAP_SIZE = 64; // células por lado

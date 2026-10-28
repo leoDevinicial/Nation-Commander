@@ -8,13 +8,21 @@ import type { SpecId } from './upgrades.ts';
 import { MOD_IDS, MODS, checkModernize } from './modernization.ts';
 import { BASE_PRICE } from './trade.ts';
 import { DIPLO } from '../strategic/Diplomacy.ts';
+import { DIFFICULTY } from './difficulty.ts';
 
 /** Com que frequência a IA reavalia a situação. */
 export const AI_THINK_TICKS = TICK_RATE;
-/** A IA não lança ofensivas antes do fim do período de preparo. */
+/** A IA não lança ofensivas antes do fim do período de preparo (valores da dificuldade Normal). */
 export const AI_FIRST_ATTACK_TICK = PREPARATION_TICKS;
-/** Intervalo mínimo entre ondas de ataque (tempo de jogo). */
-export const AI_WAVE_COOLDOWN_TICKS = TICK_RATE * 60 * 4;
+/** Intervalo mínimo entre ondas de ataque (tempo de jogo, dificuldade Normal). */
+export const AI_WAVE_COOLDOWN_TICKS = TICK_RATE * 60 * DIFFICULTY.normal.waveCooldownMinutes;
+/**
+ * Incidentes de fronteira no preparo: a partir de 3 min, a cada 3 min, 2 a 3 tropas da guarnição
+ * atacam a borda do território vizinho por 75 s, sem guerra declarada.
+ */
+export const AI_HARASS_FIRST_TICK = TICK_RATE * 60 * 3;
+export const AI_HARASS_EVERY_TICKS = TICK_RATE * 60 * 3;
+export const AI_HARASS_SECONDS = 75;
 /** Tamanho máximo do exército durante o preparo (defesa da base), salvo se já estiver em guerra. */
 export const AI_PREP_GARRISON = 6;
 /** A IA só começa a melhorar construções depois deste momento (economia básica primeiro). */
@@ -40,10 +48,8 @@ const AI_SPEC: Partial<Record<BuildingType, SpecId>> = {
   factory: 'volume',
 };
 
-/** Primeira onda e crescimento por onda: a pressão sobe ao longo da partida. */
-export const AI_FIRST_WAVE = 12;
-const AI_WAVE_STEP = 3;
-const AI_MAX_WAVE = 24;
+/** Primeira onda e crescimento por onda (dificuldade Normal): a pressão sobe ao longo da partida. */
+export const AI_FIRST_WAVE = DIFFICULTY.normal.firstWave;
 
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
 
@@ -71,7 +77,7 @@ export function unitStrength(u: Unit): number {
  * pelo mesmo caminho do jogador humano.
  */
 export interface TacticalAISave {
-  waveSize: number;
+  waveSize: number | null;
   produced: number;
   attacking: boolean;
   lastWaveTick: number | null;
@@ -80,10 +86,16 @@ export interface TacticalAISave {
   peakTick?: number;
   citySite?: { tick: number; ok: boolean } | null;
   lastCounterTick?: number | null;
+  lastHarassTick?: number | null;
 }
 
 export class TacticalAI {
-  private waveSize = AI_FIRST_WAVE;
+  /** Tamanho da próxima onda (null até a primeira avaliação, que lê a dificuldade). */
+  private waveSize: number | null = null;
+  /** Último incidente de fronteira provocado. */
+  private lastHarassTick = -Infinity;
+  /** Incidente de fronteira pedido (o servidor abre antes de aplicar as ordens). */
+  wantsIncident: { victim: Slot; pos: Vec2 } | null = null;
   private produced = 0;
   private attacking = false;
   private lastWaveTick = -Infinity;
@@ -109,6 +121,7 @@ export class TacticalAI {
       peakTick: this.peakTick,
       citySite: this.citySite ? { ...this.citySite } : null,
       lastCounterTick: Number.isFinite(this.lastCounterTick) ? this.lastCounterTick : null,
+      lastHarassTick: Number.isFinite(this.lastHarassTick) ? this.lastHarassTick : null,
     };
   }
 
@@ -122,11 +135,15 @@ export class TacticalAI {
     this.armyPeak = s.armyPeak ?? 0;
     this.peakTick = s.peakTick ?? 0;
     this.lastCounterTick = s.lastCounterTick ?? -Infinity;
+    this.lastHarassTick = s.lastHarassTick ?? -Infinity;
   }
 
   think(sim: Simulation): Command[] {
     const hq = sim.hqOf(this.slot);
     if (!hq || sim.ended) return [];
+    const level = DIFFICULTY[sim.difficulty];
+    this.waveSize ??= level.firstWave;
+    const prep = sim.prepTicks;
     const cmds: Command[] = [];
     const me = sim.players[this.slot]!;
     const budget: Stockpile = { ...me.resources };
@@ -135,7 +152,7 @@ export class TacticalAI {
       for (const r of RESOURCE_TYPES) budget[r] -= cost[r] ?? 0;
       return true;
     };
-    if (this.wantsWarWith !== null && sim.hostile(this.slot, this.wantsWarWith)) this.wantsWarWith = null;
+    if (this.wantsWarWith !== null && sim.formalWar(this.slot, this.wantsWarWith)) this.wantsWarWith = null;
     // reserva a mobilização enquanto espera a declaração de guerra
     if (this.wantsWarWith !== null) {
       budget.supplies -= DIPLO.warSupplies;
@@ -217,8 +234,8 @@ export class TacticalAI {
 
     // --- produção militar: cada unidade precisa de um recruta da reserva como tripulação.
     // No preparo (e sem guerra), só uma guarnição: os recursos vão para a economia.
-    const atWar = sim.players.some((p) => p.slot !== this.slot && !p.defeated && sim.hostile(this.slot, p.slot));
-    const preparing = sim.tick < AI_FIRST_ATTACK_TICK && !atWar;
+    const atWar = sim.players.some((p) => p.slot !== this.slot && !p.defeated && sim.formalWar(this.slot, p.slot));
+    const preparing = sim.tick < prep && !atWar;
     const garrisonRoom = Math.max(0, AI_PREP_GARRISON - army.length - pop.queuedMilitary);
     // recrutas: alistados no quartel para tripular as próximas unidades (no preparo, só a guarnição)
     const wantRecruits = preparing ? garrisonRoom : 4;
@@ -322,9 +339,12 @@ export class TacticalAI {
     // --- modernização (Fase 5): tropas paradas perto da instalação recebem os pacotes liberados
     if (!this.attacking) this.planModernize(sim, army, take, cmds);
 
+    // --- incidente de fronteira no preparo (Normal ou mais): 2 a 3 tropas atacam a borda vizinha
+    if (preparing && level.harassment) this.planHarass(sim, hq, army, committed, cmds);
+
     // --- ataque em ondas (unidades em modernização não contam: estão indisponíveis)
     const idle = army.filter((u) => u.order.kind === 'idle' && u.engageId === null && !u.refit && !committed.has(u.id));
-    const ready = sim.tick >= AI_FIRST_ATTACK_TICK && sim.tick - this.lastWaveTick >= AI_WAVE_COOLDOWN_TICKS;
+    const ready = sim.tick >= prep && sim.tick - this.lastWaveTick >= level.waveCooldownMinutes * 60 * TICK_RATE;
     // exército parado de crescer (recursos esgotados ao alcance): ataca com o que tem
     if (army.length > this.armyPeak) {
       this.armyPeak = army.length;
@@ -334,13 +354,13 @@ export class TacticalAI {
     if (!this.attacking && (idle.length >= this.waveSize || stalled) && ready) {
       const objective = this.enemyObjective(sim);
       // sem guerra formal não há ofensiva: pede a declaração e espera
-      if (objective && !sim.hostile(this.slot, objective.slot)) this.wantsWarWith = objective.slot;
-      const target = objective && sim.hostile(this.slot, objective.slot) ? objective.pos : null;
+      if (objective && !sim.formalWar(this.slot, objective.slot)) this.wantsWarWith = objective.slot;
+      const target = objective && sim.formalWar(this.slot, objective.slot) ? objective.pos : null;
       if (target) {
         cmds.push({ type: 'attack_move', unitIds: idle.map((u) => u.id), x: target.x, y: target.y });
         this.attacking = true;
         this.lastWaveTick = sim.tick;
-        this.waveSize = Math.min(this.waveSize + AI_WAVE_STEP, AI_MAX_WAVE);
+        this.waveSize = Math.min(this.waveSize + level.waveStep, level.maxWave);
         this.armyPeak = 0;
         this.peakTick = sim.tick;
       }
@@ -353,6 +373,45 @@ export class TacticalAI {
       if (strays.length > 0) cmds.push({ type: 'move', unitIds: strays.map((u) => u.id), x: rally.x, y: rally.y });
     }
     return cmds;
+  }
+
+  /**
+   * Incidente de fronteira: escolhe o vizinho mais próximo (sem guerra declarada), o ponto do
+   * território dele mais perto da base da IA (a borda, onde ficam fazendas e serrarias) e manda 2 a
+   * 3 tropas da guarnição. O servidor abre o incidente antes de aplicar a ordem.
+   */
+  private planHarass(sim: Simulation, hq: Building, army: Unit[], committed: Set<number>, cmds: Command[]): void {
+    if (sim.tick < AI_HARASS_FIRST_TICK || sim.tick - this.lastHarassTick < AI_HARASS_EVERY_TICKS) return;
+    const objective = this.enemyObjective(sim);
+    if (!objective || sim.formalWar(this.slot, objective.slot) || sim.allied(this.slot, objective.slot)) return;
+    const raiders = army.filter((u) => !committed.has(u.id) && u.order.kind === 'idle' && !u.refit && UNITS[u.type].weapon.minRange === undefined).slice(0, 3);
+    if (raiders.length < 2) return;
+    const edge = this.territoryEdge(sim, hq.pos, objective.slot);
+    if (!edge) return;
+    this.lastHarassTick = sim.tick;
+    this.wantsIncident = { victim: objective.slot, pos: edge };
+    cmds.push({ type: 'attack_move', unitIds: raiders.map((u) => u.id), x: edge.x, y: edge.y });
+    for (const u of raiders) committed.add(u.id);
+  }
+
+  /** Célula do território de `owner` mais perto de `from` (centro, em coordenadas de mundo). */
+  private territoryEdge(sim: Simulation, from: Vec2, owner: Slot): Vec2 | null {
+    let best: Vec2 | null = null;
+    let bestD = Infinity;
+    for (let cy = 0; cy < sim.map.height; cy++)
+      for (let cx = 0; cx < sim.map.width; cx++) {
+        if (sim.territoryOwner(cx, cy) !== owner) continue;
+        const c = sim.grid.cellCenter({ cx, cy });
+        const d = dist(c, from);
+        if (d < bestD) {
+          bestD = d;
+          best = c;
+        }
+      }
+    if (!best) return null;
+    // um pouco para dentro: as construções da borda ficam ao alcance
+    const len = dist(best, from) || 1;
+    return sim.clampToMap({ x: best.x + ((best.x - from.x) / len) * 6, y: best.y + ((best.y - from.y) / len) * 6 });
   }
 
   /**
@@ -401,7 +460,7 @@ export class TacticalAI {
     if (!hq) return;
     const income = sim.incomePerSecond(this.slot);
     const minutes = sim.tick / TICK_RATE / 60;
-    const preparing = sim.tick < AI_FIRST_ATTACK_TICK;
+    const preparing = sim.tick < sim.prepTicks;
     const res = sim.players[this.slot]!.resources;
     const cap = sim.capacity(this.slot);
     const pop = sim.population(this.slot);
