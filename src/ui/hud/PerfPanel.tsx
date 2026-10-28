@@ -35,6 +35,9 @@ export function PerfChip({ open, onToggle }: { open: boolean; onToggle: () => vo
       <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden />
       {fps} qps{perf?.window ? <span className="hidden lg:inline"> · p95 {fmt(perf.window.p95)} ms</span> : null}
       {adapted ? <span className="hidden text-brass-400 md:inline"> · adaptado</span> : null}
+      {perf?.fieldTest && (perf.fieldTest.phase === 'parado' || perf.fieldTest.phase === 'combate') ? (
+        <span className="text-signal-blue"> · teste {formatClock(perf.fieldTest.remainingS)}</span>
+      ) : null}
     </button>
   );
 }
@@ -167,6 +170,7 @@ export function PerfPopover({ onClose }: { onClose: () => void }) {
                           : (k.levels[k.level] ?? '?')}
                     {emergency ? ' · emergência' : ''}
                     {reduced ? <span className="text-ink-400"> (de {k.levels[k.baseline]})</span> : null}
+                    {gainOf(perf, k.id)}
                   </span>
                 </li>
               );
@@ -210,6 +214,12 @@ export function PerfPopover({ onClose }: { onClose: () => void }) {
                 ? 'medido (um quadro a cada ~150 ms) — o gargalo é medido, não estimado'
                 : 'disponível, mas sem leituras consistentes ainda (comum na renderização por software) — o gargalo segue estimado'}
           </div>
+          {perf.memory && (
+            <div>
+              Memória da cena: {perf.memory.geometries} geometrias, {perf.memory.textures} texturas, {perf.memory.programs} programas de shader
+              {perf.memory.heapMb !== null ? ` · JavaScript ${Math.round(perf.memory.heapMb)} MB` : ''}
+            </div>
+          )}
           <div>
             Pré-aquecimento de shaders:{' '}
             {perf.prewarm.enabled
@@ -229,7 +239,73 @@ export function PerfPopover({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
+      {perf?.sandbox && <FieldTestBox perf={perf} />}
       {perf && <ReportBox perf={perf} />}
+    </div>
+  );
+}
+
+/** "ganho ~12%": queda média da mediana por passo deste ajuste, medida neste aparelho (R-ADP-04). */
+function gainOf(perf: PerfHud, id: string) {
+  const g = perf.knobGains.find((x) => x.id === id);
+  if (!g || g.expectedPct === null) return null;
+  return <span className="ml-1 text-[10px] text-ink-400">ganho ~{Math.round(g.expectedPct * 100)}%</span>;
+}
+
+const PHASE_TEXT: Record<string, string> = { parado: 'parado', combate: 'combate com 20 tropas' };
+
+/**
+ * Teste de campo automático (Sandbox): 2 min parado com a câmera na capital e 2 min com 20
+ * tropas em combate perto dela. Cada fase vira um resumo no relatório; o jogador só informa se a
+ * economia de bateria está ligada (o navegador não diz).
+ */
+function FieldTestBox({ perf }: { perf: PerfHud }) {
+  const [battery, setBattery] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const t = perf.fieldTest;
+  const running = t !== null && (t.phase === 'parado' || t.phase === 'combate');
+  return (
+    <div className="mt-3 border-t border-ink-700 pt-2 text-[11px]">
+      <div className="font-semibold text-ink-200">Teste de campo (4 min)</div>
+      {!running && (
+        <>
+          <p className="text-ink-400">2 min parado na capital e 2 min com 20 tropas em combate. Deixe o aparelho na mão, sem mexer na câmera; no fim, copie o relatório.</p>
+          <label className="mt-1 flex min-h-8 cursor-pointer items-center gap-2 text-ink-200">
+            <input type="checkbox" className="h-4 w-4 accent-[#e0b44c]" checked={battery} onChange={(e) => setBattery(e.target.checked)} />
+            Economia de bateria está ligada
+          </label>
+          <button
+            className="btn mt-1 min-h-8 w-full px-2"
+            onClick={() => {
+              setError(perf.startFieldTest(battery));
+            }}
+          >
+            {t?.phase === 'concluído' ? 'Repetir o teste' : 'Iniciar teste de campo'}
+          </button>
+          {error && <p className="mt-1 text-brass-400">{error}</p>}
+        </>
+      )}
+      {running && (
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-signal-blue">
+            Em andamento: {PHASE_TEXT[t.phase] ?? t.phase} — {formatClock(t.remainingS)} restantes
+          </span>
+          <button className="btn min-h-8 px-2" onClick={perf.cancelFieldTest}>
+            Cancelar
+          </button>
+        </div>
+      )}
+      {t && t.phases.length > 0 && (
+        <ul className="mt-1 space-y-0.5 text-ink-300">
+          {t.phases.map((p) => (
+            <li key={p.name}>
+              {PHASE_TEXT[p.name] ?? p.name}: ~{fmt(p.fpsMedian, 0)} qps (p95 {fmt(p.p95Median)} ms), abaixo da meta {Math.round(p.belowShare * 100)}% do tempo{p.running ? ' (medindo)' : ''}
+            </li>
+          ))}
+        </ul>
+      )}
+      {t?.phase === 'concluído' && <p className="mt-1 text-signal-green">Concluído: toque em "Copiar relatório" abaixo e cole na conversa.</p>}
+      {t?.phase === 'cancelado' && <p className="mt-1 text-ink-400">Teste cancelado.</p>}
     </div>
   );
 }
@@ -242,6 +318,7 @@ function ReportBox({ perf }: { perf: PerfHud }) {
   const [text, setText] = useState<string | null>(null);
   const [copied, setCopied] = useState<'ok' | 'fail' | null>(null);
   const area = useRef<HTMLTextAreaElement>(null);
+  const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
   const copy = async () => {
     if (text === null) return;
     try {
@@ -278,10 +355,21 @@ function ReportBox({ perf }: { perf: PerfHud }) {
             onFocus={(e) => e.currentTarget.select()}
             aria-label="Relatório de desempenho"
           />
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button className="btn min-h-8 flex-1 px-2" onClick={() => void copy()}>
               {copied === 'ok' ? 'Copiado ✓' : 'Copiar'}
             </button>
+            {canShare && (
+              <button
+                className="btn min-h-8 px-2"
+                onClick={() => {
+                  // menu de compartilhar do aparelho (ex.: direto para o app de conversa)
+                  navigator.share({ title: 'Relatório de desempenho — Nation Commander', text }).catch(() => undefined);
+                }}
+              >
+                Compartilhar
+              </button>
+            )}
             <button className="btn min-h-8 px-2" onClick={() => setText(perf.exportReport())} title="Gerar de novo com as medições mais recentes">
               Atualizar
             </button>

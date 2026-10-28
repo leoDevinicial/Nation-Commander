@@ -7,6 +7,7 @@ import type { PlayerSnapshot } from '../../shared/sim/snapshot.ts';
 import type { BuildingStatus, EntityId, UnitActivity } from '../../shared/sim/types.ts';
 import type { SpecId } from '../../shared/sim/upgrades.ts';
 import type { Capabilities } from '../game/perf/kaics.ts';
+import type { MemorySample } from '../game/perf/memory.ts';
 import type { PerfSummary } from '../game/perf/kgps.ts';
 
 export interface SelectedUnitInfo {
@@ -86,6 +87,22 @@ export type PerfHud = PerfSummary & {
   preset: string;
   /** Tempo de GPU medido neste aparelho (extensão de temporização ativa). */
   gpuTimer: boolean;
+  /** Partida no Modo Sandbox (o teste de campo cria tropas). */
+  sandbox: boolean;
+  /** Teste de campo automático: fase atual e segundos restantes (null = nenhum). */
+  fieldTest: {
+    phase: 'parado' | 'combate' | 'concluído' | 'cancelado';
+    remainingS: number;
+    batterySaver: boolean | null;
+    phases: { name: string; fpsMedian: number; p95Median: number; belowShare: number; running: boolean }[];
+  } | null;
+  /** Começa o teste de campo; devolve o motivo se não puder. */
+  startFieldTest: (batterySaver: boolean | null, phaseMs?: number) => string | null;
+  cancelFieldTest: () => void;
+  /** Última amostra da vigia de memória (null = ainda não medida). */
+  memory: MemorySample | null;
+  /** Ganho medido de cada ajuste neste aparelho (R-ADP-04). */
+  knobGains: { id: string; expectedPct: number | null }[];
   /** Pré-aquecimento de shaders (R-SHD-02). */
   prewarm: { enabled: boolean; materials: number; programs: number; ms: number | null };
   /** Travadas nos primeiros 60 s depois do carregamento (null = partida ainda carregando). */

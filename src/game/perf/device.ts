@@ -76,3 +76,11 @@ export function targetFor(cls: DeviceClass, refreshHz: number | null = null, cho
 export function profileKey(p: { revision: number; preset: string; dpr: number; scene: string; deviceClass: DeviceClass; fps: number }): string {
   return `r${p.revision}|${p.preset}|${Math.round(p.dpr * 100)}|${p.scene}|${p.deviceClass}|${p.fps}`;
 }
+
+/**
+ * Chave dos ganhos por ajuste (R-ADP-04): o ganho de um passo depende do aparelho e do conteúdo
+ * do preset, não da cena nem da meta — assim o histórico cresce mais rápido.
+ */
+export function gainKey(p: { revision: number; preset: string; dpr: number; deviceClass: DeviceClass }): string {
+  return `r${p.revision}|${p.preset}|${Math.round(p.dpr * 100)}|${p.deviceClass}`;
+}

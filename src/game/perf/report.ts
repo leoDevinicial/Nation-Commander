@@ -7,7 +7,8 @@
  * qualquer dado pessoal. Nada é enviado automaticamente: o texto só sai quando o jogador copia.
  */
 import type { Capabilities } from './kaics.ts';
-import type { Decision, PerfSummary, SessionStats, WindowRecord } from './kgps.ts';
+import type { Decision, PerfSummary, PhaseSummary, SessionStats, WindowRecord } from './kgps.ts';
+import type { MemorySample } from './memory.ts';
 
 /** v2 (Onda 2): tempo de GPU por janela, resumo da sessão, pré-aquecimento e primeiro minuto. */
 export const REPORT_SCHEMA = 'nc.perf.report.v2';
@@ -29,6 +30,12 @@ export interface ReportInput {
   prewarm?: { enabled: boolean; materials: number; programs?: number; ms: number | null };
   /** Travadas e congelamentos nos primeiros 60 s depois do carregamento (null = ainda medindo). */
   firstMinute?: { hitches: number; stalls: number; done: boolean } | null;
+  /** Ganho medido de cada ajuste (R-ADP-04). */
+  knobGains?: { id: string; kept: number; reverted: number; sessionPct: number | null; learnedPct: number | null; expectedPct: number | null }[];
+  /** Última amostra da vigia de memória. */
+  memory?: MemorySample | null;
+  /** Teste de campo automático (fases parado e combate). */
+  fieldTest?: { status: string; batterySaver: boolean | null; troops: number; phases: PhaseSummary[] } | null;
 }
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
@@ -84,6 +91,9 @@ export function buildReport(i: ReportInput): string {
       : null,
     prewarm: i.prewarm ?? null,
     firstMinute: i.firstMinute ?? null,
+    knobGains: (i.knobGains ?? []).map(({ id, kept, reverted, sessionPct, learnedPct, expectedPct }) => ({ id, kept, reverted, sessionPct, learnedPct, expectedPct })),
+    memory: i.memory ? { geometries: i.memory.geometries, textures: i.memory.textures, programs: i.memory.programs, heapMb: i.memory.heapMb, entities: i.memory.entities } : null,
+    fieldTest: i.fieldTest ?? null,
   };
   let json = JSON.stringify(report);
   while (bytes(json) > REPORT_MAX_BYTES && (report.decisions.length > 5 || report.windows.length > 5 || report.incidents.length > 5)) {

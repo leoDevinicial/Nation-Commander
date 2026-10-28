@@ -37,6 +37,11 @@ export interface WindowStats {
   /** Tempo de GPU do quadro (mediana das amostras da janela; null = não medido nesta janela). */
   gpuP50: number | null;
   gpuSamples: number;
+  /**
+   * Carga da cena: mediana das chamadas de desenho por quadro (null = não informada). Separa "a
+   * cena ficou mais pesada" de "o aparelho ficou mais lento" (indício de aquecimento).
+   */
+  loadP50: number | null;
 }
 
 /** Amostras de GPU necessárias para a janela ter um tempo de GPU medido. */
@@ -54,8 +59,10 @@ export class FrameWindow {
   private readonly intervals = new Float64Array(CAP);
   private readonly cpu = new Float64Array(CAP);
   private readonly gpu = new Float64Array(GPU_CAP);
+  private readonly load = new Float64Array(CAP);
   private n = 0;
   private gn = 0;
+  private ln = 0;
   private stalls = 0;
   private startedAt = -1;
 
@@ -68,7 +75,7 @@ export class FrameWindow {
     return this.startedAt;
   }
 
-  add(now: number, intervalMs: number, cpuMs: number): void {
+  add(now: number, intervalMs: number, cpuMs: number, load?: number): void {
     if (intervalMs > STALL_MS) {
       // a janela recomeça depois do congelamento: o tempo parado não conta como medição
       this.stalls++;
@@ -80,6 +87,7 @@ export class FrameWindow {
     this.intervals[this.n] = intervalMs;
     this.cpu[this.n] = cpuMs;
     this.n++;
+    if (load !== undefined && Number.isFinite(load)) this.load[this.ln++] = load;
   }
 
   /** Tempo de GPU de um quadro desta janela (chega alguns quadros depois, quando a GPU termina). */
@@ -90,6 +98,7 @@ export class FrameWindow {
   clear(): void {
     this.n = 0;
     this.gn = 0;
+    this.ln = 0;
     this.stalls = 0;
     this.startedAt = -1;
   }
@@ -124,6 +133,7 @@ export class FrameWindow {
       lock30: locked / this.n,
       gpuP50: this.gn >= MIN_GPU_SAMPLES ? percentile(this.gpu.slice(0, this.gn).sort(), 0.5) : null,
       gpuSamples: this.gn,
+      loadP50: this.ln > 0 ? percentile(this.load.slice(0, this.ln).sort(), 0.5) : null,
     };
   }
 }

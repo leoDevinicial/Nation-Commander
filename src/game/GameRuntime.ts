@@ -45,8 +45,9 @@ import type { GraphicsProfile } from '../lib/graphics.ts';
 import { GRAPHICS_REVISION, isTouchDevice, prefersReducedMotion } from '../lib/graphics.ts';
 import { TouchGestures, type TouchPoint } from './input/TouchGestures.ts';
 import { Kaics, probeCapabilities } from './perf/kaics.ts';
-import { KGPS_CONFIG, Kgps, localProfileStore } from './perf/kgps.ts';
-import { profileKey, targetFor, type TargetPolicy } from './perf/device.ts';
+import { KGPS_CONFIG, Kgps, localGainStore, localProfileStore } from './perf/kgps.ts';
+import { gainKey, profileKey, targetFor, type TargetPolicy } from './perf/device.ts';
+import { MemoryWatch } from './perf/memory.ts';
 import { buildReport } from './perf/report.ts';
 import { GpuTimer } from './perf/gpuTimer.ts';
 import { isPreset, localAdvisorStore, recordSession } from './perf/advisor.ts';
@@ -151,6 +152,21 @@ export class GameRuntime {
   private farAnimEvery = 1;
   /** Densidade base da resolução interna (refeita quando a densidade da tela muda). */
   private resolutionBase = 1;
+  /** Vigia de memória da cena (Onda 3): geometrias, texturas e programas subindo sem parar. */
+  private readonly memoryWatch = new MemoryWatch();
+  /**
+   * Teste de campo automático (Sandbox): uma fase parado e outra com 20 tropas em combate,
+   * medidas como fases do KGPS para o relatório.
+   */
+  private fieldTest: {
+    phase: 'parado' | 'combate' | 'concluído' | 'cancelado';
+    at: number;
+    phaseAt: number;
+    phaseMs: number;
+    batterySaver: boolean | null;
+    /** Tropas do combate: pedidas ao servidor e confirmadas pelo estado (com reenvio se a conexão falhar). */
+    spawn: { at: number; tries: number; mineBase: number; enemyBase: number; mineOk: boolean; enemyOk: boolean; troops: number } | null;
+  } | null = null;
   private lastPerf = 0;
   private frameNo = 0;
   /** Mapa de sombra: redesenhado uma vez por quadro (ou a cada N), não a cada passe de render. */
@@ -1130,7 +1146,9 @@ export class GameRuntime {
     // jogador; o ajuste aprendido vale sob as mesmas condições (versão gráfica, preset, densidade
     // de tela, cena, classe e meta)
     const target = this.targetFromSettings();
-    this.kgps = new Kgps(kaics, performance.now(), localProfileStore(this.profileKeyFor(target.fps)), KGPS_CONFIG, target);
+    // ganho de cada ajuste aprendido neste aparelho e preset (ordem da descida rápida)
+    const gains = localGainStore(gainKey({ revision: GRAPHICS_REVISION, preset: this.opts.preset ?? 'custom', dpr: window.devicePixelRatio, deviceClass: kaics.device.value }));
+    this.kgps = new Kgps(kaics, performance.now(), localProfileStore(this.profileKeyFor(target.fps)), KGPS_CONFIG, target, gains);
     this.cleanup.push(
       useSettingsStore.subscribe((st) => {
         const now = performance.now();
@@ -1347,7 +1365,129 @@ export class GameRuntime {
       this.kgps.invalidate(now, gate ?? `${this.perfGate} — retomado`);
       this.perfGate = gate;
     }
-    if (gate === null) this.kgps.sample(now, interval, cpu);
+    // carga da cena (chamadas de desenho do quadro) acompanha cada amostra: separa cena mais
+    // pesada de aparelho mais lento
+    if (gate === null) this.kgps.sample(now, interval, cpu, this.renderer.info.render.calls);
+    this.watchMemory(now);
+    this.tickFieldTest(now);
+  }
+
+  /** Vigia de memória a cada 15 s (Onda 3): alta contínua vira incidente, nunca uma redução. */
+  private watchMemory(now: number): void {
+    if (this.suspended || !this.snapshot || !this.memoryWatch.due(now)) return;
+    const mem = this.renderer.info.memory;
+    const heap = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize;
+    const alert = this.memoryWatch.add({
+      t: now,
+      geometries: mem.geometries,
+      textures: mem.textures,
+      programs: this.renderer.info.programs?.length ?? 0,
+      heapMb: heap ? Math.round(heap / 1e5) / 10 : null,
+      entities: this.units.size + this.buildings.size,
+    });
+    if (alert) this.kgps.incident(now, alert);
+  }
+
+  /**
+   * Teste de campo automático (só no Sandbox, que pode criar tropas): câmera na capital e 2 min
+   * parado; depois 10 tropas de cada lado num ponto perto da capital, 2 min em combate. Cada fase
+   * vira um resumo no relatório. Devolve o motivo se não puder começar.
+   */
+  startFieldTest(batterySaver: boolean | null, phaseMs = 120_000): string | null {
+    if (!this.snapshot?.sandbox) return 'O teste de campo funciona no Modo Sandbox (ele cria as tropas do combate).';
+    if (this.fieldTest && (this.fieldTest.phase === 'parado' || this.fieldTest.phase === 'combate')) return 'Já há um teste em andamento.';
+    const now = performance.now();
+    this.centerOnHQ();
+    this.fieldTest = { phase: 'parado', at: now, phaseAt: now, phaseMs, batterySaver, spawn: null };
+    this.kgps.beginPhase('parado', now);
+    return null;
+  }
+
+  cancelFieldTest(): void {
+    const f = this.fieldTest;
+    if (!f || (f.phase !== 'parado' && f.phase !== 'combate')) return;
+    this.kgps.endPhase(performance.now());
+    f.phase = 'cancelado';
+  }
+
+  /** Contagem de tropas próprias e inimigas na cena. */
+  private troopCounts(): { mine: number; enemy: number } {
+    let mine = 0;
+    let enemy = 0;
+    for (const t of this.units.values())
+      if (t.snap.owner === this.mySlot) mine++;
+      else enemy++;
+    return { mine, enemy };
+  }
+
+  /** 10 tropas de um lado (4 tanques, 4 infantarias, 2 artilharias) no centro da câmera. */
+  private spawnFieldSide(enemy: boolean): void {
+    this.sandboxSpawn('tank', 4, enemy, false);
+    this.sandboxSpawn('infantry', 4, enemy, false);
+    this.sandboxSpawn('artillery', 2, enemy, false);
+  }
+
+  private tickFieldTest(now: number): void {
+    const f = this.fieldTest;
+    if (!f) return;
+    const sp = f.spawn;
+    if (f.phase === 'combate' && sp && !(sp.mineOk && sp.enemyOk)) {
+      // as tropas chegaram no estado do servidor? (metade basta: o combate começa na hora)
+      const c = this.troopCounts();
+      if (!sp.mineOk && c.mine >= sp.mineBase + 5) sp.mineOk = true;
+      if (!sp.enemyOk && c.enemy >= sp.enemyBase + 5) sp.enemyOk = true;
+      const settled = sp.mineOk && sp.enemyOk;
+      if (!settled && now - sp.at > 6000 && sp.tries < 3) {
+        // comando perdido (conexão caiu ou o servidor recusou): reenvia só o lado que faltou
+        if (!sp.mineOk) this.spawnFieldSide(false);
+        if (!sp.enemyOk) this.spawnFieldSide(true);
+        sp.tries++;
+        sp.at = now;
+      } else if (settled || now - sp.at > 6000) {
+        // o cronômetro do combate conta a partir das tropas em campo (ou desiste de esperar)
+        sp.troops = Math.max(0, c.mine - sp.mineBase) + Math.max(0, c.enemy - sp.enemyBase);
+        sp.mineOk = sp.enemyOk = true;
+        f.phaseAt = now;
+        this.kgps.beginPhase('combate', now);
+        if (!settled) this.kgps.event(now, 'field-spawn', `Teste de campo: só ${sp.troops} tropas confirmadas depois de ${sp.tries + 1} tentativas (conexão?)`);
+      }
+      return;
+    }
+    if (now - f.phaseAt < f.phaseMs) return;
+    if (f.phase === 'parado') {
+      // combate perto da capital, um pouco na direção do centro do mapa (fora dos prédios)
+      this.kgps.endPhase(now);
+      this.centerOnHQ();
+      const t = this.cameraCtl.target;
+      const cx = (this.map.width * this.map.cellSize) / 2;
+      const cz = (this.map.height * this.map.cellSize) / 2;
+      const d = Math.hypot(cx - t.x, cz - t.z) || 1;
+      const step = Math.min(14 * this.map.cellSize, d * 0.5);
+      this.cameraCtl.lookAt(t.x + ((cx - t.x) / d) * step, t.z + ((cz - t.z) / d) * step);
+      const c = this.troopCounts();
+      f.spawn = { at: now, tries: 0, mineBase: c.mine, enemyBase: c.enemy, mineOk: false, enemyOk: false, troops: 0 };
+      this.spawnFieldSide(false);
+      this.spawnFieldSide(true);
+      f.phase = 'combate';
+      f.phaseAt = now;
+    } else if (f.phase === 'combate') {
+      this.kgps.endPhase(now);
+      f.phase = 'concluído';
+      if (this.hudActive) useHudStore.getState().pushEvent({ tick: this.snapshot?.tick ?? 0, text: 'Teste de campo concluído: toque no contador de qps e em "Copiar relatório".', tone: 'good' });
+    }
+  }
+
+  /** Estado do teste de campo para o painel (tempo restante da fase em segundos). */
+  private fieldTestView(now: number): PerfHud['fieldTest'] {
+    const f = this.fieldTest;
+    if (!f) return null;
+    const running = f.phase === 'parado' || f.phase === 'combate';
+    return {
+      phase: f.phase,
+      remainingS: running ? Math.max(0, Math.ceil((f.phaseMs - (now - f.phaseAt)) / 1000)) : 0,
+      batterySaver: f.batterySaver,
+      phases: this.kgps.phases(now).map(({ name, fpsMedian, p95Median, belowShare, running: r }) => ({ name, fpsMedian, p95Median, belowShare, running: r })),
+    };
   }
 
   private perfReport(now: number): PerfHud {
@@ -1360,6 +1500,12 @@ export class GameRuntime {
       caps: this.kaics.capabilities,
       preset: this.opts.preset ?? 'custom',
       gpuTimer: this.gpuTimer !== null,
+      sandbox: !!this.snapshot?.sandbox,
+      fieldTest: this.fieldTestView(now),
+      startFieldTest: (batterySaver, phaseMs) => this.startFieldTest(batterySaver, phaseMs),
+      cancelFieldTest: () => this.cancelFieldTest(),
+      memory: this.memoryWatch.latest(),
+      knobGains: this.kgps.knobGains(),
       prewarm: this.prewarmInfo,
       firstMinute: this.firstMinute ? { hitches: this.firstMinute.hitches, stalls: this.firstMinute.stalls, done: this.firstMinute.done } : null,
       // relatório completo só quando o jogador pede (botão "Copiar relatório")
@@ -1374,6 +1520,11 @@ export class GameRuntime {
           decisions: this.kgps.log,
           render: { drawCalls: info.calls, triangles: info.triangles, geometries: this.renderer.info.memory.geometries, textures: this.renderer.info.memory.textures },
           session: this.kgps.session(),
+          knobGains: this.kgps.knobGains(),
+          memory: this.memoryWatch.latest(),
+          fieldTest: this.fieldTest
+            ? { status: this.fieldTest.phase, batterySaver: this.fieldTest.batterySaver, troops: this.fieldTest.spawn?.troops ?? 0, phases: this.kgps.phases(performance.now()) }
+            : null,
           prewarm: this.prewarmInfo,
           firstMinute: this.firstMinute ? { hitches: this.firstMinute.hitches, stalls: this.firstMinute.stalls, done: this.firstMinute.done } : null,
         }),
@@ -1705,6 +1856,8 @@ export class GameRuntime {
     }
     this.suspended = suspended;
     if (suspended) this.keys.clear();
+    // a memória da cena é comparada só dentro de um mesmo trecho visível
+    this.memoryWatch.reset();
   }
 
   /** Confirma a construção na posição atual do fantasma (botão de confirmação no toque). */

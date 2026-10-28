@@ -31,6 +31,13 @@
  * - eventos extraordinários marcados no registro (congelamento, aba oculta, troca de cena…);
  * - resumo da sessão (`session`) para o consultor de preset da próxima partida.
  *
+ * Etapa 3:
+ * - fases nomeadas (`beginPhase`), usadas pelo teste de campo automático do Sandbox;
+ * - ganho medido de cada ajuste neste aparelho (R-ADP-04), guardado entre partidas: a descida
+ *   rápida escolhe pelo menor custo visual por ganho esperado (seção 22 da especificação);
+ * - carga da cena (chamadas de desenho) na janela: uma cena que fica mais pesada não é confundida
+ *   com aquecimento.
+ *
  * Nunca mexe em regras, simulação, névoa de guerra, fronteiras, seleção ou interface.
  */
 import { FrameWindow, STALL_MS, classifyBottleneck, estimateRefreshHz, percentile, type Bottleneck, type BottleneckSource, type WindowStats } from './stats.ts';
@@ -109,6 +116,15 @@ export const KGPS_CONFIG = {
   eventGapMs: 20_000,
   /** Janelas guardadas para o resumo da sessão (~2 h de partida). */
   sessionWindows: 3600,
+  // ---- Etapa 3
+  /** A cena ficou mais pesada (chamadas de desenho) se a carga sobe mais que isso: não é aquecimento. */
+  trendLoadRise: 1.1,
+  /** Ganho esperado de um ajuste sem histórico (queda de 8% da mediana por passo). */
+  defaultGain: 0.08,
+  /** Observações mínimas para usar o ganho aprendido de um ajuste. */
+  gainMinSamples: 2,
+  /** Peso máximo do histórico de ganho (o aparelho e o jogo mudam com o tempo). */
+  gainMaxSamples: 20,
 };
 
 export type KgpsConfig = typeof KGPS_CONFIG;
@@ -123,6 +139,38 @@ export interface Decision {
   kind: DecisionKind;
   text: string;
   evidence: Evidence;
+}
+
+/** Ganho medido de um ajuste neste aparelho (R-ADP-04): queda relativa média da mediana por passo. */
+export interface KnobGain {
+  /** Passos observados. */
+  n: number;
+  /** Queda média da mediana por passo (0,1 = 10% mais rápido). */
+  pct: number;
+}
+
+/** Ganhos aprendidos por aparelho e preset, guardados entre partidas. */
+export interface GainStore {
+  load(): Record<string, KnobGain> | null;
+  save(gains: Record<string, KnobGain>): void;
+}
+
+/** Resumo de uma fase nomeada (ex.: as duas do teste de campo). */
+export interface PhaseSummary {
+  name: string;
+  /** Duração da fase (s). */
+  seconds: number;
+  /** Tempo coberto por janelas válidas (s). */
+  measuredS: number;
+  fpsMedian: number;
+  p95Median: number;
+  belowShare: number;
+  emergencyShare: number;
+  hitches: number;
+  stalls: number;
+  /** Mudanças de qualidade decididas durante a fase. */
+  changes: number;
+  running: boolean;
 }
 
 /** Níveis aprendidos neste aparelho e preset (aplicados no começo da próxima partida). */
@@ -252,13 +300,17 @@ export class Kgps {
   private externalCap: { outside: number; until: number } | null = null;
   private readonly windows: WindowRecord[] = [];
   /** Tendência com os mesmos níveis de botões (R-TGT-06). */
-  private trend: { sig: string; since: number; first: number[]; recent: number[] } | null = null;
+  private trend: { sig: string; since: number; first: number[]; recent: number[]; firstLoad: number[]; recentLoad: number[] } | null = null;
   /** Subidas seguradas até aqui por indício de aquecimento. */
   private thermalUntil = 0;
   private readonly eventAt = new Map<string, number>();
-  /** Janelas da sessão (qps, p95, duração) e totais para o consultor. */
-  private readonly sessionWins: { fps: number; p95: number; span: number }[] = [];
-  private readonly sessionTotals = { measuredMs: 0, belowMs: 0, emergencyMs: 0, hitches: 0, stalls: 0, fidelityMin: 1 };
+  /** Janelas da sessão (para o consultor) e da fase em andamento (teste de campo). */
+  private readonly sessionAcc: StatsAcc;
+  private phase: { name: string; at: number; endedAt: number | null; acc: StatsAcc } | null = null;
+  private readonly phaseLog: { name: string; at: number; endedAt: number | null; acc: StatsAcc }[] = [];
+  /** Ganho observado de cada ajuste nesta partida e o aprendido em partidas anteriores. */
+  private readonly gains = new Map<string, { kept: number; reverted: number; sumPct: number; n: number }>();
+  private readonly learned: Record<string, KnobGain>;
   last: WindowStats | null = null;
   lastBottleneck: Bottleneck = 'unknown';
   lastBottleneckSource: BottleneckSource = 'cpu-share';
@@ -272,7 +324,10 @@ export class Kgps {
     private store: ProfileStore | null = null,
     private readonly cfg: KgpsConfig = KGPS_CONFIG,
     target?: TargetPolicy,
+    private readonly gainStore: GainStore | null = null,
   ) {
+    this.sessionAcc = new StatsAcc(cfg.sessionWindows);
+    this.learned = gainStore?.load() ?? {};
     this.target = target ?? { fps: cfg.targetFps, budgetMs: 1000 / cfg.targetFps, origin: 'classe' };
     this.budget = this.target.budgetMs;
     this.startedAt = now;
@@ -281,12 +336,15 @@ export class Kgps {
     this.applyProfile(now);
   }
 
-  /** Um quadro desenhado. Quadros com o KAICS bloqueando (cena oculta etc.) não devem chegar aqui. */
-  sample(now: number, intervalMs: number, cpuMs: number): void {
+  /**
+   * Um quadro desenhado. Quadros com o KAICS bloqueando (cena oculta etc.) não devem chegar aqui.
+   * `load` (opcional): chamadas de desenho do quadro, a carga da cena.
+   */
+  sample(now: number, intervalMs: number, cpuMs: number, load?: number): void {
     const t0 = performance.now();
     if (now >= this.settleUntil) {
       if (intervalMs > STALL_MS) this.event(now, 'stall', `Congelamento de ${(intervalMs / 1000).toFixed(1).replace('.', ',')} s (fora das medições: compilação, carga ou página parada)`);
-      this.win.add(now, intervalMs, cpuMs);
+      this.win.add(now, intervalMs, cpuMs, load);
       const span = now - this.win.start;
       if (this.emergency?.phase === 'stepping') {
         if ((span >= this.cfg.emergencyProbeMs && this.win.count >= 3) || (span >= this.cfg.emergencyProbeMs * 4 && this.win.count >= 1)) this.emergencyProbe(now);
@@ -314,6 +372,76 @@ export class Kgps {
     if (now - last < this.cfg.eventGapMs) return;
     this.eventAt.set(key, now);
     this.push(now, 'event', text);
+  }
+
+  /** Incidente vindo de fora do KGPS (ex.: vigia de memória): no registro e na lista do KAICS. */
+  incident(now: number, text: string, evidence: Evidence = 'hipotese'): void {
+    this.kaics.incidents.push(text);
+    this.push(now, 'incident', text, evidence);
+  }
+
+  /**
+   * Começa uma fase nomeada (encerrando a anterior): as janelas medidas até `endPhase` entram no
+   * resumo dela. Usado pelo teste de campo automático do Sandbox.
+   */
+  beginPhase(name: string, now: number): void {
+    this.endPhase(now);
+    const p = { name, at: now, endedAt: null, acc: new StatsAcc(this.cfg.sessionWindows) };
+    this.phase = p;
+    this.phaseLog.push(p);
+    this.push(now, 'event', `Fase "${name}" começou`);
+  }
+
+  endPhase(now: number): void {
+    if (!this.phase) return;
+    this.phase.endedAt = now;
+    this.push(now, 'event', `Fase "${this.phase.name}" terminou`);
+    this.phase = null;
+  }
+
+  /** Resumo das fases registradas nesta partida. */
+  phases(now: number): PhaseSummary[] {
+    const startS = (t: number) => (t - this.startedAt) / 1000;
+    return this.phaseLog.map((p) => {
+      const end = p.endedAt ?? now;
+      const a = p.acc;
+      const from = startS(p.at);
+      const to = startS(end);
+      return {
+        name: p.name,
+        seconds: Math.round((end - p.at) / 100) / 10,
+        measuredS: Math.round(a.measuredMs / 100) / 10,
+        fpsMedian: Math.round(a.fpsMedian() * 10) / 10,
+        p95Median: Math.round(a.p95Median() * 10) / 10,
+        belowShare: a.measuredMs > 0 ? Math.round((a.belowMs / a.measuredMs) * 100) / 100 : 0,
+        emergencyShare: a.measuredMs > 0 ? Math.round((a.emergencyMs / a.measuredMs) * 100) / 100 : 0,
+        hitches: a.hitches,
+        stalls: a.stalls,
+        changes: this.log.filter((d) => d.at >= from && d.at <= to && (d.kind === 'degrade' || d.kind === 'upgrade' || d.kind === 'emergency' || d.kind === 'revert')).length,
+        running: p.endedAt === null,
+      };
+    });
+  }
+
+  /** Ganho medido de cada ajuste (R-ADP-04): nesta partida e o aprendido neste aparelho. */
+  knobGains(): { id: string; label: string; kept: number; reverted: number; sessionPct: number | null; learnedPct: number | null; expectedPct: number | null }[] {
+    const out = [];
+    for (const id of this.kaics.knobs.keys()) {
+      const g = this.gains.get(id);
+      const l = this.learned[id];
+      if (!g && !l) continue;
+      const exp = this.expectedGain(id);
+      out.push({
+        id,
+        label: this.label(id),
+        kept: g?.kept ?? 0,
+        reverted: g?.reverted ?? 0,
+        sessionPct: g && g.n > 0 ? Math.round((g.sumPct / g.n) * 1000) / 1000 : null,
+        learnedPct: l ? Math.round(l.pct * 1000) / 1000 : null,
+        expectedPct: exp === null ? null : Math.round(exp * 1000) / 1000,
+      });
+    }
+    return out;
   }
 
   /**
@@ -437,18 +565,18 @@ export class Kgps {
 
   /** Resumo da sessão até agora (consultor de preset e relatório). */
   session(): SessionStats {
-    const t = this.sessionTotals;
+    const a = this.sessionAcc;
     return {
-      measuredMs: t.measuredMs,
-      belowMs: t.belowMs,
-      emergencyMs: t.emergencyMs,
-      fpsMedian: weightedMedian(this.sessionWins.map((w) => [w.fps, w.span])),
-      p95Median: percentile(this.sessionWins.map((w) => w.p95).sort((a, b) => a - b), 0.5),
-      hitches: t.hitches,
-      stalls: t.stalls,
+      measuredMs: a.measuredMs,
+      belowMs: a.belowMs,
+      emergencyMs: a.emergencyMs,
+      fpsMedian: a.fpsMedian(),
+      p95Median: a.p95Median(),
+      hitches: a.hitches,
+      stalls: a.stalls,
       targetFps: this.target.fps,
       adaptive: this.kaics.enabled,
-      fidelityMin: t.fidelityMin,
+      fidelityMin: a.fidelityMin,
     };
   }
 
@@ -542,17 +670,12 @@ export class Kgps {
       bottleneck: this.lastBottleneck,
     });
     if (this.windows.length > this.cfg.reportWindows) this.windows.splice(0, this.windows.length - this.cfg.reportWindows);
-    // sessão: tempo abaixo da meta e com níveis de emergência (consultor de preset)
-    const t = this.sessionTotals;
-    const span = Math.max(s.spanMs, 1);
-    t.measuredMs += span;
-    if (s.p50 > this.budget * this.cfg.badP50) t.belowMs += span;
-    if (this.inEmergencyLevels()) t.emergencyMs += span;
-    t.hitches += s.hitches;
-    t.stalls += s.stalls;
-    t.fidelityMin = Math.min(t.fidelityMin, this.fidelity());
-    this.sessionWins.push({ fps: s.fps, p95: s.p95, span });
-    if (this.sessionWins.length > this.cfg.sessionWindows) this.sessionWins.shift();
+    // sessão e fase em andamento: tempo abaixo da meta e com níveis de emergência
+    const below = s.p50 > this.budget * this.cfg.badP50;
+    const emergency = this.inEmergencyLevels();
+    const fidelity = this.fidelity();
+    this.sessionAcc.add(s, below, emergency, fidelity);
+    this.phase?.acc.add(s, below, emergency, fidelity);
     // taxa da tela: a mais rápida já evidenciada pelos quadros com folga (R-DEV-02)
     const hz = estimateRefreshHz(s.p10);
     if (hz !== null && (this.refreshHz === null || hz > this.refreshHz)) this.refreshHz = hz;
@@ -587,18 +710,28 @@ export class Kgps {
       return;
     }
     const sig = this.configSig();
-    if (!this.trend || this.trend.sig !== sig) this.trend = { sig, since: now, first: [], recent: [] };
+    if (!this.trend || this.trend.sig !== sig) this.trend = { sig, since: now, first: [], recent: [], firstLoad: [], recentLoad: [] };
     const t = this.trend;
     if (t.first.length < 3) {
       t.first.push(s.p50);
+      if (s.loadP50 !== null) t.firstLoad.push(s.loadP50);
       return;
     }
     t.recent.push(s.p50);
     if (t.recent.length > 3) t.recent.shift();
+    if (s.loadP50 !== null) {
+      t.recentLoad.push(s.loadP50);
+      if (t.recentLoad.length > 3) t.recentLoad.shift();
+    }
     if (now - t.since < this.cfg.sustainedWindowMs || t.recent.length < 3) return;
     const before = median3(t.first);
     const after = median3(t.recent);
     if (after < before * this.cfg.sustainedRise) return;
+    // mais desenhos por quadro: a cena ficou mais pesada (batalha, mais prédios) — não é aquecimento
+    if (t.firstLoad.length && t.recentLoad.length && median3(t.recentLoad) > median3(t.firstLoad) * this.cfg.trendLoadRise) {
+      this.trend = { sig, since: now, first: [], recent: [], firstLoad: [], recentLoad: [] };
+      return;
+    }
     this.thermalUntil = now + this.cfg.thermalHoldMs;
     this.push(
       now,
@@ -607,7 +740,7 @@ export class Kgps {
       'hipotese',
     );
     // a próxima comparação começa daqui
-    this.trend = { sig, since: now, first: [], recent: [] };
+    this.trend = { sig, since: now, first: [], recent: [], firstLoad: [], recentLoad: [] };
   }
 
   private isBad(s: WindowStats): boolean {
@@ -626,7 +759,9 @@ export class Kgps {
   private candidate(now: number, emergency = false, bottleneck?: Bottleneck): { id: string; from: number; to: number } | null {
     // dentro de uma cadeia, vale o diagnóstico do começo (a tela arredonda as medidas do meio)
     const b = bottleneck ?? (this.chain.length ? this.chainBottleneck : this.lastBottleneck);
-    let best: { id: string; from: number; to: number; cost: number } | null = null;
+    // descida rápida: menor custo visual por ganho esperado (o ganho aprendido neste aparelho, ou um
+    // padrão sem histórico); ajuste normal: menor custo visual, e no empate o que mais ajuda
+    let best: { id: string; from: number; to: number; cost: number; gain: number } | null = null;
     for (const [id, k] of this.kaics.knobs) {
       if (k.status !== 'ok') continue;
       if ((this.degradeBan.get(id) ?? 0) > now) continue;
@@ -634,7 +769,9 @@ export class Kgps {
       const level = this.kaics.level(id);
       if (level < 0 || level <= this.kaics.minLevel(id, emergency)) continue;
       const cost = k.spec.stepCost(level);
-      if (!best || cost < best.cost) best = { id, from: level, to: level - 1, cost };
+      const gain = Math.min(0.6, Math.max(0.01, this.expectedGain(id) ?? this.cfg.defaultGain));
+      const better = !best || (emergency ? cost / gain < best.cost / best.gain - 1e-9 : cost < best.cost || (cost === best.cost && gain > best.gain + 1e-9));
+      if (better) best = { id, from: level, to: level - 1, cost, gain };
     }
     return best;
   }
@@ -709,6 +846,7 @@ export class Kgps {
       const improved = s.p50 <= ref.p50 * this.cfg.improveP50 || s.p95 <= ref.p95 * this.cfg.improveP95;
       if (improved) {
         for (const c of steps) this.stack.push(c.id);
+        this.noteGain(steps.map((c) => c.id), ref.p50, s.p50, true);
         this.chain = [];
         this.chainBefore = null;
         this.ineffective = 0;
@@ -732,6 +870,7 @@ export class Kgps {
         this.revert(now, steps[i]!);
         this.degradeBan.set(steps[i]!.id, now + this.cfg.ineffectiveBanMs);
       }
+      this.noteGain(steps.map((c) => c.id), ref.p50, s.p50, false);
       this.chain = [];
       this.chainBefore = null;
       this.ineffective++;
@@ -752,6 +891,8 @@ export class Kgps {
     if (this.isBad(s)) {
       this.revert(now, p);
       this.stack.push(p.id);
+      // subir este ajuste pesou: é a mesma medida do ganho de descê-lo, vista ao contrário
+      this.noteGain([p.id], s.p50, p.before.p50, true);
       const prev = this.upgradeBan.get(p.id);
       const strikes = (prev?.strikes ?? 0) + 1;
       const wait = Math.min(this.cfg.upgradeBanMaxMs, this.cfg.upgradeBanBaseMs * 2 ** (strikes - 1));
@@ -863,6 +1004,7 @@ export class Kgps {
     const steps = e.applied.map((a) => `${this.label(a.id)} ${this.levelText(a.id, a.from)} → ${this.levelText(a.id, a.to)}`).join(', ');
     if (s.p50 <= before.p50 * this.cfg.emergencyMinGain) {
       for (const a of e.applied) this.stack.push(a.id);
+      this.noteGain(e.applied.map((a) => a.id), before.p50, s.p50, true);
       this.stabilizeUntil = now + this.cfg.stabilizeMs;
       this.push(
         now,
@@ -877,6 +1019,7 @@ export class Kgps {
       this.revert(now, { kind: 'degrade', ...a, before });
       this.degradeBan.set(a.id, now + this.cfg.ineffectiveBanMs);
     }
+    this.noteGain(e.applied.map((a) => a.id), before.p50, s.p50, false);
     this.push(
       now,
       'revert',
@@ -909,6 +1052,51 @@ export class Kgps {
     this.frozenUntil = now + dur;
     this.frozenReason = reason;
     this.push(now, 'hold', `${reason} (pausa de ${Math.round(dur / 1000)} s)`, evidence);
+  }
+
+  // ------------------------------------------------------------ ganho por ajuste (R-ADP-04)
+
+  /** Ganho esperado de um passo deste ajuste (null = sem observações suficientes). */
+  private expectedGain(id: string): number | null {
+    const l = this.learned[id];
+    const g = this.gains.get(id);
+    const n = (l?.n ?? 0) + (g?.n ?? 0);
+    if (n < this.cfg.gainMinSamples) return null;
+    return ((l ? l.pct * l.n : 0) + (g?.sumPct ?? 0)) / n;
+  }
+
+  /**
+   * Registra o efeito medido de uma decisão: a queda relativa da mediana (de `fromP50` para
+   * `toP50`) dividida entre os passos que participaram. Desfeitos também contam (ganho ~0).
+   */
+  private noteGain(ids: readonly string[], fromP50: number, toP50: number, kept: boolean): void {
+    if (!ids.length || fromP50 <= 0) return;
+    const pct = Math.max(-0.5, Math.min(0.9, (fromP50 - toP50) / fromP50)) / ids.length;
+    const seen = new Set<string>();
+    for (const id of ids) {
+      const g = this.gains.get(id) ?? { kept: 0, reverted: 0, sumPct: 0, n: 0 };
+      g.sumPct += pct;
+      g.n++;
+      if (!seen.has(id)) {
+        if (kept) g.kept++;
+        else g.reverted++;
+        seen.add(id);
+      }
+      this.gains.set(id, g);
+    }
+    this.saveGains();
+  }
+
+  private saveGains(): void {
+    if (!this.gainStore) return;
+    const out: Record<string, KnobGain> = { ...this.learned };
+    for (const [id, g] of this.gains) {
+      const l = this.learned[id];
+      const n = (l?.n ?? 0) + g.n;
+      const pct = ((l ? l.pct * l.n : 0) + g.sumPct) / n;
+      out[id] = { n: Math.min(this.cfg.gainMaxSamples, n), pct: Math.round(pct * 1000) / 1000 };
+    }
+    this.gainStore.save(out);
   }
 
   // ------------------------------------------------------------ perfil aprendido
@@ -954,6 +1142,39 @@ export class Kgps {
   }
 }
 
+/** Acumulador de janelas (sessão inteira ou uma fase): tempo medido, abaixo da meta, emergência, qps. */
+class StatsAcc {
+  measuredMs = 0;
+  belowMs = 0;
+  emergencyMs = 0;
+  hitches = 0;
+  stalls = 0;
+  fidelityMin = 1;
+  private readonly wins: { fps: number; p95: number; span: number }[] = [];
+
+  constructor(private readonly cap: number) {}
+
+  add(s: WindowStats, below: boolean, emergency: boolean, fidelity: number): void {
+    const span = Math.max(s.spanMs, 1);
+    this.measuredMs += span;
+    if (below) this.belowMs += span;
+    if (emergency) this.emergencyMs += span;
+    this.hitches += s.hitches;
+    this.stalls += s.stalls;
+    this.fidelityMin = Math.min(this.fidelityMin, fidelity);
+    this.wins.push({ fps: s.fps, p95: s.p95, span });
+    if (this.wins.length > this.cap) this.wins.shift();
+  }
+
+  fpsMedian(): number {
+    return weightedMedian(this.wins.map((w) => [w.fps, w.span]));
+  }
+
+  p95Median(): number {
+    return percentile(this.wins.map((w) => w.p95).sort((a, b) => a - b), 0.5);
+  }
+}
+
 /** Mediana de três (ou menos) valores. */
 function median3(v: readonly number[]): number {
   return percentile([...v].sort((a, b) => a - b), 0.5);
@@ -970,6 +1191,41 @@ function weightedMedian(pairs: [number, number][]): number {
     if (acc >= total / 2) return v;
   }
   return sorted.at(-1)![0];
+}
+
+/**
+ * Ganhos por ajuste salvos no navegador, por chave (versão gráfica, preset, densidade de tela e
+ * classe do aparelho; ver `gainKey` em device.ts). Expiram em 30 dias.
+ */
+export function localGainStore(key: string, nowMs = Date.now()): GainStore {
+  const STORAGE = 'nc.kgps.gains.v1';
+  const TTL = 30 * 24 * 3600 * 1000;
+  const read = (): Record<string, { gains: Record<string, KnobGain>; at: number }> => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(STORAGE) ?? '{}') as unknown;
+      return raw && typeof raw === 'object' ? (raw as Record<string, { gains: Record<string, KnobGain>; at: number }>) : {};
+    } catch {
+      return {};
+    }
+  };
+  return {
+    load: () => {
+      const e = read()[key];
+      if (!e || typeof e.at !== 'number' || nowMs - e.at > TTL || typeof e.gains !== 'object' || e.gains === null) return null;
+      const out: Record<string, KnobGain> = {};
+      for (const [id, g] of Object.entries(e.gains)) if (g && Number.isFinite(g.n) && Number.isFinite(g.pct) && g.n > 0) out[id] = { n: g.n, pct: g.pct };
+      return out;
+    },
+    save: (gains) => {
+      try {
+        const all = read();
+        all[key] = { gains, at: Date.now() };
+        localStorage.setItem(STORAGE, JSON.stringify(all));
+      } catch {
+        // armazenamento indisponível: o ganho vale só para esta partida
+      }
+    },
+  };
 }
 
 /** Ajuste aprendido salvo no navegador, por chave (ver `profileKey`); expira em 14 dias. */
