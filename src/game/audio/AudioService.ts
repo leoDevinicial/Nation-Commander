@@ -20,7 +20,7 @@ export type Volumes = Record<Channel | 'master', number>;
 export const DEFAULT_VOLUMES: Volumes = { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 };
 
 export type UiSound = 'click' | 'confirm' | 'error' | 'alert' | 'success' | 'hold';
-export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket';
+export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun';
 export type MissileCue = 'prepare' | 'armed' | 'authorize';
 
 /** Som de trabalho de cada edifício (os demais usam o zumbido genérico). */
@@ -53,6 +53,7 @@ const PRIORITY: Record<CombatSound, number> = {
   rifle: 1,
   tower: 1,
   flak: 2,
+  aa_gun: 3,
   cannon: 2,
   howitzer: 4,
   rocket: 2,
@@ -66,7 +67,7 @@ const PRIORITY: Record<CombatSound, number> = {
 };
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
-const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4 };
+const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, aa_gun: 0.45 };
 
 /**
  * Atenuação e panorâmica de um ponto do mapa para quem olha `L` (ponto da câmera, distância e giro).
@@ -333,6 +334,41 @@ export class AudioService {
         end = burst('bandpass', 1200, 1.1, 0.002, 0.55, 0.12);
         thump(220, 90, 0.003, 0.25, 0.1);
         break;
+      case 'aa_gun': {
+        // canhão antiaéreo automático duplo (35 mm, tipo Gepard): rajada de 6 a 9 tiros alternando os
+        // dois canos (~12 por segundo). Cada tiro: estalo supersônico seco, soco grave saturado (o
+        // peso "ignorante" que se sente no peito), jato da boca e o clangor do mecanismo de
+        // alimentação. No fim, o eco grave da rajada rolando pelo terreno.
+        const drive = ctx.createWaveShaper();
+        drive.curve = this.driveCurve(4.2);
+        drive.oversample = '4x';
+        const low = ctx.createBiquadFilter();
+        low.type = 'lowpass';
+        low.frequency.value = 420;
+        const body = ctx.createGain();
+        body.gain.value = 1.05;
+        drive.connect(low).connect(body).connect(out);
+        const rounds = 6 + Math.floor(Math.random() * 4);
+        const rate = 0.082 + Math.random() * 0.008;
+        for (let i = 0; i < rounds; i++) {
+          const at = t + i * rate + (Math.random() - 0.5) * 0.005;
+          // os dois canos têm timbre um pouco diferente; o primeiro tiro é o mais forte
+          const left = i % 2 === 0;
+          const k = (i === 0 ? 1.1 : 0.85 + Math.random() * 0.15) * (left ? 1 : 0.92);
+          burst('highpass', (left ? 1700 : 1500) + Math.random() * 300, 0.7, 0.0008, 1.15 * k, 0.045, at);
+          burst('bandpass', left ? 700 : 620, 1.2, 0.001, 0.9 * k, 0.12, at);
+          thump(left ? 120 : 108, 36, 0.002, 1.6 * k, 0.2, at, 'sine', drive);
+          thump(64, 24, 0.003, 1.1 * k, 0.32, at, 'triangle', drive);
+          burst('lowpass', 520, 0.7, 0.002, 1.25 * k, 0.22, at, drive);
+          // mecanismo: culatra batendo e o elo da munição (metal)
+          burst('bandpass', 2900 + Math.random() * 300, 9, 0.001, 0.22 * k, 0.05, at + 0.03);
+        }
+        const tail = t + rounds * rate;
+        burst('lowpass', 340, 0.6, 0.03, 1.0, 0.9, tail - rate, drive);
+        burst('lowpass', 220, 0.5, 0.07, 0.55, 1.4, tail + 0.25);
+        end = burst('lowpass', 150, 0.5, 0.12, 0.32, 1.8, tail + 0.7);
+        break;
+      }
       case 'cannon':
         end = burst('lowpass', 900, 0.8, 0.003, 0.9, 0.45);
         thump(110, 38, 0.004, 0.9, 0.38);
