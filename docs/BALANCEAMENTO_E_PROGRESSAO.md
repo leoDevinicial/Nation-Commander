@@ -246,6 +246,33 @@ o que falta e como se encaixaria.
 - **Proposta:** programa espacial, usina nuclear, rede 5G nacional, hidrelétrica, centro financeiro. Custam recursos do
   teatro e US$ do orçamento, levam anos de jogo para concluir e dão bônus globais.
 
+**13.1 Megaconstrução: Programa Espacial 🛰**
+
+O Grande Projeto mais ambicioso e **a construção mais cara do jogo**, pensada para o **fim de partida (endgame)**.
+
+- **O que é:** um centro de lançamento com plataforma, torre de serviço, foguete e centro de controle. Ocupa uma área
+  grande (por exemplo 4×4 células).
+- **Requisitos:** era **Futuro Próximo** (seção 3.1), Centro de Comando no nível 9 ou mais e uma pesquisa nacional própria
+  (*Tecnologia espacial*).
+- **Custo:** muito acima de qualquer outra construção. Proposta inicial, a calibrar: 1.500 suprimentos, 1.200 ferro,
+  800 pedra, 600 madeira, 600 petróleo e US$ 2 bi do orçamento nacional, com cerca de 6 minutos de obra. Para comparar,
+  a Base Aérea, hoje a construção mais cara, custa cerca de 470 em recursos somados.
+- **Lançamento:**
+  1. Com a obra concluída, o jogador clica na construção e **autoriza o lançamento**, com confirmação.
+  2. Há uma contagem regressiva curta na plataforma.
+  3. **Animação do foguete 🚀**: ignição, fumaça e chamas na base, e o foguete sobe até sumir do alto da tela.
+  4. O evento é anunciado a todos os jogadores.
+- **Efeito: satélite em órbita.** A nação dona do satélite fica **sem névoa de guerra** e **vê todo o mapa em tempo real**:
+  todas as unidades e construções inimigas, sempre atualizadas. No servidor, isso significa enviar a esse jogador o
+  snapshot completo, sem o filtro de visão.
+- **No globo diplomático:** o satélite **aparece orbitando a Terra**, com a bandeira do país, à vista de todos os
+  jogadores.
+- **Pontos a decidir no balanceamento:**
+  - se destruir o Programa Espacial depois do lançamento derruba o satélite ou só impede novos lançamentos;
+  - se haverá contra-jogo, como uma pesquisa de arma antissatélite ou interferência eletrônica que cega o satélite por
+    um tempo;
+  - se cada nação pode ter mais de um lançamento e se o satélite tem vida útil.
+
 **14. Choque econômico global do lançamento nuclear**
 - **No RoN:** armas nucleares têm consequências que afetam todos os jogadores, não só o alvo.
 - **Proposta:** todo lançamento nuclear causa um **debuff temporário gigante na economia global**: queda forte do
@@ -261,7 +288,8 @@ o que falta e como se encaixaria.
 
 ## Prioridade sugerida (lote 2)
 1. **Cidades secundárias com captura (1 e 2):** resolvem a falta de expansão e dão objetivos intermediários.
-2. **Grandes Projetos Nacionais (13):** ligam a camada nacional ao teatro e dão sensação de "construir uma nação".
+2. **Grandes Projetos Nacionais (13):** ligam a camada nacional ao teatro e dão sensação de "construir uma nação". O
+   Programa Espacial (13.1) é a meta de fim de partida.
 3. **Choque econômico do lançamento nuclear (14):** custo baixo, porque o sistema de mísseis e a simulação econômica já
    existem, e impacto estratégico alto.
 4. **Bônus únicos por país (12):** pouco código, muita identidade.
