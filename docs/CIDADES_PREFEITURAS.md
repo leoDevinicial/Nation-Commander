@@ -19,7 +19,7 @@ tomada.
 - **Capital:** o QG é a capital (Brasília, Paris…).
 - **Placa no mapa:** cada cidade mostra o nome acima do prédio, com um filete na cor da nação. A capital
   tem uma estrela.
-- **Lista de cidades:** `shared/data/cities.ts` tem 16 cidades para cada um dos 21 países.
+- **Lista de cidades:** `shared/data/cities.ts` tem 16 cidades para cada um dos 27 países.
 - **Distância mínima:** a prefeitura fica a pelo menos **10 células** (centro a centro) de qualquer
   outra prefeitura e de qualquer QG, de qualquer país. O fantasma de construção mostra o motivo quando
   o lugar é perto demais.

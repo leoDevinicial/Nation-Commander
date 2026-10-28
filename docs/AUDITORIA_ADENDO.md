@@ -86,7 +86,8 @@ Parcial na auditoria (eventos sem identificador, causa nem efeito registrados). 
 `docs/FASE9_NOTICIARIO.md`.
 
 ### Fase 10 — Mais nações
-Parcial: 10 países com dados reais rastreáveis. O pipeline (WDI + WEO, com fonte e ano) já serve para novos lotes.
+Parcial na auditoria (10 países). Lote 2 levou a 21; o lote 3 (Nigéria, Indonésia, Irã, Polônia, Colômbia e
+Paquistão) levou a 27 — veja `docs/FASE10_NACOES.md`.
 
 ### Fase 11 — Multiplayer (auditoria resumida; a completa fica para a fase 11)
 | Item | Estado | Observação |
