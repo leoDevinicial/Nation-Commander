@@ -46,7 +46,9 @@ export function describeNationalEvent(e: NationalEvent, mySlot: number, nameOf: 
       const bad = e.indicator === 'approval' ? e.direction === 'down' : e.direction === 'up';
       const verb = e.direction === 'up' ? 'ultrapassou' : 'caiu abaixo de';
       const unit = e.indicator === 'debt' ? '% do PIB' : '%';
-      return { text: `${label} ${verb} ${e.threshold}${unit} (agora ${formatPct(e.value)})`, tone: bad ? 'bad' : 'good' };
+      // perto do limite, uma casa decimal pode arredondar para o próprio limite ("abaixo de 30%, agora 30,0%")
+      const now = Math.abs(e.value - e.threshold) < 0.05 ? formatPct(e.value, 2) : formatPct(e.value);
+      return { text: `${label} ${verb} ${e.threshold}${unit} (agora ${now})`, tone: bad ? 'bad' : 'good' };
     }
     case 'operation': {
       const outcome = { victory: 'vitória', defeat: 'derrota', retreat: 'recuo', stalemate: 'impasse (recuo)' }[e.outcome];

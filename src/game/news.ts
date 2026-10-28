@@ -121,7 +121,7 @@ function titleOf(e: NationalEvent, mySlot: number, nameOf: (id: number) => strin
     case 'nuclear_shock':
       return 'Lançamento nuclear abala a economia mundial';
     case 'policy':
-      return e.tone === 'bad' ? 'Crise política' : e.tone === 'good' ? 'Vitória política' : 'Política interna';
+      return e.tone === 'bad' ? 'Pressão política' : e.tone === 'good' ? 'Conquista política' : 'Política interna';
     case 'diplomacy': {
       const d = e.event;
       switch (d.type) {
@@ -130,7 +130,7 @@ function titleOf(e: NationalEvent, mySlot: number, nameOf: (id: number) => strin
         case 'treaty_ended':
           return `${TREATY_LABEL[d.treaty.type]} ${d.reason === 'war' ? 'rompido pela guerra' : 'encerrado'}`;
         case 'war_declared':
-          return `${who(d.by)} declara guerra a ${d.target === mySlot ? 'nosso país' : nameOf(d.target)}`;
+          return `Guerra declarada: ${d.by === mySlot ? 'nosso país' : nameOf(d.by)} contra ${d.target === mySlot ? 'nosso país' : nameOf(d.target)}`;
         case 'discovered':
           return `Contato estabelecido com ${nameOf(d.target)}`;
         case 'contact_started':
