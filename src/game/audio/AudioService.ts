@@ -371,39 +371,30 @@ export class AudioService {
         break;
       }
       case 'tank_gun': {
-        // canhão de tanque (120–125 mm): ataque instantâneo — estalo supersônico e o tapa do gás
-        // colados —, soco grave com saturação dupla (o peso "ignorante"), jato do freio de boca,
-        // baque do recuo, clique do carregador e um eco curto e seco
+        // canhão de tanque (120–125 mm), seco: estalo supersônico e tapa do gás no mesmo instante,
+        // um soco médio curto (pouco grave) com saturação leve, o "clac" do recuo e do carregador e
+        // quase nenhum eco — o tiro corta, não ressoa
         const drive = ctx.createWaveShaper();
-        drive.curve = this.driveCurve(4);
+        drive.curve = this.driveCurve(3);
         drive.oversample = '4x';
-        const crush = ctx.createWaveShaper();
-        crush.curve = this.driveCurve(8);
-        crush.oversample = '4x';
-        const low = ctx.createBiquadFilter();
-        low.type = 'lowpass';
-        low.frequency.value = 300;
-        const body = ctx.createGain();
-        body.gain.value = 1.2;
-        drive.connect(crush).connect(low).connect(body).connect(out);
-        // estampido: tudo começa no mesmo milissegundo (abrupto)
-        burst('highpass', 1400, 0.6, 0.0005, 2.0, 0.07);
-        burst('bandpass', 3800, 0.9, 0.0005, 1.0, 0.035);
-        burst('highpass', 800, 0.7, 0.0008, 1.4, 0.09, t + 0.012);
-        // soco: graves descendentes saturados e um quadrado curto que rasga o começo
-        thump(105, 30, 0.001, 2.4, 0.55, t, 'sine', drive);
-        thump(60, 20, 0.002, 1.9, 1.0, t, 'triangle', drive);
-        thump(85, 34, 0.001, 1.0, 0.12, t, 'square', drive);
-        // corpo e jato lateral do freio de boca
-        burst('lowpass', 560, 0.7, 0.001, 2.2, 0.75, t, drive);
-        burst('bandpass', 950, 1.1, 0.001, 1.1, 0.25, t + 0.008);
-        // mecânica: recuo batendo e o carregador automático
-        thump(160, 95, 0.002, 0.3, 0.12, t + 0.16, 'square');
-        burst('bandpass', 2600, 10, 0.001, 0.22, 0.08, t + 0.16);
-        burst('bandpass', 3400, 12, 0.001, 0.14, 0.05, t + 0.55);
-        // eco curto rolando no terreno
-        burst('lowpass', 300, 0.6, 0.03, 0.8, 0.8, t + 0.22, drive);
-        end = burst('lowpass', 180, 0.5, 0.08, 0.4, 1.3, t + 0.6);
+        const band = ctx.createBiquadFilter();
+        band.type = 'highpass';
+        band.frequency.value = 140;
+        drive.connect(band).connect(out);
+        // estampido seco e brilhante
+        burst('highpass', 1800, 0.6, 0.0004, 2.2, 0.05);
+        burst('bandpass', 4200, 0.9, 0.0004, 1.2, 0.03);
+        burst('bandpass', 1200, 0.8, 0.0006, 1.6, 0.06, t + 0.006);
+        // soco médio e curto (sem cauda grave)
+        thump(190, 80, 0.001, 1.4, 0.09, t, 'square', drive);
+        thump(130, 60, 0.001, 1.2, 0.14, t, 'triangle', drive);
+        burst('bandpass', 700, 0.9, 0.0008, 1.5, 0.12, t, drive);
+        // mecânica: recuo e carregador
+        burst('bandpass', 2600, 10, 0.001, 0.3, 0.06, t + 0.14);
+        thump(240, 150, 0.001, 0.25, 0.06, t + 0.14, 'square');
+        burst('bandpass', 3400, 12, 0.001, 0.16, 0.04, t + 0.5);
+        // reflexo curto e seco
+        end = burst('bandpass', 900, 0.7, 0.01, 0.25, 0.25, t + 0.12);
         break;
       }
       case 'cannon':
