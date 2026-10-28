@@ -1,4 +1,4 @@
-# KGPS + KAICS — desempenho gráfico adaptativo (versão 2: Ondas 1 e 2 do KAICS Adaptables+)
+# KGPS + KAICS — desempenho gráfico adaptativo (versão 2: Ondas 1 e 2 e parte da 3 do KAICS Adaptables+)
 
 **KGPS** (Kaiser Graphic Performance System) mantém a partida perto da **meta de quadros do
 aparelho** — 60 qps no PC, 30 qps no celular — mexendo o mínimo possível na qualidade. **KAICS**
@@ -11,9 +11,10 @@ de evidências que os dois usam; a especificação completa, com requisitos, ond
 > ajudou.
 
 Código: `src/game/perf/` (núcleo, sem dependência do three.js: `stats.ts`, `kaics.ts`, `kgps.ts`,
-`device.ts`, `report.ts`, `advisor.ts`; `gpuTimer.ts` fala com o WebGL) e `src/game/GameRuntime.ts`
-(`setupPerf`, `perfFrame`, `perfReport`, `prewarm`). Testes: `src/test/kgps.test.ts` (v1),
-`src/test/adaptables.test.ts` (Onda 1) e `src/test/adaptables2.test.ts` (Onda 2), com a bancada
+`device.ts`, `report.ts`, `advisor.ts`, `memory.ts`; `gpuTimer.ts` fala com o WebGL) e
+`src/game/GameRuntime.ts` (`setupPerf`, `perfFrame`, `perfReport`, `prewarm`, teste de campo).
+Testes: `src/test/kgps.test.ts` (v1), `src/test/adaptables.test.ts` (Onda 1),
+`src/test/adaptables2.test.ts` (Onda 2) e `src/test/adaptables3.test.ts` (etapa 3), com a bancada
 comum em `src/test/perfHarness.ts`.
 
 ### O que mudou da versão 1 para a 2 (Onda 1)
@@ -39,6 +40,15 @@ comum em `src/test/perfHarness.ts`.
 | Aparelho esquentando (o jogo fica lento sozinho) | **Tendência sustentada:** com os mesmos ajustes, mediana +15% em 5 min segura as subidas de qualidade por 5 min (indício, não medido) |
 | Medidas estranhas sem explicação | **Eventos no registro:** congelamentos, aba oculta, troca de cena, contexto perdido, densidade de tela, pré-aquecimento, primeiro minuto |
 | Botões que faltavam | **K-06 a K-09:** rastros, sombras das nuvens, animação das tropas distantes e ondas da água |
+
+### Etapa 3 (dados de campo e Onda 3 sem gatilho)
+
+| Lacuna | Etapa 3 |
+|---|---|
+| Testar no aparelho exigia seguir um protocolo à mão | **Teste de campo automático** no Sandbox: 2 min parado + 2 min com 20 tropas em combate, um toque, relatório com as duas fases; **Compartilhar** direto do painel |
+| A ordem da descida era só uma estimativa (seção 22 da especificação) | **Ganho medido de cada ajuste neste aparelho** (R-ADP-04), guardado entre partidas: a descida rápida escolhe pelo menor custo visual **por ganho esperado** |
+| O indício de aquecimento confundia uma batalha começando com o aparelho esquentando | A janela guarda a **carga da cena** (chamadas de desenho); alta da mediana com mais desenhos não é aquecimento |
+| Vazamento de memória só aparecia como "o jogo fica lento com o tempo" | **Vigia de memória** (Onda 3, R-DEV-05): alta contínua em 10 min, mais rápida que tropas e prédios, vira incidente |
 
 ## 1. Princípios (do plano original, mantidos)
 
@@ -299,7 +309,38 @@ microssegundos por quadro.
   carregamento, no painel, no registro e no relatório. Para comparar antes/depois, o
   pré-aquecimento pode ser desligado com `localStorage['nc.perf.prewarm'] = 'off'`.
 
-## 5.2 Consultor de preset (Onda 2, C6)
+## 5.2 Teste de campo automático (etapa 3)
+- **Onde:** painel de desempenho, só no Modo Sandbox (ele cria as tropas). O jogador marca se a
+  economia de bateria está ligada (o navegador não informa) e toca em "Iniciar teste de campo".
+- **Fases:** 2 min **parado**, com a câmera na capital; depois 10 tropas de cada lado (4 tanques,
+  4 infantarias e 2 artilharias) num ponto perto da capital, 2 min em **combate**. As tropas são
+  confirmadas pelo estado do servidor e reenviadas (até 3 vezes) se a conexão falhar; o cronômetro
+  do combate conta a partir delas em campo.
+- **Resultado:** cada fase vira um resumo (qps típico, p95, tempo abaixo da meta e com
+  emergência, travadas, mudanças de qualidade) no painel e no relatório (`fieldTest`), junto com o
+  número de tropas confirmadas e a resposta sobre a economia de bateria.
+- **Compartilhar:** onde o navegador oferece, o relatório vai direto ao menu de compartilhar do
+  aparelho (por exemplo, para o app de conversa).
+
+## 5.3 Ganho medido de cada ajuste (etapa 3, R-ADP-04)
+- Cada decisão confirmada ou desfeita registra a queda relativa da mediana, dividida entre os
+  passos que participaram (uma subida que pesou conta como o mesmo ganho, ao contrário).
+- O histórico fica no navegador (`nc.kgps.gains.v1`), por versão gráfica, preset, densidade de
+  tela e classe do aparelho, com peso máximo de 20 observações e validade de 30 dias.
+- **Descida rápida:** escolhe o passo de menor custo visual **por ganho esperado** (ganho aprendido
+  com pelo menos 2 observações; sem histórico, 8% para todos — a ordem fica a do custo visual).
+- **Ajuste normal:** continua pelo menor custo visual; o ganho só desempata.
+- O painel mostra "ganho ~N%" ao lado de cada ajuste com histórico; o relatório traz `knobGains`.
+
+## 5.4 Vigia de memória (Onda 3, R-DEV-05 / R-MEM-01)
+- A cada 15 s: geometrias, texturas e programas de shader do renderizador e, no Chrome, a memória
+  do JavaScript, além do número de tropas e prédios.
+- **Incidente (hipótese):** em 10 min sem troca de cena, alta de pelo menos 20% (e 50 objetos ou
+  50 MB) que quase nunca recua e cresce mais rápido que tropas e prédios. Nada é reduzido por
+  isso: a correção é no código do jogo, e o relatório traz os números (`memory`).
+- Troca de cena (globo, batalha) recomeça a comparação.
+
+## 5.5 Consultor de preset (Onda 2, C6)
 - **Histórico neste aparelho** (`nc.perf.history.v1`, só no navegador): a última partida de cada
   preset (minutos, qps típicos, tempo abaixo da meta e com níveis de emergência, se manteve a
   meta), com a versão gráfica.
@@ -482,15 +523,37 @@ percentis (reduzir qualidade não resolve compilação de shader nem aba parada)
   Ultra+"), meta de quadros nas configurações (salva na hora) e aviso do Ultra com a última
   medição real.
 
-**A conferir em aparelho real** (protocolo F-01 a F-07 da especificação)
+**Etapa 3** (`src/test/adaptables3.test.ts`)
+- fases do teste de campo resumem só as próprias janelas;
+- ganho confirmado registrado e salvo; a descida rápida escolhe pelo custo por ganho aprendido; o
+  ajuste normal continua pelo menor custo visual;
+- indício de aquecimento: mesma carga → indício; mais desenhos por quadro → é a cena, nada;
+- vigia de memória: alta contínua → um incidente; alta junto com tropas e prédios, ou sobe e
+  desce → nada; memória do JavaScript; troca de cena recomeça;
+- relatório com fases, ganhos e memória.
+
+**Etapa 3 no navegador** (SwiftShader, Mobile/Baixo, fases encurtadas para 20 s)
+- **Teste de campo:** fase parado com a câmera na capital; no combate, as 20 tropas confirmadas
+  na primeira tentativa (10 de cada lado) e a luta aconteceu (20 → 4 tropas em 30 s). O painel e o
+  relatório trouxeram as duas fases, a economia de bateria informada e as tropas confirmadas.
+- **Por que a confirmação existe:** numa rodada anterior, um congelamento de 34 s do SwiftShader
+  derrubou a conexão bem na hora do comando e nenhuma tropa nasceu; agora o teste reenvia.
+- **Ganho por ajuste e memória:** o relatório trouxe os ganhos medidos (uma cadeia desfeita,
+  ganho negativo) e a memória da cena (187 geometrias, 23 texturas, 27 programas, 72 MB de
+  JavaScript).
+
+**A conferir em aparelho real** (protocolo F-01 a F-07 da especificação; o **teste de campo
+automático** do painel faz as rodadas parado + combate sozinho)
 Com "Mostrar FPS" ligado, toque no contador e confira no painel as medidas, os ajustes e as
 decisões; depois toque em "Copiar relatório" e cole na conversa. Prioridade: o mesmo celular de
 E1/E2, no Ultra+ com e sem economia de bateria e no Mobile/Baixo.
 
 ## 9. Próxima onda (ver a seção 36 da especificação)
 
-**Onda 3 (só com gatilho de campo):** residência de texturas, tendência de memória, "Ultra+
-Móvel", metas acima de 60 qps e telemetria agregada no servidor (exige consentimento).
+**Onda 3:** a vigia de memória já entrou (seção 5.4). Ficam esperando gatilho ou decisão:
+residência de texturas (as texturas são procedurais e há poucos ativos externos), "Ultra+ Móvel"
+(decisão D5 e relatórios do celular), metas acima de 60 qps (pedido de quem tem tela de 120 Hz) e
+telemetria agregada no servidor (exige consentimento explícito do jogador).
 
 **Continua fora:** limite de luzes dinâmicas e sombras ligadas/desligadas em tempo real (mudar
 isso recompila shaders e trava o jogo). Ficam com o consultor da próxima partida.

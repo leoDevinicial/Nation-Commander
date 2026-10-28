@@ -5,7 +5,7 @@
 |---|---|
 | Documento | KAP-KGPS-SPEC |
 | Versão | 2.1. Revisa a 1.0 (rascunho do autor, genérica) e a ancora no código real. A 2.1 registra o que a Onda 1 aprendeu ao ser implementada (seção 36.1). |
-| Estado | **Ondas 1 e 2 implementadas** (aguardando os testes de campo F-01 a F-07). Onda 3 só com gatilho de campo. As decisões da seção 0.5 seguem o padrão definido. |
+| Estado | **Ondas 1 e 2 implementadas**, mais o teste de campo automático, o ganho medido por ajuste (R-ADP-04) e a vigia de memória da Onda 3 (seção 36.3). Aguardando os testes de campo F-01 a F-07. O resto da Onda 3 espera gatilho ou decisão. |
 | Base atual | KGPS/KAICS v1 em produção: `src/game/perf/` e `GameRuntime.setupPerf`. Descrição em `docs/KGPS_KAICS.md`. |
 | Público | Agente de implementação, desenvolvedor e o jogador que testa no aparelho. |
 | Idioma | Português (Brasil). |
@@ -751,6 +751,26 @@ Automáticos: T-16 e os novos da Onda 2 passando, com typecheck, lint e build. F
 6. **R-SHD-03.** O mecanismo existe, com a lista vazia: nenhum defeito de GPU foi comprovado.
 7. **K-07.** O shader das nuvens passou a pular a leitura da textura com força 0 (sem isso,
    desligar não economizava nada). **K-08:** raio "longe" = max(30, 0,8 × distância da câmera).
+
+### 36.3 Etapa 3 — o que entrou sem gatilho de campo, e por quê
+O dono do produto pediu para seguir sem esperar os relatórios. Entrou o que **gera** dados de
+campo ou não depende deles:
+1. **Teste de campo automático** (Sandbox): o protocolo da seção 33 (parado + 20 tropas em
+   combate) num toque, com as fases resumidas no relatório e "Compartilhar". Tropas confirmadas
+   pelo estado do servidor, com reenvio: no ambiente de teste a conexão caía nos congelamentos e os
+   comandos se perdiam.
+2. **R-ADP-04 (ganho por ajuste)**, que era P1/F: o ganho de cada passo é medido em toda decisão e
+   guardado por aparelho; a descida rápida passou a usar "menor custo visual por ganho esperado"
+   (seção 22), com o custo visual puro enquanto não há histórico. O ajuste normal não mudou.
+3. **Indício de aquecimento × carga da cena:** a janela guarda as chamadas de desenho; alta da
+   mediana com mais desenhos por quadro não conta como aquecimento (o falso positivo citado em 36.2).
+4. **Vigia de memória (R-DEV-05, R-MEM-01 dentro da cena):** incidente com hipótese quando
+   geometrias, texturas ou a memória do JavaScript sobem sem parar por 10 min, mais rápido que
+   tropas e prédios.
+
+**Continuam esperando** (seção 36, Onda 3): residência de texturas (sem travadas de conteúdo novo
+relatadas; texturas procedurais), "Ultra+ Móvel" (decisão D5 + relatórios), metas acima de 60 qps
+(pedido de jogadores com telas de 120 Hz) e telemetria agregada (consentimento explícito).
 
 **Onda 2 — precisão e próxima partida (P1).**
 - consultor e aviso por aparelho;
