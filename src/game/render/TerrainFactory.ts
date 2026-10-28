@@ -262,7 +262,7 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
   for (let i = 0; i < pos.count; i++) heights[i] = pos.getY(i);
   const groundHeights = groundHeightTexture(heights, map.width * sub + 1, map.height * sub + 1);
   disposables.push(groundHeights.texture);
-  const water = createWater(W, H, reflection, { waves: ultra, ground: groundHeights });
+  const water = createWater(W, H, reflection, { waves: ultra, ground: groundHeights, reflectionSize: cinematic ? 1024 : ultra ? 768 : 512 });
   group.add(water.mesh);
   disposables.push(water);
 

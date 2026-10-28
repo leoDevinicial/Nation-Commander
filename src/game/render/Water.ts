@@ -147,14 +147,25 @@ const fragmentShader = /* glsl */ `
     vec3 refl;
     if (uPlanar > 0.5) {
       vec4 uv = vReflUv;
-      uv.xy += n.xz * 0.35 * uv.w * 0.08;
-      refl = texture2DProj(tDiffuse, uv).rgb;
+      // a imagem refletida treme com as ondulações (mais longe, mais esticada) e é amostrada
+      // em cruz para suavizar o serrilhado, como a água de verdade borra o reflexo
+      uv.xy += n.xz * uv.w * (0.05 + 0.04 * uWaves);
+      vec2 px = vec2(0.0018, 0.0026) * uv.w;
+      refl = texture2DProj(tDiffuse, uv).rgb * 0.4
+        + texture2DProj(tDiffuse, uv + vec4(px.x, 0.0, 0.0, 0.0)).rgb * 0.15
+        + texture2DProj(tDiffuse, uv - vec4(px.x, 0.0, 0.0, 0.0)).rgb * 0.15
+        + texture2DProj(tDiffuse, uv + vec4(0.0, px.y, 0.0, 0.0)).rgb * 0.15
+        + texture2DProj(tDiffuse, uv - vec4(0.0, px.y, 0.0, 0.0)).rgb * 0.15;
+      // a água absorve um pouco: o reflexo fica levemente mais escuro e esverdeado
+      refl *= vec3(0.86, 0.93, 0.95);
     } else {
       refl = mix(uHorizon, uZenith, pow(clamp(r.y, 0.0, 1.0), 0.55));
     }
     vec3 base = mix(uShallow, uDeep, 0.6 + 0.4 * n.x);
     // reflexo visível mesmo na câmera alta do RTS (fator mínimo), mais forte rente ao horizonte
-    vec3 col = mix(base, refl, clamp(0.28 + fres * 0.9, 0.0, 0.92));
+    // reflexo bem presente mesmo na câmera alta do RTS (planar mais forte), e quase espelho
+    // rente ao horizonte (Fresnel)
+    vec3 col = mix(base, refl, clamp((uPlanar > 0.5 ? 0.46 : 0.28) + fres * 0.9, 0.0, 0.94));
     // brilho especular do sol nas ondulações
     float sd = max(dot(r, uSunDir), 0.0);
     col += uSunColor * (pow(sd, 260.0) * 2.2 + pow(sd, 24.0) * 0.18);
@@ -223,6 +234,8 @@ export interface WaterOptions {
   waves?: boolean;
   /** Altura do solo (ver `groundHeightTexture`): calma das ondas no raso, espuma e borda na margem. */
   ground?: GroundHeight | null;
+  /** Resolução da textura do reflexo planar (px). */
+  reflectionSize?: number;
 }
 
 export function createWater(W: number, H: number, mode: WaterReflection, opts: WaterOptions = {}): WaterHandle {
@@ -233,8 +246,8 @@ export function createWater(W: number, H: number, mode: WaterReflection, opts: W
   let reflection: WaterHandle['reflection'] = null;
   if (mode === 'planar') {
     const reflector = new Reflector(geo, {
-      textureWidth: 512,
-      textureHeight: 512,
+      textureWidth: opts.reflectionSize ?? 512,
+      textureHeight: opts.reflectionSize ?? 512,
       clipBias: 0.02,
       multisample: 0,
       shader: { name: 'NcWater', uniforms: uniforms(), vertexShader, fragmentShader },

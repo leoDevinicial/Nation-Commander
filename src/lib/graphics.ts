@@ -80,7 +80,7 @@ export const PROFILES: Record<GraphicsPreset, GraphicsProfile> = {
     terrain: 'high',
     maxEffects: 120,
     ao: false,
-    reflections: 'sky',
+    reflections: 'planar',
     adaptiveExposure: true,
     dynamicLights: 2,
     envProbe: false,
