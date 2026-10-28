@@ -87,9 +87,39 @@ caros, com retorno pequeno e invisível ("+8% de vida"). Faltam marcos que se si
 
 ## 3. Progressão mais gratificante
 
-- **Eras ligadas ao nível do QG** (estilo *Rise of Nations* / *Tropico 5*): por exemplo Guerra Fria → Pós-Guerra Fria →
-  Contemporânea → Futuro Próximo. Cada era muda o visual, libera edifícios e unidades e toca uma música; os 10 níveis
-  lineares viram 3 ou 4 saltos perceptíveis.
+### 3.1 Progressão por eras (eixo central)
+
+A partida avança por **quatro eras**, no estilo *Rise of Nations* e *Tropico 5*. Cada era **muda a aparência de todas
+as construções** e **libera aos poucos tropas, veículos e construções novas**. É o principal marcador de progresso: o
+jogador vê e sente a nação evoluir, em vez de acumular só porcentagens.
+
+**Como se avança de era**
+- O avanço é uma **pesquisa nacional cara**, com custo em recursos do teatro e em US$ do orçamento.
+- Cada era exige um **nível mínimo do Centro de Comando**.
+- O custo sobe a cada era.
+- Durante o avanço, o QG mostra a obra. Ao concluir, há um evento de destaque e a música muda.
+
+**O que muda ao entrar numa era**
+- **Aparência:** todas as construções do jogador trocam de modelo e textura para o estilo da nova era, com uma transição
+  curta. Unidades novas saem com o visual da era; as antigas mantêm o visual até serem modernizadas.
+- **Tropas e veículos:** a era libera um novo grupo de unidades. As pesquisas do Centro de Pesquisa Militar continuam
+  existindo, mas cada uma só fica disponível a partir da sua era.
+- **Construções:** a era libera novos edifícios e eleva o nível máximo das melhorias.
+
+**Proposta inicial de eras** (distribuição a partir do conteúdo que já existe; números a calibrar):
+
+| Era | Requisito | Aparência das construções | Tropas e veículos liberados | Construções liberadas |
+|---|---|---|---|---|
+| **1. Guerra Fria** (início) | — | Concreto aparente, tijolo, telhado de zinco, pintura verde-oliva, antenas simples | Infantaria, Veículo Blindado | Centro de Comando, Casa, Fazenda, Serraria, Pedreira, Mina, Poço de Petróleo, Armazém, Silo, Tanque de Petróleo, Base Militar, Fábrica de Veículos, Torre de Vigilância |
+| **2. Pós-Guerra Fria** | QG nível 3 | Galpões metálicos pré-fabricados, cercas e guaritas, primeiros radares | Tanque, Artilharia, Infantaria Antitanque | Centro de Pesquisa Militar, Prédio Residencial, Terminal Comercial, Porto, Estação Ferroviária, Bateria Antiaérea |
+| **3. Era Digital** | QG nível 5 | Vidro e aço, antenas de telecomunicação, painéis solares, camuflagem digital nos veículos | Antiaérea Móvel, Forças Especiais, Lança-Foguetes; caças de 1ª geração | Base Aérea; melhorias até o nível 8 |
+| **4. Futuro Próximo** | QG nível 7 | Estruturas compostas, telas e iluminação de LED, drones de vigilância decorativos, pistas iluminadas | Tanque Moderno; caças de nova geração | Silo de Mísseis, Grandes Projetos Nacionais (lote 2, item 13); melhorias até o nível 10 |
+
+Assim, os 10 níveis lineares de melhoria deixam de ser a única progressão: ficam dentro de 4 saltos claros, e cada
+salto se vê no mapa.
+
+### 3.2 Outras ideias de progressão
+
 - **Marcos nas melhorias:** níveis 3, 6 e 9 liberam algo qualitativo (habilidade, nova produção, mudança visual); os
   níveis intermediários mantêm os ganhos pequenos.
 - **Veterania:** unidades que matam sobem de patente (+dano, +vida, insígnia). Cria apego e motivo para preservar tropas,
@@ -111,7 +141,7 @@ caros, com retorno pequeno e invisível ("+8% de vida"). Faltam marcos que se si
 | **Cadeias produtivas** | Petróleo → **Refinaria** → combustível; Ferro → **Siderúrgica** → aço para os blindados avançados. Profundidade de cidade e alvos estratégicos para aviões, mísseis e forças especiais. |
 | **Moradia e serviços com raio de cobertura** | Hospital, escola e delegacia com área de efeito: cidadãos cobertos trabalham mais e recrutas saem com veterania inicial. Hoje a casa só dá população. |
 | **Ministros e dinastia** (*Tropico 5*) | Ministros com traços (Defesa: −10% no custo de veículos; Fazenda: +renda), escândalos e demissão. |
-| **Eras** | Ver seção 3: a espinha da progressão. |
+| **Eras** | Ver seção 3.1: a espinha da progressão, com troca de aparência e liberação gradual de tropas e construções. |
 | **Assaltos e operações especiais** (*Tropico 6*) | Forças especiais roubam tecnologia, sabotam a refinaria ou instigam protestos no rival. |
 | **Eleições e constituição** | Eleição a cada 4 anos de jogo (a partida cobre de 5 a 10). Perder causa penalidade grande ou derrota alternativa. |
 
@@ -171,8 +201,9 @@ o que falta e como se encaixaria.
 
 **7. Eras pela Biblioteca**
 - **No RoN:** avançar de era é uma pesquisa cara que muda unidades e edifícios; o custo sobe a cada era.
-- **Proposta:** eras como pesquisa nacional (Guerra Fria → Pós-Guerra Fria → Era Digital → Futuro Próximo). Cada era exige
-  um nível mínimo do QG e libera um novo patamar do Centro de Pesquisa Militar e das melhorias.
+- **Proposta:** eras como pesquisa nacional (Guerra Fria → Pós-Guerra Fria → Era Digital → Futuro Próximo). Cada era
+  muda a aparência de todas as construções e libera aos poucos tropas, veículos e construções novas. Detalhes e tabela
+  completa no lote 1, seção 3.1.
 
 **8. Quatro linhas de pesquisa permanentes**
 - **No RoN:** Militar, Cívica, Comércio e Ciência, com efeitos globais diretos.
