@@ -66,7 +66,7 @@ const PRIORITY: Record<CombatSound, number> = {
 };
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
-const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.035, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4 };
+const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4 };
 
 /**
  * Atenuação e panorâmica de um ponto do mapa para quem olha `L` (ponto da câmera, distância e giro).
@@ -310,10 +310,25 @@ export class AudioService {
     };
     let end = t;
     switch (sound) {
-      case 'rifle':
-        end = burst('highpass', 1800, 0.7, 0.002, 0.5, 0.09);
-        burst('bandpass', 700, 1.2, 0.002, 0.25, 0.05);
+      case 'rifle': {
+        // rajada de metralhadora (~750 tiros/min): 3 a 5 disparos, cada um com o estalo supersônico,
+        // o corpo do tiro, um soco grave curto e o clique do ferrolho; variação leve de tom e força
+        // entre os tiros (nada soa colado), e o eco curto da rajada no fim
+        const rounds = 3 + Math.floor(Math.random() * 3);
+        const rate = 0.075 + Math.random() * 0.01;
+        for (let i = 0; i < rounds; i++) {
+          const at = t + i * rate + (Math.random() - 0.5) * 0.006;
+          const k = (i === 0 ? 1 : 0.82 + Math.random() * 0.18) * 0.85;
+          burst('highpass', 2600 + Math.random() * 600, 0.8, 0.0008, 0.55 * k, 0.03, at);
+          burst('bandpass', 520 + Math.random() * 120, 1.3, 0.001, 0.62 * k, 0.1, at);
+          thump(150 + Math.random() * 20, 62, 0.001, 0.42 * k, 0.09, at);
+          burst('bandpass', 3600, 7, 0.001, 0.08 * k, 0.018, at + 0.022);
+        }
+        const tail = t + rounds * rate;
+        burst('lowpass', 900, 0.6, 0.02, 0.16, 0.35, tail - rate * 0.5);
+        end = burst('lowpass', 420, 0.6, 0.04, 0.09, 0.5, tail + 0.08);
         break;
+      }
       case 'tower':
         end = burst('bandpass', 1200, 1.1, 0.002, 0.55, 0.12);
         thump(220, 90, 0.003, 0.25, 0.1);
