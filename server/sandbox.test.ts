@@ -42,6 +42,15 @@ async function sandboxRoom(mode: 'sandbox' | 'vs_ai' = 'sandbox') {
 }
 
 describe('modo Sandbox', () => {
+  it('eras: o avanço é livre e instantâneo no Sandbox (para ver o visual de cada era)', async () => {
+    const { sim, cmd, run } = await sandboxRoom();
+    expect(sim.eras).toBe(true);
+    expect(await cmd({ type: 'advance_era' })).toBeNull();
+    run(0.2);
+    expect(sim.players[0]!.era).toBe(2);
+    expect(sim.eraOf(1)).toBe(1);
+  });
+
   it('começa em guerra com a IA, com recursos ilimitados, tudo pesquisado e o modo no match_start', async () => {
     const { sim, a, room } = await sandboxRoom();
     expect(a.last('match_start')!.match.mode).toBe('sandbox');

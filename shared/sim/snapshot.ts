@@ -25,6 +25,8 @@ export interface UnitSnapshot {
   mods?: ModId[];
   /** Patente (veterania), visível como insígnia para todos; ausente = recruta. */
   rank?: number;
+  /** Era do visual da unidade (ausente = 1). */
+  era?: number;
   /** Abates (só para o dono). */
   kills?: number;
   /** Modernização em andamento (só para o dono). */
@@ -78,6 +80,11 @@ export interface PlayerSnapshot {
   defeated: boolean;
   /** Pesquisas militares concluídas (só para o próprio jogador). */
   militaryResearch?: MilitaryResearchId[];
+  /** Era (pública: aparece nas construções) e avanço em andamento (só para o próprio jogador). */
+  era?: number;
+  eraAdvance?: { to: number; progress: number };
+  /** Progressão por eras ligada nesta partida. */
+  eras?: boolean;
 }
 
 /** Carga em trânsito: completa para quem negocia; para os demais, só o veículo visível no mapa. */
@@ -196,6 +203,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         ...(e.attrition ? { attrition: true as const } : {}),
         ...(e.mods.length ? { mods: [...e.mods] } : {}),
         ...(e.rank ? { rank: e.rank } : {}),
+        ...(e.era && e.era > 1 ? { era: e.era } : {}),
         ...(e.kills && (!viewer || e.owner === viewer.slot) ? { kills: e.kills } : {}),
         ...(UNITS[e.type].weapon.salvo && e.cooldown > 0 ? { reload: r2(Math.max(0, 1 - e.cooldown / Math.max(1, UNITS[e.type].weapon.cooldown * combineMods(e.mods).cooldownMul * TICK_RATE))) } : {}),
         ...(e.refit && (!viewer || e.owner === viewer.slot) ? { refit: { mod: e.refit.mod, progress: r2(1 - e.refit.remainingTicks / e.refit.totalTicks), facility: e.refit.facilityId } } : {}),
@@ -257,6 +265,9 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         hungry: mine ? p.hungry : null,
         defeated: p.defeated,
         ...(mine ? { militaryResearch: [...(p.militaryResearch ?? [])] } : {}),
+        ...(p.era && p.era > 1 ? { era: p.era } : {}),
+        ...(mine && p.eraAdvance ? { eraAdvance: { to: p.eraAdvance.to, progress: r2(1 - p.eraAdvance.remainingTicks / Math.max(1, p.eraAdvance.totalTicks)) } } : {}),
+        ...(mine && sim.eras ? { eras: true } : {}),
       };
     }),
     events: viewer ? events.filter((ev) => eventVisible(sim, ev, viewer.slot)) : events,
@@ -478,6 +489,8 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
       );
     case 'unit_promoted':
       return e.owner === slot;
+    case 'era':
+      return e.owner === slot || e.state === 'completed';
     case 'border_incident':
       return e.aggressor === slot || e.victim === slot;
     case 'player_defeated':

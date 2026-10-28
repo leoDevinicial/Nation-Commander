@@ -1,24 +1,27 @@
 import * as THREE from 'three';
 import { BUILDINGS, type BuildingType } from '../../../shared/sim/config.ts';
 import { HealthBar, selectionRing } from './HealthBar.ts';
-import { accentMaterial, bodyMaterial, glassMaterial, withFog } from './materials.ts';
+import { eraLayerMaterial, accentMaterial, bodyMaterial, withFog } from './materials.ts';
 import { cinematicSmokeTexture, smokeTexture, volumetricSmokeTexture } from './textures.ts';
 import { animRestPivot, buildingModel, type BuildingModel, type ModelAnim } from './models/buildingModels.ts';
 import { PUMP, pumpPose } from './models/pumpjack.ts';
 import { cropCell } from './models/crops.ts';
+import { buildEraProps, type EraProps } from './models/eraProps.ts';
 import type { SpecId } from '../../../shared/sim/upgrades.ts';
 import { C, PartBuilder, type ModelLayers } from './models/kit.ts';
 import { box, cyl, factionColor, mat, mesh, sharedMaterial } from './palette.ts';
 
-function layerMeshes(l: ModelLayers, owner: number): THREE.Mesh[] {
+function layerMeshes(l: ModelLayers, owner: number, era = 1): THREE.Mesh[] {
   const out: THREE.Mesh[] = [];
-  for (const [geo, material] of [
-    [l.body, bodyMaterial()],
-    [l.accent, accentMaterial(owner)],
-    [l.glass, glassMaterial()],
+  for (const [geo, layer] of [
+    [l.body, 'body'],
+    [l.accent, 'accent'],
+    [l.glass, 'glass'],
   ] as const) {
     if (!geo.getAttribute('position')) continue;
-    const m = new THREE.Mesh(geo, material);
+    const m = new THREE.Mesh(geo, eraLayerMaterial(layer, owner, era));
+    // a camada fica marcada para a troca de aparência quando a nação muda de era
+    m.userData.layer = layer;
     m.castShadow = true;
     m.receiveShadow = true;
     out.push(m);
@@ -41,6 +44,8 @@ export interface BuildingVisualOptions {
   /** Nível e especialização iniciais (Fase 4). */
   level?: number;
   spec?: SpecId | null;
+  /** Era da nação dona (aparência das construções). */
+  era?: number;
   /** Distância da câmera a partir da qual as peças pequenas dos módulos somem (LOD). */
   lodDistance?: number;
   /** Giro do modelo em torno de y (ex.: porto com o cais virado para a água). */
@@ -174,6 +179,11 @@ export class BuildingVisual {
   private t = Math.random() * 10;
   private level = 1;
   private spec: SpecId | null = null;
+  /** Era da nação dona: materiais e peças de telhado (radar, painéis, LED, drone). */
+  private era = 1;
+  private eraProps: EraProps | null = null;
+  /** Brilho da troca de era (1 → 0). */
+  private eraFlash = 0;
   private height = 1;
   private readonly size: number;
   private readonly lod: number;
@@ -194,18 +204,19 @@ export class BuildingVisual {
     if (opts.facing) this.model.rotation.y = opts.facing;
     this.level = opts.level ?? 1;
     this.spec = opts.spec ?? null;
+    this.era = opts.era ?? 1;
     const def = buildingModel(type, this.level, this.spec);
     if (def.moving) {
       this.moving = new THREE.Group();
       this.moving.position.set(...def.moving.pivot);
-      for (const m of layerMeshes(def.moving.layers, owner)) this.moving.add(m);
+      for (const m of layerMeshes(def.moving.layers, owner, this.era)) this.moving.add(m);
       this.model.add(this.moving);
       this.movingKind = def.moving.kind;
       if (def.pump) {
         const part = (l: ModelLayers, at: [number, number, number]) => {
           const g = new THREE.Group();
           g.position.set(...at);
-          for (const m of layerMeshes(l, owner)) g.add(m);
+          for (const m of layerMeshes(l, owner, this.era)) g.add(m);
           this.model.add(g);
           return g;
         };
@@ -224,7 +235,7 @@ export class BuildingVisual {
       for (const anim of def.anims) {
         const group = new THREE.Group();
         group.position.set(...anim.pivot);
-        for (const m of layerMeshes(anim.layers, owner)) group.add(m);
+        for (const m of layerMeshes(anim.layers, owner, this.era)) group.add(m);
         const parent = anim.parent !== undefined ? this.anims[anim.parent]?.group : undefined;
         (parent ?? this.model).add(group);
         this.anims.push({ group, anim });
@@ -234,7 +245,7 @@ export class BuildingVisual {
     for (const h of def.hatch ?? []) {
       const group = new THREE.Group();
       group.position.set(...h.pivot);
-      for (const m of layerMeshes(h.layers, owner)) group.add(m);
+      for (const m of layerMeshes(h.layers, owner, this.era)) group.add(m);
       this.model.add(group);
       this.hatch.push({ group, side: h.side });
     }
@@ -247,8 +258,28 @@ export class BuildingVisual {
     this.hp = new HealthBar(Math.min(this.size * 0.6, 2.6), def.height + 0.6);
     this.group.add(this.hp.group);
     this.applyModel(def);
+    if (this.era > 1) this.rebuildEraProps();
     this.rally = buildRallyFlag(owner);
     this.group.userData.entityId = id;
+  }
+
+  /** Troca a aparência quando a nação dona muda de era (com um brilho curto de transição). */
+  setEra(era: number): void {
+    if (era === this.era) return;
+    const first = this.eraProps === null && this.era === 1;
+    this.era = era;
+    this.model.traverse((o) => {
+      const layer = o.userData.layer as 'body' | 'accent' | 'glass' | undefined;
+      if (layer && (o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = eraLayerMaterial(layer, this.owner, era);
+    });
+    this.rebuildEraProps();
+    if (!first) this.eraFlash = 1;
+  }
+
+  private rebuildEraProps(): void {
+    if (this.eraProps) this.eraProps.group.removeFromParent();
+    this.eraProps = this.era > 1 ? buildEraProps(this.type, this.size, this.height, this.era, this.owner) : null;
+    if (this.eraProps) this.model.add(this.eraProps.group);
   }
 
   /** Troca o modelo quando o nível ou a especialização mudam (o mesmo valor da simulação). */
@@ -263,14 +294,17 @@ export class BuildingVisual {
     // as geometrias são compartilhadas (cache por nível/especialização): só os meshes são trocados
     this.parts.clear();
     this.detail.clear();
-    for (const m of layerMeshes(def.base, this.owner)) this.parts.add(m);
+    for (const m of layerMeshes(def.base, this.owner, this.era)) this.parts.add(m);
     if (def.detail)
-      for (const m of layerMeshes(def.detail, this.owner)) {
+      for (const m of layerMeshes(def.detail, this.owner, this.era)) {
         m.castShadow = false;
         this.detail.add(m);
       }
+    const grew = def.height !== this.height;
     this.height = def.height;
     this.hp.group.position.y = def.height + 0.6;
+    // peças da era acompanham a nova altura do modelo
+    if (grew && this.era > 1) this.rebuildEraProps();
     const key = JSON.stringify(def.smoke ?? []);
     if (key !== this.smokeKey) {
       this.smokeKey = key;
@@ -380,6 +414,22 @@ export class BuildingVisual {
       for (const h of this.hatch) h.group.rotation.z = -h.side * 1.52 * e;
     }
     if (this.cityTag) this.cityTag.position.y = this.height + 1.1;
+    if (this.eraProps && done && !this.remembered) {
+      if (this.eraProps.radar) this.eraProps.radar.rotation.y += dt * 1.1;
+      const d = this.eraProps.drone;
+      if (d) {
+        const a = this.t * 0.45;
+        d.position.set(Math.cos(a) * this.size * 0.7, this.height + 2.2 + Math.sin(this.t * 1.7) * 0.2, Math.sin(a) * this.size * 0.7);
+        d.rotation.y = -a;
+      }
+    }
+    if (this.eraProps) this.eraProps.group.visible = done;
+    if (this.eraFlash > 0) {
+      // transição de era: o modelo pulsa levemente e volta ao tamanho
+      this.eraFlash = Math.max(0, this.eraFlash - dt * 0.8);
+      const k = 1 + Math.sin(this.eraFlash * Math.PI) * 0.06;
+      this.model.scale.x = this.model.scale.z = k;
+    }
     this.hp.set(hpFraction);
     this.hp.group.visible = showHp && !this.remembered;
     if (showHp) this.hp.face(camera);

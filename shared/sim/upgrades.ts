@@ -766,6 +766,8 @@ export interface UpgradeWorld {
   /** Verba de obras disponível (US$); null = sem cobrança em dinheiro. */
   fundsUsd: number | null;
   constructionTimeMul: number;
+  /** Nível máximo das melhorias na era atual (ausente = sem limite de era). */
+  maxLevelByEra?: number;
   /** Modo Sandbox: requisitos liberados; `instant` = obra concluída no tick seguinte. */
   sandbox?: { instant: boolean };
 }
@@ -854,6 +856,8 @@ export function planUpgrade(b: UpgradeSubject, world: UpgradeWorld, chosenSpec: 
   };
   if (!t) return { ...base, blocker: 'Esta construção não tem melhorias' };
   if (b.level >= maxLevel) return { ...base, blocker: `Nível máximo (${maxLevel}) atingido` };
+  if (world.maxLevelByEra !== undefined && b.level >= world.maxLevelByEra && !world.sandbox)
+    return { ...base, toLevel: b.level + 1, blocker: `O nível ${b.level + 1} exige a próxima era (avance de era no Centro de Comando)` };
 
   const to = b.level + 1;
   const lc = upgradeCost(b.type, to);

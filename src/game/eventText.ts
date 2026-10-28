@@ -13,6 +13,7 @@ const HALT_TEXT: Partial<Record<BuildingStatus, string>> = {
 import type { SimEvent } from '../../shared/sim/types.ts';
 import { specDef, type SpecId } from '../../shared/sim/upgrades.ts';
 import { RANK_DAMAGE, RANK_HP, RANKS } from '../../shared/sim/veterancy.ts';
+import { ERAS } from '../../shared/sim/eras.ts';
 
 function specLabel(type: BuildingType, spec: SpecId): string {
   return specDef(type, spec)?.label ?? spec;
@@ -135,6 +136,15 @@ export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone
             ? { text: 'Míssil inimigo interceptado pela nossa antiaérea', tone: 'good' }
             : { text: 'Impacto de míssil inimigo no nosso território', tone: 'bad' };
       return null;
+    case 'era': {
+      const label = ERAS[e.era].label;
+      if (e.owner === mySlot) {
+        if (e.state === 'started') return { text: `Avanço para a era ${label} iniciado no Centro de Comando`, tone: 'info' };
+        if (e.state === 'cancelled') return { text: `Avanço para a era ${label} cancelado (devolução parcial)`, tone: 'warn' };
+        return { text: `Nova era: ${label}! As construções ganham o visual da era e novas tropas e construções foram liberadas`, tone: 'good' };
+      }
+      return e.state === 'completed' ? { text: `O inimigo entrou na era ${label}`, tone: 'warn' } : null;
+    }
     case 'unit_promoted':
       return e.owner === mySlot ? { text: `${UNITS[e.unitType].label} promovido a ${RANKS[e.rank]?.label ?? 'veterano'}: +${Math.round(RANK_DAMAGE * e.rank * 100)}% de dano e +${Math.round(RANK_HP * e.rank * 100)}% de vida`, tone: 'good' } : null;
     case 'border_incident': {

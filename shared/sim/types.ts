@@ -1,3 +1,4 @@
+import type { Era, EraAdvance } from './eras.ts';
 import type { BuildingType, Cost, MilitaryResearchId, ProducibleType, ResourceType, Stockpile, Terrain, UnitType } from './config.ts';
 import type { SpecId } from './upgrades.ts';
 import type { ModId } from './modernization.ts';
@@ -59,6 +60,8 @@ export interface Unit {
   /** Abates desta unidade e patente atual (veterania; ausentes = 0). */
   kills?: number;
   rank?: number;
+  /** Era do visual da unidade (a do dono quando saiu da fábrica ou foi modernizada). */
+  era?: Era;
 }
 
 export interface Refit {
@@ -208,6 +211,9 @@ export interface PlayerState {
    * (artilharia de longe): de onde veio e quando. A IA usa para a contra-bateria.
    */
   unseenFire?: { tick: number; x: number; y: number } | null;
+  /** Era atual (1 = Guerra Fria; ausente = 1) e avanço em andamento no Centro de Comando. */
+  era?: Era;
+  eraAdvance?: EraAdvance | null;
 }
 
 export interface MapData {
@@ -268,6 +274,8 @@ export type SimEvent =
   /** Um disparo num combate aéreo entre esquadrilhas (`kill`: derrubou uma aeronave). */
   | { type: 'dogfight'; tick: number; owner: Slot; victim: Slot; missionId: number; targetMissionId: number; from: Vec2; to: Vec2; kill: boolean }
   /** Prefeitura destruída por um inimigo: ele toma a cidade e os edifícios vinculados a ela. */
+  /** Avanço de era concluído (ou iniciado / cancelado). */
+  | { type: 'era'; tick: number; owner: Slot; era: Era; state: 'started' | 'completed' | 'cancelled'; pos: Vec2 }
   /** Unidade subiu de patente (veterania). */
   | { type: 'unit_promoted'; tick: number; owner: Slot; id: EntityId; unitType: UnitType; rank: number; pos: Vec2 }
   /** Incidente de fronteira: hostilidade limitada e com prazo, sem guerra declarada. */

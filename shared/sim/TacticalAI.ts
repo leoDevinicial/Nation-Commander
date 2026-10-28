@@ -9,6 +9,7 @@ import { MOD_IDS, MODS, checkModernize } from './modernization.ts';
 import { BASE_PRICE } from './trade.ts';
 import { DIPLO } from '../strategic/Diplomacy.ts';
 import { DIFFICULTY } from './difficulty.ts';
+import { ERAS, buildingEra, type Era } from './eras.ts';
 import { AIRCRAFT, MISSILE, type AircraftType } from './air.ts';
 
 /** Com que frequência a IA reavalia a situação. */
@@ -189,6 +190,7 @@ export class TacticalAI {
     const res = me.resources;
     const nearlyFull = (r: 'wood' | 'stone' | 'iron' | 'food') => cap[r] > 0 && res[r] >= cap[r] * 0.8;
     const tryBuild = (type: BuildingType): boolean => {
+      if (buildingEra(type) > sim.eraOf(this.slot)) return false;
       if (!canAfford(budget, BUILDINGS[type].cost)) return false;
       const cell =
         BUILDINGS[type].gather?.terrain === null ? this.freeNode(sim, hq) : type === 'oil_tank' ? this.tankSpot(sim, mine) : this.findBuildSpot(sim, hq, type);
@@ -197,6 +199,17 @@ export class TacticalAI {
       return true;
     };
     const natTechs = sim.national?.techs(this.slot) ?? [];
+    // eras: avança assim que o QG permite e sobra uma reserva (destrava tropas e construções). Com o
+    // QG pronto para a próxima era, guarda material para ela em vez de gastar em prefeituras e melhorias.
+    let savingForEra = false;
+    if (sim.eras && !me.eraAdvance && (me.era ?? 1) < 4) {
+      const next = ERAS[((me.era ?? 1) + 1) as Era];
+      if (sim.hqLevel(this.slot) >= next.hqLevel) {
+        const withReserve: Cost = { ...next.cost, supplies: (next.cost.supplies ?? 0) + 120, food: (next.cost.food ?? 0) + 60 };
+        if (sim.eraBlocker(this.slot) === null && canAfford(budget, withReserve) && take(next.cost)) cmds.push({ type: 'advance_era' });
+        else savingForEra = true;
+      }
+    }
     const housingInProgress = mine.some((b) => (b.type === 'house' || b.type === 'residential') && b.progress < 1);
     const wellsWithoutTank = mine.some(
       (w) => w.type === 'oil_well' && !mine.some((t) => t.type === 'oil_tank' && dist(t.pos, w.pos) / sim.map.cellSize <= OIL_TANK_RANGE),
@@ -204,7 +217,7 @@ export class TacticalAI {
     // ameaça aérea (Fase 7): base aérea ou silo inimigo conhecido pede defesa antiaérea perto do QG
     const airThreat = sim.buildings.some((b) => b.owner !== this.slot && (b.type === 'airbase' || b.type === 'missile_silo') && sim.hostile(this.slot, b.owner) && sim.air.isKnown(this.slot, b.id));
     // cidades: duas prefeituras na fronteira depois da economia básica (economiza pedra para elas)
-    const cityWanted = count('city_hall') < 2 && done('factory') && done('tower') && this.citySiteExists(sim, hq);
+    const cityWanted = !savingForEra && count('city_hall') < 2 && done('factory') && done('tower') && this.citySiteExists(sim, hq);
     const plan: [BuildingType, boolean][] = [
       ['house', pop.total >= pop.cap - 2 && pop.cap < POP_ABSOLUTE_CAP && !housingInProgress && count('house') + count('residential') < 14],
       ['oil_tank', wellsWithoutTank || (mine.some((b) => b.type === 'oil_well' && b.status === 'storage_full') && count('oil_tank') < 5)],
@@ -216,6 +229,7 @@ export class TacticalAI {
       ['farm', count('farm') === 0],
       ['barracks', count('barracks') === 0],
       ['quarry', active('quarry') === 0],
+      ['quarry', active('quarry') < 2 && done('barracks') && sim.eras],
       ['sawmill', active('sawmill') < 2 && done('barracks')],
       ['mine', active('mine') === 0],
       ['oil_well', count('oil_well') === 0],
@@ -245,7 +259,7 @@ export class TacticalAI {
 
     // --- melhorias (Fase 4): uma obra por vez, só com folga de recursos e de manutenção
     // (guardando material enquanto junta para a próxima prefeitura)
-    if (!cityWanted || built === 'city_hall') this.planUpgrade(sim, mine, budget, take, cmds);
+    if ((!cityWanted || built === 'city_hall') && !savingForEra) this.planUpgrade(sim, mine, budget, take, cmds);
 
     // --- população: forma cidadãos para preencher postos e manter reserva para recrutamento
     const vacancies = mine.reduce((a, b) => a + (b.progress >= 1 ? Math.max(0, Math.min(b.workerTarget, sim.fx(b).workers) - b.workers) : 0), 0);
@@ -308,6 +322,7 @@ export class TacticalAI {
           militaryResearch: unlocked,
           recruitCostMul: me.modifiers.recruitCostMul ?? 1,
           bonus: sim.bonusOf(this.slot),
+          era: sim.eraOf(this.slot),
         });
         if (check.blocker || !take(check.cost)) continue;
         cmds.push({ type: 'produce', buildingId: b.id, unitType });
@@ -538,7 +553,7 @@ export class TacticalAI {
       : ['tracked_armor', 'field_artillery', 'antitank_weapons', 'rocket_systems', 'mobile_air_defense', 'modern_armor', 'special_operations'];
     for (const id of order) {
       if (done.includes(id) || mine.some((b) => b.research?.id === id)) continue;
-      if (militaryResearchBlocker(id, done, center.level)) continue;
+      if (militaryResearchBlocker(id, done, center.level, sim.eraOf(this.slot))) continue;
       if (!take(MILITARY_RESEARCH[id].cost)) return;
       cmds.push({ type: 'military_research', buildingId: center.id, researchId: id });
       return;

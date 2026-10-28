@@ -22,6 +22,9 @@ export type Command =
   /** Pesquisa militar no Centro de Pesquisa (uma por vez por centro) e cancelamento (devolve 75%). */
   | { type: 'military_research'; buildingId: EntityId; researchId: MilitaryResearchId }
   | { type: 'cancel_military_research'; buildingId: EntityId }
+  /** Avanço de era (obra no Centro de Comando) e cancelamento (devolve 75%). */
+  | { type: 'advance_era' }
+  | { type: 'cancel_era' }
   | { type: 'set_rally'; buildingId: EntityId; x: number; y: number }
   /** Melhoria para o próximo nível; `spec` é obrigatório no nível que pede especialização. */
   | { type: 'upgrade'; buildingId: EntityId; spec?: SpecId }
@@ -99,6 +102,9 @@ export function parseCommand(raw: unknown): Command | null {
     case 'cancel_military_research':
       if (!isId(raw.buildingId)) return null;
       return { type: 'cancel_military_research', buildingId: raw.buildingId };
+    case 'advance_era':
+    case 'cancel_era':
+      return { type: raw.type };
     case 'cancel_production':
       if (!isId(raw.buildingId)) return null;
       return { type: 'cancel_production', buildingId: raw.buildingId };

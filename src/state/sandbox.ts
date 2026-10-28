@@ -38,3 +38,9 @@ export function effectiveStability(stability: number | null): number | null {
 export function timeText(seconds: number): string {
   return useHudStore.getState().sandbox?.instant ? 'instantâneo (Sandbox)' : `${seconds}s`;
 }
+
+/** Era que vale para as regras no cliente (sem eras ligadas ou no Sandbox: tudo liberado). */
+export function effectiveEra(me: { era?: number; eras?: boolean } | undefined): number {
+  if (!me?.eras || isSandboxMatch()) return 4;
+  return me.era ?? 1;
+}

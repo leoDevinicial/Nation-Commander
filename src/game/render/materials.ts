@@ -236,6 +236,60 @@ export const glassMaterial = () =>
 export const accentMaterial = (slot: number) =>
   cached(`accent-${slot}`, () => new THREE.MeshStandardMaterial({ color: factionColor(slot), roughness: 0.6, metalness: 0.1, envMapIntensity: 0.6 }), { weather: 0.5 });
 
+/**
+ * Aparência por era (docs/BALANCEAMENTO_E_PROGRESSAO.md, lote 1, §3.1). O corpo dos modelos usa
+ * cores de vértice; a era muda o tom (multiplicado nelas), o brilho e o metal:
+ * 1 Guerra Fria — concreto e pintura gastos (material base);
+ * 2 Pós-Guerra Fria — galpões metálicos pré-fabricados, cinza-azulado;
+ * 3 Era Digital — vidro e aço claros e lisos;
+ * 4 Futuro Próximo — compósito escuro, vidros como telas e faixas de LED na cor da facção.
+ */
+const ERA_BODY: Record<number, { color: string; roughness: number; metalness: number; env: number }> = {
+  2: { color: '#d3dbe2', roughness: 0.66, metalness: 0.3, env: 0.9 },
+  3: { color: '#f1f5f8', roughness: 0.48, metalness: 0.4, env: 1.15 },
+  4: { color: '#a5aebb', roughness: 0.38, metalness: 0.52, env: 1.25 },
+};
+
+export const eraBodyMaterial = (era: number) => {
+  const d = ERA_BODY[era];
+  if (!d) return bodyMaterial();
+  return cached(`body-e${era}`, () => new THREE.MeshStandardMaterial({ vertexColors: true, color: d.color, roughness: d.roughness, metalness: d.metalness, envMapIntensity: d.env }), { weather: era >= 3 ? 0.45 : 0.75, seams: true });
+};
+
+export const eraGlassMaterial = (era: number) => {
+  if (era <= 2) return glassMaterial();
+  return era === 3
+    ? cached('glass-e3', () => new THREE.MeshStandardMaterial({ color: '#6f8a9a', emissive: '#14303f', emissiveIntensity: 0.5, roughness: 0.07, metalness: 0.82, envMapIntensity: 1.7 }), { panes: true })
+    : cached('glass-e4', () => new THREE.MeshStandardMaterial({ color: '#4a6b7d', emissive: '#2a8fb8', emissiveIntensity: 0.85, roughness: 0.06, metalness: 0.7, envMapIntensity: 1.5 }), { panes: true });
+};
+
+export const eraAccentMaterial = (slot: number, era: number) =>
+  era < 4
+    ? accentMaterial(slot)
+    : cached(`accent-${slot}-e4`, () => new THREE.MeshStandardMaterial({ color: factionColor(slot), emissive: factionColor(slot), emissiveIntensity: 0.55, roughness: 0.4, metalness: 0.3 }), { weather: 0.2 });
+
+/**
+ * Corpo das tropas por era: as que saem da fábrica numa era nova (ou são modernizadas) ganham a
+ * pintura dela — cinza-oliva na Pós-Guerra Fria, camuflagem digital clara na Era Digital e
+ * compósito escuro no Futuro Próximo.
+ */
+const UNIT_ERA_BODY: Record<number, { color: string; roughness: number; metalness: number }> = {
+  2: { color: '#c9cdbd', roughness: 0.7, metalness: 0.22 },
+  3: { color: '#b7c2a6', roughness: 0.6, metalness: 0.25 },
+  4: { color: '#8e97a4', roughness: 0.42, metalness: 0.45 },
+};
+
+export const eraUnitBodyMaterial = (era: number) => {
+  const d = UNIT_ERA_BODY[era];
+  if (!d) return bodyMaterial();
+  return cached(`unit-body-e${era}`, () => new THREE.MeshStandardMaterial({ vertexColors: true, color: d.color, roughness: d.roughness, metalness: d.metalness, envMapIntensity: 0.8 }), { weather: 0.7, seams: true });
+};
+
+/** Material da camada de um modelo (corpo, cor da facção ou vidro) na era dada. */
+export function eraLayerMaterial(layer: 'body' | 'accent' | 'glass', owner: number, era: number): THREE.Material {
+  return layer === 'body' ? eraBodyMaterial(era) : layer === 'accent' ? eraAccentMaterial(owner, era) : eraGlassMaterial(era);
+}
+
 export function disposeMaterials(): void {
   for (const m of cache.values()) m.dispose();
   cache.clear();

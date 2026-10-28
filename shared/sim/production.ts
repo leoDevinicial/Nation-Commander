@@ -2,6 +2,7 @@ import { BUILDINGS, MILITARY_RESEARCH, CITIZEN, POP_ABSOLUTE_CAP, PRODUCTION_QUE
 import { buildingEffects, missingText, scaledCost, type SpecId } from './upgrades.ts';
 import { addCost, productionStandard, type ModId } from './modernization.ts';
 import type { CountryBonus } from './countryBonus.ts';
+import { UNIT_ERA, eraLabel } from './eras.ts';
 
 /**
  * Regra única de produção (cidadão, recruta e unidades militares): o servidor valida com ela e o
@@ -27,6 +28,8 @@ export interface ProduceContext {
   recruitCostMul?: number;
   /** Bônus único do país (custo de tropas e recrutas). */
   bonus?: CountryBonus;
+  /** Era da nação (tropas de eras futuras ficam bloqueadas; ausente = todas). */
+  era?: number;
 }
 
 export interface ProduceCheck {
@@ -86,6 +89,7 @@ export function checkProduce(unit: ProducibleType, c: ProduceContext): ProduceCh
   } else {
     const def = UNITS[unit];
     if (def.producedBy !== c.buildingType) return no(`${BUILDINGS[c.buildingType].label} não produz ${def.label}`, 'outro edifício');
+    if (c.era !== undefined && UNIT_ERA[unit] > c.era) return no(`Requer a era ${eraLabel(UNIT_ERA[unit])} (avance de era no Centro de Comando)`, `era ${UNIT_ERA[unit]}`);
     if (def.requires && !c.militaryResearch.includes(def.requires))
       return no(`Requer a pesquisa "${MILITARY_RESEARCH[def.requires].label}" no Centro de Pesquisa Militar`, 'pesquisar');
     // cada unidade militar precisa de um recruta da reserva como tripulação

@@ -1,3 +1,4 @@
+import { eraLabel, researchEra } from './eras.ts';
 /**
  * Tabelas de regras da operação tática. Todos os valores são parâmetros de jogo
  * (game_parameter), não dados factuais. Ajustar aqui, nunca espalhados pelo código.
@@ -448,9 +449,11 @@ export const MILITARY_RESEARCH_IDS = Object.keys(MILITARY_RESEARCH) as MilitaryR
 export const isMilitaryResearchId = (v: unknown): v is MilitaryResearchId => typeof v === 'string' && Object.hasOwn(MILITARY_RESEARCH, v);
 
 /** Motivo para não poder pesquisar (mesma regra no servidor e no painel), ou null. */
-export function militaryResearchBlocker(id: MilitaryResearchId, done: readonly string[], centerLevel: number): string | null {
+export function militaryResearchBlocker(id: MilitaryResearchId, done: readonly string[], centerLevel: number, era = 4): string | null {
   const def = MILITARY_RESEARCH[id];
   if (done.includes(id)) return 'Pesquisa já concluída';
+  const need = researchEra(id, UNITS);
+  if (need > era) return `Requer a era ${eraLabel(need)} (avance de era no Centro de Comando)`;
   const missing = def.prereqs.filter((p) => !done.includes(p));
   if (missing.length) return `Requer: ${missing.map((m) => MILITARY_RESEARCH[m].label).join(', ')}`;
   const level = def.tier === 3 ? 3 : def.tier === 2 ? 2 : 1;

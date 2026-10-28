@@ -1,6 +1,7 @@
 import { prepTicks, type Difficulty } from './difficulty.ts';
 import { rankDamageMul, rankFor, rankHpMul } from './veterancy.ts';
 import { countryBonus, type CountryBonus } from './countryBonus.ts';
+import { ERA_CANCEL_REFUND, ERAS, buildingEra, type Era } from './eras.ts';
 import { decodeNonFinite, encodeNonFinite } from './json.ts';
 import {
   BUILDINGS,
@@ -112,6 +113,7 @@ export interface SimulationSave {
   alliances: string[];
   incidents?: [string, number][];
   difficulty?: Difficulty;
+  eras?: boolean;
   /** Quantidade restante de cada depósito, na ordem determinística de `findDeposits`. */
   depositsRemaining: number[];
   territory: number[];
@@ -235,6 +237,11 @@ export class Simulation {
   private readonly incidents = new Map<string, number>();
   /** Dificuldade da IA (preparo, ondas, aviões e mísseis). */
   difficulty: Difficulty = 'normal';
+  /**
+   * Progressão por eras ligada (partidas da sala). Desligada (testes antigos, batalhas locais), tudo
+   * fica liberado como na última era, mas o visual continua na era 1.
+   */
+  eras = false;
   /** Pares aliados: podem atravessar o território um do outro mesmo sem guerra. */
   private readonly alliances = new Set<string>();
   /** Depósitos naturais (quantidades finitas e limite de instalações). */
@@ -342,6 +349,7 @@ export class Simulation {
       alliances: [...this.alliances],
       ...(this.incidents.size ? { incidents: [...this.incidents] } : {}),
       ...(this.difficulty !== 'normal' ? { difficulty: this.difficulty } : {}),
+      ...(this.eras ? { eras: true } : {}),
       depositsRemaining: this.deposits.deposits.map((d) => d.remaining),
       territory: [...this.territory],
       territoryVersion: this.territoryVersion,
@@ -395,6 +403,7 @@ export class Simulation {
     for (const k of data.alliances) sim.alliances.add(k);
     for (const [k, v] of data.incidents ?? []) sim.incidents.set(k, v);
     sim.difficulty = data.difficulty ?? 'normal';
+    sim.eras = !!data.eras;
     data.depositsRemaining.forEach((v, i) => {
       const d = sim.deposits.deposits[i];
       if (d) d.remaining = v;
@@ -721,6 +730,7 @@ export class Simulation {
       stability: link ? link.stability(slot) : null,
       fundsUsd: link ? link.worksFundUsd(slot) : null,
       constructionTimeMul: p.modifiers.constructionTimeMul,
+      maxLevelByEra: ERAS[this.eraOf(slot)].maxUpgradeLevel,
       ...(this.isSandbox(slot) ? { sandbox: { instant: !!this.sandbox?.instant } } : {}),
     };
   }
@@ -896,6 +906,7 @@ export class Simulation {
           militaryResearch: this.isSandbox(slot) ? MILITARY_RESEARCH_IDS : (player.militaryResearch ?? []),
           recruitCostMul: player.modifiers.recruitCostMul ?? 1,
           bonus: this.bonusOf(slot),
+          era: this.eraOf(slot),
         });
         if (check.blocker) return check.blocker;
         const cost = check.cost;
@@ -923,7 +934,7 @@ export class Simulation {
         const done = player.militaryResearch ?? [];
         // a mesma pesquisa não corre em dois centros ao mesmo tempo
         if (this.buildings.some((x) => x.owner === slot && x.research?.id === cmd.researchId)) return 'Pesquisa já em andamento em outro centro';
-        const blocker = militaryResearchBlocker(cmd.researchId, done, b.level);
+        const blocker = militaryResearchBlocker(cmd.researchId, done, b.level, this.eraOf(slot));
         if (blocker) return blocker;
         if (!canAfford(player.resources, def.cost)) return `Recursos insuficientes: faltam ${missingText(player.resources, def.cost)}`;
         this.spend(player, def.cost);
@@ -938,6 +949,33 @@ export class Simulation {
         for (const r of RESOURCE_TYPES) if (b.research.paid[r]) back[r] = Math.floor((b.research.paid[r] ?? 0) * RESEARCH_CANCEL_REFUND);
         this.refund(slot, back);
         b.research = null;
+        return null;
+      }
+      case 'advance_era': {
+        const err = this.eraBlocker(slot);
+        if (err) return err;
+        const to = ((player.era ?? 1) + 1) as Era;
+        const def = ERAS[to];
+        const hq = this.hqOf(slot);
+        if (!hq) return 'Sem Centro de Comando';
+        const free = this.isSandbox(slot);
+        if (!free && this.national && !this.national.chargeWorks(slot, def.usd, `Avanço para a era ${def.label}`)) return 'Verba de obras insuficiente para o avanço de era';
+        if (!free) this.spend(player, def.cost);
+        const ticks = free && this.sandbox?.instant ? 1 : this.duration(slot, def.seconds * TICK_RATE);
+        player.eraAdvance = { to, remainingTicks: ticks, totalTicks: ticks, paid: free ? {} : { ...def.cost }, usd: free || !this.national ? 0 : def.usd };
+        this.emit({ type: 'era', tick: this.tick, owner: slot, era: to, state: 'started', pos: { ...hq.pos } });
+        return null;
+      }
+      case 'cancel_era': {
+        const a = player.eraAdvance;
+        if (!a) return 'Nenhum avanço de era em andamento';
+        const back: Cost = {};
+        for (const r of RESOURCE_TYPES) if (a.paid[r]) back[r] = Math.floor((a.paid[r] ?? 0) * ERA_CANCEL_REFUND);
+        this.refund(slot, back);
+        if (a.usd > 0) this.national?.refundWorks(slot, Math.floor(a.usd * ERA_CANCEL_REFUND), `Avanço de era cancelado`);
+        player.eraAdvance = null;
+        const hq = this.hqOf(slot);
+        this.emit({ type: 'era', tick: this.tick, owner: slot, era: a.to, state: 'cancelled', pos: hq ? { ...hq.pos } : { x: 0, y: 0 } });
         return null;
       }
       case 'cancel_production': {
@@ -1164,6 +1202,9 @@ export class Simulation {
       }
       if (--r.remainingTicks > 0) continue;
       u.refit = null;
+      // modernizada, a unidade passa ao visual da era atual do dono
+      const ve = this.visualEra(u.owner);
+      if (ve > 1) u.era = ve;
       if (u.mods.includes(r.mod)) continue;
       u.mods.push(r.mod);
       // a vida cresce na mesma proporção da vida máxima (o pacote não "cura" a unidade)
@@ -1271,6 +1312,33 @@ export class Simulation {
     if (p && p.slot !== attacker) p.unseenFire = { tick: this.tick, x: from.x, y: from.y };
   }
 
+  /** Era que vale para as regras (sem eras ou no Sandbox: tudo liberado). */
+  eraOf(slot: Slot): Era {
+    if (!this.eras || this.isSandbox(slot)) return 4;
+    return this.players[slot]?.era ?? 1;
+  }
+
+  /** Era da aparência das construções e tropas do jogador. */
+  visualEra(slot: Slot): Era {
+    return this.players[slot]?.era ?? 1;
+  }
+
+  /** Motivo para não poder avançar de era agora (mesma regra no painel), ou null. */
+  eraBlocker(slot: Slot): string | null {
+    const p = this.players[slot];
+    if (!p) return 'Jogador inválido';
+    const cur = p.era ?? 1;
+    if (cur >= 4) return 'Já na última era';
+    if (p.eraAdvance) return 'Avanço de era em andamento';
+    const to = (cur + 1) as Era;
+    const def = ERAS[to];
+    if (this.isSandbox(slot)) return null;
+    if (this.hqLevel(slot) < def.hqLevel) return `Requer o Centro de Comando no nível ${def.hqLevel}`;
+    if (!canAfford(p.resources, def.cost)) return `Recursos insuficientes: faltam ${missingText(p.resources, def.cost)}`;
+    if (this.national && this.national.worksFundUsd(slot) + 1e-6 < def.usd) return 'Verba de obras insuficiente para o avanço de era';
+    return null;
+  }
+
   /** Bônus único do país do jogador (nenhum nos testes sem país). */
   bonusOf(slot: Slot): CountryBonus {
     return countryBonus(this.countries[slot]);
@@ -1349,6 +1417,8 @@ export class Simulation {
     if (!player) return 'Jogador inválido';
     const tech = BUILDINGS[type].requiresTech;
     if (tech && !(this.national?.techs(slot) ?? []).includes(tech)) return `Exige a pesquisa ${techLabel(tech)}`;
+    const era = buildingEra(type);
+    if (era > this.eraOf(slot)) return `Requer a era ${ERAS[era].label} (avance de era no Centro de Comando)`;
     return placementError(
       {
         width: this.map.width,
@@ -1382,6 +1452,7 @@ export class Simulation {
     this.updateUpgrades();
     this.updateProduction();
     this.updateMilitaryResearch();
+    this.updateEras();
     this.updateRefits();
     this.trade.step();
     this.air.step();
@@ -1809,6 +1880,20 @@ export class Simulation {
    * Pesquisa militar: avança no ritmo dos pesquisadores (sem nenhum, para), do nível do centro
    * (cada nível −10% de tempo) e do orçamento nacional de P&D. Concluída, libera as tropas.
    */
+  /** Avanço de era: obra no Centro de Comando; ao concluir, a nação entra na era nova. */
+  private updateEras(): void {
+    for (const p of this.players) {
+      const a = p.eraAdvance;
+      if (!a || p.defeated) continue;
+      const hq = this.hqOf(p.slot);
+      if (!hq) continue;
+      if (--a.remainingTicks > 0) continue;
+      p.era = a.to;
+      p.eraAdvance = null;
+      this.emit({ type: 'era', tick: this.tick, owner: p.slot, era: a.to, state: 'completed', pos: { ...hq.pos } });
+    }
+  }
+
   private updateMilitaryResearch(): void {
     for (const b of this.buildings) {
       const r = b.research;
@@ -2496,6 +2581,7 @@ export class Simulation {
       attrition: false,
       mods: [...mods],
       refit: null,
+      ...(this.visualEra(owner) > 1 ? { era: this.visualEra(owner) } : {}),
     };
     this.entities.set(u.id, u);
     return u;

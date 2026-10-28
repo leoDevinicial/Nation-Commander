@@ -35,7 +35,8 @@ import { AirbaseButtons, AirbaseInfo, SiloButtons, SiloInfo, airTargetText } fro
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { buildingEffects, formatUsd as usdShort, specDef, upgradeTrack } from '../../../shared/sim/upgrades.ts';
-import { effectiveMilitaryResearch, effectivePopCap, effectiveTechs, timeText } from '../../state/sandbox.ts';
+import { effectiveEra, effectiveMilitaryResearch, effectivePopCap, effectiveTechs, isSandboxMatch, timeText } from '../../state/sandbox.ts';
+import { BUILDING_ERA, ERAS, UNIT_ERA, buildingEra, eraLabel, type Era } from '../../../shared/sim/eras.ts';
 
 const EMPTY_TECHS: readonly string[] = [];
 
@@ -113,6 +114,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
   const thumbs = useHudStore((s) => s.thumbs);
   const [help, setHelp] = useState(false);
   const techs = effectiveTechs(useNationalStore((s) => s.nations.find((n) => n.slot === mySlot)?.research.done ?? EMPTY_TECHS));
+  const myEra = effectiveEra(players.find((p) => p.slot === mySlot));
 
   return (
     <div
@@ -230,13 +232,16 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             title={`Formar cidadão civil — trabalha nas construções (fazendas, poços de petróleo, serrarias, pedreiras, minas, fábricas). Exige vaga de moradia.\nTempo: ${timeText(CITIZEN.buildSeconds)}`}
           />
         )}
+        {building?.type === 'hq' && mode.kind === 'normal' && runtime.battleOp === null && <EraButton runtime={runtime} />}
         {building?.type === 'hq' &&
           mode.kind === 'normal' &&
           runtime.battleOp === null &&
           BUILD_OPTIONS.map((type) => {
             const def = BUILDINGS[type];
             const techMissing = def.requiresTech && !(techs as readonly string[]).includes(def.requiresTech) ? def.requiresTech : null;
-            const ok = canAfford(resources, def.cost) && !techMissing;
+            const needEra = buildingEra(type);
+            const eraMissing = needEra > myEra ? needEra : null;
+            const ok = canAfford(resources, def.cost) && !techMissing && !eraMissing;
             return (
               <CardButton
                 key={type}
@@ -244,13 +249,13 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
                 hotkey={def.hotkey}
                 label={def.label}
                 blocked={!ok}
-                short={techMissing ? 'exige pesquisa' : null}
+                short={eraMissing ? `era ${eraMissing}` : techMissing ? 'exige pesquisa' : null}
                 onClick={() =>
                   ok
                     ? runtime.startPlacement(type)
                     : useHudStore.getState().pushEvent({
                         tick: useHudStore.getState().tick,
-                        text: `${def.label}: ${techMissing ? `exige a pesquisa ${TECHNOLOGIES[techMissing as keyof typeof TECHNOLOGIES]?.label ?? techMissing}` : 'recursos insuficientes'}`,
+                        text: `${def.label}: ${eraMissing ? `requer a era ${eraLabel(eraMissing)} (avance de era no Centro de Comando)` : techMissing ? `exige a pesquisa ${TECHNOLOGIES[techMissing as keyof typeof TECHNOLOGIES]?.label ?? techMissing}` : 'recursos insuficientes'}`,
                         tone: 'warn',
                       })
                 }
@@ -267,6 +272,62 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
         {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'missile_silo' && <SiloButtons runtime={runtime} b={building} />}
       </div>
     </div>
+  );
+}
+
+/**
+ * Avanço de era no Centro de Comando: requisito (nível do QG), custo em recursos e US$, prazo e o
+ * que a era seguinte libera. Durante a obra, mostra o progresso e permite cancelar (devolve 75%).
+ */
+function EraButton({ runtime }: { runtime: GameRuntime }) {
+  const me = useHudStore((s) => s.players.find((p) => p.slot === s.mySlot));
+  const hqLevel = useHudStore((s) => s.selectedBuilding?.level ?? 0);
+  const mySlot = useHudStore((s) => s.mySlot);
+  const fund = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot)?.works.fundUsd ?? null);
+  if (!me?.eras) return null;
+  const cur = me.era ?? 1;
+  if (me.eraAdvance)
+    return (
+      <CardButton
+        icon="⏳"
+        label={`Era ${eraLabel(me.eraAdvance.to)}`}
+        badge={`${Math.round(me.eraAdvance.progress * 100)}%`}
+        onClick={() => runtime.send({ type: 'cancel_era' })}
+        title={`Avanço para a era ${eraLabel(me.eraAdvance.to)} em andamento (${Math.round(me.eraAdvance.progress * 100)}%). Clique para cancelar (devolve 75%).`}
+      >
+        <span className="text-[10px] text-brass-400">cancelar</span>
+      </CardButton>
+    );
+  if (cur >= 4) return null;
+  const to = (cur + 1) as Era;
+  const def = ERAS[to];
+  const sandbox = isSandboxMatch();
+  const blocker = sandbox
+    ? null
+    : hqLevel < def.hqLevel
+      ? `QG nível ${def.hqLevel}`
+      : !canAfford(me.resources ?? emptyStockpile(), def.cost)
+        ? 'recursos insuficientes'
+        : fund !== null && fund < def.usd
+          ? 'verba insuficiente'
+          : null;
+  const unlocks = [
+    ...(Object.keys(UNIT_ERA) as UnitType[]).filter((u) => UNIT_ERA[u] === to).map((u) => UNITS[u].label),
+    ...(Object.keys(BUILDING_ERA) as BuildingType[]).filter((b) => BUILDING_ERA[b] === to).map((b) => BUILDINGS[b].label),
+  ];
+  return (
+    <CardButton
+      icon="🏛"
+      label={`Era ${def.label}`}
+      blocked={blocker !== null}
+      short={blocker}
+      onClick={() =>
+        blocker ? useHudStore.getState().pushEvent({ tick: useHudStore.getState().tick, text: `Avanço de era: ${blocker}`, tone: 'warn' }) : runtime.send({ type: 'advance_era' })
+      }
+      title={`Avançar para a era ${def.label}: ${def.look}.\nLibera: ${unlocks.join(', ') || '—'}${def.maxUpgradeLevel > ERAS[cur as Era].maxUpgradeLevel ? `; melhorias até o nível ${def.maxUpgradeLevel}` : ''}.\nRequer o Centro de Comando no nível ${def.hqLevel} · ${usdShort(def.usd)} da verba de obras · ${timeText(def.seconds)}`}
+    >
+      <CostLabel cost={def.cost} have={me.resources ?? emptyStockpile()} compact />
+    </CardButton>
   );
 }
 
@@ -347,6 +408,7 @@ function ProduceButton({ b, unit, hotkey, label, title, onRun }: { b: SelectedBu
     militaryResearch: effectiveMilitaryResearch(me?.militaryResearch ?? []),
     recruitCostMul: policyEffects(myNation?.policies).recruitCostMul,
     bonus,
+    era: effectiveEra(me),
   });
   const queued = b.queue.filter((q) => q.unitType === unit).length;
   const thumb = useHudStore((s) => s.thumbs[unit]);
@@ -454,7 +516,7 @@ function ResearchButtons({ runtime, b }: { runtime: GameRuntime; b: SelectedBuil
         const unit = unlockOf(id);
         const current = b.research?.id === id;
         const isDone = done.includes(id);
-        const blocker = isDone ? 'Pesquisa já concluída' : b.research && !current ? 'O centro já está pesquisando outra coisa' : militaryResearchBlocker(id, done, b.level);
+        const blocker = isDone ? 'Pesquisa já concluída' : b.research && !current ? 'O centro já está pesquisando outra coisa' : militaryResearchBlocker(id, done, b.level, effectiveEra(me));
         const short = isDone ? 'concluída' : current ? null : blocker ? (blocker.startsWith('Requer o Centro') ? `nível ${def.tier}` : blocker.startsWith('Requer:') ? 'pré-requisito' : 'ocupado') : null;
         const ok = !blocker && !current && canAfford(resources, def.cost);
         return (

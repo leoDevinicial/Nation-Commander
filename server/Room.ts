@@ -281,6 +281,8 @@ export class Room {
     const map = generateMap(this.seed);
     this.sim = new Simulation({ map, playerCount: this.players.length });
     this.sim.difficulty = this.difficulty;
+    // progressão por eras (no Sandbox tudo fica liberado, mas o visual pode avançar)
+    this.sim.eras = true;
     // os nomes das cidades (prefeituras e capital) vêm do país de cada jogador
     for (const p of this.players) this.sim.countries[p.slot] = p.countryId;
     this.ais = this.players.filter((p) => p.isAI).map((p) => new TacticalAI(p.slot));

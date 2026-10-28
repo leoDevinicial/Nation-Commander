@@ -1,5 +1,6 @@
 import { GAME_SPEEDS } from '../../../shared/protocol.ts';
 import { DIFFICULTY, prepTicks } from '../../../shared/sim/difficulty.ts';
+import { ERAS, type Era } from '../../../shared/sim/eras.ts';
 import { POP_ABSOLUTE_CAP, RESOURCE_LABELS, RESOURCE_TYPES, STORAGE_LABEL, TICK_RATE } from '../../../shared/sim/config.ts';
 import { ResourceIcon } from '../components/Resources.tsx';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
@@ -87,6 +88,17 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
             <span className="hidden text-[11px] text-ink-400 lg:inline">
               · {me.population.idle} ociosos · 🎖{me.population.recruits} recrutas · ⚔{me.population.military}
             </span>
+          </div>
+        )}
+        {me?.eras && (
+          <div
+            className="flex shrink-0 items-center gap-1.5"
+            title={`Era atual: ${ERAS[(me.era ?? 1) as Era].label} — ${ERAS[(me.era ?? 1) as Era].look}.${me.eraAdvance ? ` Avançando para ${ERAS[me.eraAdvance.to as Era].label}: ${Math.round(me.eraAdvance.progress * 100)}%.` : ' Avance de era no Centro de Comando.'}`}
+          >
+            <span aria-hidden>🏛</span>
+            <span className="hidden md:inline">{ERAS[(me.era ?? 1) as Era].label}</span>
+            <span className="md:hidden font-mono">E{me.era ?? 1}</span>
+            {me.eraAdvance && <span className="font-mono text-brass-400">→ {Math.round(me.eraAdvance.progress * 100)}%</span>}
           </div>
         )}
         <div className="flex shrink-0 items-center gap-1.5" title="Tempo de operação">

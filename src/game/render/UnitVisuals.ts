@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { UNITS, type UnitType } from '../../../shared/sim/config.ts';
 import { HealthBar, selectionRing } from './HealthBar.ts';
-import { accentMaterial, bodyMaterial, glassMaterial } from './materials.ts';
+import { accentMaterial, bodyMaterial, eraUnitBodyMaterial, glassMaterial } from './materials.ts';
 import type { ModelLayers } from './models/kit.ts';
 import { unitModel } from './models/unitModels.ts';
 import type { ModId } from '../../../shared/sim/modernization.ts';
@@ -131,15 +131,16 @@ function rankChevrons(rank: number): THREE.Group {
   return g;
 }
 
-function layerMeshes(l: ModelLayers, owner: number): THREE.Mesh[] {
+function layerMeshes(l: ModelLayers, owner: number, era = 1): THREE.Mesh[] {
   const out: THREE.Mesh[] = [];
   for (const [geo, mat] of [
-    [l.body, bodyMaterial()],
+    [l.body, eraUnitBodyMaterial(era)],
     [l.accent, accentMaterial(owner)],
     [l.glass, glassMaterial()],
   ] as const) {
     if (!geo.getAttribute('position')) continue;
     const m = new THREE.Mesh(geo, mat);
+    if (geo === l.body) m.userData.unitBody = true;
     m.castShadow = true;
     m.receiveShadow = true;
     out.push(m);
@@ -237,19 +238,33 @@ export class UnitVisual {
   private podElev = 0;
   private podKick = 0;
 
+  /** Era da pintura (a do dono quando a unidade saiu da fábrica ou foi modernizada). */
+  private era = 1;
+
+  /** Troca a pintura do corpo para a era dada (modernização numa era nova). */
+  setEra(era: number): void {
+    if (era === this.era) return;
+    this.era = era;
+    this.group.traverse((o) => {
+      if (o.userData.unitBody && (o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = eraUnitBodyMaterial(era);
+    });
+  }
+
   constructor(
     readonly id: number,
     readonly type: UnitType,
     readonly owner: number,
     friendly: boolean,
+    era = 1,
   ) {
+    this.era = era;
     const model = unitModel(type);
     this.group.add(this.body);
-    for (const m of layerMeshes(model.hull, owner)) this.body.add(m);
+    for (const m of layerMeshes(model.hull, owner, era)) this.body.add(m);
     if (model.turret) {
       this.turret = new THREE.Group();
       this.turret.position.set(...model.turretPivot);
-      for (const m of layerMeshes(model.turret, owner)) this.turret.add(m);
+      for (const m of layerMeshes(model.turret, owner, era)) this.turret.add(m);
       this.body.add(this.turret);
     }
     for (const def of model.guns ?? []) {
@@ -259,7 +274,7 @@ export class UnitVisual {
       mount.position.set(...def.pivot);
       mount.rotation.z = def.elev;
       const barrel = new THREE.Group();
-      for (const m of layerMeshes(def.layers, owner)) barrel.add(m);
+      for (const m of layerMeshes(def.layers, owner, era)) barrel.add(m);
       mount.add(barrel);
       this.turret.add(mount);
       this.guns.push({ barrel, recoil: 0, def });
@@ -267,7 +282,7 @@ export class UnitVisual {
     if (model.pod && this.turret) {
       this.pod = new THREE.Group();
       this.pod.position.set(...model.pod.hinge);
-      for (const m of layerMeshes(model.pod.layers, owner)) this.pod.add(m);
+      for (const m of layerMeshes(model.pod.layers, owner, era)) this.pod.add(m);
       this.podElev = model.pod.stowed;
       this.pod.rotation.z = this.podElev;
       this.turret.add(this.pod);

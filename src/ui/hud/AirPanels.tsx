@@ -10,7 +10,8 @@ import { useNationalStore } from '../../state/useNationalStore.ts';
 import { CostLabel } from '../components/Resources.tsx';
 import { CardButton } from './CardButton.tsx';
 import { audio } from '../../game/audio/AudioService.ts';
-import { effectiveFund, effectiveTechs, timeText } from '../../state/sandbox.ts';
+import { effectiveEra, effectiveFund, effectiveTechs, timeText } from '../../state/sandbox.ts';
+import { AIRCRAFT_ERA } from '../../../shared/sim/eras.ts';
 
 const ICON: Record<AircraftType, string> = { fighter: '✈', bomber: '💣', recon: '🔭', transport: '📦' };
 const SHORT: Record<AircraftType, string> = { fighter: 'Caça', bomber: 'Bombardeiro', recon: 'Reconhecimento', transport: 'Cargueiro' };
@@ -38,7 +39,7 @@ function useMe() {
   const mySlot = useHudStore((s) => s.mySlot);
   const nation = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot));
   const bonus = useMyBonus();
-  return { resources: me?.resources ?? emptyStockpile(), recruits: me?.population?.recruits ?? 0, techs: effectiveTechs(nation?.research.done ?? []), fund: effectiveFund(nation?.works.fundUsd ?? null), bonus };
+  return { resources: me?.resources ?? emptyStockpile(), recruits: me?.population?.recruits ?? 0, techs: effectiveTechs(nation?.research.done ?? []), fund: effectiveFund(nation?.works.fundUsd ?? null), bonus, era: effectiveEra(me) };
 }
 
 function Bar({ value, tone = 'bg-brass-400' }: { value: number; tone?: string }) {
@@ -90,6 +91,7 @@ export function AirbaseInfo({ b }: { b: SelectedBuildingInfo }) {
 
 function aircraftBlocker(type: AircraftType, ctx: ReturnType<typeof useMe>, inHangar: number, baseLevel: number): string | null {
   const def = aircraftFor(type, ctx.bonus);
+  if (AIRCRAFT_ERA[type] > ctx.era) return `era ${AIRCRAFT_ERA[type]}`;
   if (def.minBaseLevel && baseLevel < def.minBaseLevel) return `exige base nível ${def.minBaseLevel}`;
   if (inHangar >= AIR.hangarPerBase) return 'hangar cheio';
   if (ctx.recruits < 1) return 'sem piloto (recruta)';

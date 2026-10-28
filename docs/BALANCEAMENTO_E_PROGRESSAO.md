@@ -444,3 +444,4 @@ como na escolha entre os modos paridade e escala real.
 | Lote 1, §4 — decretos, facções e pedidos das potências | Feito | `shared/strategic/policies.ts`, aba Política |
 | Lote 2, item 12 — bônus único por país (21 países) | Feito | `shared/sim/countryBonus.ts` |
 | Lote 2, item 14 — ogiva nuclear e choque econômico global | Feito | `NUCLEAR` em `air.ts`, `NationalSimulation.nuclearShock` |
+| Lote 1, §3.1 / lote 2, item 7 — eras (avanço, liberação de tropas, construções e níveis; aparência por era) | Feito | `shared/sim/eras.ts`, `docs/ERAS.md` |

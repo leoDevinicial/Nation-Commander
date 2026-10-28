@@ -37,6 +37,7 @@ import { CitizenLayer } from './render/CitizenLayer.ts';
 import { CargoLayer, disposeCargoModels } from './render/CargoLayer.ts';
 import { AirLayer, disposeAirModels } from './render/AirLayer.ts';
 import { AIRCRAFT, NUCLEAR, missileSpec } from '../../shared/sim/air.ts';
+import { ERAS, type Era } from '../../shared/sim/eras.ts';
 import { PRODUCTION_SOUND, audio } from './audio/AudioService.ts';
 import { useSettingsStore } from '../state/useSettingsStore.ts';
 import { AdaptiveExposure, EnvironmentProbe, ShadowFollow } from './render/Lighting.ts';
@@ -53,7 +54,7 @@ import { GpuTimer } from './perf/gpuTimer.ts';
 import { isPreset, localAdvisorStore, recordSession } from './perf/advisor.ts';
 import type { ExplosionSmoke } from './render/Effects.ts';
 import type { PerfHud, TouchTool } from '../state/useHudStore.ts';
-import { effectiveFund, effectiveStability, effectiveTechs } from '../state/sandbox.ts';
+import { effectiveFund, effectiveStability, effectiveTechs, effectiveEra } from '../state/sandbox.ts';
 
 type SnapshotMsg = Extract<ServerMessage, { t: 'snapshot' }>;
 
@@ -514,7 +515,7 @@ export class GameRuntime {
       seen.add(u.id);
       let t = this.units.get(u.id);
       if (!t) {
-        const visual = new UnitVisual(u.id, u.type, u.owner, u.owner === this.mySlot);
+        const visual = new UnitVisual(u.id, u.type, u.owner, u.owner === this.mySlot, u.era ?? 1);
         visual.treadMarks = this.trackMarks;
         const p = new THREE.Vector2(u.x, u.y);
         t = { visual, prev: p.clone(), curr: p.clone(), prevFacing: u.facing, currFacing: u.facing, snap: u };
@@ -571,6 +572,7 @@ export class GameRuntime {
           cinematic: this.opts.profile.cinematic,
           level: b.level,
           spec: b.spec,
+          era: s.players.find((p) => p.slot === b.owner)?.era ?? 1,
           // celular: os detalhes pequenos das melhorias somem mais cedo ao afastar a câmera
           lodDistance: this.opts.profile.terrain === 'low' ? 50 : 80,
           ...(b.type === 'port' ? { facing: this.waterFacing(b.cx, b.cy, size) } : {}),
@@ -583,6 +585,8 @@ export class GameRuntime {
       t.visual.setCity(b.city);
       // o modelo acompanha o nível e a especialização registrados na simulação
       t.visual.setVariant(b.level, b.spec);
+      // e a era da nação dona (pública: aparece nas construções)
+      t.visual.setEra(s.players.find((p) => p.slot === b.owner)?.era ?? 1);
     }
     const me = s.players.find((p) => p.slot === this.mySlot);
     this.citizens.sync(
@@ -866,6 +870,7 @@ export class GameRuntime {
       v.update(dt, t.snap.activity === 'moving' || t.snap.activity === 'chasing', aim, frac, (selected || frac < 0.999) && !this.cameraCtl.closeUp, this.camera, t.snap.activity === 'attacking', animate);
       v.setReload(t.snap.reload !== undefined && !this.cameraCtl.closeUp ? t.snap.reload : null, this.camera);
       v.setRank(t.snap.rank ?? 0, !this.cameraCtl.closeUp, this.camera);
+      v.setEra(t.snap.era ?? 1);
     }
     for (const t of this.buildings.values()) {
       const frac = t.snap.hp / t.snap.maxHp;
@@ -2245,6 +2250,10 @@ export class GameRuntime {
       case 'unit_promoted':
         if (mine(e.owner)) audio.ui('success');
         break;
+      case 'era':
+        if (mine(e.owner) && e.state === 'completed') audio.ui('success');
+        else if (!mine(e.owner) && e.state === 'completed') audio.ui('alert');
+        break;
       case 'border_incident':
         if (mine(e.victim)) audio.ui('alert');
         break;
@@ -2810,6 +2819,7 @@ export class GameRuntime {
       stability: effectiveStability(nation ? nation.stability : null),
       fundsUsd: effectiveFund(nation ? nation.works.fundUsd : null),
       constructionTimeMul: nation ? combineEffects(nation.research.done).constructionTimeMul : 1,
+      maxLevelByEra: ERAS[effectiveEra(me) as Era].maxUpgradeLevel,
       ...(this.snapshot?.sandbox ? { sandbox: { instant: this.snapshot.sandbox.instant } } : {}),
     };
   }
