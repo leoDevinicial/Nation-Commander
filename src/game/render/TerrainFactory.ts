@@ -336,24 +336,65 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
     disposables.push(m.geometry, m.material as THREE.Material);
   }
 
-  // jazidas de petróleo (subterrâneas): solo escurecido e estacas de prospecção, sem poça à mostra
+  // jazidas de petróleo: solo encharcado em volta, poça de óleo cru (espessa e espelhada, com o
+  // brilho furta-cor do óleo), respingos, bolhas e as estacas de prospecção
   const oil = new PartBuilder();
+  const slick = new PartBuilder();
   for (const n of map.resourceNodes) {
     const x = (n.cx + 1) * map.cellSize;
     const z = (n.cy + 1) * map.cellSize;
-    oil.cyl(1.2, 1.2, 0.02, '#3d3a33', [x, 0.02, z], undefined, 9);
+    const seed = hash2(x, z) * 100;
+    // mancha de solo encharcado (mais larga e irregular que a poça)
+    oil.add(blobGeometry(1.55, 0.22, seed + 7), '#3a3328', { pos: [x, 0.032, z] });
+    oil.add(blobGeometry(1.25, 0.18, seed + 3), '#2a241c', { pos: [x, 0.036, z] });
+    // poça principal: contorno orgânico, borda abaulada (o óleo grosso não espalha fino)
+    slick.add(blobGeometry(0.95, 0.16, seed, 0.035), '#ffffff', { pos: [x, 0.038, z] });
+    // respingos e pocinhas satélites
     for (let k = 0; k < 4; k++) {
-      const px = x + Math.cos(k * 1.57 + 0.4) * 1.25;
-      const pz = z + Math.sin(k * 1.57 + 0.4) * 1.25;
+      const a = seed * 1.7 + k * 1.9;
+      const d = 1.05 + 0.25 * Math.sin(seed + k * 3.1);
+      slick.add(blobGeometry(0.12 + 0.07 * Math.abs(Math.sin(a * 2.3)), 0.2, seed + k * 11, 0.022, 20), '#ffffff', { pos: [x + Math.cos(a) * d, 0.038, z + Math.sin(a) * d] });
+    }
+    // bolhas de gás subindo pelo óleo (calotas brilhantes)
+    for (let k = 0; k < 3; k++) {
+      const a = seed * 0.9 + k * 2.3;
+      const d = 0.15 + 0.35 * Math.abs(Math.sin(seed * 1.3 + k));
+      slick.sphere(0.022 + 0.018 * Math.abs(Math.sin(a)), '#ffffff', [x + Math.cos(a) * d, 0.074, z + Math.sin(a) * d], [1, 0.55, 1], 10);
+    }
+    for (let k = 0; k < 4; k++) {
+      const px = x + Math.cos(k * 1.57 + 0.4) * 1.45;
+      const pz = z + Math.sin(k * 1.57 + 0.4) * 1.45;
       oil.cyl(0.03, 0.03, 0.5, C.wood, [px, 0.25, pz], undefined, 5);
       oil.box(0.12, 0.06, 0.02, C.yellow, [px, 0.47, pz]);
     }
   }
   if (!oil.isEmpty) {
-    const m = new THREE.Mesh(oil.build(), withFog(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, flatShading: true })));
+    const m = new THREE.Mesh(oil.build(), withFog(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 })));
     m.receiveShadow = true;
     group.add(m);
     disposables.push(m.geometry, m.material as THREE.Material);
+  }
+  if (!slick.isEmpty) {
+    // óleo cru: quase preto, liso como espelho (reflete o céu), com verniz e iridescência de
+    // película fina — as manchas de arco-íris aparecem com o ângulo da câmera
+    const mat = withFog(
+      new THREE.MeshPhysicalMaterial({
+        color: '#060504',
+        roughness: 0.06,
+        metalness: 0.1,
+        clearcoat: 1,
+        clearcoatRoughness: 0.02,
+        iridescence: 0.75,
+        iridescenceIOR: 1.47,
+        iridescenceThicknessRange: [220, 620],
+        envMapIntensity: 0.9,
+        specularIntensity: 1,
+      }),
+    );
+    const m = new THREE.Mesh(slick.build(), mat);
+    m.receiveShadow = true;
+    group.add(m);
+    disposables.push(m.geometry, mat);
   }
 
   const upgrade = async (): Promise<void> => {
@@ -408,6 +449,43 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
 }
 
 /** Pseudoaleatório estável por posição (mesma variação a cada partida no mesmo mapa). */
+/** Fator de raio orgânico (ondulações suaves de baixa frequência) no ângulo `a`. */
+function blobK(a: number, wobble: number, seed: number): number {
+  return 1 + wobble * (0.55 * Math.sin(a * 2 + seed) + 0.3 * Math.sin(a * 3 + seed * 1.7) + 0.15 * Math.sin(a * 5 + seed * 2.3));
+}
+
+/**
+ * Mancha/poça de contorno orgânico, triangulada em leque a partir do centro (o contorno é
+ * estrelado, então o leque nunca falha). Com `h > 0`, a borda sobe num quarto de círculo até o
+ * topo plano (menisco do óleo espesso); com `h = 0` é uma mancha plana. Deitada no chão (y para cima).
+ */
+function blobGeometry(r: number, wobble: number, seed: number, h = 0, segments = 48): THREE.BufferGeometry {
+  const rings = h > 0 ? 5 : 1;
+  const bevel = Math.min(0.09, r * 0.3);
+  const pos: number[] = [0, h, 0];
+  const idx: number[] = [];
+  for (let j = 0; j < rings; j++) {
+    // j = 0: borda no chão; o último anel é a quina do topo
+    const t = rings > 1 ? (j / (rings - 1)) * (Math.PI / 2) : 0;
+    const inset = h > 0 ? bevel * (1 - Math.cos(t)) : 0;
+    const y = h > 0 ? h * Math.sin(t) : 0;
+    for (let i = 0; i < segments; i++) {
+      const a = (i / segments) * Math.PI * 2;
+      const rr = r * blobK(a, wobble, seed) - inset;
+      pos.push(Math.cos(a) * rr, y, Math.sin(a) * rr);
+    }
+  }
+  const ring = (j: number, i: number) => 1 + j * segments + (i % segments);
+  for (let j = 0; j < rings - 1; j++)
+    for (let i = 0; i < segments; i++) idx.push(ring(j, i), ring(j + 1, i), ring(j, i + 1), ring(j, i + 1), ring(j + 1, i), ring(j + 1, i + 1));
+  for (let i = 0; i < segments; i++) idx.push(0, ring(rings - 1, i + 1), ring(rings - 1, i));
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
 function hash2(x: number, z: number): number {
   const v = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453;
   return v - Math.floor(v);
