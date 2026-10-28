@@ -320,6 +320,8 @@ npm run build:server
   e não há escala horizontal.
 - Sem áudio, tutorial ou matchmaking automático (entrada por código de sala).
 - O estado da implementação de cada fase do adendo está em [docs/AUDITORIA_ADENDO.md](docs/AUDITORIA_ADENDO.md).
+- Propostas de balanceamento, progressão por eras, mapas maiores e novos sistemas (ainda não implementadas) estão em
+  [docs/BALANCEAMENTO_E_PROGRESSAO.md](docs/BALANCEAMENTO_E_PROGRESSAO.md).
 - Partidas duram minutos (≈ centenas de dias simulados): efeitos de longo prazo (educação,
   infraestrutura) aparecem pouco numa partida curta.
 - Os governos da IA só reagem a propostas (não tomam iniciativa diplomática própria) e mantêm o
