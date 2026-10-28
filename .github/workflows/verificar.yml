@@ -4,6 +4,7 @@ name: Verificar
 # Roda a cada push e também por disparo manual (Actions → Verificar → Run workflow).
 on:
   push:
+    branches-ignore: [e2e-fotos]
   workflow_dispatch:
     inputs:
       pais:
@@ -41,6 +42,8 @@ jobs:
 
   smoke:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -74,6 +77,25 @@ jobs:
         run: |
           mkdir -p e2e-shots
           cp server.log client.log e2e-shots/ || true
+      - name: Relatório como anotações
+        if: always()
+        run: |
+          [ -f e2e-shots/relatorio.txt ] && while IFS= read -r l; do echo "::notice title=fumaça::$l"; done < e2e-shots/relatorio.txt || echo "::warning title=fumaça::sem relatório"
+          tail -n 15 e2e-shots/server.log 2>/dev/null | while IFS= read -r l; do echo "::notice title=servidor::$l"; done || true
+      # as fotos também ficam no ramo e2e-fotos (substituído a cada execução, sem histórico)
+      - name: Publicar fotos no ramo e2e-fotos
+        if: always()
+        env:
+          SHA: ${{ github.sha }}
+          REF: ${{ github.ref_name }}
+        run: |
+          cd e2e-shots
+          git init -q -b e2e-fotos
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Fotos do teste de fumaça ($REF @ $SHA)"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" e2e-fotos
       - uses: actions/upload-artifact@v4
         if: always()
         with:
