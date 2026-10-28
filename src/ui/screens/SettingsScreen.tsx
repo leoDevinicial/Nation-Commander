@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { fullscreenMode } from '../../lib/fullscreen.ts';
-import { useSettingsStore } from '../../state/useSettingsStore.ts';
+import { useSettingsStore, type FpsTarget } from '../../state/useSettingsStore.ts';
+import { currentDeviceClass, CLASS_TARGET, DEVICE_CLASS_TEXT } from '../../game/perf/device.ts';
+import { lastMeasurement, localAdvisorStore, measurementText } from '../../game/perf/advisor.ts';
 import { Shell } from '../components/Shell.tsx';
 import { AudioSettings } from '../components/AudioSettings.tsx';
-import { GRAPHICS_PRESETS, HEAVY_PRESETS, PRESET_LABELS, PROFILES, currentDeviceHints, detectPreset, isTouchDevice, type GraphicsPreset } from '../../lib/graphics.ts';
+import { GRAPHICS_PRESETS, GRAPHICS_REVISION, HEAVY_PRESETS, PRESET_LABELS, PROFILES, currentDeviceHints, detectPreset, type GraphicsPreset } from '../../lib/graphics.ts';
 
 const PRESET_DESC = {
   low: 'Resolução nativa, sem sombras nem antisserrilhado, menos vegetação e efeitos; globo sem nuvens (girando a 60 qps, suave). Indicado para celulares.',
@@ -31,10 +33,12 @@ export function SettingsScreen() {
  */
 export function SettingsForm({ inGame = false }: { inGame?: boolean }) {
   const s = useSettingsStore();
-  // presets pesados só entram depois do aviso de desempenho
+  // presets pesados só entram depois do aviso de desempenho (no celular, também o Ultra)
   const [pending, setPending] = useState<GraphicsPreset | null>(null);
+  const [deviceClass] = useState(currentDeviceClass);
+  const warns = (q: GraphicsPreset) => HEAVY_PRESETS.includes(q) || (deviceClass === 'mobile' && q === 'ultra');
   const choose = (q: GraphicsPreset) => {
-    if (HEAVY_PRESETS.includes(q) && s.quality !== q) setPending(q);
+    if (warns(q) && s.quality !== q) setPending(q);
     else s.update({ quality: q });
   };
   return (
@@ -46,7 +50,7 @@ export function SettingsForm({ inGame = false }: { inGame?: boolean }) {
             {GRAPHICS_PRESETS.map((q) => (
               <button key={q} role="radio" aria-checked={s.quality === q} className={`btn px-2 ${s.quality === q ? 'btn-primary' : ''}`} onClick={() => choose(q)}>
                 {PRESET_LABELS[q]}
-                {HEAVY_PRESETS.includes(q) && <span className="ml-1 text-[10px] text-red-300">⚠</span>}
+                {warns(q) && <span className="ml-1 text-[10px] text-red-300">⚠</span>}
               </button>
             ))}
           </div>
@@ -86,6 +90,20 @@ export function SettingsForm({ inGame = false }: { inGame?: boolean }) {
             o que não ajudar. Com folga, devolve a qualidade do preset. Nunca passa do preset escolhido nem mexe em regras, névoa de guerra ou interface. Vale na hora.
           </p>
         </div>
+        <fieldset>
+          <legend className="label">Meta de quadros por segundo</legend>
+          <div className="grid grid-cols-3 gap-2" role="radiogroup">
+            {(['auto', 30, 60] as FpsTarget[]).map((t) => (
+              <button key={String(t)} role="radio" aria-checked={s.fpsTarget === t} className={`btn px-2 ${s.fpsTarget === t ? 'btn-primary' : ''}`} onClick={() => s.update({ fpsTarget: t })}>
+                {t === 'auto' ? 'Automática' : `${t} qps`}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 text-[11px] text-ink-400">
+            Automática: {CLASS_TARGET[deviceClass]} qps neste aparelho ({DEVICE_CLASS_TEXT[deviceClass]}) — 30 no celular, 60 no PC. Com 60 no celular, o jogo fica mais fluido mas a qualidade
+            adaptativa reduz mais o visual e a bateria dura menos. Nunca passa da taxa da tela. Vale na hora.
+          </p>
+        </fieldset>
         <Toggle label="Mostrar FPS (toque no contador para ver o painel de desempenho)" checked={s.showFps} onChange={(v) => s.update({ showFps: v })} />
         <div>
           <label className="label" htmlFor="pan">
@@ -119,12 +137,17 @@ export function SettingsForm({ inGame = false }: { inGame?: boolean }) {
 }
 
 /**
- * Aviso antes de ativar o Ultra+: o que muda, o custo esperado e, em celulares e tablets, um
- * alerta reforçado (aquecimento, bateria, travamentos e o navegador recarregando a página).
+ * Aviso antes de ativar o Ultra+ (e, no celular, o Ultra): o que muda, o custo esperado, a última
+ * medição real deste preset neste aparelho (R-ADV-02) e, em celulares, um alerta reforçado
+ * (aquecimento, bateria, travamentos e o navegador recarregando a página).
  */
 function PerformanceWarning({ preset, onCancel, onConfirm }: { preset: GraphicsPreset; onCancel: () => void; onConfirm: () => void }) {
-  const mobile = isTouchDevice();
+  const [mobile] = useState(() => currentDeviceClass() === 'mobile');
   const suggested = detectPreset(currentDeviceHints());
+  const [measured] = useState(() => {
+    const rec = lastMeasurement(localAdvisorStore().history(), preset, GRAPHICS_REVISION);
+    return rec ? measurementText(preset, rec, Date.now()) : null;
+  });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCancel();
     window.addEventListener('keydown', onKey);
@@ -137,19 +160,29 @@ function PerformanceWarning({ preset, onCancel, onConfirm }: { preset: GraphicsP
           ⚠ Aviso de desempenho — {PRESET_LABELS[preset]}
         </div>
         <div id="perf-body" className="mt-2 space-y-2 text-ink-200">
-          <p>
-            O {PRESET_LABELS[preset]} leva o visual para cerca de <b>80% realista e 20% low-poly</b>. Ele é bem mais pesado que o Ultra:
-          </p>
-          <ul className="list-disc space-y-0.5 pl-5 text-xs text-ink-300">
-            <li>modelos com arestas suaves e até 3× mais polígonos;</li>
-            <li>sombras dinâmicas em resolução de até 8192 px, com penumbra suave, e sombras de nuvens em movimento;</li>
-            <li>fumaça densa e duradoura (o dobro de partículas), poeira nas explosões e mais efeitos simultâneos;</li>
-            <li>brilho (bloom), feixes de sol com mais amostras, oclusão de ambiente mais fina e resolução até 2,5×.</li>
-          </ul>
-          <p className="text-xs">
-            Espere menos quadros por segundo que no Ultra (muitas vezes metade) e mais uso de memória de vídeo. Indicado só para computadores com placa de vídeo dedicada recente e potente. O contador
-            de FPS será ligado para você acompanhar; se o jogo ficar lento, volte para Ultra ou Alto.
-          </p>
+          {preset === 'ultraplus' ? (
+            <>
+              <p>
+                O {PRESET_LABELS[preset]} leva o visual para cerca de <b>80% realista e 20% low-poly</b>. Ele é bem mais pesado que o Ultra:
+              </p>
+              <ul className="list-disc space-y-0.5 pl-5 text-xs text-ink-300">
+                <li>modelos com arestas suaves e até 3× mais polígonos;</li>
+                <li>sombras dinâmicas em resolução de até 8192 px, com penumbra suave, e sombras de nuvens em movimento;</li>
+                <li>fumaça densa e duradoura (o dobro de partículas), poeira nas explosões e mais efeitos simultâneos;</li>
+                <li>brilho (bloom), feixes de sol com mais amostras, oclusão de ambiente mais fina e resolução até 2,5×.</li>
+              </ul>
+              <p className="text-xs">
+                Espere menos quadros por segundo que no Ultra (muitas vezes metade) e mais uso de memória de vídeo. Indicado só para computadores com placa de vídeo dedicada recente e potente. O
+                contador de FPS será ligado para você acompanhar; se o jogo ficar lento, volte para Ultra ou Alto.
+              </p>
+            </>
+          ) : (
+            <p className="text-xs">
+              O {PRESET_LABELS[preset]} soma ao Alto modelos arredondados, água com ondas e espuma, fumaça volumétrica, feixes de luz do sol e exposição local. Foi pensado para placas de vídeo
+              dedicadas; em celulares costuma ficar bem abaixo de 30 qps. O contador de FPS será ligado para você acompanhar.
+            </p>
+          )}
+          {measured && <p className="rounded border border-brass-400/50 bg-ink-800/70 p-2 text-xs text-ink-100">{measured}</p>}
           {mobile && (
             <p className="rounded border border-red-400/60 bg-red-950/40 p-2 text-xs text-red-200">
               <b>Você está em um celular ou tablet.</b> Neste aparelho o {PRESET_LABELS[preset]} tende a travar, aquecer e gastar a bateria rapidamente; o navegador pode até recarregar a página por

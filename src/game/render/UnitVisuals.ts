@@ -164,6 +164,8 @@ export class UnitVisual {
   private death: { t: number; tilt: number; side: number } | null = null;
   /** Rastros de esteira no chão (veículos de lagartas): distância desde a última marca. */
   treadMarks: TrackMarks | null = null;
+  /** Tempo de animação adiado (unidade longe da câmera, animada a cada 2 quadros). */
+  private skippedDt = 0;
   private markAcc = 0;
   /** Suspensão: velocidade e rumo do quadro anterior e a inclinação atual (rolagem e arfagem). */
   private lastSpeed = 0;
@@ -452,9 +454,20 @@ export class UnitVisual {
     return d.t < 3.2;
   }
 
-  /** Atualiza transformações a cada frame. */
-  update(dt: number, moving: boolean, aimAngle: number | null, hpFraction: number, showHp: boolean, camera: THREE.Camera, deployed = false): void {
+  /**
+   * Atualiza transformações a cada frame. Com `animate` falso (unidade longe da câmera, KAICS
+   * Adaptables+ · K-08), só posição e rumo andam neste quadro; o resto da animação (marcha,
+   * suspensão, torre, recuo, barra de vida) fica para o próximo, com o tempo acumulado.
+   */
+  update(dt: number, moving: boolean, aimAngle: number | null, hpFraction: number, showHp: boolean, camera: THREE.Camera, deployed = false, animate = true): void {
     this.group.position.set(this.renderPos.x, 0, this.renderPos.y);
+    if (!animate) {
+      this.body.rotation.y = -this.facing;
+      this.skippedDt += dt;
+      return;
+    }
+    dt += this.skippedDt;
+    this.skippedDt = 0;
     // entrada em cena: cresce um pouco ao sair da fábrica ou aparecer na visão
     if (this.appear < 1) {
       this.appear = Math.min(1, this.appear + dt * 3.2);

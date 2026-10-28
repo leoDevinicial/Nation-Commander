@@ -5,7 +5,7 @@
 |---|---|
 | Documento | KAP-KGPS-SPEC |
 | Versão | 2.1. Revisa a 1.0 (rascunho do autor, genérica) e a ancora no código real. A 2.1 registra o que a Onda 1 aprendeu ao ser implementada (seção 36.1). |
-| Estado | **Onda 1 implementada** (aguardando os testes de campo F-01 a F-07). Ondas 2 e 3 pendentes. As decisões da seção 0.5 seguem o padrão definido. |
+| Estado | **Ondas 1 e 2 implementadas** (aguardando os testes de campo F-01 a F-07). Onda 3 só com gatilho de campo. As decisões da seção 0.5 seguem o padrão definido. |
 | Base atual | KGPS/KAICS v1 em produção: `src/game/perf/` e `GameRuntime.setupPerf`. Descrição em `docs/KGPS_KAICS.md`. |
 | Público | Agente de implementação, desenvolvedor e o jogador que testa no aparelho. |
 | Idioma | Português (Brasil). |
@@ -722,6 +722,35 @@ lint e build. Falta o campo (F-01 a F-07).
    - a faixa da fronteira continua sempre visível.
 6. **Portão `compilando`.** Na Onda 1 ele cobre 1,5 s depois que os modelos do Nature Kit chegam
    (troca de malhas no meio da partida). O pré-aquecimento com `compileAsync` (R-SHD-02) é da Onda 2.
+
+### 36.2 Onda 2 — o que a implementação mudou ou descobriu
+**Estado:** entregue — consultor e aviso por aparelho (C6), tempo de GPU (R-DEV-03), R-DEV-04,
+pré-aquecimento (R-SHD-02), bloqueio por evidência (R-SHD-03), K-06 a K-09, meta escolhida pelo
+jogador (R-TGT-01), tendência sustentada (R-TGT-06, T-16) e eventos extraordinários (R-EVD-05).
+Automáticos: T-16 e os novos da Onda 2 passando, com typecheck, lint e build. Falta o campo.
+
+1. **Guardiões de shader (achado).** O three.js apaga um programa quando o último material que o
+   usa é descartado. Os efeitos criam e descartam materiais o tempo todo: quando a última
+   explosão acabava, a próxima recompilava tudo — travada no meio da batalha. Agora um objeto
+   invisível por variante de material fica na cena a partida inteira, em todos os presets.
+2. **Pré-aquecimento.** Além da cena, compila os guardiões e um modelo oculto de cada tropa, nas
+   variantes de alvo intermediário (reflexo, pós-processamento) e de tela (sem pós-processamento).
+   No SwiftShader: 73 programas para 623 materiais em ~6,5 s. A comparação de travadas
+   antes/depois não é possível nesse ambiente (congelamentos de 20–70 s com ou sem); fica para
+   F-05/F-06. `localStorage['nc.perf.prewarm'] = 'off'` desliga para o teste.
+3. **Tempo de GPU (R-DEV-03 ajustado).** "1 a cada 10 quadros" virou "um quadro a cada ~150 ms"
+   (o mesmo a 60 qps, mais amostras quando o jogo está lento, para cada janela ter pelo menos 3).
+   Leituras acima de 1,5× o intervalo entre quadros são descartadas: no SwiftShader a extensão
+   existe, mas mede 10× o intervalo.
+4. **Tendência sustentada.** Compara as 3 primeiras e as 3 últimas janelas com os mesmos ajustes,
+   depois de 5 min. Uma cena que pesa aos poucos também dispara o indício (por isso ele é
+   `hipótese` e só segura subidas, nunca reduz).
+5. **Consultor.** "No piso de emergência" foi lido como "com níveis de emergência em uso". O
+   histórico guarda a última partida de cada preset; "já manteve a meta" vale para a mesma versão
+   gráfica e a mesma meta. Uma partida boa no mesmo preset retira a recomendação.
+6. **R-SHD-03.** O mecanismo existe, com a lista vazia: nenhum defeito de GPU foi comprovado.
+7. **K-07.** O shader das nuvens passou a pular a leitura da textura com força 0 (sem isso,
+   desligar não economizava nada). **K-08:** raio "longe" = max(30, 0,8 × distância da câmera).
 
 **Onda 2 — precisão e próxima partida (P1).**
 - consultor e aviso por aparelho;

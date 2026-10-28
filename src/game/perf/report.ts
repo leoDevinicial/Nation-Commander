@@ -7,9 +7,10 @@
  * qualquer dado pessoal. Nada é enviado automaticamente: o texto só sai quando o jogador copia.
  */
 import type { Capabilities } from './kaics.ts';
-import type { Decision, PerfSummary, WindowRecord } from './kgps.ts';
+import type { Decision, PerfSummary, SessionStats, WindowRecord } from './kgps.ts';
 
-export const REPORT_SCHEMA = 'nc.perf.report.v1';
+/** v2 (Onda 2): tempo de GPU por janela, resumo da sessão, pré-aquecimento e primeiro minuto. */
+export const REPORT_SCHEMA = 'nc.perf.report.v2';
 /** Tamanho máximo do texto copiado (bytes). */
 export const REPORT_MAX_BYTES = 20_000;
 
@@ -22,6 +23,12 @@ export interface ReportInput {
   windows: readonly WindowRecord[];
   decisions: readonly Decision[];
   render: { drawCalls: number; triangles: number; geometries: number; textures: number };
+  /** Resumo da sessão até agora (consultor de preset). */
+  session?: SessionStats;
+  /** Pré-aquecimento de shaders (R-SHD-02): ligado, materiais e duração. */
+  prewarm?: { enabled: boolean; materials: number; programs?: number; ms: number | null };
+  /** Travadas e congelamentos nos primeiros 60 s depois do carregamento (null = ainda medindo). */
+  firstMinute?: { hitches: number; stalls: number; done: boolean } | null;
 }
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
@@ -54,12 +61,29 @@ export function buildReport(i: ReportInput): string {
     state: s.state,
     fidelityIndex: r2(s.fidelity),
     emergencyKnobs: s.emergencyKnobs,
+    bottleneck: { kind: s.bottleneck, source: s.bottleneckSource },
+    thermalHoldS: s.thermalHoldS,
     windows: i.windows.slice(-30),
     knobs: s.knobs.map((k) => ({ id: k.id, level: k.level, levelText: k.levels[k.level] ?? null, baseline: k.baseline, floor: k.floor, emergencyFloor: k.emergencyFloor, status: k.status })),
     decisions: i.decisions.slice(-40),
     incidents: s.incidents.slice(-20),
     render: i.render,
     overheadUs: r2(s.overheadUs),
+    session: i.session
+      ? {
+          minutes: r2(i.session.measuredMs / 60_000),
+          belowShare: i.session.measuredMs > 0 ? r2(i.session.belowMs / i.session.measuredMs) : 0,
+          emergencyShare: i.session.measuredMs > 0 ? r2(i.session.emergencyMs / i.session.measuredMs) : 0,
+          fpsMedian: r2(i.session.fpsMedian),
+          p95Median: r2(i.session.p95Median),
+          hitches: i.session.hitches,
+          stalls: i.session.stalls,
+          adaptive: i.session.adaptive,
+          fidelityMin: r2(i.session.fidelityMin),
+        }
+      : null,
+    prewarm: i.prewarm ?? null,
+    firstMinute: i.firstMinute ?? null,
   };
   let json = JSON.stringify(report);
   while (bytes(json) > REPORT_MAX_BYTES && (report.decisions.length > 5 || report.windows.length > 5 || report.incidents.length > 5)) {

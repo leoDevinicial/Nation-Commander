@@ -162,8 +162,27 @@ export class RocketLayer {
     return this.rockets.some((r) => r.attackerId === attackerId);
   }
 
+  /** Fração das partículas de rastro emitidas (KAICS Adaptables+ · K-06: 1 = todas, 0,5 = metade). */
+  private trailFrac = 1;
+  private trailAcc = 0;
+
+  get trailBudget(): number {
+    return this.trailFrac;
+  }
+
+  /** Emite só uma fração das partículas de rastro (o rastro fica mais ralo; nada recompila). */
+  setTrailBudget(fraction: number): void {
+    this.trailFrac = Math.max(0.1, Math.min(1, fraction));
+    this.trailAcc = 0;
+  }
+
   private emit(at: THREE.Vector3, o: { life: number; size0: number; size1: number; peak: number; tone: number; vx?: number; vy?: number; vz?: number }): void {
     if (!this.puffs.length) return;
+    if (this.trailFrac < 1) {
+      this.trailAcc += this.trailFrac;
+      if (this.trailAcc < 1) return;
+      this.trailAcc -= 1;
+    }
     const p = this.puffs[this.puffNext]!;
     this.puffNext = (this.puffNext + 1) % this.puffs.length;
     p.sprite.position.copy(at);

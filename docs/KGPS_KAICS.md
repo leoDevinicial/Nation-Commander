@@ -1,4 +1,4 @@
-# KGPS + KAICS — desempenho gráfico adaptativo (versão 2: Onda 1 do KAICS Adaptables+)
+# KGPS + KAICS — desempenho gráfico adaptativo (versão 2: Ondas 1 e 2 do KAICS Adaptables+)
 
 **KGPS** (Kaiser Graphic Performance System) mantém a partida perto da **meta de quadros do
 aparelho** — 60 qps no PC, 30 qps no celular — mexendo o mínimo possível na qualidade. **KAICS**
@@ -11,8 +11,10 @@ de evidências que os dois usam; a especificação completa, com requisitos, ond
 > ajudou.
 
 Código: `src/game/perf/` (núcleo, sem dependência do three.js: `stats.ts`, `kaics.ts`, `kgps.ts`,
-`device.ts`, `report.ts`) e `src/game/GameRuntime.ts` (`setupPerf`, `perfFrame`, `perfReport`).
-Testes: `src/test/kgps.test.ts` (v1) e `src/test/adaptables.test.ts` (v2).
+`device.ts`, `report.ts`, `advisor.ts`; `gpuTimer.ts` fala com o WebGL) e `src/game/GameRuntime.ts`
+(`setupPerf`, `perfFrame`, `perfReport`, `prewarm`). Testes: `src/test/kgps.test.ts` (v1),
+`src/test/adaptables.test.ts` (Onda 1) e `src/test/adaptables2.test.ts` (Onda 2), com a bancada
+comum em `src/test/perfHarness.ts`.
 
 ### O que mudou da versão 1 para a 2 (Onda 1)
 
@@ -24,6 +26,19 @@ Testes: `src/test/kgps.test.ts` (v1) e `src/test/adaptables.test.ts` (v2).
 | Economia de bateria (30 qps fixos) virava pausas de 5 min | **Limite externo** reconhecido pelo padrão (quadros presos em 33,3 ms com a CPU folgada) |
 | Difícil diagnosticar à distância | **Painel v2** e **"Copiar relatório"** (JSON ≤ 20 KB), evidência em cada decisão |
 | Ajuste aprendido sobrevivia a mudanças visuais do jogo | Chave do perfil com **versão gráfica**, classe do aparelho e meta (`nc.kgps.v2`) |
+
+### Onda 2 (precisão e próxima partida)
+
+| Lacuna | Onda 2 |
+|---|---|
+| Parte do custo do preset é fixa na partida (modelos, sombras, antisserrilhado) | **Consultor de preset:** ao fim da partida, se mais de 60% do tempo ficou abaixo da meta ou com níveis de emergência, o menu recomenda outro preset com motivo e números. Nunca troca sozinho |
+| O aviso do Ultra+ era genérico | **Aviso por aparelho:** ao escolher Ultra (no celular) ou Ultra+, mostra a última medição real daquele preset neste aparelho |
+| Meta fixa por classe | **Meta escolhida pelo jogador:** Automática, 30 ou 60 qps, vale na hora |
+| Gargalo sempre estimado | **Tempo de GPU medido** onde o navegador oferece (`EXT_disjoint_timer_query_webgl2`), com filtro de leituras impossíveis |
+| Travadas na primeira explosão ou no primeiro tanque inimigo | **Pré-aquecimento de shaders** (Alto+) e **guardiões** que seguram os programas compilados |
+| Aparelho esquentando (o jogo fica lento sozinho) | **Tendência sustentada:** com os mesmos ajustes, mediana +15% em 5 min segura as subidas de qualidade por 5 min (indício, não medido) |
+| Medidas estranhas sem explicação | **Eventos no registro:** congelamentos, aba oculta, troca de cena, contexto perdido, densidade de tela, pré-aquecimento, primeiro minuto |
+| Botões que faltavam | **K-06 a K-09:** rastros, sombras das nuvens, animação das tropas distantes e ondas da água |
 
 ## 1. Princípios (do plano original, mantidos)
 
@@ -102,6 +117,10 @@ intervalos.
 | **Efeitos** (explosões, fumaça; novo) | 100% → 70% → **40%** | 70% (fumaça um degrau abaixo) | 40% (fumaça básica) | GPU e CPU | 2 / 4 | todos |
 | **Densidade da vegetação e pedras** (novo) | 100% → 75% → **50%** | 75% | 50% só no celular | GPU e CPU | 3 / 4 | todos |
 | Resolução interna | 100% → 90% → … → 60% → **50/40/30%** | 0,7 px por px de tela ou 60% | celular: até 0,7 px por px CSS | GPU | 2 / 3 / 4 / 5 (emergência) | todos |
+| **Rastros** (Onda 2, K-06): esteiras, fumaça dos aviões e dos foguetes | 100% → 50% | 50% | — | CPU e GPU | 1 | todos |
+| **Sombras das nuvens** (K-07) | ligadas → desligadas | desligadas | — | GPU | 1 | Ultra+ |
+| **Animação das tropas distantes** (K-08) | todo quadro → a cada 2 quadros | a cada 2 | — | CPU | 1 | todos |
+| **Ondas da água** (K-09) | ondas → plano | plano | — | GPU | 2 | Ultra+ (Ultra e Ultra+) |
 
 **Por classe (decisão D2 da especificação):** no PC, a emergência vai só até "reflexo só do céu" e
 "efeitos 40%"; no celular e na renderização por software, também até vegetação 50% e resolução de
@@ -118,6 +137,12 @@ intervalos.
   o começo do buffer, então as escondidas não custam nem vértices.
 - *Sombra da vegetação:* só desliga a projeção no mapa de sombras; prédios e unidades continuam
   com sombra.
+- *Rastros:* as marcas de esteira passam a usar metade das instâncias (somem mais cedo) e os
+  aviões e foguetes soltam metade das partículas de fumaça.
+- *Sombras das nuvens:* força 0 no uniforme; o shader pula a leitura da textura de nuvens.
+- *Animação distante:* tropas além de max(30, 0,8 × distância da câmera) animam a cada 2
+  quadros (metade em cada), com o tempo acumulado; posição e rumo continuam suaves.
+- *Ondas:* a água troca a malha fina das ondas por um plano simples (o mesmo material).
 
 **Nunca reduzidos (piso visual):** sombras ligadas (dos prédios e unidades), névoa de guerra,
 fronteiras, unidades e prédios, barras de vida e interface. Tiros e explosões continuam
@@ -129,14 +154,22 @@ A telemetria é coletada a cada quadro desenhado:
 - **intervalo** entre quadros (o que o jogador sente);
 - **tempo de CPU** do quadro (atualização + envio dos desenhos).
 
-O tempo da GPU não é medido: no navegador ele quase nunca está disponível de forma confiável. Por
-isso o gargalo é **estimado**, e o painel diz isso:
+**Tempo de GPU (Onda 2).** Onde o navegador oferece `EXT_disjoint_timer_query_webgl2` (comum em
+PC, raro em celular), um quadro a cada ~150 ms é medido de ponta a ponta (sombra, cena, reflexo e
+pós-processamento). Com pelo menos 3 leituras na janela, o gargalo é **medido**:
+- GPU acima de 90% do orçamento (e maior que a CPU), ou ocupando ≥ 75% do quadro → **GPU**;
+- JavaScript ≥ 70% do quadro ou acima de 90% do orçamento → **CPU**;
+- nenhum dos dois perto do limite → **indefinido** (o quadro espera a tela ou o sistema).
+
+Leituras impossíveis (GPU acima de 1,5× o intervalo entre quadros, típico da renderização por
+software) são descartadas. Sem tempo de GPU, o gargalo é **estimado**, e o painel diz isso:
 - se o JavaScript ocupa ≥ 70% do quadro, ou sozinho passa de 90% do orçamento → **CPU**;
 - se ocupa ≤ 45% → **GPU**;
 - entre os dois → **indefinido** (vale qualquer ajuste).
 
 **Meta e orçamento (versão 2).** A meta vem da classe do aparelho (`device.ts`), deduzida de
-evidência e nunca de marca ou modelo:
+evidência e nunca de marca ou modelo — ou da escolha do jogador nas configurações (Onda 2:
+Automática, 30 ou 60, valendo na hora):
 - **software** (SwiftShader, llvmpipe…): o navegador desenha sem placa de vídeo → meta 30;
 - **celular**: tela de toque com lado curto < 820 px CSS → meta 30;
 - **PC**: o resto → meta 60.
@@ -201,8 +234,20 @@ Ciclo (números em `KGPS_CONFIG`; os limites são proporcionais ao orçamento da
     os ajustes antigos deixam de valer. Os perfis da versão 1 são apagados.
 11. **Modo observação.** Com a opção desligada, o KGPS mede e registra o que **faria** ("Modo
     observação — faria …", inclusive a descida rápida), sem mudar nada.
-12. **Evidência em cada decisão (versão 2):** `medido` (janelas), `estimado` (gargalo pela fração
-    de CPU) ou `hipótese` (limite externo, causa não gráfica).
+12. **Evidência em cada decisão (versão 2):** `medido` (janelas, ou gargalo pelo tempo de GPU),
+    `estimado` (passo escolhido pelo gargalo estimado pela fração de CPU) ou `hipótese` (limite
+    externo, causa não gráfica, aquecimento).
+13. **Tendência sustentada (Onda 2).** Com os mesmos níveis de botões por 5 min, se a mediana das
+    3 últimas janelas fica 15% acima da das 3 primeiras, o registro marca "possível aquecimento
+    (indício, não medido)" e as subidas de qualidade ficam seguradas por 5 min. Reduzir continua
+    permitido. Uma cena que pesa aos poucos também dispara o indício; por isso ele só segura
+    subidas.
+14. **Eventos extraordinários (Onda 2).** Entram no registro, no máximo um de cada tipo a cada
+    20 s: congelamento (> 1 s), aba oculta e de volta, cena em segundo plano e de volta, contexto
+    gráfico perdido e restaurado, densidade de tela mudada, pré-aquecimento e o resumo do
+    primeiro minuto.
+15. **Resumo da sessão (Onda 2).** Cada janela soma ao tempo medido, ao tempo abaixo da meta e ao
+    tempo com níveis de emergência; o consultor de preset usa isso ao fim da partida.
 
 **Custo do próprio KGPS:** medido a cada janela e mostrado no painel. Nos testes fica em
 microssegundos por quadro.
@@ -233,6 +278,40 @@ microssegundos por quadro.
 - **Isolamento de falhas (versão 2):** uma exceção ao aplicar ou ler um botão restaura o nível
   anterior e põe só aquele botão em quarentena; o quadro continua.
 - **Ciclo de vida:** adaptadores ligam uma vez no registro e desligam uma vez no fim da cena.
+- **Bloqueio por evidência (Onda 2, R-SHD-03):** uma lista explícita (`INCOMPATIBILITIES`) pode
+  fixar um botão num nível seguro numa família de GPU, com motivo e data. Fica fora do controle
+  automático e do kill switch. A lista está **vazia**: nenhum defeito de GPU foi comprovado (o E3
+  era do jogo).
+- **Densidade de tela mudou (Onda 2, R-DEV-04):** zoom do navegador ou outro monitor refazem o
+  botão de resolução sobre a nova densidade e zeram a taxa da tela estimada e a janela atual.
+
+## 5.1 Pré-aquecimento de shaders (Onda 2, R-SHD-02)
+- **Guardiões (todos os presets):** um objeto invisível por variante de material dos efeitos
+  (traçantes, clarões, fumaça, brilhos, chamas). Eles seguram os programas compilados. Sem eles,
+  quando a última explosão acaba e o material dela é descartado, o three.js apaga o programa e a
+  próxima explosão compila tudo de novo — uma travada no meio da batalha.
+- **Alto, Ultra e Ultra+:** antes do primeiro quadro, compila de uma vez a cena, os guardiões e
+  um modelo oculto de cada tropa, nas variantes de alvo intermediário (reflexo e
+  pós-processamento) e, sem pós-processamento, de tela. Com `KHR_parallel_shader_compile`, em
+  paralelo; sem ele, direto. O portão `compilando` segura medições e ajustes; no pior caso, libera
+  em 8 s.
+- **Medida:** travadas (> 50 ms) e congelamentos (> 1 s) nos primeiros 60 s depois do
+  carregamento, no painel, no registro e no relatório. Para comparar antes/depois, o
+  pré-aquecimento pode ser desligado com `localStorage['nc.perf.prewarm'] = 'off'`.
+
+## 5.2 Consultor de preset (Onda 2, C6)
+- **Histórico neste aparelho** (`nc.perf.history.v1`, só no navegador): a última partida de cada
+  preset (minutos, qps típicos, tempo abaixo da meta e com níveis de emergência, se manteve a
+  meta), com a versão gráfica.
+- **Recomendação** (`nc.perf.advice.v1`): partida de pelo menos 1 min com mais de 60% do tempo
+  abaixo da meta ou com níveis de emergência → o preset mais alto que já manteve a meta neste
+  aparelho (mesma versão gráfica e meta) ou, sem histórico, um degrau abaixo. Aparece no menu com
+  "Usar …" e "Manter …"; nunca troca sozinho. Uma partida boa no mesmo preset retira a
+  recomendação. Nada é recomendado abaixo do Mobile/Baixo (aí o limite é do aparelho ou do
+  sistema).
+- **Aviso por aparelho:** ao escolher Ultra+ (ou Ultra no celular), o aviso mostra a última
+  medição real daquele preset aqui ("ontem, 6,5 min de partida: mediana de ~15 qps; abaixo da
+  meta em 80% do tempo").
 - **Veredito:**
   - **Adaptativo**: pode mexer;
   - **Só observando**: desligado pelo jogador ou nenhum botão validado;
@@ -243,6 +322,9 @@ microssegundos por quadro.
 ## 6. Interface
 
 - **Configurações → Qualidade adaptativa (KGPS):** ligada por padrão. Vale na hora.
+- **Configurações → Meta de quadros por segundo (Onda 2):** Automática (30 no celular, 60 no PC),
+  30 ou 60. Vale na hora.
+- **Menu → "Desempenho na última partida" (Onda 2):** a recomendação do consultor, quando houver.
 - **Barra da partida:** com "Mostrar FPS" ligado, o contador tem um ponto colorido:
   - verde: qualidade cheia;
   - âmbar: qualidade reduzida pelo KGPS (e "· adaptado" ao lado, em telas largas);
@@ -264,6 +346,9 @@ microssegundos por quadro.
   - as decisões recentes, cada uma com o motivo, os números e a evidência (medido, estimado,
     hipótese);
   - o aparelho: classe e fonte, taxa da tela estimada, GPU, WebGL, núcleos, memória e incidentes;
+  - (Onda 2) tempo de GPU quando medido ("inconsistente" se a leitura for impossível), gargalo
+    medido ou estimado, indício de aquecimento com o tempo restante, pré-aquecimento (programas e
+    duração) e o primeiro minuto (travadas e congelamentos);
   - **Copiar relatório**: gera o JSON (formato da seção 31 da especificação, até 20 KB), mostra o
     conteúdo antes e só então copia. Sem nome, sala, posição no mapa ou chat; nada é enviado
     sozinho. Se o navegador não liberar a área de transferência, o texto fica selecionado para
@@ -321,7 +406,18 @@ microssegundos por quadro.
 - T-17: densidade da vegetação com subconjunto fixo e encaixado;
 - T-18: os testes da versão 1 continuam passando (com a mudança intencional do caso de 30 qps).
 
-T-16 (tendência térmica) é da Onda 2.
+**Onda 2** (`src/test/adaptables2.test.ts`)
+- T-16: mediana +15% em 5 min com os mesmos ajustes → indício (hipótese) e subidas seguradas por
+  5 min (reduzir continua permitido); cena estável não dá indício;
+- tempo de GPU: gargalo medido (inclusive "nenhum dos dois no limite"), leitura impossível
+  descartada, evidência "medido" × "estimado" nas decisões;
+- meta trocada para 60 no meio da partida muda o orçamento na hora;
+- eventos: no máximo um por tipo a cada 20 s; congelamento vira evento;
+- resumo da sessão (tempo abaixo da meta, qps típicos);
+- consultor: partida curta não vale, um degrau abaixo, o mais alto que já manteve a meta, versão
+  gráfica diferente não vale, partida boa retira a recomendação, texto do aviso por aparelho;
+- bloqueio por evidência: GPU listada fixa o botão; outra GPU, nada muda;
+- relatório v2: tempo de GPU por janela, sessão, pré-aquecimento e primeiro minuto.
 
 ## 8. Verificação no navegador
 
@@ -373,21 +469,25 @@ percentis (reduzir qualidade não resolve compilação de shader nem aba parada)
   rápida, o limite externo e a recuperação estão verificados nos testes automáticos (T-01 a T-15,
   T-17, T-18).
 
+**Onda 2 no navegador** (Chromium com SwiftShader)
+- **Botões:** no Ultra+, os 14 botões validados sem incidente (inclusive nuvens e ondas); no Alto,
+  12; no Mobile/Baixo, 5 (efeitos, vegetação, rastros, animação distante e resolução).
+- **Pré-aquecimento:** 73 programas de shader para 623 materiais, em 6,1–6,7 s no SwiftShader (que
+  não compila em paralelo). A comparação de travadas antes/depois **não é possível aqui**: com ou
+  sem pré-aquecimento, o SwiftShader congela a página por 20–70 s. Fica para o campo (F-05/F-06).
+- **Tempo de GPU:** a extensão existe no SwiftShader, mas as leituras saem 10× acima do intervalo
+  entre quadros (285 ms de GPU com mediana de 17 ms). Daí o filtro de leituras impossíveis: o
+  painel mostra "inconsistente" e o gargalo segue estimado.
+- **Telas (celular emulado, 390 × 844):** cartão do consultor no menu ("Usar Alto / Manter
+  Ultra+"), meta de quadros nas configurações (salva na hora) e aviso do Ultra com a última
+  medição real.
+
 **A conferir em aparelho real** (protocolo F-01 a F-07 da especificação)
 Com "Mostrar FPS" ligado, toque no contador e confira no painel as medidas, os ajustes e as
 decisões; depois toque em "Copiar relatório" e cole na conversa. Prioridade: o mesmo celular de
 E1/E2, no Ultra+ com e sem economia de bateria e no Mobile/Baixo.
 
-## 9. Próximas ondas (ver a seção 36 da especificação)
-
-**Onda 2 (precisão e próxima partida):**
-- consultor de preset ao fim da partida e aviso por aparelho (Ultra+ no celular, decisão D5);
-- tempo de GPU por consulta (`EXT_disjoint_timer_query_webgl2`) quando houver;
-- pré-aquecimento de shaders (`renderer.compileAsync`) sob o portão `compilando`;
-- botões K-06 a K-09 (rastros, sombras de nuvens, animação distante, ondas da água);
-- meta escolhida pelo jogador (Automática, 30 ou 60);
-- tendência sustentada (indício térmico, T-16);
-- marcação de eventos extraordinários no registro.
+## 9. Próxima onda (ver a seção 36 da especificação)
 
 **Onda 3 (só com gatilho de campo):** residência de texturas, tendência de memória, "Ultra+
 Móvel", metas acima de 60 qps e telemetria agregada no servidor (exige consentimento).
@@ -395,7 +495,7 @@ Móvel", metas acima de 60 qps e telemetria agregada no servidor (exige consenti
 **Continua fora:** limite de luzes dinâmicas e sombras ligadas/desligadas em tempo real (mudar
 isso recompila shaders e trava o jogo). Ficam com o consultor da próxima partida.
 
-## 10. Critérios de aceitação (versão 2, Onda 1)
+## 10. Critérios de aceitação (versão 2, Ondas 1 e 2)
 
 | Critério | Evidência |
 |---|---|
@@ -410,3 +510,6 @@ isso recompila shaders e trava o jogo). Ficam com o consultor da próxima partid
 | Custa pouco | custo medido no painel e no teste (< 50 µs por quadro) |
 | Explica o que fez | cada decisão com motivo, números e evidência; relatório copiável (T-14) |
 | Honesto | "· adaptado" e IFA como estimativa, nunca como equivalência visual |
+| Aprende com a partida (Onda 2) | consultor e aviso por aparelho testados; nunca troca o preset sozinho |
+| Sabe quando o aparelho esquenta (Onda 2) | T-16: indício marcado como hipótese, só segura subidas |
+| Mede quando dá (Onda 2) | tempo de GPU com filtro de leituras impossíveis; evidência medida × estimada |

@@ -84,6 +84,12 @@ export type PerfHud = PerfSummary & {
   caps: Capabilities;
   /** Preset escolhido (para o rótulo "· adaptado"). */
   preset: string;
+  /** Tempo de GPU medido neste aparelho (extensão de temporização ativa). */
+  gpuTimer: boolean;
+  /** Pré-aquecimento de shaders (R-SHD-02). */
+  prewarm: { enabled: boolean; materials: number; programs: number; ms: number | null };
+  /** Travadas nos primeiros 60 s depois do carregamento (null = partida ainda carregando). */
+  firstMinute: { hitches: number; stalls: number; done: boolean } | null;
   /** Relatório de desempenho em JSON, gerado sob demanda (botão "Copiar relatório"). */
   exportReport: () => string;
 };

@@ -100,6 +100,37 @@ export class Effects {
     }, () => material.dispose());
   }
 
+  private keeperGroup: THREE.Group | null = null;
+
+  /**
+   * Guardiões de shader (KAICS Adaptables+ · R-SHD-02): um objeto invisível para cada variante de
+   * material que os efeitos (e as camadas de foguetes, aviões e projéteis) criam durante a
+   * partida. Ficam na cena até o fim: o pré-aquecimento compila os shaders deles antes do primeiro
+   * tiro, e eles seguram os programas compilados. Sem isso, quando a última explosão acaba e o
+   * material dela é descartado, o three.js apaga o programa e a próxima explosão compila tudo de
+   * novo — uma travada no meio da batalha.
+   */
+  keepers(): THREE.Group {
+    if (this.keeperGroup) return this.keeperGroup;
+    const g = new THREE.Group();
+    g.name = 'shader-keepers';
+    const add = (o: THREE.Object3D) => {
+      o.visible = false;
+      o.frustumCulled = false;
+      g.add(o);
+    };
+    const geo = this.sphereGeo;
+    add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0, 1)]), this.lineMatLight.clone()));
+    add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false })));
+    add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: glowTexture(), color: '#000000', transparent: true, depthWrite: false, opacity: 0 })));
+    add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false, side: THREE.DoubleSide })));
+    add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: '#6b6a66', transparent: true, depthWrite: false, roughness: 1 })));
+    add(new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), transparent: true, depthWrite: false })));
+    add(new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), transparent: true, depthWrite: false, fog: false })));
+    this.keeperGroup = g;
+    return g;
+  }
+
   /** Limite de efeitos simultâneos em vigor (nunca menos que 8: tiros e explosões continuam visíveis). */
   private get cap(): number {
     return Math.max(8, Math.round(this.maxItems * this.budgetFrac));
@@ -513,5 +544,14 @@ export class Effects {
     this.sphereGeo.dispose();
     this.lineMatLight.dispose();
     this.lineMatHeavy.dispose();
+    if (this.keeperGroup) {
+      for (const o of this.keeperGroup.children) {
+        const m = (o as THREE.Mesh).material as THREE.Material;
+        m.dispose();
+        if (o instanceof THREE.Line) o.geometry.dispose();
+      }
+      this.keeperGroup.removeFromParent();
+      this.keeperGroup = null;
+    }
   }
 }

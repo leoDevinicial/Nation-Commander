@@ -33,6 +33,17 @@ export function classifyDevice(caps: Pick<Capabilities, 'gpu' | 'touch' | 'short
   return { value: 'pc', source: caps.touch ? `toque com tela grande (${Math.round(short ?? 0)} px)` : 'sem toque', kind: 'inferida' };
 }
 
+/**
+ * Classe deste aparelho fora da partida (menu e configurações), sem contexto WebGL: só toque e
+ * tamanho da tela. Renderização por software só é detectada dentro da partida (nome da GPU).
+ */
+export function currentDeviceClass(): DeviceClass {
+  if (typeof window === 'undefined') return 'pc';
+  const touch = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+  const shortSide = Math.min(window.screen?.width ?? window.innerWidth, window.screen?.height ?? window.innerHeight);
+  return classifyDevice({ gpu: null, touch, shortSide }).value;
+}
+
 export interface TargetPolicy {
   fps: number;
   budgetMs: number;

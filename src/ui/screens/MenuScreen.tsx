@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import { gameClient } from '../../net/client.ts';
+import { localAdvisorStore, type Advice } from '../../game/perf/advisor.ts';
+import { PRESET_LABELS } from '../../lib/graphics.ts';
+import { useSettingsStore } from '../../state/useSettingsStore.ts';
 import { preferredCountry, signOut } from '../../app/session.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { countryName } from '../../../shared/data/countries.ts';
@@ -40,6 +43,8 @@ export function MenuScreen() {
           <span className="ml-2 text-ink-400">· {countryName(preferredCountry())}</span>
         </p>
       </div>
+
+      <PresetAdvice />
 
       <div className="space-y-2">
         <button className="btn btn-primary btn-hero w-full" disabled={!online} title={offlineHint} onClick={() => create('vs_ai')}>
@@ -109,5 +114,44 @@ export function MenuScreen() {
         </button>
       </div>
     </Shell>
+  );
+}
+
+/**
+ * Consultor de preset (KAICS Adaptables+ · C6): depois de uma partida que passou a maior parte do
+ * tempo abaixo da meta, recomenda outro preset com motivo e números. Nunca troca sozinho.
+ */
+function PresetAdvice() {
+  const quality = useSettingsStore((s) => s.quality);
+  const update = useSettingsStore((s) => s.update);
+  const [advice, setAdvice] = useState<Advice | null>(() => localAdvisorStore().advice());
+  // o jogador já trocou de preset por conta própria: a recomendação perdeu o sentido
+  if (!advice || advice.from !== quality) return null;
+  const close = () => {
+    localAdvisorStore().saveAdvice(null);
+    setAdvice(null);
+  };
+  return (
+    <div className="mb-4 rounded border border-brass-400/50 bg-ink-850/90 p-3 text-sm" role="status">
+      <div className="font-semibold text-brass-400">Desempenho na última partida</div>
+      <p className="mt-1 text-xs text-ink-200">{advice.reason}</p>
+      <p className="mt-1 text-xs text-ink-200">
+        Recomendado para a próxima: <b className="text-ink-100">{PRESET_LABELS[advice.to]}</b> — {advice.basis}. Os presets mudam só o visual, nunca as regras.
+      </p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button
+          className="btn btn-primary min-h-9 px-3"
+          onClick={() => {
+            update({ quality: advice.to });
+            close();
+          }}
+        >
+          Usar {PRESET_LABELS[advice.to]}
+        </button>
+        <button className="btn min-h-9 px-3" onClick={close}>
+          Manter {PRESET_LABELS[advice.from]}
+        </button>
+      </div>
+    </div>
   );
 }

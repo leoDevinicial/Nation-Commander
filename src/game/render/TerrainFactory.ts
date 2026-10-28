@@ -164,6 +164,8 @@ export interface TerrainHandle {
   update: (time: number) => void;
   /** Controle do reflexo planar da água (null sem reflexo planar). */
   reflection: WaterHandle['reflection'];
+  /** Ondas da água (Ultra), que o KGPS pode trocar por um plano simples. */
+  waves: WaterHandle['waves'];
   /**
    * Esconde árvores, arbustos e pedras decorativos que ficam sob construções (retângulos em
    * coordenadas de mundo) e devolve os que voltaram a ficar livres. Retorna true se algo mudou.
@@ -496,6 +498,7 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
     water: water.mesh,
     update: water.update,
     reflection: water.reflection,
+    waves: water.waves,
     clearUnder,
     setDecorDensity,
     get decorDensity() {

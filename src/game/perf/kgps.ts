@@ -23,9 +23,17 @@
  *   reduzido enquanto o padrão durar;
  * - cada decisão diz a natureza da evidência (medido, estimado ou hipótese).
  *
+ * Onda 2:
+ * - meta escolhida pelo jogador (Automática, 30 ou 60), trocada na hora (`setTarget`);
+ * - tempo de GPU medido, quando o navegador oferece, no diagnóstico do gargalo (`gpuSample`);
+ * - tendência sustentada: com os mesmos ajustes, a mediana subindo 15% em 5 min é indício de
+ *   aquecimento — as subidas de qualidade ficam seguradas por 5 min;
+ * - eventos extraordinários marcados no registro (congelamento, aba oculta, troca de cena…);
+ * - resumo da sessão (`session`) para o consultor de preset da próxima partida.
+ *
  * Nunca mexe em regras, simulação, névoa de guerra, fronteiras, seleção ou interface.
  */
-import { FrameWindow, classifyBottleneck, estimateRefreshHz, type Bottleneck, type WindowStats } from './stats.ts';
+import { FrameWindow, STALL_MS, classifyBottleneck, estimateRefreshHz, percentile, type Bottleneck, type BottleneckSource, type WindowStats } from './stats.ts';
 import type { Kaics, KnobEntry } from './kaics.ts';
 import type { DeviceClass, Observed, TargetPolicy } from './device.ts';
 
@@ -89,11 +97,23 @@ export const KGPS_CONFIG = {
   externalCapExitWindows: 3,
   /** Janelas guardadas para o relatório. */
   reportWindows: 30,
+  // ---- Onda 2: tendência sustentada (R-TGT-06)
+  /** Alta da mediana, com os mesmos níveis de botões, que indica aquecimento (indício). */
+  sustainedRise: 1.15,
+  /** Tempo mínimo com os mesmos níveis para comparar o começo com o agora. */
+  sustainedWindowMs: 300_000,
+  /** Subidas de qualidade seguradas depois do indício. */
+  thermalHoldMs: 300_000,
+  // ---- Onda 2: eventos extraordinários (R-EVD-05)
+  /** Intervalo mínimo entre dois registros do mesmo tipo de evento. */
+  eventGapMs: 20_000,
+  /** Janelas guardadas para o resumo da sessão (~2 h de partida). */
+  sessionWindows: 3600,
 };
 
 export type KgpsConfig = typeof KGPS_CONFIG;
 export type KgpsState = 'warmup' | 'observing' | 'evaluating' | 'emergency' | 'stabilizing' | 'externalCap' | 'frozen';
-export type DecisionKind = 'degrade' | 'upgrade' | 'keep' | 'revert' | 'hold' | 'suggest' | 'incident' | 'profile' | 'inconclusive' | 'mode' | 'emergency';
+export type DecisionKind = 'degrade' | 'upgrade' | 'keep' | 'revert' | 'hold' | 'suggest' | 'incident' | 'profile' | 'inconclusive' | 'mode' | 'emergency' | 'event';
 /** Natureza da evidência de uma decisão (R-EVD-03). */
 export type Evidence = 'medido' | 'estimado' | 'hipotese';
 
@@ -138,9 +158,33 @@ export interface WindowRecord {
   hitches: number;
   stalls: number;
   lock30: number;
+  /** Tempo de GPU do quadro (mediana das amostras; null = não medido). */
+  gpuP50: number | null;
   bottleneck: Bottleneck;
 }
 
+/**
+ * Resumo da sessão para o consultor de preset (C6): quanto tempo o jogo passou abaixo da meta ou
+ * com níveis de emergência, e os qps típicos. Só conta janelas válidas (fora dos portões).
+ */
+export interface SessionStats {
+  /** Tempo coberto por janelas válidas (ms). */
+  measuredMs: number;
+  /** Tempo em janelas abaixo da meta (mediana acima de 1,08× o orçamento). */
+  belowMs: number;
+  /** Tempo com algum botão abaixo do piso normal (níveis de emergência). */
+  emergencyMs: number;
+  /** Mediana dos qps das janelas, ponderada pela duração. */
+  fpsMedian: number;
+  /** Mediana dos p95 das janelas (ms). */
+  p95Median: number;
+  hitches: number;
+  stalls: number;
+  targetFps: number;
+  adaptive: boolean;
+  /** Menor índice de fidelidade visto na sessão. */
+  fidelityMin: number;
+}
 export interface PerfSummary {
   mode: 'adaptive' | 'observe' | 'blocked';
   state: KgpsState;
@@ -153,6 +197,10 @@ export interface PerfSummary {
   refreshHz: number | null;
   window: WindowStats | null;
   bottleneck: Bottleneck;
+  /** O gargalo veio do tempo de GPU medido ou da fração de CPU (estimativa). */
+  bottleneckSource: BottleneckSource;
+  /** Segundos restantes de subidas seguradas por indício de aquecimento (null = nenhum). */
+  thermalHoldS: number | null;
   overheadUs: number;
   /** Índice de fidelidade adaptativa (0–1): estimativa relativa aos ajustes disponíveis. */
   fidelity: number;
@@ -164,13 +212,14 @@ export interface PerfSummary {
 }
 
 const BOTTLENECK_TEXT: Record<Bottleneck, string> = { gpu: 'GPU', cpu: 'CPU', unknown: 'indefinido' };
+const ORIGIN_TEXT: Record<TargetPolicy['origin'], string> = { classe: 'padrão do aparelho', jogador: 'escolha do jogador', tela: 'limite da tela' };
 
 const ms = (v: number) => v.toFixed(1).replace('.', ',');
 const qps = (p50: number) => (p50 > 0 ? Math.round(1000 / p50) : 0);
 
 export class Kgps {
-  readonly budget: number;
-  readonly target: TargetPolicy;
+  budget: number;
+  target: TargetPolicy;
   private readonly win = new FrameWindow();
   private readonly startedAt: number;
   private settleUntil: number;
@@ -202,8 +251,17 @@ export class Kgps {
   /** Limite externo de 30 qps em vigor (até o padrão mudar ou até `until`). */
   private externalCap: { outside: number; until: number } | null = null;
   private readonly windows: WindowRecord[] = [];
+  /** Tendência com os mesmos níveis de botões (R-TGT-06). */
+  private trend: { sig: string; since: number; first: number[]; recent: number[] } | null = null;
+  /** Subidas seguradas até aqui por indício de aquecimento. */
+  private thermalUntil = 0;
+  private readonly eventAt = new Map<string, number>();
+  /** Janelas da sessão (qps, p95, duração) e totais para o consultor. */
+  private readonly sessionWins: { fps: number; p95: number; span: number }[] = [];
+  private readonly sessionTotals = { measuredMs: 0, belowMs: 0, emergencyMs: 0, hitches: 0, stalls: 0, fidelityMin: 1 };
   last: WindowStats | null = null;
   lastBottleneck: Bottleneck = 'unknown';
+  lastBottleneckSource: BottleneckSource = 'cpu-share';
   overheadUs = 0;
   refreshHz: number | null = null;
   readonly log: Decision[] = [];
@@ -211,7 +269,7 @@ export class Kgps {
   constructor(
     private readonly kaics: Kaics,
     now: number,
-    private readonly store: ProfileStore | null = null,
+    private store: ProfileStore | null = null,
     private readonly cfg: KgpsConfig = KGPS_CONFIG,
     target?: TargetPolicy,
   ) {
@@ -227,6 +285,7 @@ export class Kgps {
   sample(now: number, intervalMs: number, cpuMs: number): void {
     const t0 = performance.now();
     if (now >= this.settleUntil) {
+      if (intervalMs > STALL_MS) this.event(now, 'stall', `Congelamento de ${(intervalMs / 1000).toFixed(1).replace('.', ',')} s (fora das medições: compilação, carga ou página parada)`);
       this.win.add(now, intervalMs, cpuMs);
       const span = now - this.win.start;
       if (this.emergency?.phase === 'stepping') {
@@ -235,6 +294,58 @@ export class Kgps {
     }
     this.overheadMs += performance.now() - t0;
     this.overheadFrames++;
+  }
+
+  /**
+   * Tempo de GPU de um quadro (R-DEV-03), medido pelo `EXT_disjoint_timer_query_webgl2`. Chega
+   * alguns quadros depois do quadro medido; vale só para a janela em andamento.
+   */
+  gpuSample(now: number, ms: number): void {
+    if (now >= this.settleUntil && this.win.count > 0) this.win.addGpu(ms);
+  }
+
+  /**
+   * Evento extraordinário (R-EVD-05): marcado no registro para explicar medidas estranhas
+   * (congelamento, aba oculta, troca de cena, contexto perdido, pré-aquecimento). No máximo um
+   * registro por tipo a cada 20 s.
+   */
+  event(now: number, key: string, text: string): void {
+    const last = this.eventAt.get(key) ?? -Infinity;
+    if (now - last < this.cfg.eventGapMs) return;
+    this.eventAt.set(key, now);
+    this.push(now, 'event', text);
+  }
+
+  /**
+   * Nova meta (escolha do jogador nas configurações): o orçamento do quadro muda na hora e a
+   * medição recomeça. `store` troca o ajuste aprendido para o da nova meta.
+   */
+  setTarget(target: TargetPolicy, now: number, store?: ProfileStore | null): void {
+    if (target.fps === this.target.fps && target.origin === this.target.origin) return;
+    const before = this.target.fps;
+    this.target = target;
+    this.budget = target.budgetMs;
+    if (store !== undefined) this.store = store;
+    this.trend = null;
+    this.push(now, 'mode', `Meta: ${before} → ${target.fps} qps (${ORIGIN_TEXT[target.origin]})`);
+    this.invalidate(now, 'meta alterada');
+  }
+
+  /** A tela pode ter mudado (outro monitor, zoom): a taxa estimada recomeça do zero (R-DEV-04). */
+  resetRefresh(): void {
+    this.refreshHz = null;
+  }
+
+  /**
+   * Um botão foi trocado (ex.: resolução refeita para a nova densidade de tela): sai da pilha de
+   * reduções e das esperas, para não ser devolvido com o significado antigo dos níveis.
+   */
+  forget(id: string, now: number): void {
+    if (this.pending?.id === id || this.chain.some((c) => c.id === id) || this.emergency?.applied.some((a) => a.id === id)) this.invalidate(now, 'ajuste refeito');
+    for (let i = this.stack.length - 1; i >= 0; i--) if (this.stack[i] === id) this.stack.splice(i, 1);
+    this.degradeBan.delete(id);
+    this.upgradeBan.delete(id);
+    this.trend = null;
   }
 
   /** Algo mudou fora do KGPS (redimensionamento, retomada, contexto restaurado): mede de novo. */
@@ -308,6 +419,8 @@ export class Kgps {
       refreshHz: this.refreshHz,
       window: this.last,
       bottleneck: this.lastBottleneck,
+      bottleneckSource: this.lastBottleneckSource,
+      thermalHoldS: now < this.thermalUntil ? Math.ceil((this.thermalUntil - now) / 1000) : null,
       overheadUs: this.overheadUs,
       fidelity: this.fidelity(),
       emergencyKnobs: knobs.filter((k) => k.status === 'ok' && k.level >= 0 && k.level < k.floor).map((k) => k.label),
@@ -320,6 +433,23 @@ export class Kgps {
   /** Janelas recentes (para o relatório exportável). */
   recentWindows(): readonly WindowRecord[] {
     return this.windows;
+  }
+
+  /** Resumo da sessão até agora (consultor de preset e relatório). */
+  session(): SessionStats {
+    const t = this.sessionTotals;
+    return {
+      measuredMs: t.measuredMs,
+      belowMs: t.belowMs,
+      emergencyMs: t.emergencyMs,
+      fpsMedian: weightedMedian(this.sessionWins.map((w) => [w.fps, w.span])),
+      p95Median: percentile(this.sessionWins.map((w) => w.p95).sort((a, b) => a - b), 0.5),
+      hitches: t.hitches,
+      stalls: t.stalls,
+      targetFps: this.target.fps,
+      adaptive: this.kaics.enabled,
+      fidelityMin: t.fidelityMin,
+    };
   }
 
   /**
@@ -349,12 +479,15 @@ export class Kgps {
     const s = this.win.stats(now)!;
     this.win.clear();
     this.last = s;
-    this.lastBottleneck = classifyBottleneck(s, this.cfg.minSamples, this.budget).kind;
+    const verdict = classifyBottleneck(s, this.cfg.minSamples, this.budget);
+    this.lastBottleneck = verdict.kind;
+    this.lastBottleneckSource = verdict.source;
     if (this.overheadFrames > 0) this.overheadUs = (this.overheadMs * 1000) / this.overheadFrames;
     this.overheadMs = 0;
     this.overheadFrames = 0;
     this.record(now, s);
     for (const c of this.kaics.audit()) this.push(now, 'incident', `${this.label(c.id)}: alterado fora do KAICS (${this.levelText(c.id, c.from)} → ${this.levelText(c.id, c.to)}); novo nível adotado`);
+    this.trackTrend(now, s);
     if (this.emergency) {
       if (this.emergency.phase === 'proving') this.emergencyJudge(now, s);
       return;
@@ -386,7 +519,7 @@ export class Kgps {
       this.badStreak = 0;
       // limite externo em vigor: reduzir não resolve (só se espera o padrão mudar)
       if (!this.externalCap) this.degrade(now, s);
-    } else if (this.stack.length && now >= this.stabilizeUntil && (this.headroomStreak >= this.cfg.upgradeAfterHeadroom || this.goodStreak >= this.cfg.upgradeAfterSteady)) {
+    } else if (this.stack.length && now >= this.stabilizeUntil && now >= this.thermalUntil && (this.headroomStreak >= this.cfg.upgradeAfterHeadroom || this.goodStreak >= this.cfg.upgradeAfterSteady)) {
       this.goodStreak = this.headroomStreak = 0;
       this.upgrade(now, s);
     }
@@ -405,12 +538,76 @@ export class Kgps {
       hitches: s.hitches,
       stalls: s.stalls,
       lock30: r2(s.lock30),
+      gpuP50: s.gpuP50 === null ? null : r2(s.gpuP50),
       bottleneck: this.lastBottleneck,
     });
     if (this.windows.length > this.cfg.reportWindows) this.windows.splice(0, this.windows.length - this.cfg.reportWindows);
+    // sessão: tempo abaixo da meta e com níveis de emergência (consultor de preset)
+    const t = this.sessionTotals;
+    const span = Math.max(s.spanMs, 1);
+    t.measuredMs += span;
+    if (s.p50 > this.budget * this.cfg.badP50) t.belowMs += span;
+    if (this.inEmergencyLevels()) t.emergencyMs += span;
+    t.hitches += s.hitches;
+    t.stalls += s.stalls;
+    t.fidelityMin = Math.min(t.fidelityMin, this.fidelity());
+    this.sessionWins.push({ fps: s.fps, p95: s.p95, span });
+    if (this.sessionWins.length > this.cfg.sessionWindows) this.sessionWins.shift();
     // taxa da tela: a mais rápida já evidenciada pelos quadros com folga (R-DEV-02)
     const hz = estimateRefreshHz(s.p10);
     if (hz !== null && (this.refreshHz === null || hz > this.refreshHz)) this.refreshHz = hz;
+  }
+
+  /** Algum botão abaixo do piso normal (nível de emergência em vigor). */
+  private inEmergencyLevels(): boolean {
+    for (const [id, k] of this.kaics.knobs) {
+      if (k.status !== 'ok') continue;
+      const l = this.kaics.level(id);
+      if (l >= 0 && l < k.spec.floor) return true;
+    }
+    return false;
+  }
+
+  /** Assinatura dos níveis em vigor (a tendência só compara janelas com os mesmos ajustes). */
+  private configSig(): string {
+    let sig = '';
+    for (const id of this.kaics.knobs.keys()) sig += `${id}:${this.kaics.level(id)};`;
+    return sig;
+  }
+
+  /**
+   * Tendência sustentada (R-TGT-06): com os mesmos níveis de botões por 5 min, a mediana das
+   * últimas janelas 15% acima das primeiras é indício de aquecimento (o aparelho reduzindo o
+   * próprio ritmo). Não é medido — a temperatura não é acessível no navegador —, por isso só segura
+   * as subidas de qualidade por um tempo, em vez de reduzir algo.
+   */
+  private trackTrend(now: number, s: WindowStats): void {
+    if (this.pending || this.emergency || this.chain.length) {
+      this.trend = null;
+      return;
+    }
+    const sig = this.configSig();
+    if (!this.trend || this.trend.sig !== sig) this.trend = { sig, since: now, first: [], recent: [] };
+    const t = this.trend;
+    if (t.first.length < 3) {
+      t.first.push(s.p50);
+      return;
+    }
+    t.recent.push(s.p50);
+    if (t.recent.length > 3) t.recent.shift();
+    if (now - t.since < this.cfg.sustainedWindowMs || t.recent.length < 3) return;
+    const before = median3(t.first);
+    const after = median3(t.recent);
+    if (after < before * this.cfg.sustainedRise) return;
+    this.thermalUntil = now + this.cfg.thermalHoldMs;
+    this.push(
+      now,
+      'hold',
+      `Possível aquecimento (indício, não medido): com os mesmos ajustes, a mediana subiu de ${ms(before)} para ${ms(after)} ms em ${Math.round((now - t.since) / 60_000)} min; subidas de qualidade seguradas por ${Math.round(this.cfg.thermalHoldMs / 60_000)} min`,
+      'hipotese',
+    );
+    // a próxima comparação começa daqui
+    this.trend = { sig, since: now, first: [], recent: [] };
   }
 
   private isBad(s: WindowStats): boolean {
@@ -443,7 +640,13 @@ export class Kgps {
   }
 
   private degrade(now: number, s: WindowStats): void {
-    const why = `quadros lentos (p95 ${ms(s.p95)} ms, mediana ${ms(s.p50)} ms; gargalo provável: ${BOTTLENECK_TEXT[this.lastBottleneck]})`;
+    const diag =
+      this.lastBottleneckSource === 'gpu-timer' && s.gpuP50 !== null
+        ? `gargalo: ${BOTTLENECK_TEXT[this.lastBottleneck]} (GPU medida: ${ms(s.gpuP50)} ms por quadro)`
+        : `gargalo provável: ${BOTTLENECK_TEXT[this.lastBottleneck]}`;
+    const why = `quadros lentos (p95 ${ms(s.p95)} ms, mediana ${ms(s.p50)} ms; ${diag})`;
+    // o passo escolhido depende do gargalo: estimado pela fração de CPU, medido com tempo de GPU
+    const evidence: Evidence = this.lastBottleneck === 'unknown' || this.lastBottleneckSource === 'gpu-timer' ? 'medido' : 'estimado';
     const c = this.candidate(now);
     if (!c) {
       if (!this.exhaustedLogged) this.push(now, 'hold', `Sem ajuste disponível para ${why}: a qualidade já está no piso permitido ou os ajustes estão em pausa`);
@@ -465,7 +668,7 @@ export class Kgps {
       return;
     }
     this.pending = { kind: 'degrade', ...c, before: s };
-    this.push(now, 'degrade', `Reduzido ${step}, por ${why}`);
+    this.push(now, 'degrade', `Reduzido ${step}, por ${why}`, evidence);
     this.afterChange(now);
   }
 
@@ -749,6 +952,24 @@ export class Kgps {
     this.log.push({ at: Math.max(0, Math.round((now - this.startedAt) / 100) / 10), kind, text, evidence });
     if (this.log.length > this.cfg.logSize) this.log.splice(0, this.log.length - this.cfg.logSize);
   }
+}
+
+/** Mediana de três (ou menos) valores. */
+function median3(v: readonly number[]): number {
+  return percentile([...v].sort((a, b) => a - b), 0.5);
+}
+
+/** Mediana ponderada de pares [valor, peso]. */
+function weightedMedian(pairs: [number, number][]): number {
+  if (!pairs.length) return 0;
+  const sorted = [...pairs].sort((a, b) => a[0] - b[0]);
+  const total = sorted.reduce((acc, p) => acc + p[1], 0);
+  let acc = 0;
+  for (const [v, w] of sorted) {
+    acc += w;
+    if (acc >= total / 2) return v;
+  }
+  return sorted.at(-1)![0];
 }
 
 /** Ajuste aprendido salvo no navegador, por chave (ver `profileKey`); expira em 14 dias. */

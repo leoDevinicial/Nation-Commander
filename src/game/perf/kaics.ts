@@ -17,7 +17,9 @@
  * - níveis de emergência abaixo do piso normal, liberados só na descida rápida do KGPS;
  * - auditoria: um botão mudado por fora do KAICS vira incidente e o novo nível é adotado;
  * - portões de carregamento e de compilação de shaders;
- * - classe do aparelho (celular, PC, renderização por software) derivada das capacidades.
+ * - classe do aparelho (celular, PC, renderização por software) derivada das capacidades;
+ * - bloqueio por evidência (Onda 2, R-SHD-03): um recurso com defeito visual comprovado numa
+ *   família de GPU fica num nível fixo, com motivo e data — nunca por suposição.
  */
 import type { Bottleneck } from './stats.ts';
 import { classifyDevice, type DeviceClass, type Observed } from './device.ts';
@@ -48,7 +50,28 @@ export interface KnobSpec {
   detach?: () => void;
 }
 
-export type KnobStatus = 'ok' | 'quarantined' | 'faulted';
+/** `blocked`: fixado por evidência de incompatibilidade com a GPU (ver `INCOMPATIBILITIES`). */
+export type KnobStatus = 'ok' | 'quarantined' | 'faulted' | 'blocked';
+
+/**
+ * Incompatibilidade comprovada (R-SHD-03): numa GPU cujo nome casa com `gpu`, o botão `knob` fica
+ * fixo em `level` (abaixo do preset), fora do controle automático. Só entra aqui com evidência de
+ * campo (print + relatório), registrada em `reason` e `since`. Nunca por suposição.
+ */
+export interface Incompatibility {
+  knob: string;
+  gpu: RegExp;
+  level: number;
+  reason: string;
+  /** Data da evidência (AAAA-MM-DD). */
+  since: string;
+}
+
+/**
+ * Lista explícita de incompatibilidades comprovadas. Vazia: o único artefato investigado (E3, as
+ * manchas azuis no território) era um defeito do jogo em qualquer aparelho e foi corrigido.
+ */
+export const INCOMPATIBILITIES: readonly Incompatibility[] = [];
 
 export interface KnobEntry {
   spec: KnobSpec;
@@ -107,6 +130,7 @@ export class Kaics {
   constructor(
     readonly capabilities: Capabilities,
     adaptive: boolean,
+    private readonly incompatible: readonly Incompatibility[] = INCOMPATIBILITIES,
   ) {
     this.userEnabled = adaptive;
     this.device = classifyDevice(capabilities);
@@ -144,7 +168,25 @@ export class Kaics {
       this.incidents.push(`${spec.label}: em quarentena (falha ao ligar o adaptador)`);
       return false;
     }
-    return true;
+    return this.applyIncompatibility(entry);
+  }
+
+  /** Bloqueio por evidência: fixa o botão no nível seguro para esta GPU (R-SHD-03). */
+  private applyIncompatibility(entry: KnobEntry): boolean {
+    const gpu = this.capabilities.gpu;
+    const rule = gpu ? this.incompatible.find((r) => r.knob === entry.spec.id && r.gpu.test(gpu)) : undefined;
+    if (!rule) return true;
+    const level = Math.max(0, Math.min(entry.spec.baseline, rule.level));
+    try {
+      entry.spec.apply(level);
+    } catch {
+      // verificado pela leitura abaixo
+    }
+    entry.status = 'blocked';
+    entry.reason = `${rule.reason} (evidência de ${rule.since})`;
+    entry.last = this.level(entry.spec.id);
+    this.incidents.push(`${entry.spec.label}: bloqueado nesta GPU por evidência — ${rule.reason} (desde ${rule.since}); fica em "${entry.spec.levels[level] ?? level}"`);
+    return false;
   }
 
   /** Nível mais baixo permitido agora para o botão (o de emergência só na descida rápida). */
@@ -225,7 +267,7 @@ export class Kaics {
   set(id: string, level: number, opts: { force?: boolean; emergency?: boolean } = {}): SetResult {
     const k = this.knobs.get(id);
     if (!k) return { ok: false, reason: 'botão desconhecido' };
-    if (k.status !== 'ok') return { ok: false, reason: `botão ${k.status === 'faulted' ? 'com defeito' : 'em quarentena'}` };
+    if (k.status !== 'ok') return { ok: false, reason: `botão ${k.status === 'faulted' ? 'com defeito' : k.status === 'blocked' ? 'bloqueado por incompatibilidade' : 'em quarentena'}` };
     if (!opts.force) {
       const blocked = this.gate();
       if (blocked) return { ok: false, reason: blocked };

@@ -10,6 +10,11 @@ export interface Settings {
    * fica lento e devolve a qualidade quando sobra folga. Desligada, ele só mede e sugere.
    */
   adaptiveQuality: boolean;
+  /**
+   * Meta de quadros do KGPS: automática (30 no celular, 60 no PC) ou escolhida pelo jogador.
+   * Vale na hora, inclusive no meio da partida.
+   */
+  fpsTarget: FpsTarget;
   panSpeed: number;
   edgeScroll: boolean;
   showFps: boolean;
@@ -24,6 +29,8 @@ export interface Settings {
   muted: boolean;
 }
 
+export type FpsTarget = 'auto' | 30 | 60;
+
 const KEY = 'nc.settings.v1';
 
 function defaults(): Settings {
@@ -35,7 +42,7 @@ function defaults(): Settings {
   } catch {
     // ambiente sem navigator/screen (testes): mantém equilibrado
   }
-  return { quality, shadows: true, adaptiveQuality: true, panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false, autoFullscreen: touch, lockLandscape: false, volumes: { ...DEFAULT_VOLUMES }, muted: false };
+  return { quality, shadows: true, adaptiveQuality: true, fpsTarget: 'auto', panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false, autoFullscreen: touch, lockLandscape: false, volumes: { ...DEFAULT_VOLUMES }, muted: false };
 }
 
 /** Lê configurações salvas; aceita o formato antigo ('low' | 'high'). */
@@ -47,6 +54,7 @@ export function parseSettings(raw: string | null, base: Settings): Settings {
       quality: GRAPHICS_PRESETS.includes(p.quality as GraphicsPreset) ? (p.quality as GraphicsPreset) : base.quality,
       shadows: typeof p.shadows === 'boolean' ? p.shadows : base.shadows,
       adaptiveQuality: typeof p.adaptiveQuality === 'boolean' ? p.adaptiveQuality : base.adaptiveQuality,
+      fpsTarget: p.fpsTarget === 30 || p.fpsTarget === 60 ? p.fpsTarget : 'auto',
       panSpeed: typeof p.panSpeed === 'number' && p.panSpeed >= 0.25 && p.panSpeed <= 3 ? p.panSpeed : base.panSpeed,
       edgeScroll: Boolean(p.edgeScroll),
       showFps: Boolean(p.showFps),
@@ -89,9 +97,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   ...load(),
   update: (patch) => {
     set(patch);
-    const { quality, shadows, adaptiveQuality, panSpeed, edgeScroll, showFps, reducedMotion, autoFullscreen, lockLandscape, volumes, muted } = get();
+    const { quality, shadows, adaptiveQuality, fpsTarget, panSpeed, edgeScroll, showFps, reducedMotion, autoFullscreen, lockLandscape, volumes, muted } = get();
     try {
-      localStorage.setItem(KEY, JSON.stringify({ quality, shadows, adaptiveQuality, panSpeed, edgeScroll, showFps, reducedMotion, autoFullscreen, lockLandscape, volumes, muted }));
+      localStorage.setItem(KEY, JSON.stringify({ quality, shadows, adaptiveQuality, fpsTarget, panSpeed, edgeScroll, showFps, reducedMotion, autoFullscreen, lockLandscape, volumes, muted }));
     } catch {
       // armazenamento indisponível: mantém apenas em memória
     }

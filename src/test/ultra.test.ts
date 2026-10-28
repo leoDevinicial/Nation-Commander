@@ -92,6 +92,7 @@ describe('preset Ultra+', () => {
       quality: 'balanced',
       shadows: true,
       adaptiveQuality: true,
+      fpsTarget: 'auto',
       panSpeed: 1,
       edgeScroll: false,
       showFps: false,

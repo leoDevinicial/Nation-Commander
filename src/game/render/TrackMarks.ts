@@ -20,6 +20,8 @@ export class TrackMarks {
   private readonly fade: THREE.InstancedBufferAttribute;
   private next = 0;
   private time = 0;
+  /** Instâncias em uso (o KGPS pode usar só a metade: menos marcas desenhadas e rastro mais curto). */
+  private active: number;
 
   constructor(capacity = 3000) {
     const geo = new THREE.PlaneGeometry(1, 1);
@@ -63,7 +65,34 @@ export class TrackMarks {
     this.mesh.renderOrder = 1;
     this.mesh.name = 'track-marks';
     this.born = new Float32Array(capacity).fill(-1e9);
+    this.active = capacity;
     for (let i = 0; i < capacity; i++) this.mesh.setMatrixAt(i, tmpM.makeScale(0, 0, 0));
+  }
+
+  /** Fração da capacidade em uso (KAICS Adaptables+ · K-06). */
+  get budget(): number {
+    return this.active / this.born.length;
+  }
+
+  /**
+   * Usa só uma fração das instâncias: as marcas passam a se reciclar mais cedo (rastro mais curto)
+   * e as de fora da fração deixam de ser desenhadas. Não recompila nada.
+   */
+  setBudget(fraction: number): void {
+    const n = this.born.length;
+    const active = Math.max(2, Math.min(n, Math.round((n * Math.max(0.1, Math.min(1, fraction))) / 2) * 2));
+    if (active === this.active) return;
+    if (active < this.active) {
+      // as marcas de fora da faixa somem (não seriam mais recicladas nem esmaecidas)
+      for (let i = active; i < n; i++) {
+        this.born[i] = -1e9;
+        this.fade.setX(i, 0);
+      }
+      this.fade.needsUpdate = true;
+    }
+    this.active = active;
+    this.next %= active;
+    this.mesh.count = active;
   }
 
   /**
@@ -76,7 +105,7 @@ export class TrackMarks {
     tmpQ.setFromAxisAngle(UP, -angle + Math.PI / 2);
     for (const side of [-1, 1]) {
       const i = this.next;
-      this.next = (this.next + 1) % this.born.length;
+      this.next = (this.next + 1) % this.active;
       // a marca fica sob a esteira: deslocada para o lado (perpendicular à frente)
       tmpP.set(x - fz * gauge * side, 0.035, z + fx * gauge * side);
       tmpM.compose(tmpP, tmpQ, tmpS.set(width, 1, length));

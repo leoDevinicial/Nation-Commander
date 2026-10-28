@@ -46,8 +46,10 @@ import { GRAPHICS_REVISION, isTouchDevice, prefersReducedMotion } from '../lib/g
 import { TouchGestures, type TouchPoint } from './input/TouchGestures.ts';
 import { Kaics, probeCapabilities } from './perf/kaics.ts';
 import { KGPS_CONFIG, Kgps, localProfileStore } from './perf/kgps.ts';
-import { profileKey, targetFor } from './perf/device.ts';
+import { profileKey, targetFor, type TargetPolicy } from './perf/device.ts';
 import { buildReport } from './perf/report.ts';
+import { GpuTimer } from './perf/gpuTimer.ts';
+import { isPreset, localAdvisorStore, recordSession } from './perf/advisor.ts';
 import type { ExplosionSmoke } from './render/Effects.ts';
 import type { PerfHud, TouchTool } from '../state/useHudStore.ts';
 import { effectiveFund, effectiveStability, effectiveTechs } from '../state/sandbox.ts';
@@ -137,6 +139,18 @@ export class GameRuntime {
   private perfGate: string | null = null;
   /** Modelos novos (Nature Kit) chegaram: os shaders compilam nos primeiros quadros — sem medir. */
   private compilingUntil = 0;
+  /** Tempo de GPU por quadro (só onde o navegador oferece a extensão de temporização). */
+  private gpuTimer: GpuTimer | null = null;
+  /** Pré-aquecimento de shaders (R-SHD-02): números para o painel e o relatório. */
+  private prewarmInfo: { enabled: boolean; materials: number; programs: number; ms: number | null } = { enabled: false, materials: 0, programs: 0, ms: null };
+  /** Travadas e congelamentos nos primeiros 60 s depois do carregamento (R-SHD-02). */
+  private firstMinute: { start: number; hitches: number; stalls: number; done: boolean } | null = null;
+  /** K-07: sombras de nuvens nesta cena (o uniforme é compartilhado entre teatro e batalha). */
+  private cloudsOn = true;
+  /** K-08: tropas longe da câmera animadas a cada N quadros (1 = todas a todo quadro). */
+  private farAnimEvery = 1;
+  /** Densidade base da resolução interna (refeita quando a densidade da tela muda). */
+  private resolutionBase = 1;
   private lastPerf = 0;
   private frameNo = 0;
   /** Mapa de sombra: redesenhado uma vez por quadro (ou a cada N), não a cada passe de render. */
@@ -249,15 +263,19 @@ export class GameRuntime {
       if (this.disposed) return;
       e.preventDefault();
       this.kaics?.setCondition('contextLost', true);
+      this.kgps?.event(performance.now(), 'ctx-lost', 'Contexto gráfico perdido (o navegador liberou a GPU): medições pausadas');
       useHudStore.getState().pushEvent({ tick: 0, text: 'Contexto gráfico perdido. Tentando restaurar…', tone: 'bad' });
     });
     this.renderer.domElement.addEventListener('webglcontextrestored', () => {
       this.kaics?.setCondition('contextLost', false);
       this.shadowDirty = true;
+      this.kgps?.event(performance.now(), 'ctx-restored', 'Contexto gráfico restaurado: medições recomeçando');
       this.kgps?.invalidate(performance.now(), 'contexto gráfico restaurado');
     });
     // o KGPS mede chamadas de desenho do quadro inteiro (todos os passes), não só do último render
     this.renderer.info.autoReset = false;
+    const timer = new GpuTimer(this.renderer.getContext());
+    this.gpuTimer = timer.available ? timer : null;
     // com sombras, o mapa é redesenhado sob demanda (ver frame): os passes extras o reaproveitam
     if (opts.shadows) this.renderer.shadowMap.autoUpdate = false;
 
@@ -368,6 +386,7 @@ export class GameRuntime {
       }
     });
     if (initial) this.onSnapshot(initial);
+    this.prewarm();
     this.raf = requestAnimationFrame(this.frame);
     // miniaturas 3D dos botões: logo depois do primeiro quadro, para não atrasar a entrada
     window.setTimeout(() => {
@@ -795,12 +814,17 @@ export class GameRuntime {
     this.cameraCtl.tick(dt);
     this.cameraCtl.apply();
     if (this.opts.profile.cinematic) {
+      // o uniforme é de todas as cenas: a ativa impõe o seu estado (K-07)
+      if (this.hudActive) cloudUniforms.uCloudStrength.value = this.cloudsOn ? CLOUD_SHADOW_STRENGTH : 0;
       // as nuvens andam com o mesmo vento da fumaça (≈2,4 unidades/s)
       const o = cloudUniforms.uCloudOffset.value;
       o.set((o.x - 0.94 * CLOUD_DRIFT * dt) % 1, (o.y - 0.34 * CLOUD_DRIFT * dt) % 1);
     }
 
     const alpha = this.paused ? 1 : Math.min(1, (now - this.snapshotAt) / (this.snapshotInterval / this.speed));
+    // K-08: com o quadro pesado, tropas longe da câmera animam a cada 2 quadros (metade por vez)
+    const farR = this.farAnimEvery > 1 ? Math.max(30, this.cameraCtl.distance * 0.8) : Infinity;
+    const camT = this.cameraCtl.target;
     for (const t of this.units.values()) {
       const v = t.visual;
       v.renderPos.lerpVectors(t.prev, t.curr, alpha);
@@ -813,7 +837,9 @@ export class GameRuntime {
       const selected = this.selection.has(t.snap.id);
       v.setSelected(selected);
       // na visão aproximada a barra de vida (em escala do mundo) cobriria a tela: fica só no painel
-      v.update(dt, t.snap.activity === 'moving' || t.snap.activity === 'chasing', aim, frac, (selected || frac < 0.999) && !this.cameraCtl.closeUp, this.camera, t.snap.activity === 'attacking');
+      const far = farR !== Infinity && (v.renderPos.x - camT.x) ** 2 + (v.renderPos.y - camT.z) ** 2 > farR * farR;
+      const animate = !far || ((this.frameNo + t.snap.id) & 1) === 0;
+      v.update(dt, t.snap.activity === 'moving' || t.snap.activity === 'chasing', aim, frac, (selected || frac < 0.999) && !this.cameraCtl.closeUp, this.camera, t.snap.activity === 'attacking', animate);
       v.setReload(t.snap.reload !== undefined && !this.cameraCtl.closeUp ? t.snap.reload : null, this.camera);
     }
     for (const t of this.buildings.values()) {
@@ -848,6 +874,8 @@ export class GameRuntime {
       (this.sky.material as THREE.ShaderMaterial).uniforms.uTime!.value = now / 1000;
       this.terrain.update(now / 1000);
       this.shadowFollow?.update(this.cameraCtl.target, this.cameraCtl.distance);
+      // tempo de GPU do quadro inteiro (sombra, cena, reflexo, pós-processamento), 1 a cada 10 quadros
+      this.gpuTimer?.begin();
       if (this.opts.shadows && (this.shadowDirty || this.frameNo % this.shadowInterval === 0)) {
         this.renderer.shadowMap.needsUpdate = true;
         this.shadowDirty = false;
@@ -858,7 +886,10 @@ export class GameRuntime {
       // medições extras depois do quadro principal (o mapa de sombra já existe e está atualizado)
       if (this.probeLive) this.probe?.update(this.cameraCtl.target, now, [this.terrain.water]);
       if (this.exposureLive) this.exposure?.update(this.scene, this.camera, now, dt, [this.terrain.water]);
+      this.gpuTimer?.end();
     }
+    if (this.gpuTimer) for (const gpuMs of this.gpuTimer.poll()) this.kgps.gpuSample(now, gpuMs);
+    this.trackFirstMinute(now, interval);
     this.perfFrame(now, interval, performance.now() - workStart);
 
     this.frames++;
@@ -1033,15 +1064,124 @@ export class GameRuntime {
       },
       read: () => vegLevels.findIndex((d) => Math.abs(d - terrain.decorDensity) < 1e-6),
     });
-    const base = r.getPixelRatio();
-    // celular: níveis de emergência abaixo de 60% da densidade base, até 0,7 px por px CSS (o piso
-    // absoluto do preset mínimo); no PC a resolução fica no piso normal
+    // Onda 2 (K-06 a K-09): rastros, nuvens, animação distante e ondas — nenhum recompila shaders
+    const trailLevels = [0.5, 1];
+    kaics.register({
+      id: 'trails',
+      label: 'Rastros (esteiras, aviões, foguetes)',
+      levels: ['50%', '100%'],
+      baseline: 1,
+      floor: 0,
+      helps: ['cpu', 'gpu'],
+      stepCost: () => 1,
+      apply: (l) => {
+        const f = trailLevels[l]!;
+        this.trackMarks.setBudget(f);
+        this.airLayer.setTrailBudget(f);
+        this.rocketLayer.setTrailBudget(f);
+      },
+      read: () => {
+        const f = this.airLayer.trailBudget;
+        if (Math.abs(this.rocketLayer.trailBudget - f) > 1e-6 || Math.abs(this.trackMarks.budget - f) > 0.01) return -1;
+        return trailLevels.findIndex((x) => Math.abs(x - f) < 1e-6);
+      },
+    });
+    if (this.opts.profile.cinematic)
+      kaics.register({
+        id: 'clouds',
+        label: 'Sombras das nuvens',
+        levels: ['desligadas', 'ligadas'],
+        baseline: 1,
+        floor: 0,
+        helps: ['gpu'],
+        stepCost: () => 1,
+        apply: (l) => {
+          this.cloudsOn = l === 1;
+          if (this.hudActive) cloudUniforms.uCloudStrength.value = this.cloudsOn ? CLOUD_SHADOW_STRENGTH : 0;
+        },
+        read: () => (this.cloudsOn ? 1 : 0),
+      });
+    kaics.register({
+      id: 'farAnim',
+      label: 'Animação das tropas distantes',
+      levels: ['a cada 2 quadros', 'todo quadro'],
+      baseline: 1,
+      floor: 0,
+      helps: ['cpu'],
+      stepCost: () => 1,
+      apply: (l) => (this.farAnimEvery = l === 1 ? 1 : 2),
+      read: () => (this.farAnimEvery === 1 ? 1 : this.farAnimEvery === 2 ? 0 : -1),
+    });
+    const waves = this.terrain.waves;
+    if (waves)
+      kaics.register({
+        id: 'waves',
+        label: 'Ondas da água',
+        levels: ['plano', 'ondas'],
+        baseline: 1,
+        floor: 0,
+        helps: ['gpu'],
+        stepCost: () => 2,
+        apply: (l) => waves.set(l === 1),
+        read: () => (waves.on ? 1 : 0),
+      });
+    this.registerResolution(r.getPixelRatio());
+    // meta de quadros: a da classe do aparelho (30 no celular, 60 no PC) ou a escolhida pelo
+    // jogador; o ajuste aprendido vale sob as mesmas condições (versão gráfica, preset, densidade
+    // de tela, cena, classe e meta)
+    const target = this.targetFromSettings();
+    this.kgps = new Kgps(kaics, performance.now(), localProfileStore(this.profileKeyFor(target.fps)), KGPS_CONFIG, target);
+    this.cleanup.push(
+      useSettingsStore.subscribe((st) => {
+        const now = performance.now();
+        this.kgps.setAdaptive(st.adaptiveQuality, now);
+        const next = this.targetFromSettings();
+        if (next.fps !== this.kgps.target.fps || next.origin !== this.kgps.target.origin) this.kgps.setTarget(next, now, localProfileStore(this.profileKeyFor(next.fps)));
+      }),
+    );
+    // eventos extraordinários no registro (R-EVD-05): aba oculta e de volta
+    const onVisibility = () => {
+      const now = performance.now();
+      if (document.hidden) this.kgps.event(now, 'hidden', 'Jogo em segundo plano: medições pausadas');
+      else this.kgps.event(now, 'visible', 'Jogo de volta ao primeiro plano: medições recomeçando depois de assentar');
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    this.cleanup.push(() => document.removeEventListener('visibilitychange', onVisibility));
+    this.watchDevicePixelRatio();
+  }
+
+  /** Meta de quadros a partir das configurações (Automática = padrão da classe do aparelho). */
+  private targetFromSettings(): TargetPolicy {
+    const chosen = useSettingsStore.getState().fpsTarget;
+    return targetFor(this.kaics.device.value, null, chosen === 'auto' ? null : chosen);
+  }
+
+  private profileKeyFor(fps: number): string {
+    return profileKey({
+      revision: GRAPHICS_REVISION,
+      preset: this.opts.preset ?? 'custom',
+      dpr: window.devicePixelRatio,
+      scene: this.battleOp === null ? 'teatro' : 'batalha',
+      deviceClass: this.kaics.device.value,
+      fps,
+    });
+  }
+
+  /**
+   * Botão de resolução interna sobre a densidade base `base` (refeito se a densidade da tela
+   * mudar). Celular: níveis de emergência abaixo de 60% da base, até 0,7 px por px CSS (o piso
+   * absoluto do preset mínimo); no PC a resolução fica no piso normal.
+   */
+  private registerResolution(base: number): void {
+    const r = this.renderer;
+    const deep = this.kaics.device.value !== 'pc';
+    this.resolutionBase = base;
     const extra = deep ? [0.3, 0.4, 0.5].filter((f) => base * f >= MIN_PIXEL_RATIO - 1e-6) : [];
     const factors = [...extra, ...[0.6, 0.7, 0.8, 0.9, 1].filter((f) => base * f >= Math.min(base, MIN_PIXEL_RATIO) - 1e-6)];
     const ratios = factors.map((f) => (f === 1 ? base : base * f));
     const top = ratios.length - 1;
     const resFloor = extra.length;
-    kaics.register({
+    this.kaics.register({
       id: 'resolution',
       label: 'Resolução interna',
       levels: factors.map((f) => `${Math.round(f * 100)}%`),
@@ -1062,19 +1202,136 @@ export class GameRuntime {
         return ratios.findIndex((x) => Math.abs(x - pr) < 1e-3);
       },
     });
-    // meta de quadros da classe do aparelho (30 no celular, 60 no PC) e o ajuste aprendido sob as
-    // mesmas condições (versão gráfica, preset, densidade de tela, cena, classe e meta)
-    const target = targetFor(kaics.device.value);
-    const key = profileKey({
-      revision: GRAPHICS_REVISION,
-      preset: this.opts.preset ?? 'custom',
-      dpr: window.devicePixelRatio,
-      scene: this.battleOp === null ? 'teatro' : 'batalha',
-      deviceClass: kaics.device.value,
-      fps: target.fps,
+  }
+
+  /**
+   * Densidade da tela mudou (outro monitor, zoom do navegador) — R-DEV-04: a resolução é refeita
+   * sobre a nova densidade, a taxa da tela estimada e a janela atual recomeçam.
+   */
+  private watchDevicePixelRatio(): void {
+    if (typeof window.matchMedia !== 'function') return;
+    let dpr = window.devicePixelRatio;
+    let mq: MediaQueryList | null = null;
+    const onChange = () => {
+      const now = performance.now();
+      const next = window.devicePixelRatio;
+      const base = Math.min(next, this.opts.profile.pixelRatioCap);
+      this.kgps.resetRefresh();
+      this.kgps.event(now, 'dpr', `Densidade da tela mudou (${dpr.toFixed(2).replace('.', ',')}× → ${next.toFixed(2).replace('.', ',')}×): resolução refeita e medições recomeçando`);
+      dpr = next;
+      if (Math.abs(base - this.resolutionBase) > 1e-3) {
+        this.kgps.forget('resolution', now);
+        this.renderer.setPixelRatio(base);
+        this.resize();
+        this.registerResolution(base);
+      }
+      this.kgps.invalidate(now, 'densidade da tela mudou');
+      arm();
+    };
+    const arm = () => {
+      mq?.removeEventListener('change', onChange);
+      mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      mq.addEventListener('change', onChange);
+    };
+    arm();
+    this.cleanup.push(() => mq?.removeEventListener('change', onChange));
+  }
+
+  /**
+   * Pré-aquecimento de shaders (R-SHD-02). Sempre: os guardiões dos efeitos ficam na cena e seguram
+   * os programas compilados (sem eles, a próxima explosão recompila depois que a última acaba).
+   * No Alto, Ultra e Ultra+: compila de uma vez, em paralelo quando o navegador permite
+   * (KHR_parallel_shader_compile), a cena, os guardiões e um modelo oculto de cada tropa — em vez
+   * de travar no primeiro tiro ou no primeiro tanque inimigo. Sob o portão `compilando`, nada é
+   * medido nem ajustado. `localStorage['nc.perf.prewarm'] = 'off'` desliga (teste antes/depois).
+   */
+  private prewarm(): void {
+    this.scene.add(this.effects.keepers());
+    const heavy = this.opts.preset === 'high' || this.opts.preset === 'ultra' || this.opts.preset === 'ultraplus';
+    let off = false;
+    try {
+      off = localStorage.getItem('nc.perf.prewarm') === 'off';
+    } catch {
+      // sem armazenamento: segue o padrão
+    }
+    if (!heavy || off) return;
+    const models = new THREE.Group();
+    models.name = 'prewarm-models';
+    models.visible = false;
+    const visuals: UnitVisual[] = [];
+    for (const type of Object.keys(UNITS) as UnitType[]) {
+      try {
+        const v = new UnitVisual(-1 - visuals.length, type, this.mySlot, true);
+        visuals.push(v);
+        models.add(v.group);
+      } catch {
+        // modelo indisponível: segue com os outros
+      }
+    }
+    this.scene.add(models);
+    const materials = new Set<THREE.Material>();
+    this.scene.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+      if (Array.isArray(m)) m.forEach((x) => materials.add(x));
+      else if (m) materials.add(m);
     });
-    this.kgps = new Kgps(kaics, performance.now(), localProfileStore(key), KGPS_CONFIG, target);
-    this.cleanup.push(useSettingsStore.subscribe((st) => this.kgps.setAdaptive(st.adaptiveQuality, performance.now())));
+    const t0 = performance.now();
+    this.compilingUntil = Infinity;
+    this.prewarmInfo = { enabled: true, materials: materials.size, programs: 0, ms: null };
+    const r = this.renderer;
+    const prev = r.getRenderTarget();
+    // reflexo e pós-processamento desenham em alvos intermediários (variante de shader sem o
+    // mapeamento de tons da tela); sem pós-processamento, a cena principal vai direto à tela
+    const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
+    const jobs: Promise<unknown>[] = [];
+    // sem compilação paralela no navegador, compila direto (o mesmo trabalho, sem esperar)
+    const parallel = r.extensions.has('KHR_parallel_shader_compile');
+    const compile = () => (parallel ? jobs.push(r.compileAsync(this.scene, this.camera)) : r.compile(this.scene, this.camera));
+    try {
+      r.setRenderTarget(rt);
+      compile();
+      r.setRenderTarget(prev);
+      if (!this.postFx) compile();
+    } catch (err) {
+      r.setRenderTarget(prev);
+      console.warn('pré-aquecimento de shaders falhou', err);
+    }
+    let finished = false;
+    const finish = () => {
+      if (finished || this.disposed) return;
+      finished = true;
+      const ms = Math.round(performance.now() - t0);
+      for (const v of visuals) v.dispose();
+      models.removeFromParent();
+      rt.dispose();
+      const programs = this.renderer.info.programs?.length ?? 0;
+      this.prewarmInfo = { enabled: true, materials: materials.size, programs, ms };
+      this.compilingUntil = performance.now() + 500;
+      this.kgps.event(performance.now(), 'prewarm', `Pré-aquecimento de shaders: ${programs} programas para ${materials.size} materiais em ${ms} ms (antes do primeiro tiro e do primeiro tanque inimigo)`);
+    };
+    // nunca segura a partida: no pior caso, libera em 8 s
+    const timeout = setTimeout(finish, 8000);
+    void Promise.all(jobs).then(() => {
+      clearTimeout(timeout);
+      finish();
+    });
+  }
+
+  /** Travadas (> 50 ms) e congelamentos (> 1 s) nos primeiros 60 s de partida (R-SHD-02). */
+  private trackFirstMinute(now: number, interval: number): void {
+    if (!this.snapshot || this.suspended) return;
+    const f = this.firstMinute;
+    if (!f) {
+      this.firstMinute = { start: now, hitches: 0, stalls: 0, done: false };
+      return;
+    }
+    if (f.done || (typeof document !== 'undefined' && document.hidden)) return;
+    if (interval > 1000) f.stalls++;
+    else if (interval > 50) f.hitches++;
+    if (now - f.start < 60_000) return;
+    f.done = true;
+    const pw = this.prewarmInfo.enabled ? `ligado${this.prewarmInfo.ms !== null ? `, ${this.prewarmInfo.ms} ms` : ''}` : 'desligado';
+    this.kgps.event(now, 'first-minute', `Primeiro minuto: ${f.hitches} travada(s) acima de 50 ms e ${f.stalls} congelamento(s) acima de 1 s (pré-aquecimento ${pw})`);
   }
 
   /** Telemetria do quadro: só conta quadros desenhados em condição normal (portões do KAICS). */
@@ -1102,6 +1359,9 @@ export class GameRuntime {
       triangles: info.triangles,
       caps: this.kaics.capabilities,
       preset: this.opts.preset ?? 'custom',
+      gpuTimer: this.gpuTimer !== null,
+      prewarm: this.prewarmInfo,
+      firstMinute: this.firstMinute ? { hitches: this.firstMinute.hitches, stalls: this.firstMinute.stalls, done: this.firstMinute.done } : null,
       // relatório completo só quando o jogador pede (botão "Copiar relatório")
       exportReport: () =>
         buildReport({
@@ -1113,6 +1373,9 @@ export class GameRuntime {
           windows: this.kgps.recentWindows(),
           decisions: this.kgps.log,
           render: { drawCalls: info.calls, triangles: info.triangles, geometries: this.renderer.info.memory.geometries, textures: this.renderer.info.memory.textures },
+          session: this.kgps.session(),
+          prewarm: this.prewarmInfo,
+          firstMinute: this.firstMinute ? { hitches: this.firstMinute.hitches, stalls: this.firstMinute.stalls, done: this.firstMinute.done } : null,
         }),
     };
   }
@@ -1435,6 +1698,11 @@ export class GameRuntime {
   }
 
   setSuspended(suspended: boolean): void {
+    if (suspended !== this.suspended && this.kgps) {
+      const now = performance.now();
+      if (suspended) this.kgps.event(now, 'suspend', 'Cena em segundo plano (globo ou outra cena aberta): medições pausadas');
+      else this.kgps.event(now, 'resume', 'Cena de volta: medições recomeçando depois de assentar');
+    }
     this.suspended = suspended;
     if (suspended) this.keys.clear();
   }
@@ -2424,6 +2692,15 @@ export class GameRuntime {
   dispose(): void {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
+    // fim da partida no teatro: a medição vai para o consultor de preset da próxima (C6)
+    if (this.battleOp === null && this.kgps && isPreset(this.opts.preset)) {
+      try {
+        recordSession(localAdvisorStore(), this.opts.preset, this.kgps.session(), { revision: GRAPHICS_REVISION, deviceClass: this.kaics.device.value, now: Date.now() });
+      } catch (err) {
+        console.warn('consultor de preset indisponível', err);
+      }
+    }
+    this.gpuTimer?.dispose();
     this.kaics?.dispose();
     this.unsubscribe();
     for (const fn of this.cleanup) fn();

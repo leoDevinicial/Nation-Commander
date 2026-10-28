@@ -233,6 +233,11 @@ export interface WaterHandle {
     readonly sky: boolean;
     setSky(on: boolean): void;
   } | null;
+  /**
+   * Ondas (Ultra): malha fina deslocada pelas ondas ↔ plano simples, sem recompilar (o shader lê
+   * `uWaves`). Null fora do Ultra. KAICS Adaptables+ · K-09.
+   */
+  waves: { readonly on: boolean; set(on: boolean): void } | null;
 }
 
 export interface WaterOptions {
@@ -247,6 +252,8 @@ export interface WaterOptions {
 export function createWater(W: number, H: number, mode: WaterReflection, opts: WaterOptions = {}): WaterHandle {
   const seg = opts.waves ? Math.round(Math.max(W, H) * 2) : 1;
   const geo = new THREE.PlaneGeometry(W, H, seg, seg);
+  // com ondas, um plano simples fica pronto para o KGPS trocar quando o quadro pesa
+  const flat = opts.waves ? new THREE.PlaneGeometry(W, H, 1, 1) : null;
   let mesh: THREE.Mesh;
   let material: THREE.ShaderMaterial;
   let reflection: WaterHandle['reflection'] = null;
@@ -305,12 +312,25 @@ export function createWater(W: number, H: number, mode: WaterReflection, opts: W
   mesh.rotation.x = -Math.PI / 2;
   mesh.position.set(W / 2, -0.25, H / 2);
   mesh.renderOrder = 0;
+  const waves: WaterHandle['waves'] = flat
+    ? {
+        get on() {
+          return material.uniforms.uWaves!.value > 0.5 && mesh.geometry === geo;
+        },
+        set: (on) => {
+          mesh.geometry = on ? geo : flat;
+          material.uniforms.uWaves!.value = on ? 1 : 0;
+        },
+      }
+    : null;
   return {
     mesh,
     reflection,
+    waves,
     update: (time) => (material.uniforms.uTime!.value = time),
     dispose: () => {
       geo.dispose();
+      flat?.dispose();
       material.dispose();
       if (mesh instanceof Reflector) mesh.dispose();
     },

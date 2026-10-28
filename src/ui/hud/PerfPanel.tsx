@@ -3,6 +3,7 @@ import { useHudStore, type PerfHud } from '../../state/useHudStore.ts';
 import { useSettingsStore } from '../../state/useSettingsStore.ts';
 import type { DecisionKind, Evidence } from '../../game/perf/kgps.ts';
 import { DEVICE_CLASS_TEXT } from '../../game/perf/device.ts';
+import { plausibleGpu } from '../../game/perf/stats.ts';
 import { PRESET_LABELS, type GraphicsPreset } from '../../lib/graphics.ts';
 
 /**
@@ -58,6 +59,7 @@ const KIND_TONE: Partial<Record<DecisionKind, string>> = {
   revert: 'text-red-300',
   incident: 'text-red-300',
   suggest: 'text-ink-200',
+  event: 'text-ink-400',
 };
 
 const fmt = (v: number, digits = 1) => v.toFixed(digits).replace('.', ',');
@@ -113,13 +115,25 @@ export function PerfPopover({ onClose }: { onClose: () => void }) {
           <Stat label="p95" value={`${fmt(w.p95)} ms`} warn={w.p95 > perf.budgetMs * 1.2} />
           <Stat label="p99" value={`${fmt(w.p99)} ms`} />
           <Stat label="CPU (mediana)" value={`${fmt(w.cpuP50)} ms`} />
+          {w.gpuP50 !== null &&
+            (plausibleGpu(w) !== null ? (
+              <Stat label="GPU (mediana)" value={`${fmt(w.gpuP50)} ms`} warn={w.gpuP50 > perf.budgetMs * 0.9} />
+            ) : (
+              <Stat label="GPU (mediana)" value="inconsistente" />
+            ))}
           <Stat label="Travadas" value={w.stalls ? `${w.hitches} + ${w.stalls} longas` : String(w.hitches)} warn={w.hitches + w.stalls > 0} />
           <Stat label="Desenhos/quadro" value={String(perf.drawCalls)} />
           <Stat label="Triângulos" value={perf.triangles >= 1e6 ? `${fmt(perf.triangles / 1e6)} mi` : `${Math.round(perf.triangles / 1000)} mil`} />
           <Stat label="Custo do KGPS" value={`${fmt(perf.overheadUs, 0)} µs`} />
           <div className="col-span-3 text-[11px] text-ink-400">
-            Meta: {perf.target.fps} qps ({fmt(perf.budgetMs)} ms por quadro, {TARGET_ORIGIN_TEXT[perf.target.origin]}) · gargalo provável: {BOTTLENECK_TEXT[perf.bottleneck]}
+            Meta: {perf.target.fps} qps ({fmt(perf.budgetMs)} ms por quadro, {TARGET_ORIGIN_TEXT[perf.target.origin]}) ·{' '}
+            {perf.bottleneckSource === 'gpu-timer' ? `gargalo: ${BOTTLENECK_TEXT[perf.bottleneck]} (medido)` : `gargalo provável: ${BOTTLENECK_TEXT[perf.bottleneck]} (estimado)`}
           </div>
+          {perf.thermalHoldS !== null && (
+            <div className="col-span-3 text-[11px] text-brass-400">
+              Possível aquecimento (indício, não medido): subidas de qualidade seguradas por mais {Math.ceil(perf.thermalHoldS / 60)} min.
+            </div>
+          )}
         </dl>
       )}
 
@@ -144,7 +158,13 @@ export function PerfPopover({ onClose }: { onClose: () => void }) {
                 <li key={k.id} className="flex items-center justify-between gap-2">
                   <span>{k.label}</span>
                   <span className={`text-right ${k.status !== 'ok' || emergency ? 'text-red-300' : reduced ? 'text-brass-400' : 'text-ink-400'}`}>
-                    {k.status === 'quarantined' ? 'fora do controle (quarentena)' : k.status === 'faulted' ? 'com defeito' : (k.levels[k.level] ?? '?')}
+                    {k.status === 'quarantined'
+                      ? 'fora do controle (quarentena)'
+                      : k.status === 'faulted'
+                        ? 'com defeito'
+                        : k.status === 'blocked'
+                          ? `${k.levels[k.level] ?? '?'} (bloqueado nesta GPU)`
+                          : (k.levels[k.level] ?? '?')}
                     {emergency ? ' · emergência' : ''}
                     {reduced ? <span className="text-ink-400"> (de {k.levels[k.baseline]})</span> : null}
                   </span>
@@ -182,7 +202,25 @@ export function PerfPopover({ onClose }: { onClose: () => void }) {
             {perf.caps.cores ? ` · ${perf.caps.cores} núcleos` : ''}
             {perf.caps.memoryGb ? ` · ${perf.caps.memoryGb} GB` : ''}
           </div>
-          <div>Tempo de GPU: {perf.caps.gpuTimer ? 'disponível (não usado nesta versão)' : 'indisponível — o gargalo é estimado pela fração do quadro gasta na CPU'}</div>
+          <div>
+            Tempo de GPU:{' '}
+            {!perf.gpuTimer
+              ? 'indisponível neste navegador — o gargalo é estimado pela fração do quadro gasta na CPU'
+              : perf.bottleneckSource === 'gpu-timer'
+                ? 'medido (um quadro a cada ~150 ms) — o gargalo é medido, não estimado'
+                : 'disponível, mas sem leituras consistentes ainda (comum na renderização por software) — o gargalo segue estimado'}
+          </div>
+          <div>
+            Pré-aquecimento de shaders:{' '}
+            {perf.prewarm.enabled
+              ? perf.prewarm.ms === null
+                ? `em andamento (${perf.prewarm.materials} materiais)`
+                : `${perf.prewarm.programs} programas em ${perf.prewarm.ms} ms`
+              : 'só os guardiões dos efeitos (preset leve)'}
+            {perf.firstMinute
+              ? ` · primeiro minuto${perf.firstMinute.done ? '' : ' (medindo)'}: ${perf.firstMinute.hitches} travada(s) > 50 ms, ${perf.firstMinute.stalls} congelamento(s) > 1 s`
+              : ''}
+          </div>
           {perf.incidents.map((m) => (
             <div key={m} className="text-red-300">
               ⚠ {m}

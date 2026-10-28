@@ -121,7 +121,8 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
       fs = fs.replace(
         '#include <lights_fragment_end>',
         `#include <lights_fragment_end>
-        {
+        // força 0 (KGPS: nuvens desligadas) pula a leitura da textura: ramo uniforme, sem custo
+        if (uCloudStrength > 0.0) {
           float cloudS = texture2D(uCloudMap, vFogXZ * ${CLOUD_SCALE} + uCloudOffset).r;
           float cloudLit = 1.0 - uCloudStrength * cloudS;
           reflectedLight.directDiffuse *= cloudLit;
@@ -178,7 +179,7 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
         ${FOG_GLSL}`,
     );
   };
-  material.customProgramCacheKey = () => `nc-fog-v5-w${weather}-p${panes ? 1 : 0}-${ch}-c${clouds ? 1 : 0}`;
+  material.customProgramCacheKey = () => `nc-fog-v6-w${weather}-p${panes ? 1 : 0}-${ch}-c${clouds ? 1 : 0}`;
   return material;
 }
 
