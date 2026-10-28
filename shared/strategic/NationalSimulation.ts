@@ -21,6 +21,7 @@ import {
 import { countryReference, type ReferenceKey } from './reference.ts';
 import { combineEffects, researchBlocker, researchDailyProgress, TECH_IDS, type TechEffects, type TechId } from './technologies.ts';
 import { COUNTRIES } from '../data/countries.ts';
+import { JOURNAL_MAX, linkEvent } from './eventLinks.ts';
 import { DIPLO, Diplomacy, warPreview, type DiplomacySave, type DiplomaticAction, type DiplomaticEvent, type NationId, type RelationView, type Treaty, type WarPreview } from './Diplomacy.ts';
 import type { Cost, Stockpile } from '../sim/config.ts';
 import {
@@ -197,7 +198,20 @@ export interface NationState {
   base: { inflationPct: number; growthPct: number; taxPct: number; servicesPct: number; totalSpendPct: number; deficitPctGdp: number };
 }
 
-export type NationalEvent =
+/**
+ * Metadados do livro de eventos (Fase 9). Todo evento registrado ganha um `id` sequencial na
+ * partida. `causeIds` aponta para eventos que o motor registrou como causa ou contribuição direta
+ * (ex.: guerra → tratado rompido; sanções → fator de aprovação de um protesto). `contextIds`
+ * aponta para eventos anteriores relacionados, sem causalidade comprovada (correlação).
+ */
+export interface EventLinks {
+  id?: number;
+  causeIds?: number[];
+  contextIds?: number[];
+}
+
+export type NationalEvent = EventLinks &
+  (
   | { type: 'research_completed'; day: number; slot: Slot; techId: TechId }
   | { type: 'protest'; day: number; slot: Slot; approval: number; causes: Factor[] }
   | { type: 'threshold'; day: number; slot: Slot; indicator: 'debt' | 'inflation' | 'approval' | 'growth'; value: number; threshold: number; direction: 'up' | 'down' }
@@ -222,7 +236,8 @@ export type NationalEvent =
   /** Lançamento nuclear: choque econômico global (todas as nações sabem). */
   | { type: 'nuclear_shock'; day: number; slot: Slot; victim: Slot; level: number }
   | { type: 'military_strike'; day: number; slot: Slot; victim: Slot; kind: 'air' | 'missile'; target: string; damage: number; oilLost: number; destroyed: number; intercepted: boolean }
-  | { type: 'diplomacy'; day: number; event: DiplomaticEvent };
+  | { type: 'diplomacy'; day: number; event: DiplomaticEvent }
+  );
 
 export interface NationalSave {
   day: number;
@@ -233,11 +248,15 @@ export interface NationalSave {
   npcs: NationState[];
   events: NationalEvent[];
   diplomacy: DiplomacySave;
+  /** Livro de eventos (Fase 9); ausente em salvamentos antigos. */
+  journal?: { nextId: number; recent: NationalEvent[]; diplomaticIds: [number, number][] };
 }
 
 /** Simulação nacional de cada jogador, avançando um dia por vez. Determinística dada a seed. */
 /** Fração da produção de uma região ocupada que o país perde (choque único no PIB). */
 export const OCCUPATION_GDP_LOSS = 0.3;
+/** Efeito imediato de um protesto (pontos de aprovação e de estabilidade perdidos). */
+export const PROTEST_IMPACT = { approval: 2, stability: 4 } as const;
 
 export class NationalSimulation {
   day = 0;
@@ -247,6 +266,12 @@ export class NationalSimulation {
   readonly diplomacy: Diplomacy;
   private readonly rng: Random;
   private events: NationalEvent[] = [];
+  /** Livro de eventos (Fase 9): últimos eventos registrados, para ligar causas e contexto. */
+  private journal: NationalEvent[] = [];
+  private nextEventId = 1;
+  /** Id de cada evento diplomático no livro (para traduzir as causas registradas pela diplomacia). */
+  private diplomaticIds = new Map<number, number>();
+  private flushing = false;
   private theater: TheaterLink | null = null;
   /** Lançamentos nucleares da partida (dia e autor). */
   shocks: { day: number; by: number }[] = [];
@@ -292,7 +317,7 @@ export class NationalSimulation {
   /** Estado completo (JSON) para salvar a partida; o vínculo com o teatro é refeito por quem carrega. */
   toSave(): NationalSave {
     return JSON.parse(
-      JSON.stringify({ day: this.day, rng: this.rng.seedState, nations: this.nations, npcs: this.npcs, events: this.events, diplomacy: this.diplomacy.toSave(), ...(this.shocks.length ? { shocks: this.shocks } : {}) }, encodeNonFinite),
+      JSON.stringify({ day: this.day, rng: this.rng.seedState, nations: this.nations, npcs: this.npcs, events: this.events, diplomacy: this.diplomacy.toSave(), ...(this.shocks.length ? { shocks: this.shocks } : {}), journal: { nextId: this.nextEventId, recent: this.journal, diplomaticIds: [...this.diplomaticIds] } }, encodeNonFinite),
       decodeNonFinite,
     ) as NationalSave;
   }
@@ -308,6 +333,9 @@ export class NationalSimulation {
     this.events = c.events;
     this.shocks = c.shocks ?? [];
     this.diplomacy.load(c.diplomacy);
+    this.journal = c.journal?.recent ?? [];
+    this.nextEventId = c.journal?.nextId ?? 1;
+    this.diplomaticIds = new Map(c.journal?.diplomaticIds ?? []);
   }
 
   /** Ação diplomática de um jogador (ou da IA de um jogador). */
@@ -489,7 +517,7 @@ export class NationalSimulation {
   }
 
   drainEvents(): NationalEvent[] {
-    for (const ev of this.diplomacy.drainEvents()) this.events.push({ type: 'diplomacy', day: this.day, event: ev });
+    this.flushDiplomacy();
     const e = this.events;
     this.events = [];
     return e;
@@ -510,7 +538,7 @@ export class NationalSimulation {
     const clamped = clampBudget(budget);
     n.budget = clamped;
     this.recompute(n, 0);
-    this.events.push({ type: 'budget_changed', day: this.day, slot, deficitPctGdp: round2(n.deficitPctGdp) });
+    this.record({ type: 'budget_changed', day: this.day, slot, deficitPctGdp: round2(n.deficitPctGdp) });
     return null;
   }
 
@@ -560,7 +588,51 @@ export class NationalSimulation {
   }
 
   pushEvent(e: NationalEvent): void {
-    this.events.push(e);
+    this.record(e);
+  }
+
+  /** Últimos eventos do livro (Fase 9), do mais antigo ao mais recente. */
+  journalEvents(): readonly NationalEvent[] {
+    return this.journal;
+  }
+
+  /**
+   * Registra um evento no livro: dá um id, liga causas e contexto a eventos anteriores e o
+   * enfileira para os clientes. Eventos diplomáticos pendentes entram antes, para que uma
+   * declaração de guerra já esteja no livro quando o primeiro ataque for registrado.
+   */
+  private record(e: NationalEvent): NationalEvent {
+    if (e.type !== 'diplomacy') this.flushDiplomacy();
+    const slot = e.type === 'diplomacy' ? null : e.slot;
+    const n = slot === null ? undefined : this.nation(slot);
+    const links = linkEvent(e, this.journal, {
+      day: e.day,
+      approvalFactors: n?.approvalFactors ?? [],
+      sanctionsAgainst: slot === null ? [] : this.diplomacy.treaties.filter((t) => t.type === 'sanctions' && t.b === slot),
+    });
+    const causeIds = [...new Set([...(e.causeIds ?? []), ...links.causeIds])].sort((a, b) => a - b);
+    const contextIds = links.contextIds.filter((id) => !causeIds.includes(id));
+    const ev = { ...e, id: this.nextEventId++ } as NationalEvent;
+    if (causeIds.length) ev.causeIds = causeIds;
+    else delete ev.causeIds;
+    if (contextIds.length) ev.contextIds = contextIds;
+    this.events.push(ev);
+    this.journal.push(ev);
+    if (this.journal.length > JOURNAL_MAX) this.journal.splice(0, this.journal.length - JOURNAL_MAX);
+    return ev;
+  }
+
+  /** Passa os eventos diplomáticos pendentes para o livro, traduzindo as causas registradas. */
+  private flushDiplomacy(): void {
+    if (this.flushing) return;
+    this.flushing = true;
+    for (const ev of this.diplomacy.drainEvents()) {
+      const causeIds = (ev.causes ?? []).map((c) => this.diplomaticIds.get(c)).filter((x): x is number => x !== undefined);
+      const rec = this.record({ type: 'diplomacy', day: ev.day, event: ev, ...(causeIds.length ? { causeIds } : {}) });
+      this.diplomaticIds.set(ev.id, rec.id!);
+      if (this.diplomaticIds.size > JOURNAL_MAX * 2) this.diplomaticIds.delete(this.diplomaticIds.keys().next().value!);
+    }
+    this.flushing = false;
   }
 
   /**
@@ -570,7 +642,7 @@ export class NationalSimulation {
   nuclearShock(by: Slot, victim: Slot): void {
     this.shocks.push({ day: this.day, by });
     this.diplomacy.recordAttack(by, victim, 'nuclear');
-    this.events.push({ type: 'nuclear_shock', day: this.day, slot: by, victim, level: round2(this.shockLevel()) });
+    this.record({ type: 'nuclear_shock', day: this.day, slot: by, victim, level: round2(this.shockLevel()) });
     for (const n of [...this.nations, ...this.npcs]) this.recompute(n, 0);
   }
 
@@ -596,7 +668,7 @@ export class NationalSimulation {
       }
       if (e.type === 'air_strike') {
         this.diplomacy.recordAttack(e.owner, e.victim, 'air');
-        this.events.push({
+        this.record({
           type: 'military_strike',
           day: this.day,
           slot: e.owner,
@@ -617,7 +689,7 @@ export class NationalSimulation {
       if (e.type === 'missile' && (e.state === 'impact' || e.state === 'intercepted')) {
         // o lançamento custa reputação mesmo interceptado
         this.diplomacy.recordAttack(e.owner, e.targetOwner, 'missile');
-        this.events.push({
+        this.record({
           type: 'military_strike',
           day: this.day,
           slot: e.owner,
@@ -710,13 +782,13 @@ export class NationalSimulation {
     if (n.approval < COEF.protestApprovalThreshold) {
       const chance = COEF.protestMaxDailyChance * ((COEF.protestApprovalThreshold - n.approval) / COEF.protestApprovalThreshold) * pol.protestMul;
       if (this.rng.next() < chance) {
-        n.approval = Math.max(0, n.approval - 2);
-        n.stability = Math.max(0, n.stability - 4);
+        n.approval = Math.max(0, n.approval - PROTEST_IMPACT.approval);
+        n.stability = Math.max(0, n.stability - PROTEST_IMPACT.stability);
         const causes = [...n.approvalFactors]
           .filter((f) => f.value < 0)
           .sort((a, c) => a.value - c.value)
           .slice(0, 3);
-        this.events.push({ type: 'protest', day: this.day, slot: n.slot, approval: round2(n.approval), causes });
+        this.record({ type: 'protest', day: this.day, slot: n.slot, approval: round2(n.approval), causes });
       }
     }
 
@@ -732,7 +804,7 @@ export class NationalSimulation {
         n.research.done.push(cur);
         n.research.doneDay[cur] = this.day;
         n.research.current = null;
-        this.events.push({ type: 'research_completed', day: this.day, slot: n.slot, techId: cur });
+        this.record({ type: 'research_completed', day: this.day, slot: n.slot, techId: cur });
       }
     } else {
       n.research.idleUsd += rdUsd;
@@ -765,13 +837,13 @@ export class NationalSimulation {
     if (active) {
       if (cur) return 'Decreto já em vigor';
       p.decrees.push({ id, sinceDay: this.day });
-      this.events.push({ type: 'policy', day: this.day, slot, text: `Decreto em vigor: ${DECREES[id].label} — ${DECREES[id].gain}; ${DECREES[id].cost}`, tone: 'info' });
+      this.record({ type: 'policy', day: this.day, slot, text: `Decreto em vigor: ${DECREES[id].label} — ${DECREES[id].gain}; ${DECREES[id].cost}`, tone: 'info' });
     } else {
       if (!cur) return 'Decreto não está em vigor';
       const left = DECREE_MIN_DAYS - (this.day - cur.sinceDay);
       if (left > 0) return `O decreto precisa vigorar mais ${left} dias antes de ser revogado`;
       p.decrees = p.decrees.filter((d) => d.id !== id);
-      this.events.push({ type: 'policy', day: this.day, slot, text: `Decreto revogado: ${DECREES[id].label}`, tone: 'info' });
+      this.record({ type: 'policy', day: this.day, slot, text: `Decreto revogado: ${DECREES[id].label}`, tone: 'info' });
     }
     return null;
   }
@@ -783,7 +855,7 @@ export class NationalSimulation {
     if (!n || !r) return 'Nenhum pedido em aberto';
     if (accept) return null;
     this.diplomacy.adjustRelation(slot, r.from, REQUEST.relationDecline);
-    this.events.push({ type: 'policy', day: this.day, slot, text: `Pedido recusado: ${countryOf(this, r.from)} não gostou (relação ${REQUEST.relationDecline})`, tone: 'bad' });
+    this.record({ type: 'policy', day: this.day, slot, text: `Pedido recusado: ${countryOf(this, r.from)} não gostou (relação ${REQUEST.relationDecline})`, tone: 'bad' });
     n.policies!.request = null;
     n.policies!.nextRequestDay = this.day + REQUEST.gapDays;
     return null;
@@ -802,7 +874,7 @@ export class NationalSimulation {
       const before = f.satisfaction;
       f.satisfaction = clamp(f.satisfaction + drift, 0, 100);
       if (before >= FACTION.unrestBelow && f.satisfaction < FACTION.unrestBelow)
-        this.events.push({ type: 'policy', day, slot: n.slot, text: `${FACTIONS[id].label} em protesto: ${FACTIONS[id].unrest} até a satisfação voltar a ${FACTION.unrestBelow}`, tone: 'bad' });
+        this.record({ type: 'policy', day, slot: n.slot, text: `${FACTIONS[id].label} em protesto: ${FACTIONS[id].unrest} até a satisfação voltar a ${FACTION.unrestBelow}`, tone: 'bad' });
       // exigência em curso: cumpriu, falhou ou o prazo venceu
       if (f.demand) {
         const st = this.demandStatus(n, f.demand.demand, stats);
@@ -811,12 +883,12 @@ export class NationalSimulation {
           f.satisfaction = clamp(f.satisfaction + FACTION.win, 0, 100);
           p.favor = Math.min(10, p.favor + FACTION.favor);
           this.theater?.grant?.(n.slot, FACTIONS[id].reward);
-          this.events.push({ type: 'policy', day, slot: n.slot, text: `${FACTIONS[id].label} satisfeitas: "${demandText(f.demand.demand)}" cumprido (+aprovação e recursos no teatro)`, tone: 'good' });
+          this.record({ type: 'policy', day, slot: n.slot, text: `${FACTIONS[id].label} satisfeitas: "${demandText(f.demand.demand)}" cumprido (+aprovação e recursos no teatro)`, tone: 'good' });
           f.demand = null;
           f.nextDay = day + FACTION.gapDays;
         } else if (st === 'failed' || due) {
           f.satisfaction = clamp(f.satisfaction - FACTION.loss, 0, 100);
-          this.events.push({ type: 'policy', day, slot: n.slot, text: `${FACTIONS[id].label} frustradas: "${demandText(f.demand.demand)}" não foi cumprido`, tone: 'bad' });
+          this.record({ type: 'policy', day, slot: n.slot, text: `${FACTIONS[id].label} frustradas: "${demandText(f.demand.demand)}" não foi cumprido`, tone: 'bad' });
           f.demand = null;
           f.nextDay = day + FACTION.gapDays;
         }
@@ -825,7 +897,7 @@ export class NationalSimulation {
         if (options.length) {
           const demand = options[Math.floor(this.rng.next() * options.length)]!;
           f.demand = { demand, startDay: day, dueDay: day + FACTION.deadlineDays };
-          this.events.push({ type: 'policy', day, slot: n.slot, text: `${FACTIONS[id].label} exigem: ${demandText(demand)} em ${FACTION.deadlineDays} dias`, tone: 'info' });
+          this.record({ type: 'policy', day, slot: n.slot, text: `${FACTIONS[id].label} exigem: ${demandText(demand)} em ${FACTION.deadlineDays} dias`, tone: 'info' });
         } else f.nextDay = day + FACTION.gapDays;
       }
     }
@@ -837,12 +909,12 @@ export class NationalSimulation {
         this.diplomacy.adjustRelation(n.slot, r.from, REQUEST.relationWin);
         const aid = n.gdpUsd * REQUEST.aidGdpShare;
         n.debtUsd = Math.max(0, n.debtUsd - aid);
-        this.events.push({ type: 'policy', day, slot: n.slot, text: `Pedido de ${countryOf(this, r.from)} cumprido: relação +${REQUEST.relationWin} e ajuda de US$ ${Math.round(aid / 1e6)} mi`, tone: 'good' });
+        this.record({ type: 'policy', day, slot: n.slot, text: `Pedido de ${countryOf(this, r.from)} cumprido: relação +${REQUEST.relationWin} e ajuda de US$ ${Math.round(aid / 1e6)} mi`, tone: 'good' });
         p.request = null;
         p.nextRequestDay = day + REQUEST.gapDays;
       } else if (st === 'failed' || day >= r.dueDay) {
         this.diplomacy.adjustRelation(n.slot, r.from, REQUEST.relationLoss);
-        this.events.push({ type: 'policy', day, slot: n.slot, text: `Pedido de ${countryOf(this, r.from)} não cumprido: relação ${REQUEST.relationLoss}`, tone: 'bad' });
+        this.record({ type: 'policy', day, slot: n.slot, text: `Pedido de ${countryOf(this, r.from)} não cumprido: relação ${REQUEST.relationLoss}`, tone: 'bad' });
         p.request = null;
         p.nextRequestDay = day + REQUEST.gapDays;
       }
@@ -862,7 +934,7 @@ export class NationalSimulation {
       ];
       const request = kinds[Math.floor(this.rng.next() * kinds.length)]!;
       p.request = { from, request, startDay: day, dueDay: day + REQUEST.deadlineDays };
-      this.events.push({ type: 'policy', day, slot: n.slot, text: `${countryOf(this, from)} pede: ${requestText(request, (id) => countryOf(this, id))} em ${REQUEST.deadlineDays} dias`, tone: 'info' });
+      this.record({ type: 'policy', day, slot: n.slot, text: `${countryOf(this, from)} pede: ${requestText(request, (id) => countryOf(this, id))} em ${REQUEST.deadlineDays} dias`, tone: 'info' });
     }
   }
 
@@ -950,8 +1022,8 @@ export class NationalSimulation {
 
   private crossing(n: NationState, indicator: 'debt' | 'inflation' | 'approval' | 'growth', before: number, after: number, thresholds: number[]): void {
     for (const t of thresholds) {
-      if (before < t && after >= t) this.events.push({ type: 'threshold', day: this.day, slot: n.slot, indicator, value: round2(after), threshold: t, direction: 'up' });
-      else if (before >= t && after < t) this.events.push({ type: 'threshold', day: this.day, slot: n.slot, indicator, value: round2(after), threshold: t, direction: 'down' });
+      if (before < t && after >= t) this.record({ type: 'threshold', day: this.day, slot: n.slot, indicator, value: round2(after), threshold: t, direction: 'up' });
+      else if (before >= t && after < t) this.record({ type: 'threshold', day: this.day, slot: n.slot, indicator, value: round2(after), threshold: t, direction: 'down' });
     }
   }
 

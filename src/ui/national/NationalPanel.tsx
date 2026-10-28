@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { countryName } from '../../../shared/data/countries.ts';
 import type { Budget } from '../../../shared/strategic/NationalSimulation.ts';
 import type { TechId } from '../../../shared/strategic/technologies.ts';
@@ -14,6 +14,7 @@ import { ResearchTab } from './ResearchTab.tsx';
 import { DiplomacyTab } from './DiplomacyTab.tsx';
 import { TradeTab } from './TradeTab.tsx';
 import { PolicyTab } from './PolicyTab.tsx';
+import { NewsTab } from './NewsTab.tsx';
 import { makeNameOf } from '../../game/nationalText.ts';
 import type { DiplomaticAction } from '../../../shared/strategic/Diplomacy.ts';
 
@@ -24,6 +25,7 @@ const TABS = [
   { id: 'policy', label: 'Política' },
   { id: 'diplomacy', label: 'Diplomacia' },
   { id: 'trade', label: 'Comércio' },
+  { id: 'news', label: 'Noticiário' },
   { id: 'diagnosis', label: 'Diagnóstico' },
   { id: 'data', label: 'Dados' },
 ] as const;
@@ -41,11 +43,13 @@ export function NationalPanel({ onClose }: { onClose: () => void }) {
   const date = useNationalStore((s) => s.date);
   const diplomacy = useNationalStore((s) => s.diplomacy);
   const players = useAppStore((s) => s.match?.players ?? []);
+  const log = useNationalStore((s) => s.log);
 
   const applyBudget = (budget: Budget) => gameClient.send({ t: 'national', cmd: { type: 'set_budget', budget } });
   const selectResearch = (techId: TechId | null) => gameClient.send({ t: 'national', cmd: { type: 'set_research', techId } });
   const diplomaticAction = (action: DiplomaticAction) => gameClient.send({ t: 'national', cmd: { type: 'diplomacy', action } });
-  const nameOf = makeNameOf(players, diplomacy?.nations ?? []);
+  const nameOf = useMemo(() => makeNameOf(players, diplomacy?.nations ?? []), [players, diplomacy?.nations]);
+  const countryOf = (id: number) => players.find((p) => p.slot === id)?.countryId ?? diplomacy?.nations.find((n) => n.id === id)?.countryId ?? null;
 
   return (
     <div
@@ -114,6 +118,8 @@ export function NationalPanel({ onClose }: { onClose: () => void }) {
           ) : (
             <p className="text-ink-400">Aguardando dados diplomáticos…</p>
           )
+        ) : tab === 'news' ? (
+          <NewsTab log={log} mySlot={mySlot} nameOf={nameOf} countryOf={countryOf} onShowOnGlobe={(c) => useNationalStore.getState().openGlobe(c)} />
         ) : tab === 'diagnosis' ? (
           <DiagnosisTab nation={nation} />
         ) : (

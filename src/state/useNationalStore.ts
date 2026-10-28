@@ -33,6 +33,8 @@ interface NationalState {
 }
 
 let seq = 1;
+/** Eventos nacionais guardados no cliente (alimentam o painel de eventos e o noticiário). */
+export const NATIONAL_LOG_MAX = 400;
 
 export const useNationalStore = create<NationalState>((set) => ({
   day: 0,
@@ -58,7 +60,7 @@ export function applyNationalMessage(day: number, date: string, nations: NationV
   useNationalStore.setState((s) => {
     const history = { ...s.history };
     for (const n of nations) if (n.history) history[n.slot] = n.history;
-    const log = events.length ? [...s.log, ...events.map((event) => ({ id: seq++, event, date }))].slice(-80) : s.log;
+    const log = events.length ? [...s.log, ...events.map((event) => ({ id: seq++, event, date }))].slice(-NATIONAL_LOG_MAX) : s.log;
     return { day, date, nations, history, log, diplomacy };
   });
 }

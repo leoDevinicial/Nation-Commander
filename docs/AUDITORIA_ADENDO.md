@@ -82,7 +82,8 @@ Ausente na auditoria (um único mapa tático por partida). Implementada depois �
 | Petróleo | parcial | poças escuras marcam as jazidas. **Contraria o adendo** (jazida não deve parecer lago). Corrigir na 8A |
 
 ### Fase 9 — Noticiário com cadeias causais
-Parcial: eventos táticos e nacionais aparecem no painel de eventos, mas sem identificador, causa nem efeito registrados.
+Parcial na auditoria (eventos sem identificador, causa nem efeito registrados). Implementada depois — veja
+`docs/FASE9_NOTICIARIO.md`.
 
 ### Fase 10 — Mais nações
 Parcial: 10 países com dados reais rastreáveis. O pipeline (WDI + WEO, com fonte e ano) já serve para novos lotes.
