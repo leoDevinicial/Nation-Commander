@@ -1,0 +1,82 @@
+name: Verificar
+
+# Roda as verificações do projeto e um teste de fumaça no navegador, com fotos das telas.
+# Roda a cada push e também por disparo manual (Actions → Verificar → Run workflow).
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      pais:
+        description: 'País do jogador no teste de fumaça (ISO alfa-3)'
+        type: string
+        default: 'IRN'
+      espera:
+        description: 'Segundos de partida antes das fotos do Noticiário'
+        type: string
+        default: '90'
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Tipos
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Testes
+        run: npm test
+      - name: Build do cliente
+        run: npm run build
+      - name: Build do servidor
+        run: npm run build:server
+
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validar entradas
+        env:
+          PAIS: ${{ inputs.pais || 'IRN' }}
+          ESPERA: ${{ inputs.espera || '90' }}
+        run: |
+          printf '%s' "$PAIS" | grep -Eq '^[A-Z]{3}$' || { echo "País inválido"; exit 1; }
+          printf '%s' "$ESPERA" | grep -Eq '^[0-9]{1,3}$' || { echo "Espera inválida"; exit 1; }
+      - name: Instalar Playwright
+        run: |
+          npm i --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Subir servidor e cliente
+        run: |
+          ALLOW_GUESTS=true npx tsx server/index.ts > server.log 2>&1 &
+          VITE_ALLOW_GUESTS=true npx vite --port 5173 --strictPort > client.log 2>&1 &
+          npx --yes wait-on@8.0.3 -t 120000 http://localhost:5173 tcp:8787
+      - name: Teste de fumaça com fotos
+        env:
+          PAIS: ${{ inputs.pais || 'IRN' }}
+          E2E_WAIT_SECONDS: ${{ inputs.espera || '90' }}
+        run: node scripts/e2e-screenshots.mjs e2e-shots "$PAIS"
+      - name: Logs
+        if: always()
+        run: |
+          mkdir -p e2e-shots
+          cp server.log client.log e2e-shots/ || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fotos-e2e
+          path: e2e-shots/
+          retention-days: 7
