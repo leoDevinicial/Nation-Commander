@@ -66,7 +66,7 @@ const PRIORITY: Record<CombatSound, number> = {
 };
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
-const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.035, tower: 0.06, cannon: 0.08, howitzer: 0.3, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4 };
+const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.035, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4 };
 
 /**
  * Atenuação e panorâmica de um ponto do mapa para quem olha `L` (ponto da câmera, distância e giro).
@@ -188,19 +188,21 @@ export class AudioService {
     return buf;
   }
 
-  private drive: Float32Array<ArrayBuffer> | null = null;
+  private readonly drives = new Map<number, Float32Array<ArrayBuffer>>();
 
-  /** Curva de saturação suave (tanh): engrossa os graves do disparo sem estourar. */
-  private driveCurve(): Float32Array<ArrayBuffer> {
-    if (!this.drive) {
-      const n = 1024;
-      this.drive = new Float32Array(n);
+  /** Curva de saturação (tanh) com ganho `k`: engrossa os graves do disparo sem estourar. */
+  private driveCurve(k: number): Float32Array<ArrayBuffer> {
+    let c = this.drives.get(k);
+    if (!c) {
+      const n = 2048;
+      c = new Float32Array(n);
       for (let i = 0; i < n; i++) {
         const x = (i / (n - 1)) * 2 - 1;
-        this.drive[i] = Math.tanh(x * 2.6) / Math.tanh(2.6);
+        c[i] = Math.tanh(x * k) / Math.tanh(k);
       }
+      this.drives.set(k, c);
     }
-    return this.drive;
+    return c;
   }
 
   private noiseSource(loop = false): AudioBufferSourceNode {
@@ -323,31 +325,46 @@ export class AudioService {
       case 'howitzer': {
         // obus de 155 mm: estampido supersônico seco, onda de pressão subgrave saturada que "empurra"
         // o ar, jato lateral do freio de boca, estalos do recuo e do retorno do tubo, e o eco do
-        // disparo rolando pelo terreno por alguns segundos
+        // disparo rolando pelo terreno por alguns segundos. Os graves passam por dois estágios de
+        // saturação (o segundo mais duro), o que dá o peso "ignorante" sem estourar a saída.
         const drive = ctx.createWaveShaper();
-        drive.curve = this.driveCurve();
-        drive.oversample = '2x';
+        drive.curve = this.driveCurve(3.6);
+        drive.oversample = '4x';
+        const crush = ctx.createWaveShaper();
+        crush.curve = this.driveCurve(7);
+        crush.oversample = '4x';
+        const crushLow = ctx.createBiquadFilter();
+        crushLow.type = 'lowpass';
+        crushLow.frequency.value = 260;
         const body = ctx.createGain();
-        body.gain.value = 0.85;
-        drive.connect(body).connect(out);
-        // estampido: rasgo de banda larga muito curto
-        burst('highpass', 1400, 0.6, 0.0015, 1.3, 0.07);
-        burst('bandpass', 3200, 0.9, 0.001, 0.7, 0.035);
-        // onda de choque: dois graves descendentes saturados (o "soco" no peito)
-        thump(78, 24, 0.004, 1.6, 0.85, t, 'sine', drive);
-        thump(44, 16, 0.006, 1.1, 1.3, t, 'triangle', drive);
-        // corpo do disparo: ruído grave denso e o jato do freio de boca saindo para os lados
-        burst('lowpass', 420, 0.7, 0.004, 1.5, 1.25, t, drive);
-        burst('bandpass', 850, 1.1, 0.003, 0.9, 0.32, t + 0.012);
-        burst('lowpass', 1600, 0.5, 0.01, 0.6, 0.6, t + 0.02);
+        body.gain.value = 1.15;
+        drive.connect(crush).connect(crushLow).connect(body).connect(out);
+        // estampido duplo: o "crack" do projétil e, colado nele, o tapa do gás saindo da boca
+        burst('highpass', 1200, 0.6, 0.001, 1.8, 0.08);
+        burst('bandpass', 3400, 0.9, 0.001, 0.9, 0.04);
+        burst('highpass', 900, 0.7, 0.001, 1.3, 0.1, t + 0.018);
+        // onda de choque: graves descendentes saturados (o soco no peito), um sub bem fundo e longo
+        // e um quadrado curto que rasga o primeiro instante
+        thump(92, 26, 0.003, 2.2, 0.9, t, 'sine', drive);
+        thump(52, 17, 0.005, 1.8, 1.6, t, 'triangle', drive);
+        thump(34, 14, 0.02, 1.5, 2.2, t + 0.01, 'sine', drive);
+        thump(70, 30, 0.002, 0.9, 0.18, t, 'square', drive);
+        // corpo do disparo: ruído grave denso (saturado) e o jato do freio de boca para os lados
+        burst('lowpass', 480, 0.7, 0.003, 2.1, 1.5, t, drive);
+        burst('bandpass', 820, 1.1, 0.002, 1.2, 0.4, t + 0.012);
+        burst('lowpass', 1700, 0.5, 0.008, 0.9, 0.75, t + 0.02);
+        // chão e ferragens tremendo logo depois do tiro
+        burst('bandpass', 5200, 1.6, 0.03, 0.18, 0.7, t + 0.06);
         // mecânica: recuo batendo no fim do curso e o tubo voltando (metal pesado)
-        burst('bandpass', 2400, 9, 0.002, 0.22, 0.12, t + 0.24);
-        thump(190, 120, 0.003, 0.18, 0.15, t + 0.24, 'square');
-        burst('bandpass', 1800, 10, 0.002, 0.14, 0.1, t + 0.62);
-        // eco: reflexões graves e cada vez mais abafadas, rolando até sumir
-        burst('lowpass', 300, 0.6, 0.05, 0.7, 1.1, t + 0.35);
-        burst('lowpass', 220, 0.6, 0.08, 0.45, 1.4, t + 0.85);
-        end = burst('lowpass', 160, 0.5, 0.12, 0.3, 1.9, t + 1.45);
+        burst('bandpass', 2300, 9, 0.002, 0.3, 0.14, t + 0.24);
+        thump(170, 105, 0.003, 0.28, 0.18, t + 0.24, 'square');
+        burst('bandpass', 1700, 10, 0.002, 0.2, 0.12, t + 0.62);
+        thump(120, 80, 0.003, 0.16, 0.14, t + 0.62, 'square');
+        // eco: reflexões graves, cada vez mais abafadas e espaçadas, rolando até sumir
+        burst('lowpass', 320, 0.6, 0.04, 1.0, 1.2, t + 0.32, drive);
+        burst('lowpass', 230, 0.6, 0.07, 0.7, 1.6, t + 0.82);
+        burst('lowpass', 170, 0.5, 0.1, 0.5, 2.0, t + 1.4);
+        end = burst('lowpass', 120, 0.5, 0.15, 0.32, 2.4, t + 2.1);
         break;
       }
       case 'rocket': {
