@@ -20,7 +20,7 @@ export type Volumes = Record<Channel | 'master', number>;
 export const DEFAULT_VOLUMES: Volumes = { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 };
 
 export type UiSound = 'click' | 'confirm' | 'error' | 'alert' | 'success' | 'hold';
-export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun';
+export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'tank_gun';
 export type MissileCue = 'prepare' | 'armed' | 'authorize';
 
 /** Som de trabalho de cada edifício (os demais usam o zumbido genérico). */
@@ -54,6 +54,7 @@ const PRIORITY: Record<CombatSound, number> = {
   tower: 1,
   flak: 2,
   aa_gun: 3,
+  tank_gun: 3,
   cannon: 2,
   howitzer: 4,
   rocket: 2,
@@ -67,7 +68,7 @@ const PRIORITY: Record<CombatSound, number> = {
 };
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
-const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, aa_gun: 0.45 };
+const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, aa_gun: 0.45, tank_gun: 0.18 };
 
 /**
  * Atenuação e panorâmica de um ponto do mapa para quem olha `L` (ponto da câmera, distância e giro).
@@ -367,6 +368,42 @@ export class AudioService {
         burst('lowpass', 340, 0.6, 0.03, 1.0, 0.9, tail - rate, drive);
         burst('lowpass', 220, 0.5, 0.07, 0.55, 1.4, tail + 0.25);
         end = burst('lowpass', 150, 0.5, 0.12, 0.32, 1.8, tail + 0.7);
+        break;
+      }
+      case 'tank_gun': {
+        // canhão de tanque (120–125 mm): ataque instantâneo — estalo supersônico e o tapa do gás
+        // colados —, soco grave com saturação dupla (o peso "ignorante"), jato do freio de boca,
+        // baque do recuo, clique do carregador e um eco curto e seco
+        const drive = ctx.createWaveShaper();
+        drive.curve = this.driveCurve(4);
+        drive.oversample = '4x';
+        const crush = ctx.createWaveShaper();
+        crush.curve = this.driveCurve(8);
+        crush.oversample = '4x';
+        const low = ctx.createBiquadFilter();
+        low.type = 'lowpass';
+        low.frequency.value = 300;
+        const body = ctx.createGain();
+        body.gain.value = 1.2;
+        drive.connect(crush).connect(low).connect(body).connect(out);
+        // estampido: tudo começa no mesmo milissegundo (abrupto)
+        burst('highpass', 1400, 0.6, 0.0005, 2.0, 0.07);
+        burst('bandpass', 3800, 0.9, 0.0005, 1.0, 0.035);
+        burst('highpass', 800, 0.7, 0.0008, 1.4, 0.09, t + 0.012);
+        // soco: graves descendentes saturados e um quadrado curto que rasga o começo
+        thump(105, 30, 0.001, 2.4, 0.55, t, 'sine', drive);
+        thump(60, 20, 0.002, 1.9, 1.0, t, 'triangle', drive);
+        thump(85, 34, 0.001, 1.0, 0.12, t, 'square', drive);
+        // corpo e jato lateral do freio de boca
+        burst('lowpass', 560, 0.7, 0.001, 2.2, 0.75, t, drive);
+        burst('bandpass', 950, 1.1, 0.001, 1.1, 0.25, t + 0.008);
+        // mecânica: recuo batendo e o carregador automático
+        thump(160, 95, 0.002, 0.3, 0.12, t + 0.16, 'square');
+        burst('bandpass', 2600, 10, 0.001, 0.22, 0.08, t + 0.16);
+        burst('bandpass', 3400, 12, 0.001, 0.14, 0.05, t + 0.55);
+        // eco curto rolando no terreno
+        burst('lowpass', 300, 0.6, 0.03, 0.8, 0.8, t + 0.22, drive);
+        end = burst('lowpass', 180, 0.5, 0.08, 0.4, 1.3, t + 0.6);
         break;
       }
       case 'cannon':

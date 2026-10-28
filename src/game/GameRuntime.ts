@@ -2197,9 +2197,11 @@ export class GameRuntime {
             ? 'howitzer'
             : attacker.visual.type === 'mobile_aa'
               ? 'aa_gun'
-              : ['tank', 'mbt', 'rocket_artillery'].includes(attacker.visual.type)
-                ? 'cannon'
-                : 'rifle'
+              : attacker.visual.type === 'tank' || attacker.visual.type === 'mbt'
+                ? 'tank_gun'
+                : attacker.visual.type === 'rocket_artillery'
+                  ? 'cannon'
+                  : 'rifle'
           : 'tower';
         audio.playAt(sound, e.from.x, e.from.y);
         break;
