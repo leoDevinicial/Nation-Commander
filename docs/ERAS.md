@@ -41,6 +41,12 @@ pulso curto na transição:
 | Era Digital | vidro e aço claros e lisos | painéis solares nos telhados; torre de telecomunicação no QG e nas prefeituras |
 | Futuro Próximo | compósito escuro; vidros como telas | faixas de LED na cor da facção; drone de vigilância circulando o QG |
 
+**Drone de vigilância** (`src/game/render/models/droneModel.ts`): casco facetado cinza-grafite com placas, escotilha e
+faixas claras, câmera frontal de três lentes, quatro braços com luz de posição e rotores de três pás afiladas dentro de
+protetores octogonais com braçadeiras. Circula o QG com a frente na direção do voo, inclinando para dentro da curva. As
+hélices giram sem parar, em sentidos alternados, a 22 rad/s; um disco translúcido sob as pás dá a sensação de
+velocidade sem o efeito estroboscópico.
+
 As tropas novas saem com a pintura da era do dono: cinza-oliva, camuflagem digital clara e compósito escuro. As
 antigas mantêm a pintura até serem modernizadas numa instalação.
 

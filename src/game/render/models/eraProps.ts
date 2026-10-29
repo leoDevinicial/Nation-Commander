@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { BuildingType } from '../../../../shared/sim/config.ts';
 import { eraAccentMaterial } from '../materials.ts';
 import { sharedGeometry, sharedMaterial } from '../palette.ts';
+import { buildDrone, type DroneParts } from './droneModel.ts';
 
 /**
  * Peças que marcam a era de cada construção (lote 1, §3.1), por cima do modelo:
@@ -13,9 +14,10 @@ import { sharedGeometry, sharedMaterial } from '../palette.ts';
  */
 export interface EraProps {
   group: THREE.Group;
-  /** Partes animadas: o prato do radar gira; o drone circula e balança. */
+  /** Partes animadas: o prato do radar gira; o drone circula, inclina nas curvas e gira as hélices. */
   radar: THREE.Object3D | null;
   drone: THREE.Object3D | null;
+  droneParts: DroneParts | null;
 }
 
 const RADAR_ON: BuildingType[] = ['hq', 'barracks', 'factory', 'tower', 'airbase', 'aa_battery', 'research_center'];
@@ -96,24 +98,13 @@ export function buildEraProps(type: BuildingType, size: number, height: number, 
     }
   }
   if (era >= 4 && type === 'hq') {
-    // drone de vigilância: corpo, quatro braços e rotores, luz da facção
-    const d = new THREE.Group();
-    d.add(mesh(box('drone-body', 0.36, 0.1, 0.36), dark(), 0, 0, 0));
-    for (const [x, z] of [
-      [0.28, 0.28],
-      [-0.28, 0.28],
-      [0.28, -0.28],
-      [-0.28, -0.28],
-    ] as const) {
-      const arm = mesh(box('drone-arm', 0.42, 0.03, 0.05), steel(), x / 2, 0.02, z / 2, false);
-      arm.rotation.y = Math.atan2(-z, x);
-      d.add(arm);
-      d.add(mesh(sharedGeometry('drone-rotor', () => new THREE.CylinderGeometry(0.14, 0.14, 0.012, 10)), white(), x, 0.06, z, false));
-    }
-    d.add(mesh(sharedGeometry('drone-eye', () => new THREE.SphereGeometry(0.05, 6, 4)), eraAccentMaterial(owner, 4), 0, -0.07, 0, false));
+    // drone de vigilância: casco facetado, câmera, braços e rotores com protetor (droneModel.ts)
+    const parts = buildDrone(owner);
+    const d = parts.group;
+    d.userData.drone = parts;
     d.position.set(0, height + 2.2, 0);
     group.add(d);
     drone = d;
   }
-  return { group, radar, drone };
+  return { group, radar, drone, droneParts: drone ? (drone.userData.drone as DroneParts) : null };
 }

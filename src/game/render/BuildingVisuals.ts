@@ -153,6 +153,9 @@ class Smoke {
   }
 }
 
+/** Rotação das hélices do drone de vigilância (rad/s): rápida, mas abaixo do ponto em que as pás piscam a 60 fps. */
+const DRONE_ROTOR_SPEED = 22;
+
 export class BuildingVisual {
   readonly group = new THREE.Group();
   private readonly model = new THREE.Group();
@@ -474,7 +477,16 @@ export class BuildingVisual {
       if (d) {
         const a = this.t * 0.45;
         d.position.set(Math.cos(a) * this.size * 0.7, this.height + 2.2 + Math.sin(this.t * 1.7) * 0.2, Math.sin(a) * this.size * 0.7);
+        // frente (+Z) na direção do voo; inclina para dentro da curva e baixa o nariz, com leve oscilação
         d.rotation.y = -a;
+        d.rotation.z = 0.16 + Math.sin(this.t * 1.3) * 0.03;
+        d.rotation.x = 0.07 + Math.sin(this.t * 1.7 + 1) * 0.02;
+        const parts = this.eraProps.droneParts;
+        if (parts) {
+          // hélices em rotação contínua (sentidos alternados, como num quadricóptero real); o disco translúcido
+          // por baixo das pás dá a sensação de velocidade sem o efeito estroboscópico
+          parts.rotors.forEach((r, i) => (r.rotation.y += dt * DRONE_ROTOR_SPEED * (i === 0 || i === 3 ? 1 : -1)));
+        }
       }
     }
     if (this.eraProps) this.eraProps.group.visible = done;
