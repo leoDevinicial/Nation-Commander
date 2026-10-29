@@ -303,6 +303,10 @@ coleta maior, tropas veteranas, aprovação). Além da queda do QG, vence-se dom
 com o colapso político do rival. Detalhes em `docs/CADEIAS_SERVICOS_VITORIAS.md`. No fim da partida, o relatório mostra a evolução de tropas, construções,
 território, recursos e PIB, e as medalhas de cada comandante (`docs/RELATORIO_POS_PARTIDA.md`).
 
+**Partidas maiores:** até 4 nações (6 para assinantes), entre humanos e bots, com times aliados. Os mapas vão de 96 a
+160 células conforme o número de nações, com simetria para cada uma, nos tipos Continental, Rios e Pontes, Montanhoso e
+Deserto. A região inicial reflete o país. Detalhes em `docs/PARTIDAS_MAIORES_E_MAPAS.md`.
+
 **Dificuldade e veterania:** contra a IA, o anfitrião escolhe Fácil, Normal, Difícil ou Brutal, que mudam o preparo
 (12 a 3 min), as ondas, o uso de aviões e mísseis e os incidentes de fronteira no preparo. Tropas que abatem
 inimigos sobem de patente (Veterano, Elite, Herói), com mais dano e vida e insígnia. Detalhes em

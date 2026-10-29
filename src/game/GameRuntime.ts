@@ -261,6 +261,7 @@ export class GameRuntime {
       terrain: [...match.terrain].map((ch) => Number(ch) as Terrain),
       resourceNodes: match.resourceNodes,
       spawns: match.spawns,
+      ...(match.mapKind ? { kind: match.mapKind } : {}),
     };
     this.mySlot = match.yourSlot;
     this.canControlSpeed = match.canControlSpeed;
@@ -464,7 +465,8 @@ export class GameRuntime {
       sun.shadow.normalBias = 0.02;
     }
     this.scene.add(sun, sun.target);
-    const tint = this.opts.battle?.biome ? BIOME_TINT[this.opts.battle.biome] : undefined;
+    // mapa do tipo Deserto: tons áridos no teatro (as batalhas locais usam o bioma da região)
+    const tint = this.opts.battle?.biome ? BIOME_TINT[this.opts.battle.biome] : this.map.kind === 'desert' ? BIOME_TINT.arid : undefined;
     this.terrain = buildTerrain(this.map, this.opts.profile.terrain, this.opts.profile.reflections, this.opts.profile.ultra, this.opts.profile.cinematic, tint);
     this.scene.add(this.terrain.group);
     this.sharpenTextures(this.terrain.group);

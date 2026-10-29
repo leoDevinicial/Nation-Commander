@@ -4,6 +4,7 @@ import { DIFFICULTIES, DIFFICULTY } from '../../../shared/sim/difficulty.ts';
 import { gameClient } from '../../net/client.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { factionColor } from '../../game/factions.ts';
+import { MAP_TYPE_INFO, MAP_TYPES, MAX_NATIONS_FREE, MAX_NATIONS_SUBSCRIBER, REGION_INFO, mapSizeFor, regionOf } from '../../../shared/sim/matchMap.ts';
 import { ChatBox } from '../components/ChatBox.tsx';
 import { CountrySelect } from '../components/CountrySelect.tsx';
 import { CountryCard } from '../components/CountryCard.tsx';
@@ -19,7 +20,10 @@ export function LobbyScreen() {
   const isHost = room.hostUserId === me.id;
   const mine = room.players.find((p) => p.userId === me.id);
   const others = room.players.filter((p) => p.userId !== room.hostUserId);
-  const canStart = isHost && room.players.length === room.maxPlayers && others.every((p) => p.ready);
+  const canStart = isHost && room.players.length >= 2 && others.every((p) => p.ready || p.isAI);
+  const sandbox = room.mode === 'sandbox';
+  const limit = room.nationLimit ?? 2;
+  const canTeam = (p: (typeof room.players)[number]) => (p.isAI ? isHost : p.userId === me.id);
 
   const copy = async () => {
     try {
@@ -64,18 +68,88 @@ export function LobbyScreen() {
                         ) : (
                           <div className="text-xs text-ink-400">{countryName(p.countryId)}</div>
                         )}
+                        <div className="mt-0.5 text-[11px] text-ink-400" title={REGION_INFO[regionOf(p.countryId)].text}>
+                          Região inicial: {REGION_INFO[regionOf(p.countryId)].label}
+                        </div>
                       </div>
+                      {!sandbox && room.maxPlayers > 2 && (
+                        <select
+                          className="field w-auto py-1 text-xs"
+                          aria-label={`Time de ${p.name}`}
+                          value={p.team ?? 0}
+                          disabled={!canTeam(p)}
+                          onChange={(e) => gameClient.send({ t: 'set_team', slot: p.slot, team: Number(e.target.value) || null })}
+                        >
+                          <option value={0}>Sem time</option>
+                          <option value={1}>Time A</option>
+                          <option value={2}>Time B</option>
+                          <option value={3}>Time C</option>
+                        </select>
+                      )}
+                      {p.isAI && isHost && !sandbox && (room.mode === 'pvp' || room.players.filter((x) => x.isAI).length > 1) && (
+                        <button className="btn min-h-7 px-2 py-0.5 text-xs" onClick={() => gameClient.send({ t: 'remove_bot', slot: p.slot })} title="Remover este bot">
+                          ✖
+                        </button>
+                      )}
                       <span className={`text-xs font-semibold ${p.ready || p.userId === room.hostUserId ? 'text-signal-green' : 'text-ink-400'}`}>
                         {p.userId === room.hostUserId ? 'Anfitrião' : p.ready ? '✔ Pronto' : '… Aguardando'}
                       </span>
                     </>
                   ) : (
-                    <span className="text-sm text-ink-400">Aguardando jogador — compartilhe o código.</span>
+                    <>
+                      <span className="flex-1 text-sm text-ink-400">{room.mode === 'pvp' ? 'Vaga aberta — compartilhe o código ou adicione um bot.' : 'Vaga aberta para um bot.'}</span>
+                      {isHost && (
+                        <button className="btn min-h-7 px-2 py-0.5 text-xs" onClick={() => gameClient.send({ t: 'add_bot' })}>
+                          + Bot (IA)
+                        </button>
+                      )}
+                    </>
                   )}
                 </li>
               );
             })}
           </ul>
+          {!sandbox && (
+            <fieldset className="mt-4 rounded border border-ink-700 p-3">
+              <legend className="label px-1">Nações e mapa</legend>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-ink-300">Nações na partida:</span>
+                {Array.from({ length: Math.max(0, limit - 1) }, (_, i) => i + 2).map((n) => (
+                  <button
+                    key={n}
+                    className={`btn min-h-7 px-2.5 py-0.5 text-xs ${room.maxPlayers === n ? 'btn-primary' : ''}`}
+                    disabled={!isHost || n < room.players.length}
+                    aria-pressed={room.maxPlayers === n}
+                    onClick={() => gameClient.send({ t: 'set_room', maxPlayers: n })}
+                  >
+                    {n}
+                  </button>
+                ))}
+                <span className="text-[11px] text-ink-400">
+                  {limit >= MAX_NATIONS_SUBSCRIBER ? `Assinante: até ${MAX_NATIONS_SUBSCRIBER} nações.` : `Versão grátis: até ${MAX_NATIONS_FREE} nações (assinantes: até ${MAX_NATIONS_SUBSCRIBER}).`} Mapa de{' '}
+                  {mapSizeFor(room.maxPlayers)}×{mapSizeFor(room.maxPlayers)} células.
+                </span>
+              </div>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                {([...MAP_TYPES, 'random'] as const).map((t) => {
+                  const on = (room.mapType ?? 'continental') === t;
+                  const info = t === 'random' ? { label: 'Sorteado', description: 'Um dos tipos acima, sorteado no início da partida.' } : MAP_TYPE_INFO[t];
+                  return (
+                    <label key={t} className={`flex cursor-pointer gap-2 rounded border p-2 text-xs ${on ? 'border-brass-400 bg-ink-850' : 'border-ink-700'} ${isHost ? '' : 'cursor-default opacity-80'}`}>
+                      <input type="radio" name="mapType" className="mt-0.5 accent-[#e0b44c]" checked={on} disabled={!isHost} onChange={() => gameClient.send({ t: 'set_room', mapType: t })} />
+                      <span>
+                        <span className="block font-semibold text-ink-100">{info.label}</span>
+                        <span className="text-ink-400">{info.description}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="mt-1 text-[11px] text-ink-400">
+                Times: quem está no mesmo time começa aliado e não pode declarar guerra ao parceiro. Oceano Central e Arquipélago chegam com o conteúdo naval.
+              </p>
+            </fieldset>
+          )}
           <fieldset className="mt-4 rounded border border-ink-700 p-3">
             <legend className="label px-1">Regra do teatro de operações</legend>
             <div className="grid gap-2 sm:grid-cols-2">
@@ -96,7 +170,7 @@ export function LobbyScreen() {
             </div>
             {!isHost && <p className="mt-1 text-[11px] text-ink-400">Só o anfitrião escolhe a regra.</p>}
           </fieldset>
-          {room.mode !== 'pvp' && (
+          {(room.mode !== 'pvp' || room.players.some((p) => p.isAI)) && (
             <fieldset className="mt-4 rounded border border-ink-700 p-3">
               <legend className="label px-1">Dificuldade da IA</legend>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">

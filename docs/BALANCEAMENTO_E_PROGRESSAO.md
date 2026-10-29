@@ -451,5 +451,9 @@ como na escolha entre os modos paridade e escala real.
 | Lote 1, §4 — cadeias produtivas (Refinaria → combustível, Siderúrgica → aço, substituindo parte do custo) | Feito | `docs/CADEIAS_SERVICOS_VITORIAS.md` |
 | Lote 1, §4 — serviços com raio de cobertura (Hospital, Escola, Delegacia) | Feito | `docs/CADEIAS_SERVICOS_VITORIAS.md` |
 | Lote 2, item 15 — vitórias alternativas (territorial e política) | Feito | `docs/CADEIAS_SERVICOS_VITORIAS.md` |
+| Lote 4, §1–2 — partidas com até 4 nações (6 para assinantes), bots e times; mapas de 96 a 160 células com simetria em N partes; IA com vários rivais | Feito | `docs/PARTIDAS_MAIORES_E_MAPAS.md` |
+| Lote 4, §3 — tipos Continental, Rios e Pontes, Montanhoso e Deserto (escolhidos ou sorteados) | Feito | `docs/PARTIDAS_MAIORES_E_MAPAS.md` |
+| Lote 4, §4 — região inicial pelo país, com compensação declarada | Feito | `docs/PARTIDAS_MAIORES_E_MAPAS.md` |
+| Lote 4, §3 — conteúdo naval de combate, Oceano Central e Arquipélago | Pendente | — |
 | Lote 1, §3.2 — relatório pós-partida (gráficos de tropas, construções, território, recursos e PIB; medalhas) | Feito | `docs/RELATORIO_POS_PARTIDA.md` |
 | Lote 3, §2 — Engenheiro de Combate, minas antitanque (invisíveis ao inimigo e ao satélite), obstáculo antitanque, minas esquecidas na aprovação, IA com engenheiros | Feito | `docs/ESTRADAS_ENGENHARIA.md` |
