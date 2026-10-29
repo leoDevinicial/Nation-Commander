@@ -79,6 +79,23 @@ velocidade sem o efeito estroboscópico.
 - estação de armas remota, bancos de fumígenos, gaiola de grades na traseira da torre;
 - canhão longo com luva térmica e sensor de referência na boca.
 
+**Antiaérea Móvel do Futuro Próximo** (`buildMobileAaFuture`), no estilo Pantsir sobre um 8×8 blindado:
+- casco facetado com camuflagem digital;
+- torre com dois canhões gêmeos e dois casulos de 6 mísseis interceptadores;
+- radar de busca retangular com luzes no mastro de trás, radar de tiro redondo e sensor óptico.
+
+**Interceptação de foguetes:** na era 4, a antiaérea intercepta as salvas do Lança-Foguetes em voo. A regra fica em
+`ROCKET_INTERCEPT`, em `shared/sim/Simulation.ts`:
+- cada antiaérea a até 9 células do ponto de impacto derruba metade dos foguetes que restam de uma salva;
+- só intercepta depois de 30% do voo e recarrega em 4 s;
+- o dano da salva cai na mesma proporção, e uma salva derrubada por inteiro não chega a cair;
+- evento `salvo_intercepted`.
+
+No cliente:
+- os interceptadores saem das bocas dos tubos (`launchers` no modelo, `UnitVisual.launcherWorld`);
+- são menores que os foguetes do Lança-Foguetes;
+- perseguem os foguetes, que explodem no ar (`RocketLayer.intercept`).
+
 As luzes de comboio do Lança-Foguetes, as lanternas da Artilharia e as faixas desses três veículos também seguem a cor
 da facção do jogador.
 

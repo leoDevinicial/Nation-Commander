@@ -119,27 +119,34 @@ npm test && npm run lint && npm run typecheck
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
-1. **Auditoria visual e estruturas flutuantes corrigidas:** peças de era (painéis solares, radar, torre de
+1. **Antiaérea Móvel do Futuro Próximo** (8×8 estilo Pantsir, `buildMobileAaFuture`) e **interceptação de
+   salvas do Lança-Foguetes** em voo:
+   - a regra fica em `ROCKET_INTERCEPT` e `Simulation.updateInterceptions`; gera o evento `salvo_intercepted`, com
+     teste em `shared/test/military.test.ts`;
+   - o visual fica em `RocketLayer.intercept`, com mísseis pequenos saindo dos casulos.
+   Variantes de era 4 já feitas: Lança-Foguetes, Artilharia, Tanque Moderno e Antiaérea Móvel. Detalhes em
+   `docs/ERAS.md`.
+2. **Auditoria visual e estruturas flutuantes corrigidas:** peças de era (painéis solares, radar, torre de
    telecomunicação, LED) passaram a se apoiar no telhado real (`roofSampler`). Radar virou parabólica em escala.
    Folhas de todos os edifícios (eras 1, 3 e 4) e unidades (eras 1 e 4) revisadas sem outros erros visíveis.
    Pendente: o usuário viu cidadãos/recrutas que pareciam estar no teto do QG (print com bonecos de capacete azul
    perto da torre do QG na era 2); pela leitura do código eles ficam na altura do chão e não foi possível reproduzir —
    se ele mandar outro print, investigar (CitizenLayer: `doorPoint`, rota dos recrutas em volta do quartel, grid de
    ocupação).
-2. Arquivo de passagem `docs/HANDOFF.md` (este) e link no `CLAUDE.md` e no README.
-3. Detalhes vermelhos dos veículos da era 4 → cor da facção.
-4. Tanque Moderno da era 4 (T-90M "Proryv", Shtora acesa) — `t90Future`.
-5. Artilharia da era 4 (caminhão 6×6 com torre facetada) — `buildArtilleryFuture`.
-6. Lança-Foguetes da era 4 (8×8 blindado, 12 tubos grandes) + sistema de variantes por era.
-7. Drone de vigilância redesenhado (protetores octogonais, hélices girando).
-8. Bots com país sorteado e escolhido pelo anfitrião (`set_bot_country`; com `seed` nos testes o sorteio é fixo).
-9. Satélite do globo redesenhado (`satelliteModel.ts`).
-10. **Recalibragem da coleta** (`docs/RECALIBRAGEM_RECURSOS.md`): 6 trabalhadores por coleta, QG 1,5/s, consumo de
+3. Arquivo de passagem `docs/HANDOFF.md` (este) e link no `CLAUDE.md` e no README.
+4. Detalhes vermelhos dos veículos da era 4 → cor da facção.
+5. Tanque Moderno da era 4 (T-90M "Proryv", Shtora acesa) — `t90Future`.
+6. Artilharia da era 4 (caminhão 6×6 com torre facetada) — `buildArtilleryFuture`.
+7. Lança-Foguetes da era 4 (8×8 blindado, 12 tubos grandes) + sistema de variantes por era.
+8. Drone de vigilância redesenhado (protetores octogonais, hélices girando).
+9. Bots com país sorteado e escolhido pelo anfitrião (`set_bot_country`; com `seed` nos testes o sorteio é fixo).
+10. Satélite do globo redesenhado (`satelliteModel.ts`).
+11. **Recalibragem da coleta** (`docs/RECALIBRAGEM_RECURSOS.md`): 6 trabalhadores por coleta, QG 1,5/s, consumo de
     comida 0,04, cidadão 10 s, custo crescente +18%, IA que reage ao gargalo, início garantido no mapa, ondas menos
     suicidas, guarnição mínima, explorador em ronda. Os 6 critérios passam em 12 seeds.
-11. **Economia cara** (`docs/ECONOMIA.md`): custos 1,25×–3× (`ECONOMY`), começo com 6 cidadãos + 1 Explorador, verba de
+12. **Economia cara** (`docs/ECONOMIA.md`): custos 1,25×–3× (`ECONOMY`), começo com 6 cidadãos + 1 Explorador, verba de
     obras inicial 25%, depósitos e armazéns maiores.
-12. Antes disso: Centro Financeiro redesenhado, menu de construção em abas, aeronaves revelam o mapa, prefeitura como QG
+13. Antes disso: Centro Financeiro redesenhado, menu de construção em abas, aeronaves revelam o mapa, prefeitura como QG
     secundário, fronteiras inimigas só em terra explorada, lote 4 (até 4/6 nações, tipos de mapa, regiões por país),
     relatório pós-partida, cadeias produtivas, serviços, vitórias alternativas, estradas, engenheiro e minas, Grandes
     Projetos e Programa Espacial, eras, bônus por país e choque nuclear, etc. (ver tabela de estado).
@@ -158,7 +165,7 @@ conhecidas:
   ministros, eleições; Rise of Nations: Centros Regionais com captura, generais, espiões, caminhão logístico, recursos
   raros, teto de comércio).
 - O usuário está trocando os modelos da era "Futuro Próximo" um a um a partir de fotos de referência. Candidatos ainda
-  sem variante de era 4: infantaria, APC, tanque, antiaérea móvel, forças especiais, engenheiro, explorador, aviões e
+  sem variante de era 4: infantaria, APC, tanque, forças especiais, engenheiro, explorador, aviões e
   edifícios. Siga o padrão: builder novo em `unitModels.ts`, registrar em `ERA_BUILDERS`, prévia isolada, docs em
   `docs/ERAS.md`, detalhes na camada `accent`.
 - Thumbnails do menu poderiam mostrar o modelo da era atual do jogador.

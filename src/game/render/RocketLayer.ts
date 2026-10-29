@@ -27,7 +27,27 @@ interface Rocket {
   spread: THREE.Vector2;
   target: THREE.Vector2;
   dist: number;
+  /** Derrubado no ar por um interceptador (antiaérea do Futuro Próximo) neste instante. */
+  doomedAt?: number;
 }
+
+/** Míssil interceptador: sai do casulo da antiaérea e persegue um foguete da salva. */
+interface Interceptor {
+  launchAt: number;
+  flight: number;
+  p0: THREE.Vector3;
+  launched: boolean;
+  slot: number;
+  flame: THREE.Sprite;
+  target: Rocket;
+  from: (pos: THREE.Vector3, dir: THREE.Vector3) => void;
+  onLaunch: () => void;
+  trailAcc: number;
+}
+
+/** Escala do interceptador em relação ao foguete do Lança-Foguetes (menor e mais fino). */
+const INTERCEPTOR_SCALE = 0.45;
+const INTERCEPTOR_FLIGHT = 0.6;
 
 interface Puff {
   sprite: THREE.Sprite;
@@ -78,6 +98,7 @@ export class RocketLayer {
   readonly group = new THREE.Group();
   private readonly mesh: THREE.InstancedMesh;
   private readonly rockets: Rocket[] = [];
+  private readonly interceptors: Interceptor[] = [];
   private readonly free: number[] = [];
   private readonly flames: THREE.Sprite[] = [];
   private readonly puffs: Puff[] = [];
@@ -155,6 +176,41 @@ export class RocketLayer {
         dist: 0,
       });
     }
+  }
+
+  /**
+   * Antiaérea do Futuro Próximo derruba `count` foguetes da salva de `attackerId`: um interceptador por foguete, em
+   * rajada, saindo das bocas dos tubos (`from`); cada foguete explode no ar quando o interceptador o alcança.
+   */
+  intercept(o: { attackerId: number; count: number; from: (index: number, pos: THREE.Vector3, dir: THREE.Vector3) => void; onLaunch: (index: number) => void }): void {
+    const targets = this.rockets.filter((r) => r.attackerId === o.attackerId && r.doomedAt === undefined).slice(0, o.count);
+    targets.forEach((target, i) => {
+      const slot = this.free.pop();
+      const launchAt = this.time + i * 0.12;
+      target.doomedAt = launchAt + INTERCEPTOR_FLIGHT;
+      if (slot === undefined) return;
+      this.interceptors.push({
+        launchAt,
+        flight: INTERCEPTOR_FLIGHT,
+        p0: new THREE.Vector3(),
+        launched: false,
+        slot,
+        flame: this.flames[slot]!,
+        target,
+        from: (pos, dir) => o.from(i, pos, dir),
+        onLaunch: () => o.onLaunch(i),
+        trailAcc: 0,
+      });
+    });
+  }
+
+  /** Explosão no ar do foguete derrubado: clarão, luz e fumaça escura, sem cratera. */
+  private airburst(at: THREE.Vector3): void {
+    this.effects.flash(at, 0.55, '#ffd28a', 0.14);
+    this.effects.light(at, '#ffae5a', 50, 7, 0.25);
+    for (let k = 0; k < 3; k++)
+      this.emit(tmpB.copy(at), { life: 2.2, size0: 0.4, size1: 1.8, peak: 0.6, tone: 0.45, vx: (Math.random() - 0.5) * 1.2, vy: 0.3, vz: (Math.random() - 0.5) * 1.2 });
+    this.onImpact(at.x, at.z);
   }
 
   /** Há foguetes desta salva ainda por cair (o impacto visual fica com eles). */
@@ -284,6 +340,15 @@ export class RocketLayer {
         r.trailAcc -= every;
         this.emit(tail, { life: 1.3 + Math.random() * 0.6, size0: 0.22, size1: 1.1, peak: 0.55 * (1 - k * 0.5), tone: 1 });
       }
+      // derrubado por um interceptador: explode no ar e não cai
+      if (r.doomedAt !== undefined && this.time >= r.doomedAt) {
+        this.airburst(tmpPos);
+        r.flame.visible = false;
+        this.mesh.setMatrixAt(r.slot, HIDDEN);
+        this.free.push(r.slot);
+        this.rockets.splice(i, 1);
+        continue;
+      }
       if (raw >= 1) {
         this.land(r);
         r.flame.visible = false;
@@ -292,7 +357,50 @@ export class RocketLayer {
         this.rockets.splice(i, 1);
       }
     }
-    if (dirty || this.rockets.length === 0) this.mesh.instanceMatrix.needsUpdate = true;
+    // interceptadores: saem do tubo e convergem para a posição atual do foguete-alvo
+    for (let i = this.interceptors.length - 1; i >= 0; i--) {
+      const m = this.interceptors[i]!;
+      if (this.time < m.launchAt) continue;
+      if (!m.launched) {
+        m.from(m.p0, tmpDir);
+        m.launched = true;
+        m.onLaunch();
+        this.effects.flash(m.p0, 0.18, '#fff0c0', 0.08);
+      }
+      const k = Math.min(1, (this.time - m.launchAt) / m.flight);
+      const alive = this.rockets.includes(m.target);
+      if (!alive || k >= 1) {
+        m.flame.visible = false;
+        this.mesh.setMatrixAt(m.slot, HIDDEN);
+        this.free.push(m.slot);
+        this.interceptors.splice(i, 1);
+        dirty = true;
+        continue;
+      }
+      // posição atual do alvo na curva dele
+      const tr = m.target;
+      const raw = Math.min(1, (this.time - tr.launchAt) / tr.flight);
+      this.point(tr, raw, tmpB);
+      // trajetória: sobe primeiro e encurva para o alvo (k com aceleração)
+      const e = k * k * (3 - 2 * k);
+      tmpPos.lerpVectors(m.p0, tmpB, e);
+      tmpPos.y += Math.sin(k * Math.PI) * 1.2;
+      tmpDir.copy(tmpB).sub(tmpPos).normalize();
+      tmpQ.setFromUnitVectors(UP, tmpDir);
+      tmpM.compose(tmpPos, tmpQ, tmpA.set(INTERCEPTOR_SCALE, INTERCEPTOR_SCALE, INTERCEPTOR_SCALE));
+      this.mesh.setMatrixAt(m.slot, tmpM);
+      dirty = true;
+      const tail = tmpA.copy(tmpPos).addScaledVector(tmpDir, -0.22);
+      m.flame.visible = true;
+      m.flame.position.copy(tail);
+      m.flame.scale.setScalar(0.3 + Math.random() * 0.1);
+      m.trailAcc += dt;
+      while (m.trailAcc > 0.025) {
+        m.trailAcc -= 0.025;
+        this.emit(tail, { life: 0.9 + Math.random() * 0.4, size0: 0.12, size1: 0.6, peak: 0.5, tone: 1 });
+      }
+    }
+    if (dirty || (this.rockets.length === 0 && this.interceptors.length === 0)) this.mesh.instanceMatrix.needsUpdate = true;
     for (const p of this.puffs) {
       if (!p.sprite.visible) continue;
       p.age += dt;
@@ -320,6 +428,7 @@ export class RocketLayer {
     for (const f of this.flames) f.material.dispose();
     for (const p of this.puffs) p.sprite.material.dispose();
     this.rockets.length = 0;
+    this.interceptors.length = 0;
     this.group.removeFromParent();
   }
 }

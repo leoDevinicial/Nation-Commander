@@ -34,6 +34,8 @@ export interface UnitModel {
    * `color: 'faction'` usa a cor da facção do dono.
    */
   glow?: { at: V3; normal: V3; r: number; color: string | 'faction' }[];
+  /** Bocas dos tubos de mísseis interceptadores (referencial da torre, apontando para +x elevado). */
+  launchers?: V3[];
 }
 
 type V3 = [number, number, number];
@@ -117,6 +119,7 @@ const ERA_BUILDERS: Partial<Record<UnitType, { from: number; build: () => BuiltU
   rocket_artillery: { from: 4, build: buildRocketArtilleryFuture },
   artillery: { from: 4, build: buildArtilleryFuture },
   mbt: { from: 4, build: t90Future },
+  mobile_aa: { from: 4, build: buildMobileAaFuture },
 };
 
 /** Chave do modelo da unidade na era dada (muda quando a era troca o veículo). */
@@ -1444,6 +1447,178 @@ function buildMobileAa(): BuiltUnit {
     muzzle: [0.15 + Math.cos(elev) * 1.45, 0.32 + Math.sin(elev) * 1.45, 0.52],
     guns,
     shot: 'flak',
+  };
+}
+
+/**
+ * Antiaérea Móvel do Futuro Próximo (estilo Pantsir sobre 8×8 blindado): casco facetado com camuflagem digital em
+ * quadrados de três tons, cabine em cunha com grade e faróis, armários laterais; torre com dois canhões gêmeos de tiro
+ * rápido, dois casulos de 6 mísseis interceptadores (derrubam as salvas do Lança-Foguetes), radar de busca retangular
+ * no mastro de trás com luzes, radar de tiro redondo na frente e sensor eletro-óptico. `launchers` são as bocas dos
+ * tubos de míssil no referencial da torre (o interceptador visível sai delas).
+ */
+function buildMobileAaFuture(): BuiltUnit {
+  const hull = layers();
+  const b = hull.body;
+  const base = '#7a8070';
+  const dark = '#4a4f42';
+  const black = '#1c1d1a';
+  // contraste alto: a pintura escura da era 4 multiplica estes tons
+  const camo = ['#b4b8a6', '#4f5444', '#d6d8ca'];
+  // camuflagem digital: quadrados em três tons sobre as faces laterais e o topo (determinística)
+  let seed = 11;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const pixels = (x0: number, x1: number, y0: number, y1: number, z: number, n: number) => {
+    for (let i = 0; i < n; i++) {
+      const w = 0.06 + rnd() * 0.08;
+      const h = 0.05 + rnd() * 0.06;
+      b.box(w, h, 0.012, camo[Math.floor(rnd() * 3)]!, [x0 + rnd() * (x1 - x0), y0 + rnd() * (y1 - y0), z]);
+    }
+  };
+  b.box(2.6, 0.14, 0.82, dark, [-0.1, 0.52, 0]);
+  for (const x of [0.92, 0.45, -0.6, -1.06]) for (const z of [0.47, -0.47]) rollingWheel([x, 0.29, z], 0.29, 0.23);
+  // casco facetado (laterais chanfradas embaixo) e cabine em cunha
+  b.side(
+    [
+      [-1.36, 0.6],
+      [0.6, 0.6],
+      [0.6, 0.98],
+      [-1.36, 0.98],
+    ],
+    0.94,
+    base,
+  );
+  b.side(
+    [
+      [0.6, 0.6],
+      [1.32, 0.6],
+      [1.38, 0.84],
+      [1.2, 0.98],
+      [1.1, 1.22],
+      [0.6, 1.24],
+    ],
+    0.9,
+    base,
+  );
+  for (const z of [0.47, -0.47]) {
+    b.box(1.96, 0.16, 0.06, dark, [-0.38, 0.66, z], [z > 0 ? -0.5 : 0.5, 0, 0]);
+    pixels(-1.3, 0.55, 0.72, 0.95, z * 1.005, 26);
+    pixels(0.65, 1.25, 0.66, 1.18, z * 1.0 + Math.sign(z) * 0.006, 12);
+  }
+  // para-lamas, armários laterais com fechos e tanque
+  for (const [x, w] of [
+    [0.69, 0.82],
+    [-0.83, 0.84],
+  ] as const)
+    for (const z of [0.5, -0.5]) b.box(w, 0.05, 0.28, dark, [x, 0.66, z]);
+  for (const z of [0.49, -0.49])
+    for (let i = 0; i < 3; i++) {
+      b.box(0.4, 0.2, 0.05, base, [-0.15 - i * 0.44, 0.84, z]);
+      b.box(0.05, 0.02, 0.06, C.steel, [-0.15 - i * 0.44, 0.88, z]);
+    }
+  b.cyl(0.09, 0.09, 0.36, C.steel, [0.2, 0.55, 0.44], [0, 0, Math.PI / 2], 12);
+  // frente: grade, para-choque, faróis, luzes âmbar, ganchos e espelhos
+  b.box(0.12, 0.16, 0.96, dark, [1.36, 0.62, 0]);
+  b.box(0.02, 0.18, 0.5, black, [1.383, 0.76, 0]);
+  for (let i = 0; i < 6; i++) b.box(0.025, 0.18, 0.02, dark, [1.39, 0.76, -0.2 + i * 0.08]);
+  for (const z of [0.36, -0.36]) {
+    b.box(0.03, 0.06, 0.12, '#ece6cc', [1.38, 0.72, z]);
+    b.box(0.03, 0.035, 0.06, '#e39a2b', [1.33, 0.9, z * 1.1]);
+    b.add(new THREE.TorusGeometry(0.03, 0.01, 6, 10), C.steel, { pos: [1.44, 0.56, z * 0.8], rot: [0, Math.PI / 2, 0] });
+    b.box(0.03, 0.03, 0.1, dark, [1.12, 1.12, z * 1.35]);
+    b.box(0.04, 0.18, 0.09, black, [1.12, 1.12, z * 1.55]);
+  }
+  hull.glass.box(0.02, 0.22, 0.74, '#ffffff', [1.16, 1.1, 0], [0, 0, -0.42]);
+  for (const z of [0.452, -0.452]) hull.glass.box(0.26, 0.18, 0.01, '#ffffff', [0.9, 1.08, z]);
+  // topo do casco: grades do motor e escotilhas
+  for (let i = 0; i < 5; i++) b.box(0.05, 0.012, 0.6, black, [-1.0 - i * 0.07, 0.986, 0]);
+  b.box(0.3, 0.03, 0.3, dark, [0.85, 1.25, 0]);
+  hull.accent.box(0.3, 0.1, 0.02, '#ffffff', [0.9, 0.8, 0.455]);
+  hull.accent.box(0.3, 0.1, 0.02, '#ffffff', [0.9, 0.8, -0.455]);
+
+  // --- torre: base, corpo facetado, canhões, casulos de mísseis e radares
+  const turret = layers();
+  const t = turret.body;
+  t.cyl(0.38, 0.42, 0.1, dark, [0, 0.05, 0], undefined, 14);
+  t.side(
+    [
+      [-0.5, 0.1],
+      [0.42, 0.1],
+      [0.54, 0.26],
+      [0.4, 0.48],
+      [-0.46, 0.5],
+      [-0.56, 0.3],
+    ],
+    0.62,
+    base,
+  );
+  for (const z of [0.312, -0.312]) {
+    for (let i = 0; i < 8; i++) {
+      const w = 0.06 + ((i * 37) % 7) * 0.012;
+      t.box(w, 0.05 + ((i * 13) % 5) * 0.01, 0.01, camo[i % 3]!, [-0.4 + i * 0.11, 0.2 + ((i * 29) % 6) * 0.04, z]);
+    }
+  }
+  // casulos de mísseis: 6 tubos (2 × 3) de cada lado, elevados, com as bocas escuras
+  const podElev = 0.5;
+  const launchers: [number, number, number][] = [];
+  for (const side of [1, -1]) {
+    const pz = side * 0.52;
+    t.box(0.16, 0.14, 0.12, dark, [0.0, 0.34, side * 0.36]);
+    for (let r = 0; r < 2; r++)
+      for (let c = 0; c < 3; c++) {
+        const off = (c - 1) * 0.095;
+        const up = 0.32 + r * 0.1;
+        const len = 0.8;
+        const cx = -0.05 + (Math.cos(podElev) * len) / 2;
+        const cy = up + (Math.sin(podElev) * len) / 2;
+        t.cyl(0.045, 0.045, len, base, [cx, cy, pz + off], [0, 0, podElev - Math.PI / 2], 10);
+        const mx = -0.05 + Math.cos(podElev) * len;
+        const my = up + Math.sin(podElev) * len;
+        // boca escura voltada ao longo do tubo
+        t.add(new THREE.CircleGeometry(0.036, 10).rotateY(Math.PI / 2), '#0c0d0b', { pos: [mx + 0.003, my, pz + off], rot: [0, 0, podElev] });
+        launchers.push([mx, my, pz + off]);
+      }
+    // cintas do casulo
+    for (const k of [0.2, 0.6]) {
+      const x = -0.05 + Math.cos(podElev) * 0.8 * k;
+      t.box(0.04, 0.3, 0.34, dark, [x, 0.4 + Math.sin(podElev) * 0.8 * k, pz], [0, 0, podElev]);
+    }
+  }
+  // radar de busca retangular no mastro traseiro, com luzes, e radar de tiro redondo na frente
+  t.cyl(0.04, 0.05, 0.4, dark, [-0.38, 0.7, 0], undefined, 8);
+  t.box(0.12, 0.32, 0.5, dark, [-0.38, 1.0, 0]);
+  t.box(0.02, 0.28, 0.44, '#4a5040', [-0.31, 1.0, 0]);
+  t.box(0.08, 0.06, 0.52, black, [-0.38, 1.19, 0]);
+  t.cyl(0.12, 0.12, 0.08, dark, [0.48, 0.38, 0], [0, 0, Math.PI / 2], 16);
+  t.cyl(0.1, 0.1, 0.02, '#575e4c', [0.53, 0.38, 0], [0, 0, Math.PI / 2], 16);
+  // sensor eletro-óptico
+  t.box(0.14, 0.12, 0.14, dark, [0.18, 0.58, -0.16]);
+  turret.glass.cyl(0.035, 0.035, 0.02, '#ffffff', [0.255, 0.58, -0.16], [0, 0, Math.PI / 2], 10);
+  turret.accent.box(0.4, 0.07, 0.02, '#ffffff', [-0.15, 0.25, 0.315]);
+  turret.accent.box(0.4, 0.07, 0.02, '#ffffff', [-0.15, 0.25, -0.315]);
+
+  // canhões gêmeos de tiro rápido no centro da torre
+  const elev = 0.62;
+  const guns: { layers: ModelLayers; pivot: V3; elev: number; muzzle: V3; recoil: number }[] = [];
+  for (const z of [0.09, -0.09]) {
+    const gl = layers();
+    gl.body.cyl(0.026, 0.03, 1.15, black, [0.6, 0, 0], [0, 0, Math.PI / 2], 10);
+    gl.body.cyl(0.045, 0.045, 0.3, dark, [0.12, 0, 0], [0, 0, Math.PI / 2], 10);
+    openMuzzle(gl.body, 1.24, 0.08, 0.036, 0.018, black, 12);
+    guns.push({ layers: gl.build(), pivot: [0.25, 0.42, z], elev, muzzle: [1.25, 0, 0], recoil: 0.1 });
+  }
+  return {
+    hull: hull.build(),
+    turret: turret.build(),
+    turretPivot: [-0.45, 0.98, 0],
+    muzzle: [0.25 + Math.cos(elev) * 1.25, 0.42 + Math.sin(elev) * 1.25, 0.09],
+    guns,
+    shot: 'flak',
+    launchers,
+    glow: [
+      { at: [-0.299, 1.12, 0.18], normal: [1, 0, 0], r: 0.022, color: '#7dff6a' },
+      { at: [-0.299, 1.12, -0.18], normal: [1, 0, 0], r: 0.022, color: 'faction' },
+    ],
   };
 }
 

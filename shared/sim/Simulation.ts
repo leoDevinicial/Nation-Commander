@@ -201,7 +201,17 @@ export interface SalvoInFlight {
   base: number;
   /** Posição do lançador no disparo (contra-bateria). */
   from?: Vec2;
+  /** Tick do disparo e foguetes que ainda voam (a antiaérea do Futuro Próximo derruba parte deles). */
+  launchTick?: number;
+  rockets?: number;
 }
+
+/**
+ * Antiaérea Móvel do Futuro Próximo (era 4): intercepta salvas do Lança-Foguetes em voo com mísseis pequenos. Cada
+ * antiaérea perto do ponto de impacto derruba metade dos foguetes que restam de uma salva (depois de 30% do voo) e
+ * recarrega em 4 s; o dano da salva cai na mesma proporção, e uma salva toda derrubada não chega a cair.
+ */
+export const ROCKET_INTERCEPT = { era: 4, range: 9, share: 0.5, cooldownTicks: 4 * TICK_RATE, minProgress: 0.3 } as const;
 
 /** Preparo do lança-foguetes ao parar para atirar (estabilizar e erguer o casulo). */
 export const SALVO_DEPLOY_TICKS = Math.round(1.4 * TICK_RATE);
@@ -1689,6 +1699,7 @@ export class Simulation {
     this.air.step();
     this.mines.step();
     for (const u of this.units) this.updateUnit(u);
+    this.updateInterceptions();
     this.updateSalvos();
     this.updateAttrition();
     if (this.tick % TICK_RATE === 0) this.evacuateForeignTerritory();
@@ -2491,6 +2502,33 @@ export class Simulation {
     return false;
   }
 
+  /** Antiaéreas do Futuro Próximo derrubam parte das salvas em voo (ver `ROCKET_INTERCEPT`). */
+  private updateInterceptions(): void {
+    if (!this.salvos.length) return;
+    const aa = this.units.filter((u) => u.type === 'mobile_aa' && u.hp > 0 && (u.era ?? 1) >= ROCKET_INTERCEPT.era && !u.refit);
+    if (!aa.length) return;
+    for (const v of this.salvos) {
+      const total = v.rockets ?? UNITS[v.unitType].weapon.salvo ?? 1;
+      if (total <= 0) continue;
+      const t0 = v.launchTick ?? v.impactTick;
+      if ((this.tick - t0) / Math.max(1, v.impactTick - t0) < ROCKET_INTERCEPT.minProgress) continue;
+      let left = total;
+      for (const u of aa) {
+        if (left <= 0) break;
+        if (!this.hostile(u.owner, v.owner) || (u.interceptReadyTick ?? 0) > this.tick || dist(u.pos, v.at) > ROCKET_INTERCEPT.range) continue;
+        const killed = Math.max(1, Math.ceil(left * ROCKET_INTERCEPT.share));
+        left -= killed;
+        u.interceptReadyTick = this.tick + ROCKET_INTERCEPT.cooldownTicks;
+        this.emit({ type: 'salvo_intercepted', tick: this.tick, owner: u.owner, aaId: u.id, attackerId: v.attackerId, from: { ...u.pos }, at: { ...v.at }, rockets: killed });
+      }
+      if (left === total) continue;
+      v.base *= left / total;
+      v.rockets = left;
+    }
+    // salvas derrubadas por inteiro não caem
+    this.salvos = this.salvos.filter((v) => (v.rockets ?? 1) > 0);
+  }
+
   /** Impacto das salvas de foguetes que chegaram neste tick. */
   private updateSalvos(): void {
     if (!this.salvos.length) return;
@@ -2517,7 +2555,7 @@ export class Simulation {
           this.creditKill(this.entities.get(v.attackerId));
         }
       }
-      this.emit({ type: 'salvo_impact', tick: this.tick, owner: v.owner, attackerId: v.attackerId, pos: { ...v.at }, radius, rockets: w.salvo ?? 1 });
+      this.emit({ type: 'salvo_impact', tick: this.tick, owner: v.owner, attackerId: v.attackerId, pos: { ...v.at }, radius, rockets: v.rockets ?? w.salvo ?? 1 });
     }
   }
 
@@ -2527,7 +2565,18 @@ export class Simulation {
     if (attacker.kind === 'unit' && splash?.weapon.salvo) {
       attacker.cooldown = Math.round(cooldownSeconds * TICK_RATE);
       const flightTicks = salvoFlightTicks(dist(attacker.pos, target.pos));
-      this.salvos.push({ owner: attacker.owner, attackerId: attacker.id, unitType: attacker.type, targetId: target.id, at: { ...target.pos }, impactTick: this.tick + flightTicks, base: splash.base, from: { ...attacker.pos } });
+      this.salvos.push({
+        owner: attacker.owner,
+        attackerId: attacker.id,
+        unitType: attacker.type,
+        targetId: target.id,
+        at: { ...target.pos },
+        impactTick: this.tick + flightTicks,
+        base: splash.base,
+        from: { ...attacker.pos },
+        launchTick: this.tick,
+        rockets: splash.weapon.salvo ?? 1,
+      });
       this.emit({ type: 'shot', tick: this.tick, attackerId: attacker.id, targetId: target.id, from: { ...attacker.pos }, to: { ...target.pos }, damage: Math.round(damage), salvo: splash.weapon.salvo, flightTicks });
       return;
     }

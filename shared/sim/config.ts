@@ -450,7 +450,7 @@ export const UNITS: Record<UnitType, UnitDef> = {
     sight: 14,
     weapon: { damage: 9, range: 7, cooldown: 0.6, vsVehicle: 0.6 },
     producedBy: 'factory',
-    description: 'Canhões e radar sobre lagartas: acompanha as tropas e derruba aeronaves e mísseis por perto (como uma bateria antiaérea).',
+    description: 'Canhões e radar sobre lagartas: acompanha as tropas e derruba aeronaves e mísseis por perto (como uma bateria antiaérea). No Futuro Próximo vira um 8×8 com mísseis interceptadores que derrubam metade de cada salva do Lança-Foguetes que cair por perto.',
     hotkey: 'Y',
     armor: 'vehicle',
     requires: 'mobile_air_defense',

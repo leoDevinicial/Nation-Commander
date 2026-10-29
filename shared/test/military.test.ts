@@ -227,6 +227,46 @@ describe('progressão militar — tropas novas em combate', () => {
     expect(dropB).toBeCloseTo(UNITS.rocket_artillery.weapon.damage * SPLASH_FRACTION, 0);
   });
 
+  it('antiaérea móvel do Futuro Próximo intercepta a salva em voo (metade dos foguetes e do dano); a de era anterior não', () => {
+    const run = (era: 1 | 4) => {
+      const { sim } = setup();
+      const rl = sim.spawnUnitNear(sim.hqOf(0)!, 'rocket_artillery')!;
+      const a = sim.spawnUnitNear(sim.hqOf(1)!, 'infantry')!;
+      a.pos = { x: rl.pos.x + 8.6, y: rl.pos.y };
+      a.maxHp = a.hp = 10_000;
+      const aa = sim.spawnUnitNear(sim.hqOf(1)!, 'mobile_aa')!;
+      aa.era = era;
+      aa.maxHp = aa.hp = 10_000;
+      aa.pos = { x: a.pos.x + 3, y: a.pos.y + 3 };
+      const pa = { ...a.pos };
+      const paa = { ...aa.pos };
+      sim.drainEvents();
+      let intercepted: Extract<SimEvent, { type: 'salvo_intercepted' }> | null = null;
+      let impact: Extract<SimEvent, { type: 'salvo_impact' }> | null = null;
+      const hp0 = a.hp;
+      for (let i = 0; i < TICK_RATE * 12 && !impact; i++) {
+        a.pos = { ...pa };
+        aa.pos = { ...paa };
+        // a antiaérea não atira em terra neste teste (só intercepta)
+        aa.cooldown = 99;
+        sim.step();
+        for (const e of sim.drainEvents()) {
+          if (e.type === 'salvo_intercepted' && e.attackerId === rl.id) intercepted ??= e;
+          if (e.type === 'salvo_impact' && e.attackerId === rl.id) impact = e;
+        }
+      }
+      return { intercepted, impact, drop: hp0 - a.hp };
+    };
+    const old = run(1);
+    const future = run(4);
+    expect(old.intercepted).toBeNull();
+    expect(old.impact?.rockets).toBe(UNITS.rocket_artillery.weapon.salvo);
+    expect(future.intercepted?.rockets).toBe(6);
+    expect(future.impact?.rockets).toBe(6);
+    // metade dos foguetes, metade do dano da salva no alvo (o resto da perda é igual nos dois casos: o QG vizinho atira nele)
+    expect(old.drop - future.drop).toBeCloseTo(UNITS.rocket_artillery.weapon.damage / 2, 0);
+  });
+
   it('lança-foguetes: quem sai da área durante o voo escapa; salvar e carregar mantém a salva no ar', () => {
     const { sim } = setup();
     const rl = sim.spawnUnitNear(sim.hqOf(0)!, 'rocket_artillery')!;

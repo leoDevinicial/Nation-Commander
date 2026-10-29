@@ -496,6 +496,19 @@ export class UnitVisual {
     return !pod || this.podElev > pod.raised - 0.08;
   }
 
+  /** Boca do tubo de míssil interceptador `index` (antiaérea do Futuro Próximo) e a direção dele, no mundo. */
+  launcherWorld(index: number, outPos: THREE.Vector3, outDir: THREE.Vector3): void {
+    const l = this.model.launchers;
+    if (!l?.length || !this.turret) {
+      this.muzzleWorld(outPos);
+      outDir.set(0, 1, 0);
+      return;
+    }
+    this.turret.updateWorldMatrix(true, false);
+    outPos.set(...l[index % l.length]!).applyMatrix4(this.turret.matrixWorld);
+    outDir.set(0.6, 0.8, 0).transformDirection(this.turret.matrixWorld);
+  }
+
   /** Posição de mundo da boca do cano (para efeitos de disparo). */
   muzzleWorld(out = new THREE.Vector3()): THREE.Vector3 {
     const parent = this.turret ?? this.body;

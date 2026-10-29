@@ -712,6 +712,24 @@ export class GameRuntime {
         },
       });
       attacker?.visual.onFire();
+    } else if (e.type === 'salvo_intercepted') {
+      // antiaérea do Futuro Próximo: mísseis pequenos saem dos casulos e derrubam foguetes da salva no ar
+      const aa = this.units.get(e.aaId)?.visual;
+      this.rocketLayer.intercept({
+        attackerId: e.attackerId,
+        count: e.rockets,
+        from: (i, pos, dir) => {
+          if (aa) aa.launcherWorld(i, pos, dir);
+          else {
+            pos.set(e.from.x, 1.6, e.from.y);
+            dir.set(0, 1, 0);
+          }
+        },
+        onLaunch: (i) => {
+          if (i % 3 === 0) audio.playAt('rocket', e.from.x, e.from.y);
+        },
+      });
+      aa?.onFire();
     } else if (e.type === 'salvo_impact') {
       // os foguetes visíveis explodem por conta própria; sem eles (névoa), a área explode aqui
       if (!this.rocketLayer.pending(e.attackerId))
