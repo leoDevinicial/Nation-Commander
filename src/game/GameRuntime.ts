@@ -520,7 +520,7 @@ export class GameRuntime {
     }
     if (s.territory) {
       this.territory = decodeTerritory(s.territory);
-      this.territoryLayer.update(this.territory);
+      this.bordersDirty = true;
       this.applyRoads(s.roads ?? []);
     }
     this.snapshotAt = performance.now();
@@ -857,10 +857,12 @@ export class GameRuntime {
       const size = BUILDINGS[t.snap.type].size;
       mark((t.snap.cx + size / 2) * cs, (t.snap.cy + size / 2) * cs, BUILDINGS[t.snap.type].sight);
     }
-    // Sandbox com o mapa revelado: tudo à vista
-    if (this.snapshot?.sandbox?.reveal) visible.fill(1);
+    // Sandbox com o mapa revelado, ou satélite em órbita (Programa Espacial): tudo à vista
+    if (this.snapshot?.sandbox?.reveal || this.snapshot?.players.find((p) => p.slot === this.mySlot)?.satellite) visible.fill(1);
     const tex = this.fogTexture.image.data as Uint8Array;
     for (let i = 0; i < w * h; i++) {
+      // célula descoberta agora: as fronteiras dela passam a aparecer
+      if (this.fogState[i] === 0 && (visible[i] || this.territory[i] === this.mySlot)) this.bordersDirty = true;
       if (visible[i]) this.fogState[i] = 2;
       else if (this.fogState[i] === 2) this.fogState[i] = 1;
       // o próprio território é terra conhecida: no mínimo explorado (só o visual do chão; o
@@ -869,7 +871,18 @@ export class GameRuntime {
       tex[i] = this.fogState[i] === 2 ? 255 : this.fogState[i] === 1 ? 115 : 0;
     }
     this.fogTexture.needsUpdate = true;
+    // fronteiras só em terra já explorada (como no minimapa), redesenhadas no máximo 2× por segundo
+    const now = performance.now();
+    if (this.bordersDirty && now - this.bordersAt > 500) {
+      this.bordersDirty = false;
+      this.bordersAt = now;
+      this.territoryLayer.update(this.territory, this.fogState);
+    }
   }
+
+  /** Há terra recém-explorada ou território novo: as fronteiras precisam ser redesenhadas. */
+  private bordersDirty = false;
+  private bordersAt = 0;
 
   // ------------------------------------------------------------ laço de renderização
 

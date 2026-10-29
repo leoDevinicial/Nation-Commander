@@ -41,14 +41,20 @@ export class TerritoryLayer {
     this.group.add(this.fill);
   }
 
-  update(territory: Int8Array): void {
+  /**
+   * `explored`: estado da névoa por célula (0 = nunca visto). Território em terra nunca explorada
+   * não aparece (nem o tom nem a faixa), como no minimapa: a fronteira de um inimigo ainda não
+   * encontrado não se revela antes da hora.
+   */
+  update(territory: Int8Array, explored?: ArrayLike<number>): void {
+    const known = (i: number) => !explored || explored[i]! > 0;
     const { width: w, height: h, cellSize: cs } = this;
     const ctx = this.canvas.getContext('2d')!;
     const img = ctx.createImageData(w, h);
     const color = new THREE.Color();
     for (let i = 0; i < territory.length; i++) {
       const o = territory[i]!;
-      if (o < 0) continue;
+      if (o < 0 || !known(i)) continue;
       color.set(factionColor(o));
       img.data[i * 4] = Math.round(color.r * 255);
       img.data[i * 4 + 1] = Math.round(color.g * 255);
@@ -78,7 +84,7 @@ export class TerritoryLayer {
     for (let y = 0; y < h; y++)
       for (let x = 0; x < w; x++) {
         const o = territory[y * w + x]!;
-        if (o < 0) continue;
+        if (o < 0 || !known(y * w + x)) continue;
         color.set(factionColor(o));
         const X = x * cs;
         const Z = y * cs;
