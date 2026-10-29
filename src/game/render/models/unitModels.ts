@@ -29,6 +29,8 @@ export interface UnitModel {
   guns?: { layers: ModelLayers; pivot: V3; elev: number; muzzle: V3; recoil: number }[];
   /** Tipo de disparo visível (projétil que sai da boca do cano). */
   shot?: 'apfsds' | 'howitzer' | 'flak' | 'autocannon';
+  /** Lentes e luzes acesas na torre (referencial da torre): disco brilhante com halo, voltado para `normal`. */
+  glow?: { at: V3; normal: V3; r: number; color: string }[];
 }
 
 type V3 = [number, number, number];
@@ -111,6 +113,7 @@ const cache = new Map<string, UnitModel>();
 const ERA_BUILDERS: Partial<Record<UnitType, { from: number; build: () => BuiltUnit }>> = {
   rocket_artillery: { from: 4, build: buildRocketArtilleryFuture },
   artillery: { from: 4, build: buildArtilleryFuture },
+  mbt: { from: 4, build: t90Future },
 };
 
 /** Chave do modelo da unidade na era dada (muda quando a era troca o veículo). */
@@ -601,6 +604,223 @@ function t90(modern: boolean): BuiltUnit {
     muzzle: [g0 + gun + 0.18, 0.18, 0],
     guns: [{ layers: gunL.build(), pivot: [g0, 0.18, 0], elev: 0, muzzle: [gun + 0.18, 0, 0], recoil: 0.32 }],
     shot: 'apfsds',
+  };
+}
+
+/**
+ * Tanque Moderno do Futuro Próximo (T-90M "Proryv" levado ao extremo): casco mais largo e longo, glacis coberto de
+ * blocos reativos, saias reativas em toda a lateral, para-lamas dianteiros grandes e inclinados, torre angular em
+ * cunha com módulos reativos em ponta de flecha, bloqueadores Shtora com lentes vermelhas acesas (`glow`), mira
+ * panorâmica do comandante com lente azul, estação de armas remota, gaiola de grades na traseira da torre, bancos de
+ * fumígenos e canhão longo com luva térmica, sensor de referência na boca e boca larga.
+ */
+function t90Future(): BuiltUnit {
+  const s = 1.18;
+  const green = '#5d634c';
+  const dark = '#43473a';
+  const era = '#6a6f58';
+  const black = '#1b1c19';
+  const hull = layers();
+  const b = hull.body;
+  const L = 1.12 * s;
+  const W = 0.5 * s;
+  b.side(
+    [
+      [-L, 0.28],
+      [L - 0.1, 0.28],
+      [L + 0.16, 0.42],
+      [L - 0.12, 0.68],
+      [-L + 0.05, 0.7],
+      [-L - 0.06, 0.5],
+    ],
+    W * 2,
+    green,
+  );
+  const tl = 2.3 * s;
+  const tz = 0.62 * s;
+  tracks(b, tl, tz, 0.48, 0.32);
+  tracks(b, tl, -tz, 0.48, 0.32);
+  const xs = [-0.85, -0.51, -0.17, 0.17, 0.51, 0.85].map((x) => x * s);
+  roadWheels(b, xs, 0.22, tz + 0.17, 0.2, 0.06, green);
+  roadWheels(b, xs, 0.22, -tz - 0.17, 0.2, 0.06, green);
+  trackDetail(b, tl, tz, 0.48, 0.32);
+  trackDetail(b, tl, -tz, 0.48, 0.32);
+  for (const z of [tz, -tz]) b.box(tl + 0.12, 0.035, 0.38, dark, [0, 0.52, z]);
+  // saias reativas em toda a lateral (blocos com moldura) e aba de borracha embaixo
+  for (const side of [1, -1]) {
+    const z = side * (tz + 0.2);
+    for (let i = 0; i < 6; i++) {
+      const x = L - 0.22 - i * 0.37 * s;
+      b.box(0.34 * s, 0.22, 0.05, era, [x, 0.43, z]);
+      b.box(0.34 * s, 0.03, 0.06, dark, [x, 0.55, z]);
+      b.box(0.012, 0.22, 0.06, dark, [x + 0.17 * s, 0.43, z]);
+    }
+    b.box(tl, 0.07, 0.02, black, [0, 0.29, z]);
+    // para-lama dianteiro grande, inclinado para baixo (o "queixo" da foto)
+    b.box(0.42, 0.04, 0.42, dark, [L + 0.04, 0.5, side * tz], [side * 0.12, 0, -0.42]);
+    b.box(0.04, 0.2, 0.42, dark, [L + 0.22, 0.38, side * tz], [0, 0, -0.2]);
+  }
+  // glacis: três fileiras de blocos reativos em "V"
+  {
+    const p0 = [L + 0.16, 0.42];
+    const p1 = [L - 0.12, 0.68];
+    const dx = p1[0]! - p0[0]!;
+    const dy = p1[1]! - p0[1]!;
+    const len = Math.hypot(dx, dy);
+    const nx = dy / len;
+    const ny = -dx / len;
+    const ang = Math.atan2(dy, dx);
+    for (let row = 0; row < 3; row++) {
+      const k = 0.2 + row * 0.3;
+      const x = p0[0]! + dx * k + nx * 0.035;
+      const y = p0[1]! + dy * k + ny * 0.035;
+      for (const side of [-1, 1])
+        for (let i = 0; i < 4; i++) {
+          const z = side * (0.07 + i * 0.13) * s;
+          b.box(len * 0.28, 0.06, 0.12, era, [x - Math.abs(z) * 0.06, y, z], [side * 0.2, 0, ang]);
+        }
+    }
+  }
+  b.box(0.07, 0.1, W * 1.9, dark, [L + 0.15, 0.34, 0]);
+  // faróis em gaiolas e escotilha do motorista com periscópios
+  for (const z of [0.38, -0.38]) {
+    b.box(0.07, 0.08, 0.1, C.steel, [L - 0.05, 0.67, z * s]);
+    b.box(0.09, 0.02, 0.13, dark, [L - 0.05, 0.72, z * s]);
+    b.box(0.02, 0.1, 0.13, dark, [L - 0.0, 0.67, z * s]);
+  }
+  b.box(0.18, 0.04, 0.22, dark, [0.74 * s, 0.71, 0]);
+  hull.glass.box(0.03, 0.04, 0.14, '#ffffff', [0.84 * s, 0.73, 0]);
+  // convés do motor: grades, tampas e cabo
+  for (let i = 0; i < 7; i++) b.box(0.05, 0.014, 0.7 * s, C.metalDark, [-0.4 * s - i * 0.085, 0.706, 0]);
+  b.cyl(0.016, 0.016, 0.9 * s, C.metal, [-1.0 * s, 0.72, 0.05], [Math.PI / 2, 0, 0], 5);
+  // traseira: tambores, tronco e escape
+  for (const z of [0.3, -0.3]) b.cyl(0.1, 0.1, 0.34, dark, [-L - 0.09, 0.64, z * s], [0, 0, Math.PI / 2], 10);
+  b.cyl(0.06, 0.06, W * 1.95, '#4c3f2e', [-L - 0.03, 0.79, 0], [Math.PI / 2, 0, 0], 8);
+  // caixas sobre os para-lamas
+  for (const z of [tz + 0.07, -tz - 0.07]) for (const x of [-0.78, -0.4, -0.02]) b.box(0.32 * s, 0.12, 0.17, dark, [x * s, 0.6, z]);
+  hull.accent.box(0.32, 0.1, 0.02, '#ffffff', [-0.88 * s, 0.58, W + 0.013]);
+  hull.accent.box(0.32, 0.1, 0.02, '#ffffff', [-0.88 * s, 0.58, -W - 0.013]);
+
+  // --- torre angular em cunha
+  const turret = layers();
+  const t = turret.body;
+  t.plan(
+    [
+      [0.58 * s, 0.1 * s],
+      [0.48 * s, 0.46 * s],
+      [-0.3 * s, 0.52 * s],
+      [-0.7 * s, 0.42 * s],
+      [-0.74 * s, 0],
+      [-0.7 * s, -0.42 * s],
+      [-0.3 * s, -0.52 * s],
+      [0.48 * s, -0.46 * s],
+      [0.58 * s, -0.1 * s],
+    ],
+    0.3,
+    green,
+  );
+  // teto facetado: placa superior mais estreita e chanfros
+  t.plan(
+    [
+      [0.4 * s, 0.1 * s],
+      [0.3 * s, 0.38 * s],
+      [-0.3 * s, 0.44 * s],
+      [-0.62 * s, 0.34 * s],
+      [-0.62 * s, -0.34 * s],
+      [-0.3 * s, -0.44 * s],
+      [0.3 * s, -0.38 * s],
+      [0.4 * s, -0.1 * s],
+    ],
+    0.08,
+    green,
+    [0, 0.3, 0],
+  );
+  // módulos reativos em ponta de flecha na frente da torre (Relikt): três camadas por lado, abertas em leque
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 4; i++) {
+      const z = side * (0.15 + i * 0.1) * s;
+      const x = 0.56 * s - i * 0.07;
+      t.box(0.3 * s, 0.24, 0.1, era, [x, 0.17, z], [0, side * 0.62, 0]);
+      t.box(0.3 * s, 0.03, 0.11, dark, [x, 0.3, z], [0, side * 0.62, 0]);
+      t.box(0.3 * s, 0.03, 0.11, dark, [x, 0.05, z], [0, side * 0.62, 0]);
+    }
+    // blocos reativos do teto, à frente das escotilhas
+    for (let i = 0; i < 2; i++) t.box(0.18 * s, 0.04, 0.14, era, [(0.28 - i * 0.2) * s, 0.4, side * 0.3 * s], [0, side * 0.2, 0]);
+  }
+  // mantelete grande com capa e berço do canhão
+  t.box(0.26, 0.24, 0.3, dark, [0.62 * s, 0.19, 0]);
+  t.box(0.08, 0.26, 0.34, black, [0.74 * s, 0.19, 0]);
+  // Shtora: caixas dos bloqueadores com lente (o brilho vermelho vem de `glow`)
+  for (const z of [0.25, -0.25]) {
+    t.box(0.18, 0.16, 0.2, dark, [0.62 * s, 0.4, z * s]);
+    t.box(0.03, 0.17, 0.21, black, [0.72 * s, 0.4, z * s]);
+  }
+  // mira do atirador (caixa com portas) e mira panorâmica do comandante em mastro (lente azul)
+  t.box(0.24, 0.16, 0.16, dark, [0.2 * s, 0.47, -0.28 * s]);
+  turret.glass.box(0.02, 0.09, 0.11, '#ffffff', [0.33 * s, 0.48, -0.28 * s]);
+  t.cyl(0.04, 0.05, 0.16, dark, [-0.05 * s, 0.5, 0.06 * s], undefined, 8);
+  t.box(0.2, 0.16, 0.18, dark, [-0.05 * s, 0.64, 0.06 * s]);
+  t.cyl(0.1, 0.1, 0.18, dark, [-0.08 * s, 0.75, 0.06 * s], undefined, 14);
+  // cúpula do comandante com estação de armas remota (metralhadora e cofre de munição)
+  t.cyl(0.14, 0.15, 0.08, dark, [-0.25 * s, 0.42, 0.26 * s], undefined, 12);
+  t.box(0.26, 0.14, 0.18, C.metalDark, [-0.25 * s, 0.53, 0.26 * s]);
+  t.box(0.5, 0.035, 0.035, black, [0.03, 0.56, 0.26 * s]);
+  t.box(0.12, 0.1, 0.1, C.metalDark, [-0.3 * s, 0.53, 0.37 * s]);
+  turret.glass.box(0.02, 0.05, 0.07, '#ffffff', [-0.12 * s, 0.56, 0.2 * s]);
+  t.cyl(0.08, 0.08, 0.04, dark, [-0.25 * s, 0.4, -0.22 * s], undefined, 10);
+  // bancos de fumígenos (6 tubos por lado, em leque)
+  for (const z of [0.47, -0.47])
+    for (let r = 0; r < 2; r++) for (let i = 0; i < 3; i++) t.cyl(0.028, 0.028, 0.14, black, [(0.1 - i * 0.08) * s, 0.34 + r * 0.06, z * s], [Math.sign(z) * 0.7, 0, 0.6], 6);
+  // caixas laterais reativas e cesto traseiro com gaiola de grades (proteção contra foguetes)
+  for (const z of [0.5, -0.5]) t.box(0.46 * s, 0.18, 0.1, era, [-0.3 * s, 0.17, z * s]);
+  t.box(0.3 * s, 0.24, 0.8 * s, dark, [-0.82 * s, 0.2, 0]);
+  {
+    const x0 = -1.04 * s;
+    const zs = 0.5 * s;
+    for (let i = 0; i <= 8; i++) {
+      const z = -zs + (i / 8) * zs * 2;
+      t.box(0.02, 0.36, 0.02, black, [x0, 0.22, z]);
+    }
+    for (let i = 0; i <= 3; i++) {
+      const x = x0 + i * 0.1;
+      for (const z of [zs, -zs]) t.box(0.02, 0.36, 0.02, black, [x, 0.22, z]);
+    }
+    for (const y of [0.06, 0.38]) {
+      t.box(0.02, 0.02, zs * 2, black, [x0, y, 0]);
+      for (const z of [zs, -zs]) t.box(0.3, 0.02, 0.02, black, [x0 + 0.15, y, z]);
+    }
+  }
+  // sensor de vento e antenas
+  t.cyl(0.01, 0.01, 0.22, black, [-0.55 * s, 0.5, -0.1 * s], undefined, 4);
+  t.box(0.06, 0.03, 0.03, black, [-0.55 * s, 0.62, -0.1 * s]);
+  t.cyl(0.008, 0.008, 1.0, C.metalDark, [-0.62 * s, 0.82, 0.36 * s], [0, 0, -0.1], 4);
+  t.cyl(0.008, 0.008, 0.7, C.metalDark, [-0.66 * s, 0.67, -0.38 * s], [0, 0, -0.12], 4);
+  turret.accent.box(0.4, 0.08, 0.02, '#ffffff', [-0.34 * s, 0.2, 0.556 * s]);
+  turret.accent.box(0.4, 0.08, 0.02, '#ffffff', [-0.34 * s, 0.2, -0.556 * s]);
+
+  // canhão longo com luva térmica, evacuador, sensor de referência na boca e boca larga
+  const gun = 2.15;
+  const g0 = 0.78 * s;
+  const gunL = layers();
+  const gb = gunL.body;
+  gb.cyl(0.054, 0.07, gun, dark, [gun / 2, 0, 0], [0, 0, Math.PI / 2], 16);
+  for (const x of [0.3, 0.75, 1.5, 1.85]) gb.cyl(0.076, 0.076, 0.05, green, [x, 0, 0], [0, 0, Math.PI / 2], 14);
+  gb.cyl(0.09, 0.09, 0.28, green, [1.1, 0, 0], [0, 0, Math.PI / 2], 16);
+  gb.box(0.08, 0.05, 0.05, black, [gun - 0.05, 0.08, 0]);
+  openMuzzle(gb, gun + 0.16, 0.16, 0.074, 0.046, dark, 20);
+  return {
+    hull: hull.build(),
+    turret: turret.build(),
+    turretPivot: [-0.1 * s, 0.7, 0],
+    muzzle: [g0 + gun + 0.18, 0.19, 0],
+    guns: [{ layers: gunL.build(), pivot: [g0, 0.19, 0], elev: 0, muzzle: [gun + 0.18, 0, 0], recoil: 0.34 }],
+    shot: 'apfsds',
+    // lentes acesas: Shtora vermelhas e o brilho azul da mira panorâmica
+    glow: [
+      { at: [0.736 * s, 0.4, 0.25 * s], normal: [1, 0, 0], r: 0.055, color: '#ff3a24' },
+      { at: [0.736 * s, 0.4, -0.25 * s], normal: [1, 0, 0], r: 0.055, color: '#ff3a24' },
+      { at: [0.06 * s, 0.75, 0.06 * s], normal: [1, 0, 0], r: 0.035, color: '#5ab4ff' },
+    ],
   };
 }
 

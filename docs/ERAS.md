@@ -61,6 +61,15 @@ velocidade sem o efeito estroboscópico.
 - plataforma com caixas de equipamento e patolas;
 - torre facetada grande, em cunha, com cano longo e fino, freio de boca e sensor eletro-óptico cilíndrico na traseira.
 
+**Tanque Moderno do Futuro Próximo** (`t90Future`), inspirado no T-90M "Proryv":
+- casco mais largo, glacis coberto por três fileiras de blocos reativos, saias reativas em toda a lateral e para-lamas
+  dianteiros grandes e inclinados;
+- torre angular em cunha com módulos reativos em ponta de flecha;
+- bloqueadores Shtora com lentes vermelhas **acesas** e mira panorâmica do comandante com lente azul acesa (`glow` no
+  modelo: disco brilhante com halo aditivo);
+- estação de armas remota, bancos de fumígenos, gaiola de grades na traseira da torre;
+- canhão longo com luva térmica e sensor de referência na boca.
+
 As unidades já em campo trocam de modelo ao serem modernizadas na era nova.
 
 As tropas novas saem com a pintura da era do dono: cinza-oliva, camuflagem digital clara e compósito escuro. As

@@ -273,6 +273,32 @@ export class UnitVisual {
       for (const m of layerMeshes(model.turret, owner, era)) this.turret.add(m);
       this.body.add(this.turret);
     }
+    // lentes acesas (Shtora do tanque do Futuro Próximo): disco brilhante e halo aditivo, sem sombra
+    for (const g of model.glow ?? []) {
+      if (!this.turret) break;
+      const n = new THREE.Vector3(...g.normal).normalize();
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+      const disc = new THREE.Mesh(
+        sharedGeometry(`glow-disc-${g.r}`, () => new THREE.CircleGeometry(g.r, 20)),
+        sharedMaterial(`glow-core-${g.color}`, () => new THREE.MeshBasicMaterial({ color: new THREE.Color(g.color).multiplyScalar(1.6), toneMapped: false })),
+      );
+      const halo = new THREE.Mesh(
+        sharedGeometry(`glow-halo-${g.r}`, () => new THREE.CircleGeometry(g.r * 2.1, 24)),
+        sharedMaterial(
+          `glow-halo-${g.color}`,
+          () => new THREE.MeshBasicMaterial({ color: g.color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+        ),
+      );
+      for (const [m, off] of [
+        [disc, 0.004],
+        [halo, 0.008],
+      ] as const) {
+        m.quaternion.copy(q);
+        m.position.set(...g.at).addScaledVector(n, off);
+        m.castShadow = false;
+        this.turret.add(m);
+      }
+    }
     for (const def of model.guns ?? []) {
       if (!this.turret) break;
       // suporte na culatra com a elevação; o cano dentro dele recua ao longo do próprio eixo
