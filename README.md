@@ -292,6 +292,11 @@ construções e níveis de melhoria e troca a aparência de todas as construçõ
 Hidrelétrica, Centro Financeiro e o Programa Espacial, cujo satélite revela o mapa inteiro e orbita o globo. Detalhes
 em `docs/GRANDES_PROJETOS_E_ESPACO.md`.
 
+**Estradas e Engenharia de Combate:** o jogador pavimenta estradas arrastando na grade (pedra e verba de obras); tropas
+e comboios andam mais rápido nelas, e moradias ligadas à estrada melhoram a aprovação. O Engenheiro de Combate instala
+minas antitanque (invisíveis ao inimigo e ao satélite), remove as inimigas, pavimenta fora do território e ergue
+obstáculos antitanque. Detalhes em `docs/ESTRADAS_ENGENHARIA.md`.
+
 **Dificuldade e veterania:** contra a IA, o anfitrião escolhe Fácil, Normal, Difícil ou Brutal, que mudam o preparo
 (12 a 3 min), as ondas, o uso de aviões e mísseis e os incidentes de fronteira no preparo. Tropas que abatem
 inimigos sobem de patente (Veterano, Elite, Herói), com mais dano e vida e insígnia. Detalhes em

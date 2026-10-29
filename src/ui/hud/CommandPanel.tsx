@@ -15,6 +15,8 @@ import {
   UNITS,
   PRODUCTION_QUEUE_LIMIT,
   SPACE,
+  MINE,
+  ROAD,
   canAfford,
   emptyStockpile,
   type BuildingType,
@@ -55,6 +57,7 @@ const BUILD_OPTIONS: BuildingType[] = [
   'factory',
   'research_center',
   'tower',
+  'tank_trap',
   'residential',
   'city_hall',
   'market',
@@ -163,6 +166,13 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             </div>
           )}
           {mode.kind === 'air_target' && <ModeHint {...airTargetText(mode.purpose, touch, mode.target !== null, runtime.missileGenOf(mode.sourceId))} />}
+          {mode.kind === 'lay_mine' && (
+            <ModeHint
+              title="Instalar mina antitanque"
+              text={`${touch ? 'Toque' : 'Clique'} no ponto: o engenheiro mais próximo vai até lá e fica ${MINE.laySeconds} s parado instalando. Só veículos inimigos detonam; o inimigo não vê a mina sem engenheiro, forças especiais ou reconhecimento aéreo.${touch ? '' : ' Shift mantém a ferramenta.'}`}
+            />
+          )}
+          {mode.kind === 'road' && <RoadHint mode={mode} touch={touch} worksCap={worksCap} stone={resources.stone} />}
           {mode.kind === 'attack_move' && <ModeHint title="Avançar atacando" text={`${touch ? 'Toque' : 'Clique'} no destino. As unidades atacam o que encontrarem pelo caminho.`} />}
           {mode.kind === 'normal' && units.length > 0 && <UnitsInfo units={units} />}
           {mode.kind === 'normal' && units.length === 0 && building && <BuildingInfo b={building} runtime={runtime} />}
@@ -218,6 +228,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             <CardButton icon="⚔" hotkey="F" label="Avançar atacando" onClick={() => runtime.startAttackMove()} title="Avançar atacando (F)" />
             <CardButton icon="■" hotkey="X" label="Parar" onClick={() => runtime.stopSelected()} title="Parar (X)" />
             <ModernizeButtons runtime={runtime} />
+            {units.some((u) => u.type === 'engineer') && <EngineerButtons runtime={runtime} />}
           </>
         )}
         {mode.kind === 'place' && touch && (
@@ -244,6 +255,14 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           />
         )}
         {building?.type === 'hq' && mode.kind === 'normal' && runtime.battleOp === null && <EraButton runtime={runtime} />}
+        {building?.type === 'hq' && mode.kind === 'normal' && runtime.battleOp === null && (
+          <CardButton
+            icon="▤"
+            label="Estrada"
+            onClick={() => runtime.startRoad()}
+            title={`Estrada: arraste na grade para pavimentar até ${ROAD.maxCells} células por vez, dentro do território (fora dele, só com um Engenheiro de Combate por perto).\nCusto: ${ROAD.stonePerCell} de pedra por célula e verba de obras; manutenção pequena em suprimentos.\nTropas e comboios andam ${Math.round((ROAD.convoyMul - 1) * 100)}% mais rápido; moradias ligadas à estrada dão aprovação (bairro pavimentado).`}
+          />
+        )}
         {building?.type === 'hq' &&
           mode.kind === 'normal' &&
           runtime.battleOp === null &&
@@ -290,6 +309,76 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
         {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'space_center' && <SpaceButtons runtime={runtime} b={building} />}
       </div>
     </div>
+  );
+}
+
+/** Dica e custo do traçado de estrada em andamento. */
+function RoadHint({ mode, touch, worksCap, stone }: { mode: Extract<ReturnType<typeof useHudStore.getState>['mode'], { kind: 'road' }>; touch: boolean; worksCap: number; stone: number }) {
+  const cost = mode.cells * ROAD.stonePerCell;
+  const usd = Math.round(worksCap * ROAD.usdSharePerCell * mode.cells);
+  const how = touch
+    ? mode.started
+      ? 'Toque no fim do traçado para pavimentar.'
+      : 'Toque no começo do traçado.'
+    : 'Clique e arraste na grade; solte para pavimentar. Botão direito ou Esc sai da ferramenta.';
+  return (
+    <div>
+      <ModeHint title="Construir estrada" text={mode.reason ? `Traçado inválido: ${mode.reason}` : how} bad={!!mode.reason} />
+      {mode.cells > 0 && (
+        <div className="mt-1.5 text-xs text-ink-400">
+          {mode.cells} célula(s) · <span className={stone < cost ? 'text-signal-red' : 'text-ink-200'}>{cost} de pedra</span>
+          {usd > 0 && <span className="text-signal-green"> · {usdShort(usd)} da verba de obras</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Engenheiro de Combate (lote 3): minas antitanque, estradas fora do território e obstáculos.
+ * Recalculado a cada publicação do HUD (saldo e minas no mapa).
+ */
+function EngineerButtons({ runtime }: { runtime: GameRuntime }) {
+  useHudStore((s) => s.tick);
+  const me = useHudStore((s) => s.players.find((p) => p.slot === s.mySlot));
+  const resources = me?.resources ?? emptyStockpile();
+  const mines = runtime.myMineCount();
+  const full = mines >= MINE.perNation;
+  const sandbox = isSandboxMatch();
+  const afford = sandbox || canAfford(resources, MINE.cost);
+  const trap = BUILDINGS.tank_trap;
+  return (
+    <>
+      <CardButton
+        icon="✸"
+        label="Instalar mina"
+        blocked={full || !afford}
+        short={full ? 'limite' : !afford ? 'recursos' : null}
+        badge={`${mines}/${MINE.perNation}`}
+        onClick={() =>
+          full || !afford
+            ? useHudStore.getState().pushEvent({ tick: useHudStore.getState().tick, text: full ? `Limite de ${MINE.perNation} minas por nação` : 'Recursos insuficientes para a mina', tone: 'warn' })
+            : runtime.startLayMine()
+        }
+        title={`Mina antitanque: o engenheiro instala parado (${MINE.laySeconds} s). Detona só com veículos inimigos (${MINE.damage} de dano, metade em volta). Invisível ao inimigo e ao satélite; engenheiros e forças especiais inimigos a detectam a ${MINE.detectRange} m e a removem parados ao lado.\nLimite: ${MINE.perNation} por nação.`}
+      >
+        <CostLabel cost={MINE.cost} have={resources} compact />
+      </CardButton>
+      <CardButton
+        icon="▤"
+        label="Estrada"
+        onClick={() => runtime.startRoad()}
+        title={`Estrada: com o engenheiro por perto (${ROAD.engineerRange} células), dá para pavimentar fora do território — terra neutra ou de um país em guerra.\nCusto: ${ROAD.stonePerCell} de pedra por célula e verba de obras.`}
+      />
+      <CardButton
+        thumb={useHudStore.getState().thumbs.tank_trap}
+        label={trap.label}
+        onClick={() => runtime.startPlacement('tank_trap')}
+        title={`${trap.label} — ${trap.description}\nCom o engenheiro por perto, pode ser erguido fora do território.`}
+      >
+        <CostLabel cost={trap.cost} have={resources} compact />
+      </CardButton>
+    </>
   );
 }
 

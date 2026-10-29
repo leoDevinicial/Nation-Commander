@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { GameSpeed, MatchStartInfo, ServerMessage } from '../../shared/protocol.ts';
 import type { Command, SandboxToggle } from '../../shared/sim/commands.ts';
-import { BUILDINGS, CITIZEN, CITY, MILITARY_RESEARCH, MILITARY_RESEARCH_IDS, RECRUIT, RESOURCE_TYPES, TICK_RATE, UNITS, emptyStockpile, type BuildingType, type MilitaryResearchId, type Terrain, type UnitType } from '../../shared/sim/config.ts';
+import { BUILDINGS, CITIZEN, CITY, MILITARY_RESEARCH, MILITARY_RESEARCH_IDS, RECRUIT, RESOURCE_TYPES, ROAD, TICK_RATE, UNITS, emptyStockpile, type BuildingType, type MilitaryResearchId, type Terrain, type UnitType } from '../../shared/sim/config.ts';
 import { MOD_IDS, MODS, checkModernize, pickRefitFacility, type FacilityInfo, type ModId, type ModernizeCheck } from '../../shared/sim/modernization.ts';
 import { anchorForCursor, placementError } from '../../shared/sim/placement.ts';
 import type { BuildingSnapshot, Snapshot, UnitSnapshot } from '../../shared/sim/snapshot.ts';
@@ -28,6 +28,8 @@ import { buildingEffects, planUpgrade, type SpecId, type UpgradePlan, type Upgra
 import { combineEffects } from '../../shared/strategic/technologies.ts';
 import { useNationalStore } from '../state/useNationalStore.ts';
 import { Terrain as T } from '../../shared/sim/config.ts';
+import { MineLayer } from './render/MineLayer.ts';
+import { RoadPreview, gridLine } from './render/RoadPreview.ts';
 import { TerritoryLayer } from './render/TerritoryLayer.ts';
 import { createSky, environmentFromSky, SKY } from './render/Sky.ts';
 import { cloudShadowTexture, disposeTextures, grimeTexture, windowTexture } from './render/textures.ts';
@@ -188,6 +190,8 @@ export class GameRuntime {
   private readonly heardFlights = new Set<number>();
   /** Aeronaves, mísseis, faróis dos silos e alvos (Fase 7). */
   private readonly airLayer: AirLayer;
+  private mineLayer!: MineLayer;
+  private roadPreview!: RoadPreview;
   private readonly rocketLayer: RocketLayer;
   private readonly trackMarks: TrackMarks;
   private readonly projectiles: Projectiles;
@@ -329,6 +333,10 @@ export class GameRuntime {
     if (opts.profile.envProbe) this.probe = opts.profile.cinematic ? new EnvironmentProbe(this.renderer, this.scene, 128, 1500) : new EnvironmentProbe(this.renderer, this.scene);
     this.territoryLayer = new TerritoryLayer(this.map.width, this.map.height, this.map.cellSize, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.territoryLayer.group);
+    this.mineLayer = new MineLayer(this.mySlot, (x, z) => this.groundHeight(x, z));
+    this.scene.add(this.mineLayer.group);
+    this.roadPreview = new RoadPreview(this.map.cellSize, (x, z) => this.groundHeight(x, z));
+    this.scene.add(this.roadPreview.mesh);
     this.citizens = new CitizenLayer(this.map, this.mySlot, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.citizens.group);
     this.scene.add(this.cargo.group);
@@ -502,9 +510,11 @@ export class GameRuntime {
         }
     }
     this.snapshot = s;
+    this.mineLayer.update(s.mines ?? []);
     if (s.territory) {
       this.territory = decodeTerritory(s.territory);
       this.territoryLayer.update(this.territory);
+      this.applyRoads(s.roads ?? []);
     }
     this.snapshotAt = performance.now();
     this.paused = msg.paused;
@@ -625,10 +635,24 @@ export class GameRuntime {
 
   /** Chave do conjunto de construções já aplicado à vegetação (só recalcula quando muda). */
   private decorKey = '';
+  /** Estradas construídas pelos jogadores já pintadas no solo. */
+  private readonly roadCells = new Set<number>();
+
+  /** Estradas novas (vêm junto com o território): terreno local, solo e vegetação por cima. */
+  private applyRoads(cells: readonly number[]): void {
+    const fresh = cells.filter((i) => !this.roadCells.has(i));
+    if (!fresh.length) return;
+    for (const i of fresh) {
+      this.roadCells.add(i);
+      this.map.terrain[i] = T.Road;
+    }
+    this.terrain.repaint(fresh);
+    this.decorKey = '';
+  }
 
   /** Árvores, arbustos e pedras decorativos somem sob as construções (e voltam quando elas caem). */
   private clearDecorUnderBuildings(): void {
-    const key = [...this.buildings.keys()].join(',');
+    const key = `${[...this.buildings.keys()].join(',')}|${this.roadCells.size}`;
     if (key === this.decorKey) return;
     this.decorKey = key;
     const cs = this.map.cellSize;
@@ -636,6 +660,11 @@ export class GameRuntime {
       const size = BUILDINGS[b.type].size;
       return { x0: b.cx * cs, z0: b.cy * cs, x1: (b.cx + size) * cs, z1: (b.cy + size) * cs };
     });
+    for (const i of this.roadCells) {
+      const cx = i % this.map.width;
+      const cy = Math.floor(i / this.map.width);
+      rects.push({ x0: cx * cs, z0: cy * cs, x1: (cx + 1) * cs, z1: (cy + 1) * cs });
+    }
     if (this.terrain.clearUnder(rects)) this.shadowDirty = true;
   }
 
@@ -722,6 +751,13 @@ export class GameRuntime {
       const at = e.air ? this.airLayer.planeDown(e.pos, e.owner) : new THREE.Vector3(e.pos.x, 6.5, e.pos.y);
       this.effects.explosion(at, false);
       this.effects.flash(at, 1.1, '#ffd38a', 0.4);
+    } else if (e.type === 'mine' && e.state === 'blast') {
+      // mina antitanque: explosão no chão, cratera e coluna de terra
+      const at = new THREE.Vector3(e.pos.x, 0, e.pos.y);
+      this.effects.explosion(at, true);
+      this.effects.scorch(e.pos, 1.6, 30);
+      this.effects.plume(at.clone().setY(0.3), { count: 4, size: 1.1, rise: 3, life: 3.5, spread: 0.5, tone: 0.45 });
+      this.shakeNear(e.pos, 0.35);
     } else if (e.type === 'space' && e.state === 'ascent') {
       // ignição do lançador: clarão, nuvem de fumaça rolando da plataforma e tremor longo
       const pad = new THREE.Vector3(e.pos.x + SPACE_PAD[0], 0.4, e.pos.y + SPACE_PAD[2]);
@@ -900,6 +936,7 @@ export class GameRuntime {
         this.dying.splice(i, 1);
       }
     this.trackMarks.update(dt);
+    this.mineLayer.tick(dt);
     this.updateAirTargeting();
     if (this.hudActive) {
       audio.setListener(this.cameraCtl.target.x, this.cameraCtl.target.z, this.cameraCtl.distance, this.cameraCtl.yaw);
@@ -1872,6 +1909,107 @@ export class GameRuntime {
     return [...this.selection].filter((id) => this.units.get(id)?.snap.owner === this.mySlot);
   }
 
+  private myEngineerIds(): number[] {
+    return this.myUnitIds().filter((id) => this.units.get(id)?.snap.type === 'engineer');
+  }
+
+  /** Minas próprias no mapa (limite por nação no painel do engenheiro). */
+  myMineCount(): number {
+    return (this.snapshot?.mines ?? []).filter((m) => m.owner === this.mySlot).length;
+  }
+
+  /** Engenheiros selecionados: escolher no mapa onde instalar uma mina antitanque. */
+  startLayMine(): void {
+    if (this.myEngineerIds().length) this.setMode({ kind: 'lay_mine' });
+  }
+
+  private layMineAt(clientX: number, clientY: number): void {
+    const p = this.groundAt(clientX, clientY);
+    const ids = this.myEngineerIds();
+    if (!p || !ids.length) return;
+    this.send({ type: 'lay_mine', unitIds: ids, x: p.x, y: p.y });
+    this.effects.flash(new THREE.Vector3(p.x, 0.1, p.y), 0.4, '#e0b44c', 0.35);
+  }
+
+  /** Ferramenta de estrada: arrastar na grade (ou dois toques) e soltar para pavimentar. */
+  startRoad(): void {
+    this.roadStart = null;
+    this.roadPreview.set([]);
+    this.setMode({ kind: 'road', started: false, cells: 0, reason: null });
+  }
+
+  private roadStart: { cx: number; cy: number } | null = null;
+  private roadLine: { cx: number; cy: number }[] = [];
+
+  private cellAtScreen(clientX: number, clientY: number): { cx: number; cy: number } | null {
+    const p = this.groundAt(clientX, clientY);
+    if (!p) return null;
+    const cx = Math.floor(p.x / this.map.cellSize);
+    const cy = Math.floor(p.y / this.map.cellSize);
+    return cx >= 0 && cy >= 0 && cx < this.map.width && cy < this.map.height ? { cx, cy } : null;
+  }
+
+  /**
+   * Prévia do traçado com as regras que o cliente consegue conferir (terreno, construções,
+   * território e engenheiro por perto); a simulação confere o resto (guerra, pedra e verba).
+   */
+  private updateRoadPreview(end: { cx: number; cy: number } | null): void {
+    if (this.mode.kind !== 'road') return;
+    const start = this.roadStart ?? end;
+    if (!start || !end) {
+      this.roadPreview.set([]);
+      return;
+    }
+    const line = gridLine(start, end, ROAD.maxCells);
+    this.roadLine = line;
+    const W = this.map.width;
+    const occupied = new Set<number>();
+    for (const { snap: b } of this.buildings.values()) {
+      const size = BUILDINGS[b.type].size;
+      for (let dy = 0; dy < size; dy++) for (let dx = 0; dx < size; dx++) occupied.add((b.cy + dy) * W + b.cx + dx);
+    }
+    const engineers = [...this.units.values()].filter((u) => u.snap.owner === this.mySlot && u.snap.type === 'engineer').map((u) => u.curr);
+    const reach = ROAD.engineerRange * this.map.cellSize;
+    let reason: string | null = null;
+    let fresh = 0;
+    const cells = line.map((c) => {
+      const i = c.cy * W + c.cx;
+      const t = this.map.terrain[i];
+      if (t === T.Road) return { ...c, state: 'road' as const };
+      let bad: string | null = null;
+      if (t !== T.Plains && t !== T.Fertile) bad = 'Estradas só em planície ou solo fértil';
+      else if (occupied.has(i)) bad = 'Há uma construção no traçado';
+      else if (this.territory[i] !== this.mySlot) {
+        const x = (c.cx + 0.5) * this.map.cellSize;
+        const z = (c.cy + 0.5) * this.map.cellSize;
+        if (!engineers.some((p) => Math.hypot(p.x - x, p.y - z) <= reach)) bad = 'Fora do território: só com um Engenheiro de Combate por perto';
+      }
+      reason ??= bad;
+      if (!bad) fresh++;
+      return { ...c, state: bad ? ('bad' as const) : ('ok' as const) };
+    });
+    this.roadPreview.set(cells);
+    if (!reason && fresh === 0) reason = 'O traçado já é estrada';
+    const m = this.mode;
+    if (m.started !== !!this.roadStart || m.cells !== fresh || m.reason !== reason) this.setMode({ kind: 'road', started: !!this.roadStart, cells: fresh, reason });
+  }
+
+  private finishRoad(): void {
+    const line = this.roadLine;
+    this.roadStart = null;
+    this.roadLine = [];
+    this.roadPreview.set([]);
+    if (this.mode.kind !== 'road') return;
+    const reason = this.mode.reason;
+    this.setMode({ kind: 'road', started: false, cells: 0, reason: null });
+    if (!line.length) return;
+    if (reason) {
+      useHudStore.getState().pushEvent({ tick: this.snapshot?.tick ?? 0, text: `Estrada: ${reason}`, tone: 'warn' });
+      return;
+    }
+    this.send({ type: 'build_road', cells: line });
+  }
+
   startPlacement(type: BuildingType): void {
     this.setMode({ kind: 'place', buildingType: type, valid: false, reason: null, yield: null });
     this.ghost?.dispose();
@@ -2008,6 +2146,9 @@ export class GameRuntime {
   }
 
   cancelMode(): void {
+    this.roadStart = null;
+    this.roadLine = [];
+    this.roadPreview.set([]);
     if (this.ghost) {
       this.ghost.dispose();
       this.ghost = null;
@@ -2269,6 +2410,13 @@ export class GameRuntime {
       case 'unit_promoted':
         if (mine(e.owner)) audio.ui('success');
         break;
+      case 'mine':
+        if (e.state === 'blast') {
+          audio.playAt('explosion_big', e.pos.x, e.pos.y);
+          if (mine(e.by ?? -1)) audio.ui('alert');
+        } else if (e.state === 'cleared' && mine(e.by ?? -1)) audio.ui('success');
+        else if (e.state === 'laid' && mine(e.owner)) audio.ui('click');
+        break;
       case 'space':
         if (e.state === 'ascent') {
           audio.playAt('missile_launch', e.pos.x, e.pos.y);
@@ -2469,6 +2617,16 @@ export class GameRuntime {
       this.airTargetAt(e.clientX, e.clientY);
       return;
     }
+    if (this.mode.kind === 'lay_mine') {
+      this.layMineAt(e.clientX, e.clientY);
+      if (!e.shiftKey) this.cancelMode();
+      return;
+    }
+    if (this.mode.kind === 'road') {
+      this.roadStart = this.cellAtScreen(e.clientX, e.clientY);
+      this.updateRoadPreview(this.roadStart);
+      return;
+    }
     this.drag = { x: e.clientX, y: e.clientY, active: false, button: 0 };
   }
 
@@ -2505,12 +2663,17 @@ export class GameRuntime {
     }
     this.ghostAt = { x: e.clientX, y: e.clientY };
     if (this.mode.kind === 'place') this.updateGhost();
+    if (this.mode.kind === 'road') this.updateRoadPreview(this.cellAtScreen(e.clientX, e.clientY));
   }
 
   private onPointerUp(e: PointerEvent): void {
     if (this.suspended) return;
     if (e.pointerType === 'touch') {
       this.touch.up(touchPoint(e));
+      return;
+    }
+    if (this.mode.kind === 'road' && e.button === 0 && this.roadStart) {
+      this.finishRoad();
       return;
     }
     const d = this.drag;
@@ -2551,6 +2714,23 @@ export class GameRuntime {
     }
     if (this.mode.kind === 'air_target') {
       this.airTargetAt(x, y);
+      return;
+    }
+    if (this.mode.kind === 'lay_mine') {
+      this.layMineAt(x, y);
+      this.cancelMode();
+      return;
+    }
+    if (this.mode.kind === 'road') {
+      // primeiro toque marca o começo; o segundo, o fim (e pavimenta)
+      const c = this.cellAtScreen(x, y);
+      if (!this.roadStart) {
+        this.roadStart = c;
+        this.updateRoadPreview(c);
+      } else {
+        this.updateRoadPreview(c);
+        this.finishRoad();
+      }
       return;
     }
     if (this.touchTool === 'order') {
@@ -2794,12 +2974,21 @@ export class GameRuntime {
         units: [...this.units.values()].map((t) => ({ type: t.snap.type, pos: { x: t.visual.renderPos.x, y: t.visual.renderPos.y } })),
         resources: me?.resources ?? { supplies: 0, food: 0, wood: 0, stone: 0, iron: 0, oil: 0 },
         territory: this.territory,
+        // obstáculos perto de um engenheiro próprio: fora do território (a guerra o servidor confere)
+        ...(BUILDINGS[type].engineerOutside && this.engineerNearCell(cell) ? { outsideOk: () => true } : {}),
         deposits: this.deposits,
       },
       this.mySlot,
       type,
       cell,
     );
+  }
+
+  private engineerNearCell(cell: Cell): boolean {
+    const x = (cell.cx + 0.5) * this.map.cellSize;
+    const z = (cell.cy + 0.5) * this.map.cellSize;
+    const reach = ROAD.engineerRange * this.map.cellSize;
+    return [...this.units.values()].some((u) => u.snap.owner === this.mySlot && u.snap.type === 'engineer' && Math.hypot(u.curr.x - x, u.curr.y - z) <= reach);
   }
 
   /**
@@ -2935,6 +3124,8 @@ export class GameRuntime {
       for (const v of this.dying.splice(0)) v.dispose();
       this.terrain.dispose();
       this.territoryLayer.dispose();
+      this.mineLayer.dispose();
+      this.roadPreview.dispose();
       this.fogTexture.dispose();
       this.renderer.dispose();
       this.renderer.forceContextLoss();
@@ -2968,6 +3159,8 @@ export class GameRuntime {
     this.skyEnv?.dispose();
     this.terrain.dispose();
     this.territoryLayer.dispose();
+    this.mineLayer.dispose();
+    this.roadPreview.dispose();
     this.fogTexture.dispose();
     fogUniforms.uFogMap.value = null;
     cloudUniforms.uCloudMap.value = null;

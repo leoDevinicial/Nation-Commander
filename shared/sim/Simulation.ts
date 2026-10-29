@@ -2,6 +2,7 @@ import { prepTicks, type Difficulty } from './difficulty.ts';
 import { rankDamageMul, rankFor, rankHpMul } from './veterancy.ts';
 import { countryBonus, type CountryBonus } from './countryBonus.ts';
 import { ERA_CANCEL_REFUND, ERAS, buildingEra, type Era } from './eras.ts';
+import { MineSystem, type MineSave } from './mines.ts';
 import { decodeNonFinite, encodeNonFinite } from './json.ts';
 import {
   BUILDINGS,
@@ -13,6 +14,7 @@ import {
   TERRAIN,
   Terrain,
   PROJECT_FX,
+  ROAD,
   SPACE,
   TICK_RATE,
   TICK_SECONDS,
@@ -118,6 +120,7 @@ export interface SimulationSave {
   incidents?: [string, number][];
   difficulty?: Difficulty;
   eras?: boolean;
+  roads?: { i: number; owner: Slot }[];
   /** Quantidade restante de cada depósito, na ordem determinística de `findDeposits`. */
   depositsRemaining: number[];
   territory: number[];
@@ -127,6 +130,7 @@ export interface SimulationSave {
   trade?: TradeSave;
   /** Força aérea e mísseis (Fase 7). */
   air?: AirSave;
+  mines?: MineSave;
   /** Militares fora do teatro em operações expedicionárias, por jogador (Fase 8). */
   detached?: number[];
   /** Salvas de foguetes ainda em voo. */
@@ -237,6 +241,15 @@ export class Simulation {
   ended = false;
   /** Pares em guerra formal ("a:b", a < b). Sem guerra não há disparo nem ordem de ataque. */
   private readonly wars = new Set<string>();
+  /** Estradas construídas pelos jogadores (célula e dono, para a manutenção). */
+  roads: { i: number; owner: Slot }[] = [];
+
+  roadCount(slot: Slot): number {
+    let n = 0;
+    for (const r of this.roads) if (r.owner === slot) n++;
+    return n;
+  }
+
   /** Incidentes de fronteira em curso ("a:b" → tick em que acabam). */
   private readonly incidents = new Map<string, number>();
   /** Dificuldade da IA (preparo, ondas, aviões e mísseis). */
@@ -260,6 +273,8 @@ export class Simulation {
   readonly trade: TradeSystem = new TradeSystem(this);
   /** Força aérea, antiaérea e mísseis. */
   readonly air: AirSystem = new AirSystem(this);
+  /** Minas antitanque e o trabalho dos engenheiros (lote 3). */
+  readonly mines: MineSystem = new MineSystem(this);
   /** Militares fora do teatro em operações expedicionárias (contam na população). */
   detached: number[] = [];
   /** Batalha local de uma operação (sem atrito territorial). */
@@ -354,12 +369,14 @@ export class Simulation {
       ...(this.incidents.size ? { incidents: [...this.incidents] } : {}),
       ...(this.difficulty !== 'normal' ? { difficulty: this.difficulty } : {}),
       ...(this.eras ? { eras: true } : {}),
+      ...(this.roads.length ? { roads: this.roads.map((r) => ({ ...r })) } : {}),
       depositsRemaining: this.deposits.deposits.map((d) => d.remaining),
       territory: [...this.territory],
       territoryVersion: this.territoryVersion,
       lastAlertTick: this.lastAlertTick,
       trade: this.trade.toSave(),
       air: this.air.toSave(),
+      ...(this.mines.mines.length || this.mines.tasks.length ? { mines: this.mines.toSave() } : {}),
       detached: [...this.detached],
       ...(this.salvos.length ? { salvos: this.salvos.map((v) => ({ ...v, at: { ...v.at } })) } : {}),
       ...(this.battle ? { battle: true } : {}),
@@ -408,6 +425,8 @@ export class Simulation {
     for (const [k, v] of data.incidents ?? []) sim.incidents.set(k, v);
     sim.difficulty = data.difficulty ?? 'normal';
     sim.eras = !!data.eras;
+    sim.roads = (data.roads ?? []).map((r) => ({ ...r }));
+    for (const r of sim.roads) sim.grid.terrain[r.i] = Terrain.Road;
     data.depositsRemaining.forEach((v, i) => {
       const d = sim.deposits.deposits[i];
       if (d) d.remaining = v;
@@ -419,6 +438,7 @@ export class Simulation {
     sim.visibilityTick = -1;
     sim.trade.load(data.trade);
     sim.air.load(data.air);
+    sim.mines.load(data.mines);
     sim.detached = [...(data.detached ?? [])];
     sim.salvos = (data.salvos ?? []).map((v) => ({ ...v, at: { ...v.at } }));
     sim.battle = !!data.battle;
@@ -961,6 +981,23 @@ export class Simulation {
         b.research = null;
         return null;
       }
+      case 'lay_mine':
+        return this.mines.lay(slot, cmd.unitIds, cmd.x, cmd.y);
+      case 'build_road': {
+        const plan = this.roadPlan(slot, cmd.cells);
+        if (plan.error) return plan.error;
+        const free = this.isSandbox(slot);
+        if (!free && this.national && plan.usd > 0 && !this.national.chargeWorks(slot, plan.usd, `Estrada (${plan.cells.length} células)`)) return 'Verba de obras insuficiente para a estrada';
+        if (!free) this.spend(player, { stone: plan.stone });
+        for (const i of plan.cells) {
+          this.map.terrain[i] = Terrain.Road;
+          this.grid.terrain[i] = Terrain.Road;
+          this.roads.push({ i, owner: slot });
+        }
+        // as estradas vão junto com as fronteiras no próximo snapshot
+        this.territoryVersion++;
+        return null;
+      }
       case 'space_launch': {
         const b = this.entities.get(cmd.buildingId);
         if (!b || b.kind !== 'building' || b.owner !== slot || b.type !== 'space_center') return 'Programa Espacial inválido';
@@ -1338,6 +1375,81 @@ export class Simulation {
     return this.players[slot]?.era ?? 1;
   }
 
+  /**
+   * Validação e custo de um traçado de estrada: células em sequência (vizinhas, inclusive na
+   * diagonal), em terreno construível e livre, no próprio território ou, fora dele (terra neutra ou
+   * de um país em guerra), perto de um Engenheiro de Combate próprio. Células que já são estrada são
+   * puladas sem custo.
+   */
+  roadPlan(slot: Slot, cells: readonly Cell[]): { cells: number[]; stone: number; usd: number; error: string | null } {
+    const out: number[] = [];
+    const fail = (error: string) => ({ cells: [], stone: 0, usd: 0, error });
+    if (cells.length > ROAD.maxCells) return fail(`Traçado longo demais: até ${ROAD.maxCells} células por vez`);
+    const engineers = this.units.filter((u) => u.owner === slot && u.type === 'engineer' && u.hp > 0);
+    let prev: Cell | null = null;
+    for (const c of cells) {
+      if (prev && Math.max(Math.abs(c.cx - prev.cx), Math.abs(c.cy - prev.cy)) !== 1) return fail('O traçado precisa ser contínuo');
+      prev = c;
+      if (!this.grid.inBounds(c.cx, c.cy)) return fail('Fora do mapa');
+      const i = c.cy * this.map.width + c.cx;
+      const t = this.map.terrain[i]!;
+      if (t === Terrain.Road || out.includes(i)) continue;
+      if (t !== Terrain.Plains && t !== Terrain.Fertile) return fail('Estradas só em planície ou solo fértil');
+      if (this.grid.occupant(c.cx, c.cy) !== 0) return fail('Há uma construção no traçado');
+      const owner = this.territory[i] ?? NO_OWNER;
+      if (owner !== slot) {
+        if (owner !== NO_OWNER && !this.hostile(slot, owner)) return fail('Território de outra nação: não é possível pavimentar');
+        const center = this.grid.cellCenter(c);
+        if (!engineers.some((u) => dist(u.pos, center) <= ROAD.engineerRange * this.map.cellSize)) return fail('Fora do território: só com um Engenheiro de Combate por perto');
+      }
+      out.push(i);
+    }
+    if (!out.length) return fail('O traçado já é estrada');
+    const stone = out.length * ROAD.stonePerCell;
+    const usd = Math.round((this.national?.worksCapUsd?.(slot) ?? 0) * ROAD.usdSharePerCell * out.length);
+    if (!this.isSandbox(slot)) {
+      if ((this.players[slot]?.resources.stone ?? 0) < stone) return { cells: out, stone, usd, error: `Pedra insuficiente: a estrada custa ${stone}` };
+      if (this.national && this.national.worksFundUsd(slot) + 1e-6 < usd) return { cells: out, stone, usd, error: 'Verba de obras insuficiente para a estrada' };
+    }
+    return { cells: out, stone, usd, error: null };
+  }
+
+  /** A construção encosta numa estrada (alguma célula vizinha ao terreno dela é estrada). */
+  touchesRoad(b: Building): boolean {
+    const size = BUILDINGS[b.type].size;
+    for (let dy = -1; dy <= size; dy++)
+      for (let dx = -1; dx <= size; dx++) {
+        if (dx >= 0 && dx < size && dy >= 0 && dy < size) continue;
+        const cx = b.cell.cx + dx;
+        const cy = b.cell.cy + dy;
+        if (this.grid.inBounds(cx, cy) && this.map.terrain[cy * this.map.width + cx] === Terrain.Road) return true;
+      }
+    return false;
+  }
+
+  /** Moradias prontas do jogador e quantas delas ficam num "bairro pavimentado" (ligadas à estrada). */
+  pavedHomes(slot: Slot): { homes: number; paved: number } {
+    let homes = 0;
+    let paved = 0;
+    for (const b of this.buildings) {
+      if (b.owner !== slot || b.progress < 1 || b.hp <= 0 || (b.type !== 'house' && b.type !== 'residential')) continue;
+      homes++;
+      if (this.touchesRoad(b)) paved++;
+    }
+    return { homes, paved };
+  }
+
+  /** Está em guerra formal com alguém (minas que sobram em paz pesam na aprovação). */
+  atWarAny(slot: Slot): boolean {
+    return this.players.some((p) => p.slot !== slot && this.formalWar(slot, p.slot));
+  }
+
+  /** Há um Engenheiro de Combate próprio perto da célula (obstáculos e estradas fora do território). */
+  engineerNear(slot: Slot, cell: Cell): boolean {
+    const c = this.grid.cellCenter(cell);
+    return this.units.some((u) => u.owner === slot && u.type === 'engineer' && u.hp > 0 && dist(u.pos, c) <= ROAD.engineerRange * this.map.cellSize);
+  }
+
   /** Custo em US$ de um Grande Projeto: fração do teto anual da verba de obras do país. */
   projectUsd(slot: Slot, type: BuildingType): number {
     return Math.round((this.national?.worksCapUsd?.(slot) ?? 0) * (BUILDINGS[type].project?.usdShare ?? 0));
@@ -1471,6 +1583,8 @@ export class Simulation {
         units: this.units,
         resources: player.resources,
         territory: this.territory,
+        // obstáculos: fora do território (terra neutra ou de quem está em guerra), perto de um engenheiro
+        ...(BUILDINGS[type].engineerOutside && this.engineerNear(slot, cell) ? { outsideOk: (owner: number) => this.hostile(slot, owner) } : {}),
         deposits: this.deposits,
       },
       slot,
@@ -1498,6 +1612,7 @@ export class Simulation {
     this.updateRefits();
     this.trade.step();
     this.air.step();
+    this.mines.step();
     for (const u of this.units) this.updateUnit(u);
     this.updateSalvos();
     this.updateAttrition();
@@ -1797,8 +1912,8 @@ export class Simulation {
       let charged = false;
       for (const r of ['supplies', 'oil'] as const) {
         for (const b of mine) p.upkeepAcc[r] += (this.fx(b).upkeep[r] ?? 0) * TICK_SECONDS;
-        // manutenção das aeronaves (Fase 7) entra na mesma conta de suprimentos
-        if (r === 'supplies') p.upkeepAcc[r] += this.air.upkeepPerSecond(p.slot) * TICK_SECONDS;
+        // manutenção das aeronaves (Fase 7) e das estradas entra na mesma conta de suprimentos
+        if (r === 'supplies') p.upkeepAcc[r] += (this.air.upkeepPerSecond(p.slot) + this.roadCount(p.slot) * ROAD.upkeepPerCell) * TICK_SECONDS;
         const due = Math.floor(p.upkeepAcc[r]);
         if (due <= 0) continue;
         charged = true;

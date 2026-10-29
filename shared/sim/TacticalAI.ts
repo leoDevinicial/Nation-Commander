@@ -1,4 +1,4 @@
-import { BUILDINGS, CITIZEN, OIL_TANK_RANGE, RECRUIT, type ResourceType, POP_ABSOLUTE_CAP, PREPARATION_TICKS, RESOURCE_TYPES, TICK_RATE, UNITS, MILITARY_RESEARCH, militaryResearchBlocker, canAfford, type MilitaryResearchId, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
+import { BUILDINGS, CITIZEN, MINE, OIL_TANK_RANGE, RECRUIT, type ResourceType, POP_ABSOLUTE_CAP, PREPARATION_TICKS, RESOURCE_TYPES, TICK_RATE, UNITS, MILITARY_RESEARCH, militaryResearchBlocker, canAfford, type MilitaryResearchId, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
 import { claimableCells, claimedBy } from './gathering.ts';
 import { checkProduce } from './production.ts';
 import type { Command } from './commands.ts';
@@ -34,6 +34,9 @@ export const AI_STALL_TICKS = TICK_RATE * 180;
 export const AI_MIN_WAVE = 6;
 /** A IA começa a pesquisa militar depois dos primeiros minutos de economia. */
 export const AI_RESEARCH_TICK = TICK_RATE * 240;
+/** Campo de minas da IA: raio a partir do QG e passo angular do arco. */
+const AI_MINE_RADIUS = 15;
+const AI_MINE_ARC_STEP = 0.22;
 /** Especialização que a IA escolhe em cada classe (determinística). */
 const AI_SPEC: Partial<Record<BuildingType, SpecId>> = {
   hq: 'fortified',
@@ -288,8 +291,10 @@ export class TacticalAI {
     const unlocked = me.militaryResearch ?? [];
     const has = (u: UnitType) => !UNITS[u].requires || unlocked.includes(UNITS[u].requires!);
     const enemyArmor = sim.units.filter((u) => sim.hostile(this.slot, u.owner) && UNITS[u.type].armor === 'vehicle' && sim.canSee(this.slot, u)).length;
+    // engenheiros: alguns por nação (minas na defesa e remoção das minas inimigas)
+    const wantEngineer = has('engineer') && army.filter((u) => u.type === 'engineer').length + mine.reduce((a, b) => a + b.queue.filter((q) => q.unitType === 'engineer').length, 0) < level.engineers;
     const barracksMix: UnitType[] = [
-      'infantry',
+      wantEngineer ? 'engineer' : 'infantry',
       has('at_infantry') ? 'at_infantry' : 'infantry',
       enemyArmor > 3 && has('at_infantry') ? 'at_infantry' : 'infantry',
       has('special_forces') ? 'special_forces' : 'infantry',
@@ -371,6 +376,9 @@ export class TacticalAI {
         this.lastCounterTick = sim.tick;
       }
     }
+    // --- engenharia (lote 3): remove as minas inimigas conhecidas e mina a frente da base
+    this.planEngineers(sim, hq, army, committed, level.mines, take, cmds);
+
     // --- comércio (Fase 6): responde a ofertas de outros jogadores pela mesma regra de aceitação
     for (const o of sim.trade.offers) {
       if (o.status !== 'pending' || o.to !== this.slot || o.from >= 100) continue;
@@ -547,6 +555,45 @@ export class TacticalAI {
    * (`upgradePlan`) e o mesmo comando que o jogador humano.
    */
   /** Uma pesquisa militar por vez, na ordem; a antiaérea móvel sobe quando há ameaça aérea. */
+  /**
+   * Engenheiros de Combate da IA, pelas mesmas regras do jogador: o mais próximo vai até cada mina
+   * inimiga que a IA já viu (parado ao lado, ele a remove) e, fora disso, um engenheiro ocioso
+   * instala minas antitanque num arco à frente do QG, voltado para o inimigo.
+   */
+  private planEngineers(sim: Simulation, hq: Building, army: Unit[], committed: Set<number>, maxMines: number, take: (c: Cost) => boolean, cmds: Command[]): void {
+    const engineers = army.filter((u) => u.type === 'engineer' && u.hp > 0 && !u.refit);
+    if (!engineers.length) return;
+    // quem está instalando uma mina fica de fora das ondas e da reunião
+    for (const t of sim.mines.tasks) if (t.owner === this.slot) committed.add(t.unitId);
+    const known = sim.mines.mines.filter((m) => m.owner !== this.slot && m.seenBy.includes(this.slot)).sort((a, b) => a.id - b.id);
+    for (const m of known) {
+      const e = engineers.filter((u) => !committed.has(u.id) && dist(u.pos, m.pos) < 40).sort((a, b) => dist(a.pos, m.pos) - dist(b.pos, m.pos) || a.id - b.id)[0];
+      if (!e) continue;
+      committed.add(e.id);
+      const heading = e.order.kind === 'move' && dist(e.order.target, m.pos) < 1;
+      if (dist(e.pos, m.pos) > MINE.clearRange * 0.7 && !heading) cmds.push({ type: 'move', unitIds: [e.id], x: m.pos.x, y: m.pos.y });
+    }
+    if (sim.mines.count(this.slot) >= maxMines) return;
+    const layer = engineers.find((u) => !committed.has(u.id) && u.order.kind === 'idle');
+    const objective = this.enemyObjective(sim);
+    if (!layer || !objective) return;
+    const toward = Math.atan2(objective.pos.y - hq.pos.y, objective.pos.x - hq.pos.x);
+    for (let k = 0; k < maxMines * 2; k++) {
+      // arco de ±0,9 rad em dois raios, começando pelo centro
+      const side = k % 2 === 0 ? 1 : -1;
+      const step = Math.ceil((k % maxMines) / 2);
+      const radius = k < maxMines ? AI_MINE_RADIUS : AI_MINE_RADIUS + 3;
+      const a = toward + side * step * AI_MINE_ARC_STEP;
+      const p = sim.clampToMap({ x: hq.pos.x + Math.cos(a) * radius, y: hq.pos.y + Math.sin(a) * radius });
+      if (sim.mines.mines.some((m) => dist(m.pos, p) < 1.5) || sim.mines.tasks.some((t) => dist(t.pos, p) < 1.5)) continue;
+      if (sim.mines.layBlocker(this.slot, [layer.id], p.x, p.y)) continue;
+      if (!take(MINE.cost)) return;
+      cmds.push({ type: 'lay_mine', unitIds: [layer.id], x: p.x, y: p.y });
+      committed.add(layer.id);
+      return;
+    }
+  }
+
   private planResearch(sim: Simulation, mine: Building[], airThreat: boolean, take: (c: Cost) => boolean, cmds: Command[]): void {
     const center = mine.find((b) => b.type === 'research_center' && b.progress >= 1 && b.hp > 0 && !b.research && b.workers > 0);
     if (!center) return;
@@ -554,6 +601,8 @@ export class TacticalAI {
     const order: MilitaryResearchId[] = airThreat
       ? ['tracked_armor', 'mobile_air_defense', 'field_artillery', 'antitank_weapons', 'rocket_systems', 'special_operations', 'modern_armor']
       : ['tracked_armor', 'field_artillery', 'antitank_weapons', 'rocket_systems', 'mobile_air_defense', 'modern_armor', 'special_operations'];
+    // engenharia de combate depois das armas antitanque (só quando a dificuldade usa minas)
+    if (DIFFICULTY[sim.difficulty].engineers > 0) order.splice(order.indexOf('antitank_weapons') + 1, 0, 'combat_engineering');
     for (const id of order) {
       if (done.includes(id) || mine.some((b) => b.research?.id === id)) continue;
       if (militaryResearchBlocker(id, done, center.level, sim.eraOf(this.slot))) continue;

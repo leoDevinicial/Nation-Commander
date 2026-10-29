@@ -179,3 +179,22 @@ export function buildSpaceCenter(): Built {
 
 /** Posição do foguete na plataforma do Programa Espacial (referencial do modelo). */
 export const SPACE_PAD: [number, number, number] = [1.4, 0.68, -1.4];
+
+/** Obstáculo antitanque (1×1): três ouriços de aço e uma mureta de sacos de areia. */
+export function buildTankTrap(): Built {
+  const l = layers();
+  const { body: b } = l;
+  for (const [x, z] of [
+    [-0.45, -0.35],
+    [0.4, -0.3],
+    [0, 0.4],
+  ] as const) {
+    // ouriço tcheco: três vigas cruzadas
+    b.box(0.08, 0.08, 0.85, '#4a4d50', [x, 0.32, z], [0.7, 0, 0]);
+    b.box(0.08, 0.08, 0.85, '#4a4d50', [x, 0.32, z], [-0.7, 0, 0]);
+    b.box(0.85, 0.08, 0.08, '#4a4d50', [x, 0.32, z], [0, 0, 0.7]);
+  }
+  for (let i = 0; i < 5; i++) b.box(0.32, 0.14, 0.2, C.sandbag, [-0.66 + i * 0.33, 0.08, 0.82]);
+  for (let i = 0; i < 4; i++) b.box(0.32, 0.14, 0.2, C.sandbag, [-0.5 + i * 0.33, 0.21, 0.82]);
+  return { base: l.build(), moving: null, height: 0.7 };
+}

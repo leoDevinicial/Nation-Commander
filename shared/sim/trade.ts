@@ -1,4 +1,4 @@
-import { BUILDINGS, TICK_RATE, Terrain, type BuildingType } from './config.ts';
+import { BUILDINGS, ROAD, TICK_RATE, Terrain, type BuildingType } from './config.ts';
 import { TICKS_PER_DAY } from '../strategic/params.ts';
 import { findPath } from './pathfinding/AStar.ts';
 import type { Simulation } from './Simulation.ts';
@@ -808,7 +808,13 @@ export class TradeSystem {
       return;
     }
     if (s.state === 'moving') {
-      s.travelled = Math.min(s.pathLength, s.travelled + TRANSPORT[s.mode].speed / TICK_RATE);
+      // comboio rodoviário anda mais rápido sobre estrada (as do mapa e as construídas pelos jogadores)
+      let speed = TRANSPORT[s.mode].speed;
+      if (s.mode === 'road') {
+        const cell = this.sim.grid.worldToCell(this.position(s));
+        if (this.sim.grid.inBounds(cell.cx, cell.cy) && this.sim.map.terrain[cell.cy * this.sim.map.width + cell.cx] === Terrain.Road) speed *= ROAD.convoyMul;
+      }
+      s.travelled = Math.min(s.pathLength, s.travelled + speed / TICK_RATE);
       // emboscada: tropas ou torres de quem está em guerra com o dono da carga
       if (s.mode === 'road' || s.mode === 'rail') {
         const shipper = !isNpcPartner(s.seller) ? s.seller : s.buyer;

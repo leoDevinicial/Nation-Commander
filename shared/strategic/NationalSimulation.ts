@@ -16,6 +16,7 @@ import {
   WORKS_SHARE_OF_INFRA,
   WORKS_START_FRACTION,
   NUCLEAR_SHOCK,
+  ROAD_APPROVAL,
   theaterSupply,
 } from './params.ts';
 import { countryReference, type ReferenceKey } from './reference.ts';
@@ -960,6 +961,10 @@ export class NationalSimulation {
     ];
     const pol = policyEffects(n.policies);
     if (Math.abs(pol.approval) >= 0.01) factors.push({ key: 'policy', label: 'Decretos e facções', value: pol.approval });
+    // lote 3: bairros ligados à estrada agradam; minas esquecidas depois da guerra assustam
+    const stats = this.theater?.stats?.(n.slot);
+    if (stats?.homes && stats.pavedHomes) factors.push({ key: 'paved', label: 'Bairros pavimentados', value: ROAD_APPROVAL.pavedMax * (stats.pavedHomes / stats.homes) });
+    if (stats?.leftoverMines) factors.push({ key: 'mines', label: 'Minas esquecidas no território', value: Math.max(-ROAD_APPROVAL.minesMax, -ROAD_APPROVAL.perMine * stats.leftoverMines) });
     const shock = this.shockLevel();
     if (shock > 0.01) factors.push({ key: 'nuclear', label: 'Medo e crise do lançamento nuclear', value: NUCLEAR_SHOCK.approval * shock });
     const target = clamp(COEF.approvalBase + sum(factors), 0, 100);

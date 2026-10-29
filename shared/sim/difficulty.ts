@@ -27,6 +27,9 @@ export interface DifficultyDef {
   harassment: boolean;
   /** Bônus de coleta da IA (fração; declarado na tela da sala). */
   gatherBonus: number;
+  /** Engenheiros de Combate mantidos e minas antitanque na defesa (lote 3). */
+  engineers: number;
+  mines: number;
   description: string;
 }
 
@@ -42,6 +45,8 @@ export const DIFFICULTY: Record<Difficulty, DifficultyDef> = {
     missiles: false,
     harassment: false,
     gatherBonus: 0,
+    engineers: 0,
+    mines: 0,
     description: '12 min de preparo, ondas pequenas e espaçadas, sem aviões nem mísseis.',
   },
   normal: {
@@ -55,6 +60,8 @@ export const DIFFICULTY: Record<Difficulty, DifficultyDef> = {
     missiles: false,
     harassment: true,
     gatherBonus: 0,
+    engineers: 1,
+    mines: 4,
     description: '8 min de preparo, incidentes de fronteira, ondas médias; a IA usa aviões.',
   },
   hard: {
@@ -68,6 +75,8 @@ export const DIFFICULTY: Record<Difficulty, DifficultyDef> = {
     missiles: true,
     harassment: true,
     gatherBonus: 0,
+    engineers: 2,
+    mines: 8,
     description: '5 min de preparo, ondas grandes e frequentes; a IA usa aviões e mísseis.',
   },
   brutal: {
@@ -81,6 +90,8 @@ export const DIFFICULTY: Record<Difficulty, DifficultyDef> = {
     missiles: true,
     harassment: true,
     gatherBonus: 0.15,
+    engineers: 2,
+    mines: 12,
     description: '3 min de preparo, ondas enormes, aviões e mísseis, e +15% de coleta para a IA.',
   },
 };

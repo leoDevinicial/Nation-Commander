@@ -209,6 +209,7 @@ const BUILDERS: Record<UnitType, () => BuiltUnit> = {
   mbt: buildMbt,
   rocket_artillery: buildRocketArtillery,
   mobile_aa: buildMobileAa,
+  engineer: buildEngineer,
 };
 
 // ------------------------------------------------------------------ infantaria
@@ -308,6 +309,26 @@ function buildSpecialForces(): BuiltUnit {
   operator(l.body, l.accent, -0.2, 0.38, 1);
   operator(l.body, l.accent, -0.25, -0.32, 0);
   return { hull: l.build(), turret: null, turretPivot: [0, 0, 0], muzzle: [0.75, 0.86, 0.05] };
+}
+
+/**
+ * Engenheiros de combate: um sapador com detector de minas (haste e prato à frente), outro com pá e
+ * mochila de cargas, e um terceiro com o rolo de fita de demarcação.
+ */
+function buildEngineer(): BuiltUnit {
+  const l = layers();
+  soldier(l.body, l.accent, 0.26, 0, 0);
+  // detector: haste inclinada para a frente e prato rente ao chão
+  l.body.cyl(0.015, 0.015, 0.75, C.metalDark, [0.52, 0.42, 0.05], [0, 0, 1.05], 5);
+  l.body.cyl(0.12, 0.12, 0.025, '#2f3432', [0.82, 0.1, 0.05], undefined, 10);
+  soldier(l.body, l.accent, -0.24, 0.36, 1);
+  // pá nas costas e mochila de cargas
+  l.body.box(0.16, 0.22, 0.2, '#5b5a3a', [-0.42, 0.85, 0.36]);
+  l.body.cyl(0.012, 0.012, 0.5, C.wood, [-0.47, 0.95, 0.46], [0.5, 0, 0], 5);
+  l.body.box(0.09, 0.12, 0.02, C.metal, [-0.47, 1.18, 0.58], [0.5, 0, 0]);
+  soldier(l.body, l.accent, -0.24, -0.36, 0);
+  l.accent.cyl(0.06, 0.06, 0.05, '#ffffff', [-0.1, 0.62, -0.36], [Math.PI / 2, 0, 0], 8);
+  return { hull: l.build(), turret: null, turretPivot: [0, 0, 0], muzzle: [0.5, 0.65, 0] };
 }
 
 function buildInfantry(): BuiltUnit {

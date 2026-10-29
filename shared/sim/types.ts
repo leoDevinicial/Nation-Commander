@@ -278,6 +278,8 @@ export type SimEvent =
   /** Um disparo num combate aéreo entre esquadrilhas (`kill`: derrubou uma aeronave). */
   | { type: 'dogfight'; tick: number; owner: Slot; victim: Slot; missionId: number; targetMissionId: number; from: Vec2; to: Vec2; kill: boolean }
   /** Prefeitura destruída por um inimigo: ele toma a cidade e os edifícios vinculados a ela. */
+  /** Mina antitanque: instalada, removida por um engenheiro inimigo ou detonada por um veículo. */
+  | { type: 'mine'; tick: number; owner: Slot; state: 'laid' | 'cleared' | 'blast'; by?: Slot; pos: Vec2 }
   /** Programa Espacial: contagem regressiva, subida do foguete e satélite em órbita. */
   | { type: 'space'; tick: number; owner: Slot; id: EntityId; state: 'countdown' | 'ascent' | 'orbit'; pos: Vec2 }
   /** Avanço de era concluído (ou iniciado / cancelado). */

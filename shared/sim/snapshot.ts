@@ -1,4 +1,4 @@
-import { BUILDINGS, RESOURCE_TYPES, SPACE, TICK_RATE, UNITS, type BuildingType, type DepositSize, type MilitaryResearchId, type ProducibleType, type Stockpile, type UnitType } from './config.ts';
+import { BUILDINGS, MINE, RESOURCE_TYPES, SPACE, TICK_RATE, UNITS, type BuildingType, type DepositSize, type MilitaryResearchId, type ProducibleType, type Stockpile, type UnitType } from './config.ts';
 import type { Population, Simulation } from './Simulation.ts';
 import { encodeTerritory } from './territory.ts';
 import type { BuildingStatus, EntityId, SimEvent, Slot, UnitActivity, Vec2 } from './types.ts';
@@ -159,6 +159,10 @@ export interface Snapshot {
   buildings: BuildingSnapshot[];
   players: PlayerSnapshot[];
   events: SimEvent[];
+  /** Estradas construídas pelos jogadores (índices de célula), junto com o território. */
+  roads?: number[];
+  /** Minas que o observador vê (as próprias e as inimigas detectadas). */
+  mines?: { id: number; owner: Slot; x: number; y: number; clearing?: number }[];
   /** Território (um caractere por célula), enviado só quando muda (ver `territoryVersion`). */
   territory?: string;
   territoryVersion: number;
@@ -281,6 +285,13 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
     territoryVersion: sim.territoryVersion,
     // fronteiras são conhecidas por todos (como no mapa político de Rise of Nations)
     ...(includeTerritory ? { territory: encodeTerritory(sim.territory) } : {}),
+    ...(includeTerritory && sim.roads.length ? { roads: sim.roads.map((r) => r.i) } : {}),
+    ...(() => {
+      const list = sim.mines.mines
+        .filter((m) => !viewer || sim.mines.visibleTo(m, viewer.slot))
+        .map((m) => ({ id: m.id, owner: m.owner, x: r2(m.pos.x), y: r2(m.pos.y), ...(m.clearing ? { clearing: r2(1 - m.clearing.ticks / (MINE.clearSeconds * TICK_RATE)) } : {}) }));
+      return list.length ? { mines: list } : {};
+    })(),
   };
 }
 
@@ -500,6 +511,8 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
     case 'space':
       // o lançamento é anunciado a todos os jogadores
       return true;
+    case 'mine':
+      return e.owner === slot || e.by === slot || (e.state === 'blast' && sim.isVisibleTo(slot, e.pos));
     case 'border_incident':
       return e.aggressor === slot || e.victim === slot;
     case 'player_defeated':

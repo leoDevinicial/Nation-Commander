@@ -16,8 +16,8 @@ Supabase para contas e histórico). O jogo é todo em português.
 - `src/game/` — runtime 3D (`GameRuntime.ts`), modelos, áudio sintetizado (`audio/AudioService.ts`) e qualidade
   adaptativa (`perf/`: KGPS e KAICS, ver `docs/KGPS_KAICS.md` e `docs/KAICS_ADAPTABLES_PLUS.md`).
 - `docs/` — uma página por fase ou sistema já feito; `docs/AUDITORIA_ADENDO.md` diz o estado de cada fase.
-- Ao criar minas terrestres: o satélite do Programa Espacial (`PlayerState.satellite`) revela tudo, mas as minas
-  precisam continuar escondidas (tratar em `Simulation.canSee`).
+- Minas terrestres (`shared/sim/mines.ts`) não são entidades: o snapshot envia só as do dono e as já detectadas
+  (`MineSystem.visibleTo`). O satélite do Programa Espacial revela o resto do mapa, mas nunca as minas.
 
 ## Próximas direções de design
 Documento completo: [`docs/BALANCEAMENTO_E_PROGRESSAO.md`](docs/BALANCEAMENTO_E_PROGRESSAO.md). Consultar antes de mexer

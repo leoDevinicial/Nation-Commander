@@ -24,6 +24,10 @@ export type Command =
   | { type: 'cancel_military_research'; buildingId: EntityId }
   /** Avanço de era (obra no Centro de Comando) e cancelamento (devolve 75%). */
   | { type: 'advance_era' }
+  /** Engenheiro de Combate: instala uma mina antitanque no ponto. */
+  | { type: 'lay_mine'; unitIds: EntityId[]; x: number; y: number }
+  /** Estrada: traçado de células adjacentes (horizontal, vertical ou diagonal). */
+  | { type: 'build_road'; cells: { cx: number; cy: number }[] }
   /** Programa Espacial: autoriza o lançamento do satélite. */
   | { type: 'space_launch'; buildingId: EntityId }
   | { type: 'cancel_era' }
@@ -107,6 +111,18 @@ export function parseCommand(raw: unknown): Command | null {
     case 'advance_era':
     case 'cancel_era':
       return { type: raw.type };
+    case 'lay_mine':
+      if (!isIdList(raw.unitIds) || !isFiniteNum(raw.x) || !isFiniteNum(raw.y)) return null;
+      return { type: 'lay_mine', unitIds: [...new Set(raw.unitIds)], x: raw.x, y: raw.y };
+    case 'build_road': {
+      if (!Array.isArray(raw.cells) || raw.cells.length === 0 || raw.cells.length > 60) return null;
+      const cells: { cx: number; cy: number }[] = [];
+      for (const c of raw.cells) {
+        if (!isObj(c) || !Number.isInteger(c.cx) || !Number.isInteger(c.cy)) return null;
+        cells.push({ cx: c.cx as number, cy: c.cy as number });
+      }
+      return { type: 'build_road', cells };
+    }
     case 'space_launch':
       return isId(raw.buildingId) ? { type: 'space_launch', buildingId: raw.buildingId } : null;
     case 'cancel_production':

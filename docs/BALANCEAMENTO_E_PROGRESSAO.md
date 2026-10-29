@@ -447,3 +447,5 @@ como na escolha entre os modos paridade e escala real.
 | Lote 1, §3.1 / lote 2, item 7 — eras (avanço, liberação de tropas, construções e níveis; aparência por era) | Feito | `shared/sim/eras.ts`, `docs/ERAS.md` |
 | Lote 2, item 13 — Grandes Projetos Nacionais (usina nuclear, rede 5G, hidrelétrica, centro financeiro) | Feito | `docs/GRANDES_PROJETOS_E_ESPACO.md` |
 | Lote 2, item 13.1 — Programa Espacial (foguete, satélite sem névoa, satélite no globo) | Feito | `docs/GRANDES_PROJETOS_E_ESPACO.md` |
+| Lote 3, §1 — estradas do jogador (arrasto com prévia, pedra + verba de obras, manutenção, comboios mais rápidos, bairro pavimentado) | Feito | `docs/ESTRADAS_ENGENHARIA.md` |
+| Lote 3, §2 — Engenheiro de Combate, minas antitanque (invisíveis ao inimigo e ao satélite), obstáculo antitanque, minas esquecidas na aprovação, IA com engenheiros | Feito | `docs/ESTRADAS_ENGENHARIA.md` |

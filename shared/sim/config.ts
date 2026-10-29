@@ -149,7 +149,7 @@ export const OIL_DEPOSIT_AMOUNT = 2500;
 
 // ------------------------------------------------------------------ unidades
 
-export type UnitType = 'infantry' | 'apc' | 'tank' | 'artillery' | 'at_infantry' | 'special_forces' | 'mbt' | 'rocket_artillery' | 'mobile_aa';
+export type UnitType = 'infantry' | 'apc' | 'tank' | 'artillery' | 'at_infantry' | 'special_forces' | 'mbt' | 'rocket_artillery' | 'mobile_aa' | 'engineer';
 
 /** Classe de blindagem do alvo: define os bônus das armas (antitanque contra veículos, etc.). */
 export type ArmorClass = 'infantry' | 'vehicle';
@@ -181,7 +181,9 @@ export type BuildingType =
   | 'network_5g'
   | 'hydro_dam'
   | 'financial_center'
-  | 'space_center';
+  | 'space_center'
+  // engenharia de combate
+  | 'tank_trap';
 
 /** O que uma fila de produção pode produzir. */
 export type ProducibleType = UnitType | 'citizen' | 'recruit';
@@ -347,6 +349,22 @@ export const UNITS: Record<UnitType, UnitDef> = {
     armor: 'vehicle',
     requires: 'rocket_systems',
   },
+  engineer: {
+    label: 'Engenheiro de Combate',
+    cost: { food: 50, iron: 20, supplies: 30 },
+    buildSeconds: 9,
+    maxHp: 80,
+    speed: 3.1,
+    radius: 0.5,
+    sight: 10,
+    weapon: { damage: 5, range: 5, cooldown: 1.2, vsVehicle: 0.3 },
+    producedBy: 'barracks',
+    description:
+      'Engenharia de combate: instala minas antitanque, detecta e remove as minas inimigas por perto, pavimenta estradas fora do território e ergue obstáculos antitanque. Fraco em combate.',
+    hotkey: 'E',
+    armor: 'infantry',
+    requires: 'combat_engineering',
+  },
   mobile_aa: {
     label: 'Antiaérea Móvel',
     cost: { oil: 60, iron: 60, supplies: 50 },
@@ -367,7 +385,7 @@ export const UNITS: Record<UnitType, UnitDef> = {
 
 // ------------------------------------------------------------------ pesquisa militar
 
-export type MilitaryResearchId = 'tracked_armor' | 'field_artillery' | 'antitank_weapons' | 'mobile_air_defense' | 'special_operations' | 'rocket_systems' | 'modern_armor';
+export type MilitaryResearchId = 'tracked_armor' | 'field_artillery' | 'antitank_weapons' | 'mobile_air_defense' | 'special_operations' | 'rocket_systems' | 'modern_armor' | 'combat_engineering';
 
 /**
  * Pesquisa militar feita no Centro de Pesquisa durante a partida (fila no próprio edifício, com
@@ -403,6 +421,15 @@ export const MILITARY_RESEARCH: Record<MilitaryResearchId, MilitaryResearchDef> 
     prereqs: [],
     tier: 1,
     hotkey: 'U',
+  },
+  combat_engineering: {
+    label: 'Engenharia de combate',
+    description: 'Minas, sapadores e equipamento de pontes e estradas: libera o Engenheiro de Combate.',
+    cost: { supplies: 100, iron: 70, stone: 40 },
+    seconds: 35,
+    prereqs: [],
+    tier: 1,
+    hotkey: 'E',
   },
   antitank_weapons: {
     label: 'Armas antitanque',
@@ -525,7 +552,31 @@ export interface BuildingDef {
   minHqLevel?: number;
   /** Precisa encostar na água (porto, hidrelétrica). */
   nearWater?: boolean;
+  /** Pode ser erguido fora do território, perto de um Engenheiro de Combate (obstáculos). */
+  engineerOutside?: boolean;
 }
+
+/**
+ * Minas antitanque (lote 3): só veículos inimigos detonam; a infantaria passa por cima. O dono vê as
+ * próprias; o inimigo só as vê com Engenheiro ou Forças Especiais por perto, reconhecimento aéreo ou
+ * quando uma explode. O satélite não revela minas.
+ */
+export const MINE = {
+  cost: { iron: 15, supplies: 10 } as Cost,
+  /** Tempo parado para instalar (s). */
+  laySeconds: 3,
+  perNation: 24,
+  triggerRadius: 0.9,
+  damage: 260,
+  /** Raio e fração do dano em volta. */
+  splash: 2.2,
+  splashFraction: 0.5,
+  /** Detecção pelo inimigo (Engenheiro e Forças Especiais). */
+  detectRange: 7,
+  /** Remoção pelo engenheiro parado perto da mina (s). */
+  clearSeconds: 2.5,
+  clearRange: 1.8,
+};
 
 /** Bônus dos Grandes Projetos no teatro (aplicados pelo motor enquanto o projeto estiver pronto). */
 export const PROJECT_FX = {
@@ -538,6 +589,24 @@ export const PROJECT_FX = {
   hydroGatherMul: 1.15,
   /** Centro Financeiro: teto da verba de obras maior. */
   financialWorksMul: 1.5,
+};
+
+/**
+ * Estradas construídas pelo jogador (lote 3): traçado na grade, pedra por célula e uma fração do teto
+ * da verba de obras (orçamento de infraestrutura); pequena manutenção em suprimentos. Fora do
+ * território, só perto de um Engenheiro de Combate próprio.
+ */
+export const ROAD = {
+  maxCells: 40,
+  stonePerCell: 6,
+  /** Fração do teto anual da verba de obras por célula. */
+  usdSharePerCell: 0.002,
+  /** Suprimentos/s por célula. */
+  upkeepPerCell: 0.004,
+  /** Distância (células) de um engenheiro para pavimentar fora do território. */
+  engineerRange: 6,
+  /** Velocidade dos comboios rodoviários sobre a estrada. */
+  convoyMul: 1.3,
 };
 
 /** Programa Espacial: contagem regressiva e subida do foguete (s). */
@@ -957,6 +1026,19 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     project: { usdShare: 0.9, effect: 'Lança um satélite: o mapa inteiro fica visível em tempo real (menos minas); +0,5 p.p. de crescimento', growth: 0.5 },
     description:
       'A megaconstrução de fim de partida: plataforma, torre de serviço, foguete e centro de controle. Pronto, autorize o lançamento: o satélite em órbita tira a névoa de guerra do mapa inteiro, em tempo real (só as minas continuam escondidas). Exige o Centro de Comando no nível 9 e a pesquisa Tecnologia espacial.',
+  },
+  tank_trap: {
+    ...NONE,
+    label: 'Obstáculo Antitanque',
+    cost: { stone: 25, iron: 10 },
+    buildSeconds: 6,
+    maxHp: 350,
+    size: 1,
+    income: {},
+    sight: 2,
+    buildable: true,
+    engineerOutside: true,
+    description: 'Ouriços de aço e sacos de areia: bloqueiam a passagem de tropas e veículos. Pode ser erguido fora do território, perto de um Engenheiro de Combate.',
   },
   missile_silo: {
     ...NONE,

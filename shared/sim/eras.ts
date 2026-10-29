@@ -74,6 +74,7 @@ export const UNIT_ERA: Record<UnitType, Era> = {
   special_forces: 3,
   rocket_artillery: 3,
   mbt: 4,
+  engineer: 2,
 };
 
 /** Era das construções (as ausentes existem desde a Guerra Fria). */
@@ -91,6 +92,7 @@ export const BUILDING_ERA: Partial<Record<BuildingType, Era>> = {
   hydro_dam: 4,
   financial_center: 4,
   space_center: 4,
+  tank_trap: 2,
 };
 
 /** Aeronaves: caças, reconhecimento e cargueiros na Era Digital; bombardeiros no Futuro Próximo. */

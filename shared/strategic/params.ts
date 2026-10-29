@@ -127,6 +127,9 @@ export const COEF = {
  * Choque econômico global de um lançamento nuclear (lote 2, item 14): vale para todas as nações,
  * inclusive quem lançou, e decai em ~90 dias. Lançamentos seguidos se somam (até 2×).
  */
+/** Lote 3: aprovação por bairros ligados à estrada (máximo com todas as moradias) e por minas esquecidas em paz. */
+export const ROAD_APPROVAL = { pavedMax: 4, perMine: 0.25, minesMax: 5 };
+
 export const NUCLEAR_SHOCK = {
   decayDays: 90,
   maxLevel: 2,

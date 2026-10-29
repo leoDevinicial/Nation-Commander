@@ -108,6 +108,11 @@ export interface TheaterStats {
   military: number;
   workers: number;
   food: number;
+  /** Moradias prontas e quantas ficam ligadas à estrada ("bairro pavimentado"). */
+  homes?: number;
+  pavedHomes?: number;
+  /** Minas próprias que sobram no mapa sem guerra em curso. */
+  leftoverMines?: number;
 }
 
 export type Demand =

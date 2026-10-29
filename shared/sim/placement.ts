@@ -17,6 +17,8 @@ export interface PlacementWorld {
   resources: Stockpile;
   /** Dono de cada célula (-1 = neutro). */
   territory: ArrayLike<number>;
+  /** Fora do território vale (obstáculo perto de um engenheiro): só não pode em país sem guerra. */
+  outsideOk?: (owner: number) => boolean;
   deposits: DepositIndex;
 }
 
@@ -44,8 +46,12 @@ export function placementError(w: PlacementWorld, slot: Slot, type: BuildingType
       }
     }
   }
-  if (foreign >= 0) return 'Território de outra nação: não é possível construir aqui';
-  if (outside) return 'Fora do seu território: amplie a fronteira com casas, bases ou torres';
+  if (w.outsideOk && outside) {
+    if (foreign >= 0 && !w.outsideOk(foreign)) return 'Território de outra nação: não é possível construir aqui';
+  } else {
+    if (foreign >= 0) return 'Território de outra nação: não é possível construir aqui';
+    if (outside) return 'Fora do seu território: amplie a fronteira com casas, bases ou torres';
+  }
   if (type === 'city_hall') {
     // cidades espaçadas: a prefeitura precisa de distância de outra prefeitura e de qualquer QG
     const c = { x: cell.cx + def.size / 2, y: cell.cy + def.size / 2 };

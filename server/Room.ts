@@ -1077,5 +1077,15 @@ function theaterStats(sim: Simulation, slot: Slot): TheaterStats {
   const buildings: TheaterStats['buildings'] = {};
   for (const b of sim.buildings) if (b.owner === slot && b.progress >= 1 && b.hp > 0) buildings[b.type] = (buildings[b.type] ?? 0) + 1;
   const pop = sim.population(slot);
-  return { buildings, military: sim.units.filter((u) => u.owner === slot).length, workers: pop.employed, food: sim.players[slot]?.resources.food ?? 0 };
+  const homes = sim.pavedHomes(slot);
+  const leftoverMines = sim.atWarAny(slot) ? 0 : sim.mines.mines.filter((m) => m.owner === slot).length;
+  return {
+    buildings,
+    military: sim.units.filter((u) => u.owner === slot).length,
+    workers: pop.employed,
+    food: sim.players[slot]?.resources.food ?? 0,
+    homes: homes.homes,
+    pavedHomes: homes.paved,
+    leftoverMines,
+  };
 }

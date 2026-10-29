@@ -38,15 +38,21 @@ const SPLAT: Record<Terrain, [number, number, number, number]> = {
  * Solo com texturas reais misturadas por um mapa de pesos (1 texel por célula, filtrado):
  * transições suaves entre grama, terra, asfalto e rocha. Repetição quebrada por variação macro.
  */
-function groundMaterial(map: MapData, quality: 'low' | 'high', disposables: { dispose: () => void }[], tint: [number, number, number] = [1, 1, 1]): THREE.MeshStandardMaterial {
+function groundMaterial(
+  map: MapData,
+  quality: 'low' | 'high',
+  disposables: { dispose: () => void }[],
+  tint: [number, number, number] = [1, 1, 1],
+): { mat: THREE.MeshStandardMaterial; repaint: (cells: readonly number[]) => void } {
   const data = new Uint8Array(map.width * map.height * 4);
   // biomas secos trocam parte da grama por solo exposto (o tom vem de `tint`)
   const dry = Math.max(0, Math.min(0.8, (tint[0] - tint[2]) * 0.9));
-  for (let i = 0; i < map.width * map.height; i++) {
+  const paint = (i: number) => {
     const w = SPLAT[map.terrain[i] ?? Terrain.Plains];
     const moved = Math.round(w[0] * dry);
     data.set([w[0] - moved, Math.min(255, w[1] + moved), w[2], w[3]], i * 4);
-  }
+  };
+  for (let i = 0; i < map.width * map.height; i++) paint(i);
   const splat = new THREE.DataTexture(data, map.width, map.height, THREE.RGBAFormat);
   splat.magFilter = THREE.LinearFilter;
   splat.minFilter = THREE.LinearFilter;
@@ -84,7 +90,12 @@ function groundMaterial(map: MapData, quality: 'low' | 'high', disposables: { di
       );
   };
   mat.customProgramCacheKey = () => 'nc-ground-v2';
-  return mat;
+  // células que mudaram de terreno durante a partida (estradas construídas pelos jogadores)
+  const repaint = (cells: readonly number[]) => {
+    for (const i of cells) paint(i);
+    if (cells.length) splat.needsUpdate = true;
+  };
+  return { mat, repaint };
 }
 
 /**
@@ -171,6 +182,8 @@ export interface TerrainHandle {
    * coordenadas de mundo) e devolve os que voltaram a ficar livres. Retorna true se algo mudou.
    */
   clearUnder: (rects: readonly DecorRect[]) => boolean;
+  /** Repinta o solo das células cujo terreno mudou em `map.terrain` (estradas novas). */
+  repaint: (cells: readonly number[]) => void;
   /**
    * Densidade da decoração (árvores, arbustos, pedras) para o KGPS: 1 = toda; abaixo disso, um
    * subconjunto fixo por posição (ver `decorKept`). As instâncias visíveis são compactadas no
@@ -267,7 +280,7 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geo.computeVertexNormals();
-  const groundMat = groundMaterial(map, quality, disposables, tint);
+  const { mat: groundMat, repaint } = groundMaterial(map, quality, disposables, tint);
   const ground = new THREE.Mesh(geo, groundMat);
   ground.receiveShadow = true;
   ground.name = 'ground';
@@ -501,6 +514,7 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
     reflection: water.reflection,
     waves: water.waves,
     clearUnder,
+    repaint,
     setDecorDensity,
     get decorDensity() {
       return density;
