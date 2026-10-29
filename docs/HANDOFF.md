@@ -61,6 +61,15 @@ npm test && npm run lint && npm run typecheck
 - **Prévia de modelo 3D isolado** (o jeito mais rápido de iterar design): criar um `.html` temporário na raiz que importa o
   builder (`/src/game/render/models/...`), monta cena com luz e chão e renderiza; servir com `npx vite --port 5174` e
   tirar screenshot com Playwright. Apagar o `.html` antes do commit.
+- **Folha de auditoria visual** (todos os edifícios ou unidades de uma era numa imagem): página temporária que cria
+  `new BuildingVisual(id, type, 0, true, { center, cellSize: 2, mapWidth: 64, era })` (ou `new UnitVisual(id, type, 0,
+  true, era)`) para cada tipo, enquadra pela `Box3` e desenha num `<canvas>` grande, 4 por linha. **Obrigatório na
+  prévia:** os materiais do jogo leem o mapa da névoa de guerra (`fogUniforms` em `src/game/render/materials.ts`); sem
+  ele tudo sai preto. Antes de renderizar:
+  `const wt = new THREE.DataTexture(new Uint8Array([255,255,255,255]),1,1); wt.needsUpdate = true;
+  fogUniforms.uFogMap.value = wt; fogUniforms.uFogSize.value.set(1000, 1000);`
+- Rodar script TS que importa `three` direto: precisa estar dentro do repositório (ex.: `./zz_teste.ts`, apagar depois);
+  no scratchpad o `three` não é encontrado.
 - **Cuidado:** nunca usar `pkill -f` com um padrão que case com o próprio comando do shell (mata o shell). Matar por PID:
   `for p in $(ps aux | grep -E "vite --port 517[34]" | grep -v grep | awk '{print $2}'); do kill $p; done`.
 - Transcrever áudio não funciona aqui (download de modelos bloqueado): peça o pedido por escrito.
@@ -98,32 +107,51 @@ npm test && npm run lint && npm run typecheck
   numa era que troca o veículo. `glow` no modelo = lentes acesas (`color: 'faction'` usa a cor do dono).
 - Detalhes que devem seguir o jogador vão na camada `accent` (não usar vermelho fixo — o usuário pediu isso).
 - Edifícios: `render/models/*.ts` + `render/BuildingVisuals.ts`; peças de era em `render/models/eraProps.ts`
-  (radar, painéis solares, LED, drone de vigilância em `droneModel.ts`).
+  (radar, painéis solares, torre de telecomunicação, LED, drone de vigilância em `droneModel.ts`).
+  **Peças de era sempre apoiadas no telhado real:** `roofSampler(this.parts)` (raio vertical contra as malhas do corpo)
+  é passado a `buildEraProps`; nunca posicionar pela altura nominal `def.height` (foi isso que deixava painéis e
+  mastros flutuando). Painéis solares só em telhado plano (tolerância 0,06, com margem de 0,3), com pés até o telhado;
+  radar é parabólica aberta (`LatheGeometry`) em escala `size / 6` (mín. 0,55); mastro e radar usam `roofNear`
+  (procura telhado indo do canto para o centro). Ao trocar de nível o modelo muda e as peças de era são refeitas.
+- Altura dos cidadãos/recrutas (`render/CitizenLayer.ts`) e das peças no chão: `GameRuntime.groundHeight` (só o
+  terreno; água −0,7, rocha/minério 0,9, lama −0,08).
 - Thumbnails do menu (`render/Thumbnails.ts`) ainda usam o modelo da era 1.
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
-1. Detalhes vermelhos dos veículos da era 4 → cor da facção.
-2. Tanque Moderno da era 4 (T-90M "Proryv", Shtora acesa) — `t90Future`.
-3. Artilharia da era 4 (caminhão 6×6 com torre facetada) — `buildArtilleryFuture`.
-4. Lança-Foguetes da era 4 (8×8 blindado, 12 tubos grandes) + sistema de variantes por era.
-5. Drone de vigilância redesenhado (protetores octogonais, hélices girando).
-6. Bots com país sorteado e escolhido pelo anfitrião (`set_bot_country`; com `seed` nos testes o sorteio é fixo).
-7. Satélite do globo redesenhado (`satelliteModel.ts`).
-8. **Recalibragem da coleta** (`docs/RECALIBRAGEM_RECURSOS.md`): 6 trabalhadores por coleta, QG 1,5/s, consumo de
-   comida 0,04, cidadão 10 s, custo crescente +18%, IA que reage ao gargalo, início garantido no mapa, ondas menos
-   suicidas, guarnição mínima, explorador em ronda. Os 6 critérios passam em 12 seeds.
-9. **Economia cara** (`docs/ECONOMIA.md`): custos 1,25×–3× (`ECONOMY`), começo com 6 cidadãos + 1 Explorador, verba de
-   obras inicial 25%, depósitos e armazéns maiores.
-10. Antes disso: Centro Financeiro redesenhado, menu de construção em abas, aeronaves revelam o mapa, prefeitura como QG
+1. **Auditoria visual e estruturas flutuantes corrigidas:** peças de era (painéis solares, radar, torre de
+   telecomunicação, LED) passaram a se apoiar no telhado real (`roofSampler`). Radar virou parabólica em escala.
+   Folhas de todos os edifícios (eras 1, 3 e 4) e unidades (eras 1 e 4) revisadas sem outros erros visíveis.
+   Pendente: o usuário viu cidadãos/recrutas que pareciam estar no teto do QG (print com bonecos de capacete azul
+   perto da torre do QG na era 2); pela leitura do código eles ficam na altura do chão e não foi possível reproduzir —
+   se ele mandar outro print, investigar (CitizenLayer: `doorPoint`, rota dos recrutas em volta do quartel, grid de
+   ocupação).
+2. Arquivo de passagem `docs/HANDOFF.md` (este) e link no `CLAUDE.md` e no README.
+3. Detalhes vermelhos dos veículos da era 4 → cor da facção.
+4. Tanque Moderno da era 4 (T-90M "Proryv", Shtora acesa) — `t90Future`.
+5. Artilharia da era 4 (caminhão 6×6 com torre facetada) — `buildArtilleryFuture`.
+6. Lança-Foguetes da era 4 (8×8 blindado, 12 tubos grandes) + sistema de variantes por era.
+7. Drone de vigilância redesenhado (protetores octogonais, hélices girando).
+8. Bots com país sorteado e escolhido pelo anfitrião (`set_bot_country`; com `seed` nos testes o sorteio é fixo).
+9. Satélite do globo redesenhado (`satelliteModel.ts`).
+10. **Recalibragem da coleta** (`docs/RECALIBRAGEM_RECURSOS.md`): 6 trabalhadores por coleta, QG 1,5/s, consumo de
+    comida 0,04, cidadão 10 s, custo crescente +18%, IA que reage ao gargalo, início garantido no mapa, ondas menos
+    suicidas, guarnição mínima, explorador em ronda. Os 6 critérios passam em 12 seeds.
+11. **Economia cara** (`docs/ECONOMIA.md`): custos 1,25×–3× (`ECONOMY`), começo com 6 cidadãos + 1 Explorador, verba de
+    obras inicial 25%, depósitos e armazéns maiores.
+12. Antes disso: Centro Financeiro redesenhado, menu de construção em abas, aeronaves revelam o mapa, prefeitura como QG
     secundário, fronteiras inimigas só em terra explorada, lote 4 (até 4/6 nações, tipos de mapa, regiões por país),
     relatório pós-partida, cadeias produtivas, serviços, vitórias alternativas, estradas, engenheiro e minas, Grandes
     Projetos e Programa Espacial, eras, bônus por país e choque nuclear, etc. (ver tabela de estado).
 
+Histórico completo de cada entrega: `git log --oneline` na branch `claude/serene-bell-7cjnhp` (um commit por pedido,
+mensagens em português descrevendo o que mudou).
+
 ## 7. De onde continuar
 
-Não havia pedido em andamento quando esta passagem foi escrita (o último áudio do usuário não pôde ser transcrito —
-pergunte o que ele queria). Ideias pendentes e coisas conhecidas:
+Não há pedido em andamento. Dois pontos abertos com o usuário: (1) um áudio dele não pôde ser transcrito — pergunte o
+que ele queria; (2) os bonecos que pareciam estar no teto do QG (ver item 1 da seção 6). Ideias pendentes e coisas
+conhecidas:
 
 - **Pendente no design:** conteúdo naval de combate (transporte com desembarque, fragata, submarino, porta-aviões) e
   depois os mapas Oceano Central e Arquipélago. Outras direções em `docs/BALANCEAMENTO_E_PROGRESSAO.md` (Tropico:
@@ -134,6 +162,8 @@ pergunte o que ele queria). Ideias pendentes e coisas conhecidas:
   edifícios. Siga o padrão: builder novo em `unitModels.ts`, registrar em `ERA_BUILDERS`, prévia isolada, docs em
   `docs/ERAS.md`, detalhes na camada `accent`.
 - Thumbnails do menu poderiam mostrar o modelo da era atual do jogador.
+- Telhados em arco (quartel) e de duas águas (armazém, casa) ficam sem painel solar na Era Digital; se o usuário
+  quiser painéis neles, criar uma variante inclinada que acompanhe a água do telhado.
 - Exceção conhecida do início garantido: Rios e Pontes, 5 nações, perfil agrícola, seed 3 — a mina alcança 5 de 6 células.
 - Partidas humanas contra a IA para validar a sensação da economia nova ainda não foram feitas.
 - `docs/RELATORIO_POS_PARTIDA.md`: o relatório ainda não é gravado no histórico do Supabase.
