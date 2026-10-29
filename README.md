@@ -300,7 +300,8 @@ obstáculos antitanque. Detalhes em `docs/ESTRADAS_ENGENHARIA.md`.
 **Cadeias produtivas, serviços e vitórias alternativas:** Refinaria e Siderúrgica transformam petróleo e ferro em
 combustível e aço, que barateiam blindados e aeronaves. Hospital, Escola e Delegacia têm raio de cobertura (cura,
 coleta maior, tropas veteranas, aprovação). Além da queda do QG, vence-se dominando 70% do território por 4 minutos ou
-com o colapso político do rival. Detalhes em `docs/CADEIAS_SERVICOS_VITORIAS.md`.
+com o colapso político do rival. Detalhes em `docs/CADEIAS_SERVICOS_VITORIAS.md`. No fim da partida, o relatório mostra a evolução de tropas, construções,
+território, recursos e PIB, e as medalhas de cada comandante (`docs/RELATORIO_POS_PARTIDA.md`).
 
 **Dificuldade e veterania:** contra a IA, o anfitrião escolhe Fácil, Normal, Difícil ou Brutal, que mudam o preparo
 (12 a 3 min), as ondas, o uso de aviões e mísseis e os incidentes de fronteira no preparo. Tropas que abatem

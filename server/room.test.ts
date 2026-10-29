@@ -118,6 +118,10 @@ describe('servidor de partidas', () => {
     expect(records).toHaveLength(1);
     expect(records[0]!.winner_id).toBe('alice');
     expect(records[0]!.players.map((p) => p.result)).toEqual(['win', 'loss']);
+    // relatório pós-partida: amostra inicial e final, medalha de vitória para quem venceu
+    expect(end.report!.samples.length).toBeGreaterThanOrEqual(2);
+    expect(end.report!.medals.find((m) => m.slot === 0)!.medals).toContain('victory');
+    expect(end.report!.medals.find((m) => m.slot === 1)!.medals).not.toContain('victory');
   });
 
   it('pausa impede o avanço da simulação; reconexão restaura a partida', async () => {

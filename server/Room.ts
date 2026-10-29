@@ -19,6 +19,7 @@ import { TICK_RATE } from '../shared/sim/config.ts';
 import { generateMap } from '../shared/sim/MapGen.ts';
 import { Simulation } from '../shared/sim/Simulation.ts';
 import { FogMemory, makeSnapshot } from '../shared/sim/snapshot.ts';
+import { REPORT_EVERY_TICKS, medalsFor, pushSample, reportSample, type MatchReport, type ReportSample } from '../shared/sim/report.ts';
 import { AI_THINK_TICKS, AI_HARASS_SECONDS, TacticalAI, type TacticalAISave } from '../shared/sim/TacticalAI.ts';
 import { DIFFICULTY, type Difficulty } from '../shared/sim/difficulty.ts';
 import { policyEffects, type TheaterStats } from '../shared/strategic/policies.ts';
@@ -62,6 +63,8 @@ export interface RoomSave {
   ais: { slot: Slot; state: TacticalAISave }[];
   gdpStart: [Slot, number][];
   fog: [Slot, [EntityId, BuildingSnapshot][]][];
+  /** Relatório pós-partida em construção (amostras e maior patente por jogador). */
+  report?: { samples: ReportSample[]; bestRank: [Slot, number][] };
 }
 
 interface RoomPlayer extends RoomPlayerInfo {
@@ -98,6 +101,9 @@ export class Room {
   private pendingNational: { slot: Slot; cmd: NationalCommand; conn: Connection | null }[] = [];
   private nationalEvents: NationalEvent[] = [];
   private gdpStart = new Map<Slot, number>();
+  /** Relatório pós-partida: amostras do teatro e a maior patente alcançada por jogador. */
+  private reportSamples: ReportSample[] = [];
+  private bestRank = new Map<Slot, number>();
   private fogMemory = new Map<Slot, FogMemory>();
   /** Última versão de território enviada a cada jogador (o mapa só vai quando muda). */
   private territorySent = new Map<Slot, number>();
@@ -301,6 +307,7 @@ export class Room {
     // operações expedicionárias contra governos fora do teatro (Fase 8)
     this.ops = new OperationsSystem(sim, national, this.seed);
     for (const n of this.national.nations) this.gdpStart.set(n.slot, n.gdpUsd);
+    this.reportSamples = [this.sampleReport()];
     this.applyNationalModifiers();
     this.status = 'playing';
     this.startedAt = this.now();
@@ -411,6 +418,7 @@ export class Room {
       ais: this.ais.map((a) => ({ slot: a.slot, state: a.toSave() })),
       gdpStart: [...this.gdpStart],
       fog: [...this.fogMemory].map(([slot, m]) => [slot, [...m.known]]),
+      report: { samples: this.reportSamples, bestRank: [...this.bestRank] },
     };
   }
 
@@ -449,6 +457,8 @@ export class Room {
     }
     room.nationalAIs = room.players.filter((p) => p.isAI).map((p) => new NationalAI(p.slot, DIFFICULTY[room.difficulty].missiles));
     for (const [slot, usd] of save.gdpStart) room.gdpStart.set(slot, usd);
+    room.reportSamples = save.report?.samples ?? [];
+    for (const [slot, r] of save.report?.bestRank ?? []) room.bestRank.set(slot, r);
     for (const [slot, known] of save.fog) {
       const m = new FogMemory();
       for (const [id, b] of known) m.known.set(id, b);
@@ -559,6 +569,8 @@ export class Room {
     this.stepOperations();
     const tickEvents = sim.drainEvents();
     this.events.push(...tickEvents);
+    for (const e of tickEvents) if (e.type === 'unit_promoted' && e.rank > (this.bestRank.get(e.owner) ?? 0)) this.bestRank.set(e.owner, e.rank);
+    if (sim.tick % REPORT_EVERY_TICKS === 0) this.reportSamples = pushSample(this.reportSamples, this.sampleReport());
     this.advanceNational(tickEvents);
     if (sim.tick % SNAPSHOT_EVERY === 0 || sim.ended) this.broadcastSnapshot();
     if (sim.ended) void this.finish(this.endReason ?? sim.victory ?? (sim.winner === null ? 'draw' : 'hq_destroyed'));
@@ -948,11 +960,31 @@ export class Room {
       }
     }
 
+    this.reportSamples = pushSample(this.reportSamples, this.sampleReport());
+    const report: MatchReport = {
+      samples: this.reportSamples,
+      medals: this.players.map((p) => {
+        const nat = this.nationalSummary(p.slot);
+        return {
+          slot: p.slot,
+          medals: medalsFor({
+            result: result(p.slot),
+            reason,
+            durationSeconds,
+            stats: sim.players[p.slot]!.stats,
+            gdpStartUsd: nat?.gdpStartUsd ?? null,
+            gdpEndUsd: nat?.gdpEndUsd ?? null,
+            bestRank: this.bestRank.get(p.slot) ?? 0,
+          }),
+        };
+      }),
+    };
     const end: MatchEndInfo = {
       winnerSlot,
       reason,
       durationSeconds,
       recorded,
+      report,
       players: this.players.map((p) => ({
         ...publicPlayer(p),
         stats: { ...sim.players[p.slot]!.stats },
@@ -963,6 +995,10 @@ export class Room {
     this.broadcast({ t: 'match_end', end });
     this.broadcastRoom();
     log.info('Partida encerrada', { room: this.code, reason, winnerSlot, recorded, durationSeconds });
+  }
+
+  private sampleReport(): ReportSample {
+    return reportSample(this.sim!, (slot) => this.national?.nation(slot)?.gdpUsd ?? null);
   }
 
   private nationalSummary(slot: Slot): NationalSummary | null {

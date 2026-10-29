@@ -1,4 +1,5 @@
 import type { Command } from './sim/commands.ts';
+import type { MatchReport } from './sim/report.ts';
 import type { BalanceMode, Budget, ForeignView, GeopoliticalView, HistoryPoint, NationalEvent, NationState } from './strategic/NationalSimulation.ts';
 import type { TechId } from './strategic/technologies.ts';
 import type { DiplomaticAction } from './strategic/Diplomacy.ts';
@@ -115,6 +116,8 @@ export interface MatchEndInfo {
   durationSeconds: number;
   players: (RoomPlayerInfo & { stats: PlayerStats; result: 'win' | 'loss' | 'draw'; national: NationalSummary | null })[];
   recorded: boolean;
+  /** Relatório pós-partida: séries do teatro e medalhas (ausente em versões antigas). */
+  report?: MatchReport;
 }
 
 export type ClientMessage =

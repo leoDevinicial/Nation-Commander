@@ -4,6 +4,8 @@ import { formatDuration, formatPct, formatSigned, formatUsd } from '../../lib/fo
 import { TECHNOLOGIES } from '../../../shared/strategic/technologies.ts';
 import { factionColor } from '../../game/factions.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
+import { MEDALS, type MedalId } from '../../../shared/sim/report.ts';
+import { ReportCharts } from './ReportCharts.tsx';
 
 const REASON = {
   hq_destroyed: 'Quartel-general destruído',
@@ -13,6 +15,20 @@ const REASON = {
   territory: 'Vitória territorial (domínio do mapa)',
   political: 'Vitória política (colapso do governo rival)',
 } as const;
+
+/** Medalhas do comandante (ícones com o nome e o critério na dica). */
+function Medals({ ids }: { ids: MedalId[] }) {
+  if (!ids.length) return null;
+  return (
+    <span className="ml-1.5 inline-flex gap-0.5 align-middle" aria-label={`Medalhas: ${ids.map((m) => MEDALS[m].label).join(', ')}`}>
+      {ids.map((m) => (
+        <span key={m} title={`${MEDALS[m].label} — ${MEDALS[m].description}`} className="cursor-help text-sm">
+          {MEDALS[m].icon}
+        </span>
+      ))}
+    </span>
+  );
+}
 
 export function ResultsOverlay() {
   const end = useAppStore((s) => s.matchEnd);
@@ -29,7 +45,7 @@ export function ResultsOverlay() {
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-ink-950/80 p-4">
-      <div className="panel w-full max-w-2xl p-6" role="dialog" aria-label="Resultado da partida">
+      <div className="panel scroll-thin max-h-full w-full max-w-2xl overflow-y-auto p-6" role="dialog" aria-label="Resultado da partida">
         <div className="text-center">
           <div className={`text-4xl font-black tracking-wide ${me?.result === 'win' ? 'text-signal-green' : me?.result === 'loss' ? 'text-red-300' : ''}`}>{title}</div>
           <div className="mt-1 text-sm text-ink-400">
@@ -53,6 +69,7 @@ export function ResultsOverlay() {
                 <td className="py-1.5 font-sans">
                   <span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm" style={{ background: factionColor(p.slot) }} aria-hidden />
                   {p.name} <span className="text-xs text-ink-400">({countryName(p.countryId)})</span>
+                  <Medals ids={end.report?.medals.find((m) => m.slot === p.slot)?.medals ?? []} />
                 </td>
                 <td>{p.stats.unitsProduced}</td>
                 <td>{p.stats.unitsKilled}</td>
@@ -63,6 +80,7 @@ export function ResultsOverlay() {
             ))}
           </tbody>
         </table>
+        {end.report && <ReportCharts report={end.report} names={new Map(end.players.map((p) => [p.slot, p.name]))} />}
         {end.players.some((p) => p.national) && (
           <>
             <h3 className="mt-5 text-xs font-semibold tracking-wider text-ink-400 uppercase">Desempenho nacional (linha histórica alternativa)</h3>
