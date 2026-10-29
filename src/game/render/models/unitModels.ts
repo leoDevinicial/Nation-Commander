@@ -104,11 +104,13 @@ function finishRig(r: Rig): UnitMotion {
 const cache = new Map<string, UnitModel>();
 
 /**
- * Modelos próprios de uma era (a partir dela): a tropa troca de veículo, não só de pintura. Hoje: o Lança-Foguetes
- * do Futuro Próximo (caminhão 8×8 blindado com casulo de tubos grandes).
+ * Modelos próprios de uma era (a partir dela): a tropa troca de veículo, não só de pintura. Hoje, no Futuro Próximo:
+ * o Lança-Foguetes (caminhão 8×8 blindado com casulo de tubos grandes) e a Artilharia (caminhão 6×6 com torre
+ * facetada e cano longo).
  */
 const ERA_BUILDERS: Partial<Record<UnitType, { from: number; build: () => BuiltUnit }>> = {
   rocket_artillery: { from: 4, build: buildRocketArtilleryFuture },
+  artillery: { from: 4, build: buildArtilleryFuture },
 };
 
 /** Chave do modelo da unidade na era dada (muda quando a era troca o veículo). */
@@ -785,6 +787,134 @@ function buildArtillery(): BuiltUnit {
     turretPivot: [-0.25, 0.62, 0],
     muzzle: at(2.5),
     guns: [{ layers: gunL.build(), pivot: [start[0], start[1], 0], elev, muzzle: [2.5, 0, 0], recoil: 0.45 }],
+    shot: 'howitzer',
+  };
+}
+
+/**
+ * Artilharia da era Futuro Próximo: caminhão 6×6 com cabine avançada (grade, para-brisa e espelhos), estepe e
+ * escapamento atrás da cabine, tanque de combustível e escada na lateral, plataforma com caixas de equipamento e
+ * patolas traseiras, e uma torre facetada grande (em cunha, chapas inclinadas) com cano longo e fino, freio de boca e
+ * sensor eletro-óptico cilíndrico na traseira da torre.
+ */
+function buildArtilleryFuture(): BuiltUnit {
+  const hull = layers();
+  const b = hull.body;
+  const armor = '#5d6350';
+  const armorDark = '#474c3c';
+  const black = '#1d1e1b';
+  // chassi e rodas (3 eixos)
+  b.box(2.4, 0.16, 0.8, armorDark, [-0.1, 0.52, 0]);
+  for (const x of [0.88, -0.48, -0.98]) for (const z of [0.47, -0.47]) rollingWheel([x, 0.3, z], 0.3, 0.24);
+  for (const [x, w] of [
+    [0.88, 0.62],
+    [-0.73, 1.02],
+  ] as const)
+    for (const z of [0.5, -0.5]) {
+      b.box(w, 0.05, 0.28, armorDark, [x, 0.66, z]);
+      b.box(0.05, 0.16, 0.28, armorDark, [x - w / 2, 0.58, z]);
+    }
+
+  // --- cabine avançada
+  b.side(
+    [
+      [0.62, 0.64],
+      [1.3, 0.64],
+      [1.33, 1.02],
+      [1.24, 1.42],
+      [0.62, 1.42],
+    ],
+    0.9,
+    armor,
+  );
+  b.box(0.12, 0.16, 0.96, armorDark, [1.33, 0.64, 0]); // para-choque
+  b.box(0.02, 0.24, 0.56, black, [1.335, 0.86, 0]); // grade
+  for (let i = 0; i < 7; i++) b.box(0.025, 0.24, 0.02, armorDark, [1.345, 0.86, -0.24 + i * 0.08]);
+  for (const z of [0.36, -0.36]) b.box(0.03, 0.06, 0.12, '#ece6cc', [1.34, 0.72, z]);
+  hull.glass.box(0.02, 0.26, 0.76, '#ffffff', [1.29, 1.22, 0], [0, 0, -0.22]);
+  for (const z of [0.452, -0.452]) {
+    hull.glass.box(0.3, 0.22, 0.01, '#ffffff', [1.0, 1.2, z]);
+    b.box(0.02, 0.4, 0.012, armorDark, [0.8, 1.0, z * 1.01]);
+    // espelho
+    b.box(0.03, 0.03, 0.1, armorDark, [1.24, 1.28, z * 1.12]);
+    b.box(0.04, 0.2, 0.09, black, [1.24, 1.28, z * 1.28]);
+  }
+  b.box(0.5, 0.06, 0.7, armorDark, [0.9, 1.45, 0]); // teto com bagageiro
+  b.cyl(0.01, 0.014, 0.4, black, [0.7, 1.68, 0.3], undefined, 5);
+  // estepe na vertical e escapamento atrás da cabine
+  b.cyl(0.26, 0.26, 0.2, black, [0.44, 1.08, 0.12], [Math.PI / 2, 0, 0], 14);
+  b.cyl(0.12, 0.12, 0.21, armorDark, [0.44, 1.08, 0.12], [Math.PI / 2, 0, 0], 10);
+  b.cyl(0.03, 0.03, 0.6, black, [0.5, 1.15, -0.35], undefined, 6);
+  b.box(0.3, 0.6, 0.84, armor, [0.48, 0.92, -0.05]);
+  // tanque de combustível e escada na lateral
+  b.cyl(0.1, 0.1, 0.42, C.steel, [0.2, 0.52, 0.42], [0, 0, Math.PI / 2], 12);
+  for (let i = 0; i < 4; i++) b.box(0.012, 0.012, 0.08, C.steel, [0.62, 0.62 + i * 0.12, 0.47]);
+
+  // --- plataforma traseira com caixas de equipamento e patolas
+  b.box(1.5, 0.08, 0.86, armorDark, [-0.6, 0.66, 0]);
+  for (const z of [0.38, -0.38])
+    for (let i = 0; i < 3; i++) {
+      b.box(0.42, 0.2, 0.12, armor, [-0.1 - i * 0.46, 0.8, z]);
+      b.box(0.05, 0.02, 0.13, C.steel, [-0.1 - i * 0.46, 0.84, z]);
+    }
+  for (const z of [0.38, -0.38]) {
+    b.box(0.08, 0.4, 0.08, armorDark, [-1.32, 0.38, z], [0, 0, 0.5]);
+    b.box(0.2, 0.03, 0.14, armorDark, [-1.42, 0.17, z]);
+  }
+  b.box(0.06, 0.06, 0.12, '#c4542a', [-1.36, 0.62, 0.36]);
+  b.box(0.06, 0.06, 0.12, '#c4542a', [-1.36, 0.62, -0.36]);
+  hull.accent.box(0.3, 0.12, 0.02, '#ffffff', [0.98, 0.82, 0.453]);
+  hull.accent.box(0.3, 0.12, 0.02, '#ffffff', [0.98, 0.82, -0.453]);
+
+  // --- torre facetada em cunha: base giratória, corpo com chapas inclinadas e sensor na traseira
+  const turret = layers();
+  const t = turret.body;
+  t.cyl(0.34, 0.38, 0.12, armorDark, [0, 0.06, 0], undefined, 14);
+  t.box(0.9, 0.14, 0.82, armor, [0, 0.18, 0]);
+  t.side(
+    [
+      [-0.62, 0.22],
+      [0.32, 0.22],
+      [0.58, 0.42],
+      [0.4, 0.76],
+      [-0.5, 0.82],
+      [-0.7, 0.55],
+    ],
+    0.86,
+    armor,
+  );
+  // chanfros laterais (as faces da torre se fecham para dentro)
+  for (const z of [0.45, -0.45]) t.box(0.9, 0.36, 0.06, armorDark, [-0.08, 0.5, z], [z > 0 ? 0.35 : -0.35, 0, 0]);
+  // escotilhas e linhas de chapas
+  t.box(0.2, 0.03, 0.24, armorDark, [-0.2, 0.82, 0.15]);
+  for (const x of [-0.35, 0.05]) t.box(0.012, 0.5, 0.87, armorDark, [x, 0.52, 0]);
+  // sensor eletro-óptico cilíndrico na traseira, com lente
+  t.cyl(0.14, 0.14, 0.24, '#d0d3cc', [-0.62, 0.95, 0.28], [Math.PI / 2, 0, 0], 16);
+  t.box(0.06, 0.16, 0.06, armorDark, [-0.62, 0.8, 0.28]);
+  turret.glass.cyl(0.09, 0.09, 0.02, '#ffffff', [-0.62, 0.95, 0.405], [Math.PI / 2, 0, 0], 14);
+  t.box(0.08, 0.06, 0.08, armorDark, [-0.45, 0.9, 0.36]);
+  turret.accent.box(0.5, 0.08, 0.02, '#ffffff', [-0.15, 0.5, 0.478]);
+  turret.accent.box(0.5, 0.08, 0.02, '#ffffff', [-0.15, 0.5, -0.478]);
+
+  // cano longo e fino com luva, berço e freio de boca
+  const elev = 0.42;
+  const dir = [Math.cos(elev), Math.sin(elev)] as const;
+  const start = [0.45, 0.55] as const;
+  const at = (d: number): [number, number, number] => [start[0] + dir[0] * d, start[1] + dir[1] * d, 0];
+  t.cyl(0.12, 0.14, 0.4, armorDark, at(0.15), [0, 0, -(Math.PI / 2 - elev)], 12);
+  const gunL = layers();
+  const gb = gunL.body;
+  gb.cyl(0.055, 0.075, 2.2, armorDark, [1.1, 0, 0], [0, 0, Math.PI / 2], 14);
+  gb.cyl(0.085, 0.085, 0.5, armor, [0.4, 0, 0], [0, 0, Math.PI / 2], 14);
+  gb.cyl(0.075, 0.07, 0.16, black, [2.24, 0, 0], [0, 0, Math.PI / 2], 14);
+  for (const z of [0.07, -0.07]) gb.box(0.1, 0.05, 0.02, '#0a0a0a', [2.24, 0, z]);
+  openMuzzle(gb, 2.38, 0.06, 0.07, 0.042, black, 16);
+  return {
+    hull: hull.build(),
+    turret: turret.build(),
+    turretPivot: [-0.55, 0.7, 0],
+    muzzle: at(2.38),
+    guns: [{ layers: gunL.build(), pivot: [start[0], start[1], 0], elev, muzzle: [2.38, 0, 0], recoil: 0.4 }],
     shot: 'howitzer',
   };
 }

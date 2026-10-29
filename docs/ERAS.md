@@ -55,6 +55,12 @@ velocidade sem o efeito estroboscópico.
 - armários laterais na carroceria;
 - casulo de 12 tubos cilíndricos grandes (3 × 4), presos por cintas.
 
+**Artilharia do Futuro Próximo:** na era 4 a Artilharia também troca de veículo. Vira um caminhão 6×6 com:
+- cabine avançada: grade, espelhos, estepe e escapamento atrás;
+- tanque de combustível e escada na lateral;
+- plataforma com caixas de equipamento e patolas;
+- torre facetada grande, em cunha, com cano longo e fino, freio de boca e sensor eletro-óptico cilíndrico na traseira.
+
 As unidades já em campo trocam de modelo ao serem modernizadas na era nova.
 
 As tropas novas saem com a pintura da era do dono: cinza-oliva, camuflagem digital clara e compósito escuro. As
