@@ -44,7 +44,7 @@ No celular, o painel sobe da base da tela (até 92% da altura), com rolagem e o 
 Toda melhoria custa US$ ao orçamento nacional. Não existe dinheiro infinito:
 - **Origem:** o fundo recebe **0,3% do orçamento anual de infraestrutura** (`WORKS_SHARE_OF_INFRA`). Essa fatia já está dentro
   do gasto de infraestrutura contabilizado na economia nacional, então não cria despesa nem dívida nova.
-- **Saldo inicial:** começa com **50% do teto anual**.
+- **Saldo inicial:** começa com **25% do teto anual** (era 50% antes do rebalanceamento da economia, ver `docs/ECONOMIA.md`).
 - **Recarga:** 1/365 do teto por dia de jogo (1 dia = 1 s). O saldo nunca passa do teto.
 - **Ajuste pelo orçamento:** mudar a fatia de infraestrutura muda o teto. O quadro **Verba de obras do teatro**, na aba
   **Orçamento**, mostra o saldo, o teto, a prévia do teto no rascunho, o total gasto e o livro das últimas obras (débitos e

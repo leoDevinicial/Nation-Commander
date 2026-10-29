@@ -16,6 +16,9 @@ Supabase para contas e histórico). O jogo é todo em português.
 - `src/game/` — runtime 3D (`GameRuntime.ts`), modelos, áudio sintetizado (`audio/AudioService.ts`) e qualidade
   adaptativa (`perf/`: KGPS e KAICS, ver `docs/KGPS_KAICS.md` e `docs/KAICS_ADAPTABLES_PLUS.md`).
 - `docs/` — uma página por fase ou sistema já feito; `docs/AUDITORIA_ADENDO.md` diz o estado de cada fase.
+- Custos: os valores-base ficam nas definições (`UNITS`, `BUILDINGS`, `AIRCRAFT`...), mas o bloco `ECONOMY` no fim de
+  `shared/sim/config.ts` (e em `air.ts`) os multiplica ao carregar. O valor que o jogo usa é o escalado; ver
+  `docs/ECONOMIA.md`. Testes de regra usam `TEST_START` (`shared/test/helpers.ts`) como estoque inicial.
 - Minas terrestres (`shared/sim/mines.ts`) não são entidades: o snapshot envia só as do dono e as já detectadas
   (`MineSystem.visibleTo`). O satélite do Programa Espacial revela o resto do mapa, mas nunca as minas.
 

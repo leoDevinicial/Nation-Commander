@@ -15,7 +15,7 @@ import {
   type SpecId,
 } from '../sim/upgrades.ts';
 import type { Building, Cell } from '../sim/types.ts';
-import { flatMap } from './helpers.ts';
+import { TEST_START, flatMap } from './helpers.ts';
 
 const run = (s: Simulation, ticks: number) => {
   for (let i = 0; i < ticks; i++) s.step();
@@ -48,7 +48,7 @@ const fertile = flatMap(32, (set) => {
 });
 
 function sim(link: NationalLink | null = fakeNation().link, map = fertile) {
-  const s = new Simulation({ map, playerCount: 2, startingUnits: [] });
+  const s = new Simulation({ map, playerCount: 2, startingUnits: [], startingResources: TEST_START });
   // tanques e artilharia exigem pesquisa militar (já feita aqui)
   for (const pl of s.players) pl.militaryResearch = ['tracked_armor', 'field_artillery'];
   s.national = link;
@@ -317,7 +317,8 @@ describe('regras do comando de melhoria', () => {
     upgrade(s, factory, 'advanced');
     expect(factory.spec).toBe('advanced');
     // estoques dentro da capacidade, para o reembolso entrar inteiro
-    Object.assign(s.players[0]!.resources, { supplies: 800, iron: 300 });
+    Object.assign(s.players[0]!.resources, { supplies: 800, iron: 300, oil: 300 });
+    s.players[0]!.oilReserve = 300;
     const before = { ...s.players[0]!.resources };
     expect(s.applyCommand(0, { type: 'produce', buildingId: factory.id, unitType: 'tank' })).toBeNull();
     const paidIron = before.iron - s.players[0]!.resources.iron;
@@ -420,7 +421,7 @@ describe('verba de obras no orçamento nacional', () => {
   it('na partida real o comando de melhoria cobra a verba da nação pelo servidor', async () => {
     const { NationalSimulation } = await import('../strategic/NationalSimulation.ts');
     const nat = new NationalSimulation([{ slot: 0, countryId: 'BRA' }, { slot: 1, countryId: 'ARG' }], 1, 'parity');
-    const s = new Simulation({ map: fertile, playerCount: 2, startingUnits: [] });
+    const s = new Simulation({ map: fertile, playerCount: 2, startingUnits: [], startingResources: TEST_START });
     s.national = {
       techs: (slot) => nat.nation(slot)?.research.done ?? [],
       infrastructureIndex: (slot) => nat.nation(slot)?.infrastructureIndex ?? 1,

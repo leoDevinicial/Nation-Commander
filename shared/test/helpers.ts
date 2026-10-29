@@ -44,3 +44,10 @@ export function theater(sim: NationalSimulation, stock = { supplies: 1000, oil: 
   return { stocks, wars };
 }
 
+
+/**
+ * Estoque folgado para testes de regras (dentro da capacidade do Centro de Comando): o começo
+ * real da partida é enxuto de propósito (ver `STARTING_RESOURCES`), mas os testes de construção e
+ * produção conferem regras, não o ritmo da economia.
+ */
+export const TEST_START = { supplies: 1200, food: 300, wood: 300, stone: 300, iron: 200, oil: 100 };

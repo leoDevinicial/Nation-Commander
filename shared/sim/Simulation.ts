@@ -353,7 +353,8 @@ export class Simulation {
     this.recomputeTerritory();
     for (let slot = 0; slot < init.playerCount; slot++) {
       const hq = this.hqOf(slot)!;
-      const units = init.startingUnits ?? ['infantry', 'infantry', 'infantry', 'tank'];
+      // começo enxuto: nenhuma tropa de combate, só um explorador para descobrir o mapa
+      const units = init.startingUnits ?? ['scout'];
       for (const t of units) this.spawnUnitNear(hq, t);
       // o estoque inicial respeita a capacidade de armazenamento
       this.clampToCapacity(slot, 'capacity');

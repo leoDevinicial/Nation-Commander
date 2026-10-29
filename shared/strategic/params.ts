@@ -39,8 +39,9 @@ export const BASE_INFRASTRUCTURE_PCT = 2.5;
  * infraestrutura, com os efeitos normais sobre déficit e dívida.
  */
 export const WORKS_SHARE_OF_INFRA = 0.003;
-/** A verba começa a partida com esta fração do teto anual (o resto chega dia a dia). */
-export const WORKS_START_FRACTION = 0.5;
+/** A verba começa a partida com esta fração do teto anual (o resto chega dia a dia). Rebalanceamento
+ * da economia: começa com pouco dinheiro, para a primeira melhoria ser uma escolha. */
+export const WORKS_START_FRACTION = 0.25;
 /** Lançamentos mais recentes guardados no extrato de obras. */
 export const WORKS_LEDGER_MAX = 12;
 

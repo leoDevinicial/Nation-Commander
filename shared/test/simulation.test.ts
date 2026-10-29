@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS, TICK_RATE, Terrain, UNITS } from '../sim/config.ts';
-import { generateMap } from '../sim/MapGen.ts';
+import { generateMatchMap } from '../sim/matchMap.ts';
 import { Simulation } from '../sim/Simulation.ts';
 import { TacticalAI, AI_THINK_TICKS } from '../sim/TacticalAI.ts';
 import { parseCommand } from '../sim/commands.ts';
-import { flatMap } from './helpers.ts';
+import { TEST_START, flatMap } from './helpers.ts';
 
 const run = (sim: Simulation, ticks: number) => {
   for (let i = 0; i < ticks; i++) sim.step();
 };
 
 function emptySim(map = flatMap()) {
-  return new Simulation({ map, playerCount: 2, startingUnits: [], allAtWar: true });
+  return new Simulation({ map, playerCount: 2, startingUnits: [], allAtWar: true, startingResources: TEST_START });
 }
 
 describe('movimento', () => {
@@ -183,10 +183,11 @@ describe('economia, construção e produção', () => {
 
 describe('determinismo e IA', () => {
   function playout(seed: number) {
-    const sim = new Simulation({ map: generateMap(seed), playerCount: 2, allAtWar: true });
+    // mapa das partidas (o começo é enxuto: a IA precisa de alguns minutos de economia)
+    const sim = new Simulation({ map: generateMatchMap(seed, { nations: 2 }), playerCount: 2, allAtWar: true });
     const ais = [new TacticalAI(0), new TacticalAI(1)];
     const moveOrders = [0, 0];
-    for (let t = 0; t < TICK_RATE * 200; t++) {
+    for (let t = 0; t < TICK_RATE * 360; t++) {
       if (sim.tick % AI_THINK_TICKS === 0)
         for (const ai of ais)
           for (const c of ai.think(sim)) {
@@ -205,7 +206,7 @@ describe('determinismo e IA', () => {
       JSON.stringify([...s.entities.values()].map((e) => [e.id, e.type, e.owner, e.hp, e.pos.x.toFixed(4), e.pos.y.toFixed(4)]));
     expect(digest(a)).toBe(digest(b));
     expect(a.players.map((p) => p.resources)).toEqual(b.players.map((p) => p.resources));
-  });
+  }, 30_000);
 
   it('a IA constrói, produz e movimenta tropas', () => {
     const sim = playout(11);
@@ -215,7 +216,7 @@ describe('determinismo e IA', () => {
     expect(p1.stats.resourcesSpent).toBeGreaterThan(0);
     // no período de preparo a IA não ataca, mas reúne as tropas (ordens de movimento aceitas)
     expect(sim.moveOrders[1]).toBeGreaterThan(0);
-  });
+  }, 30_000);
 });
 
 describe('parseCommand', () => {

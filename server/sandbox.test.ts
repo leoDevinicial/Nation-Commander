@@ -92,9 +92,11 @@ describe('modo Sandbox', () => {
     expect(hq.level).toBe(maxLevelOf('hq'));
     expect(hq.hp).toBe(hq.maxHp);
     expect(hq.maxHp).toBeGreaterThan(BUILDINGS.hq.maxHp);
-    const mine = sim.units.filter((u) => u.owner === 0).map((u) => u.id);
+    // a partida começa só com o explorador: cria infantaria própria para modernizar
+    expect(await cmd({ type: 'sandbox_spawn', unitType: 'infantry', x: hq.pos.x + 6, y: hq.pos.y, count: 3, enemy: false, maxed: false })).toBeNull();
+    const mine = sim.units.filter((u) => u.owner === 0 && u.type === 'infantry').map((u) => u.id);
     expect(await cmd({ type: 'sandbox_maxout', unitIds: mine })).toBeNull();
-    expect(sim.units.filter((u) => u.owner === 0).every((u) => u.mods.length > 0)).toBe(true);
+    expect(sim.units.filter((u) => u.owner === 0 && u.type === 'infantry').every((u) => u.mods.length > 0)).toBe(true);
     expect(await cmd({ type: 'sandbox_remove', ids: [enemies[0]!.id] })).toBeNull();
     expect(await cmd({ type: 'sandbox_clear', who: 'enemy' })).toBeNull();
     expect(sim.units.filter((u) => u.owner === 1).length).toBe(0);

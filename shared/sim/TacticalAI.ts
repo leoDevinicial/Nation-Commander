@@ -192,9 +192,15 @@ export class TacticalAI {
     const cap = sim.capacity(this.slot);
     const res = me.resources;
     const nearlyFull = (r: 'wood' | 'stone' | 'iron' | 'food') => cap[r] > 0 && res[r] >= cap[r] * 0.8;
+    const woodRate = sim.incomePerSecond(this.slot).wood;
+    // primeira obra do plano que ficou esperando recursos: as melhorias esperam por ela
+    let waitingFor: BuildingType | null = null;
     const tryBuild = (type: BuildingType): boolean => {
       if (buildingEra(type) > sim.eraOf(this.slot)) return false;
-      if (!canAfford(budget, BUILDINGS[type].cost)) return false;
+      if (!canAfford(budget, BUILDINGS[type].cost)) {
+        waitingFor ??= type;
+        return false;
+      }
       const cell =
         BUILDINGS[type].gather?.terrain === null ? this.freeNode(sim, hq) : type === 'oil_tank' ? this.tankSpot(sim, mine) : this.findBuildSpot(sim, hq, type);
       if (!cell || !take(BUILDINGS[type].cost)) return false;
@@ -213,6 +219,10 @@ export class TacticalAI {
         else savingForEra = true;
       }
     }
+    // Centro de Pesquisa: com a fábrica pronta, guarda material para ele em vez de gastar em
+    // prefeituras, melhorias e tropas (a obra entra no plano assim que couber no orçamento)
+    const savingForResearch =
+      count('research_center') === 0 && done('factory') && sim.tick >= AI_RESEARCH_TICK && buildingEra('research_center') <= sim.eraOf(this.slot);
     const housingInProgress = mine.some((b) => (b.type === 'house' || b.type === 'residential') && b.progress < 1);
     const wellsWithoutTank = mine.some(
       (w) => w.type === 'oil_well' && !mine.some((t) => t.type === 'oil_tank' && dist(t.pos, w.pos) / sim.map.cellSize <= OIL_TANK_RANGE),
@@ -220,16 +230,21 @@ export class TacticalAI {
     // ameaça aérea (Fase 7): base aérea ou silo inimigo conhecido pede defesa antiaérea perto do QG
     const airThreat = sim.buildings.some((b) => b.owner !== this.slot && (b.type === 'airbase' || b.type === 'missile_silo') && sim.hostile(this.slot, b.owner) && sim.air.isKnown(this.slot, b.id));
     // cidades: duas prefeituras na fronteira depois da economia básica (economiza pedra para elas)
-    const cityWanted = !savingForEra && count('city_hall') < 2 && done('factory') && done('tower') && this.citySiteExists(sim, hq);
+    // era 2 (destrava o Centro de Pesquisa): com a fábrica pronta, o QG sobe antes de qualquer outra melhoria
+    const needHq = sim.eras && (me.era ?? 1) < 2 && done('factory') && sim.hqLevel(this.slot) < ERAS[2].hqLevel;
+    const saving = savingForEra || savingForResearch || needHq;
+    const cityWanted = !saving && count('city_hall') < 2 && done('factory') && done('tower') && this.citySiteExists(sim, hq);
     const plan: [BuildingType, boolean][] = [
       ['house', pop.total >= pop.cap - 2 && pop.cap < POP_ABSOLUTE_CAP && !housingInProgress && count('house') + count('residential') < 14],
       ['oil_tank', wellsWithoutTank || (mine.some((b) => b.type === 'oil_well' && b.status === 'storage_full') && count('oil_tank') < 5)],
       ['city_hall', cityWanted],
-      ['farm', res.food < 30 && done('farm') && count('farm') < 5],
+      ['farm', res.food < 30 && done('farm') && count('farm') < 3],
       ['warehouse', ((nearlyFull('wood') && done('sawmill')) || (nearlyFull('stone') && done('quarry')) || (nearlyFull('iron') && done('mine'))) && count('warehouse') < 4],
-      ['silo', nearlyFull('food') && done('farm') && count('silo') < 4],
+      ['silo', nearlyFull('food') && done('farm') && count('silo') < (saving ? 1 : 3)],
       ['sawmill', active('sawmill') === 0],
       ['farm', count('farm') === 0],
+      // madeira fraca (floresta pequena perto da base): mais serrarias antes da base militar
+      ['sawmill', active('sawmill') < 3 && woodRate < 1.5],
       ['barracks', count('barracks') === 0],
       ['quarry', active('quarry') === 0],
       ['quarry', active('quarry') < 2 && done('barracks') && sim.eras],
@@ -237,17 +252,20 @@ export class TacticalAI {
       ['mine', active('mine') === 0],
       ['oil_well', count('oil_well') === 0],
       ['farm', count('farm') < 2 && done('barracks')],
+      // ferro pesa nos custos de tropas e pesquisas: segunda mina logo depois da base militar
+      ['mine', active('mine') < 2 && done('barracks')],
       ['factory', count('factory') === 0 && done('barracks')],
       ['oil_well', count('oil_well') < 2 && done('factory')],
+      // pedra limita a era 2 e o Centro de Pesquisa
+      ['quarry', active('quarry') < 3 && done('factory')],
       ['sawmill', active('sawmill') < 3 && done('factory')],
       ['research_center', count('research_center') === 0 && done('factory') && sim.tick >= AI_RESEARCH_TICK],
-      ['mine', active('mine') < 2 && done('research_center')],
       ['farm', count('farm') < 3 && done('factory')],
-      ['tower', count('tower') < 1 && done('factory')],
+      ['tower', count('tower') < 1 && done('factory') && !saving],
       ['aa_battery', airThreat && count('aa_battery') < 3 && done('factory')],
       ['residential', pop.cap >= 60 && pop.total >= pop.cap - 4 && !housingInProgress && count('residential') < 4],
-      ['factory', count('factory') < 2 && budget.supplies > 350 && budget.oil > 150],
-      ['barracks', count('barracks') < 2 && budget.food > 250],
+      ['factory', count('factory') < 2 && !saving && budget.supplies > 350 && budget.oil > 150],
+      ['barracks', count('barracks') < 2 && !saving && budget.food > 250],
       ['oil_well', count('oil_well') < 3 && army.length >= 10],
       // cadeias produtivas e serviços (lote 1, §4): depois da economia militar montada
       ['steel_mill', count('steel_mill') === 0 && done('research_center') && active('mine') >= 1 && army.length >= 8 && budget.iron > 150],
@@ -269,8 +287,10 @@ export class TacticalAI {
       }
 
     // --- melhorias (Fase 4): uma obra por vez, só com folga de recursos e de manutenção
-    // (guardando material enquanto junta para a próxima prefeitura)
-    if ((!cityWanted || built === 'city_hall') && !savingForEra) this.planUpgrade(sim, mine, budget, take, cmds);
+    // (guardando material enquanto junta para a próxima prefeitura). Com os custos altos, só depois do
+    // quartel e sem obra do plano esperando recursos: senão as melhorias consomem a base militar.
+    if (needHq) this.planUpgrade(sim, mine, budget, take, cmds, true);
+    else if ((!cityWanted || built === 'city_hall') && !saving && !waitingFor && done('barracks')) this.planUpgrade(sim, mine, budget, take, cmds);
 
     // --- população: forma cidadãos para preencher postos e manter reserva para recrutamento
     const vacancies = mine.reduce((a, b) => a + (b.progress >= 1 ? Math.max(0, Math.min(b.workerTarget, sim.fx(b).workers) - b.workers) : 0), 0);
@@ -280,6 +300,7 @@ export class TacticalAI {
 
     // --- produção militar: cada unidade precisa de um recruta da reserva como tripulação.
     // No preparo (e sem guerra), só uma guarnição: os recursos vão para a economia.
+    const unlocked = me.militaryResearch ?? [];
     const atWar = sim.players.some((p) => p.slot !== this.slot && !p.defeated && sim.formalWar(this.slot, p.slot));
     const preparing = sim.tick < prep && !atWar;
     const garrisonRoom = Math.max(0, AI_PREP_GARRISON - army.length - pop.queuedMilitary);
@@ -291,9 +312,11 @@ export class TacticalAI {
     }
     let crew = preparing ? Math.min(pop.recruits, garrisonRoom) : pop.recruits;
     // pesquisa militar: o centro pesquisa na ordem; a produção usa o que já foi liberado
-    this.planResearch(sim, mine, airThreat, take, cmds);
+    // (com o centro ainda em obra, a primeira pesquisa já entra na reserva)
+    const researchWait =
+      this.planResearch(sim, mine, airThreat, take, cmds) ??
+      (mine.some((b) => b.type === 'research_center' && b.progress < 1) && !unlocked.length ? MILITARY_RESEARCH.tracked_armor.cost : null);
     if (level.airPower) this.planAir(sim, mine, level.missiles, natTechs, take, cmds);
-    const unlocked = me.militaryResearch ?? [];
     const has = (u: UnitType) => !UNITS[u].requires || unlocked.includes(UNITS[u].requires!);
     const enemyArmor = sim.units.filter((u) => sim.hostile(this.slot, u.owner) && UNITS[u.type].armor === 'vehicle' && sim.canSee(this.slot, u)).length;
     // engenheiros: alguns por nação (minas na defesa e remoção das minas inimigas)
@@ -311,6 +334,12 @@ export class TacticalAI {
       has('rocket_artillery') ? 'rocket_artillery' : has('artillery') ? 'artillery' : 'apc',
       airThreat && has('mobile_aa') ? 'mobile_aa' : has('mbt') ? 'mbt' : has('tank') ? 'tank' : 'apc',
     ];
+    // com os custos altos, a produção consumiria o material do Centro de Pesquisa e da próxima era:
+    // guarda o que falta até conseguir pagá-los (destravam as tropas melhores)
+    if (savingForResearch) for (const r of RESOURCE_TYPES) budget[r] -= BUILDINGS.research_center.cost[r] ?? 0;
+    // com uma guarnição montada, a pesquisa parada passa na frente das próximas tropas
+    if (researchWait && army.length >= AI_PREP_GARRISON) for (const r of RESOURCE_TYPES) budget[r] -= researchWait[r] ?? 0;
+    if (savingForEra) for (const r of RESOURCE_TYPES) budget[r] -= ERAS[((me.era ?? 1) + 1) as Era].cost[r] ?? 0;
     const techs = sim.national ? sim.national.techs(this.slot) : null;
     // bens industriais reservados na própria avaliação (vários pedidos no mesmo turno)
     const goods = { ...(me.goods ?? emptyGoods()) };
@@ -603,9 +632,10 @@ export class TacticalAI {
     }
   }
 
-  private planResearch(sim: Simulation, mine: Building[], airThreat: boolean, take: (c: Cost) => boolean, cmds: Command[]): void {
+  /** Inicia a próxima pesquisa militar; devolve o custo da que ficou esperando por recursos. */
+  private planResearch(sim: Simulation, mine: Building[], airThreat: boolean, take: (c: Cost) => boolean, cmds: Command[]): Cost | null {
     const center = mine.find((b) => b.type === 'research_center' && b.progress >= 1 && b.hp > 0 && !b.research && b.workers > 0);
-    if (!center) return;
+    if (!center) return null;
     const done = sim.players[this.slot]!.militaryResearch ?? [];
     const order: MilitaryResearchId[] = airThreat
       ? ['tracked_armor', 'mobile_air_defense', 'field_artillery', 'antitank_weapons', 'rocket_systems', 'special_operations', 'modern_armor']
@@ -615,13 +645,14 @@ export class TacticalAI {
     for (const id of order) {
       if (done.includes(id) || mine.some((b) => b.research?.id === id)) continue;
       if (militaryResearchBlocker(id, done, center.level, sim.eraOf(this.slot))) continue;
-      if (!take(MILITARY_RESEARCH[id].cost)) return;
+      if (!take(MILITARY_RESEARCH[id].cost)) return MILITARY_RESEARCH[id].cost;
       cmds.push({ type: 'military_research', buildingId: center.id, researchId: id });
-      return;
+      return null;
     }
+    return null;
   }
 
-  private planUpgrade(sim: Simulation, mine: Building[], budget: Stockpile, take: (c: Cost) => boolean, cmds: Command[]): void {
+  private planUpgrade(sim: Simulation, mine: Building[], budget: Stockpile, take: (c: Cost) => boolean, cmds: Command[], onlyHq = false): void {
     if (sim.tick < AI_FIRST_UPGRADE_TICK || mine.some((b) => b.upgrade)) return;
     const hq = mine.find((b) => b.type === 'hq');
     if (!hq) return;
@@ -652,7 +683,7 @@ export class TacticalAI {
       if (b.type === 'residential' || b.type === 'house') return pop.total >= pop.cap - 3 ? 4 : 9;
       return 6;
     };
-    const candidates = mine.filter((b) => b.progress >= 1 && b.hp > 0 && order(b) < 9).sort((a, b) => order(a) - order(b) || a.level - b.level || a.id - b.id);
+    const candidates = mine.filter((b) => b.progress >= 1 && b.hp > 0 && (onlyHq ? b.type === 'hq' : order(b) < 9)).sort((a, b) => order(a) - order(b) || a.level - b.level || a.id - b.id);
     for (const b of candidates) {
       const plan = sim.upgradePlan(b, AI_SPEC[b.type] ?? null);
       if (plan.toLevel === null) continue;

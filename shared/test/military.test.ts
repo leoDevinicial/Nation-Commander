@@ -6,14 +6,14 @@ import { MISSILE, missileSpec } from '../sim/air.ts';
 import { makeSnapshot } from '../sim/snapshot.ts';
 import type { Building, SimEvent, Unit } from '../sim/types.ts';
 import { militaryResearchSpeed } from '../strategic/params.ts';
-import { flatMap } from './helpers.ts';
+import { TEST_START, flatMap } from './helpers.ts';
 
 const run = (sim: Simulation, seconds: number) => {
   for (let i = 0; i < seconds * TICK_RATE; i++) sim.step();
 };
 
 function setup(opts: { speed?: number; war?: boolean } = {}) {
-  const sim = new Simulation({ map: flatMap(36), playerCount: 2, startingUnits: [] });
+  const sim = new Simulation({ map: flatMap(36), playerCount: 2, startingUnits: [], startingResources: TEST_START });
   const link: NationalLink = {
     techs: () => ['ballistic_missiles'],
     infrastructureIndex: () => 1,
@@ -56,10 +56,10 @@ describe('produção sem recursos para o equipamento de linha', () => {
   it('a unidade sai básica (sem modernização) em vez de travar a produção', async () => {
     const { checkProduce } = await import('../sim/production.ts');
     const ctx = { buildingType: 'barracks' as const, level: 1, spec: null, progress: 1, queueLength: 0, recruits: 2, popTotal: 0, popCap: 99, techs: ['composite_armor'], militaryResearch: [] };
-    const full = checkProduce('infantry', { ...ctx, resources: { supplies: 100, food: 100, wood: 0, stone: 0, iron: 50, oil: 0 } });
+    const full = checkProduce('infantry', { ...ctx, resources: { supplies: 300, food: 300, wood: 0, stone: 0, iron: 50, oil: 0 } });
     expect(full.mods).toContain('body_armor');
     expect(full.basic).toBe(false);
-    const noIron = checkProduce('infantry', { ...ctx, resources: { supplies: 100, food: 100, wood: 0, stone: 0, iron: 0, oil: 0 } });
+    const noIron = checkProduce('infantry', { ...ctx, resources: { supplies: 300, food: 300, wood: 0, stone: 0, iron: 0, oil: 0 } });
     expect(noIron.blocker).toBeNull();
     expect(noIron.basic).toBe(true);
     expect(noIron.mods).toEqual([]);

@@ -275,6 +275,8 @@ describe('servidor de partidas', () => {
     const hq = sim.buildings.find((x) => x.owner === 0 && x.type === 'hq')!;
     const works = room.national!.nation(0)!.works;
     const me = sim.players[0]!;
+    // o começo da partida é enxuto: estoque suficiente para a obra (dentro da capacidade do QG)
+    Object.assign(me.resources, { supplies: 1000, wood: 300, stone: 300, iron: 200 });
     const fund0 = works.fundUsd;
     const wood0 = me.resources.wood;
     const stone0 = me.resources.stone;

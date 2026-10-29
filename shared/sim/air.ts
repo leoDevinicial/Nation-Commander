@@ -1,4 +1,4 @@
-import { BUILDINGS, GOODS, TICK_RATE, UNITS, canAfford, type Cost, type Goods } from './config.ts';
+import { BUILDINGS, ECONOMY, GOODS, TICK_RATE, UNITS, canAfford, scaleCostBy, type Cost, type Goods } from './config.ts';
 import { substituteGoods } from './production.ts';
 import type { CountryBonus } from './countryBonus.ts';
 import { AIRCRAFT_ERA, eraLabel } from './eras.ts';
@@ -168,6 +168,14 @@ export const NUCLEAR = {
   radius: 14,
   interceptMul: 0.5,
 };
+
+// balanceamento da economia (ver `ECONOMY` em config.ts): aeronaves e mísseis custam bem mais
+for (const a of Object.values(AIRCRAFT)) {
+  a.cost = scaleCostBy(a.cost, ECONOMY.aircraft);
+  a.usd = Math.round(a.usd * ECONOMY.aircraftUsd);
+}
+MISSILE.cost = scaleCostBy(MISSILE.cost, ECONOMY.missiles);
+NUCLEAR.cost = scaleCostBy(NUCLEAR.cost, ECONOMY.missiles);
 
 /**
  * Ficha do míssil por geração. A 2ª geração (silo no nível 2) é o míssil pesado do lançador

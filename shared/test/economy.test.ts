@@ -6,14 +6,14 @@ import { Simulation } from '../sim/Simulation.ts';
 import { makeSnapshot } from '../sim/snapshot.ts';
 import { computeTerritory, decodeTerritory, encodeTerritory, NO_OWNER } from '../sim/territory.ts';
 import type { Building, Cell } from '../sim/types.ts';
-import { flatMap } from './helpers.ts';
+import { TEST_START, flatMap } from './helpers.ts';
 
 const run = (sim: Simulation, ticks: number) => {
   for (let i = 0; i < ticks; i++) sim.step();
 };
 
 function sim(map = flatMap(), opts: { atWar?: boolean } = {}) {
-  return new Simulation({ map, playerCount: 2, startingUnits: [], allAtWar: opts.atWar ?? false });
+  return new Simulation({ map, playerCount: 2, startingUnits: [], allAtWar: opts.atWar ?? false, startingResources: TEST_START });
 }
 
 /** Constrói e conclui um edifício (via comando validado), avançando o tempo de obra. */

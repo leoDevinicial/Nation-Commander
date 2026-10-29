@@ -1,4 +1,4 @@
-import { eraLabel, researchEra } from './eras.ts';
+import { ERAS, eraLabel, researchEra } from './eras.ts';
 /**
  * Tabelas de regras da operação tática. Todos os valores são parâmetros de jogo
  * (game_parameter), não dados factuais. Ajustar aqui, nunca espalhados pelo código.
@@ -22,7 +22,7 @@ export const CELL_SIZE = 2; // unidades de mundo por célula
 /** Teto absoluto de população por nação (cidadãos + efetivo militar), em qualquer situação. */
 export const POP_ABSOLUTE_CAP = 200;
 /** Cidadãos no início da partida (além das unidades iniciais). */
-export const STARTING_CITIZENS = 8;
+export const STARTING_CITIZENS = 6;
 /** Formação de um cidadão civil no Centro de Comando: trabalha nas construções (fazendas, poços, serrarias…). */
 export const CITIZEN = { label: 'Cidadão', cost: { food: 40 } as Cost, buildSeconds: 6, hotkey: 'Z' };
 /**
@@ -115,7 +115,8 @@ export const STORAGE_LABEL: Record<ResourceType, string> = {
 export type Cost = Partial<Record<ResourceType, number>>;
 export type Stockpile = Record<ResourceType, number>;
 
-export const STARTING_RESOURCES: Stockpile = { supplies: 300, food: 150, wood: 250, stone: 120, iron: 60, oil: 50 };
+/** Começo enxuto (só o essencial para a primeira fazenda e a primeira serraria): administrar recursos é o centro do jogo. */
+export const STARTING_RESOURCES: Stockpile = { supplies: 200, food: 150, wood: 200, stone: 60, iron: 0, oil: 50 };
 
 export function emptyStockpile(): Stockpile {
   return { supplies: 0, food: 0, wood: 0, stone: 0, iron: 0, oil: 0 };
@@ -185,17 +186,18 @@ export interface DepositRule {
   amountPerCell: number;
 }
 
+// reservas dobradas no rebalanceamento da economia (custos 1,5–3× maiores): os depósitos duram a partida
 export const DEPOSIT_RULES: Partial<Record<Terrain, DepositRule>> = {
-  [Terrain.Forest]: { mediumFrom: 20, largeFrom: 50, maxSites: { small: 1, medium: 2, large: 3 }, amountPerCell: 80 },
-  [Terrain.Rock]: { mediumFrom: 12, largeFrom: 36, maxSites: { small: 1, medium: 2, large: 2 }, amountPerCell: 120 },
-  [Terrain.Ore]: { mediumFrom: 6, largeFrom: 16, maxSites: { small: 1, medium: 1, large: 2 }, amountPerCell: 100 },
+  [Terrain.Forest]: { mediumFrom: 20, largeFrom: 50, maxSites: { small: 1, medium: 2, large: 3 }, amountPerCell: 160 },
+  [Terrain.Rock]: { mediumFrom: 12, largeFrom: 36, maxSites: { small: 1, medium: 2, large: 2 }, amountPerCell: 240 },
+  [Terrain.Ore]: { mediumFrom: 6, largeFrom: 16, maxSites: { small: 1, medium: 1, large: 2 }, amountPerCell: 200 },
 };
 /** Solo fértil é renovável (sem esgotamento), limitado só pelas células livres. */
-export const OIL_DEPOSIT_AMOUNT = 2500;
+export const OIL_DEPOSIT_AMOUNT = 5000;
 
 // ------------------------------------------------------------------ unidades
 
-export type UnitType = 'infantry' | 'apc' | 'tank' | 'artillery' | 'at_infantry' | 'special_forces' | 'mbt' | 'rocket_artillery' | 'mobile_aa' | 'engineer';
+export type UnitType = 'infantry' | 'apc' | 'tank' | 'artillery' | 'at_infantry' | 'special_forces' | 'mbt' | 'rocket_artillery' | 'mobile_aa' | 'engineer' | 'scout';
 
 /** Classe de blindagem do alvo: define os bônus das armas (antitanque contra veículos, etc.). */
 export type ArmorClass = 'infantry' | 'vehicle';
@@ -416,6 +418,20 @@ export const UNITS: Record<UnitType, UnitDef> = {
     hotkey: 'E',
     armor: 'infantry',
     requires: 'combat_engineering',
+  },
+  scout: {
+    label: 'Explorador',
+    cost: { food: 30, supplies: 15 },
+    buildSeconds: 7,
+    maxHp: 70,
+    speed: 5.2,
+    radius: 0.45,
+    sight: 16,
+    weapon: { damage: 3, range: 4, cooldown: 1.5, vsVehicle: 0.2 },
+    producedBy: 'barracks',
+    description: 'Batedor rápido de visão longa: descobre o mapa, as jazidas e os vizinhos. Quase não luta. Toda nação começa a partida com um.',
+    hotkey: 'O',
+    armor: 'infantry',
   },
   mobile_aa: {
     label: 'Antiaérea Móvel',
@@ -654,7 +670,7 @@ export const PROJECT_FX = {
  */
 export const ROAD = {
   maxCells: 40,
-  stonePerCell: 6,
+  stonePerCell: 10,
   /** Fração do teto anual da verba de obras por célula. */
   usdSharePerCell: 0.002,
   /** Suprimentos/s por célula. */
@@ -710,7 +726,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     territoryRadius: 13,
     territoryWeight: 1.5,
     housing: 20,
-    storage: { supplies: 1000, food: 150, wood: 150, stone: 150, iron: 100, oil: 100 },
+    storage: { supplies: 1500, food: 300, wood: 300, stone: 300, iron: 200, oil: 200 },
     buildable: false,
     description: 'Sede do governo no teatro: forma cidadãos, abriga 20 habitantes, guarda suprimentos e projeta o maior território. Se for destruído, a operação está perdida.',
   },
@@ -950,9 +966,9 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     size: 2,
     income: {},
     sight: 6,
-    storage: { wood: 400, stone: 400, iron: 400 },
+    storage: { wood: 800, stone: 800, iron: 800 },
     buildable: true,
-    description: 'Guarda madeira, pedra e ferro (400 de cada). Destruído, o excedente acima da capacidade restante se perde.',
+    description: 'Guarda madeira, pedra e ferro (800 de cada). Destruído, o excedente acima da capacidade restante se perde.',
     hotkey: 'R',
   },
   silo: {
@@ -964,9 +980,9 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     size: 1,
     income: {},
     sight: 5,
-    storage: { food: 400 },
+    storage: { food: 800 },
     buildable: true,
-    description: 'Guarda 400 de comida. Fazendas pausam quando todos os silos estão cheios.',
+    description: 'Guarda 800 de comida. Fazendas pausam quando todos os silos estão cheios.',
     hotkey: 'L',
   },
   oil_tank: {
@@ -978,9 +994,9 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     size: 1,
     income: {},
     sight: 5,
-    storage: { oil: 300 },
+    storage: { oil: 600 },
     buildable: true,
-    description: `Guarda 300 de petróleo, com estoque próprio. Poços a até ${OIL_TANK_RANGE} células enchem o tanque; se for destruído, o petróleo dele se perde.`,
+    description: `Guarda 600 de petróleo, com estoque próprio. Poços a até ${OIL_TANK_RANGE} células enchem o tanque; se for destruído, o petróleo dele se perde.`,
     hotkey: 'Y',
   },
   market: {
@@ -1081,7 +1097,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     territoryRadius: 10,
     territoryWeight: 1.4,
     housing: 10,
-    storage: { supplies: 200, food: 100, wood: 100, stone: 100 },
+    storage: { supplies: 400, food: 200, wood: 200, stone: 200 },
     buildable: true,
     description:
       'Funda uma cidade com o nome de uma cidade real do seu país: amplia bastante a fronteira, abriga 10, guarda recursos e rende suprimentos. Fica a pelo menos 10 células de outra prefeitura ou do QG. Se um inimigo a destruir, ele toma a cidade e os edifícios dela num raio de 8 células. Funciona como um QG secundário: pronta, forma cidadãos e abre o menu de construção.',
@@ -1207,3 +1223,47 @@ export const STUCK_TICKS = 20;
 export const MAX_REPLANS = 3;
 /** Intervalo (ticks) para recalcular caminho de perseguição. */
 export const CHASE_REPATH_TICKS = 10;
+
+// ------------------------------------------------------------------ economia (balanceamento)
+
+/**
+ * Peso da economia: tudo custa bem mais do que o primeiro protótipo e a coleta é um pouco mais
+ * lenta, para que administrar recursos seja o centro do jogo (pedido de balanceamento). Os
+ * multiplicadores se aplicam uma vez, sobre os valores de referência acima (arredondados de 5
+ * em 5); a armazenagem foi dobrada direto nas definições para caber os custos novos.
+ */
+export const ECONOMY = {
+  units: 2.5,
+  recruit: 1.5,
+  citizen: 1.25,
+  research: 2,
+  economicBuildings: 1.6,
+  militaryBuildings: 2,
+  projects: 1.3,
+  gather: 0.8,
+  /** Aeronaves e mísseis (aplicado em `air.ts`). */
+  aircraft: 3,
+  aircraftUsd: 2,
+  missiles: 2.5,
+  /** Avanço de era (aplicado em `eras.ts`). */
+  eras: 1.6,
+};
+
+export function scaleCostBy(c: Cost, mul: number): Cost {
+  const out: Cost = {};
+  for (const [r, v] of Object.entries(c) as [ResourceType, number][]) out[r] = Math.max(5, Math.round((v * mul) / 5) * 5);
+  return out;
+}
+
+const MILITARY_BUILDINGS: readonly BuildingType[] = ['barracks', 'factory', 'tower', 'research_center', 'tank_trap', 'aa_battery', 'airbase', 'missile_silo'];
+for (const u of Object.values(UNITS)) u.cost = scaleCostBy(u.cost, ECONOMY.units);
+RECRUIT.cost = scaleCostBy(RECRUIT.cost, ECONOMY.recruit);
+CITIZEN.cost = scaleCostBy(CITIZEN.cost, ECONOMY.citizen);
+for (const r of Object.values(MILITARY_RESEARCH)) r.cost = scaleCostBy(r.cost, ECONOMY.research);
+for (const [type, b] of Object.entries(BUILDINGS) as [BuildingType, BuildingDef][]) {
+  if (type === 'hq') continue;
+  b.cost = scaleCostBy(b.cost, b.project ? ECONOMY.projects : MILITARY_BUILDINGS.includes(type) ? ECONOMY.militaryBuildings : ECONOMY.economicBuildings);
+  if (b.gather) b.gather.ratePerCell = Math.round(b.gather.ratePerCell * ECONOMY.gather * 1000) / 1000;
+}
+MINE.cost = scaleCostBy(MINE.cost, 2);
+for (const e of Object.values(ERAS)) e.cost = scaleCostBy(e.cost, ECONOMY.eras);

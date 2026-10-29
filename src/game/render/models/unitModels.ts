@@ -210,6 +210,7 @@ const BUILDERS: Record<UnitType, () => BuiltUnit> = {
   rocket_artillery: buildRocketArtillery,
   mobile_aa: buildMobileAa,
   engineer: buildEngineer,
+  scout: buildScout,
 };
 
 // ------------------------------------------------------------------ infantaria
@@ -329,6 +330,19 @@ function buildEngineer(): BuiltUnit {
   soldier(l.body, l.accent, -0.24, -0.36, 0);
   l.accent.cyl(0.06, 0.06, 0.05, '#ffffff', [-0.1, 0.62, -0.36], [Math.PI / 2, 0, 0], 8);
   return { hull: l.build(), turret: null, turretPivot: [0, 0, 0], muzzle: [0.5, 0.65, 0] };
+}
+
+/** Explorador: um batedor só, com binóculo, rádio de antena alta e mochila leve. */
+function buildScout(): BuiltUnit {
+  const l = layers();
+  soldier(l.body, l.accent, 0.05, 0, 0);
+  // binóculo diante do rosto
+  for (const z of [-0.05, 0.05]) l.body.cyl(0.03, 0.03, 0.12, '#24272a', [0.27, 1.02, z], [0, 0, Math.PI / 2], 8);
+  // mochila com rádio e antena
+  l.body.box(0.16, 0.24, 0.2, '#56603f', [-0.17, 0.85, 0]);
+  l.body.cyl(0.008, 0.008, 0.7, C.metalDark, [-0.2, 1.3, 0.06], undefined, 4);
+  l.accent.box(0.05, 0.05, 0.05, '#ffffff', [-0.2, 1.66, 0.06]);
+  return { hull: l.build(), turret: null, turretPivot: [0, 0, 0], muzzle: [0.3, 0.7, 0] };
 }
 
 function buildInfantry(): BuiltUnit {

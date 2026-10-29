@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { TICK_RATE, type BuildingType } from '../sim/config.ts';
 import { ERAS } from '../sim/eras.ts';
 import { Simulation } from '../sim/Simulation.ts';
-import { flatMap } from './helpers.ts';
+import { TEST_START, flatMap } from './helpers.ts';
 
 /** Progressão por eras (lote 1, §3.1). */
 
 function setup() {
-  const sim = new Simulation({ map: flatMap(36), playerCount: 2, startingUnits: [] });
+  const sim = new Simulation({ map: flatMap(36), playerCount: 2, startingUnits: [], startingResources: TEST_START });
   sim.eras = true;
   for (const p of sim.players) {
     for (const r of Object.keys(p.resources) as (keyof typeof p.resources)[]) p.resources[r] = 5000;
@@ -59,7 +59,7 @@ describe('eras', () => {
     const { sim } = setup();
     sim.hqOf(0)!.level = ERAS[2].hqLevel;
     // dentro da capacidade de armazenamento do QG (a devolução não passa dela)
-    sim.players[0]!.resources.iron = 100;
+    sim.players[0]!.resources.iron = 200;
     const iron = sim.players[0]!.resources.iron;
     sim.applyCommand(0, { type: 'advance_era' });
     expect(sim.applyCommand(0, { type: 'cancel_era' })).toBeNull();
