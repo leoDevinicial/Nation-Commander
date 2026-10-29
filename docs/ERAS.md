@@ -12,9 +12,9 @@ devolve 75%. Ao concluir, todos os jogadores recebem o aviso: o seu com som de s
 | Era | Requisito | Custo | Obra |
 |---|---|---|---|
 | 1. Guerra Fria | início | — | — |
-| 2. Pós-Guerra Fria | QG nível 3 | 300 suprimentos, 200 madeira, 150 pedra, 80 ferro, US$ 25 mi | 60 s |
-| 3. Era Digital | QG nível 5 | 700 suprimentos, 450 pedra, 350 ferro, 250 petróleo, US$ 70 mi | 90 s |
-| 4. Futuro Próximo | QG nível 7 | 1200 suprimentos, 600 pedra, 700 ferro, 500 petróleo, US$ 180 mi | 120 s |
+| 2. Pós-Guerra Fria | QG nível 3 | 300 suprimentos, 200 madeira, 150 pedra, 80 ferro, 15% do teto anual da verba de obras | 60 s |
+| 3. Era Digital | QG nível 5 | 700 suprimentos, 450 pedra, 350 ferro, 250 petróleo, 30% do teto anual | 90 s |
+| 4. Futuro Próximo | QG nível 7 | 1200 suprimentos, 600 pedra, 700 ferro, 500 petróleo, 50% do teto anual | 120 s |
 
 ## O que cada era libera
 

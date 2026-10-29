@@ -17,7 +17,8 @@ export interface EraDef {
   /** Requisito e custo para entrar nesta era (a era 1 é o começo). */
   hqLevel: number;
   cost: Cost;
-  usd: number;
+  /** Custo em US$ como fração do teto anual da verba de obras do país (escala com a economia). */
+  usdShare: number;
   seconds: number;
   /** Nível máximo das melhorias nesta era. */
   maxUpgradeLevel: number;
@@ -29,7 +30,7 @@ export const ERAS: Record<Era, EraDef> = {
     look: 'Concreto aparente, tijolo, telhado de zinco, pintura verde-oliva e antenas simples',
     hqLevel: 1,
     cost: {},
-    usd: 0,
+    usdShare: 0,
     seconds: 0,
     maxUpgradeLevel: 6,
   },
@@ -38,7 +39,7 @@ export const ERAS: Record<Era, EraDef> = {
     look: 'Galpões metálicos pré-fabricados, cercas, guaritas e os primeiros radares',
     hqLevel: 3,
     cost: { supplies: 300, wood: 200, stone: 150, iron: 80 },
-    usd: 25_000_000,
+    usdShare: 0.15,
     seconds: 60,
     maxUpgradeLevel: 6,
   },
@@ -47,7 +48,7 @@ export const ERAS: Record<Era, EraDef> = {
     look: 'Vidro e aço, antenas de telecomunicação, painéis solares e camuflagem digital nos veículos',
     hqLevel: 5,
     cost: { supplies: 700, stone: 450, iron: 350, oil: 250 },
-    usd: 70_000_000,
+    usdShare: 0.3,
     seconds: 90,
     maxUpgradeLevel: 8,
   },
@@ -56,7 +57,7 @@ export const ERAS: Record<Era, EraDef> = {
     look: 'Estruturas compostas, telas e iluminação de LED e drones de vigilância',
     hqLevel: 7,
     cost: { supplies: 1200, stone: 600, iron: 700, oil: 500 },
-    usd: 180_000_000,
+    usdShare: 0.5,
     seconds: 120,
     maxUpgradeLevel: 10,
   },

@@ -340,6 +340,7 @@ export class Room {
       chargeWorks: (slot, usd, description) => free(slot) || national.chargeWorks(slot, usd, description),
       refundWorks: (slot, usd, description) => (free(slot) ? undefined : national.refundWorks(slot, usd, description)),
       researchSpeed: (slot) => militaryResearchSpeed(national.nation(slot)?.budget.researchPct ?? 0),
+      worksCapUsd: (slot) => national.nation(slot)?.works.capUsd ?? 0,
     };
     // comércio internacional: diplomacia, países da IA e tesouro nacional
     const d = national.diplomacy;

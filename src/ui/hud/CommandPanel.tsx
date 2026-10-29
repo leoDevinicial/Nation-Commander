@@ -284,6 +284,7 @@ function EraButton({ runtime }: { runtime: GameRuntime }) {
   const hqLevel = useHudStore((s) => s.selectedBuilding?.level ?? 0);
   const mySlot = useHudStore((s) => s.mySlot);
   const fund = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot)?.works.fundUsd ?? null);
+  const cap = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot)?.works.capUsd ?? 0);
   if (!me?.eras) return null;
   const cur = me.era ?? 1;
   if (me.eraAdvance)
@@ -301,6 +302,7 @@ function EraButton({ runtime }: { runtime: GameRuntime }) {
   if (cur >= 4) return null;
   const to = (cur + 1) as Era;
   const def = ERAS[to];
+  const usd = Math.round(cap * def.usdShare);
   const sandbox = isSandboxMatch();
   const blocker = sandbox
     ? null
@@ -308,7 +310,7 @@ function EraButton({ runtime }: { runtime: GameRuntime }) {
       ? `QG nível ${def.hqLevel}`
       : !canAfford(me.resources ?? emptyStockpile(), def.cost)
         ? 'recursos insuficientes'
-        : fund !== null && fund < def.usd
+        : fund !== null && fund < usd
           ? 'verba insuficiente'
           : null;
   const unlocks = [
@@ -324,7 +326,7 @@ function EraButton({ runtime }: { runtime: GameRuntime }) {
       onClick={() =>
         blocker ? useHudStore.getState().pushEvent({ tick: useHudStore.getState().tick, text: `Avanço de era: ${blocker}`, tone: 'warn' }) : runtime.send({ type: 'advance_era' })
       }
-      title={`Avançar para a era ${def.label}: ${def.look}.\nLibera: ${unlocks.join(', ') || '—'}${def.maxUpgradeLevel > ERAS[cur as Era].maxUpgradeLevel ? `; melhorias até o nível ${def.maxUpgradeLevel}` : ''}.\nRequer o Centro de Comando no nível ${def.hqLevel} · ${usdShort(def.usd)} da verba de obras · ${timeText(def.seconds)}`}
+      title={`Avançar para a era ${def.label}: ${def.look}.\nLibera: ${unlocks.join(', ') || '—'}${def.maxUpgradeLevel > ERAS[cur as Era].maxUpgradeLevel ? `; melhorias até o nível ${def.maxUpgradeLevel}` : ''}.\nRequer o Centro de Comando no nível ${def.hqLevel} · ${usdShort(usd)} da verba de obras (${Math.round(def.usdShare * 100)}% do teto anual) · ${timeText(def.seconds)}`}
     >
       <CostLabel cost={def.cost} have={me.resources ?? emptyStockpile()} compact />
     </CardButton>

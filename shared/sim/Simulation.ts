@@ -94,6 +94,8 @@ export interface NationalLink {
   refundWorks(slot: Slot, usd: number, description: string): void;
   /** Multiplicador do ritmo da pesquisa militar pelo orçamento nacional de P&D (padrão 1). */
   researchSpeed?(slot: Slot): number;
+  /** Teto anual da verba de obras (US$): os custos em US$ das eras e dos grandes projetos são frações dele. */
+  worksCapUsd?(slot: Slot): number;
 }
 
 /**
@@ -959,10 +961,10 @@ export class Simulation {
         const hq = this.hqOf(slot);
         if (!hq) return 'Sem Centro de Comando';
         const free = this.isSandbox(slot);
-        if (!free && this.national && !this.national.chargeWorks(slot, def.usd, `Avanço para a era ${def.label}`)) return 'Verba de obras insuficiente para o avanço de era';
+        if (!free && this.national && !this.national.chargeWorks(slot, this.eraUsd(slot, to), `Avanço para a era ${def.label}`)) return 'Verba de obras insuficiente para o avanço de era';
         if (!free) this.spend(player, def.cost);
         const ticks = free && this.sandbox?.instant ? 1 : this.duration(slot, def.seconds * TICK_RATE);
-        player.eraAdvance = { to, remainingTicks: ticks, totalTicks: ticks, paid: free ? {} : { ...def.cost }, usd: free || !this.national ? 0 : def.usd };
+        player.eraAdvance = { to, remainingTicks: ticks, totalTicks: ticks, paid: free ? {} : { ...def.cost }, usd: free ? 0 : this.eraUsd(slot, to) };
         this.emit({ type: 'era', tick: this.tick, owner: slot, era: to, state: 'started', pos: { ...hq.pos } });
         return null;
       }
@@ -1318,6 +1320,11 @@ export class Simulation {
     return this.players[slot]?.era ?? 1;
   }
 
+  /** Custo em US$ de entrar na era `to`: fração do teto anual da verba de obras do país. */
+  eraUsd(slot: Slot, to: Era): number {
+    return Math.round((this.national?.worksCapUsd?.(slot) ?? 0) * ERAS[to].usdShare);
+  }
+
   /** Era da aparência das construções e tropas do jogador. */
   visualEra(slot: Slot): Era {
     return this.players[slot]?.era ?? 1;
@@ -1335,7 +1342,7 @@ export class Simulation {
     if (this.isSandbox(slot)) return null;
     if (this.hqLevel(slot) < def.hqLevel) return `Requer o Centro de Comando no nível ${def.hqLevel}`;
     if (!canAfford(p.resources, def.cost)) return `Recursos insuficientes: faltam ${missingText(p.resources, def.cost)}`;
-    if (this.national && this.national.worksFundUsd(slot) + 1e-6 < def.usd) return 'Verba de obras insuficiente para o avanço de era';
+    if (this.national && this.national.worksFundUsd(slot) + 1e-6 < this.eraUsd(slot, to)) return 'Verba de obras insuficiente para o avanço de era';
     return null;
   }
 
