@@ -3,6 +3,9 @@
 RTS geopolítico 3D no navegador (three.js + React/zustand no cliente, servidor Node com a simulação em `shared/`,
 Supabase para contas e histórico). O jogo é todo em português.
 
+> **Começando numa conversa nova?** Leia primeiro [`docs/HANDOFF.md`](docs/HANDOFF.md): branch de trabalho, como rodar e
+> verificar, mapa do código, o que já foi feito e de onde continuar.
+
 ## Regras de trabalho
 - Responder em português.
 - Nunca expor `SUPABASE_SERVICE_ROLE_KEY` no cliente nem em commits.
