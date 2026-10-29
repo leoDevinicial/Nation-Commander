@@ -50,6 +50,8 @@ describe('regra de produção (servidor e HUD)', () => {
     // unidades militares usam recrutas já formados: não dependem de moradia livre
     expect(checkProduce('infantry', ctx({ popTotal: 40, popCap: 40 })).blocker).toBeNull();
     expect(checkProduce('citizen', ctx()).short).toBe('só no QG');
+    // a Prefeitura é um QG secundário: também forma cidadãos
+    expect(checkProduce('citizen', ctx({ buildingType: 'city_hall', popTotal: 10, popCap: 40 })).blocker).toBeNull();
   });
 
   it('custo acompanha a especialização do edifício', () => {

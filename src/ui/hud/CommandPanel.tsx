@@ -135,6 +135,9 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
   const worksCap = myNation?.works.capUsd ?? 0;
   const fund = myNation ? myNation.works.fundUsd : null;
   const ownTypes = useHudStore((s) => s.ownBuildingTypes);
+  // Centro de Comando ou Prefeitura pronta (QG secundário da cidade): constrói e forma cidadãos
+  const command = building?.type === 'hq' || (building?.type === 'city_hall' && building.progress >= 1);
+  const hqLevel = building?.type === 'hq' ? building.level : command ? runtime.upgradeWorld().hqLevel : 0;
 
   return (
     <div
@@ -211,7 +214,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
               {help ? (
                 <>
                   Toque para selecionar · dois toques: todas do tipo · toque longo: mover/atacar · arraste: câmera · pinça: zoom · gire dois dedos: rotação. Ferramentas à direita: Ordem, Área (seleção
-                  por retângulo), Somar e QG. Toque no Centro de Comando para construir.
+                  por retângulo), Somar e QG. Toque no Centro de Comando ou numa Prefeitura para construir.
                 </>
               ) : (
                 'Toque: selecionar · toque longo: ordem · arraste: câmera · pinça: zoom'
@@ -222,7 +225,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             <div className="text-xs leading-relaxed text-ink-400">
               <div className="mb-1 text-sm font-semibold text-ink-200">Nenhuma seleção</div>
               Clique ou arraste para selecionar · Botão direito: mover/atacar · F: avançar atacando · X: parar · H: Centro de Comando · Ctrl+1–9: grupos · WASD/setas: câmera · Q/E: girar · Roda: zoom
-              · Espaço: pausa · G: painel nacional. Selecione o Centro de Comando para construir: fazendas no solo fértil, serrarias junto à floresta, pedreiras junto às rochas e poços sobre o
+              · Espaço: pausa · G: painel nacional. Selecione o Centro de Comando ou uma Prefeitura para construir: fazendas no solo fértil, serrarias junto à floresta, pedreiras junto às rochas e poços sobre o
               petróleo.
             </div>
           )}
@@ -250,7 +253,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           />
         )}
         {mode.kind !== 'normal' && <CardButton icon="✖" hotkey="Esc" label="Cancelar" onClick={() => runtime.cancelMode()} title="Cancelar (Esc)" />}
-        {building?.type === 'hq' && mode.kind === 'normal' && runtime.battleOp === null && (
+        {command && mode.kind === 'normal' && runtime.battleOp === null && (
           <ProduceButton
             b={building}
             unit="citizen"
@@ -261,7 +264,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           />
         )}
         {building?.type === 'hq' && mode.kind === 'normal' && runtime.battleOp === null && <EraButton runtime={runtime} />}
-        {building?.type === 'hq' && mode.kind === 'normal' && runtime.battleOp === null && (
+        {command && mode.kind === 'normal' && runtime.battleOp === null && (
           <CardButton
             icon="▤"
             label="Estrada"
@@ -269,7 +272,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             title={`Estrada: arraste na grade para pavimentar até ${ROAD.maxCells} células por vez, dentro do território (fora dele, só com um Engenheiro de Combate por perto).\nCusto: ${ROAD.stonePerCell} de pedra por célula e verba de obras; manutenção pequena em suprimentos.\nTropas e comboios andam ${Math.round((ROAD.convoyMul - 1) * 100)}% mais rápido; moradias ligadas à estrada dão aprovação (bairro pavimentado).`}
           />
         )}
-        {building?.type === 'hq' &&
+        {command &&
           mode.kind === 'normal' &&
           runtime.battleOp === null &&
           BUILD_OPTIONS.map((type) => {
@@ -278,7 +281,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             const needEra = buildingEra(type);
             const eraMissing = needEra > myEra ? needEra : null;
             const sandbox = isSandboxMatch();
-            const hqMissing = !sandbox && def.minHqLevel && (building?.level ?? 0) < def.minHqLevel ? def.minHqLevel : null;
+            const hqMissing = !sandbox && def.minHqLevel && hqLevel < def.minHqLevel ? def.minHqLevel : null;
             const hasOne = !!def.project && ownTypes.has(type);
             const projectUsd = def.project ? Math.round(worksCap * def.project.usdShare) : 0;
             const fundShort = !sandbox && def.project && fund !== null && fund < projectUsd;
@@ -714,7 +717,7 @@ export function producibleIcon(t: ProducibleType): string {
 }
 
 /** Edifícios com fila de produção (cidadãos, recrutas, unidades). */
-const PRODUCERS: BuildingType[] = ['hq', 'barracks', 'factory'];
+const PRODUCERS: BuildingType[] = ['hq', 'city_hall', 'barracks', 'factory'];
 
 /**
  * Fila de produção em coluna, à esquerda do painel: o item em andamento em destaque (miniatura,

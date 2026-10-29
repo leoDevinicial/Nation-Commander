@@ -123,7 +123,8 @@ export function checkProduce(unit: ProducibleType, c: ProduceContext): ProduceCh
   if (c.progress < 1) return no('Edifício em construção', 'em obra');
   if (c.queueLength >= PRODUCTION_QUEUE_LIMIT) return no('Fila de produção cheia', 'fila cheia');
   if (civil) {
-    if (unit === 'citizen' && c.buildingType !== 'hq') return no('Cidadãos são formados no Centro de Comando', 'só no QG');
+    // a Prefeitura funciona como um centro de comando secundário da cidade
+    if (unit === 'citizen' && c.buildingType !== 'hq' && c.buildingType !== 'city_hall') return no('Cidadãos são formados no Centro de Comando ou numa Prefeitura', 'só no QG');
     if (unit === 'recruit' && c.buildingType !== 'barracks') return no('Recrutas são alistados na base militar (quartel)', 'só no quartel');
     if (c.popTotal >= c.popCap)
       return c.popCap >= POP_ABSOLUTE_CAP

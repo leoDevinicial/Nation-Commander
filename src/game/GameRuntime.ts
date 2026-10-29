@@ -2617,7 +2617,8 @@ export class GameRuntime {
           break;
         }
         if (!b || b.snap.progress < 1) break;
-        if (b.snap.type === 'hq') {
+        // a Prefeitura pronta tem os mesmos atalhos do QG (cidadão e construções)
+        if (b.snap.type === 'hq' || b.snap.type === 'city_hall') {
           if (key === CITIZEN.hotkey) {
             this.trainCitizen();
             break;
@@ -3116,7 +3117,7 @@ export class GameRuntime {
 
   trainCitizen(): void {
     const b = this.selectedOwnBuilding();
-    if (b && b.snap.type === 'hq') this.send({ type: 'produce', buildingId: b.snap.id, unitType: 'citizen' });
+    if (b && (b.snap.type === 'hq' || b.snap.type === 'city_hall')) this.send({ type: 'produce', buildingId: b.snap.id, unitType: 'citizen' });
   }
 
   private tryPlace(): void {
