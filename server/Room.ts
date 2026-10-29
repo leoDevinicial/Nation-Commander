@@ -1,4 +1,4 @@
-import { countryName } from '../shared/data/countries.ts';
+import { COUNTRIES, countryName } from '../shared/data/countries.ts';
 import type {
   BalanceMode,
   EndReason,
@@ -16,7 +16,7 @@ import type {
 import { GAME_VERSION } from '../shared/version.ts';
 import type { Command } from '../shared/sim/commands.ts';
 import { TICK_RATE } from '../shared/sim/config.ts';
-import { generateMap } from '../shared/sim/MapGen.ts';
+import { MAP_TYPE_INFO, MAP_TYPES, MAX_NATIONS_FREE, MAX_NATIONS_SUBSCRIBER, generateMatchMap, type MapType } from '../shared/sim/matchMap.ts';
 import { Simulation } from '../shared/sim/Simulation.ts';
 import { FogMemory, makeSnapshot } from '../shared/sim/snapshot.ts';
 import { REPORT_EVERY_TICKS, medalsFor, pushSample, reportSample, type MatchReport, type ReportSample } from '../shared/sim/report.ts';
@@ -93,7 +93,11 @@ export class Room {
   status: 'lobby' | 'playing' | 'ended' = 'lobby';
   readonly players: RoomPlayer[] = [];
   hostUserId = '';
-  readonly maxPlayers = 2;
+  /** Nações na sala (o anfitrião escolhe de 2 até `nationLimit`). */
+  maxPlayers = 2;
+  /** Teto de nações: 4 na versão grátis, 6 com o anfitrião assinante; 2 no Sandbox. */
+  nationLimit = MAX_NATIONS_FREE;
+  mapType: MapType | 'random' = 'continental';
   balanceMode: BalanceMode = 'parity';
   difficulty: Difficulty = 'normal';
   national: NationalSimulation | null = null;
@@ -143,6 +147,7 @@ export class Room {
     if (!host) return;
     const countryId = host.countryId;
     this.hostUserId = host.conn.user!.id;
+    this.nationLimit = mode === 'sandbox' ? 2 : host.conn.user!.subscriber ? MAX_NATIONS_SUBSCRIBER : MAX_NATIONS_FREE;
     this.addHuman(host.conn, countryId);
     if (mode !== 'pvp') {
       this.players.push({
@@ -170,7 +175,9 @@ export class Room {
       players: this.players.map(publicPlayer),
       maxPlayers: this.maxPlayers,
       balanceMode: this.balanceMode,
-      ...(this.mode !== 'pvp' ? { difficulty: this.difficulty } : {}),
+      mapType: this.mapType,
+      nationLimit: this.nationLimit,
+      ...(this.mode !== 'pvp' || this.players.some((p) => p.isAI) ? { difficulty: this.difficulty } : {}),
     };
   }
 
@@ -244,7 +251,7 @@ export class Room {
     p.countryId = countryId;
     p.ready = false;
     // a IA sempre comanda um país diferente do jogador
-    for (const ai of this.players.filter((x) => x.isAI && x.countryId === countryId)) ai.countryId = countryForAI(countryId);
+    for (const ai of this.players.filter((x) => x.isAI && x.countryId === countryId)) ai.countryId = this.players.length > 2 ? freeCountry(this.players.map((x) => x.countryId)) : countryForAI(countryId);
     this.broadcastRoom();
   }
 
@@ -265,16 +272,83 @@ export class Room {
   }
 
   setDifficulty(conn: Connection, difficulty: Difficulty): void {
-    if (this.status !== 'lobby' || conn.user?.id !== this.hostUserId || this.mode === 'pvp') return;
+    if (this.status !== 'lobby' || conn.user?.id !== this.hostUserId || (this.mode === 'pvp' && !this.players.some((p) => p.isAI))) return;
     this.difficulty = difficulty;
     this.system(`Dificuldade da IA: ${DIFFICULTY[difficulty].label} — ${DIFFICULTY[difficulty].description}`);
+    this.broadcastRoom();
+  }
+
+  /** Anfitrião: número de nações e tipo de mapa. */
+  setRoom(conn: Connection, opts: { maxPlayers?: number; mapType?: MapType | 'random' }): void {
+    if (this.status !== 'lobby' || conn.user?.id !== this.hostUserId || this.mode === 'sandbox') return;
+    if (opts.maxPlayers !== undefined) this.maxPlayers = Math.max(2, this.players.length, Math.min(this.nationLimit, opts.maxPlayers));
+    if (opts.mapType !== undefined) {
+      this.mapType = opts.mapType;
+      this.system(`Mapa: ${opts.mapType === 'random' ? 'sorteado no início' : MAP_TYPE_INFO[opts.mapType].label}.`);
+    }
+    this.broadcastRoom();
+  }
+
+  /** Anfitrião: acrescenta uma nação comandada pela IA (bot), com um país ainda livre. */
+  addBot(conn: Connection): string | null {
+    if (this.status !== 'lobby') return 'A partida já começou';
+    if (conn.user?.id !== this.hostUserId) return 'Apenas o anfitrião adiciona bots';
+    if (this.mode === 'sandbox') return 'O Sandbox tem um único inimigo';
+    if (this.players.length >= this.maxPlayers) {
+      if (this.maxPlayers >= this.nationLimit)
+        return this.nationLimit < MAX_NATIONS_SUBSCRIBER ? `Limite de ${this.nationLimit} nações na versão grátis (assinantes: até ${MAX_NATIONS_SUBSCRIBER})` : `Limite de ${this.nationLimit} nações`;
+      this.maxPlayers++;
+    }
+    const used = new Set(this.players.map((p) => p.slot));
+    let slot = 0;
+    while (used.has(slot)) slot++;
+    const bots = this.players.filter((p) => p.isAI).length;
+    this.players.push({
+      slot,
+      userId: null,
+      name: bots === 0 ? 'IA Tática' : `IA Tática ${bots + 1}`,
+      countryId: freeCountry(this.players.map((p) => p.countryId)),
+      ready: true,
+      isAI: true,
+      connected: true,
+      conn: null,
+      disconnectedAt: null,
+      team: null,
+    });
+    this.players.sort((a, b) => a.slot - b.slot);
+    this.broadcastRoom();
+    return null;
+  }
+
+  removeBot(conn: Connection, slot: Slot): void {
+    if (this.status !== 'lobby' || conn.user?.id !== this.hostUserId) return;
+    const i = this.players.findIndex((p) => p.slot === slot && p.isAI);
+    // contra a IA, sempre sobra pelo menos um bot
+    if (i < 0 || (this.mode !== 'pvp' && this.players.filter((p) => p.isAI).length <= 1)) return;
+    this.players.splice(i, 1);
+    this.broadcastRoom();
+  }
+
+  /** Time do próprio jogador, ou de um bot pelo anfitrião (1 a 3; null = sem time). */
+  setTeam(conn: Connection, slot: Slot, team: number | null): void {
+    if (this.status !== 'lobby' || this.mode === 'sandbox') return;
+    const p = this.players.find((x) => x.slot === slot);
+    if (!p) return;
+    const own = !p.isAI && p.userId === conn.user?.id;
+    const host = p.isAI && conn.user?.id === this.hostUserId;
+    if (!own && !host) return;
+    p.team = team;
+    if (!p.isAI && p.userId !== this.hostUserId) p.ready = false;
     this.broadcastRoom();
   }
 
   start(conn: Connection): string | null {
     if (this.status !== 'lobby') return 'A partida já começou';
     if (conn.user!.id !== this.hostUserId) return 'Apenas o anfitrião pode iniciar';
-    if (this.players.length < 2) return 'Aguardando outro jogador';
+    if (this.players.length < 2) return 'Aguardando outro jogador ou adicione um bot';
+    // pelo menos dois lados: times iguais para todos não fazem uma guerra
+    const sides = new Set(this.players.map((p) => (p.team ? `t${p.team}` : `s${p.slot}`)));
+    if (sides.size < 2) return 'Todos no mesmo time: deixe pelo menos dois lados';
     if (!this.players.every((p) => p.ready || p.userId === this.hostUserId)) return 'Nem todos estão prontos';
     this.beginMatch();
     return null;
@@ -284,7 +358,10 @@ export class Room {
 
   private beginMatch(): void {
     this.seed = this.deps.seed ?? (Math.random() * 0xffffffff) >>> 0;
-    const map = generateMap(this.seed);
+    // slots contínuos (0..n-1) na ordem do lobby: a simulação indexa nações por slot
+    this.players.sort((a, b) => a.slot - b.slot).forEach((p, i) => (p.slot = i));
+    const type = this.mapType === 'random' ? MAP_TYPES[this.seed % MAP_TYPES.length]! : this.mapType;
+    const map = generateMatchMap(this.seed, { nations: this.players.length, type, countries: this.players.map((p) => p.countryId) });
     this.sim = new Simulation({ map, playerCount: this.players.length });
     this.sim.difficulty = this.difficulty;
     // progressão por eras (no Sandbox tudo fica liberado, mas o visual pode avançar)
@@ -304,6 +381,13 @@ export class Room {
     const sim = this.sim;
     const national = this.national;
     if (sim.sandbox) this.startSandbox();
+    // times: quem está no mesmo time começa aliado (no teatro e na diplomacia)
+    for (const a of this.players)
+      for (const b of this.players)
+        if (a.slot < b.slot && a.team && a.team === b.team) {
+          sim.setAlliance(a.slot, b.slot, true);
+          national.diplomacy.teamAlliance(a.slot, b.slot, national.day);
+        }
     // operações expedicionárias contra governos fora do teatro (Fase 8)
     this.ops = new OperationsSystem(sim, national, this.seed);
     for (const n of this.national.nations) this.gdpStart.set(n.slot, n.gdpUsd);
@@ -488,6 +572,7 @@ export class Room {
       cellSize: sim.map.cellSize,
       resourceNodes: sim.map.resourceNodes,
       spawns: sim.map.spawns,
+      ...(sim.map.kind ? { mapKind: sim.map.kind } : {}),
       tickRate: TICK_RATE,
       snapshotEvery: SNAPSHOT_EVERY,
       canControlSpeed: this.mode !== 'pvp',
@@ -1092,11 +1177,16 @@ export class Room {
 }
 
 function publicPlayer(p: RoomPlayer): RoomPlayerInfo {
-  return { slot: p.slot, userId: p.userId, name: p.name, countryId: p.countryId, ready: p.ready, isAI: p.isAI, connected: p.connected };
+  return { slot: p.slot, userId: p.userId, name: p.name, countryId: p.countryId, ready: p.ready, isAI: p.isAI, connected: p.connected, ...(p.team ? { team: p.team } : {}) };
 }
 
 function countryForAI(humanCountry: string): string {
   return humanCountry === 'ARG' ? 'BRA' : 'ARG';
+}
+
+/** País ainda não usado na sala para um novo bot (ordem fixa da lista de países). */
+function freeCountry(taken: readonly string[]): string {
+  return COUNTRIES.find((c) => !taken.includes(c.id))?.id ?? COUNTRIES[0]!.id;
 }
 
 const RECORD_TIMEOUT_MS = 8000;

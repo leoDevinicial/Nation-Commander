@@ -17,6 +17,8 @@ export function getSupabase(): SupabaseClient | null {
 export interface VerifiedUser {
   id: string;
   name: string;
+  /** Assinante (`subscriptions.active`): salas com até 6 nações. */
+  subscriber: boolean;
 }
 
 /** Valida o access token do Supabase Auth e carrega o username do perfil. */
@@ -27,7 +29,9 @@ export async function verifyAccessToken(token: string): Promise<VerifiedUser | n
   if (error || !data.user) return null;
   const { data: profile } = await sb.from('profiles').select('username, display_name').eq('id', data.user.id).maybeSingle();
   const name = (profile?.display_name as string | null) ?? (profile?.username as string | null) ?? 'Jogador';
-  return { id: data.user.id, name };
+  // assinatura em tabela própria (só o servidor lê); sem linha ou com erro, versão grátis
+  const { data: sub } = await sb.from('subscriptions').select('active').eq('user_id', data.user.id).maybeSingle();
+  return { id: data.user.id, name, subscriber: sub?.active === true };
 }
 
 export interface MatchRecord {

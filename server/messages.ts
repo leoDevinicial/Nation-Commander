@@ -1,4 +1,5 @@
 import { isDecreeId } from '../shared/strategic/policies.ts';
+import { isMapType } from '../shared/sim/matchMap.ts';
 import { isDifficulty } from '../shared/sim/difficulty.ts';
 import { isCountryId } from '../shared/data/countries.ts';
 import { GAME_SPEEDS, MAX_CHAT_LENGTH, type ClientMessage, type GameSpeed } from '../shared/protocol.ts';
@@ -44,6 +45,21 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return typeof data.ready === 'boolean' ? { t: 'set_ready', ready: data.ready } : null;
     case 'start':
       return { t: 'start' };
+    case 'set_room': {
+      const maxPlayers = typeof data.maxPlayers === 'number' && Number.isInteger(data.maxPlayers) && data.maxPlayers >= 2 && data.maxPlayers <= 6 ? data.maxPlayers : undefined;
+      const mapType = data.mapType === 'random' || isMapType(data.mapType) ? data.mapType : undefined;
+      if (maxPlayers === undefined && mapType === undefined) return null;
+      return { t: 'set_room', ...(maxPlayers !== undefined ? { maxPlayers } : {}), ...(mapType !== undefined ? { mapType } : {}) };
+    }
+    case 'add_bot':
+      return { t: 'add_bot' };
+    case 'remove_bot':
+      return typeof data.slot === 'number' && Number.isInteger(data.slot) && data.slot >= 0 && data.slot < 6 ? { t: 'remove_bot', slot: data.slot } : null;
+    case 'set_team': {
+      if (typeof data.slot !== 'number' || !Number.isInteger(data.slot) || data.slot < 0 || data.slot >= 6) return null;
+      const team = data.team === null ? null : typeof data.team === 'number' && Number.isInteger(data.team) && data.team >= 1 && data.team <= 3 ? data.team : undefined;
+      return team === undefined ? null : { t: 'set_team', slot: data.slot, team };
+    }
     case 'cmd': {
       const cmd = parseCommand(data.cmd);
       return cmd ? (data.scope === 'battle' ? { t: 'cmd', cmd, scope: 'battle' } : { t: 'cmd', cmd }) : null;

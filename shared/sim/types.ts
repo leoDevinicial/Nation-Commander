@@ -1,4 +1,5 @@
 import type { Era, EraAdvance } from './eras.ts';
+import type { MapType } from './matchMap.ts';
 import type { BuildingType, Cost, Goods, MilitaryResearchId, ProducibleType, ResourceType, Stockpile, Terrain, UnitType } from './config.ts';
 import type { SpecId } from './upgrades.ts';
 import type { ModId } from './modernization.ts';
@@ -233,6 +234,8 @@ export interface MapData {
   /** Jazidas de petróleo (célula âncora de um poço 2×2). */
   resourceNodes: Cell[];
   spawns: Cell[];
+  /** Tipo de mapa da partida (lote 4); ausente nos mapas antigos de dois jogadores. */
+  kind?: MapType;
 }
 
 export type SimEvent =

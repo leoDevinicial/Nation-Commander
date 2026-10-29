@@ -695,12 +695,15 @@ export class TacticalAI {
     let best: { pos: Vec2; slot: Slot } | null = null;
     let bestD = Infinity;
     const hq = sim.hqOf(this.slot)!;
+    // com várias nações: ignora aliados e prefere quem já está em guerra com outro (enfraquecido,
+    // e sem abrir uma segunda frente contra si) ou quem já perdeu o QG de vista
     sim.players.forEach((p) => {
-      if (p.slot === this.slot || p.defeated) return;
+      if (p.slot === this.slot || p.defeated || sim.allied(this.slot, p.slot)) return;
       const spawn = sim.map.spawns[p.slot];
       if (!spawn) return;
       const pos = sim.grid.cellCenter(spawn);
-      const d = dist(pos, hq.pos);
+      const busy = sim.players.some((o) => o.slot !== p.slot && o.slot !== this.slot && !o.defeated && sim.formalWar(o.slot, p.slot));
+      const d = dist(pos, hq.pos) * (busy ? 0.75 : 1) * (sim.formalWar(this.slot, p.slot) ? 0.85 : 1);
       if (d < bestD) {
         bestD = d;
         best = { pos, slot: p.slot };

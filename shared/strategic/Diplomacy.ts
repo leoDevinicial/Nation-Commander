@@ -183,6 +183,8 @@ export function warPreview(i: WarPreviewInput): WarPreview {
     if (i.theaterStock.oil < costs.oil) blockers.push(`Combustível insuficiente no teatro: ${costs.oil} necessários, ${Math.floor(i.theaterStock.oil)} disponíveis`);
   }
   const between = (t: Treaty) => (t.a === i.actor && t.b === i.target) || (t.a === i.target && t.b === i.actor);
+  // aliança de time (partidas com várias nações): não se rompe com uma declaração de guerra
+  if (i.treaties.some((t) => between(t) && t.type === 'alliance' && t.endDay - t.startDay >= TEAM_ALLIANCE_DAYS)) blockers.push('Aliado de time: não é possível declarar guerra');
   const brokenTreaties = i.treaties.filter((t) => between(t) && t.type !== 'sanctions');
   const allies = i.treaties
     .filter((t) => t.type === 'alliance' && (t.a === i.target || t.b === i.target))
@@ -192,6 +194,9 @@ export function warPreview(i: WarPreviewInput): WarPreview {
   const respondingAllies = allies.filter((x) => i.isNpc(x) && !alliedWithActor(x) && i.relationWith(x) < DIPLO.warAllyResponseBelow);
   return { costs, brokenTreaties, respondingAllies, otherAllies: allies.filter((x) => !respondingAllies.includes(x)), blockers };
 }
+
+/** Duração das alianças de time (a partida inteira). */
+export const TEAM_ALLIANCE_DAYS = 1_000_000;
 
 /** Pontuação mínima (soma dos fatores) para um governo da IA aceitar cada proposta. */
 const THRESHOLDS = { trade: 5, alliance: 30, sanctions: 25 } as const;
@@ -614,6 +619,13 @@ export class Diplomacy {
         return null;
       }
     }
+  }
+
+  /** Times da partida (lote 4): aliança desde o primeiro dia, por toda a partida, e contato mútuo. */
+  teamAlliance(a: NationId, b: NationId, day: number): void {
+    this.discover(a, b, 'contato', day);
+    this.discover(b, a, 'contato', day);
+    if (!this.active('alliance', a, b)) this.sign('alliance', a, b, day, TEAM_ALLIANCE_DAYS);
   }
 
   private sign(type: TreatyType, a: NationId, b: NationId, day: number, duration: number, causes?: number[]): void {

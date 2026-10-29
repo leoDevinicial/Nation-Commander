@@ -1,5 +1,6 @@
 import type { Command } from './sim/commands.ts';
 import type { MatchReport } from './sim/report.ts';
+import type { MapType } from './sim/matchMap.ts';
 import type { BalanceMode, Budget, ForeignView, GeopoliticalView, HistoryPoint, NationalEvent, NationState } from './strategic/NationalSimulation.ts';
 import type { TechId } from './strategic/technologies.ts';
 import type { DiplomaticAction } from './strategic/Diplomacy.ts';
@@ -52,6 +53,8 @@ export interface PublicUser {
   id: string;
   name: string;
   guest: boolean;
+  /** Assinante: partidas com até 6 nações (a versão grátis vai até 4). */
+  subscriber?: boolean;
 }
 
 export interface RoomPlayerInfo {
@@ -62,6 +65,8 @@ export interface RoomPlayerInfo {
   ready: boolean;
   isAI: boolean;
   connected: boolean;
+  /** Time (1 a 3) nas partidas com mais nações: o mesmo time começa aliado. Ausente = todos contra todos. */
+  team?: number | null;
 }
 
 export interface RoomInfo {
@@ -74,6 +79,10 @@ export interface RoomInfo {
   balanceMode: BalanceMode;
   /** Dificuldade da IA (contra a IA e no Sandbox). */
   difficulty?: Difficulty;
+  /** Tipo de mapa escolhido pelo anfitrião ou sorteado no início. */
+  mapType?: MapType | 'random';
+  /** Teto de nações desta sala (4 na versão grátis, 6 com o anfitrião assinante). */
+  nationLimit?: number;
 }
 
 export interface MatchStartInfo {
@@ -98,6 +107,8 @@ export interface MatchStartInfo {
   mode?: RoomMode;
   /** Dificuldade da IA (o cliente mostra o preparo certo). */
   difficulty?: Difficulty;
+  /** Tipo de mapa (bioma e tons do terreno). */
+  mapKind?: MapType;
 }
 
 export interface BattleInfo {
@@ -133,6 +144,12 @@ export type ClientMessage =
   | { t: 'national'; cmd: NationalCommand }
   | { t: 'set_balance'; mode: BalanceMode }
   | { t: 'set_difficulty'; difficulty: Difficulty }
+  /** Anfitrião: número de nações da sala e tipo de mapa. */
+  | { t: 'set_room'; maxPlayers?: number; mapType?: MapType | 'random' }
+  | { t: 'add_bot' }
+  | { t: 'remove_bot'; slot: Slot }
+  /** Time de um jogador (o próprio, ou de um bot pelo anfitrião); null = sem time. */
+  | { t: 'set_team'; slot: Slot; team: number | null }
   | { t: 'pause'; paused: boolean }
   | { t: 'speed'; speed: GameSpeed }
   | { t: 'surrender' }

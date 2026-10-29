@@ -8,7 +8,7 @@ import { sanitizeName } from './messages.ts';
 export interface HandlerDeps {
   rooms: RoomManager;
   allowGuests: boolean;
-  verify: (token: string) => Promise<{ id: string; name: string } | null>;
+  verify: (token: string) => Promise<{ id: string; name: string; subscriber?: boolean } | null>;
   /** Conexões ativas por usuário (uma por vez). */
   sessions: Map<string, Connection>;
 }
@@ -35,7 +35,7 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
         conn.close(4003, 'auth');
         return;
       }
-      conn.user = { id: user.id, name: user.name, guest: false };
+      conn.user = { id: user.id, name: user.name, guest: false, ...(user.subscriber ? { subscriber: true } : {}) };
     } else if (deps.allowGuests) {
       const gid = msg.guestId ?? randomUUID();
       conn.user = { id: `guest:${gid}`, name: sanitizeName(msg.guestName ?? 'Convidado'), guest: true };
@@ -115,6 +115,20 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
       return;
     case 'set_difficulty':
       room?.setDifficulty(conn, msg.difficulty);
+      return;
+    case 'set_room':
+      room?.setRoom(conn, msg);
+      return;
+    case 'add_bot': {
+      const err = room ? room.addBot(conn) : 'Você não está em uma sala';
+      if (err) conn.send({ t: 'error', code: 'room', message: err });
+      return;
+    }
+    case 'remove_bot':
+      room?.removeBot(conn, msg.slot);
+      return;
+    case 'set_team':
+      room?.setTeam(conn, msg.slot, msg.team);
       return;
     case 'pause':
       room?.setPaused(conn, msg.paused);
