@@ -132,6 +132,8 @@ export interface HudState {
   trade: TradeView | null;
   /** Força aérea e mísseis do jogador (Fase 7). */
   air: AirView | null;
+  /** Vitórias alternativas em curso (domínio territorial, colapso político). */
+  victory: { kind: 'territory' | 'political'; slot: number; progress: number }[];
   /** Rota inspecionada no mapa (id do embarque). */
   inspectedShipment: number | null;
   mySlot: number;
@@ -177,6 +179,7 @@ export const useHudStore = create<HudState>((set) => ({
   thumbs: {},
   trade: null,
   air: null,
+  victory: [],
   inspectedShipment: null,
   mySlot: 0,
   paused: false,

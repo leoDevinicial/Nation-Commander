@@ -297,6 +297,11 @@ e comboios andam mais rápido nelas, e moradias ligadas à estrada melhoram a ap
 minas antitanque (invisíveis ao inimigo e ao satélite), remove as inimigas, pavimenta fora do território e ergue
 obstáculos antitanque. Detalhes em `docs/ESTRADAS_ENGENHARIA.md`.
 
+**Cadeias produtivas, serviços e vitórias alternativas:** Refinaria e Siderúrgica transformam petróleo e ferro em
+combustível e aço, que barateiam blindados e aeronaves. Hospital, Escola e Delegacia têm raio de cobertura (cura,
+coleta maior, tropas veteranas, aprovação). Além da queda do QG, vence-se dominando 70% do território por 4 minutos ou
+com o colapso político do rival. Detalhes em `docs/CADEIAS_SERVICOS_VITORIAS.md`.
+
 **Dificuldade e veterania:** contra a IA, o anfitrião escolhe Fácil, Normal, Difícil ou Brutal, que mudam o preparo
 (12 a 3 min), as ondas, o uso de aviões e mísseis e os incidentes de fronteira no preparo. Tropas que abatem
 inimigos sobem de patente (Veterano, Elite, Herói), com mais dano e vida e insígnia. Detalhes em

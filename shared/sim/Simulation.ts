@@ -1,5 +1,5 @@
 import { prepTicks, type Difficulty } from './difficulty.ts';
-import { rankDamageMul, rankFor, rankHpMul } from './veterancy.ts';
+import { RANKS, rankDamageMul, rankFor, rankHpMul } from './veterancy.ts';
 import { countryBonus, type CountryBonus } from './countryBonus.ts';
 import { ERA_CANCEL_REFUND, ERAS, buildingEra, type Era } from './eras.ts';
 import { MineSystem, type MineSave } from './mines.ts';
@@ -30,6 +30,12 @@ import {
   OIL_TANK_RANGE,
   canAfford,
   emptyStockpile,
+  emptyGoods,
+  GOODS,
+  GOODS_TYPES,
+  SERVICES,
+  VICTORY,
+  type ServiceKind,
   MILITARY_RESEARCH,
   MILITARY_RESEARCH_IDS,
   militaryResearchBlocker,
@@ -38,6 +44,7 @@ import {
   type Cost,
   type ResourceType,
   type Stockpile,
+  type Goods,
   type UnitType,
 } from './config.ts';
 import { chooseClaims, claimedBy, gatherRate, sitesByDeposit } from './gathering.ts';
@@ -56,6 +63,9 @@ import { AirSystem, type AirSave } from './air.ts';
 import { TECHNOLOGIES, isTechId } from '../strategic/technologies.ts';
 import { MOD_CANCEL_REFUND, MODS, checkModernize, combineMods, pickRefitFacility, type FacilityPick, type ModId, type ModernizeContext } from './modernization.ts';
 import type { Building, BuildingStatus, Cell, Entity, EntityId, MapData, PlayerState, SimEvent, Slot, TacticalModifiers, Unit, Vec2 } from './types.ts';
+
+/** Como a partida foi vencida além da queda do QG (lote 2, item 15). */
+export type VictoryKind = 'territory' | 'political';
 
 export interface SimulationInit {
   map: MapData;
@@ -121,6 +131,9 @@ export interface SimulationSave {
   difficulty?: Difficulty;
   eras?: boolean;
   roads?: { i: number; owner: Slot }[];
+  victory?: VictoryKind | null;
+  territoryHold?: number[];
+  collapseDays?: number[];
   /** Quantidade restante de cada depósito, na ordem determinística de `findDeposits`. */
   depositsRemaining: number[];
   territory: number[];
@@ -243,6 +256,11 @@ export class Simulation {
   private readonly wars = new Set<string>();
   /** Estradas construídas pelos jogadores (célula e dono, para a manutenção). */
   roads: { i: number; owner: Slot }[] = [];
+  /** Como a partida foi vencida, quando não foi pela queda do QG. */
+  victory: VictoryKind | null = null;
+  /** Ticks seguidos com o domínio territorial (por jogador) e dias seguidos em colapso político. */
+  territoryHold: number[] = [];
+  collapseDays: number[] = [];
 
   roadCount(slot: Slot): number {
     let n = 0;
@@ -370,6 +388,9 @@ export class Simulation {
       ...(this.difficulty !== 'normal' ? { difficulty: this.difficulty } : {}),
       ...(this.eras ? { eras: true } : {}),
       ...(this.roads.length ? { roads: this.roads.map((r) => ({ ...r })) } : {}),
+      ...(this.victory ? { victory: this.victory } : {}),
+      ...(this.territoryHold.some((v) => v > 0) ? { territoryHold: [...this.territoryHold] } : {}),
+      ...(this.collapseDays.some((v) => v > 0) ? { collapseDays: [...this.collapseDays] } : {}),
       depositsRemaining: this.deposits.deposits.map((d) => d.remaining),
       territory: [...this.territory],
       territoryVersion: this.territoryVersion,
@@ -426,6 +447,9 @@ export class Simulation {
     sim.difficulty = data.difficulty ?? 'normal';
     sim.eras = !!data.eras;
     sim.roads = (data.roads ?? []).map((r) => ({ ...r }));
+    sim.victory = data.victory ?? null;
+    sim.territoryHold = [...(data.territoryHold ?? [])];
+    sim.collapseDays = [...(data.collapseDays ?? [])];
     for (const r of sim.roads) sim.grid.terrain[r.i] = Terrain.Road;
     data.depositsRemaining.forEach((v, i) => {
       const d = sim.deposits.deposits[i];
@@ -719,7 +743,40 @@ export class Simulation {
     if (b.depositId !== null && (this.deposits.deposits[b.depositId]?.remaining ?? 0) <= 0) return 0;
     const cells = def.gather.terrain === null ? 1 : b.claims.filter((i) => this.territory[i] === b.owner).length;
     const hydro = this.hasProject(b.owner, 'hydro_dam') ? PROJECT_FX.hydroGatherMul : 1;
-    return gatherRate(b.type, cells) * this.fx(b).rateMul * eff * (p.modifiers.gatherMul ?? 1) * (this.bonusOf(b.owner).gatherMul?.[def.gather.resource] ?? 1) * hydro;
+    const school = this.serviceCovers(b.owner, 'education', b.pos) ? SERVICES.educationGatherMul : 1;
+    return gatherRate(b.type, cells) * this.fx(b).rateMul * eff * (p.modifiers.gatherMul ?? 1) * (this.bonusOf(b.owner).gatherMul?.[def.gather.resource] ?? 1) * hydro * school;
+  }
+
+  /**
+   * Serviço com raio de cobertura (lote 1, §4): algum Hospital, Escola ou Delegacia própria, pronta,
+   * com manutenção paga e trabalhadores, a até `SERVICES.radius` células do ponto.
+   */
+  serviceCovers(slot: Slot, kind: ServiceKind, pos: Vec2): boolean {
+    const r = SERVICES.radius * this.map.cellSize;
+    for (const s of this.buildings) {
+      if (s.owner !== slot || BUILDINGS[s.type].service !== kind || s.progress < 1 || s.hp <= 0 || s.unpaid) continue;
+      if (this.fx(s).workers > 0 && s.workers === 0) continue;
+      if (dist(s.pos, pos) <= r) return true;
+    }
+    return false;
+  }
+
+  /** Fração das moradias prontas do jogador cobertas por cada serviço (aprovação nacional). */
+  serviceCoverage(slot: Slot): Record<ServiceKind, number> {
+    const homes = this.buildings.filter((b) => b.owner === slot && b.progress >= 1 && b.hp > 0 && (b.type === 'house' || b.type === 'residential'));
+    const out: Record<ServiceKind, number> = { health: 0, education: 0, security: 0 };
+    if (!homes.length) return out;
+    for (const k of ['health', 'education', 'security'] as const) out[k] = homes.filter((h) => this.serviceCovers(slot, k, h.pos)).length / homes.length;
+    return out;
+  }
+
+  /** Hospital: tropas próprias na área recuperam vida aos poucos (uma vez por segundo). */
+  private updateServices(): void {
+    if (this.tick % TICK_RATE !== 0) return;
+    for (const u of this.units) {
+      if (u.hp <= 0 || u.hp >= u.maxHp) continue;
+      if (this.serviceCovers(u.owner, 'health', u.pos)) u.hp = Math.min(u.maxHp, u.hp + SERVICES.healPerSecond);
+    }
   }
 
   /** Fração dos postos de trabalho ocupados (1 se o edifício não precisa de trabalhadores). */
@@ -937,11 +994,13 @@ export class Simulation {
           recruitCostMul: player.modifiers.recruitCostMul ?? 1,
           bonus: this.bonusOf(slot),
           era: this.eraOf(slot),
+          ...(player.goods ? { goods: player.goods } : {}),
         });
         if (check.blocker) return check.blocker;
         const cost = check.cost;
         const bfx = this.fx(b);
         this.spend(player, cost);
+        this.spendGoods(player, check.goods);
         if (cmd.unitType === 'citizen' || cmd.unitType === 'recruit') {
           const recruit = cmd.unitType === 'recruit';
           const def = recruit ? RECRUIT : CITIZEN;
@@ -952,7 +1011,7 @@ export class Simulation {
         const def = UNITS[cmd.unitType];
         player.recruits--;
         const ticks = this.duration(slot, def.buildSeconds * TICK_RATE * player.modifiers.productionTimeMul * bfx.productionTimeMul * (this.bonusOf(slot).unitTimeMul ?? 1));
-        b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks, paid: cost, mods: [...check.mods] });
+        b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks, paid: cost, mods: [...check.mods], ...(Object.keys(check.goods).length ? { goodsPaid: { ...check.goods } } : {}) });
         return null;
       }
       case 'military_research': {
@@ -1041,6 +1100,7 @@ export class Simulation {
         const item = b.queue.pop();
         if (!item) return 'Fila vazia';
         this.refund(slot, item.paid ?? (item.unitType === 'citizen' ? CITIZEN.cost : item.unitType === 'recruit' ? RECRUIT.cost : UNITS[item.unitType].cost));
+        if (item.goodsPaid) this.refundGoods(player, item.goodsPaid);
         if (item.unitType !== 'citizen' && item.unitType !== 'recruit') player.recruits++; // a tripulação volta à reserva
         return null;
       }
@@ -1602,6 +1662,8 @@ export class Simulation {
     if (this.territoryDirty) this.recomputeTerritory();
     if (this.tick % TICK_RATE === 0) for (const p of this.players) if (!p.defeated) this.staff(p.slot);
     this.updateEconomy();
+    this.updateProcessing();
+    this.updateServices();
     this.updateUpkeep();
     this.updateConstruction();
     this.updateUpgrades();
@@ -1621,6 +1683,7 @@ export class Simulation {
     this.separateUnits();
     this.removeDead();
     this.checkVictory();
+    this.updateTerritorialVictory();
     this.sandboxTopUp();
   }
 
@@ -1890,6 +1953,67 @@ export class Simulation {
     }
   }
 
+  /** Teto do estoque de bens industriais (cada usina pronta amplia). */
+  goodsCap(slot: Slot): number {
+    let plants = 0;
+    for (const b of this.buildings) if (b.owner === slot && b.progress >= 1 && b.hp > 0 && BUILDINGS[b.type].process) plants++;
+    return GOODS.baseCap + plants * GOODS.capPerPlant;
+  }
+
+  spendGoods(p: PlayerState, used: Partial<Goods>): void {
+    if (!Object.keys(used).length) return;
+    const g = (p.goods ??= emptyGoods());
+    for (const t of GOODS_TYPES) g[t] = Math.max(0, g[t] - (used[t] ?? 0));
+  }
+
+  private refundGoods(p: PlayerState, paid: Partial<Goods>): void {
+    const g = (p.goods ??= emptyGoods());
+    for (const t of GOODS_TYPES) g[t] += paid[t] ?? 0;
+  }
+
+  /**
+   * Cadeias produtivas (lote 1, §4): Refinaria e Siderúrgica com trabalhadores transformam o recurso
+   * bruto em bem industrial, no ritmo proporcional aos postos ocupados, até o teto do estoque.
+   */
+  private updateProcessing(): void {
+    for (const b of this.buildings) {
+      const proc = BUILDINGS[b.type].process;
+      if (!proc || b.progress < 1 || b.hp <= 0) continue;
+      const p = this.players[b.owner]!;
+      if (p.defeated) continue;
+      if (b.unpaid) {
+        this.setStatus(b, 'unpaid');
+        continue;
+      }
+      const need = this.fx(b).workers;
+      if (need > 0 && b.workers === 0) {
+        this.setStatus(b, 'no_workers');
+        continue;
+      }
+      const goods = (p.goods ??= emptyGoods());
+      const cap = this.goodsCap(b.owner);
+      if (goods[proc.to] >= cap) {
+        this.setStatus(b, 'storage_full');
+        b.acc = Math.min(b.acc, 1);
+        continue;
+      }
+      if (p.resources[proc.from] < 1) {
+        this.setStatus(b, 'no_input');
+        continue;
+      }
+      this.setStatus(b, 'ok');
+      b.acc += proc.rate * (need > 0 ? b.workers / need : 1) * TICK_SECONDS;
+      const whole = Math.floor(b.acc + 1e-9);
+      if (whole <= 0) continue;
+      b.acc -= whole;
+      const amount = Math.min(whole, Math.floor(p.resources[proc.from]), Math.floor(cap - goods[proc.to]));
+      if (amount <= 0) continue;
+      if (proc.from === 'oil') this.takeOil(p, amount);
+      else p.resources[proc.from] -= amount;
+      goods[proc.to] += amount;
+    }
+  }
+
   /**
    * Consumo de comida pela população e manutenção dos edifícios (suprimentos e petróleo), sem saldo
    * negativo. Sem saldo de um recurso, os edifícios que dependem dele param (e não abrigam/produzem).
@@ -2024,6 +2148,13 @@ export class Simulation {
         continue;
       }
       b.queue.shift();
+      // Escola cobrindo o quartel ou a fábrica: a tropa sai como Veterana
+      if ((u.rank ?? 0) < 1 && this.serviceCovers(b.owner, 'education', b.pos)) {
+        u.kills = Math.max(u.kills ?? 0, RANKS[1]!.kills);
+        u.rank = 1;
+        u.maxHp = Math.round(u.maxHp * rankHpMul(1));
+        u.hp = u.maxHp;
+      }
       this.players[b.owner]!.stats.unitsProduced++;
       this.emit({ type: 'unit_produced', tick: this.tick, id: u.id, owner: u.owner, unitType: u.type, pos: { ...u.pos } });
       if (b.rally) {
@@ -2934,6 +3065,80 @@ export class Simulation {
       this.entities.delete(e.id);
       if (e.kind === 'building') this.grid.setOccupied(e.cell, BUILDINGS[e.type].size, 0);
     }
+  }
+
+  /**
+   * Vitória territorial (lote 2, item 15): quem controla `VICTORY.territoryShare` de todo o
+   * território reivindicado no mapa por `VICTORY.territorySeconds` seguidos vence. Fora do Sandbox.
+   */
+  private updateTerritorialVictory(): void {
+    if (this.ended || this.sandbox || this.tick % TICK_RATE !== 0) return;
+    const alive = this.players.filter((p) => !p.defeated);
+    if (alive.length < 2) return;
+    const counts = this.players.map(() => 0);
+    let total = 0;
+    for (const o of this.territory)
+      if (o >= 0 && o < counts.length) {
+        counts[o]!++;
+        total++;
+      }
+    if (!total) return;
+    for (const p of alive) {
+      const before = this.territoryHold[p.slot] ?? 0;
+      if (counts[p.slot]! / total >= VICTORY.territoryShare) {
+        const now = before + TICK_RATE;
+        this.territoryHold[p.slot] = now;
+        if (before === 0) this.emit({ type: 'victory_progress', tick: this.tick, kind: 'territory', slot: p.slot, state: 'started' });
+        if (now >= VICTORY.territorySeconds * TICK_RATE) {
+          this.ended = true;
+          this.winner = p.slot;
+          this.victory = 'territory';
+          this.emit({ type: 'victory_progress', tick: this.tick, kind: 'territory', slot: p.slot, state: 'won' });
+          return;
+        }
+      } else if (before > 0) {
+        this.territoryHold[p.slot] = 0;
+        this.emit({ type: 'victory_progress', tick: this.tick, kind: 'territory', slot: p.slot, state: 'lost' });
+      }
+    }
+  }
+
+  /**
+   * Vitória política (lote 2, item 15), chamada uma vez por dia pela camada nacional: estabilidade
+   * abaixo de `VICTORY.politicalStability` por `VICTORY.politicalDays` dias seguidos derruba o
+   * governo, e o país sai da guerra (derrota). Fora do Sandbox.
+   */
+  politicalPressure(slot: Slot, stability: number): void {
+    const p = this.players[slot];
+    if (this.ended || this.sandbox || !p || p.defeated) return;
+    const before = this.collapseDays[slot] ?? 0;
+    if (stability >= VICTORY.politicalStability) {
+      if (before > 0) {
+        this.collapseDays[slot] = 0;
+        this.emit({ type: 'victory_progress', tick: this.tick, kind: 'political', slot, state: 'lost' });
+      }
+      return;
+    }
+    const now = before + 1;
+    this.collapseDays[slot] = now;
+    if (before === 0) this.emit({ type: 'victory_progress', tick: this.tick, kind: 'political', slot, state: 'started' });
+    if (now < VICTORY.politicalDays) return;
+    this.emit({ type: 'victory_progress', tick: this.tick, kind: 'political', slot, state: 'won' });
+    this.defeat(slot);
+    this.checkVictory();
+    if (this.ended) this.victory = 'political';
+  }
+
+  /** Progresso das vitórias alternativas em curso (0 a 1), para o HUD. */
+  victoryPressure(): { kind: 'territory' | 'political'; slot: Slot; progress: number }[] {
+    const out: { kind: 'territory' | 'political'; slot: Slot; progress: number }[] = [];
+    this.territoryHold.forEach((t, slot) => {
+      if (t > 0) out.push({ kind: 'territory', slot, progress: Math.min(1, t / (VICTORY.territorySeconds * TICK_RATE)) });
+    });
+    this.collapseDays.forEach((d, slot) => {
+      if (d > 0 && !this.players[slot]?.defeated) out.push({ kind: 'political', slot, progress: Math.min(1, d / VICTORY.politicalDays) });
+    });
+    return out;
   }
 
   private checkVictory(): void {

@@ -113,6 +113,8 @@ export interface TheaterStats {
   pavedHomes?: number;
   /** Minas próprias que sobram no mapa sem guerra em curso. */
   leftoverMines?: number;
+  /** Fração das moradias cobertas por Hospital, Escola e Delegacia (0 a 1). */
+  services?: { health: number; education: number; security: number };
 }
 
 export type Demand =

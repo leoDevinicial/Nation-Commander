@@ -58,6 +58,11 @@ const BUILD_OPTIONS: BuildingType[] = [
   'research_center',
   'tower',
   'tank_trap',
+  'school',
+  'police_station',
+  'hospital',
+  'refinery',
+  'steel_mill',
   'residential',
   'city_hall',
   'market',
@@ -84,6 +89,7 @@ export const STATUS_TEXT: Record<BuildingStatus, string> = {
   depleted: 'Depósito esgotado — construa em outro depósito',
   outside_territory: 'Parado: os recursos ficaram fora do seu território',
   unpaid: 'Sem manutenção paga (faltam suprimentos): não abriga ninguém',
+  no_input: 'Parado: sem matéria-prima (petróleo para a Refinaria, ferro para a Siderúrgica)',
 };
 
 /** Cidadãos selecionados no mapa e como mandá-los trabalhar. */
@@ -537,6 +543,7 @@ function ProduceButton({ b, unit, hotkey, label, title, onRun }: { b: SelectedBu
     recruitCostMul: policyEffects(myNation?.policies).recruitCostMul,
     bonus,
     era: effectiveEra(me),
+    ...(me?.goods ? { goods: me.goods } : {}),
   });
   const queued = b.queue.filter((q) => q.unitType === unit).length;
   const thumb = useHudStore((s) => s.thumbs[unit]);
@@ -562,6 +569,7 @@ function ProduceButton({ b, unit, hotkey, label, title, onRun }: { b: SelectedBu
       title={`${title}${check.mods.length ? `\nSai da linha com: ${check.mods.map((m) => MODS[m].label).join(', ')} (custo do equipamento incluído)` : ''}${check.basic ? '\nSem recursos para o equipamento de linha: sai básica (modernize depois numa instalação)' : ''}${check.blocker ? `\nBloqueado: ${check.blocker}` : ''}`}
     >
       <CostLabel cost={check.cost} have={me?.resources ?? emptyStockpile()} compact />
+      <GoodsLabel goods={check.goods} />
       {check.basic && <span className="text-[9px] leading-tight text-brass-400">sai básica</span>}
       {check.mods.length > 0 && (
         <span className="text-[9px] leading-tight text-signal-blue">
@@ -569,6 +577,17 @@ function ProduceButton({ b, unit, hotkey, label, title, onRun }: { b: SelectedBu
         </span>
       )}
     </CardButton>
+  );
+}
+
+/** Bens industriais usados no lugar de parte do custo (aço, combustível). */
+export function GoodsLabel({ goods }: { goods: Partial<Record<'fuel' | 'steel', number>> | undefined }) {
+  if (!goods || (!goods.fuel && !goods.steel)) return null;
+  return (
+    <span className="text-[9px] leading-tight text-signal-blue" title="Bens industriais da Refinaria e da Siderúrgica usados no lugar de parte do petróleo e do ferro">
+      {goods.steel ? `🔩${goods.steel} ` : ''}
+      {goods.fuel ? `⛽${goods.fuel}` : ''}
+    </span>
   );
 }
 

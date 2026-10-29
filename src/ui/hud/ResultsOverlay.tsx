@@ -10,6 +10,8 @@ const REASON = {
   forfeit: 'Rendição',
   disconnect: 'Abandono por desconexão',
   draw: 'Empate',
+  territory: 'Vitória territorial (domínio do mapa)',
+  political: 'Vitória política (colapso do governo rival)',
 } as const;
 
 export function ResultsOverlay() {

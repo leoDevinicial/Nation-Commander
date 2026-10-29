@@ -561,7 +561,7 @@ export class Room {
     this.events.push(...tickEvents);
     this.advanceNational(tickEvents);
     if (sim.tick % SNAPSHOT_EVERY === 0 || sim.ended) this.broadcastSnapshot();
-    if (sim.ended) void this.finish(this.endReason ?? (sim.winner === null ? 'draw' : 'hq_destroyed'));
+    if (sim.ended) void this.finish(this.endReason ?? sim.victory ?? (sim.winner === null ? 'draw' : 'hq_destroyed'));
   }
 
   /** Operações: viagem, batalhas locais (snapshots só para o dono), reconciliação e volta. */
@@ -700,6 +700,11 @@ export class Room {
       }
     }
     national.stepDay();
+    // vitória política: governo em colapso de estabilidade por tempo demais cai
+    for (const p of this.players) {
+      const n = national.nation(p.slot);
+      if (n) sim.politicalPressure(p.slot, n.stability);
+    }
     this.applyNationalModifiers();
     this.broadcastNational();
   }
@@ -1087,5 +1092,6 @@ function theaterStats(sim: Simulation, slot: Slot): TheaterStats {
     homes: homes.homes,
     pavedHomes: homes.paved,
     leftoverMines,
+    services: sim.serviceCoverage(slot),
   };
 }

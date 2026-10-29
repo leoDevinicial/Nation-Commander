@@ -1,7 +1,7 @@
 import { GAME_SPEEDS } from '../../../shared/protocol.ts';
 import { DIFFICULTY, prepTicks } from '../../../shared/sim/difficulty.ts';
 import { ERAS, type Era } from '../../../shared/sim/eras.ts';
-import { POP_ABSOLUTE_CAP, RESOURCE_LABELS, RESOURCE_TYPES, STORAGE_LABEL, TICK_RATE } from '../../../shared/sim/config.ts';
+import { GOODS, VICTORY, POP_ABSOLUTE_CAP, RESOURCE_LABELS, RESOURCE_TYPES, STORAGE_LABEL, TICK_RATE } from '../../../shared/sim/config.ts';
 import { ResourceIcon } from '../components/Resources.tsx';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { factionColor } from '../../game/render/palette.ts';
@@ -20,6 +20,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
   const players = useHudStore((s) => s.players);
   const mySlot = useHudStore((s) => s.mySlot);
   const tick = useHudStore((s) => s.tick);
+  const victory = useHudStore((s) => s.victory);
   const paused = useHudStore((s) => s.paused);
   const pausedBy = useHudStore((s) => s.pausedBy);
   const speed = useHudStore((s) => s.speed);
@@ -74,6 +75,17 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
               </div>
             );
           })}
+        {!sandbox && me?.goods && (me.goods.fuel > 0 || me.goods.steel > 0 || me.goods.cap > GOODS.baseCap) && (
+          <div
+            className="flex shrink-0 items-center gap-1.5"
+            title={`Bens industriais (cadeias produtivas), até ${me.goods.cap} de cada: ${GOODS.label.fuel} ${me.goods.fuel} (Refinaria, substitui petróleo) · ${GOODS.label.steel} ${me.goods.steel} (Siderúrgica, substitui ferro). Cada unidade poupa ${GOODS.saves} do recurso bruto na produção de veículos e aeronaves e nas missões aéreas.`}
+          >
+            <span aria-hidden>⛽</span>
+            <span className="font-mono">{me.goods.fuel}</span>
+            <span aria-hidden>🔩</span>
+            <span className="font-mono">{me.goods.steel}</span>
+          </div>
+        )}
         {!sandbox && me?.population && (
           <div
             className="flex shrink-0 items-center gap-1.5"
@@ -101,6 +113,23 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
             {me.eraAdvance && <span className="font-mono text-brass-400">→ {Math.round(me.eraAdvance.progress * 100)}%</span>}
           </div>
         )}
+        {victory.map((v) => {
+          const mine = v.slot === mySlot;
+          const pct = Math.round(v.progress * 100);
+          const text =
+            v.kind === 'territory'
+              ? `${mine ? 'Nosso' : 'Inimigo:'} domínio territorial — ${pct}% dos ${VICTORY.territorySeconds / 60} min para a vitória (controle ≥ ${Math.round(VICTORY.territoryShare * 100)}% do território reivindicado)`
+              : `${mine ? 'Nossa' : 'Inimigo:'} crise política — ${pct}% dos ${VICTORY.politicalDays} dias até a queda do governo (estabilidade abaixo de ${VICTORY.politicalStability})`;
+          return (
+            <div key={`${v.kind}-${v.slot}`} className={`flex shrink-0 items-center gap-1 font-mono ${mine === (v.kind === 'territory') ? 'text-signal-green' : 'text-red-300'}`} title={text}>
+              <span aria-hidden>{v.kind === 'territory' ? '🗺' : '⚖'}</span>
+              <span className="inline-block h-1.5 w-12 overflow-hidden rounded bg-ink-700 align-middle" aria-hidden>
+                <span className={`block h-full ${mine === (v.kind === 'territory') ? 'bg-signal-green' : 'bg-red-400'}`} style={{ width: `${pct}%` }} />
+              </span>
+              <span>{pct}%</span>
+            </div>
+          );
+        })}
         <div className="flex shrink-0 items-center gap-1.5" title="Tempo de operação">
           <span className="text-ink-400" aria-hidden>
             ⏱

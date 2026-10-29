@@ -1,6 +1,6 @@
 import { MODS } from '../../shared/sim/modernization.ts';
 import { AIRCRAFT, type AircraftType } from '../../shared/sim/air.ts';
-import { BUILDINGS, MILITARY_RESEARCH, RESOURCE_LABELS, TICK_RATE, UNITS, type BuildingType, type UnitType } from '../../shared/sim/config.ts';
+import { BUILDINGS, MILITARY_RESEARCH, RESOURCE_LABELS, TICK_RATE, UNITS, VICTORY, type BuildingType, type UnitType } from '../../shared/sim/config.ts';
 import type { BuildingStatus } from '../../shared/sim/types.ts';
 
 const HALT_TEXT: Partial<Record<BuildingStatus, string>> = {
@@ -9,6 +9,7 @@ const HALT_TEXT: Partial<Record<BuildingStatus, string>> = {
   no_tank: 'sem tanque de petróleo ao alcance',
   outside_territory: 'recursos fora do território',
   unpaid: 'manutenção não paga',
+  no_input: 'sem matéria-prima',
 };
 import type { SimEvent } from '../../shared/sim/types.ts';
 import { specDef, type SpecId } from '../../shared/sim/upgrades.ts';
@@ -149,6 +150,23 @@ export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone
       if (e.state === 'countdown') return { text: e.owner === mySlot ? 'Programa Espacial: lançamento autorizado, contagem regressiva iniciada' : 'Alerta: o inimigo iniciou a contagem de um lançamento espacial', tone: e.owner === mySlot ? 'info' : 'warn' };
       if (e.state === 'ascent') return { text: e.owner === mySlot ? 'Ignição! O foguete deixou a plataforma' : 'Um foguete inimigo decolou', tone: e.owner === mySlot ? 'good' : 'warn' };
       return null;
+    case 'victory_progress': {
+      const mine = e.slot === mySlot;
+      if (e.kind === 'territory') {
+        if (e.state === 'started')
+          return mine
+            ? { text: `Domínio territorial: controlamos ${Math.round(VICTORY.territoryShare * 100)}% do território. Mantenha por ${VICTORY.territorySeconds / 60} min para vencer`, tone: 'good' }
+            : { text: `Alerta: o inimigo domina ${Math.round(VICTORY.territoryShare * 100)}% do território. Retome fronteiras em ${VICTORY.territorySeconds / 60} min ou perde a guerra`, tone: 'bad' };
+        if (e.state === 'lost') return { text: mine ? 'Perdemos o domínio territorial: a contagem parou' : 'O domínio territorial do inimigo foi quebrado', tone: mine ? 'warn' : 'good' };
+        return null;
+      }
+      if (e.state === 'started')
+        return mine
+          ? { text: `Crise política: estabilidade abaixo de ${VICTORY.politicalStability}. Em ${VICTORY.politicalDays} dias o governo cai`, tone: 'bad' }
+          : { text: 'O governo inimigo entrou em colapso de estabilidade', tone: 'good' };
+      if (e.state === 'lost') return mine ? { text: 'A crise política foi contida', tone: 'good' } : null;
+      return { text: mine ? 'Nosso governo caiu: colapso político' : 'O governo inimigo caiu: colapso político', tone: mine ? 'bad' : 'good' };
+    }
     case 'mine':
       if (e.state === 'laid') return e.owner === mySlot ? { text: 'Mina antitanque instalada', tone: 'info' } : null;
       if (e.state === 'cleared')

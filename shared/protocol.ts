@@ -107,7 +107,7 @@ export interface BattleInfo {
   match: MatchStartInfo;
 }
 
-export type EndReason = 'hq_destroyed' | 'forfeit' | 'disconnect' | 'draw';
+export type EndReason = 'hq_destroyed' | 'forfeit' | 'disconnect' | 'draw' | 'territory' | 'political';
 
 export interface MatchEndInfo {
   winnerSlot: Slot | null;

@@ -39,7 +39,15 @@ function useMe() {
   const mySlot = useHudStore((s) => s.mySlot);
   const nation = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot));
   const bonus = useMyBonus();
-  return { resources: me?.resources ?? emptyStockpile(), recruits: me?.population?.recruits ?? 0, techs: effectiveTechs(nation?.research.done ?? []), fund: effectiveFund(nation?.works.fundUsd ?? null), bonus, era: effectiveEra(me) };
+  return {
+    resources: me?.resources ?? emptyStockpile(),
+    recruits: me?.population?.recruits ?? 0,
+    techs: effectiveTechs(nation?.research.done ?? []),
+    fund: effectiveFund(nation?.works.fundUsd ?? null),
+    bonus,
+    era: effectiveEra(me),
+    goods: me?.goods,
+  };
 }
 
 function Bar({ value, tone = 'bg-brass-400' }: { value: number; tone?: string }) {
@@ -90,7 +98,7 @@ export function AirbaseInfo({ b }: { b: SelectedBuildingInfo }) {
 }
 
 function aircraftBlocker(type: AircraftType, ctx: ReturnType<typeof useMe>, inHangar: number, baseLevel: number): string | null {
-  const def = aircraftFor(type, ctx.bonus);
+  const def = aircraftFor(type, ctx.bonus, ctx.goods);
   if (AIRCRAFT_ERA[type] > ctx.era) return `era ${AIRCRAFT_ERA[type]}`;
   if (def.minBaseLevel && baseLevel < def.minBaseLevel) return `exige base nível ${def.minBaseLevel}`;
   if (inHangar >= AIR.hangarPerBase) return 'hangar cheio';
@@ -116,7 +124,7 @@ export function AirbaseButtons({ b, runtime }: { b: SelectedBuildingInfo; runtim
   return (
     <>
       {AIRCRAFT_TYPES.map((t) => {
-        const def = aircraftFor(t, ctx.bonus);
+        const def = aircraftFor(t, ctx.bonus, ctx.goods);
         const blocker = aircraftBlocker(t, ctx, planes.length, b.level);
         return (
           <CardButton
@@ -130,6 +138,7 @@ export function AirbaseButtons({ b, runtime }: { b: SelectedBuildingInfo; runtim
             title={`${def.label} — ${def.role}\nCusto: ${formatUsd(def.usd)} da verba de obras + materiais + 1 piloto · ${timeText(def.buildSeconds)}${def.range ? `\nAlcance ${def.range} · manutenção ${def.maintenanceSeconds}s após cada missão` : ''}`}
           >
             <CostLabel cost={def.cost} have={ctx.resources} compact />
+            {def.goods?.fuel && <span className="text-[9px] text-signal-blue">⛽{def.goods.fuel}</span>}
             <span className="text-[9px] text-ink-400">{formatUsd(def.usd)}</span>
           </CardButton>
         );

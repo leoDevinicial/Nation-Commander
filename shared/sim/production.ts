@@ -1,4 +1,22 @@
-import { BUILDINGS, MILITARY_RESEARCH, CITIZEN, POP_ABSOLUTE_CAP, PRODUCTION_QUEUE_LIMIT, RECRUIT, RESOURCE_TYPES, UNITS, canAfford, type BuildingType, type Cost, type ProducibleType, type Stockpile } from './config.ts';
+import {
+  BUILDINGS,
+  MILITARY_RESEARCH,
+  CITIZEN,
+  GOODS,
+  GOODS_TYPES,
+  GOODS_USE,
+  POP_ABSOLUTE_CAP,
+  PRODUCTION_QUEUE_LIMIT,
+  RECRUIT,
+  RESOURCE_TYPES,
+  UNITS,
+  canAfford,
+  type BuildingType,
+  type Cost,
+  type Goods,
+  type ProducibleType,
+  type Stockpile,
+} from './config.ts';
 import { buildingEffects, missingText, scaledCost, type SpecId } from './upgrades.ts';
 import { addCost, productionStandard, type ModId } from './modernization.ts';
 import type { CountryBonus } from './countryBonus.ts';
@@ -30,6 +48,8 @@ export interface ProduceContext {
   bonus?: CountryBonus;
   /** Era da nação (tropas de eras futuras ficam bloqueadas; ausente = todas). */
   era?: number;
+  /** Bens industriais em estoque: substituem parte do custo quando bastam (ausente = sem bens). */
+  goods?: Goods;
 }
 
 export interface ProduceCheck {
@@ -48,6 +68,26 @@ export interface ProduceCheck {
    * (dá para instalar depois numa instalação compatível). Evita travar a produção sem ferro.
    */
   basic: boolean;
+  /** Bens industriais usados no lugar de parte do custo (já descontado em `cost`). */
+  goods: Partial<Goods>;
+}
+
+/**
+ * Cadeias produtivas: com bens em estoque, cada unidade de bem paga `GOODS.saves` do recurso bruto
+ * (combustível no lugar do petróleo, aço no lugar do ferro). Sem estoque suficiente, custo cheio.
+ */
+export function substituteGoods(cost: Cost, use: Partial<Goods> | undefined, goods: Goods | undefined): { cost: Cost; goods: Partial<Goods> } {
+  const used: Partial<Goods> = {};
+  if (!use || !goods) return { cost, goods: used };
+  const out = { ...cost };
+  for (const g of GOODS_TYPES) {
+    const u = use[g] ?? 0;
+    const raw = GOODS.raw[g];
+    if (u <= 0 || goods[g] < u || !(out[raw] ?? 0)) continue;
+    out[raw] = Math.max(0, (out[raw] ?? 0) - u * GOODS.saves);
+    used[g] = u;
+  }
+  return { cost: out, goods: used };
 }
 
 const SHORT_RES: Record<string, string> = { supplies: 'supr.', food: 'comida', wood: 'madeira', stone: 'pedra', iron: 'ferro', oil: 'petróleo' };
@@ -76,7 +116,10 @@ export function checkProduce(unit: ProducibleType, c: ProduceContext): ProduceCh
     eq = { mods: [], equipmentCost: {} };
     basic = true;
   }
-  const no = (blocker: string, short: string): ProduceCheck => ({ cost, ...eq, blocker, short, basic });
+  const sub = substituteGoods(cost, civil ? undefined : GOODS_USE[unit], c.goods);
+  cost = sub.cost;
+  const goods = sub.goods;
+  const no = (blocker: string, short: string): ProduceCheck => ({ cost, ...eq, blocker, short, basic, goods });
   if (c.progress < 1) return no('Edifício em construção', 'em obra');
   if (c.queueLength >= PRODUCTION_QUEUE_LIMIT) return no('Fila de produção cheia', 'fila cheia');
   if (civil) {
@@ -96,5 +139,5 @@ export function checkProduce(unit: ProducibleType, c: ProduceContext): ProduceCh
     if (c.recruits < 1) return no('Nenhum recruta disponível: aliste recrutas na base militar (quartel)', 'sem recruta');
   }
   if (!canAfford(c.resources, cost)) return no(`Recursos insuficientes: faltam ${missingText(c.resources, cost)}`, firstMissing(c.resources, cost));
-  return { cost, ...eq, blocker: null, short: null, basic };
+  return { cost, ...eq, blocker: null, short: null, basic, goods };
 }

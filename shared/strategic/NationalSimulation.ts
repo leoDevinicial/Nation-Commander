@@ -23,7 +23,7 @@ import { countryReference, type ReferenceKey } from './reference.ts';
 import { combineEffects, researchBlocker, researchDailyProgress, TECH_IDS, type TechEffects, type TechId } from './technologies.ts';
 import { COUNTRIES } from '../data/countries.ts';
 import { DIPLO, Diplomacy, warPreview, type DiplomacySave, type DiplomaticAction, type DiplomaticEvent, type NationId, type RelationView, type Treaty, type WarPreview } from './Diplomacy.ts';
-import { BUILDINGS, PROJECT_FX, type BuildingType, type Cost, type Stockpile } from '../sim/config.ts';
+import { BUILDINGS, PROJECT_FX, SERVICES, type BuildingType, type Cost, type Stockpile } from '../sim/config.ts';
 import {
   DECREE_MIN_DAYS,
   DECREES,
@@ -751,8 +751,10 @@ export class NationalSimulation {
     if (n.approval < COEF.protestApprovalThreshold) {
       const chance = COEF.protestMaxDailyChance * ((COEF.protestApprovalThreshold - n.approval) / COEF.protestApprovalThreshold) * pol.protestMul;
       if (this.rng.next() < chance) {
+        // delegacias cobrindo os bairros: protestos pesam até metade na estabilidade
+        const policed = 1 - 0.5 * (this.theater?.stats?.(n.slot)?.services?.security ?? 0);
         n.approval = Math.max(0, n.approval - 2);
-        n.stability = Math.max(0, n.stability - 4);
+        n.stability = Math.max(0, n.stability - 4 * policed);
         const causes = [...n.approvalFactors]
           .filter((f) => f.value < 0)
           .sort((a, c) => a.value - c.value)
@@ -964,6 +966,9 @@ export class NationalSimulation {
     // lote 3: bairros ligados à estrada agradam; minas esquecidas depois da guerra assustam
     const stats = this.theater?.stats?.(n.slot);
     if (stats?.homes && stats.pavedHomes) factors.push({ key: 'paved', label: 'Bairros pavimentados', value: ROAD_APPROVAL.pavedMax * (stats.pavedHomes / stats.homes) });
+    const svc = stats?.services;
+    if (svc && svc.health + svc.education + svc.security > 0)
+      factors.push({ key: 'services_coverage', label: 'Hospitais, escolas e delegacias cobrindo os bairros', value: SERVICES.approvalMax * (svc.health + svc.education + svc.security) });
     if (stats?.leftoverMines) factors.push({ key: 'mines', label: 'Minas esquecidas no território', value: Math.max(-ROAD_APPROVAL.minesMax, -ROAD_APPROVAL.perMine * stats.leftoverMines) });
     const shock = this.shockLevel();
     if (shock > 0.01) factors.push({ key: 'nuclear', label: 'Medo e crise do lançamento nuclear', value: NUCLEAR_SHOCK.approval * shock });

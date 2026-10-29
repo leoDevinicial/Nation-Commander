@@ -89,6 +89,8 @@ export interface PlayerSnapshot {
   eras?: boolean;
   /** Satélite em órbita (público). */
   satellite?: true;
+  /** Bens industriais (só para o próprio jogador) e o teto do estoque. */
+  goods?: { fuel: number; steel: number; cap: number };
 }
 
 /** Carga em trânsito: completa para quem negocia; para os demais, só o veículo visível no mapa. */
@@ -159,6 +161,8 @@ export interface Snapshot {
   buildings: BuildingSnapshot[];
   players: PlayerSnapshot[];
   events: SimEvent[];
+  /** Vitórias alternativas em curso (domínio territorial, colapso político), de 0 a 1. */
+  victory?: { kind: 'territory' | 'political'; slot: Slot; progress: number }[];
   /** Estradas construídas pelos jogadores (índices de célula), junto com o território. */
   roads?: number[];
   /** Minas que o observador vê (as próprias e as inimigas detectadas). */
@@ -278,6 +282,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         ...(mine && p.eraAdvance ? { eraAdvance: { to: p.eraAdvance.to, progress: r2(1 - p.eraAdvance.remainingTicks / Math.max(1, p.eraAdvance.totalTicks)) } } : {}),
         ...(mine && sim.eras ? { eras: true } : {}),
         ...(p.satellite ? { satellite: true as const } : {}),
+        ...(mine && p.goods ? { goods: { fuel: Math.floor(p.goods.fuel), steel: Math.floor(p.goods.steel), cap: sim.goodsCap(p.slot) } } : {}),
       };
     }),
     events: viewer ? events.filter((ev) => eventVisible(sim, ev, viewer.slot)) : events,
@@ -286,6 +291,10 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
     // fronteiras são conhecidas por todos (como no mapa político de Rise of Nations)
     ...(includeTerritory ? { territory: encodeTerritory(sim.territory) } : {}),
     ...(includeTerritory && sim.roads.length ? { roads: sim.roads.map((r) => r.i) } : {}),
+    ...(() => {
+      const v = sim.victoryPressure().map((x) => ({ ...x, progress: r2(x.progress) }));
+      return v.length ? { victory: v } : {};
+    })(),
     ...(() => {
       const list = sim.mines.mines
         .filter((m) => !viewer || sim.mines.visibleTo(m, viewer.slot))
@@ -513,6 +522,9 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
       return true;
     case 'mine':
       return e.owner === slot || e.by === slot || (e.state === 'blast' && sim.isVisibleTo(slot, e.pos));
+    case 'victory_progress':
+      // vitórias alternativas são anunciadas a todos
+      return true;
     case 'border_incident':
       return e.aggressor === slot || e.victim === slot;
     case 'player_defeated':

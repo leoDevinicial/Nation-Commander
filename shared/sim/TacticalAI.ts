@@ -1,4 +1,4 @@
-import { BUILDINGS, CITIZEN, MINE, OIL_TANK_RANGE, RECRUIT, type ResourceType, POP_ABSOLUTE_CAP, PREPARATION_TICKS, RESOURCE_TYPES, TICK_RATE, UNITS, MILITARY_RESEARCH, militaryResearchBlocker, canAfford, type MilitaryResearchId, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
+import { BUILDINGS, CITIZEN, GOODS_TYPES, MINE, OIL_TANK_RANGE, emptyGoods, RECRUIT, type ResourceType, POP_ABSOLUTE_CAP, PREPARATION_TICKS, RESOURCE_TYPES, TICK_RATE, UNITS, MILITARY_RESEARCH, militaryResearchBlocker, canAfford, type MilitaryResearchId, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
 import { claimableCells, claimedBy } from './gathering.ts';
 import { checkProduce } from './production.ts';
 import type { Command } from './commands.ts';
@@ -63,7 +63,7 @@ export const AI_AIR_TICK = TICK_RATE * 60 * 9;
 export const AI_RECON_EVERY_TICKS = TICK_RATE * 60;
 export const AI_STRIKE_EVERY_TICKS = TICK_RATE * 45;
 /** Alvos preferidos dos ataques aéreos e mísseis (os primeiros da lista primeiro). */
-const AIR_TARGETS: BuildingType[] = ['airbase', 'missile_silo', 'factory', 'research_center', 'barracks', 'oil_well', 'oil_tank', 'mine', 'hq'];
+const AIR_TARGETS: BuildingType[] = ['airbase', 'missile_silo', 'refinery', 'steel_mill', 'factory', 'research_center', 'barracks', 'oil_well', 'oil_tank', 'mine', 'hq'];
 
 /** Força defensiva enviada contra a força inimiga vista perto da base. */
 export const AI_DEFENSE_RATIO = 1.5;
@@ -249,6 +249,11 @@ export class TacticalAI {
       ['factory', count('factory') < 2 && budget.supplies > 350 && budget.oil > 150],
       ['barracks', count('barracks') < 2 && budget.food > 250],
       ['oil_well', count('oil_well') < 3 && army.length >= 10],
+      // cadeias produtivas e serviços (lote 1, §4): depois da economia militar montada
+      ['steel_mill', count('steel_mill') === 0 && done('research_center') && active('mine') >= 1 && army.length >= 8 && budget.iron > 150],
+      ['refinery', count('refinery') === 0 && done('research_center') && count('oil_well') >= 2 && army.length >= 8 && budget.oil > 120],
+      ['school', count('school') === 0 && done('research_center') && count('house') >= 3 && army.length >= 6],
+      ['hospital', count('hospital') === 0 && done('steel_mill') && army.length >= 10],
       // força aérea (Normal ou mais): base aérea depois da economia militar; silo quando houver a pesquisa
       ['airbase', level.airPower && count('airbase') === 0 && done('factory') && done('research_center') && sim.tick >= AI_AIR_TICK],
       ['missile_silo', level.missiles && count('missile_silo') === 0 && done('airbase') && natTechs.includes(MISSILE.tech)],
@@ -307,6 +312,8 @@ export class TacticalAI {
       airThreat && has('mobile_aa') ? 'mobile_aa' : has('mbt') ? 'mbt' : has('tank') ? 'tank' : 'apc',
     ];
     const techs = sim.national ? sim.national.techs(this.slot) : null;
+    // bens industriais reservados na própria avaliação (vários pedidos no mesmo turno)
+    const goods = { ...(me.goods ?? emptyGoods()) };
     for (const b of mine) {
       if (b.progress < 1 || b.queue.length > 0 || crew <= 0 || b.workers === 0) continue;
       const mix = b.type === 'barracks' ? barracksMix : b.type === 'factory' ? factoryMix : null;
@@ -331,8 +338,10 @@ export class TacticalAI {
           recruitCostMul: me.modifiers.recruitCostMul ?? 1,
           bonus: sim.bonusOf(this.slot),
           era: sim.eraOf(this.slot),
+          goods,
         });
         if (check.blocker || !take(check.cost)) continue;
+        for (const g of GOODS_TYPES) goods[g] -= check.goods[g] ?? 0;
         cmds.push({ type: 'produce', buildingId: b.id, unitType });
         this.produced++;
         crew--;

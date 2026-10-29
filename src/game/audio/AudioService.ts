@@ -40,6 +40,11 @@ export const PRODUCTION_SOUND: Record<string, ProductionSound> = {
   hq: 'office',
   missile_silo: 'hum',
   aa_battery: 'hum',
+  refinery: 'pump',
+  steel_mill: 'factory',
+  hospital: 'office',
+  school: 'office',
+  police_station: 'office',
 };
 
 interface Voice {

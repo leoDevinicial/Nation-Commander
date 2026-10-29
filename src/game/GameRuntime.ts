@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { GameSpeed, MatchStartInfo, ServerMessage } from '../../shared/protocol.ts';
 import type { Command, SandboxToggle } from '../../shared/sim/commands.ts';
-import { BUILDINGS, CITIZEN, CITY, MILITARY_RESEARCH, MILITARY_RESEARCH_IDS, RECRUIT, RESOURCE_TYPES, ROAD, TICK_RATE, UNITS, emptyStockpile, type BuildingType, type MilitaryResearchId, type Terrain, type UnitType } from '../../shared/sim/config.ts';
+import { BUILDINGS, CITIZEN, CITY, MILITARY_RESEARCH, MILITARY_RESEARCH_IDS, RECRUIT, RESOURCE_TYPES, ROAD, SERVICES, TICK_RATE, UNITS, emptyStockpile, type BuildingType, type MilitaryResearchId, type Terrain, type UnitType } from '../../shared/sim/config.ts';
 import { MOD_IDS, MODS, checkModernize, pickRefitFacility, type FacilityInfo, type ModId, type ModernizeCheck } from '../../shared/sim/modernization.ts';
 import { anchorForCursor, placementError } from '../../shared/sim/placement.ts';
 import type { BuildingSnapshot, Snapshot, UnitSnapshot } from '../../shared/sim/snapshot.ts';
@@ -511,6 +511,11 @@ export class GameRuntime {
     }
     this.snapshot = s;
     this.mineLayer.update(s.mines ?? []);
+    if (this.hudActive) {
+      const v = s.victory ?? [];
+      const cur = useHudStore.getState().victory;
+      if (JSON.stringify(v) !== JSON.stringify(cur)) useHudStore.getState().set({ victory: v });
+    }
     if (s.territory) {
       this.territory = decodeTerritory(s.territory);
       this.territoryLayer.update(this.territory);
@@ -937,6 +942,7 @@ export class GameRuntime {
       }
     this.trackMarks.update(dt);
     this.mineLayer.tick(dt);
+    this.updateServiceRing();
     this.updateAirTargeting();
     if (this.hudActive) {
       audio.setListener(this.cameraCtl.target.x, this.cameraCtl.target.z, this.cameraCtl.distance, this.cameraCtl.yaw);
@@ -1913,6 +1919,37 @@ export class GameRuntime {
     return this.myUnitIds().filter((id) => this.units.get(id)?.snap.type === 'engineer');
   }
 
+  /** Anel do raio de cobertura de Hospital, Escola e Delegacia (ao posicionar ou selecionado). */
+  private serviceRing: THREE.Mesh | null = null;
+
+  private updateServiceRing(): void {
+    const cs = this.map.cellSize;
+    let at: { x: number; y: number } | null = null;
+    const m = this.mode;
+    if (m.kind === 'place' && BUILDINGS[m.buildingType].service && this.ghostCell) {
+      const size = BUILDINGS[m.buildingType].size;
+      at = { x: (this.ghostCell.cx + size / 2) * cs, y: (this.ghostCell.cy + size / 2) * cs };
+    } else if (m.kind === 'normal') {
+      const b = this.selectedOwnBuilding();
+      if (b && BUILDINGS[b.snap.type].service) at = this.positionOf(b.snap.id);
+    }
+    if (!at) {
+      if (this.serviceRing) this.serviceRing.visible = false;
+      return;
+    }
+    if (!this.serviceRing) {
+      const r = SERVICES.radius * cs;
+      this.serviceRing = new THREE.Mesh(
+        new THREE.RingGeometry(r - 0.35, r, 96).rotateX(-Math.PI / 2),
+        new THREE.MeshBasicMaterial({ color: '#7fd6a0', transparent: true, opacity: 0.55, depthWrite: false }),
+      );
+      this.serviceRing.renderOrder = 3;
+      this.scene.add(this.serviceRing);
+    }
+    this.serviceRing.visible = true;
+    this.serviceRing.position.set(at.x, this.groundHeight(at.x, at.y) + 0.12, at.y);
+  }
+
   /** Minas próprias no mapa (limite por nação no painel do engenheiro). */
   myMineCount(): number {
     return (this.snapshot?.mines ?? []).filter((m) => m.owner === this.mySlot).length;
@@ -2409,6 +2446,9 @@ export class GameRuntime {
         break;
       case 'unit_promoted':
         if (mine(e.owner)) audio.ui('success');
+        break;
+      case 'victory_progress':
+        if (e.state !== 'lost') audio.ui(mine(e.slot) === (e.kind === 'territory') ? 'success' : 'alert');
         break;
       case 'mine':
         if (e.state === 'blast') {

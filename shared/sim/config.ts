@@ -43,6 +43,52 @@ export const HUNGER_EFFICIENCY = 0.5;
 export type ResourceType = 'supplies' | 'food' | 'wood' | 'stone' | 'iron' | 'oil';
 export const RESOURCE_TYPES: readonly ResourceType[] = ['supplies', 'food', 'wood', 'stone', 'iron', 'oil'];
 
+/**
+ * Bens industriais das cadeias produtivas (lote 1, §4): a Refinaria transforma petróleo em
+ * combustível e a Siderúrgica, ferro em aço. Ficam num estoque à parte (`PlayerState.goods`) e
+ * substituem parte do custo das tropas e aeronaves: cada unidade de bem poupa `GOODS.saves`
+ * unidades do recurso bruto (combustível no lugar do petróleo, aço no lugar do ferro).
+ */
+export type GoodsType = 'fuel' | 'steel';
+export const GOODS_TYPES: readonly GoodsType[] = ['fuel', 'steel'];
+export type Goods = Record<GoodsType, number>;
+export const GOODS = {
+  label: { fuel: 'Combustível', steel: 'Aço' } as Record<GoodsType, string>,
+  /** Recurso bruto que cada bem substitui. */
+  raw: { fuel: 'oil', steel: 'iron' } as Record<GoodsType, ResourceType>,
+  /** Unidades do recurso bruto poupadas por unidade de bem. */
+  saves: 2,
+  /** Estoque de bens: base e por usina pronta (Refinaria ou Siderúrgica). */
+  baseCap: 40,
+  capPerPlant: 150,
+};
+/** Bens usados na produção de cada tropa (quando há estoque; senão paga o custo cheio). */
+export const GOODS_USE: Partial<Record<UnitType, Partial<Goods>>> = {
+  apc: { fuel: 5 },
+  tank: { steel: 10, fuel: 5 },
+  artillery: { steel: 5 },
+  rocket_artillery: { steel: 10, fuel: 5 },
+  mobile_aa: { steel: 10, fuel: 5 },
+  mbt: { steel: 20, fuel: 10 },
+};
+export const emptyGoods = (): Goods => ({ fuel: 0, steel: 0 });
+
+/**
+ * Serviços com raio de cobertura (lote 1, §4, como no *Tropico*): Hospital, Escola e Delegacia.
+ * O raio é em células, a partir do centro do edifício pronto e com trabalhadores.
+ */
+export type ServiceKind = 'health' | 'education' | 'security';
+const SERVICES_RADIUS = 10;
+export const SERVICES = {
+  radius: SERVICES_RADIUS,
+  /** Hospital: vida recuperada por segundo pelas tropas próprias cobertas. */
+  healPerSecond: 1.5,
+  /** Escola: coleta e produção mais rápidas nos edifícios cobertos. */
+  educationGatherMul: 1.1,
+  /** Aprovação máxima de cada serviço (com todas as moradias cobertas). */
+  approvalMax: 2,
+};
+
 export const RESOURCE_LABELS: Record<ResourceType, string> = {
   supplies: 'Suprimentos',
   food: 'Comida',
@@ -183,7 +229,13 @@ export type BuildingType =
   | 'financial_center'
   | 'space_center'
   // engenharia de combate
-  | 'tank_trap';
+  | 'tank_trap'
+  // cadeias produtivas e serviços com cobertura (lote 1, §4)
+  | 'refinery'
+  | 'steel_mill'
+  | 'hospital'
+  | 'school'
+  | 'police_station';
 
 /** O que uma fila de produção pode produzir. */
 export type ProducibleType = UnitType | 'citizen' | 'recruit';
@@ -554,6 +606,10 @@ export interface BuildingDef {
   nearWater?: boolean;
   /** Pode ser erguido fora do território, perto de um Engenheiro de Combate (obstáculos). */
   engineerOutside?: boolean;
+  /** Cadeia produtiva: com trabalhadores, transforma um recurso bruto num bem (por segundo). */
+  process?: { from: ResourceType; to: GoodsType; rate: number };
+  /** Serviço com raio de cobertura (`SERVICES.radius` células). */
+  service?: ServiceKind;
 }
 
 /**
@@ -607,6 +663,19 @@ export const ROAD = {
   engineerRange: 6,
   /** Velocidade dos comboios rodoviários sobre a estrada. */
   convoyMul: 1.3,
+};
+
+/**
+ * Vitórias alternativas (lote 2, item 15), além de destruir o QG: territorial (controlar a maior
+ * parte do território reivindicado por um tempo) e política (o rival em colapso de estabilidade).
+ */
+export const VICTORY = {
+  /** Fração de todo o território reivindicado no mapa. */
+  territoryShare: 0.7,
+  territorySeconds: 240,
+  /** Estabilidade nacional abaixo deste valor por `politicalDays` dias derruba o governo. */
+  politicalStability: 10,
+  politicalDays: 60,
 };
 
 /** Programa Espacial: contagem regressiva e subida do foguete (s). */
@@ -765,6 +834,81 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     buildable: true,
     description: 'Amplia visão e fronteira (como fortes e torres de fronteira) e defende a área.',
     hotkey: 'K',
+  },
+  refinery: {
+    ...NONE,
+    label: 'Refinaria',
+    cost: { wood: 80, stone: 100, iron: 80 },
+    buildSeconds: 28,
+    maxHp: 550,
+    size: 2,
+    income: {},
+    sight: 5,
+    workers: 3,
+    upkeep: { supplies: 0.05 },
+    buildable: true,
+    process: { from: 'oil', to: 'fuel', rate: 0.6 },
+    description: 'Cadeia produtiva: com trabalhadores, transforma petróleo em combustível (0,6/s). O combustível substitui o petróleo na produção de veículos e aeronaves (cada unidade poupa 2 de petróleo). Alvo estratégico.',
+  },
+  steel_mill: {
+    ...NONE,
+    label: 'Siderúrgica',
+    cost: { wood: 80, stone: 120, iron: 60 },
+    buildSeconds: 28,
+    maxHp: 600,
+    size: 2,
+    income: {},
+    sight: 5,
+    workers: 3,
+    upkeep: { supplies: 0.05 },
+    buildable: true,
+    process: { from: 'iron', to: 'steel', rate: 0.5 },
+    description: 'Cadeia produtiva: com trabalhadores, transforma ferro em aço (0,5/s). O aço substitui o ferro na produção dos blindados (cada unidade poupa 2 de ferro). Alvo estratégico.',
+  },
+  hospital: {
+    ...NONE,
+    label: 'Hospital',
+    cost: { wood: 60, stone: 80, supplies: 60 },
+    buildSeconds: 20,
+    maxHp: 450,
+    size: 2,
+    income: {},
+    sight: 6,
+    workers: 2,
+    upkeep: { supplies: 0.06 },
+    buildable: true,
+    service: 'health',
+    description: `Serviço com raio de ${SERVICES_RADIUS} células: tropas próprias na área recuperam vida aos poucos e moradias cobertas dão aprovação.`,
+  },
+  school: {
+    ...NONE,
+    label: 'Escola',
+    cost: { wood: 70, stone: 50, supplies: 40 },
+    buildSeconds: 18,
+    maxHp: 400,
+    size: 2,
+    income: {},
+    sight: 5,
+    workers: 2,
+    upkeep: { supplies: 0.05 },
+    buildable: true,
+    service: 'education',
+    description: `Serviço com raio de ${SERVICES_RADIUS} células: coletas cobertas rendem 10% a mais, tropas formadas em quartéis e fábricas cobertos saem como Veteranas e moradias cobertas dão aprovação.`,
+  },
+  police_station: {
+    ...NONE,
+    label: 'Delegacia',
+    cost: { wood: 50, stone: 60, supplies: 40 },
+    buildSeconds: 15,
+    maxHp: 450,
+    size: 1,
+    income: {},
+    sight: 7,
+    workers: 1,
+    upkeep: { supplies: 0.04 },
+    buildable: true,
+    service: 'security',
+    description: `Serviço com raio de ${SERVICES_RADIUS} células: moradias cobertas dão aprovação e os protestos pesam menos na estabilidade; a viatura vigia a área (visão de 7 células).`,
   },
   house: {
     ...NONE,

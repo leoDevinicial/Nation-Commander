@@ -1,5 +1,5 @@
 import type { Era, EraAdvance } from './eras.ts';
-import type { BuildingType, Cost, MilitaryResearchId, ProducibleType, ResourceType, Stockpile, Terrain, UnitType } from './config.ts';
+import type { BuildingType, Cost, Goods, MilitaryResearchId, ProducibleType, ResourceType, Stockpile, Terrain, UnitType } from './config.ts';
 import type { SpecId } from './upgrades.ts';
 import type { ModId } from './modernization.ts';
 
@@ -84,6 +84,8 @@ export interface ProductionItem {
   paid?: Cost;
   /** Pacotes de equipamento do padrão de produção no momento do pedido (já pagos em `paid`). */
   mods?: ModId[];
+  /** Bens industriais usados no lugar de parte do custo (devolvidos ao cancelar). */
+  goodsPaid?: Partial<Goods>;
 }
 
 /** Obra de melhoria em andamento (Fase 4). */
@@ -154,7 +156,7 @@ export interface MilitaryResearchWork {
 }
 
 /** Por que um edifício não está produzindo (ou 'ok'). */
-export type BuildingStatus = 'ok' | 'no_workers' | 'storage_full' | 'no_tank' | 'depleted' | 'outside_territory' | 'unpaid';
+export type BuildingStatus = 'ok' | 'no_workers' | 'storage_full' | 'no_tank' | 'depleted' | 'outside_territory' | 'unpaid' | 'no_input';
 
 export type Entity = Unit | Building;
 
@@ -218,6 +220,8 @@ export interface PlayerState {
   /** Era atual (1 = Guerra Fria; ausente = 1) e avanço em andamento no Centro de Comando. */
   era?: Era;
   eraAdvance?: EraAdvance | null;
+  /** Bens industriais das cadeias produtivas (combustível e aço). */
+  goods?: Goods;
 }
 
 export interface MapData {
@@ -280,6 +284,11 @@ export type SimEvent =
   /** Prefeitura destruída por um inimigo: ele toma a cidade e os edifícios vinculados a ela. */
   /** Mina antitanque: instalada, removida por um engenheiro inimigo ou detonada por um veículo. */
   | { type: 'mine'; tick: number; owner: Slot; state: 'laid' | 'cleared' | 'blast'; by?: Slot; pos: Vec2 }
+  /**
+   * Vitória alternativa em curso (anunciada a todos): `slot` domina o território ou está em
+   * colapso político. `started` abre a contagem, `lost` a interrompe e `won` encerra.
+   */
+  | { type: 'victory_progress'; tick: number; kind: 'territory' | 'political'; slot: Slot; state: 'started' | 'lost' | 'won' }
   /** Programa Espacial: contagem regressiva, subida do foguete e satélite em órbita. */
   | { type: 'space'; tick: number; owner: Slot; id: EntityId; state: 'countdown' | 'ascent' | 'orbit'; pos: Vec2 }
   /** Avanço de era concluído (ou iniciado / cancelado). */

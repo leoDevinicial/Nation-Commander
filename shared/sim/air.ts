@@ -1,4 +1,5 @@
-import { BUILDINGS, TICK_RATE, UNITS, canAfford, type Cost } from './config.ts';
+import { BUILDINGS, GOODS, TICK_RATE, UNITS, canAfford, type Cost, type Goods } from './config.ts';
+import { substituteGoods } from './production.ts';
 import type { CountryBonus } from './countryBonus.ts';
 import { AIRCRAFT_ERA, eraLabel } from './eras.ts';
 import { buildingEffects, missingText } from './upgrades.ts';
@@ -386,8 +387,8 @@ export class AirSystem {
   }
 
   /** Ficha da aeronave com o bônus do país (custo em recursos e US$). */
-  aircraftCost(slot: Slot, type: AircraftType): AircraftDef {
-    return aircraftFor(type, this.sim.bonusOf(slot));
+  aircraftCost(slot: Slot, type: AircraftType): AircraftDef & { goods?: Partial<Goods> } {
+    return aircraftFor(type, this.sim.bonusOf(slot), this.sim.players[slot]?.goods);
   }
 
   build(slot: Slot, baseId: EntityId, type: AircraftType): string | null {
@@ -396,6 +397,7 @@ export class AirSystem {
     const def = this.aircraftCost(slot, type);
     if (this.sim.national && !this.sim.national.chargeWorks(slot, def.usd, `${def.label}`)) return 'Verba de obras insuficiente para a aeronave';
     this.sim.spendResources(slot, def.cost);
+    if (def.goods) this.sim.spendGoods(this.sim.players[slot]!, def.goods);
     this.sim.players[slot]!.recruits--;
     this.aircraft.push({ id: this.nextId++, type, owner: slot, baseId, home: { ...this.building(baseId)!.pos }, state: 'building', timer: this.sim.duration(slot, def.buildSeconds * TICK_RATE), missionId: null });
     return null;
@@ -429,7 +431,9 @@ export class AirSystem {
     const range = Math.min(...planes.map((a) => AIRCRAFT[a!.type].range));
     if (d > range) return `Fora do alcance: ${Math.round(d)} de ${range}`;
     const fuel = planes.reduce((s, a) => s + AIRCRAFT[a!.type].fuelPerWorld * d * 2, 0);
-    if (this.sim.players[slot]!.resources.oil + 1e-6 < fuel) return `Combustível insuficiente: a missão consome ${Math.ceil(fuel)} de petróleo`;
+    // o combustível da refinaria abastece primeiro (cada unidade vale `GOODS.saves` de petróleo)
+    const p = this.sim.players[slot]!;
+    if (p.resources.oil + (p.goods?.fuel ?? 0) * GOODS.saves + 1e-6 < fuel) return `Combustível insuficiente: a missão consome ${Math.ceil(fuel)} de petróleo`;
     return null;
   }
 
@@ -442,7 +446,10 @@ export class AirSystem {
     const d = dist(base.pos, pos);
     const planes = ids.map((id) => this.aircraft.find((a) => a.id === id)!);
     const fuel = planes.reduce((s, a) => s + AIRCRAFT[a.type].fuelPerWorld * d * 2, 0);
-    this.sim.spendResources(slot, { oil: fuel });
+    const p = this.sim.players[slot]!;
+    const fromGoods = Math.min(p.goods?.fuel ?? 0, Math.floor(fuel / GOODS.saves));
+    if (fromGoods > 0) this.sim.spendGoods(p, { fuel: fromGoods });
+    this.sim.spendResources(slot, { oil: Math.max(0, fuel - fromGoods * GOODS.saves) });
     const speed = Math.min(...planes.map((a) => AIRCRAFT[a.type].speed));
     const m: AirMission = {
       id: this.nextId++,
@@ -965,14 +972,24 @@ export class AirSystem {
   }
 }
 
-/** Ficha da aeronave com o bônus do país aplicado ao custo (mesma regra no servidor e no HUD). */
-export function aircraftFor(type: AircraftType, bonus?: CountryBonus): AircraftDef {
+/** Combustível (cadeia produtiva) usado na montagem de cada aeronave, no lugar de parte do petróleo. */
+export const AIRCRAFT_FUEL: Record<AircraftType, number> = { fighter: 10, recon: 6, transport: 8, bomber: 20 };
+
+/**
+ * Ficha da aeronave com o bônus do país aplicado ao custo e, com combustível em estoque, a troca de
+ * parte do petróleo por combustível (mesma regra no servidor e no HUD).
+ */
+export function aircraftFor(type: AircraftType, bonus?: CountryBonus, goods?: Goods): AircraftDef & { goods?: Partial<Goods> } {
   const def = AIRCRAFT[type];
   const mul = bonus?.aircraftCostMul ?? 1;
-  if (mul === 1) return def;
-  const cost: Cost = {};
-  for (const [r, v] of Object.entries(def.cost) as [keyof Cost, number][]) cost[r] = Math.max(1, Math.round(v * mul));
-  return { ...def, cost, usd: Math.round(def.usd * mul) };
+  let out: AircraftDef = def;
+  if (mul !== 1) {
+    const cost: Cost = {};
+    for (const [r, v] of Object.entries(def.cost) as [keyof Cost, number][]) cost[r] = Math.max(1, Math.round(v * mul));
+    out = { ...def, cost, usd: Math.round(def.usd * mul) };
+  }
+  const sub = substituteGoods(out.cost, { fuel: AIRCRAFT_FUEL[type] }, goods);
+  return Object.keys(sub.goods).length ? { ...out, cost: sub.cost, goods: sub.goods } : out;
 }
 
 export const isAircraftType = (v: unknown): v is AircraftType => typeof v === 'string' && (AIRCRAFT_TYPES as string[]).includes(v);
