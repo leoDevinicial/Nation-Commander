@@ -41,6 +41,15 @@ pulso curto na transição:
 | Era Digital | vidro e aço claros e lisos | painéis solares nos telhados; torre de telecomunicação no QG e nas prefeituras |
 | Futuro Próximo | compósito escuro; vidros como telas | faixas de LED na cor da facção; drone de vigilância circulando o QG |
 
+**Peças apoiadas no telhado real:** radar, painéis solares, torre de telecomunicação e faixa de LED usam
+`roofSampler`, um raio vertical contra as malhas do modelo. Antes usavam a altura nominal do edifício e por isso
+ficavam flutuando.
+- Painéis solares só entram em telhado plano. Telhado em arco (quartel) ou de duas águas (armazém) não recebe
+  painel.
+- Cada painel tem pés que descem até o telhado.
+- O radar é uma parabólica aberta, em escala com o tamanho do edifício.
+- O mastro e o radar procuram o ponto de telhado mais próximo do canto.
+
 **Drone de vigilância** (`src/game/render/models/droneModel.ts`): casco facetado cinza-grafite com placas, escotilha e
 faixas claras, câmera frontal de três lentes, quatro braços com luz de posição e rotores de três pás afiladas dentro de
 protetores octogonais com braçadeiras. Circula o QG com a frente na direção do voo, inclinando para dentro da curva. As

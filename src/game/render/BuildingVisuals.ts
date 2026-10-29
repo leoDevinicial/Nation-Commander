@@ -6,7 +6,7 @@ import { cinematicSmokeTexture, smokeTexture, volumetricSmokeTexture } from './t
 import { animRestPivot, buildingModel, type BuildingModel, type ModelAnim } from './models/buildingModels.ts';
 import { PUMP, pumpPose } from './models/pumpjack.ts';
 import { cropCell } from './models/crops.ts';
-import { buildEraProps, type EraProps } from './models/eraProps.ts';
+import { buildEraProps, roofSampler, type EraProps } from './models/eraProps.ts';
 import { SPACE_PAD } from './models/projects.ts';
 import { SPACE } from '../../../shared/sim/config.ts';
 import type { SpecId } from '../../../shared/sim/upgrades.ts';
@@ -331,7 +331,8 @@ export class BuildingVisual {
 
   private rebuildEraProps(): void {
     if (this.eraProps) this.eraProps.group.removeFromParent();
-    this.eraProps = this.era > 1 ? buildEraProps(this.type, this.size, this.height, this.era, this.owner) : null;
+    // as peças se apoiam no telhado real do modelo (amostrado nas malhas do corpo)
+    this.eraProps = this.era > 1 ? buildEraProps(this.type, this.size, this.height, this.era, this.owner, roofSampler(this.parts)) : null;
     if (this.eraProps) this.model.add(this.eraProps.group);
   }
 
@@ -353,11 +354,10 @@ export class BuildingVisual {
         m.castShadow = false;
         this.detail.add(m);
       }
-    const grew = def.height !== this.height;
     this.height = def.height;
     this.hp.group.position.y = def.height + 0.6;
-    // peças da era acompanham a nova altura do modelo
-    if (grew && this.era > 1) this.rebuildEraProps();
+    // peças da era acompanham o novo telhado do modelo (forma e altura mudam com o nível)
+    if (this.era > 1 && this.eraProps) this.rebuildEraProps();
     const key = JSON.stringify(def.smoke ?? []);
     if (key !== this.smokeKey) {
       this.smokeKey = key;
