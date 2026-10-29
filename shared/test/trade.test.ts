@@ -46,7 +46,8 @@ function setup(opts: { wall?: boolean; types?: BuildingType[] } = {}) {
       for (let cx = 2; cx < 14; cx++) if (sim.applyCommand(0, { type: 'build', buildingType: type, cx, cy }) === null) return sim.buildings.find((b) => b.type === type && b.owner === 0 && b.cell.cx === cx && b.cell.cy === cy)!;
     throw new Error(`sem lugar para ${type}`);
   };
-  for (const r of Object.keys(p.resources) as (keyof typeof p.resources)[]) p.resources[r] = 400;
+  // estoque folgado (o custo crescente encarece o segundo silo)
+  for (const r of Object.keys(p.resources) as (keyof typeof p.resources)[]) p.resources[r] = 1000;
   const built: Partial<Record<BuildingType, Building>> = {};
   for (const t of opts.types ?? ['market', 'silo', 'oil_tank']) built[t] = place(t);
   run(sim, 20 * TICK_RATE);

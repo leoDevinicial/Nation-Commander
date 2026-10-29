@@ -229,25 +229,43 @@ export function generateMatchMap(seed: number, opts: MatchMapOptions): MapData {
   const desert = type === 'desert';
   // terreno comum a todas as nações; o perfil do país ajusta só a própria região, depois
   const kit: { along: number; across: number; t: Terrain; r: (p: RegionProfile) => number }[] = [
-    { along: -5, across: -6, t: Terrain.Rock, r: (p) => (p === 'forest' ? 1.3 : 1.7) },
+    { along: -5, across: -6, t: Terrain.Rock, r: (p) => (p === 'forest' ? 1.8 : 2.1) },
     { along: 9, across: 4, t: Terrain.Rock, r: (p) => (p === 'mountains' ? 2.8 : 2.3) },
-    { along: 9, across: 4, t: Terrain.Ore, r: (p) => (p === 'mountains' ? 1.8 : p === 'fertile' ? 1.0 : 1.3) },
+    // início garantido (docs/RECALIBRAGEM_RECURSOS.md §2.4): o veio de minério aflora do lado da base, com
+    // células suficientes para a primeira mina trabalhar cheia
+    { along: 6.5, across: 4.5, t: Terrain.Ore, r: (p) => (p === 'mountains' ? 2.6 : p === 'fertile' ? 2.2 : 2.4) },
     { along: -3, across: 8, t: Terrain.Forest, r: (p) => (desert ? 1.6 : 0) + (p === 'forest' ? 3.4 : p === 'oil' ? 2.0 : 2.6) * (desert ? 0.4 : 1) },
     { along: 6, across: -6, t: Terrain.Fertile, r: (p) => (desert ? 1.6 : 0) + (p === 'fertile' ? 3.2 : p === 'oil' || p === 'mountains' ? 1.9 : 2.4) * (desert ? 0.3 : 1) },
   ];
-  for (let k = 0; k < n; k++) {
-    const prof = regionOf(opts.countries?.[k]);
-    for (const item of kit) {
-      const p = at(item.along, item.across);
-      const r = item.r(prof);
-      for (let dy = -Math.ceil(r); dy <= Math.ceil(r); dy++)
-        for (let dx = -Math.ceil(r); dx <= Math.ceil(r); dx++) {
-          if (dx * dx + dy * dy > r * r) continue;
-          const [x, y] = rotCell(Math.round(p.x) + dx, Math.round(p.y) + dy, k);
-          setOne(x, y, item.t);
+  const paintKit = (set: (x: number, y: number, t: Terrain) => void) => {
+    for (let k = 0; k < n; k++) {
+      const prof = regionOf(opts.countries?.[k]);
+      for (const item of kit) {
+        const p = at(item.along, item.across);
+        const r = item.r(prof);
+        if (circular) {
+          // setores de 3, 5 ou 6 nações: gira o centro e pinta o disco inteiro (girar célula a célula
+          // arredonda e perde células do disco)
+          const a = k * sector;
+          const ox = Math.round(p.x) - c;
+          const oy = Math.round(p.y) - c;
+          const qx = Math.round(c + ox * Math.cos(a) - oy * Math.sin(a));
+          const qy = Math.round(c + ox * Math.sin(a) + oy * Math.cos(a));
+          for (let dy = -Math.ceil(r); dy <= Math.ceil(r); dy++)
+            for (let dx = -Math.ceil(r); dx <= Math.ceil(r); dx++) if (dx * dx + dy * dy <= r * r) set(qx + dx, qy + dy, item.t);
+          continue;
         }
+        for (let dy = -Math.ceil(r); dy <= Math.ceil(r); dy++)
+          for (let dx = -Math.ceil(r); dx <= Math.ceil(r); dx++) {
+            if (dx * dx + dy * dy > r * r) continue;
+            const [x, y] = rotCell(Math.round(p.x) + dx, Math.round(p.y) + dy, k);
+            set(x, y, item.t);
+          }
+      }
     }
-  }
+  };
+  paintKit(setOne);
+
 
   // jazidas de petróleo: duas perto de cada base, +1 no deserto ou no perfil petrolífero, e uma
   // disputada a caminho da nação vizinha
@@ -281,24 +299,27 @@ export function generateMatchMap(seed: number, opts: MatchMapOptions): MapData {
       for (let k = 0; k < n; k++) for (const [px, py] of [rotCell(x, y, k), rotCell(x + 1, y, k), rotCell(x, y + 1, k)]) road(px, py);
     }
   } else {
-    // giradas por ângulo, as células ficariam só na diagonal: cada nação traça a sua com passos
-    // ortogonais (largura 2), do ponto de partida ao centro
+    // giradas por ângulo, as células ficariam só na diagonal: cada nação traça a sua em linha reta do
+    // ponto de partida ao centro, com o carimbo de 3 células (passagem ortogonal contínua). A linha reta
+    // não atravessa os recursos da base, que ficam ao lado do caminho
     const tc = Math.round(c);
     for (const sp of spawns) {
-      let x = sp.cx;
-      let y = sp.cy;
-      while (x !== tc || y !== tc) {
+      const steps = Math.ceil(Math.hypot(tc - sp.cx, tc - sp.cy) * 2);
+      for (let i = 0; i <= steps; i++) {
+        const x = Math.round(sp.cx + ((tc - sp.cx) * i) / steps);
+        const y = Math.round(sp.cy + ((tc - sp.cy) * i) / steps);
         road(x, y);
         road(x + 1, y);
         road(x, y + 1);
-        const ex = tc - x;
-        const ey = tc - y;
-        if (Math.abs(ex) >= Math.abs(ey)) x += Math.sign(ex);
-        else y += Math.sign(ey);
       }
     }
   }
   disc(c, c, 2.2, Terrain.Road);
+  // início garantido: os discos de recursos de cada base são repintados por cima das estradas e jazidas
+  // (sem cobrir a estrada, que garante a passagem), para nenhuma nação perder células da primeira coleta
+  paintKit((x, y, t) => {
+    if (inside(x, y) && terrain[y * size + x] !== Terrain.Road && !onNode(x, y)) terrain[y * size + x] = t;
+  });
 
   return { width: size, height: size, cellSize: CELL_SIZE, seed: seed >>> 0, terrain, resourceNodes, spawns, kind: type };
 }

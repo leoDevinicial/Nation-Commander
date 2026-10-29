@@ -281,6 +281,7 @@ describe('IA e progressão militar (partida real, com economia nacional)', () =>
     }
     expect(sim.buildings.some((b) => b.owner === 1 && b.type === 'research_center')).toBe(true);
     expect(sim.players[1]!.militaryResearch?.length ?? 0).toBeGreaterThan(0);
-    expect(sim.units.filter((u) => u.owner === 1).length + sim.players[1]!.stats.unitsLost).toBeGreaterThan(8);
+    // economia apertada (docs/RECALIBRAGEM_RECURSOS.md): no Fácil, só a guarnição do preparo até aqui
+    expect(sim.units.filter((u) => u.owner === 1).length + sim.players[1]!.stats.unitsLost).toBeGreaterThanOrEqual(4);
   }, 180_000);
 });

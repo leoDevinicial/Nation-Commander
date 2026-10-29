@@ -458,3 +458,4 @@ como na escolha entre os modos paridade e escala real.
 | Lote 1, §3.2 — relatório pós-partida (gráficos de tropas, construções, território, recursos e PIB; medalhas) | Feito | `docs/RELATORIO_POS_PARTIDA.md` |
 | Lote 3, §2 — Engenheiro de Combate, minas antitanque (invisíveis ao inimigo e ao satélite), obstáculo antitanque, minas esquecidas na aprovação, IA com engenheiros | Feito | `docs/ESTRADAS_ENGENHARIA.md` |
 | Rebalanceamento da economia — custos 1,25× a 3× maiores, depósitos com o dobro de reserva, começo com 6 cidadãos e 1 Explorador, verba inicial de 25%, IA que guarda recursos para era e pesquisa | Feito | `docs/ECONOMIA.md`, `ECONOMY` em `shared/sim/config.ts` |
+| Recalibragem da coleta — taxas por trabalhador (até 6 por coleta), QG 1,5/s, consumo 0,04, custo crescente +18%, IA que reage ao gargalo, início garantido no mapa; os 6 critérios de validação passam em 12 seeds | Feito | `docs/RECALIBRAGEM_RECURSOS.md`, `scripts/sim-economia.ts` |

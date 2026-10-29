@@ -1,5 +1,11 @@
 # Economia: custos altos e começo enxuto
 
+> Depois desta entrega veio a recalibragem da coleta ([`RECALIBRAGEM_RECURSOS.md`](RECALIBRAGEM_RECURSOS.md)): taxas por
+> célula novas, até 6 trabalhadores por coleta, QG com 1,5 de suprimentos/s, consumo de comida 0,04, cidadão em 10 s,
+> custo crescente (+18% por edifício do tipo), começo com 100 de comida e 150 de madeira, eras ×1,25 e uma IA que
+> reage ao gargalo. As tabelas abaixo já mostram esses valores; a seção "IA" descreve a primeira versão, substituída
+> pela da recalibragem.
+
 Pedido do jogador: "a principal parte de um RTS é saber administrar bem recursos; se tudo for muito barato, some o
 fator estratégia". Antes, um bombardeiro custava cerca de 110 de ferro, 70 de petróleo e 80 de suprimentos e ficava
 pronto em menos de um minuto de coleta. Agora cada tropa, construção e pesquisa pesa no estoque, e a partida começa com
@@ -12,8 +18,8 @@ pouco.
 | Cidadãos             | 8                        | 6                                                   |
 | Tropas               | 3 infantarias e 1 tanque | só 1 Explorador                                     |
 | Suprimentos          | 300                      | 200                                                 |
-| Comida               | 150                      | 150                                                 |
-| Madeira              | 250                      | 200                                                 |
+| Comida               | 150                      | 100                                                 |
+| Madeira              | 250                      | 150                                                 |
 | Pedra                | 120                      | 60                                                  |
 | Ferro                | 60                       | 0                                                   |
 | Petróleo             | 50                       | 50 (paga a mobilização de uma declaração de guerra) |
@@ -29,20 +35,20 @@ Os valores-base continuam escritos nas definições, como antes. O bloco `ECONOM
 multiplica os custos uma vez, quando o módulo carrega, e arredonda para múltiplos de 5, com mínimo de 5. Servidor, HUD e
 IA leem o mesmo valor já escalado.
 
-| Grupo                                                                                                       | Multiplicador                        |
-| ----------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| Tropas terrestres                                                                                           | ×2,5                                 |
-| Recrutas                                                                                                    | ×1,5                                 |
-| Cidadãos                                                                                                    | ×1,25                                |
-| Pesquisas militares                                                                                         | ×2                                   |
-| Construções econômicas e cívicas                                                                            | ×1,6                                 |
-| Construções militares (quartel, fábrica, torre, centro de pesquisa, antiaérea, base aérea, silo, obstáculo) | ×2                                   |
-| Grandes Projetos                                                                                            | ×1,3                                 |
-| Avanço de era                                                                                               | ×1,6                                 |
-| Aeronaves                                                                                                   | ×3 em recursos, ×2 em US$ (`air.ts`) |
-| Mísseis e ogiva nuclear                                                                                     | ×2,5 (`air.ts`)                      |
-| Minas antitanque                                                                                            | ×2                                   |
-| Coleta por célula                                                                                           | ×0,8                                 |
+| Grupo                                                                                                       | Multiplicador                                |
+| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| Tropas terrestres                                                                                           | ×2,5                                         |
+| Recrutas                                                                                                    | ×1,5                                         |
+| Cidadãos                                                                                                    | ×1,25                                        |
+| Pesquisas militares                                                                                         | ×2                                           |
+| Construções econômicas e cívicas                                                                            | ×1,6                                         |
+| Construções militares (quartel, fábrica, torre, centro de pesquisa, antiaérea, base aérea, silo, obstáculo) | ×2                                           |
+| Grandes Projetos                                                                                            | ×1,3                                         |
+| Avanço de era                                                                                               | ×1,25                                        |
+| Aeronaves                                                                                                   | ×3 em recursos, ×2 em US$ (`air.ts`)         |
+| Mísseis e ogiva nuclear                                                                                     | ×2,5 (`air.ts`)                              |
+| Minas antitanque                                                                                            | ×2                                           |
+| Coleta por célula                                                                                           | ×1 (as taxas-base já são as da recalibragem) |
 
 **Outros ajustes:**
 
@@ -75,12 +81,14 @@ Para mudar o ritmo da economia, ajuste os multiplicadores em vez dos valores esp
 | Fábrica de Veículos | 200 de suprimentos, 240 de madeira, 300 de pedra                                      |
 | Centro de Pesquisa  | 240 de madeira, 240 de pedra, 120 de ferro                                            |
 | Base Aérea          | 200 de suprimentos, 200 de madeira, 300 de pedra, 240 de ferro                        |
-| Era Pós-Guerra Fria | 480 de suprimentos, 320 de madeira, 240 de pedra, 130 de ferro                        |
+| Era Pós-Guerra Fria | 375 de suprimentos, 250 de madeira, 190 de pedra, 100 de ferro                        |
 | Programa Espacial   | 1.950 de suprimentos, 1.560 de ferro, 1.040 de pedra, 780 de madeira, 780 de petróleo |
 
 ## IA
 
-A IA tática foi ajustada para não travar com os custos novos:
+> Substituída pela IA que reage ao gargalo ([`RECALIBRAGEM_RECURSOS.md`](RECALIBRAGEM_RECURSOS.md), §6.3).
+
+Primeira versão, para não travar com os custos novos:
 
 - **Madeira:** com floresta fraca perto da base (menos de 1,5 de madeira por segundo), ergue serrarias extras antes da
   base militar.

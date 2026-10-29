@@ -18,7 +18,11 @@ import {
   MINE,
   ROAD,
   canAfford,
+  buildingCost,
+  costText,
   emptyStockpile,
+  ESCALATING_BUILDINGS,
+  ESCALATING_COST_STEP,
   type BuildingType,
   type MilitaryResearchId,
   type ProducibleType,
@@ -114,6 +118,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
   const worksCap = myNation?.works.capUsd ?? 0;
   const fund = myNation ? myNation.works.fundUsd : null;
   const ownTypes = useHudStore((s) => s.ownBuildingTypes);
+  const ownCounts = useHudStore((s) => s.ownBuildingCounts);
   // Centro de Comando ou Prefeitura pronta (QG secundário da cidade): constrói e forma cidadãos
   const command = building?.type === 'hq' || (building?.type === 'city_hall' && building.progress >= 1);
   const hqLevel = building?.type === 'hq' ? building.level : command ? runtime.upgradeWorld().hqLevel : 0;
@@ -141,7 +146,10 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
                 bad={!mode.valid}
               />
               <div className="mt-1.5 text-xs text-ink-400">
-                Custo: <CostLabel cost={BUILDINGS[mode.buildingType].cost} have={resources} />
+                Custo: <CostLabel cost={buildingCost(mode.buildingType, ownCounts[mode.buildingType] ?? 0)} have={resources} />
+                {ESCALATING_BUILDINGS.has(mode.buildingType) && (
+                  <span className="ml-1 text-ink-500">· o próximo: {costText(buildingCost(mode.buildingType, (ownCounts[mode.buildingType] ?? 0) + 1))}</span>
+                )}
               </div>
               {mode.yield && BUILDINGS[mode.buildingType].gather && (
                 <div className="mt-1 flex items-center gap-1.5 text-xs text-ink-200">
@@ -281,7 +289,11 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             const projectUsd = def.project ? Math.round(worksCap * def.project.usdShare) : 0;
             const fundShort = !sandbox && def.project && fund !== null && fund < projectUsd;
             const other = hqMissing ? `QG nível ${hqMissing}` : hasOne ? 'já construído' : fundShort ? 'verba insuficiente' : null;
-            const ok = canAfford(resources, def.cost) && !techMissing && !eraMissing && !other;
+            // custo crescente: o preço sobe com cada edifício do mesmo tipo
+            const owned = ownCounts[type] ?? 0;
+            const cost = buildingCost(type, owned);
+            const next = ESCALATING_BUILDINGS.has(type) ? buildingCost(type, owned + 1) : null;
+            const ok = canAfford(resources, cost) && !techMissing && !eraMissing && !other;
             return (
               <CardButton
                 key={type}
@@ -299,9 +311,9 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
                         tone: 'warn',
                       })
                 }
-                title={`${def.label} — ${def.description}\nTempo: ${timeText(def.buildSeconds)} · Vida: ${def.maxHp}${def.workers ? ` · Trabalhadores: ${def.workers}` : ''}${def.territoryRadius ? ` · Fronteira: ${def.territoryRadius} células` : ''}${def.project ? `\nGrande Projeto: ${def.project.effect} · ${usdShort(projectUsd)} da verba de obras` : ''}`}
+                title={`${def.label} — ${def.description}\nTempo: ${timeText(def.buildSeconds)} · Vida: ${def.maxHp}${def.workers ? ` · Trabalhadores: ${def.workers}` : ''}${def.territoryRadius ? ` · Fronteira: ${def.territoryRadius} células` : ''}${def.project ? `\nGrande Projeto: ${def.project.effect} · ${usdShort(projectUsd)} da verba de obras` : ''}${next ? `\nCusto crescente (+${Math.round(ESCALATING_COST_STEP * 100)}% por edifício do tipo): você tem ${owned}; depois deste, o próximo custará ${costText(next)}` : ''}`}
               >
-                <CostLabel cost={def.cost} have={resources} compact />
+                <CostLabel cost={cost} have={resources} compact />
               </CardButton>
             );
           })}

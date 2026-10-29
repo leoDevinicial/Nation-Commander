@@ -1,4 +1,4 @@
-import { BUILDINGS, canAfford, CITY, TERRAIN, UNITS, type BuildingType, type Stockpile, type Terrain, type UnitType } from './config.ts';
+import { BUILDINGS, buildingCost, canAfford, CITY, TERRAIN, ownedOfType, UNITS, type BuildingType, type Stockpile, type Terrain, type UnitType } from './config.ts';
 import type { DepositIndex } from './deposits.ts';
 import { chooseClaims, claimedBy, sitesByDeposit } from './gathering.ts';
 import type { Cell, Slot } from './types.ts';
@@ -86,7 +86,8 @@ export function placementError(w: PlacementWorld, slot: Slot, type: BuildingType
     const choice = chooseClaims(w, w.deposits, type, cell, claimedBy(buildings, type), sitesByDeposit(buildings), (i) => w.territory[i] === slot);
     if (choice.error) return choice.error;
   }
-  if (!canAfford(w.resources, def.cost)) return 'Recursos insuficientes';
+  // custo crescente: cada edifício do mesmo tipo encarece o próximo
+  if (!canAfford(w.resources, buildingCost(type, ownedOfType(buildings, slot, type)))) return 'Recursos insuficientes';
   return null;
 }
 

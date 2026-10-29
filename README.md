@@ -146,7 +146,7 @@ Só se constrói dentro do próprio território, que cresce com o QG, torres, ba
 
 | Recurso | Fonte | Usado em |
 | --- | --- | --- |
-| Suprimentos | Centro de Comando (+3/s) e logística nacional (orçamento de defesa) | veículos, fábrica, serraria |
+| Suprimentos | Centro de Comando (+1,5/s) e logística nacional (orçamento de defesa) | veículos, fábrica, serraria |
 | Comida | **Fazenda** no solo fértil (marrom) | infantaria |
 | Madeira | **Serraria** junto à floresta | construções |
 | Pedra | **Pedreira** junto aos afloramentos rochosos | construções, artilharia, torres |
@@ -155,8 +155,10 @@ Só se constrói dentro do próprio território, que cresce com o QG, torres, ba
 Cada edifício de coleta **reivindica** as células de recurso livres ao seu alcance (fazenda até 8
 de solo fértil, serraria até 10 árvores, pedreira até 8 rochas) e rende por célula — dois edifícios
 do mesmo tipo não dividem as mesmas células. Ao posicionar, o painel mostra quantas células livres
-estão ao alcance e a renda resultante. Madeira, pedra, ferro e petróleo vêm de depósitos finitos (o solo fértil
-é renovável): um depósito esgotado pede outro edifício em outro lugar. Construções exigem estar perto das
+estão ao alcance e a renda resultante. A coleta só rende cheia com 6 trabalhadores (4 no poço): formar cidadãos
+compete com formar tropas. Cada edifício novo do mesmo tipo custa 18% a mais (custo crescente, como no Rise of
+Nations). Madeira, pedra, ferro e petróleo vêm de depósitos finitos (o solo fértil
+é renovável): um depósito esgotado pede outro edifício em outro lugar. Detalhes em `docs/RECALIBRAGEM_RECURSOS.md`. Construções exigem estar perto das
 suas estruturas; poços podem ser erguidos em qualquer jazida livre.
 
 ### Névoa de guerra

@@ -29,6 +29,8 @@ import {
   HUNGER_EFFICIENCY,
   OIL_TANK_RANGE,
   canAfford,
+  buildingCost,
+  ownedOfType,
   emptyStockpile,
   emptyGoods,
   GOODS,
@@ -974,7 +976,7 @@ export class Simulation {
         const def = BUILDINGS[cmd.buildingType];
         if (def.project && !this.isSandbox(slot) && this.national && !this.national.chargeWorks(slot, this.projectUsd(slot, cmd.buildingType), def.label))
           return 'Verba de obras insuficiente para o Grande Projeto';
-        this.spend(player, def.cost);
+        this.spend(player, this.buildingCostFor(slot, cmd.buildingType));
         const b = this.addBuilding(cmd.buildingType, slot, cell, 0);
         if (b.type === 'city_hall') b.city = this.nextCity(slot);
         this.emit({ type: 'construction_started', tick: this.tick, id: b.id, owner: slot, buildingType: b.type, pos: { ...b.pos } });
@@ -1624,6 +1626,11 @@ export class Simulation {
     this.checkVictory();
   }
 
+  /** Custo do próximo edifício do tipo para o jogador (custo crescente pelos que ele já tem). */
+  buildingCostFor(slot: Slot, type: BuildingType): Cost {
+    return buildingCost(type, ownedOfType(this.buildings, slot, type));
+  }
+
   /** Motivo pelo qual não se pode construir, ou null se a posição é válida. */
   placementError(slot: Slot, type: BuildingType, cell: Cell): string | null {
     const player = this.players[slot];
@@ -1844,15 +1851,17 @@ export class Simulation {
       b.workers -= cut;
       employed -= cut;
     }
+    // cidadãos ociosos vão um a um, em rodízio, para os postos vagos (um edifício novo não fica parado
+    // enquanto o mais antigo absorve todo mundo)
     let idle = p.citizens - employed;
-    for (const b of mine) {
-      if (idle <= 0) break;
-      if (b.progress < 1 || b.hp <= 0) continue;
-      const want = Math.min(b.workerTarget, this.fx(b).workers) - b.workers;
-      if (want <= 0) continue;
-      const add = Math.min(want, idle);
-      b.workers += add;
-      idle -= add;
+    const open = mine.filter((b) => b.progress >= 1 && b.hp > 0 && Math.min(b.workerTarget, this.fx(b).workers) > b.workers);
+    while (idle > 0 && open.length) {
+      for (let i = 0; i < open.length && idle > 0; i++) {
+        const b = open[i]!;
+        b.workers++;
+        idle--;
+        if (b.workers >= Math.min(b.workerTarget, this.fx(b).workers)) open.splice(i--, 1);
+      }
     }
   }
 

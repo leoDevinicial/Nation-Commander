@@ -99,11 +99,12 @@ describe('trabalhadores', () => {
     });
     const s = sim(map);
     const farm = build(s, 0, 'farm', { cx: 13, cy: 2 });
-    expect(farm.workers).toBe(3);
+    // até 6 trabalhadores por coleta (docs/RECALIBRAGEM_RECURSOS.md §2.3): a produção cresce com cada um
+    expect(farm.workers).toBe(BUILDINGS.farm.workers);
     const full = s.buildingRate(farm);
     expect(s.applyCommand(0, { type: 'set_workers', buildingId: farm.id, count: 1 })).toBeNull();
     expect(farm.workers).toBe(1);
-    expect(s.buildingRate(farm)).toBeCloseTo(full / 3);
+    expect(s.buildingRate(farm)).toBeCloseTo(full / BUILDINGS.farm.workers);
     expect(s.population(0).idle).toBeGreaterThan(0);
     s.applyCommand(0, { type: 'set_workers', buildingId: farm.id, count: 0 });
     s.drainEvents();
@@ -120,11 +121,12 @@ describe('cidadãos escolhidos pelo jogador', () => {
       for (let y = 0; y < 2; y++) for (let x = 12; x < 16; x++) set(x, y, Terrain.Fertile);
     });
     const s = sim(map);
-    s.players[0]!.citizens = 10;
+    const W = BUILDINGS.farm.workers;
+    s.players[0]!.citizens = 2 * W + 4;
     const a = build(s, 0, 'farm', { cx: 13, cy: 2 });
     const b = forceBuilding(s, 0, 'farm', { cx: 20, cy: 2 });
     s.staff(0);
-    expect(a.workers).toBe(3);
+    expect(a.workers).toBe(W);
     expect(s.applyCommand(0, { type: 'set_workers', buildingId: b.id, count: 0 })).toBeNull();
     const idle = s.population(0).idle;
     expect(idle).toBeGreaterThan(0);
@@ -136,13 +138,13 @@ describe('cidadãos escolhidos pelo jogador', () => {
     // realocação de um trabalhador da fazenda A
     expect(s.applyCommand(0, { type: 'assign_workers', buildingId: b.id, sources: [a.id] })).toBeNull();
     expect(b.workers).toBe(2);
-    expect(a.workers).toBe(2);
+    expect(a.workers).toBe(W - 1);
     run(s, TICK_RATE * 3);
-    expect(a.workers).toBe(2); // não puxou outro ocioso no lugar
+    expect(a.workers).toBe(W - 1); // não puxou outro ocioso no lugar
     expect(s.population(0).idle).toBe(idle - 1);
     // sem vagas, edifício sem trabalho e fonte inválida
-    expect(s.applyCommand(0, { type: 'assign_workers', buildingId: b.id, sources: [0, 0, 0] })).toBeNull();
-    expect(b.workers).toBe(3);
+    expect(s.applyCommand(0, { type: 'assign_workers', buildingId: b.id, sources: Array(W).fill(0) })).toBeNull();
+    expect(b.workers).toBe(W);
     expect(s.applyCommand(0, { type: 'assign_workers', buildingId: b.id, sources: [0] })).toMatch(/Sem vagas/);
     expect(s.applyCommand(0, { type: 'assign_workers', buildingId: s.hqOf(0)!.id, sources: [0] })).toMatch(/não emprega/);
     expect(s.applyCommand(1, { type: 'assign_workers', buildingId: a.id, sources: [0] })).toMatch(/inválido/);

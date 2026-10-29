@@ -24,7 +24,7 @@ export const POP_ABSOLUTE_CAP = 200;
 /** Cidadãos no início da partida (além das unidades iniciais). */
 export const STARTING_CITIZENS = 6;
 /** Formação de um cidadão civil no Centro de Comando: trabalha nas construções (fazendas, poços, serrarias…). */
-export const CITIZEN = { label: 'Cidadão', cost: { food: 40 } as Cost, buildSeconds: 6, hotkey: 'Z' };
+export const CITIZEN = { label: 'Cidadão', cost: { food: 40 } as Cost, buildSeconds: 10, hotkey: 'Z' };
 /**
  * Recruta: cidadão alistado na base militar (quartel). Fica na reserva e é a tripulação de toda
  * unidade militar — infantaria, blindados, tanques e artilharia. Ocupa moradia como qualquer
@@ -33,8 +33,8 @@ export const CITIZEN = { label: 'Cidadão', cost: { food: 40 } as Cost, buildSec
 export const RECRUIT = { label: 'Recruta', cost: { food: 40, supplies: 25 } as Cost, buildSeconds: 8, hotkey: 'Z' };
 /** Recrutas na reserva no início da partida (o quartel ainda precisa ser construído). */
 export const STARTING_RECRUITS = 0;
-/** Consumo de comida por habitante (cidadão ou militar), por segundo. */
-export const FOOD_UPKEEP_PER_POP = 0.02;
+/** Consumo de comida por habitante (cidadão ou militar), por segundo (recalibragem: era 0,02). */
+export const FOOD_UPKEEP_PER_POP = 0.04;
 /** Eficiência de produção sem comida em estoque (fome). */
 export const HUNGER_EFFICIENCY = 0.5;
 
@@ -116,7 +116,7 @@ export type Cost = Partial<Record<ResourceType, number>>;
 export type Stockpile = Record<ResourceType, number>;
 
 /** Começo enxuto (só o essencial para a primeira fazenda e a primeira serraria): administrar recursos é o centro do jogo. */
-export const STARTING_RESOURCES: Stockpile = { supplies: 200, food: 150, wood: 200, stone: 60, iron: 0, oil: 50 };
+export const STARTING_RESOURCES: Stockpile = { supplies: 200, food: 100, wood: 150, stone: 60, iron: 0, oil: 50 };
 
 export function emptyStockpile(): Stockpile {
   return { supplies: 0, food: 0, wood: 0, stone: 0, iron: 0, oil: 0 };
@@ -124,6 +124,13 @@ export function emptyStockpile(): Stockpile {
 
 export function canAfford(have: Stockpile, cost: Cost): boolean {
   return RESOURCE_TYPES.every((r) => have[r] >= (cost[r] ?? 0));
+}
+
+/** Custo por extenso ("120 de madeira, 30 de pedra"). */
+export function costText(cost: Cost): string {
+  return RESOURCE_TYPES.filter((r) => cost[r])
+    .map((r) => `${cost[r]} de ${RESOURCE_LABELS[r].toLowerCase()}`)
+    .join(', ');
 }
 
 export function costTotal(cost: Cost): number {
@@ -720,7 +727,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     buildSeconds: 0,
     maxHp: 1500,
     size: 3,
-    income: { supplies: 3 },
+    income: { supplies: 1.5 },
     sight: 14,
     weapon: { damage: 14, range: 9, cooldown: 1.5 },
     territoryRadius: 13,
@@ -770,7 +777,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     income: {},
     gather: { resource: 'food', terrain: Terrain.Fertile, radius: 3, maxCells: 8, minCells: 3, ratePerCell: 0.5 },
     sight: 7,
-    workers: 3,
+    workers: 6,
     buildable: true,
     description: 'Cultiva o solo fértil ao redor (renovável). A comida vai para silos; pausa com os silos cheios.',
     hotkey: 'C',
@@ -783,9 +790,9 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     maxHp: 350,
     size: 2,
     income: {},
-    gather: { resource: 'wood', terrain: Terrain.Forest, radius: 4, maxCells: 10, minCells: 3, ratePerCell: 0.4 },
+    gather: { resource: 'wood', terrain: Terrain.Forest, radius: 4, maxCells: 10, minCells: 3, ratePerCell: 0.44 },
     sight: 7,
-    workers: 3,
+    workers: 6,
     buildable: true,
     description: 'Explora uma floresta (pequena: 1 serraria; média: 2; grande: 3). A madeira é finita e vai para os armazéns.',
     hotkey: 'M',
@@ -798,9 +805,9 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     maxHp: 400,
     size: 2,
     income: {},
-    gather: { resource: 'stone', terrain: Terrain.Rock, radius: 3, maxCells: 8, minCells: 2, ratePerCell: 0.35 },
+    gather: { resource: 'stone', terrain: Terrain.Rock, radius: 3, maxCells: 8, minCells: 2, ratePerCell: 0.5 },
     sight: 7,
-    workers: 3,
+    workers: 6,
     buildable: true,
     description: 'Extrai pedra de uma formação rochosa (limite de pedreiras pelo tamanho da formação). Finita.',
     hotkey: 'P',
@@ -813,9 +820,9 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     maxHp: 450,
     size: 2,
     income: {},
-    gather: { resource: 'iron', terrain: Terrain.Ore, radius: 2, maxCells: 6, minCells: 2, ratePerCell: 0.45 },
+    gather: { resource: 'iron', terrain: Terrain.Ore, radius: 2, maxCells: 6, minCells: 2, ratePerCell: 0.6 },
     sight: 7,
-    workers: 3,
+    workers: 6,
     buildable: true,
     description: 'Extrai ferro de veios de minério nas montanhas. Necessário para veículos. Finito.',
     hotkey: 'J',
@@ -828,9 +835,9 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     maxHp: 450,
     size: 2,
     income: {},
-    gather: { resource: 'oil', terrain: null, radius: 0, maxCells: 1, minCells: 1, ratePerCell: 3 },
+    gather: { resource: 'oil', terrain: null, radius: 0, maxCells: 1, minCells: 1, ratePerCell: 3.6 },
     sight: 7,
-    workers: 2,
+    workers: 4,
     buildable: true,
     description: `Construído sobre uma jazida (finita). Só opera com um Tanque de Petróleo com espaço a até ${9} células.`,
     hotkey: 'O',
@@ -1240,13 +1247,14 @@ export const ECONOMY = {
   economicBuildings: 1.6,
   militaryBuildings: 2,
   projects: 1.3,
-  gather: 0.8,
+  /** Coleta: as taxas-base já são as da recalibragem (docs/RECALIBRAGEM_RECURSOS.md). */
+  gather: 1,
   /** Aeronaves e mísseis (aplicado em `air.ts`). */
   aircraft: 3,
   aircraftUsd: 2,
   missiles: 2.5,
   /** Avanço de era (aplicado em `eras.ts`). */
-  eras: 1.6,
+  eras: 1.25,
 };
 
 export function scaleCostBy(c: Cost, mul: number): Cost {
@@ -1266,4 +1274,47 @@ for (const [type, b] of Object.entries(BUILDINGS) as [BuildingType, BuildingDef]
   if (b.gather) b.gather.ratePerCell = Math.round(b.gather.ratePerCell * ECONOMY.gather * 1000) / 1000;
 }
 MINE.cost = scaleCostBy(MINE.cost, 2);
+
+// ------------------------------------------------------------------ custo crescente
+
+/**
+ * Custo crescente (estilo Rise of Nations, docs/RECALIBRAGEM_RECURSOS.md §2.2): cada edifício novo destes tipos custa
+ * +18% por edifício do mesmo tipo que o jogador já tem (pronto ou em obra). Destruídos deixam de contar. Ficam de fora
+ * o QG, o Centro de Pesquisa, a base aérea, o silo de mísseis e os Grandes Projetos, que já são caros ou únicos.
+ */
+export const ESCALATING_COST_STEP = 0.18;
+export const ESCALATING_BUILDINGS: ReadonlySet<BuildingType> = new Set<BuildingType>([
+  'farm',
+  'sawmill',
+  'quarry',
+  'mine',
+  'oil_well',
+  'house',
+  'residential',
+  'warehouse',
+  'silo',
+  'oil_tank',
+  'barracks',
+  'factory',
+  'tower',
+  'market',
+  'aa_battery',
+]);
+
+/** Custo do próximo edifício do tipo, com `existing` edifícios do mesmo tipo já erguidos pelo jogador. */
+export function buildingCost(type: BuildingType, existing: number): Cost {
+  const base = BUILDINGS[type].cost;
+  if (existing <= 0 || !ESCALATING_BUILDINGS.has(type)) return base;
+  const mul = (1 + ESCALATING_COST_STEP) ** existing;
+  const out: Cost = {};
+  for (const [r, v] of Object.entries(base) as [ResourceType, number][]) out[r] = Math.round((v * mul) / 5) * 5;
+  return out;
+}
+
+/** Edifícios do tipo que o jogador tem (prontos ou em obra), para o custo crescente. */
+export function ownedOfType(buildings: Iterable<{ type: BuildingType; owner: number }>, slot: number, type: BuildingType): number {
+  let n = 0;
+  for (const b of buildings) if (b.owner === slot && b.type === type) n++;
+  return n;
+}
 for (const e of Object.values(ERAS)) e.cost = scaleCostBy(e.cost, ECONOMY.eras);

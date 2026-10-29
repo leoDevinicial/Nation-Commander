@@ -43,7 +43,8 @@ mensagem que diz como liberar espaço.
 - **No mapa:** quem ganha um posto caminha até o edifício e entra (some enquanto trabalha); quem perde o posto sai pela
   porta. O civil que o jogador mandou é o mesmo que caminha; quando a simulação aloca sozinha, vai o ocioso mais próximo.
 - **Efeito na produção:** é proporcional a `ocupados / postos`. Com zero trabalhadores, o edifício para e o painel de eventos
-  explica o motivo.
+  explica o motivo. Desde a recalibragem (`docs/RECALIBRAGEM_RECURSOS.md`), fazenda, serraria, pedreira e mina têm 6 postos
+  e o poço 4; os ociosos entram nos postos vagos em rodízio, um por edifício de cada vez.
 
 ## Armazenamento físico (estoque finito)
 | Recurso | Onde fica | Capacidade |
@@ -75,10 +76,10 @@ mensagem que diz como liberar espaço.
 
 | Depósito | Pequeno / médio / grande (células) | Instalações | Quantidade por célula |
 |---|---|---|---|
-| Floresta | < 20 / 20–49 / ≥ 50 | 1 / 2 / 3 serrarias | 80 de madeira |
-| Rocha (montanha) | < 12 / 12–35 / ≥ 36 | 1 / 2 / 2 pedreiras | 120 de pedra |
-| Minério de ferro | < 6 / 6–15 / ≥ 16 | 1 / 1 / 2 minas | 100 de ferro |
-| Jazida de petróleo | — | 1 poço | 2500 |
+| Floresta | < 20 / 20–49 / ≥ 50 | 1 / 2 / 3 serrarias | 160 de madeira |
+| Rocha (montanha) | < 12 / 12–35 / ≥ 36 | 1 / 2 / 2 pedreiras | 240 de pedra |
+| Minério de ferro | < 6 / 6–15 / ≥ 16 | 1 / 1 / 2 minas | 200 de ferro |
+| Jazida de petróleo | — | 1 poço | 5000 |
 
 - **Solo fértil:** é renovável; só o limitam as células livres.
 - **Montanhas:** o gerador cria formações rochosas, com **veios de ferro** no núcleo. Cada base recebe uma pequena serra com veio

@@ -144,6 +144,8 @@ export interface HudState {
   selectedBuilding: SelectedBuildingInfo | null;
   /** Tipos de construção próprios no mapa (Grandes Projetos: um por nação). */
   ownBuildingTypes: Set<BuildingType>;
+  /** Quantos edifícios de cada tipo o jogador tem (custo crescente no menu de construção). */
+  ownBuildingCounts: Partial<Record<BuildingType, number>>;
   /** Lançamento do Programa Espacial em andamento. */
   spaceLaunch: { id: number; phase: 'countdown' | 'ascent'; progress: number } | null;
   /** Seleção de entidade inimiga (só leitura). */
@@ -188,6 +190,7 @@ export const useHudStore = create<HudState>((set) => ({
   selectedUnits: [],
   selectedBuilding: null,
   ownBuildingTypes: new Set(),
+  ownBuildingCounts: {},
   spaceLaunch: null,
   inspected: null,
   selectedCitizens: null,

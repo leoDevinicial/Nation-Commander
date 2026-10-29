@@ -212,7 +212,8 @@ describe('determinismo e IA', () => {
     const sim = playout(11);
     const p1 = sim.players[1]!;
     expect(sim.buildings.some((b) => b.owner === 1 && b.type === 'barracks')).toBe(true);
-    expect(p1.stats.unitsProduced).toBeGreaterThan(2);
+    // economia apertada (docs/RECALIBRAGEM_RECURSOS.md): em 6 min de guerra a IA já forma tropas, mas poucas
+    expect(p1.stats.unitsProduced).toBeGreaterThanOrEqual(2);
     expect(p1.stats.resourcesSpent).toBeGreaterThan(0);
     // no período de preparo a IA não ataca, mas reúne as tropas (ordens de movimento aceitas)
     expect(sim.moveOrders[1]).toBeGreaterThan(0);
@@ -274,6 +275,8 @@ describe('coleta de recursos', () => {
 
   it('serraria reivindica as árvores próximas e rende por célula; a segunda não pode reutilizá-las', () => {
     const sim = emptySim(resourceMap());
+    // gente para as duas serrarias trabalharem cheias
+    sim.players[0]!.citizens = 2 * BUILDINGS.sawmill.workers;
     expect(sim.applyCommand(0, { type: 'build', buildingType: 'sawmill', cx: 4, cy: 10 })).toBeNull();
     const a = sim.buildings.find((b) => b.type === 'sawmill')!;
     expect(a.claims.length).toBe(BUILDINGS.sawmill.gather!.maxCells);

@@ -1737,20 +1737,26 @@ export class GameRuntime {
     this.lastSelectionCount = selectedUnits.length;
     const production = [];
     const ownTypes = new Set<BuildingType>();
+    const ownCounts: Partial<Record<BuildingType, number>> = {};
     let spaceLaunch: { id: number; phase: 'countdown' | 'ascent'; progress: number } | null = null;
     for (const t of this.buildings.values()) {
       if (t.snap.owner !== this.mySlot || t.snap.remembered) continue;
       if (t.snap.queue.length > 0) production.push({ id: t.snap.id, type: t.snap.type, queue: t.snap.queue });
       ownTypes.add(t.snap.type);
+      ownCounts[t.snap.type] = (ownCounts[t.snap.type] ?? 0) + 1;
       if (t.snap.launch) spaceLaunch = { id: t.snap.id, ...t.snap.launch };
     }
     const prevTypes = useHudStore.getState().ownBuildingTypes;
+    const prevCounts = useHudStore.getState().ownBuildingCounts;
+    const countKeys = Object.keys(ownCounts) as BuildingType[];
+    const sameCounts = countKeys.length === Object.keys(prevCounts).length && countKeys.every((k) => prevCounts[k] === ownCounts[k]);
     useHudStore.getState().set({
       tick: s.tick,
       players: s.players,
       production,
       // o conjunto só troca quando muda (o menu de construção não renderiza à toa)
       ownBuildingTypes: prevTypes.size === ownTypes.size && [...ownTypes].every((t) => prevTypes.has(t)) ? prevTypes : ownTypes,
+      ownBuildingCounts: sameCounts ? prevCounts : ownCounts,
       spaceLaunch,
       paused: this.paused,
       pausedBy: this.pausedBy,

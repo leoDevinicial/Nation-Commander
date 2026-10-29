@@ -19,6 +19,9 @@ Supabase para contas e histórico). O jogo é todo em português.
 - Custos: os valores-base ficam nas definições (`UNITS`, `BUILDINGS`, `AIRCRAFT`...), mas o bloco `ECONOMY` no fim de
   `shared/sim/config.ts` (e em `air.ts`) os multiplica ao carregar. O valor que o jogo usa é o escalado; ver
   `docs/ECONOMIA.md`. Testes de regra usam `TEST_START` (`shared/test/helpers.ts`) como estoque inicial.
+- Custo crescente: construir usa `buildingCost(type, existentes)` (+18% por edifício do tipo), não `BUILDINGS[t].cost`.
+  Ao mexer em economia ou na IA, rodar `npx tsx scripts/sim-economia.ts 1,2,3,4,5,6,7 25` e conferir os critérios de
+  `docs/RECALIBRAGEM_RECURSOS.md` (seção 5).
 - Minas terrestres (`shared/sim/mines.ts`) não são entidades: o snapshot envia só as do dono e as já detectadas
   (`MineSystem.visibleTo`). O satélite do Programa Espacial revela o resto do mapa, mas nunca as minas.
 

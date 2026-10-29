@@ -1,12 +1,40 @@
 import { describe, expect, it } from 'vitest';
 import { reachable } from '../sim/MapGen.ts';
 import { MAP_TYPES, generateMatchMap, mapSizeFor, regionOf } from '../sim/matchMap.ts';
-import { Terrain } from '../sim/config.ts';
+import { BUILDINGS, Terrain } from '../sim/config.ts';
+import { claimableCells } from '../sim/gathering.ts';
 import { Simulation } from '../sim/Simulation.ts';
 
 /** Gerador de mapas para 2 a 6 nações e tipos de mapa (lote 4). */
 
 describe('mapas das partidas', () => {
+  it('início garantido: a primeira fazenda, serraria, pedreira e mina de cada nação trabalham cheias', () => {
+    // docs/RECALIBRAGEM_RECURSOS.md §2.4: com a economia apertada, um começo pobre vira desvantagem enorme
+    const types = ['farm', 'sawmill', 'quarry', 'mine'] as const;
+    // um país de cada perfil (equilibrado, florestal, petrolífero, serrano, agrícola)
+    const countries = ['MEX', 'BRA', 'SAU', 'JPN', 'ARG', 'MEX'];
+    for (const type of MAP_TYPES)
+      for (const n of [2, 3, 6])
+        for (const seed of [1, 2]) {
+          const map = generateMatchMap(seed, { nations: n, type, countries: countries.slice(0, n) });
+          const sim = new Simulation({ map, playerCount: n });
+          for (let slot = 0; slot < n; slot++) {
+            const hq = sim.hqOf(slot)!;
+            for (const t of types) {
+              let best = 0;
+              for (let dy = -13; dy <= 13; dy++)
+                for (let dx = -13; dx <= 13; dx++) {
+                  const cell = { cx: hq.cell.cx + dx, cy: hq.cell.cy + dy };
+                  const err = sim.placementError(slot, t, cell);
+                  if (err && err !== 'Recursos insuficientes') continue;
+                  best = Math.max(best, claimableCells(sim.map, t, cell, new Set(), (i) => sim.territory[i] === slot).length);
+                }
+              expect(best, `${type}, ${n} nações, seed ${seed}, nação ${slot}: ${t}`).toBeGreaterThanOrEqual(BUILDINGS[t].gather!.maxCells);
+            }
+          }
+        }
+  }, 120_000);
+
   it('tamanho cresce com as nações; todos os pontos de partida se alcançam, em todos os tipos', () => {
     for (const n of [2, 3, 4, 5, 6])
       for (const type of MAP_TYPES)
