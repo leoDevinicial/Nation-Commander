@@ -43,40 +43,18 @@ import { BUILDING_ERA, ERAS, UNIT_ERA, buildingEra, eraLabel, type Era } from '.
 
 const EMPTY_TECHS: readonly string[] = [];
 
-const BUILD_OPTIONS: BuildingType[] = [
-  'house',
-  'farm',
-  'sawmill',
-  'quarry',
-  'mine',
-  'oil_well',
-  'oil_tank',
-  'warehouse',
-  'silo',
-  'barracks',
-  'factory',
-  'research_center',
-  'tower',
-  'tank_trap',
-  'school',
-  'police_station',
-  'hospital',
-  'refinery',
-  'steel_mill',
-  'residential',
-  'city_hall',
-  'market',
-  'rail_station',
-  'port',
-  'airbase',
-  'aa_battery',
-  'missile_silo',
+/**
+ * Menu de construção em abas, como no *Rise of Nations*: produção (coleta, armazéns e cadeias
+ * produtivas), cívicas (moradia, cidades, serviços, comércio e transporte), militares e os Grandes
+ * Projetos Nacionais. Os atalhos de teclado continuam valendo em qualquer aba.
+ */
+type BuildTab = 'production' | 'civic' | 'military' | 'projects';
+const BUILD_TABS: { id: BuildTab; label: string; icon: string; types: BuildingType[] }[] = [
+  { id: 'production', label: 'Produção', icon: '⚒', types: ['farm', 'sawmill', 'quarry', 'mine', 'oil_well', 'oil_tank', 'warehouse', 'silo', 'refinery', 'steel_mill'] },
+  { id: 'civic', label: 'Cívicas', icon: '🏛', types: ['house', 'residential', 'city_hall', 'school', 'hospital', 'police_station', 'market', 'rail_station', 'port'] },
+  { id: 'military', label: 'Militares', icon: '⚔', types: ['barracks', 'factory', 'research_center', 'tower', 'tank_trap', 'aa_battery', 'airbase', 'missile_silo'] },
   // Grandes Projetos Nacionais (Futuro Próximo)
-  'nuclear_plant',
-  'network_5g',
-  'hydro_dam',
-  'financial_center',
-  'space_center',
+  { id: 'projects', label: 'Projetos', icon: '★', types: ['nuclear_plant', 'network_5g', 'hydro_dam', 'financial_center', 'space_center'] },
 ];
 const EMPTY: Stockpile = emptyStockpile();
 
@@ -129,6 +107,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
   const touch = useHudStore((s) => s.touchUi);
   const thumbs = useHudStore((s) => s.thumbs);
   const [help, setHelp] = useState(false);
+  const [buildTab, setBuildTab] = useState<BuildTab>('production');
   const techs = effectiveTechs(useNationalStore((s) => s.nations.find((n) => n.slot === mySlot)?.research.done ?? EMPTY_TECHS));
   const myEra = effectiveEra(players.find((p) => p.slot === mySlot));
   const myNation = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot));
@@ -254,6 +233,22 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
         )}
         {mode.kind !== 'normal' && <CardButton icon="✖" hotkey="Esc" label="Cancelar" onClick={() => runtime.cancelMode()} title="Cancelar (Esc)" />}
         {command && mode.kind === 'normal' && runtime.battleOp === null && (
+          <div className="flex shrink-0 flex-col gap-1 sm:col-span-4 sm:flex-row [@media(max-height:520px)]:col-span-4 [@media(max-height:520px)]:flex-row" role="tablist" aria-label="Categorias de construção">
+            {BUILD_TABS.map((t) => (
+              <button
+                key={t.id}
+                role="tab"
+                aria-selected={buildTab === t.id}
+                className={`btn min-h-7 flex-1 px-2 py-0.5 text-[11px] whitespace-nowrap ${buildTab === t.id ? 'btn-primary' : ''}`}
+                onClick={() => setBuildTab(t.id)}
+                title={`Construções ${t.label.toLowerCase()}`}
+              >
+                <span aria-hidden>{t.icon}</span> {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {command && mode.kind === 'normal' && runtime.battleOp === null && (
           <ProduceButton
             b={building}
             unit="citizen"
@@ -264,7 +259,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           />
         )}
         {building?.type === 'hq' && mode.kind === 'normal' && runtime.battleOp === null && <EraButton runtime={runtime} />}
-        {command && mode.kind === 'normal' && runtime.battleOp === null && (
+        {command && mode.kind === 'normal' && runtime.battleOp === null && buildTab === 'civic' && (
           <CardButton
             icon="▤"
             label="Estrada"
@@ -275,7 +270,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
         {command &&
           mode.kind === 'normal' &&
           runtime.battleOp === null &&
-          BUILD_OPTIONS.map((type) => {
+          BUILD_TABS.find((t) => t.id === buildTab)!.types.map((type) => {
             const def = BUILDINGS[type];
             const techMissing = def.requiresTech && !(techs as readonly string[]).includes(def.requiresTech) ? def.requiresTech : null;
             const needEra = buildingEra(type);
