@@ -29,8 +29,11 @@ export interface UnitModel {
   guns?: { layers: ModelLayers; pivot: V3; elev: number; muzzle: V3; recoil: number }[];
   /** Tipo de disparo visível (projétil que sai da boca do cano). */
   shot?: 'apfsds' | 'howitzer' | 'flak' | 'autocannon';
-  /** Lentes e luzes acesas na torre (referencial da torre): disco brilhante com halo, voltado para `normal`. */
-  glow?: { at: V3; normal: V3; r: number; color: string }[];
+  /**
+   * Lentes e luzes acesas na torre (referencial da torre): disco brilhante com halo, voltado para `normal`.
+   * `color: 'faction'` usa a cor da facção do dono.
+   */
+  glow?: { at: V3; normal: V3; r: number; color: string | 'faction' }[];
 }
 
 type V3 = [number, number, number];
@@ -815,10 +818,10 @@ function t90Future(): BuiltUnit {
     muzzle: [g0 + gun + 0.18, 0.19, 0],
     guns: [{ layers: gunL.build(), pivot: [g0, 0.19, 0], elev: 0, muzzle: [gun + 0.18, 0, 0], recoil: 0.34 }],
     shot: 'apfsds',
-    // lentes acesas: Shtora vermelhas e o brilho azul da mira panorâmica
+    // lentes acesas: Shtora na cor da facção e o brilho azul da mira panorâmica
     glow: [
-      { at: [0.736 * s, 0.4, 0.25 * s], normal: [1, 0, 0], r: 0.055, color: '#ff3a24' },
-      { at: [0.736 * s, 0.4, -0.25 * s], normal: [1, 0, 0], r: 0.055, color: '#ff3a24' },
+      { at: [0.736 * s, 0.4, 0.25 * s], normal: [1, 0, 0], r: 0.055, color: 'faction' },
+      { at: [0.736 * s, 0.4, -0.25 * s], normal: [1, 0, 0], r: 0.055, color: 'faction' },
       { at: [0.06 * s, 0.75, 0.06 * s], normal: [1, 0, 0], r: 0.035, color: '#5ab4ff' },
     ],
   };
@@ -1081,8 +1084,9 @@ function buildArtilleryFuture(): BuiltUnit {
     b.box(0.08, 0.4, 0.08, armorDark, [-1.32, 0.38, z], [0, 0, 0.5]);
     b.box(0.2, 0.03, 0.14, armorDark, [-1.42, 0.17, z]);
   }
-  b.box(0.06, 0.06, 0.12, '#c4542a', [-1.36, 0.62, 0.36]);
-  b.box(0.06, 0.06, 0.12, '#c4542a', [-1.36, 0.62, -0.36]);
+  // lanternas traseiras na cor da facção
+  hull.accent.box(0.06, 0.06, 0.12, '#ffffff', [-1.36, 0.62, 0.36]);
+  hull.accent.box(0.06, 0.06, 0.12, '#ffffff', [-1.36, 0.62, -0.36]);
   hull.accent.box(0.3, 0.12, 0.02, '#ffffff', [0.98, 0.82, 0.453]);
   hull.accent.box(0.3, 0.12, 0.02, '#ffffff', [0.98, 0.82, -0.453]);
 
@@ -1240,7 +1244,6 @@ function buildRocketArtilleryFuture(): BuiltUnit {
   const armor = '#5b5f4c';
   const armorDark = '#454939';
   const black = '#1e1f1c';
-  const red = '#d8342a';
   // chassi longo e rodas (4 eixos)
   b.box(2.5, 0.16, 0.8, armorDark, [-0.1, 0.5, 0]);
   const axles = [0.92, 0.42, -0.62, -1.08];
@@ -1297,9 +1300,10 @@ function buildRocketArtilleryFuture(): BuiltUnit {
     b.box(0.04, 0.2, 0.1, black, [1.08, 1.12, z * 1.18]);
   }
   // luzes vermelhas de comboio (teto e frente) e âmbar nos cantos
-  for (const z of [0.36, 0.12, -0.12, -0.36]) b.box(0.03, 0.04, 0.07, red, [1.14, 1.37, z]);
+  // luzes de comboio na cor da facção (camada de destaque)
+  for (const z of [0.36, 0.12, -0.12, -0.36]) hull.accent.box(0.03, 0.04, 0.07, '#ffffff', [1.14, 1.37, z]);
   for (const z of [0.4, -0.4]) {
-    b.box(0.03, 0.04, 0.07, red, [1.31, 0.92, z * 0.6]);
+    hull.accent.box(0.03, 0.04, 0.07, '#ffffff', [1.31, 0.92, z * 0.6]);
     b.box(0.03, 0.035, 0.05, '#e39a2b', [1.33, 0.66, z * 1.12]);
   }
   // teto: caixa de sensores, câmera em mastro curto e antenas

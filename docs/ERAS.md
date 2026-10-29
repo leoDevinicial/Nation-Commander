@@ -65,10 +65,13 @@ velocidade sem o efeito estroboscópico.
 - casco mais largo, glacis coberto por três fileiras de blocos reativos, saias reativas em toda a lateral e para-lamas
   dianteiros grandes e inclinados;
 - torre angular em cunha com módulos reativos em ponta de flecha;
-- bloqueadores Shtora com lentes vermelhas **acesas** e mira panorâmica do comandante com lente azul acesa (`glow` no
-  modelo: disco brilhante com halo aditivo);
+- bloqueadores Shtora com lentes **acesas na cor da facção** e mira panorâmica do comandante com lente azul acesa
+  (`glow` no modelo: disco brilhante com halo aditivo; `color: 'faction'` usa a cor do dono);
 - estação de armas remota, bancos de fumígenos, gaiola de grades na traseira da torre;
 - canhão longo com luva térmica e sensor de referência na boca.
+
+As luzes de comboio do Lança-Foguetes, as lanternas da Artilharia e as faixas desses três veículos também seguem a cor
+da facção do jogador.
 
 As unidades já em campo trocam de modelo ao serem modernizadas na era nova.
 

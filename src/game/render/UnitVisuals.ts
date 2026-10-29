@@ -5,7 +5,7 @@ import { accentMaterial, bodyMaterial, eraUnitBodyMaterial, glassMaterial } from
 import type { ModelLayers } from './models/kit.ts';
 import { unitModel, unitModelKey, type UnitModel } from './models/unitModels.ts';
 import type { ModId } from '../../../shared/sim/modernization.ts';
-import { sharedGeometry, sharedMaterial } from './palette.ts';
+import { factionColor, sharedGeometry, sharedMaterial } from './palette.ts';
 import type { TrackMarks } from './TrackMarks.ts';
 
 const plateMat = () => sharedMaterial('mod-plate', () => new THREE.MeshStandardMaterial({ color: '#4b5143', roughness: 0.85, metalness: 0.25 }));
@@ -276,17 +276,18 @@ export class UnitVisual {
     // lentes acesas (Shtora do tanque do Futuro Próximo): disco brilhante e halo aditivo, sem sombra
     for (const g of model.glow ?? []) {
       if (!this.turret) break;
+      const color = g.color === 'faction' ? factionColor(owner) : g.color;
       const n = new THREE.Vector3(...g.normal).normalize();
       const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
       const disc = new THREE.Mesh(
         sharedGeometry(`glow-disc-${g.r}`, () => new THREE.CircleGeometry(g.r, 20)),
-        sharedMaterial(`glow-core-${g.color}`, () => new THREE.MeshBasicMaterial({ color: new THREE.Color(g.color).multiplyScalar(1.6), toneMapped: false })),
+        sharedMaterial(`glow-core-${color}`, () => new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(1.6), toneMapped: false })),
       );
       const halo = new THREE.Mesh(
         sharedGeometry(`glow-halo-${g.r}`, () => new THREE.CircleGeometry(g.r * 2.1, 24)),
         sharedMaterial(
-          `glow-halo-${g.color}`,
-          () => new THREE.MeshBasicMaterial({ color: g.color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+          `glow-halo-${color}`,
+          () => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
         ),
       );
       for (const [m, off] of [
