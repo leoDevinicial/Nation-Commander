@@ -40,6 +40,13 @@ petróleo, 90% do teto da verba de obras e 6 minutos de obra. Exige:
   (servem de alvo para ataques aéreos e mísseis).
 - As minas terrestres, quando existirem, continuam escondidas.
 - O satélite aparece orbitando o globo diplomático, com a bandeira e a sigla do país, à vista de todos.
+- Modelo do satélite (`src/globe/satelliteModel.ts`), no estilo dos satélites de comunicação reais:
+  - corpo cilíndrico com manta térmica dourada, anéis prateados, módulo de equipamentos com radiador e tanques;
+  - antena parabólica grande voltada para a Terra, com estrutura de reforço atrás e o alimentador preso por três hastes;
+  - duas asas solares de três segmentos, com células, moldura, dobradiças e braço em treliça, que giram devagar
+    acompanhando o Sol;
+  - propulsor principal e quatro de manobra, duas parabólicas pequenas, antena de chicote, mastro longo de
+    magnetômetro e luz de navegação vermelha piscando.
 - A nação dona ganha aprovação extra pelo orgulho nacional.
 
 Decisões de balanceamento tomadas:

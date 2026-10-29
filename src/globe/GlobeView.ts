@@ -4,6 +4,7 @@ import { COUNTRY_GEO } from '../../shared/data/geography.ts';
 import type { GraphicsProfile } from '../lib/graphics.ts';
 import { loadWorldGeo, type WorldCountry, type WorldGeo } from './worldGeo.ts';
 import { TouchGestures } from '../game/input/TouchGestures.ts';
+import { buildSatellite, type SatelliteParts } from './satelliteModel.ts';
 
 /**
  * Globo 3D. A geografia (texturas e linhas) é gerada a partir dos dados de base; fronteiras,
@@ -126,7 +127,7 @@ export class GlobeView {
   private readonly cleanup: (() => void)[] = [];
   /** Satélites em órbita (Programa Espacial): um por país, na latitude da capital. */
   private readonly satellites = new THREE.Group();
-  private satDefs: { def: GlobeSatellite; obj: THREE.Group }[] = [];
+  private satDefs: { def: GlobeSatellite; obj: THREE.Group; parts: SatelliteParts }[] = [];
   private satTime = 0;
 
   constructor(
@@ -399,9 +400,11 @@ export class GlobeView {
       s.obj.traverse((o) => {
         const m = o as THREE.Mesh;
         m.geometry?.dispose();
-        const mat = m.material as THREE.Material | undefined;
-        if (mat) {
-          (mat as THREE.SpriteMaterial).map?.dispose();
+        // um material ou uma lista (os painéis solares têm frente e verso diferentes)
+        const mats = ([] as (THREE.Material | undefined)[]).concat(m.material as THREE.Material | THREE.Material[] | undefined);
+        for (const mat of new Set(mats)) {
+          if (!mat) continue;
+          (mat as THREE.MeshStandardMaterial).map?.dispose();
           mat.dispose();
         }
       });
@@ -409,24 +412,19 @@ export class GlobeView {
     }
     this.satDefs = defs.map((def) => {
       const obj = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.045), new THREE.MeshStandardMaterial({ color: '#d9dde0', metalness: 0.6, roughness: 0.35 }));
-      const panelMat = new THREE.MeshStandardMaterial({ color: '#203a6a', emissive: '#0d1c38', metalness: 0.5, roughness: 0.3, side: THREE.DoubleSide });
-      for (const s of [-1, 1]) {
-        const p = new THREE.Mesh(new THREE.PlaneGeometry(0.07, 0.025), panelMat);
-        p.position.x = s * 0.055;
-        obj.add(p);
-      }
-      obj.add(body);
+      // modelo detalhado (manta dourada, parabólica para a Terra, asas solares com células) — satelliteModel.ts
+      const parts = buildSatellite();
+      obj.add(parts.root);
       const flag = new THREE.Sprite(new THREE.SpriteMaterial({ map: flagTexture(def), depthWrite: false, transparent: true }));
-      flag.scale.set(0.16, 0.08, 1);
-      flag.position.y = 0.075;
+      flag.scale.set(0.14, 0.07, 1);
+      flag.position.y = 0.11;
       obj.add(flag);
       // anel tênue da órbita
       const ring: THREE.Vector3[] = [];
       for (let i = 0; i <= 96; i++) ring.push(lonLatToVector((i / 96) * 360 - 180, def.lat, RADIUS * 1.28));
       const orbit = new THREE.Line(new THREE.BufferGeometry().setFromPoints(ring), new THREE.LineBasicMaterial({ color: def.color, transparent: true, opacity: 0.35 }));
       this.satellites.add(obj, orbit);
-      return { def, obj };
+      return { def, obj, parts };
     });
   }
 
@@ -439,6 +437,9 @@ export class GlobeView {
       lonLatToVector(lon, s.def.lat, RADIUS * 1.28, v);
       s.obj.position.copy(v);
       s.obj.lookAt(0, 0, 0);
+      // asas acompanham o Sol devagar; a luz de navegação pisca
+      for (const w of s.parts.wings) w.rotation.x = Math.sin(this.satTime * 0.6) * 0.35;
+      s.parts.beacon.visible = Math.floor(this.satTime * 1.5) % 2 === 0;
     }
   }
 
