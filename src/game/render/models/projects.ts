@@ -110,34 +110,106 @@ export function buildHydroDam(): Built {
   return { base: l.build(), moving: null, height: 2.6 };
 }
 
-/** Centro Financeiro (2×2): torre de vidro escalonada com pódio e heliponto. */
+/**
+ * Centro Financeiro (2×2), no estilo de um edifício corporativo moderno: torre de escritórios com
+ * faixas de vidro e lajes claras, moldura saliente com jardim na fachada, cobertura envidraçada,
+ * pódio de chapa metálica com parede verde na entrada, edifício-garagem aberto ao lado e
+ * palmeiras na calçada. A faixa no alto do pódio leva a cor da facção (sem letreiro).
+ */
 export function buildFinancialCenter(): Built {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
-  b.box(3.6, 0.14, 3.6, C.concreteDark, [0, 0.07, 0]);
-  // pódio
-  b.box(3.0, 0.9, 3.0, C.concreteLight, [0, 0.59, 0]);
-  g.box(2.8, 0.5, 0.02, '#ffffff', [0, 0.6, 1.51]);
-  // torre em três blocos, cada um mais estreito, com vidro corrido e faixas de concreto
-  let y = 1.04;
-  for (const [w, h] of [
-    [2.2, 2.4],
-    [1.8, 2.0],
-    [1.3, 1.5],
-  ] as const) {
-    b.box(w, h, w, C.concrete, [0, y + h / 2, 0]);
-    for (const s of [-1, 1]) {
-      g.box(w * 0.92, h * 0.9, 0.02, '#ffffff', [0, y + h / 2, (s * w) / 2 + s * 0.01]);
-      g.box(0.02, h * 0.9, w * 0.92, '#ffffff', [(s * w) / 2 + s * 0.01, y + h / 2, 0]);
-    }
-    b.box(w + 0.06, 0.08, w + 0.06, C.concreteDark, [0, y + h, 0]);
-    y += h;
+  const SLAB = '#cfd2d4';
+  const FRAME = '#8d9297';
+  const METAL = '#a7abae';
+  const GREEN = '#2e6a4a';
+  const PALM = '#3f7a3a';
+  b.box(3.7, 0.12, 3.7, C.concreteDark, [0, 0.06, 0]);
+  b.box(3.7, 0.03, 0.45, C.concreteLight, [0, 0.135, 1.6]);
+
+  // --- torre de escritórios: térreo envidraçado recuado e cinco andares com faixas de vidro
+  const tx = -0.45;
+  const tw = 2.3;
+  const td = 1.7;
+  const tz = -0.15;
+  const ground = 0.12;
+  const lobby = 0.45;
+  const floorH = 0.36;
+  const floors = 5;
+  b.box(tw - 0.3, lobby, td - 0.3, DARK, [tx, ground + lobby / 2, tz]);
+  g.box(tw - 0.32, lobby * 0.85, 0.02, '#ffffff', [tx, ground + lobby / 2, tz + (td - 0.3) / 2 + 0.01]);
+  for (let i = 0; i < floors; i++) {
+    const y0 = ground + lobby + i * floorH;
+    // núcleo escuro (sombra atrás do vidro) e as quatro fachadas de vidro
+    b.box(tw - 0.08, floorH, td - 0.08, '#3b4247', [tx, y0 + floorH / 2, tz]);
+    g.box(tw - 0.1, floorH * 0.78, 0.02, '#ffffff', [tx, y0 + floorH * 0.5, tz + td / 2 - 0.03]);
+    g.box(tw - 0.1, floorH * 0.78, 0.02, '#ffffff', [tx, y0 + floorH * 0.5, tz - td / 2 + 0.03]);
+    g.box(0.02, floorH * 0.78, td - 0.1, '#ffffff', [tx - tw / 2 + 0.03, y0 + floorH * 0.5, tz]);
+    g.box(0.02, floorH * 0.78, td - 0.1, '#ffffff', [tx + tw / 2 - 0.03, y0 + floorH * 0.5, tz]);
+    // laje clara saliente em volta de cada andar
+    b.box(tw + 0.04, 0.05, td + 0.04, SLAB, [tx, y0 + 0.025, tz]);
   }
-  // heliponto
-  b.cyl(0.55, 0.55, 0.06, DARK, [0, y + 0.06, 0], undefined, 14);
-  a.box(0.4, 0.02, 0.08, '#ffffff', [0, y + 0.1, 0]);
-  a.box(1.2, 0.2, 0.03, '#ffffff', [0, 0.85, 1.52]);
-  return { base: l.build(), moving: null, height: y + 0.2 };
+  const top = ground + lobby + floors * floorH;
+  b.box(tw + 0.06, 0.08, td + 0.06, SLAB, [tx, top + 0.04, tz]);
+  // montantes verticais finos na fachada principal
+  for (let k = 0; k <= 8; k++) b.box(0.025, floors * floorH, 0.03, FRAME, [tx - tw / 2 + 0.05 + (k * (tw - 0.1)) / 8, ground + lobby + (floors * floorH) / 2, tz + td / 2 - 0.01]);
+  // moldura saliente com jardim (andares 2 a 3), como uma vitrine na fachada
+  const fy = ground + lobby + 1.5 * floorH;
+  const fh = floorH * 2 - 0.04;
+  const fz = tz + td / 2 + 0.12;
+  b.box(0.82, 0.07, 0.26, SLAB, [tx, fy + fh / 2, fz]);
+  b.box(0.82, 0.07, 0.26, SLAB, [tx, fy - fh / 2, fz]);
+  b.box(0.07, fh, 0.26, SLAB, [tx - 0.38, fy, fz]);
+  b.box(0.07, fh, 0.26, SLAB, [tx + 0.38, fy, fz]);
+  b.box(0.7, fh - 0.08, 0.02, GREEN, [tx, fy, fz - 0.1]);
+  b.box(0.68, 0.06, 0.2, PALM, [tx, fy - fh / 2 + 0.06, fz]);
+
+  // --- cobertura: andar envidraçado recuado, laje de cobertura e casas de máquinas
+  b.box(1.5, 0.3, 1.1, '#3b4247', [tx - 0.25, top + 0.23, tz - 0.1]);
+  g.box(1.46, 0.24, 0.02, '#ffffff', [tx - 0.25, top + 0.23, tz + 0.46]);
+  b.box(1.7, 0.1, 1.25, METAL, [tx - 0.25, top + 0.43, tz - 0.1]);
+  b.box(0.55, 0.32, 0.5, SLAB, [tx + 0.7, top + 0.24, tz - 0.3]);
+  for (const x of [tx + 0.55, tx + 0.85]) b.box(0.18, 0.1, 0.18, FRAME, [x, top + 0.13, tz + 0.45]);
+
+  // --- pódio frontal de chapa perfurada, com parede verde na entrada e faixa da facção
+  const pz = tz + td / 2 + 0.3;
+  b.box(2.0, 0.55, 0.6, METAL, [tx - 0.15, ground + 0.275, pz]);
+  for (let k = 0; k < 4; k++) b.box(2.02, 0.012, 0.61, FRAME, [tx - 0.15, ground + 0.1 + k * 0.12, pz]);
+  b.box(0.9, 0.38, 0.02, GREEN, [tx + 0.25, ground + 0.22, pz + 0.31]);
+  g.box(0.6, 0.26, 0.02, '#ffffff', [tx - 0.75, ground + 0.2, pz + 0.31]);
+  b.box(2.1, 0.05, 0.7, SLAB, [tx - 0.15, ground + 0.575, pz]);
+  a.box(2.0, 0.06, 0.02, '#ffffff', [tx - 0.15, ground + 0.5, pz + 0.315]);
+
+  // --- edifício-garagem aberto ao lado: lajes, pilares, guarda-corpos e carros
+  const gx = 1.3;
+  const gw = 0.85;
+  const gd = 2.6;
+  const gz = -0.05;
+  const decks = 5;
+  const deckH = 0.36;
+  b.box(gw - 0.1, decks * deckH, gd - 0.1, '#2d3236', [gx, ground + (decks * deckH) / 2, gz]);
+  for (let i = 0; i <= decks; i++) {
+    const y = ground + i * deckH;
+    b.box(gw, 0.05, gd, SLAB, [gx, y + 0.025, gz]);
+    if (i > 0) {
+      b.box(gw, 0.025, 0.02, FRAME, [gx, y - deckH / 2, gz + gd / 2]);
+      b.box(0.02, 0.025, gd, FRAME, [gx - gw / 2, y - deckH / 2, gz]);
+    }
+  }
+  for (const x of [gx - gw / 2 + 0.03, gx + gw / 2 - 0.03])
+    for (let k = 0; k <= 5; k++) b.box(0.05, decks * deckH, 0.05, SLAB, [x, ground + (decks * deckH) / 2, gz - gd / 2 + 0.03 + (k * (gd - 0.06)) / 5]);
+  const cars = ['#d8d8d8', '#2c3e66', '#9b2a2a', '#e2e2e2', '#3a3a3a'];
+  for (let k = 0; k < 5; k++) b.box(0.16, 0.07, 0.3, cars[k]!, [gx + (k % 2 ? 0.18 : -0.18), ground + decks * deckH + 0.085, gz - 0.9 + k * 0.42]);
+
+  // --- palmeiras na calçada
+  for (const x of [-1.55, -1.15, 0.25, 0.6]) {
+    b.cyl(0.025, 0.035, 0.55, '#8a6b48', [x, 0.42, 1.55], undefined, 6);
+    for (let k = 0; k < 5; k++) {
+      const ang = (k / 5) * Math.PI * 2;
+      b.box(0.32, 0.015, 0.08, PALM, [x + Math.cos(ang) * 0.13, 0.69, 1.55 + Math.sin(ang) * 0.13], [0, -ang, -0.35]);
+    }
+  }
+  return { base: l.build(), moving: null, height: top + 0.5 };
 }
 
 /** Programa Espacial (4×4): plataforma, torre de serviço, centro de controle e antena de rastreio. */
