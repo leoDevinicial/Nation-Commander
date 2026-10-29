@@ -148,6 +148,8 @@ export type ClientMessage =
   | { t: 'set_room'; maxPlayers?: number; mapType?: MapType | 'random' }
   | { t: 'add_bot' }
   | { t: 'remove_bot'; slot: Slot }
+  /** Anfitrião: país de um bot (ou sorteado entre os livres). */
+  | { t: 'set_bot_country'; slot: Slot; countryId: string | 'random' }
   /** Time de um jogador (o próprio, ou de um bot pelo anfitrião); null = sem time. */
   | { t: 'set_team'; slot: Slot; team: number | null }
   | { t: 'pause'; paused: boolean }

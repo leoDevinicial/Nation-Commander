@@ -130,6 +130,9 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
     case 'set_team':
       room?.setTeam(conn, msg.slot, msg.team);
       return;
+    case 'set_bot_country':
+      room?.setBotCountry(conn, msg.slot, msg.countryId);
+      return;
     case 'pause':
       room?.setPaused(conn, msg.paused);
       return;

@@ -81,6 +81,8 @@ export interface RoomDeps {
   now?: () => number;
   /** Seed opcional (testes). */
   seed?: number;
+  /** Sorteio do país dos bots (padrão: aleatório; com `seed`, o primeiro país livre, como nos testes). */
+  random?: () => number;
   /** Controla o laço (testes chamam `advance` manualmente). */
   autoLoop?: boolean;
 }
@@ -137,6 +139,8 @@ export class Room {
   private pausedForDisconnect = false;
 
   /** `host` nulo: sala retomada de um salvamento (ver `Room.restore`). */
+  private readonly rand: () => number;
+
   constructor(
     readonly code: string,
     readonly mode: RoomMode,
@@ -144,6 +148,7 @@ export class Room {
     private readonly deps: RoomDeps,
   ) {
     this.now = deps.now ?? Date.now;
+    this.rand = deps.random ?? (deps.seed !== undefined ? () => 0 : Math.random);
     if (!host) return;
     const countryId = host.countryId;
     this.hostUserId = host.conn.user!.id;
@@ -154,7 +159,7 @@ export class Room {
         slot: 1,
         userId: null,
         name: 'IA Tática',
-        countryId: countryForAI(countryId),
+        countryId: randomFreeCountry([countryId], this.rand),
         ready: true,
         isAI: true,
         connected: true,
@@ -251,7 +256,7 @@ export class Room {
     p.countryId = countryId;
     p.ready = false;
     // a IA sempre comanda um país diferente do jogador
-    for (const ai of this.players.filter((x) => x.isAI && x.countryId === countryId)) ai.countryId = this.players.length > 2 ? freeCountry(this.players.map((x) => x.countryId)) : countryForAI(countryId);
+    for (const ai of this.players.filter((x) => x.isAI && x.countryId === countryId)) ai.countryId = randomFreeCountry(this.players.map((x) => x.countryId), this.rand);
     this.broadcastRoom();
   }
 
@@ -307,7 +312,7 @@ export class Room {
       slot,
       userId: null,
       name: bots === 0 ? 'IA Tática' : `IA Tática ${bots + 1}`,
-      countryId: freeCountry(this.players.map((p) => p.countryId)),
+      countryId: randomFreeCountry(this.players.map((p) => p.countryId), this.rand),
       ready: true,
       isAI: true,
       connected: true,
@@ -326,6 +331,18 @@ export class Room {
     // contra a IA, sempre sobra pelo menos um bot
     if (i < 0 || (this.mode !== 'pvp' && this.players.filter((p) => p.isAI).length <= 1)) return;
     this.players.splice(i, 1);
+    this.broadcastRoom();
+  }
+
+  /** Anfitrião: país de um bot, ou sorteado entre os que ninguém da sala usa. Dois bots não repetem país. */
+  setBotCountry(conn: Connection, slot: Slot, countryId: string | 'random'): void {
+    if (this.status !== 'lobby' || conn.user?.id !== this.hostUserId) return;
+    const bot = this.players.find((p) => p.slot === slot && p.isAI);
+    if (!bot) return;
+    const taken = this.players.filter((p) => p !== bot).map((p) => p.countryId);
+    if (countryId === 'random') bot.countryId = randomFreeCountry([...taken, bot.countryId], this.rand);
+    else if (!taken.includes(countryId)) bot.countryId = countryId;
+    else return;
     this.broadcastRoom();
   }
 
@@ -1180,13 +1197,11 @@ function publicPlayer(p: RoomPlayer): RoomPlayerInfo {
   return { slot: p.slot, userId: p.userId, name: p.name, countryId: p.countryId, ready: p.ready, isAI: p.isAI, connected: p.connected, ...(p.team ? { team: p.team } : {}) };
 }
 
-function countryForAI(humanCountry: string): string {
-  return humanCountry === 'ARG' ? 'BRA' : 'ARG';
-}
-
-/** País ainda não usado na sala para um novo bot (ordem fixa da lista de países). */
-function freeCountry(taken: readonly string[]): string {
-  return COUNTRIES.find((c) => !taken.includes(c.id))?.id ?? COUNTRIES[0]!.id;
+/** País sorteado entre os que ninguém da sala usa (bots variam de partida para partida). */
+function randomFreeCountry(taken: readonly string[], rand: () => number): string {
+  const free = COUNTRIES.filter((c) => !taken.includes(c.id));
+  const pool = free.length ? free : COUNTRIES.filter((c) => c.id !== taken[0]);
+  return pool[Math.min(pool.length - 1, Math.floor(rand() * pool.length))]!.id;
 }
 
 const RECORD_TIMEOUT_MS = 8000;

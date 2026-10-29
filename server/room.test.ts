@@ -227,11 +227,41 @@ describe('servidor de partidas', () => {
     expect(a.last('match_end')!.end.players[1]!.national?.countryId).toBe('ZAF');
   });
 
+  it('país do bot: sorteado entre os livres, escolhido pelo anfitrião sem repetir', async () => {
+    const { send, rooms } = setup();
+    const a = fakeConn();
+    await send(a.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-botc' });
+    await send(a.conn, { t: 'create_room', mode: 'vs_ai', countryId: 'BRA' });
+    const room = rooms.get(a.last('room')!.room!.code)!;
+    const bot = () => room.players.find((p) => p.isAI)!;
+    expect(bot().countryId).not.toBe('BRA');
+    await send(a.conn, { t: 'set_bot_country', slot: bot().slot, countryId: 'JPN' });
+    expect(bot().countryId).toBe('JPN');
+    // país de outro jogador: recusado
+    await send(a.conn, { t: 'set_bot_country', slot: bot().slot, countryId: 'BRA' });
+    expect(bot().countryId).toBe('JPN');
+    // sortear troca por outro país livre
+    await send(a.conn, { t: 'set_bot_country', slot: bot().slot, countryId: 'random' });
+    expect(['JPN', 'BRA']).not.toContain(bot().countryId);
+    // o jogador escolhe o país do bot: o bot ganha outro
+    const taken = bot().countryId;
+    await send(a.conn, { t: 'set_country', countryId: taken });
+    expect(bot().countryId).not.toBe(taken);
+    // só o anfitrião escolhe
+    const b = fakeConn();
+    await send(b.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-botc2' });
+    const before = bot().countryId;
+    room.setBotCountry(b.conn, bot().slot, 'random');
+    expect(bot().countryId).toBe(before);
+  });
+
   it('diplomacia: ação validada pelo servidor e estado enviado aos clientes', async () => {
     const { send, rooms } = setup();
     const a = fakeConn();
     await send(a.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-diplo' });
     await send(a.conn, { t: 'create_room', mode: 'vs_ai', countryId: 'BRA' });
+    // o país do bot é sorteado: fixa a Argentina para o cenário do teste
+    await send(a.conn, { t: 'set_bot_country', slot: 1, countryId: 'ARG' });
     await send(a.conn, { t: 'start' });
     const room = rooms.get(a.last('room')!.room!.code)!;
     const first = a.last('national')!;

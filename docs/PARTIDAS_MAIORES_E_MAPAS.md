@@ -17,7 +17,10 @@ serviço, lê e grava. Ainda não há tela de pagamento: hoje uma assinatura é 
 
 No lobby (`LobbyScreen`):
 - O anfitrião escolhe quantas nações a partida terá e o tipo de mapa.
-- O anfitrião adiciona e remove bots (IA), em qualquer modo. Cada bot recebe um país ainda livre na sala.
+- O anfitrião adiciona e remove bots (IA), em qualquer modo. Cada bot recebe um país **sorteado** entre os que ninguém
+  da sala usa. O anfitrião pode escolher o país de cada bot na lista (países já usados ficam bloqueados) ou pedir
+  "🎲 Sortear outro país" (mensagem `set_bot_country`). Se um jogador escolher o país de um bot, o bot ganha outro
+  sorteado.
 - Cada jogador escolhe o próprio time (A, B ou C, ou sem time). O anfitrião escolhe o time dos bots.
 - O mesmo time começa aliado, no teatro e na diplomacia. A aliança de time vale a partida inteira e bloqueia a
   declaração de guerra entre os parceiros.

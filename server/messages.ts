@@ -55,6 +55,10 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return { t: 'add_bot' };
     case 'remove_bot':
       return typeof data.slot === 'number' && Number.isInteger(data.slot) && data.slot >= 0 && data.slot < 6 ? { t: 'remove_bot', slot: data.slot } : null;
+    case 'set_bot_country': {
+      if (typeof data.slot !== 'number' || !Number.isInteger(data.slot) || data.slot < 0 || data.slot >= 6) return null;
+      return data.countryId === 'random' || isCountryId(data.countryId) ? { t: 'set_bot_country', slot: data.slot, countryId: data.countryId } : null;
+    }
     case 'set_team': {
       if (typeof data.slot !== 'number' || !Number.isInteger(data.slot) || data.slot < 0 || data.slot >= 6) return null;
       const team = data.team === null ? null : typeof data.team === 'number' && Number.isInteger(data.team) && data.team >= 1 && data.team <= 3 ? data.team : undefined;

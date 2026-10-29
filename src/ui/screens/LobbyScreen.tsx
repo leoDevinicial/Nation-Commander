@@ -65,6 +65,16 @@ export function LobbyScreen() {
                           <div className="mt-1 max-w-xs">
                             <CountrySelect value={p.countryId} onChange={(countryId) => gameClient.send({ t: 'set_country', countryId })} />
                           </div>
+                        ) : p.isAI && isHost ? (
+                          <div className="mt-1 max-w-xs">
+                            <CountrySelect
+                              value={p.countryId}
+                              random
+                              label={`País de ${p.name}`}
+                              taken={room.players.filter((x) => x !== p).map((x) => x.countryId)}
+                              onChange={(countryId) => gameClient.send({ t: 'set_bot_country', slot: p.slot, countryId })}
+                            />
+                          </div>
                         ) : (
                           <div className="text-xs text-ink-400">{countryName(p.countryId)}</div>
                         )}
