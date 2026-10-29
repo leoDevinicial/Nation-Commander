@@ -861,6 +861,11 @@ export class Simulation {
       if (!grid) continue;
       markCircle(grid, w, h, e.pos.x / cs, e.pos.y / cs, this.sightOf(e) / cs);
     }
+    // aeronaves em voo enxergam a área embaixo delas enquanto passam
+    for (const f of this.air.flightSights()) {
+      const grid = this.visibility[f.owner];
+      if (grid) markCircle(grid, w, h, f.pos.x / cs, f.pos.y / cs, f.sight / cs);
+    }
     // reconhecimento aéreo: área revelada temporariamente
     for (const r of this.air.reveals) {
       const grid = this.visibility[r.owner];

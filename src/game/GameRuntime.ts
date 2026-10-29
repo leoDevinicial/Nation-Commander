@@ -38,7 +38,7 @@ import { PostFx } from './render/PostFx.ts';
 import { CitizenLayer } from './render/CitizenLayer.ts';
 import { CargoLayer, disposeCargoModels } from './render/CargoLayer.ts';
 import { AirLayer, disposeAirModels } from './render/AirLayer.ts';
-import { AIRCRAFT, NUCLEAR, missileSpec } from '../../shared/sim/air.ts';
+import { AIRCRAFT, FLIGHT_SIGHT, NUCLEAR, missileSpec } from '../../shared/sim/air.ts';
 import { ERAS, type Era } from '../../shared/sim/eras.ts';
 import { SPACE_PAD } from './render/models/projects.ts';
 import { PRODUCTION_SOUND, audio } from './audio/AudioService.ts';
@@ -852,6 +852,12 @@ export class GameRuntime {
     };
     for (const t of this.units.values()) if (t.snap.owner === this.mySlot) mark(t.snap.x, t.snap.y, UNITS[t.snap.type].sight);
     for (const r of this.snapshot?.air?.reveals ?? []) mark(r.x, r.y, r.r);
+    // aviões próprios em voo revelam a área por onde passam (na posição interpolada do desenho)
+    for (const f of this.snapshot?.air?.flights ?? []) {
+      if (f.owner !== this.mySlot) continue;
+      const p = this.airLayer.flightPosition(f.id) ?? { x: f.x, y: f.y };
+      mark(p.x, p.y, FLIGHT_SIGHT[f.plane]);
+    }
     for (const t of this.buildings.values()) {
       if (t.snap.owner !== this.mySlot) continue;
       const size = BUILDINGS[t.snap.type].size;

@@ -619,3 +619,24 @@ describe('ogiva nuclear e choque econômico global', () => {
     expect(copy.shocks).toEqual(war.shocks);
   });
 });
+
+describe('Visão das aeronaves em voo', () => {
+  it('a área embaixo da formação fica visível enquanto ela passa, e some depois', () => {
+    const { sim, base, tank } = withBase({ fighters: 2, recon: 0 });
+    sim.air.known[0] = new Set([tank.id]);
+    // tropa inimiga no meio da rota, longe de qualquer visão do jogador 0
+    const mid = { x: (base.pos.x + tank.pos.x) / 2, y: (base.pos.y + tank.pos.y) / 2 };
+    const spy = sim.addUnit('infantry', 1, mid);
+    expect(sim.canSee(0, spy)).toBe(false);
+    expect(sim.applyCommand(0, { type: 'air_mission', buildingId: base.id, aircraftIds: fighters(sim), mission: 'strike', targetId: tank.id })).toBeNull();
+    let seen = false;
+    for (let i = 0; i < 40 * TICK_RATE && !seen; i++) {
+      sim.step();
+      spy.hp = spy.maxHp;
+      spy.pos = { ...mid };
+      seen = sim.canSee(0, spy);
+    }
+    expect(seen).toBe(true);
+    expect(sim.air.flightSights().some((f) => f.owner === 0)).toBe(true);
+  });
+});

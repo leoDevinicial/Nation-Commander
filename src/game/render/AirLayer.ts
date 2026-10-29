@@ -216,6 +216,12 @@ const tmpB = new THREE.Vector3();
 export class AirLayer {
   readonly group = new THREE.Group();
   private readonly flights = new Map<number, TrackedFlight>();
+
+  /** Posição desenhada (interpolada) de uma formação, para a névoa acompanhar o avião na tela. */
+  flightPosition(id: number): { x: number; y: number } | null {
+    const f = this.flights.get(id);
+    return f ? { x: f.pos.x, y: f.pos.y } : null;
+  }
   private readonly missiles = new Map<number, TrackedMissile>();
   private readonly beacons = new Map<number, THREE.Sprite>();
   private readonly targetRings = new Map<number, THREE.Mesh>();

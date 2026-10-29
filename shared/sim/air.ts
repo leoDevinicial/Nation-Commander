@@ -104,6 +104,9 @@ export const AIRCRAFT: Record<AircraftType, AircraftDef> = {
   },
 };
 
+/** Visão das aeronaves em voo (área revelada embaixo delas, como a das tropas). */
+export const FLIGHT_SIGHT: Record<AircraftType, number> = { fighter: 9, bomber: 8, recon: 14, transport: 7 };
+
 export const AIR = {
   hangarPerBase: 4,
   reconRadius: 18,
@@ -847,6 +850,21 @@ export class AirSystem {
   }
 
   // -------------------------------------------------------------- combate aéreo
+
+  /** Formações em voo com a posição e a visão (a maior entre os aviões da formação). */
+  flightSights(): { owner: Slot; pos: Vec2; sight: number }[] {
+    const out: { owner: Slot; pos: Vec2; sight: number }[] = [];
+    for (const m of this.missions) {
+      if (!this.inFlight(m)) continue;
+      let sight = 0;
+      for (const id of m.aircraft) {
+        const a = this.aircraft.find((x) => x.id === id);
+        if (a) sight = Math.max(sight, FLIGHT_SIGHT[a.type]);
+      }
+      if (sight > 0) out.push({ owner: m.owner, pos: this.missionPos(m), sight });
+    }
+    return out;
+  }
 
   private inFlight(m: AirMission | undefined): m is AirMission {
     return !!m && (m.state === 'outbound' || m.state === 'returning') && m.aircraft.length > 0;
