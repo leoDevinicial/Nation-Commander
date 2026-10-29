@@ -47,6 +47,16 @@ protetores octogonais com braçadeiras. Circula o QG com a frente na direção d
 hélices giram sem parar, em sentidos alternados, a 22 rad/s; um disco translúcido sob as pás dá a sensação de
 velocidade sem o efeito estroboscópico.
 
+**Lança-Foguetes do Futuro Próximo:** na era 4 ele troca de veículo, não só de pintura (`ERA_BUILDERS` em
+`src/game/render/models/unitModels.ts`). É um caminhão 8×8 blindado, com:
+- cabine facetada: grade de lâminas verticais, para-brisa dividido, luzes vermelhas de comboio, espelhos e ganchos de
+  reboque;
+- mastro com câmera e antenas no teto;
+- armários laterais na carroceria;
+- casulo de 12 tubos cilíndricos grandes (3 × 4), presos por cintas.
+
+As unidades já em campo trocam de modelo ao serem modernizadas na era nova.
+
 As tropas novas saem com a pintura da era do dono: cinza-oliva, camuflagem digital clara e compósito escuro. As
 antigas mantêm a pintura até serem modernizadas numa instalação.
 

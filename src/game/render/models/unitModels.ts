@@ -101,16 +101,32 @@ function finishRig(r: Rig): UnitMotion {
   return { treads, wheels, legs };
 }
 
-const cache = new Map<UnitType, UnitModel>();
+const cache = new Map<string, UnitModel>();
 
-export function unitModel(type: UnitType): UnitModel {
-  let m = cache.get(type);
+/**
+ * Modelos próprios de uma era (a partir dela): a tropa troca de veículo, não só de pintura. Hoje: o Lança-Foguetes
+ * do Futuro Próximo (caminhão 8×8 blindado com casulo de tubos grandes).
+ */
+const ERA_BUILDERS: Partial<Record<UnitType, { from: number; build: () => BuiltUnit }>> = {
+  rocket_artillery: { from: 4, build: buildRocketArtilleryFuture },
+};
+
+/** Chave do modelo da unidade na era dada (muda quando a era troca o veículo). */
+export function unitModelKey(type: UnitType, era = 1): string {
+  const v = ERA_BUILDERS[type];
+  return v && era >= v.from ? `${type}@${v.from}` : type;
+}
+
+export function unitModel(type: UnitType, era = 1): UnitModel {
+  const key = unitModelKey(type, era);
+  let m = cache.get(key);
   if (!m) {
     rig = { treads: [], spokes: new Map(), rolling: new Map(), legs: new Map() };
-    const built = BUILDERS[type]();
+    const v = ERA_BUILDERS[type];
+    const built = key !== type && v ? v.build() : BUILDERS[type]();
     m = { ...built, motion: finishRig(rig) };
     rig = null;
-    cache.set(type, m);
+    cache.set(key, m);
   }
   return m;
 }
@@ -860,6 +876,149 @@ function buildRocketArtillery(): BuiltUnit {
     turretPivot: [-0.45, 0.62, 0],
     muzzle: [1.1, 1.2, 0],
     pod: { layers: pod.build(), hinge: [-0.62, 0.16, 0], tubes, stowed: 0.03, raised: 0.72 },
+  };
+}
+
+/**
+ * Lança-foguetes da era Futuro Próximo: caminhão 8×8 blindado com cabine facetada (grade de lâminas verticais,
+ * para-brisa dividido, para-lamas em cunha, luzes vermelhas de comboio, espelhos), mastro com câmera e antenas no
+ * teto, armários laterais na carroceria e casulo de 12 tubos grandes cilíndricos (3 × 4) presos por cintas.
+ */
+function buildRocketArtilleryFuture(): BuiltUnit {
+  const hull = layers();
+  const b = hull.body;
+  const armor = '#5b5f4c';
+  const armorDark = '#454939';
+  const black = '#1e1f1c';
+  const red = '#d8342a';
+  // chassi longo e rodas (4 eixos)
+  b.box(2.5, 0.16, 0.8, armorDark, [-0.1, 0.5, 0]);
+  const axles = [0.92, 0.42, -0.62, -1.08];
+  for (const x of axles) for (const z of [0.47, -0.47]) rollingWheel([x, 0.28, z], 0.28, 0.22);
+  // para-lamas sobre cada par de eixos
+  for (const [x, w] of [
+    [0.67, 0.86],
+    [-0.85, 0.82],
+  ] as const)
+    for (const z of [0.5, -0.5]) {
+      b.box(w, 0.05, 0.26, armorDark, [x, 0.62, z]);
+      b.box(w, 0.12, 0.03, armorDark, [x, 0.56, z * 1.06]);
+    }
+
+  // --- cabine blindada facetada
+  b.side(
+    [
+      [0.48, 0.62],
+      [1.3, 0.62],
+      [1.36, 0.9],
+      [1.22, 0.98],
+      [1.12, 1.34],
+      [0.48, 1.36],
+    ],
+    0.92,
+    armor,
+  );
+  // capô em cunha e chanfros dos cantos da frente
+  b.box(0.22, 0.05, 0.94, armor, [1.28, 0.95, 0], [0, 0, -0.35]);
+  for (const z of [0.44, -0.44]) b.box(0.36, 0.34, 0.08, armorDark, [1.22, 0.78, z], [0, z > 0 ? 0.5 : -0.5, 0]);
+  // grade de lâminas verticais
+  b.box(0.03, 0.22, 0.6, black, [1.355, 0.77, 0]);
+  for (let i = 0; i < 9; i++) b.box(0.035, 0.22, 0.025, armorDark, [1.37, 0.77, -0.27 + i * 0.0675]);
+  // para-choque, ganchos de reboque e faróis
+  b.box(0.14, 0.14, 0.98, armorDark, [1.36, 0.6, 0]);
+  for (const z of [0.3, -0.3]) {
+    b.add(new THREE.TorusGeometry(0.035, 0.012, 6, 10), C.steel, { pos: [1.44, 0.55, z], rot: [0, Math.PI / 2, 0] });
+    b.box(0.03, 0.05, 0.1, '#ece6cc', [1.43, 0.66, z * 1.35]);
+  }
+  // para-brisa dividido e janelas laterais
+  const ws = Math.atan2(1.34 - 0.98, 1.12 - 1.22);
+  for (const z of [0.21, -0.21]) hull.glass.box(0.02, 0.36, 0.38, '#ffffff', [1.17, 1.16, z], [0, 0, ws - Math.PI / 2]);
+  b.box(0.04, 0.38, 0.04, armorDark, [1.17, 1.16, 0], [0, 0, ws - Math.PI / 2]);
+  for (const z of [0.462, -0.462]) {
+    hull.glass.box(0.3, 0.2, 0.01, '#ffffff', [0.9, 1.15, z]);
+    hull.glass.box(0.18, 0.2, 0.01, '#ffffff', [0.6, 1.15, z]);
+    // porta: dobradiças e maçaneta
+    b.box(0.02, 0.36, 0.012, armorDark, [0.76, 0.95, z * 1.01]);
+    b.box(0.06, 0.02, 0.014, C.steel, [0.7, 0.92, z * 1.02]);
+  }
+  // espelhos nos braços
+  for (const z of [0.52, -0.52]) {
+    b.box(0.03, 0.03, 0.12, armorDark, [1.08, 1.12, z]);
+    b.box(0.04, 0.2, 0.1, black, [1.08, 1.12, z * 1.18]);
+  }
+  // luzes vermelhas de comboio (teto e frente) e âmbar nos cantos
+  for (const z of [0.36, 0.12, -0.12, -0.36]) b.box(0.03, 0.04, 0.07, red, [1.14, 1.37, z]);
+  for (const z of [0.4, -0.4]) {
+    b.box(0.03, 0.04, 0.07, red, [1.31, 0.92, z * 0.6]);
+    b.box(0.03, 0.035, 0.05, '#e39a2b', [1.33, 0.66, z * 1.12]);
+  }
+  // teto: caixa de sensores, câmera em mastro curto e antenas
+  b.box(0.5, 0.1, 0.6, armorDark, [0.78, 1.41, 0]);
+  b.cyl(0.025, 0.025, 0.16, armorDark, [0.98, 1.52, 0], undefined, 6);
+  b.box(0.12, 0.1, 0.12, armorDark, [0.98, 1.64, 0]);
+  hull.glass.cyl(0.03, 0.03, 0.02, '#ffffff', [1.045, 1.64, 0], [0, 0, Math.PI / 2], 10);
+  for (const [x, z, h] of [
+    [0.6, 0.32, 0.6],
+    [0.6, -0.32, 0.5],
+    [0.95, -0.28, 0.42],
+  ] as const)
+    b.cyl(0.008, 0.012, h, black, [x, 1.46 + h / 2, z], undefined, 5);
+
+  // --- carroceria: módulo atrás da cabine, armários laterais e macacos estabilizadores
+  b.box(0.3, 0.5, 0.84, armor, [0.3, 0.88, 0]);
+  for (const z of [0.44, -0.44]) {
+    for (let i = 0; i < 4; i++) {
+      b.box(0.34, 0.24, 0.06, armor, [-0.05 - i * 0.37, 0.71, z]);
+      b.box(0.012, 0.2, 0.065, armorDark, [0.12 - i * 0.37, 0.71, z]);
+      b.box(0.05, 0.02, 0.07, C.steel, [-0.05 - i * 0.37, 0.76, z]);
+    }
+    b.box(0.1, 0.38, 0.08, armorDark, [-1.32, 0.34, z * 0.85]);
+  }
+  b.box(1.4, 0.06, 0.8, armorDark, [-0.6, 0.62, 0]);
+  hull.accent.box(0.3, 0.12, 0.02, '#ffffff', [0.85, 0.78, 0.463]);
+  hull.accent.box(0.3, 0.12, 0.02, '#ffffff', [0.85, 0.78, -0.463]);
+
+  // --- plataforma giratória e braços da dobradiça
+  const turret = layers();
+  const t = turret.body;
+  t.cyl(0.36, 0.4, 0.12, armorDark, [0, 0.06, 0], undefined, 14);
+  for (const z of [0.34, -0.34]) t.box(0.34, 0.3, 0.07, armorDark, [-0.48, 0.2, z]);
+  t.box(0.2, 0.14, 0.2, armor, [0.2, 0.16, 0.28]);
+
+  // --- casulo: 12 tubos cilíndricos grandes (3 × 4), cintas e tampas traseiras
+  const pod = layers();
+  const pb = pod.body;
+  const L = 1.66;
+  const R = 0.098;
+  const tubes: [number, number, number][] = [];
+  for (let r = 0; r < 3; r++)
+    for (let c = 0; c < 4; c++) {
+      const y = 0.13 + r * 0.205;
+      const z = (c - 1.5) * 0.205;
+      // tubo: corpo, anel da boca, fundo escuro recuado (a ogiva carregada aparece na boca) e tampa traseira
+      pb.cyl(R, R, L, armor, [L / 2 + 0.02, y, z], [0, 0, -Math.PI / 2], 14);
+      pb.add(new THREE.RingGeometry(R * 0.72, R * 1.04, 14), armorDark, { pos: [L + 0.021, y, z], rot: [0, Math.PI / 2, 0] });
+      pb.add(new THREE.CircleGeometry(R * 0.72, 14), '#0c0d0b', { pos: [L + 0.012, y, z], rot: [0, Math.PI / 2, 0] });
+      pb.cyl(R * 1.02, R * 1.02, 0.05, armorDark, [0.03, y, z], [0, 0, -Math.PI / 2], 14);
+      tubes.push([L + 0.02, y, z]);
+    }
+  // cintas que prendem o feixe de tubos e longarina inferior
+  for (const x of [0.25, 0.85, 1.45]) {
+    pb.box(0.06, 0.03, 0.86, armorDark, [x, 0.13 + 2 * 0.205 + R + 0.01, 0]);
+    pb.box(0.06, 0.03, 0.86, armorDark, [x, 0.13 - R - 0.01, 0]);
+    for (const z of [0.43, -0.43]) pb.box(0.06, 0.64, 0.03, armorDark, [x, 0.335, z]);
+  }
+  pb.box(1.5, 0.06, 0.5, armorDark, [0.8, 0.0, 0]);
+  // macacos hidráulicos (vão junto com o casulo)
+  for (const z of [0.3, -0.3]) pb.cyl(0.04, 0.04, 0.5, C.steel, [0.55, -0.12, z], [0, 0, 0.9], 8);
+  pod.accent.box(0.4, 0.1, 0.02, '#ffffff', [0.55, 0.335, 0.446]);
+  pod.accent.box(0.4, 0.1, 0.02, '#ffffff', [0.55, 0.335, -0.446]);
+  return {
+    hull: hull.build(),
+    turret: turret.build(),
+    turretPivot: [-0.45, 0.66, 0],
+    muzzle: [1.1, 1.2, 0],
+    pod: { layers: pod.build(), hinge: [-0.62, 0.18, 0], tubes, stowed: 0.03, raised: 0.72 },
   };
 }
 

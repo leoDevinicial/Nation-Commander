@@ -3,7 +3,7 @@ import { UNITS, type UnitType } from '../../../shared/sim/config.ts';
 import { HealthBar, selectionRing } from './HealthBar.ts';
 import { accentMaterial, bodyMaterial, eraUnitBodyMaterial, glassMaterial } from './materials.ts';
 import type { ModelLayers } from './models/kit.ts';
-import { unitModel } from './models/unitModels.ts';
+import { unitModel, unitModelKey, type UnitModel } from './models/unitModels.ts';
 import type { ModId } from '../../../shared/sim/modernization.ts';
 import { sharedGeometry, sharedMaterial } from './palette.ts';
 import type { TrackMarks } from './TrackMarks.ts';
@@ -83,11 +83,12 @@ interface EquipmentFit {
   turretTop: [number, number, number] | null;
 }
 
-const fits = new Map<UnitType, EquipmentFit>();
-function equipmentFit(type: UnitType): EquipmentFit {
-  let f = fits.get(type);
+const fits = new Map<string, EquipmentFit>();
+function equipmentFit(type: UnitType, era = 1): EquipmentFit {
+  const key = unitModelKey(type, era);
+  let f = fits.get(key);
   if (f) return f;
-  const model = unitModel(type);
+  const model = unitModel(type, era);
   const hull = new THREE.Box3().setFromBufferAttribute(model.hull.body.getAttribute('position') as THREE.BufferAttribute);
   // rodas e esteiras ficam fora da caixa do casco, mas a placa precisa passar por fora delas
   for (const w of model.motion.wheels) for (const at of w.at) hull.expandByPoint(new THREE.Vector3(at[0], at[1], at[2] + Math.sign(at[2]) * 0.03));
@@ -110,7 +111,7 @@ function equipmentFit(type: UnitType): EquipmentFit {
     turretTop = [0, top, 0];
   }
   f = { hull, deck, turretTop };
-  fits.set(type, f);
+  fits.set(key, f);
   return f;
 }
 
@@ -240,6 +241,9 @@ export class UnitVisual {
 
   /** Era da pintura (a do dono quando a unidade saiu da fábrica ou foi modernizada). */
   private era = 1;
+  /** Modelo (a era pode trocar o veículo inteiro, ver `unitModelKey`). */
+  private readonly model: UnitModel;
+  readonly modelKey: string;
 
   /** Troca a pintura do corpo para a era dada (modernização numa era nova). */
   setEra(era: number): void {
@@ -258,7 +262,9 @@ export class UnitVisual {
     era = 1,
   ) {
     this.era = era;
-    const model = unitModel(type);
+    const model = unitModel(type, era);
+    this.model = model;
+    this.modelKey = unitModelKey(type, era);
     this.group.add(this.body);
     for (const m of layerMeshes(model.hull, owner, era)) this.body.add(m);
     if (model.turret) {
@@ -352,7 +358,7 @@ export class UnitVisual {
    * d/r e as pernas alternam a passada (soldados da mesma esquadra levemente fora de sincronia).
    */
   private poseMotion(gait: number): void {
-    const pitch = unitModel(this.type).motion.treads?.pitch ?? 1;
+    const pitch = this.model.motion.treads?.pitch ?? 1;
     const shift = ((this.travel % pitch) + pitch) % pitch;
     if (this.treadTop) this.treadTop.position.x = shift;
     if (this.treadBottom) this.treadBottom.position.x = -shift;
@@ -385,7 +391,7 @@ export class UnitVisual {
     this.equipmentKey = key;
     this.equipment.clear();
     this.turretEquipment.clear();
-    for (const part of equipmentParts(this.type, mods, equipmentFit(this.type))) (part.userData.onTurret && this.turret ? this.turretEquipment : this.equipment).add(part);
+    for (const part of equipmentParts(this.type, mods, equipmentFit(this.type, this.era))) (part.userData.onTurret && this.turret ? this.turretEquipment : this.equipment).add(part);
   }
 
   onFire(): void {
@@ -395,7 +401,7 @@ export class UnitVisual {
   /** Cada foguete que sai sacode o casulo um pouco (sem mexer no chassi). */
   rocketKick(index = -1): void {
     this.podKick = 1;
-    const pod = unitModel(this.type).pod;
+    const pod = this.model.pod;
     if (!this.noses || !pod) return;
     const i = index >= 0 ? index % pod.tubes.length : this.loaded.indexOf(true);
     if (i < 0 || !this.loaded[i]) return;
@@ -409,7 +415,7 @@ export class UnitVisual {
   /** Recarga visual do casulo: um tubo a cada 0,3 s, depois da pausa da salva. */
   private reloadPod(dt: number): void {
     this.reloadClock += dt;
-    const pod = unitModel(this.type).pod;
+    const pod = this.model.pod;
     if (!this.noses || !pod || this.reloadClock < this.reloadAt) return;
     const i = this.loaded.indexOf(false);
     if (i < 0) return;
@@ -445,7 +451,7 @@ export class UnitVisual {
    * Sem casulo, usa a boca do cano.
    */
   tubeWorld(index: number, outPos: THREE.Vector3, outDir: THREE.Vector3): void {
-    const pod = unitModel(this.type).pod;
+    const pod = this.model.pod;
     if (!this.pod || !pod) {
       this.muzzleWorld(outPos);
       outDir.set(Math.cos(this.facing), 0.6, Math.sin(this.facing)).normalize();
@@ -459,7 +465,7 @@ export class UnitVisual {
 
   /** Casulo já erguido o bastante para a salva sair na direção certa. */
   get podReady(): boolean {
-    const pod = unitModel(this.type).pod;
+    const pod = this.model.pod;
     return !pod || this.podElev > pod.raised - 0.08;
   }
 
@@ -537,7 +543,7 @@ export class UnitVisual {
       diff = Math.atan2(Math.sin(diff), Math.cos(diff));
       this.turretAngle += diff * Math.min(1, dt * 5);
       this.turret.rotation.y = this.turretAngle;
-      this.turret.position.x = unitModel(this.type).turretPivot[0] - this.recoil * 0.08;
+      this.turret.position.x = this.model.turretPivot[0] - this.recoil * 0.08;
     }
     this.recoil = Math.max(0, this.recoil - dt * 4);
     // recuo do cano: volta rápida no disparo e retorno amortecido (sistema hidráulico)
@@ -546,7 +552,7 @@ export class UnitVisual {
       g.recoil = Math.max(0, g.recoil - dt * (g.def.recoil > 0.3 ? 1.6 : 6));
     }
     this.reloadPod(dt);
-    const podDef = unitModel(this.type).pod;
+    const podDef = this.model.pod;
     if (this.pod && podDef) {
       // ergue para atirar e só baixa depois de parado o disparo; movimento suave (hidráulico)
       const want = deployed && !moving ? podDef.raised : podDef.stowed;
@@ -567,7 +573,7 @@ export class UnitVisual {
       if (dx * dx + dy * dy < 9) step = dx * Math.cos(this.facing) + dy * Math.sin(this.facing);
     }
     this.lastPos.copy(this.renderPos);
-    const treads = unitModel(this.type).motion.treads;
+    const treads = this.model.motion.treads;
     if (treads && this.treadMarks && step !== 0) {
       // um par de marcas a cada trecho do comprimento de uma "pegada" da esteira
       this.markAcc += Math.abs(step);
@@ -599,7 +605,7 @@ export class UnitVisual {
       const smoothSpeed = this.lastSpeed + (speed - this.lastSpeed) * (1 - Math.exp(-dt * 4));
       const accel = dt > 0 ? (smoothSpeed - this.lastSpeed) / dt : 0;
       this.lastSpeed = smoothSpeed;
-      const tracked = !!unitModel(this.type).motion.treads;
+      const tracked = !!this.model.motion.treads;
       const wantRoll = THREE.MathUtils.clamp(-turn * smoothSpeed * (tracked ? 0.006 : 0.012), -0.07, 0.07);
       const wantPitch = THREE.MathUtils.clamp(accel * (tracked ? 0.006 : 0.009), -0.06, 0.06);
       const k = 1 - Math.exp(-dt * 7);

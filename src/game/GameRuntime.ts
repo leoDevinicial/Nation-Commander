@@ -19,7 +19,7 @@ import { Projectiles } from './render/Projectiles.ts';
 import { BIOME_TINT, buildTerrain, type TerrainHandle } from './render/TerrainFactory.ts';
 import { cloudUniforms, disposeMaterials, fogUniforms, setCloudShadows, weatherUniforms, windUniforms } from './render/materials.ts';
 import { disposeBuildingModels } from './render/models/buildingModels.ts';
-import { disposeCitizenModel, disposeUnitModels, unitModel } from './render/models/unitModels.ts';
+import { disposeCitizenModel, disposeUnitModels, unitModel, unitModelKey } from './render/models/unitModels.ts';
 import { setModelDetail } from './render/models/kit.ts';
 import { chooseClaims, claimedBy, gatherRate, sitesByDeposit } from '../../shared/sim/gathering.ts';
 import { findDeposits, type DepositIndex } from '../../shared/sim/deposits.ts';
@@ -549,6 +549,17 @@ export class GameRuntime {
         t.curr.set(u.x, u.y);
         t.currFacing = u.facing;
         t.snap = u;
+        // modernizada numa era que troca o veículo (ex.: Lança-Foguetes do Futuro Próximo): refaz o modelo
+        if (unitModelKey(u.type, u.era ?? 1) !== t.visual.modelKey) {
+          const old = t.visual;
+          const visual = new UnitVisual(u.id, u.type, u.owner, u.owner === this.mySlot, u.era ?? 1);
+          visual.treadMarks = this.trackMarks;
+          visual.renderPos.copy(old.renderPos);
+          visual.facing = old.facing;
+          old.dispose();
+          this.scene.add(visual.group);
+          t.visual = visual;
+        }
       }
       t.visual.setEquipment(u.mods ?? [], !!u.refit);
     }
