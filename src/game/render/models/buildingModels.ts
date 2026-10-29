@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { buildFinancialCenter, buildHydroDam, buildNetwork5g, buildNuclearPlant, buildSpaceCenter } from './projects.ts';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { BuildingType } from '../../../../shared/sim/config.ts';
 import type { SpecId } from '../../../../shared/sim/upgrades.ts';
@@ -184,6 +185,11 @@ const BUILDERS: Record<BuildingType, () => Omit<BuildingModel, 'detail'>> = {
   missile_silo: buildMissileSiloModel,
   research_center: buildResearchCenterModel,
   city_hall: buildCityHallModel,
+  nuclear_plant: buildNuclearPlant,
+  network_5g: buildNetwork5g,
+  hydro_dam: buildHydroDam,
+  financial_center: buildFinancialCenter,
+  space_center: buildSpaceCenter,
 };
 
 /** Fileira de janelas numa fachada (normal ±x ou ±z). */

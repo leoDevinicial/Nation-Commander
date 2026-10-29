@@ -38,6 +38,7 @@ import { CargoLayer, disposeCargoModels } from './render/CargoLayer.ts';
 import { AirLayer, disposeAirModels } from './render/AirLayer.ts';
 import { AIRCRAFT, NUCLEAR, missileSpec } from '../../shared/sim/air.ts';
 import { ERAS, type Era } from '../../shared/sim/eras.ts';
+import { SPACE_PAD } from './render/models/projects.ts';
 import { PRODUCTION_SOUND, audio } from './audio/AudioService.ts';
 import { useSettingsStore } from '../state/useSettingsStore.ts';
 import { AdaptiveExposure, EnvironmentProbe, ShadowFollow } from './render/Lighting.ts';
@@ -587,6 +588,7 @@ export class GameRuntime {
       t.visual.setVariant(b.level, b.spec);
       // e a era da nação dona (pública: aparece nas construções)
       t.visual.setEra(s.players.find((p) => p.slot === b.owner)?.era ?? 1);
+      if (b.type === 'space_center') t.visual.setLaunch(b.launch, !!s.players.find((p) => p.slot === b.owner)?.satellite);
     }
     const me = s.players.find((p) => p.slot === this.mySlot);
     this.citizens.sync(
@@ -720,6 +722,13 @@ export class GameRuntime {
       const at = e.air ? this.airLayer.planeDown(e.pos, e.owner) : new THREE.Vector3(e.pos.x, 6.5, e.pos.y);
       this.effects.explosion(at, false);
       this.effects.flash(at, 1.1, '#ffd38a', 0.4);
+    } else if (e.type === 'space' && e.state === 'ascent') {
+      // ignição do lançador: clarão, nuvem de fumaça rolando da plataforma e tremor longo
+      const pad = new THREE.Vector3(e.pos.x + SPACE_PAD[0], 0.4, e.pos.y + SPACE_PAD[2]);
+      this.effects.heavyIgnition(pad);
+      this.effects.flash(new THREE.Vector3(pad.x, 2, pad.z), 6, '#ffd9a0', 0.8);
+      this.airLayer.shockwave({ x: pad.x, y: pad.z }, 8);
+      this.shakeNear({ x: pad.x, y: pad.z }, 0.9);
     } else if (e.type === 'missile') {
       const heavy = (e.gen ?? 1) >= 2 || !!e.nuclear;
       const radius = e.nuclear ? NUCLEAR.radius : missileSpec(e.gen ?? 1).radius;
@@ -1663,12 +1672,22 @@ export class GameRuntime {
     }
     this.lastSelectionCount = selectedUnits.length;
     const production = [];
-    for (const t of this.buildings.values())
-      if (t.snap.owner === this.mySlot && t.snap.queue.length > 0 && !t.snap.remembered) production.push({ id: t.snap.id, type: t.snap.type, queue: t.snap.queue });
+    const ownTypes = new Set<BuildingType>();
+    let spaceLaunch: { id: number; phase: 'countdown' | 'ascent'; progress: number } | null = null;
+    for (const t of this.buildings.values()) {
+      if (t.snap.owner !== this.mySlot || t.snap.remembered) continue;
+      if (t.snap.queue.length > 0) production.push({ id: t.snap.id, type: t.snap.type, queue: t.snap.queue });
+      ownTypes.add(t.snap.type);
+      if (t.snap.launch) spaceLaunch = { id: t.snap.id, ...t.snap.launch };
+    }
+    const prevTypes = useHudStore.getState().ownBuildingTypes;
     useHudStore.getState().set({
       tick: s.tick,
       players: s.players,
       production,
+      // o conjunto só troca quando muda (o menu de construção não renderiza à toa)
+      ownBuildingTypes: prevTypes.size === ownTypes.size && [...ownTypes].every((t) => prevTypes.has(t)) ? prevTypes : ownTypes,
+      spaceLaunch,
       paused: this.paused,
       pausedBy: this.pausedBy,
       speed: this.speed,
@@ -2249,6 +2268,13 @@ export class GameRuntime {
         break;
       case 'unit_promoted':
         if (mine(e.owner)) audio.ui('success');
+        break;
+      case 'space':
+        if (e.state === 'ascent') {
+          audio.playAt('missile_launch', e.pos.x, e.pos.y);
+          audio.playAt('explosion_big', e.pos.x, e.pos.y);
+        } else if (e.state === 'orbit') audio.ui(mine(e.owner) ? 'success' : 'alert');
+        else if (e.state === 'countdown' && !mine(e.owner)) audio.ui('alert');
         break;
       case 'era':
         if (mine(e.owner) && e.state === 'completed') audio.ui('success');

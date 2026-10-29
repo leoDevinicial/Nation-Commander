@@ -292,6 +292,7 @@ export class Room {
       this.balanceMode,
     );
     this.nationalAIs = this.players.filter((p) => p.isAI).map((p) => new NationalAI(p.slot, DIFFICULTY[this.difficulty].missiles));
+    if (this.mode === 'sandbox') this.national.policiesActive = false;
     if (this.mode === 'sandbox') this.sim.sandbox = { slots: this.players.filter((p) => !p.isAI).map((p) => p.slot), instant: true, aiActive: false, reveal: false };
     this.wire();
     const sim = this.sim;
@@ -437,6 +438,7 @@ export class Room {
       save.balanceMode,
     );
     room.national.load(save.national);
+    if (save.mode === 'sandbox') room.national.policiesActive = false;
     room.wire();
     room.ops = new OperationsSystem(room.sim, room.national, save.seed);
     if (save.ops) room.ops.load(save.ops);

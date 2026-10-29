@@ -141,6 +141,8 @@ export interface Building {
   research?: MilitaryResearchWork | null;
   /** Nome da cidade (prefeituras): uma cidade real do país de quem a fundou. */
   city?: string;
+  /** Programa Espacial: lançamento em andamento (contagem e subida). */
+  launch?: { phase: 'countdown' | 'ascent'; ticks: number } | null;
 }
 
 export interface MilitaryResearchWork {
@@ -211,6 +213,8 @@ export interface PlayerState {
    * (artilharia de longe): de onde veio e quando. A IA usa para a contra-bateria.
    */
   unseenFire?: { tick: number; x: number; y: number } | null;
+  /** Satélite em órbita (Programa Espacial): o mapa inteiro fica visível, menos as minas. */
+  satellite?: { tick: number } | null;
   /** Era atual (1 = Guerra Fria; ausente = 1) e avanço em andamento no Centro de Comando. */
   era?: Era;
   eraAdvance?: EraAdvance | null;
@@ -274,6 +278,8 @@ export type SimEvent =
   /** Um disparo num combate aéreo entre esquadrilhas (`kill`: derrubou uma aeronave). */
   | { type: 'dogfight'; tick: number; owner: Slot; victim: Slot; missionId: number; targetMissionId: number; from: Vec2; to: Vec2; kill: boolean }
   /** Prefeitura destruída por um inimigo: ele toma a cidade e os edifícios vinculados a ela. */
+  /** Programa Espacial: contagem regressiva, subida do foguete e satélite em órbita. */
+  | { type: 'space'; tick: number; owner: Slot; id: EntityId; state: 'countdown' | 'ascent' | 'orbit'; pos: Vec2 }
   /** Avanço de era concluído (ou iniciado / cancelado). */
   | { type: 'era'; tick: number; owner: Slot; era: Era; state: 'started' | 'completed' | 'cancelled'; pos: Vec2 }
   /** Unidade subiu de patente (veterania). */

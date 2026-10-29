@@ -14,6 +14,7 @@ import {
   RESOURCE_LABELS,
   UNITS,
   PRODUCTION_QUEUE_LIMIT,
+  SPACE,
   canAfford,
   emptyStockpile,
   type BuildingType,
@@ -31,7 +32,7 @@ import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { factionColor } from '../../game/render/palette.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
 import { CardButton } from './CardButton.tsx';
-import { AirbaseButtons, AirbaseInfo, SiloButtons, SiloInfo, airTargetText } from './AirPanels.tsx';
+import { AirbaseButtons, AirbaseInfo, HoldToConfirm, SiloButtons, SiloInfo, airTargetText } from './AirPanels.tsx';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { buildingEffects, formatUsd as usdShort, specDef, upgradeTrack } from '../../../shared/sim/upgrades.ts';
@@ -62,6 +63,12 @@ const BUILD_OPTIONS: BuildingType[] = [
   'airbase',
   'aa_battery',
   'missile_silo',
+  // Grandes Projetos Nacionais (Futuro Próximo)
+  'nuclear_plant',
+  'network_5g',
+  'hydro_dam',
+  'financial_center',
+  'space_center',
 ];
 const EMPTY: Stockpile = emptyStockpile();
 
@@ -115,6 +122,10 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
   const [help, setHelp] = useState(false);
   const techs = effectiveTechs(useNationalStore((s) => s.nations.find((n) => n.slot === mySlot)?.research.done ?? EMPTY_TECHS));
   const myEra = effectiveEra(players.find((p) => p.slot === mySlot));
+  const myNation = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot));
+  const worksCap = myNation?.works.capUsd ?? 0;
+  const fund = myNation ? myNation.works.fundUsd : null;
+  const ownTypes = useHudStore((s) => s.ownBuildingTypes);
 
   return (
     <div
@@ -241,7 +252,13 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             const techMissing = def.requiresTech && !(techs as readonly string[]).includes(def.requiresTech) ? def.requiresTech : null;
             const needEra = buildingEra(type);
             const eraMissing = needEra > myEra ? needEra : null;
-            const ok = canAfford(resources, def.cost) && !techMissing && !eraMissing;
+            const sandbox = isSandboxMatch();
+            const hqMissing = !sandbox && def.minHqLevel && (building?.level ?? 0) < def.minHqLevel ? def.minHqLevel : null;
+            const hasOne = !!def.project && ownTypes.has(type);
+            const projectUsd = def.project ? Math.round(worksCap * def.project.usdShare) : 0;
+            const fundShort = !sandbox && def.project && fund !== null && fund < projectUsd;
+            const other = hqMissing ? `QG nível ${hqMissing}` : hasOne ? 'já construído' : fundShort ? 'verba insuficiente' : null;
+            const ok = canAfford(resources, def.cost) && !techMissing && !eraMissing && !other;
             return (
               <CardButton
                 key={type}
@@ -249,17 +266,17 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
                 hotkey={def.hotkey}
                 label={def.label}
                 blocked={!ok}
-                short={eraMissing ? `era ${eraMissing}` : techMissing ? 'exige pesquisa' : null}
+                short={eraMissing ? `era ${eraMissing}` : techMissing ? 'exige pesquisa' : other}
                 onClick={() =>
                   ok
                     ? runtime.startPlacement(type)
                     : useHudStore.getState().pushEvent({
                         tick: useHudStore.getState().tick,
-                        text: `${def.label}: ${eraMissing ? `requer a era ${eraLabel(eraMissing)} (avance de era no Centro de Comando)` : techMissing ? `exige a pesquisa ${TECHNOLOGIES[techMissing as keyof typeof TECHNOLOGIES]?.label ?? techMissing}` : 'recursos insuficientes'}`,
+                        text: `${def.label}: ${eraMissing ? `requer a era ${eraLabel(eraMissing)} (avance de era no Centro de Comando)` : techMissing ? `exige a pesquisa ${TECHNOLOGIES[techMissing as keyof typeof TECHNOLOGIES]?.label ?? techMissing}` : hqMissing ? `requer o Centro de Comando no nível ${hqMissing}` : hasOne ? 'Grande Projeto: só um por nação' : fundShort ? `verba de obras insuficiente (${usdShort(projectUsd)})` : 'recursos insuficientes'}`,
                         tone: 'warn',
                       })
                 }
-                title={`${def.label} — ${def.description}\nTempo: ${timeText(def.buildSeconds)} · Vida: ${def.maxHp}${def.workers ? ` · Trabalhadores: ${def.workers}` : ''}${def.territoryRadius ? ` · Fronteira: ${def.territoryRadius} células` : ''}`}
+                title={`${def.label} — ${def.description}\nTempo: ${timeText(def.buildSeconds)} · Vida: ${def.maxHp}${def.workers ? ` · Trabalhadores: ${def.workers}` : ''}${def.territoryRadius ? ` · Fronteira: ${def.territoryRadius} células` : ''}${def.project ? `\nGrande Projeto: ${def.project.effect} · ${usdShort(projectUsd)} da verba de obras` : ''}`}
               >
                 <CostLabel cost={def.cost} have={resources} compact />
               </CardButton>
@@ -270,6 +287,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
         {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'research_center' && runtime.battleOp === null && <ResearchButtons runtime={runtime} b={building} />}
         {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'airbase' && <AirbaseButtons runtime={runtime} b={building} />}
         {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'missile_silo' && <SiloButtons runtime={runtime} b={building} />}
+        {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'space_center' && <SpaceButtons runtime={runtime} b={building} />}
       </div>
     </div>
   );
@@ -331,6 +349,25 @@ function EraButton({ runtime }: { runtime: GameRuntime }) {
       <CostLabel cost={def.cost} have={me.resources ?? emptyStockpile()} compact />
     </CardButton>
   );
+}
+
+/** Programa Espacial: autorizar o lançamento (manter pressionado) e acompanhar a contagem e a subida. */
+function SpaceButtons({ runtime, b }: { runtime: GameRuntime; b: SelectedBuilding }) {
+  const sat = useHudStore((s) => !!s.players.find((p) => p.slot === s.mySlot)?.satellite);
+  const launch = useHudStore((s) => s.spaceLaunch);
+  if (sat) return <CardButton icon="🛰" label="Satélite em órbita" disabled onClick={() => {}} title="O satélite já está em órbita: o mapa inteiro fica visível em tempo real." />;
+  if (launch && launch.id === b.id)
+    return (
+      <CardButton
+        icon="🚀"
+        label={launch.phase === 'countdown' ? `Contagem ${Math.max(0, Math.ceil(SPACE.countdownSeconds * (1 - launch.progress)))}` : 'Subindo'}
+        disabled
+        onClick={() => {}}
+        title="Lançamento em andamento"
+        badge={`${Math.round(launch.progress * 100)}%`}
+      />
+    );
+  return <HoldToConfirm label="Autorizar lançamento" onConfirm={() => runtime.send({ type: 'space_launch', buildingId: b.id })} />;
 }
 
 /** Sem guerra formal não há ataque: mostra o estado e o atalho para o globo. */

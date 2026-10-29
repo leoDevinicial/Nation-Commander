@@ -445,3 +445,5 @@ como na escolha entre os modos paridade e escala real.
 | Lote 2, item 12 — bônus único por país (21 países) | Feito | `shared/sim/countryBonus.ts` |
 | Lote 2, item 14 — ogiva nuclear e choque econômico global | Feito | `NUCLEAR` em `air.ts`, `NationalSimulation.nuclearShock` |
 | Lote 1, §3.1 / lote 2, item 7 — eras (avanço, liberação de tropas, construções e níveis; aparência por era) | Feito | `shared/sim/eras.ts`, `docs/ERAS.md` |
+| Lote 2, item 13 — Grandes Projetos Nacionais (usina nuclear, rede 5G, hidrelétrica, centro financeiro) | Feito | `docs/GRANDES_PROJETOS_E_ESPACO.md` |
+| Lote 2, item 13.1 — Programa Espacial (foguete, satélite sem névoa, satélite no globo) | Feito | `docs/GRANDES_PROJETOS_E_ESPACO.md` |

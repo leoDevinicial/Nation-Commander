@@ -1,4 +1,5 @@
 import { COUNTRY_GEO, geoOf } from '../../shared/data/geography.ts';
+import type { GlobeSatellite } from './GlobeView.ts';
 import { countryName } from '../../shared/data/countries.ts';
 import type { DiplomacyView } from '../../shared/protocol.ts';
 import type { NationId } from '../../shared/strategic/Diplomacy.ts';
@@ -77,6 +78,18 @@ export function politicalLabels(view: DiplomacyView, me: NationId, myCountry: st
     if (!g) return [];
     const st = politicalState(view, me, n.id);
     return [{ key: n.countryId, lon: g.capital.lon, lat: g.capital.lat, text: countryName(n.countryId), sub: g.capital.name, color: st === 'unknown' ? '#9aa6b2' : POLITICAL_COLORS[st] }];
+  });
+}
+
+/** Satélites em órbita (públicos), na cor do estado político do país para o observador. */
+export function politicalSatellites(view: DiplomacyView, me: NationId, myCountry: string): GlobeSatellite[] {
+  const nations = scenarioNations(view, me, myCountry);
+  return (view.satellites ?? []).flatMap((id) => {
+    const n = nations.find((x) => x.id === id);
+    const g = n ? geoOf(n.countryId) : undefined;
+    if (!n || !g) return [];
+    const st = politicalState(view, me, id);
+    return [{ key: n.countryId, lon: g.capital.lon, lat: g.capital.lat, code: n.countryId, color: st === 'unknown' ? '#9aa6b2' : POLITICAL_COLORS[st] }];
   });
 }
 

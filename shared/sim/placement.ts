@@ -65,7 +65,7 @@ export function placementError(w: PlacementWorld, slot: Slot, type: BuildingType
     const r = UNITS[u.type].radius;
     if (u.pos.x + r > minX && u.pos.x - r < maxX && u.pos.y + r > minY && u.pos.y - r < maxY) return 'Há unidades no local';
   }
-  if (type === 'port') {
+  if (def.nearWater) {
     // o cais precisa encostar na água: ao menos duas células de água em volta do terreno
     let water = 0;
     for (let y = cell.cy - 1; y <= cell.cy + def.size; y++)
@@ -74,7 +74,7 @@ export function placementError(w: PlacementWorld, slot: Slot, type: BuildingType
         if (inside || x < 0 || y < 0 || x >= w.width || y >= w.height) continue;
         if (w.terrain[y * w.width + x] === WATER) water++;
       }
-    if (water < 2) return 'O porto precisa ficar na margem da água';
+    if (water < 2) return `${def.label}: precisa ficar na margem da água`;
   }
   if (def.gather) {
     const choice = chooseClaims(w, w.deposits, type, cell, claimedBy(buildings, type), sitesByDeposit(buildings), (i) => w.territory[i] === slot);

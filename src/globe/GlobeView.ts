@@ -124,6 +124,10 @@ export class GlobeView {
   private sphere: THREE.Mesh | null = null;
   private tween: { from: THREE.Vector2; to: THREE.Vector2; t: number; dur: number; zoom?: [number, number] } | null = null;
   private readonly cleanup: (() => void)[] = [];
+  /** Satélites em órbita (Programa Espacial): um por país, na latitude da capital. */
+  private readonly satellites = new THREE.Group();
+  private satDefs: { def: GlobeSatellite; obj: THREE.Group }[] = [];
+  private satTime = 0;
 
   constructor(
     private readonly container: HTMLElement,
@@ -144,6 +148,7 @@ export class GlobeView {
     this.tilt.rotation.x = opts.interactive ? 0.3 : 0.18;
     this.tilt.add(this.earth);
     this.earth.add(this.arcs);
+    this.earth.add(this.satellites);
     this.layers.set('arcs', this.arcs);
     this.scene.add(this.tilt);
     const focus = COUNTRY_GEO.find((g) => g.id === opts.highlight)?.capital ?? { lon: -40, lat: 0 };
@@ -383,6 +388,60 @@ export class GlobeView {
     }
   }
 
+  /**
+   * Satélites dos países que lançaram o Programa Espacial: orbitam o globo na latitude da capital,
+   * com painéis solares e a bandeira (faixas na cor e sigla do país). Visíveis para todos.
+   */
+  setSatellites(defs: GlobeSatellite[]): void {
+    const key = (d: GlobeSatellite) => `${d.key}:${d.color}`;
+    if (defs.map(key).join('|') === this.satDefs.map((s) => key(s.def)).join('|')) return;
+    for (const s of this.satDefs) {
+      s.obj.traverse((o) => {
+        const m = o as THREE.Mesh;
+        m.geometry?.dispose();
+        const mat = m.material as THREE.Material | undefined;
+        if (mat) {
+          (mat as THREE.SpriteMaterial).map?.dispose();
+          mat.dispose();
+        }
+      });
+      this.satellites.remove(s.obj);
+    }
+    this.satDefs = defs.map((def) => {
+      const obj = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.045), new THREE.MeshStandardMaterial({ color: '#d9dde0', metalness: 0.6, roughness: 0.35 }));
+      const panelMat = new THREE.MeshStandardMaterial({ color: '#203a6a', emissive: '#0d1c38', metalness: 0.5, roughness: 0.3, side: THREE.DoubleSide });
+      for (const s of [-1, 1]) {
+        const p = new THREE.Mesh(new THREE.PlaneGeometry(0.07, 0.025), panelMat);
+        p.position.x = s * 0.055;
+        obj.add(p);
+      }
+      obj.add(body);
+      const flag = new THREE.Sprite(new THREE.SpriteMaterial({ map: flagTexture(def), depthWrite: false, transparent: true }));
+      flag.scale.set(0.16, 0.08, 1);
+      flag.position.y = 0.075;
+      obj.add(flag);
+      // anel tênue da órbita
+      const ring: THREE.Vector3[] = [];
+      for (let i = 0; i <= 96; i++) ring.push(lonLatToVector((i / 96) * 360 - 180, def.lat, RADIUS * 1.28));
+      const orbit = new THREE.Line(new THREE.BufferGeometry().setFromPoints(ring), new THREE.LineBasicMaterial({ color: def.color, transparent: true, opacity: 0.35 }));
+      this.satellites.add(obj, orbit);
+      return { def, obj };
+    });
+  }
+
+  private updateSatellites(step: number): void {
+    if (!this.satDefs.length) return;
+    this.satTime += step;
+    const v = new THREE.Vector3();
+    for (const s of this.satDefs) {
+      const lon = s.def.lon + this.satTime * 18;
+      lonLatToVector(lon, s.def.lat, RADIUS * 1.28, v);
+      s.obj.position.copy(v);
+      s.obj.lookAt(0, 0, 0);
+    }
+  }
+
   private updateLabels(): void {
     if (!this.labels.length) return;
     const show = this.layers.get('labels')?.visible !== false && this.labelsVisible;
@@ -499,6 +558,7 @@ export class GlobeView {
     }
     // fluxo das linhas: contínuo; com "Reduzir animações" corre devagar
     this.arcTime.value = (this.arcTime.value + step * (this.opts.reducedMotion ? 0.3 : 1)) % 1000;
+    this.updateSatellites(step * (this.opts.reducedMotion ? 0.3 : 1));
     this.renderer.render(this.scene, this.camera);
     this.updateLabels();
   };
@@ -962,3 +1022,35 @@ void main() {
   gl_FragColor = vec4(mix(uColor, vec3(1.0), pulse * pulse * 0.6), alpha);
 }
 `;
+
+export interface GlobeSatellite {
+  key: string;
+  lon: number;
+  lat: number;
+  /** Sigla do país e cor da faixa da bandeira. */
+  code: string;
+  color: string;
+}
+
+/** Bandeirinha do satélite: faixas na cor do país e a sigla. */
+function flagTexture(d: GlobeSatellite): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 64;
+  const g = c.getContext('2d')!;
+  g.fillStyle = d.color;
+  g.fillRect(0, 0, 128, 64);
+  g.fillStyle = 'rgba(255,255,255,0.85)';
+  g.fillRect(0, 22, 128, 20);
+  g.fillStyle = '#10161c';
+  g.font = 'bold 22px sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(d.code, 64, 33);
+  g.strokeStyle = '#10161c';
+  g.lineWidth = 4;
+  g.strokeRect(2, 2, 124, 60);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}

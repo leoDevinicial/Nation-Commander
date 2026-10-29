@@ -7,6 +7,8 @@ import { animRestPivot, buildingModel, type BuildingModel, type ModelAnim } from
 import { PUMP, pumpPose } from './models/pumpjack.ts';
 import { cropCell } from './models/crops.ts';
 import { buildEraProps, type EraProps } from './models/eraProps.ts';
+import { SPACE_PAD } from './models/projects.ts';
+import { SPACE } from '../../../shared/sim/config.ts';
 import type { SpecId } from '../../../shared/sim/upgrades.ts';
 import { C, PartBuilder, type ModelLayers } from './models/kit.ts';
 import { box, cyl, factionColor, mat, mesh, sharedMaterial } from './palette.ts';
@@ -263,6 +265,54 @@ export class BuildingVisual {
     this.group.userData.entityId = id;
   }
 
+  /** Programa Espacial: foguete na plataforma, chama e coluna de fumaça na subida. */
+  private rocket: { group: THREE.Group; flame: THREE.Mesh; plume: THREE.Mesh; base: THREE.Vector3 } | null = null;
+  private launchPhase: 'idle' | 'countdown' | 'ascent' | 'gone' = 'idle';
+  private launchT = 0;
+
+  /**
+   * Estado do lançamento vindo da simulação: na contagem o foguete solta vapor; na subida acelera
+   * até sumir no alto da tela, com chama e coluna de fumaça; depois do satélite em órbita a
+   * plataforma fica vazia.
+   */
+  setLaunch(launch: { phase: 'countdown' | 'ascent'; progress: number } | undefined, satellite: boolean): void {
+    if (this.type !== 'space_center') return;
+    if (!this.rocket) this.rocket = buildRocket(this.owner);
+    // a coluna de fumaça fica fora do foguete (não sobe com ele)
+    if (!this.rocket.group.parent) this.model.add(this.rocket.group, this.rocket.plume);
+    const phase = launch ? launch.phase : satellite ? 'gone' : 'idle';
+    if (phase === 'ascent' && this.launchPhase !== 'ascent') this.launchT = launch!.progress * SPACE.ascentSeconds;
+    this.launchPhase = phase;
+  }
+
+  private animateRocket(dt: number): void {
+    const r = this.rocket;
+    if (!r) return;
+    r.group.visible = this.launchPhase !== 'gone';
+    if (this.launchPhase === 'ascent') {
+      this.launchT += dt;
+      const t = this.launchT;
+      // aceleração constante: começa devagar e some no alto em ~9 s
+      const y = 0.6 * t * t;
+      r.group.position.set(r.base.x, r.base.y + y, r.base.z);
+      r.flame.visible = true;
+      r.flame.scale.set(1, 1 + Math.random() * 0.35 + Math.min(1.5, t * 0.2), 1);
+      // coluna de fumaça da plataforma até o foguete, que vai se desfazendo
+      r.plume.visible = true;
+      r.plume.scale.set(1 + t * 0.12, Math.max(0.01, y), 1 + t * 0.12);
+      r.plume.position.set(r.base.x, r.base.y + y / 2, r.base.z);
+      (r.plume.material as THREE.MeshBasicMaterial).opacity = Math.max(0.12, 0.55 - t * 0.03);
+    } else {
+      r.group.position.copy(r.base);
+      r.flame.visible = this.launchPhase === 'countdown' && Math.random() < 0.3;
+      r.flame.scale.set(0.6, 0.4, 0.6);
+      r.plume.visible = this.launchPhase === 'countdown';
+      r.plume.scale.set(1.6, 0.6 + Math.sin(this.t * 3) * 0.1, 1.6);
+      r.plume.position.set(r.base.x, r.base.y + 0.3, r.base.z);
+      (r.plume.material as THREE.MeshBasicMaterial).opacity = 0.35;
+    }
+  }
+
   /** Troca a aparência quando a nação dona muda de era (com um brilho curto de transição). */
   setEra(era: number): void {
     if (era === this.era) return;
@@ -414,6 +464,10 @@ export class BuildingVisual {
       for (const h of this.hatch) h.group.rotation.z = -h.side * 1.52 * e;
     }
     if (this.cityTag) this.cityTag.position.y = this.height + 1.1;
+    if (this.rocket) {
+      this.rocket.group.visible = done && this.launchPhase !== 'gone';
+      if (done) this.animateRocket(dt);
+    }
     if (this.eraProps && done && !this.remembered) {
       if (this.eraProps.radar) this.eraProps.radar.rotation.y += dt * 1.1;
       const d = this.eraProps.drone;
@@ -659,4 +713,41 @@ export class PlacementGhost {
     for (const m of this.mats) m.dispose();
     this.group.removeFromParent();
   }
+}
+
+/** Foguete lançador: corpo branco, propulsores laterais, aletas, faixa na cor da facção, chama e fumaça. */
+function buildRocket(owner: number): { group: THREE.Group; flame: THREE.Mesh; plume: THREE.Mesh; base: THREE.Vector3 } {
+  const b = new PartBuilder();
+  const a = new PartBuilder();
+  b.cyl(0.32, 0.32, 3.6, '#eceeed', [0, 1.8, 0], undefined, 14);
+  b.cyl(0.02, 0.32, 0.9, '#eceeed', [0, 4.05, 0], undefined, 14);
+  for (const [x, z] of [
+    [0.45, 0],
+    [-0.45, 0],
+    [0, 0.45],
+    [0, -0.45],
+  ] as const) {
+    b.cyl(0.14, 0.14, 2.0, '#e1e3e1', [x, 1.0, z], undefined, 10);
+    b.cyl(0.01, 0.14, 0.35, '#e1e3e1', [x, 2.17, z], undefined, 10);
+    b.box(0.04, 0.5, 0.3, '#5d6166', [x * 1.25, 0.3, z * 1.25], [0, Math.atan2(x, z), 0]);
+  }
+  b.cyl(0.26, 0.34, 0.25, '#3a3d40', [0, -0.1, 0], undefined, 12);
+  a.box(0.66, 0.35, 0.66, '#ffffff', [0, 3.0, 0]);
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(b.build(), bodyMaterial());
+  body.castShadow = true;
+  const band = new THREE.Mesh(a.build(), accentMaterial(owner));
+  group.add(body, band);
+  const flame = new THREE.Mesh(
+    new THREE.ConeGeometry(0.42, 2.2, 12, 1, true).rotateX(Math.PI),
+    new THREE.MeshBasicMaterial({ color: '#ffb347', transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending }),
+  );
+  flame.position.y = -1.2;
+  flame.visible = false;
+  group.add(flame);
+  const plume = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 1.3, 1, 14, 1, true), new THREE.MeshBasicMaterial({ color: '#e8e4dc', transparent: true, opacity: 0.4, depthWrite: false }));
+  plume.visible = false;
+  const base = new THREE.Vector3(...SPACE_PAD);
+  group.position.copy(base);
+  return { group, flame, plume, base };
 }

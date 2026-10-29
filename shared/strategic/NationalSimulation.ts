@@ -22,7 +22,7 @@ import { countryReference, type ReferenceKey } from './reference.ts';
 import { combineEffects, researchBlocker, researchDailyProgress, TECH_IDS, type TechEffects, type TechId } from './technologies.ts';
 import { COUNTRIES } from '../data/countries.ts';
 import { DIPLO, Diplomacy, warPreview, type DiplomacySave, type DiplomaticAction, type DiplomaticEvent, type NationId, type RelationView, type Treaty, type WarPreview } from './Diplomacy.ts';
-import type { Cost, Stockpile } from '../sim/config.ts';
+import { BUILDINGS, PROJECT_FX, type BuildingType, type Cost, type Stockpile } from '../sim/config.ts';
 import {
   DECREE_MIN_DAYS,
   DECREES,
@@ -77,6 +77,8 @@ export interface GeopoliticalView {
   missions: string[];
   /** Guerras entre países que o observador conhece. */
   wars: [NationId, NationId][];
+  /** Países com satélite em órbita (públicos: aparecem orbitando o globo). */
+  satellites?: NationId[];
 }
 
 /** Nações não jogadoras recebem ids a partir deste valor. */
@@ -193,6 +195,8 @@ export interface NationState {
   history: HistoryPoint[];
   /** Decretos, facções e pedidos das potências (ausente em salvamentos antigos). */
   policies?: PolicyState;
+  /** Grandes Projetos Nacionais prontos no teatro (atualizado todo dia). */
+  projects?: BuildingType[];
   /** Linha de base (valores de referência) para medir desvios. */
   base: { inflationPct: number; growthPct: number; taxPct: number; servicesPct: number; totalSpendPct: number; deficitPctGdp: number };
 }
@@ -219,6 +223,8 @@ export type NationalEvent =
     }
   /** Decretos, exigências das facções e pedidos das potências. */
   | { type: 'policy'; day: number; slot: Slot; text: string; tone: 'good' | 'bad' | 'info' }
+  /** Satélite posto em órbita pelo Programa Espacial (todas as nações sabem). */
+  | { type: 'satellite'; day: number; slot: Slot }
   /** Lançamento nuclear: choque econômico global (todas as nações sabem). */
   | { type: 'nuclear_shock'; day: number; slot: Slot; victim: Slot; level: number }
   | { type: 'military_strike'; day: number; slot: Slot; victim: Slot; kind: 'air' | 'missile'; target: string; damage: number; oilLost: number; destroyed: number; intercepted: boolean }
@@ -229,6 +235,7 @@ export interface NationalSave {
   rng: number;
   /** Lançamentos nucleares (choque econômico global). */
   shocks?: { day: number; by: number }[];
+  satellites?: number[];
   nations: NationState[];
   npcs: NationState[];
   events: NationalEvent[];
@@ -250,6 +257,10 @@ export class NationalSimulation {
   private theater: TheaterLink | null = null;
   /** Lançamentos nucleares da partida (dia e autor). */
   shocks: { day: number; by: number }[] = [];
+  /** Nações com satélite em órbita. */
+  satellites: number[] = [];
+  /** Facções e pedidos das potências ativos (desligados no Sandbox). */
+  policiesActive = true;
 
   constructor(
     players: { slot: Slot; countryId: string }[],
@@ -292,7 +303,19 @@ export class NationalSimulation {
   /** Estado completo (JSON) para salvar a partida; o vínculo com o teatro é refeito por quem carrega. */
   toSave(): NationalSave {
     return JSON.parse(
-      JSON.stringify({ day: this.day, rng: this.rng.seedState, nations: this.nations, npcs: this.npcs, events: this.events, diplomacy: this.diplomacy.toSave(), ...(this.shocks.length ? { shocks: this.shocks } : {}) }, encodeNonFinite),
+      JSON.stringify(
+        {
+          day: this.day,
+          rng: this.rng.seedState,
+          nations: this.nations,
+          npcs: this.npcs,
+          events: this.events,
+          diplomacy: this.diplomacy.toSave(),
+          ...(this.shocks.length ? { shocks: this.shocks } : {}),
+          ...(this.satellites.length ? { satellites: this.satellites } : {}),
+        },
+        encodeNonFinite,
+      ),
       decodeNonFinite,
     ) as NationalSave;
   }
@@ -307,6 +330,7 @@ export class NationalSimulation {
     this.npcs.splice(0, this.npcs.length, ...c.npcs);
     this.events = c.events;
     this.shocks = c.shocks ?? [];
+    this.satellites = c.satellites ?? [];
     this.diplomacy.load(c.diplomacy);
   }
 
@@ -389,6 +413,7 @@ export class NationalSimulation {
       treaties: d.treaties.filter((t) => knows(t.a) && knows(t.b)).map((t) => ({ ...t })),
       missions: [...d.missions].filter((m) => m.startsWith(`${viewer}>`)),
       wars: d.warPairs().filter(([a, b]) => knows(a) && knows(b)),
+      ...(this.satellites.length ? { satellites: [...this.satellites] } : {}),
     };
   }
 
@@ -399,7 +424,7 @@ export class NationalSimulation {
       if (e.type === 'protest') return knows(e.slot);
       if (e.type === 'operation') return e.slot === viewer || e.target === viewer || (knows(e.slot) && knows(e.target));
       if (e.type === 'military_strike') return e.slot === viewer || e.victim === viewer || (knows(e.slot) && knows(e.victim));
-      if (e.type === 'nuclear_shock') return true;
+      if (e.type === 'nuclear_shock' || e.type === 'satellite') return true;
       if (e.type !== 'diplomacy') return e.slot === viewer;
       const ev = e.event;
       switch (ev.type) {
@@ -610,6 +635,14 @@ export class NationalSimulation {
         });
         continue;
       }
+      if (e.type === 'space' && e.state === 'orbit') {
+        if (!this.satellites.includes(e.owner)) this.satellites.push(e.owner);
+        const n = this.nation(e.owner);
+        // orgulho nacional: aprovação extra que decai como a das facções
+        if (n?.policies) n.policies.favor = Math.min(10, n.policies.favor + 5);
+        this.events.push({ type: 'satellite', day: this.day, slot: e.owner });
+        continue;
+      }
       if (e.type === 'missile' && e.nuclear && e.state === 'flight') {
         this.nuclearShock(e.owner, e.targetOwner);
         continue;
@@ -673,6 +706,13 @@ export class NationalSimulation {
     ];
     const shock = this.shockLevel();
     if (shock > 0.01) growthFactors.push({ key: 'nuclear', label: 'Choque global de lançamento nuclear', value: -NUCLEAR_SHOCK.growth * shock });
+    // Grandes Projetos Nacionais prontos no teatro
+    if (!this.isNpc(n.slot)) {
+      const stats = this.theater?.stats?.(n.slot);
+      if (stats) n.projects = (Object.keys(stats.buildings) as BuildingType[]).filter((t) => BUILDINGS[t].project && (stats.buildings[t] ?? 0) > 0);
+      const g = (n.projects ?? []).reduce((s, t) => s + (BUILDINGS[t].project?.growth ?? 0), 0);
+      if (g > 0) growthFactors.push({ key: 'projects', label: 'Grandes Projetos Nacionais', value: g });
+    }
     const prevGrowth = n.realGrowthPct;
     n.realGrowthPct = clamp(sum(growthFactors), -15, 15);
     n.growthFactors = growthFactors.map((f) => ({ ...f, value: round2(f.value) }));
@@ -751,7 +791,7 @@ export class NationalSimulation {
     this.crossing(n, 'growth', prevGrowth, n.realGrowthPct, [0]);
 
     if (this.day % HISTORY_EVERY_DAYS === 0) this.pushHistory(n);
-    if (!this.isNpc(n.slot)) this.stepPolicies(n);
+    if (!this.isNpc(n.slot) && this.policiesActive) this.stepPolicies(n);
   }
 
   // ------------------------------------------------------------ decretos, facções e pedidos
@@ -942,7 +982,7 @@ export class NationalSimulation {
     const gdpFor = (x: NationState) => (this.mode === 'parity' ? COEF.parityGdpUsd : x.gdpUsd);
     const defenseBn = ((b.defensePct / 100) * gdpFor(n)) / 1e9;
     // teto anual da verba de obras: segue o orçamento de infraestrutura (e o PIB) atuais
-    n.works.capUsd = Math.round((b.infrastructurePct / 100) * gdpFor(n) * WORKS_SHARE_OF_INFRA);
+    n.works.capUsd = Math.round((b.infrastructurePct / 100) * gdpFor(n) * WORKS_SHARE_OF_INFRA * (n.projects?.includes('financial_center') ? PROJECT_FX.financialWorksMul : 1));
     if (n.works.fundUsd > n.works.capUsd) n.works.fundUsd = n.works.capUsd;
     n.allianceAidPerSec = this.diplomacy.allianceAid(n.slot, gdpFor);
     n.theaterSupplyPerSec = theaterSupply(defenseBn) * fx.theaterSupplyMul + n.allianceAidPerSec;

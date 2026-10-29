@@ -133,6 +133,10 @@ export interface HudState {
   speed: GameSpeed;
   selectedUnits: SelectedUnitInfo[];
   selectedBuilding: SelectedBuildingInfo | null;
+  /** Tipos de construção próprios no mapa (Grandes Projetos: um por nação). */
+  ownBuildingTypes: Set<BuildingType>;
+  /** Lançamento do Programa Espacial em andamento. */
+  spaceLaunch: { id: number; phase: 'countdown' | 'ascent'; progress: number } | null;
   /** Seleção de entidade inimiga (só leitura). */
   inspected: { kind: 'unit' | 'building'; type: string; owner: number; hp: number; maxHp: number; level: number; spec: SpecId | null } | null;
   /** Cidadãos selecionados no mapa: ociosos e a caminho de um posto. */
@@ -173,6 +177,8 @@ export const useHudStore = create<HudState>((set) => ({
   speed: 1,
   selectedUnits: [],
   selectedBuilding: null,
+  ownBuildingTypes: new Set(),
+  spaceLaunch: null,
   inspected: null,
   selectedCitizens: null,
   upgradeFor: null,

@@ -288,6 +288,10 @@ O QG não cai e nada conta no histórico. Detalhes em `docs/MODO_SANDBOX.md`.
 **Eras:** a nação avança da Guerra Fria ao Futuro Próximo por obras no Centro de Comando. Cada era libera tropas,
 construções e níveis de melhoria e troca a aparência de todas as construções. Detalhes em `docs/ERAS.md`.
 
+**Grandes Projetos e Programa Espacial:** na última era, cada nação pode erguer Usina Nuclear, Rede 5G,
+Hidrelétrica, Centro Financeiro e o Programa Espacial, cujo satélite revela o mapa inteiro e orbita o globo. Detalhes
+em `docs/GRANDES_PROJETOS_E_ESPACO.md`.
+
 **Dificuldade e veterania:** contra a IA, o anfitrião escolhe Fácil, Normal, Difícil ou Brutal, que mudam o preparo
 (12 a 3 min), as ondas, o uso de aviões e mísseis e os incidentes de fronteira no preparo. Tropas que abatem
 inimigos sobem de patente (Veterano, Elite, Herói), com mais dano e vida e insígnia. Detalhes em

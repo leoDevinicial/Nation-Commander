@@ -145,6 +145,10 @@ export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone
       }
       return e.state === 'completed' ? { text: `O inimigo entrou na era ${label}`, tone: 'warn' } : null;
     }
+    case 'space':
+      if (e.state === 'countdown') return { text: e.owner === mySlot ? 'Programa Espacial: lançamento autorizado, contagem regressiva iniciada' : 'Alerta: o inimigo iniciou a contagem de um lançamento espacial', tone: e.owner === mySlot ? 'info' : 'warn' };
+      if (e.state === 'ascent') return { text: e.owner === mySlot ? 'Ignição! O foguete deixou a plataforma' : 'Um foguete inimigo decolou', tone: e.owner === mySlot ? 'good' : 'warn' };
+      return null;
     case 'unit_promoted':
       return e.owner === mySlot ? { text: `${UNITS[e.unitType].label} promovido a ${RANKS[e.rank]?.label ?? 'veterano'}: +${Math.round(RANK_DAMAGE * e.rank * 100)}% de dano e +${Math.round(RANK_HP * e.rank * 100)}% de vida`, tone: 'good' } : null;
     case 'border_incident': {

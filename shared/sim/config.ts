@@ -175,7 +175,13 @@ export type BuildingType =
   | 'aa_battery'
   | 'missile_silo'
   | 'research_center'
-  | 'city_hall';
+  | 'city_hall'
+  // Grandes Projetos Nacionais (Futuro Próximo; um de cada por nação)
+  | 'nuclear_plant'
+  | 'network_5g'
+  | 'hydro_dam'
+  | 'financial_center'
+  | 'space_center';
 
 /** O que uma fila de produção pode produzir. */
 export type ProducibleType = UnitType | 'citizen' | 'recruit';
@@ -510,7 +516,32 @@ export interface BuildingDef {
   hotkey?: string;
   /** Pesquisa nacional exigida para construir (Fase 7: silo de mísseis). */
   requiresTech?: string;
+  /**
+   * Grande Projeto Nacional: um por nação, custo extra em US$ (fração do teto anual da verba de
+   * obras) e um bônus global enquanto estiver de pé (texto em `effect`).
+   */
+  project?: { usdShare: number; effect: string; growth: number };
+  /** Nível mínimo do Centro de Comando para construir. */
+  minHqLevel?: number;
+  /** Precisa encostar na água (porto, hidrelétrica). */
+  nearWater?: boolean;
 }
+
+/** Bônus dos Grandes Projetos no teatro (aplicados pelo motor enquanto o projeto estiver pronto). */
+export const PROJECT_FX = {
+  /** Usina Nuclear: obras mais rápidas. */
+  nuclearBuildMul: 0.9,
+  /** Rede 5G: pesquisa militar mais rápida e visão extra das tropas. */
+  network5gResearchMul: 1.3,
+  network5gSight: 2,
+  /** Hidrelétrica: coleta maior. */
+  hydroGatherMul: 1.15,
+  /** Centro Financeiro: teto da verba de obras maior. */
+  financialWorksMul: 1.5,
+};
+
+/** Programa Espacial: contagem regressiva e subida do foguete (s). */
+export const SPACE = { countdownSeconds: 10, ascentSeconds: 9 };
 
 /**
  * Cidades (prefeituras, estilo Rise of Nations): distância mínima entre prefeituras e QGs, raio em
@@ -842,6 +873,90 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     description:
       'Funda uma cidade com o nome de uma cidade real do seu país: amplia bastante a fronteira, abriga 10, guarda recursos e rende suprimentos. Fica a pelo menos 10 células de outra prefeitura ou do QG. Se um inimigo a destruir, ele toma a cidade e os edifícios dela num raio de 8 células.',
     hotkey: 'G',
+  },
+  nuclear_plant: {
+    ...NONE,
+    label: 'Usina Nuclear',
+    cost: { stone: 600, iron: 500, supplies: 500, oil: 200 },
+    buildSeconds: 240,
+    maxHp: 2200,
+    size: 3,
+    income: { supplies: 4 },
+    sight: 8,
+    workers: 4,
+    upkeep: { supplies: 0.1 },
+    territoryRadius: 5,
+    buildable: true,
+    project: { usdShare: 0.4, effect: '+4 suprimentos/s e obras 10% mais rápidas; +0,5 p.p. de crescimento nacional', growth: 0.5 },
+    description: 'Grande Projeto Nacional: energia firme para a nação. +4 suprimentos/s, obras 10% mais rápidas e +0,5 p.p. de crescimento. Um por nação.',
+  },
+  network_5g: {
+    ...NONE,
+    label: 'Rede 5G Nacional',
+    cost: { iron: 400, supplies: 400, stone: 200, oil: 100 },
+    buildSeconds: 200,
+    maxHp: 1200,
+    size: 2,
+    income: {},
+    sight: 18,
+    workers: 2,
+    upkeep: { supplies: 0.08 },
+    territoryRadius: 6,
+    buildable: true,
+    project: { usdShare: 0.35, effect: 'Pesquisa militar 30% mais rápida e +2 de visão para todas as tropas; +0,4 p.p. de crescimento', growth: 0.4 },
+    description: 'Grande Projeto Nacional: torre central da rede 5G. Pesquisa militar 30% mais rápida, +2 de visão para todas as tropas e +0,4 p.p. de crescimento. Um por nação.',
+  },
+  hydro_dam: {
+    ...NONE,
+    label: 'Hidrelétrica',
+    cost: { stone: 800, iron: 300, supplies: 400 },
+    buildSeconds: 220,
+    maxHp: 2600,
+    size: 3,
+    income: { supplies: 2 },
+    sight: 8,
+    workers: 3,
+    upkeep: { supplies: 0.06 },
+    territoryRadius: 5,
+    buildable: true,
+    nearWater: true,
+    project: { usdShare: 0.4, effect: '+15% na coleta de todos os recursos e +2 suprimentos/s; +0,4 p.p. de crescimento', growth: 0.4 },
+    description: 'Grande Projeto Nacional: barragem e casa de força na margem da água. +15% na coleta de todos os recursos, +2 suprimentos/s e +0,4 p.p. de crescimento. Um por nação.',
+  },
+  financial_center: {
+    ...NONE,
+    label: 'Centro Financeiro',
+    cost: { stone: 400, iron: 250, supplies: 600, wood: 200 },
+    buildSeconds: 180,
+    maxHp: 1400,
+    size: 2,
+    income: { supplies: 3 },
+    sight: 7,
+    workers: 3,
+    territoryRadius: 6,
+    territoryWeight: 1.3,
+    buildable: true,
+    project: { usdShare: 0.3, effect: 'Teto da verba de obras 50% maior e +3 suprimentos/s; +0,6 p.p. de crescimento', growth: 0.6 },
+    description: 'Grande Projeto Nacional: arranha-céu da bolsa e dos bancos. Teto da verba de obras 50% maior, +3 suprimentos/s e +0,6 p.p. de crescimento. Um por nação.',
+  },
+  space_center: {
+    ...NONE,
+    label: 'Programa Espacial',
+    cost: { supplies: 1500, iron: 1200, stone: 800, wood: 600, oil: 600 },
+    buildSeconds: 360,
+    maxHp: 2500,
+    size: 4,
+    income: {},
+    sight: 10,
+    workers: 6,
+    upkeep: { supplies: 0.2, oil: 0.05 },
+    territoryRadius: 6,
+    buildable: true,
+    minHqLevel: 9,
+    requiresTech: 'space_technology',
+    project: { usdShare: 0.9, effect: 'Lança um satélite: o mapa inteiro fica visível em tempo real (menos minas); +0,5 p.p. de crescimento', growth: 0.5 },
+    description:
+      'A megaconstrução de fim de partida: plataforma, torre de serviço, foguete e centro de controle. Pronto, autorize o lançamento: o satélite em órbita tira a névoa de guerra do mapa inteiro, em tempo real (só as minas continuam escondidas). Exige o Centro de Comando no nível 9 e a pesquisa Tecnologia espacial.',
   },
   missile_silo: {
     ...NONE,

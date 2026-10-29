@@ -1,4 +1,4 @@
-import { BUILDINGS, RESOURCE_TYPES, TICK_RATE, UNITS, type BuildingType, type DepositSize, type MilitaryResearchId, type ProducibleType, type Stockpile, type UnitType } from './config.ts';
+import { BUILDINGS, RESOURCE_TYPES, SPACE, TICK_RATE, UNITS, type BuildingType, type DepositSize, type MilitaryResearchId, type ProducibleType, type Stockpile, type UnitType } from './config.ts';
 import type { Population, Simulation } from './Simulation.ts';
 import { encodeTerritory } from './territory.ts';
 import type { BuildingStatus, EntityId, SimEvent, Slot, UnitActivity, Vec2 } from './types.ts';
@@ -67,6 +67,8 @@ export interface BuildingSnapshot {
   research?: { id: MilitaryResearchId; progress: number };
   /** Nome da cidade (prefeituras; a capital no QG). */
   city?: string;
+  /** Programa Espacial: lançamento em andamento (visível para todos). */
+  launch?: { phase: 'countdown' | 'ascent'; progress: number };
 }
 
 export interface PlayerSnapshot {
@@ -85,6 +87,8 @@ export interface PlayerSnapshot {
   eraAdvance?: { to: number; progress: number };
   /** Progressão por eras ligada nesta partida. */
   eras?: boolean;
+  /** Satélite em órbita (público). */
+  satellite?: true;
 }
 
 /** Carga em trânsito: completa para quem negocia; para os demais, só o veículo visível no mapa. */
@@ -222,6 +226,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         level: e.level,
         spec: e.spec,
         ...(sim.cityName(e) ? { city: sim.cityName(e) } : {}),
+        ...(e.launch ? { launch: { phase: e.launch.phase, progress: r2(1 - e.launch.ticks / ((e.launch.phase === 'countdown' ? SPACE.countdownSeconds : SPACE.ascentSeconds) * TICK_RATE)) } } : {}),
         ...(own && e.research ? { research: { id: e.research.id, progress: r2(1 - e.research.remaining / e.research.total) } } : {}),
         ...(e.upgrade ? { upgrade: own ? { toLevel: e.upgrade.toLevel, progress: r2(e.upgrade.builtTicks / e.upgrade.totalTicks), spec: e.upgrade.spec } : { visible: true as const } } : {}),
         // fila e ponto de reunião de edifícios inimigos não são observáveis
@@ -268,6 +273,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         ...(p.era && p.era > 1 ? { era: p.era } : {}),
         ...(mine && p.eraAdvance ? { eraAdvance: { to: p.eraAdvance.to, progress: r2(1 - p.eraAdvance.remainingTicks / Math.max(1, p.eraAdvance.totalTicks)) } } : {}),
         ...(mine && sim.eras ? { eras: true } : {}),
+        ...(p.satellite ? { satellite: true as const } : {}),
       };
     }),
     events: viewer ? events.filter((ev) => eventVisible(sim, ev, viewer.slot)) : events,
@@ -491,6 +497,9 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
       return e.owner === slot;
     case 'era':
       return e.owner === slot || e.state === 'completed';
+    case 'space':
+      // o lançamento é anunciado a todos os jogadores
+      return true;
     case 'border_incident':
       return e.aggressor === slot || e.victim === slot;
     case 'player_defeated':

@@ -22,7 +22,8 @@ export type TechId =
   | 'sensor_optics'
   | 'efficient_propulsion'
   | 'ballistic_missiles'
-  | 'nuclear_weapons';
+  | 'nuclear_weapons'
+  | 'space_technology';
 
 /** Categoria de investimento: em que área do orçamento de P&D a pesquisa compete. */
 export type TechCategory = 'military' | 'industry' | 'resources' | 'state';
@@ -242,6 +243,17 @@ export const TECHNOLOGIES: Record<TechId, TechDef> = {
       'Ogiva nuclear nos silos de mísseis: dano e raio enormes, mais difícil de interceptar',
       'Todo lançamento nuclear derruba a economia global por meses, inclusive a sua, e custa muita reputação',
     ],
+  },
+  space_technology: {
+    id: 'space_technology',
+    label: 'Tecnologia espacial',
+    category: 'state',
+    description: 'Lançadores orbitais, satélites de observação e controle de missão.',
+    cost: 0.09,
+    minDays: 70,
+    prereqs: ['ballistic_missiles', 'sensor_optics'],
+    effect: {},
+    unlocks: ['Programa Espacial (Futuro Próximo, QG nível 9): satélite que revela o mapa inteiro em tempo real'],
   },
 };
 

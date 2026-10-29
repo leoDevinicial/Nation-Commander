@@ -12,6 +12,8 @@ import {
   STUCK_TICKS,
   TERRAIN,
   Terrain,
+  PROJECT_FX,
+  SPACE,
   TICK_RATE,
   TICK_SECONDS,
   UNITS,
@@ -696,7 +698,8 @@ export class Simulation {
     if (eff <= 0) return 0;
     if (b.depositId !== null && (this.deposits.deposits[b.depositId]?.remaining ?? 0) <= 0) return 0;
     const cells = def.gather.terrain === null ? 1 : b.claims.filter((i) => this.territory[i] === b.owner).length;
-    return gatherRate(b.type, cells) * this.fx(b).rateMul * eff * (p.modifiers.gatherMul ?? 1) * (this.bonusOf(b.owner).gatherMul?.[def.gather.resource] ?? 1);
+    const hydro = this.hasProject(b.owner, 'hydro_dam') ? PROJECT_FX.hydroGatherMul : 1;
+    return gatherRate(b.type, cells) * this.fx(b).rateMul * eff * (p.modifiers.gatherMul ?? 1) * (this.bonusOf(b.owner).gatherMul?.[def.gather.resource] ?? 1) * hydro;
   }
 
   /** Fração dos postos de trabalho ocupados (1 se o edifício não precisa de trabalhadores). */
@@ -787,6 +790,8 @@ export class Simulation {
       if (grid) markCircle(grid, w, h, r.pos.x / cs, r.pos.y / cs, r.radius / cs);
     }
     if (this.sandbox?.reveal) for (const slot of this.sandbox.slots) this.visibility[slot]?.fill(1);
+    // satélite em órbita: o mapa inteiro, em tempo real
+    for (const p of this.players) if (p.satellite) this.visibility[p.slot]?.fill(1);
     this.visibilityTick = this.tick;
   }
 
@@ -823,7 +828,8 @@ export class Simulation {
   }
 
   sightOf(e: Entity): number {
-    return e.kind === 'unit' ? UNITS[e.type].sight + combineMods(e.mods).sightAdd : BUILDINGS[e.type].sight + this.fx(e).sightAdd;
+    if (e.kind === 'unit') return UNITS[e.type].sight + combineMods(e.mods).sightAdd + (this.projectSight[e.owner] ?? 0);
+    return BUILDINGS[e.type].sight + this.fx(e).sightAdd;
   }
 
   hqOf(slot: Slot): Building | undefined {
@@ -883,6 +889,8 @@ export class Simulation {
         const reason = this.placementError(slot, cmd.buildingType, cell);
         if (reason) return reason;
         const def = BUILDINGS[cmd.buildingType];
+        if (def.project && !this.isSandbox(slot) && this.national && !this.national.chargeWorks(slot, this.projectUsd(slot, cmd.buildingType), def.label))
+          return 'Verba de obras insuficiente para o Grande Projeto';
         this.spend(player, def.cost);
         const b = this.addBuilding(cmd.buildingType, slot, cell, 0);
         if (b.type === 'city_hall') b.city = this.nextCity(slot);
@@ -951,6 +959,16 @@ export class Simulation {
         for (const r of RESOURCE_TYPES) if (b.research.paid[r]) back[r] = Math.floor((b.research.paid[r] ?? 0) * RESEARCH_CANCEL_REFUND);
         this.refund(slot, back);
         b.research = null;
+        return null;
+      }
+      case 'space_launch': {
+        const b = this.entities.get(cmd.buildingId);
+        if (!b || b.kind !== 'building' || b.owner !== slot || b.type !== 'space_center') return 'Programa Espacial inválido';
+        if (b.progress < 1 || b.hp <= 0) return 'O Programa Espacial ainda está em obra';
+        if (b.launch) return 'Lançamento já em andamento';
+        if (player.satellite) return 'O satélite já está em órbita';
+        b.launch = { phase: 'countdown', ticks: Math.round(SPACE.countdownSeconds * TICK_RATE) };
+        this.emit({ type: 'space', tick: this.tick, owner: slot, id: b.id, state: 'countdown', pos: { ...b.pos } });
         return null;
       }
       case 'advance_era': {
@@ -1320,6 +1338,16 @@ export class Simulation {
     return this.players[slot]?.era ?? 1;
   }
 
+  /** Custo em US$ de um Grande Projeto: fração do teto anual da verba de obras do país. */
+  projectUsd(slot: Slot, type: BuildingType): number {
+    return Math.round((this.national?.worksCapUsd?.(slot) ?? 0) * (BUILDINGS[type].project?.usdShare ?? 0));
+  }
+
+  /** O jogador tem este Grande Projeto pronto e de pé. */
+  hasProject(slot: Slot, type: BuildingType): boolean {
+    return this.buildings.some((b) => b.owner === slot && b.type === type && b.progress >= 1 && b.hp > 0);
+  }
+
   /** Custo em US$ de entrar na era `to`: fração do teto anual da verba de obras do país. */
   eraUsd(slot: Slot, to: Era): number {
     return Math.round((this.national?.worksCapUsd?.(slot) ?? 0) * ERAS[to].usdShare);
@@ -1426,6 +1454,12 @@ export class Simulation {
     if (tech && !(this.national?.techs(slot) ?? []).includes(tech)) return `Exige a pesquisa ${techLabel(tech)}`;
     const era = buildingEra(type);
     if (era > this.eraOf(slot)) return `Requer a era ${ERAS[era].label} (avance de era no Centro de Comando)`;
+    const bdef = BUILDINGS[type];
+    if (bdef.project && this.buildings.some((b) => b.owner === slot && b.type === type)) return `${bdef.label}: só um por nação`;
+    if (!this.isSandbox(slot)) {
+      if (bdef.minHqLevel && this.hqLevel(slot) < bdef.minHqLevel) return `Requer o Centro de Comando no nível ${bdef.minHqLevel}`;
+      if (bdef.project && this.national && this.national.worksFundUsd(slot) + 1e-6 < this.projectUsd(slot, type)) return 'Verba de obras insuficiente para o Grande Projeto';
+    }
     return placementError(
       {
         width: this.map.width,
@@ -1460,6 +1494,7 @@ export class Simulation {
     this.updateProduction();
     this.updateMilitaryResearch();
     this.updateEras();
+    this.updateSpace();
     this.updateRefits();
     this.trade.step();
     this.air.step();
@@ -1887,6 +1922,32 @@ export class Simulation {
    * Pesquisa militar: avança no ritmo dos pesquisadores (sem nenhum, para), do nível do centro
    * (cada nível −10% de tempo) e do orçamento nacional de P&D. Concluída, libera as tropas.
    */
+  /** Visão extra das tropas pela Rede 5G (recalculada a cada tick). */
+  private projectSight: number[] = [];
+
+  /** Programa Espacial: contagem, subida e satélite em órbita. */
+  private updateSpace(): void {
+    this.projectSight = this.players.map((p) => (this.hasProject(p.slot, 'network_5g') ? PROJECT_FX.network5gSight : 0));
+    for (const b of this.buildings) {
+      const l = b.launch;
+      if (!l) continue;
+      if (b.hp <= 0) {
+        b.launch = null;
+        continue;
+      }
+      if (--l.ticks > 0) continue;
+      if (l.phase === 'countdown') {
+        b.launch = { phase: 'ascent', ticks: Math.round(SPACE.ascentSeconds * TICK_RATE) };
+        this.emit({ type: 'space', tick: this.tick, owner: b.owner, id: b.id, state: 'ascent', pos: { ...b.pos } });
+      } else {
+        b.launch = null;
+        this.players[b.owner]!.satellite = { tick: this.tick };
+        this.visibilityTick = -1;
+        this.emit({ type: 'space', tick: this.tick, owner: b.owner, id: b.id, state: 'orbit', pos: { ...b.pos } });
+      }
+    }
+  }
+
   /** Avanço de era: obra no Centro de Comando; ao concluir, a nação entra na era nova. */
   private updateEras(): void {
     for (const p of this.players) {
@@ -1915,7 +1976,7 @@ export class Simulation {
         continue;
       }
       this.setStatus(b, 'ok');
-      const speed = (this.national?.researchSpeed?.(b.owner) ?? 1) / Math.max(0.2, this.fx(b).productionTimeMul);
+      const speed = ((this.national?.researchSpeed?.(b.owner) ?? 1) * (this.hasProject(b.owner, 'network_5g') ? PROJECT_FX.network5gResearchMul : 1)) / Math.max(0.2, this.fx(b).productionTimeMul);
       r.remaining -= eff * speed;
       if (r.remaining > 1e-9) continue;
       const p = this.players[b.owner]!;
@@ -2512,7 +2573,10 @@ export class Simulation {
       research: null,
       progress,
       builtTicks: 0,
-      buildTicks: this.duration(owner, def.buildSeconds * TICK_RATE * (this.players[owner]?.modifiers.constructionTimeMul ?? 1) * (this.bonusOf(owner).buildTimeMul ?? 1)),
+      buildTicks: this.duration(
+        owner,
+        def.buildSeconds * TICK_RATE * (this.players[owner]?.modifiers.constructionTimeMul ?? 1) * (this.bonusOf(owner).buildTimeMul ?? 1) * (this.hasProject(owner, 'nuclear_plant') ? PROJECT_FX.nuclearBuildMul : 1),
+      ),
       queue: [],
       rally: null,
       cooldown: 0,

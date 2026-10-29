@@ -65,6 +65,10 @@ export function describeNationalEvent(e: NationalEvent, mySlot: number, nameOf: 
       return mine ? { text: `Novo orçamento em vigor: saldo de ${formatPct(-e.deficitPctGdp)} do PIB`, tone: 'info' } : null;
     case 'policy':
       return mine ? { text: e.text, tone: e.tone } : null;
+    case 'satellite':
+      return mine
+        ? { text: '🛰 Satélite em órbita! O mapa inteiro está visível em tempo real (só as minas continuam escondidas). Orgulho nacional: aprovação em alta.', tone: 'good' }
+        : { text: `🛰 ${nameOf(e.slot)} pôs um satélite em órbita: vê todo o teatro de operações em tempo real.`, tone: 'bad' };
     case 'nuclear_shock': {
       const victim = e.victim === mySlot ? 'nosso país' : nameOf(e.victim);
       return {

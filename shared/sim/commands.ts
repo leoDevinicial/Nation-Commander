@@ -24,6 +24,8 @@ export type Command =
   | { type: 'cancel_military_research'; buildingId: EntityId }
   /** Avanço de era (obra no Centro de Comando) e cancelamento (devolve 75%). */
   | { type: 'advance_era' }
+  /** Programa Espacial: autoriza o lançamento do satélite. */
+  | { type: 'space_launch'; buildingId: EntityId }
   | { type: 'cancel_era' }
   | { type: 'set_rally'; buildingId: EntityId; x: number; y: number }
   /** Melhoria para o próximo nível; `spec` é obrigatório no nível que pede especialização. */
@@ -105,6 +107,8 @@ export function parseCommand(raw: unknown): Command | null {
     case 'advance_era':
     case 'cancel_era':
       return { type: raw.type };
+    case 'space_launch':
+      return isId(raw.buildingId) ? { type: 'space_launch', buildingId: raw.buildingId } : null;
     case 'cancel_production':
       if (!isId(raw.buildingId)) return null;
       return { type: 'cancel_production', buildingId: raw.buildingId };

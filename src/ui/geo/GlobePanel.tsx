@@ -13,7 +13,7 @@ import { useSettingsStore } from '../../state/useSettingsStore.ts';
 import { makeNameOf } from '../../game/nationalText.ts';
 import type { GlobeLayer, GlobeView } from '../../globe/GlobeView.ts';
 import { loadWorldGeo } from '../../globe/worldGeo.ts';
-import { POLITICAL_COLORS, POLITICAL_LABELS, politicalArcs, politicalFills, politicalLabels, politicalState, scenarioCountryByIso, type PoliticalState } from '../../globe/political.ts';
+import { POLITICAL_COLORS, POLITICAL_LABELS, politicalArcs, politicalSatellites, politicalFills, politicalLabels, politicalState, scenarioCountryByIso, type PoliticalState } from '../../globe/political.ts';
 import { MAIN_ROWS, ReferenceRow } from '../components/CountryCard.tsx';
 import { Chip, NationActions } from './NationActions.tsx';
 
@@ -136,6 +136,7 @@ export function GlobePanel({ visible, onClose }: { visible: boolean; onClose: ()
     if (!v || !ready || !diplomacy) return;
     v.setPolitical(politicalFills(diplomacy, mySlot, myCountry, outsideIso), selectedIso);
     v.setArcs(politicalArcs(diplomacy, mySlot, myCountry));
+    v.setSatellites(politicalSatellites(diplomacy, mySlot, myCountry));
   }, [diplomacy, ready, mySlot, myCountry, outsideIso, selectedIso]);
 
   const labelKey = diplomacy

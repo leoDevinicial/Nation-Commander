@@ -249,6 +249,9 @@ export class TacticalAI {
       // força aérea (Normal ou mais): base aérea depois da economia militar; silo quando houver a pesquisa
       ['airbase', level.airPower && count('airbase') === 0 && done('factory') && done('research_center') && sim.tick >= AI_AIR_TICK],
       ['missile_silo', level.missiles && count('missile_silo') === 0 && done('airbase') && natTechs.includes(MISSILE.tech)],
+      // Grandes Projetos na última era, com folga de material
+      ['nuclear_plant', sim.eraOf(this.slot) >= 4 && count('nuclear_plant') === 0 && budget.supplies > 900 && budget.iron > 700],
+      ['financial_center', sim.eraOf(this.slot) >= 4 && done('nuclear_plant') && count('financial_center') === 0 && budget.supplies > 1000],
     ];
     let built: BuildingType | null = null;
     for (const [type, wanted] of plan)
