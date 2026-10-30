@@ -13,6 +13,10 @@ antes de mexer em qualquer coisa. Depois leia `CLAUDE.md` (regras curtas) e
   nada foi perdido nem retrocedido. Desenvolver, commitar e dar push só nela (`git push -u origin
   claude/youthful-dijkstra-a45emp`), salvo pedido explícito do usuário. A `claude/serene-bell-7cjnhp` fica como estava
   (é a que publica na Vercel/Render, ver seção 2): levar o trabalho para lá só quando o usuário pedir.
+- **Publicação:** o jogo publicado (Vercel e Render) sai da `claude/serene-bell-7cjnhp`. Em 30/10, a pedido do
+  usuário ("integrem no jogo"), ela foi avançada (fast-forward, sem merge) até a `claude/youthful-dijkstra-a45emp`,
+  com o CIWS, os sons novos e a correção "Era Era". Para publicar de novo: rodar os testes e
+  `git push origin claude/youthful-dijkstra-a45emp:claude/serene-bell-7cjnhp`, só quando o usuário pedir.
 - Conferido na chegada: `npm ci`, `npm test` (51 arquivos, 468 testes), `npm run lint` e `npm run typecheck` passando.
 - Se uma conta futura assumir, repetir o processo: anotar aqui a branch nova, o commit de partida e o resultado dos
   testes.
