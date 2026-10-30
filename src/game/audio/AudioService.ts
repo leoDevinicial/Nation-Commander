@@ -418,10 +418,13 @@ export class AudioService {
         break;
       }
       case 'aa_twin':
-      case 'mbt_gun': {
-        // o Tanque Moderno usa a mesma receita com um disparo só, mais grave (canhão de calibre maior)
-        const shots = sound === 'mbt_gun' ? 1 : 2;
-        const pitch = sound === 'mbt_gun' ? 0.8 : 1;
+      case 'mbt_gun':
+      case 'tank_gun': {
+        // os tanques usam a mesma receita com um disparo só: o Tanque Moderno mais grave (calibre maior); o tanque
+        // comum mais fraco, com menos grave e menos eco (`power`)
+        const shots = sound === 'aa_twin' ? 2 : 1;
+        const pitch = sound === 'mbt_gun' ? 0.8 : sound === 'tank_gun' ? 0.95 : 1;
+        const power = sound === 'tank_gun' ? 0.55 : 1;
         // canhões gêmeos de 30 mm (antiaérea do Futuro Próximo): dois disparos pesados e separados, um de cada cano.
         // Cada um tem cinco camadas que chegam juntas e somem em tempos diferentes:
         //   1. estalo supersônico: o "crack" seco e muito brilhante do projétil rompendo a barreira do som;
@@ -431,9 +434,10 @@ export class AudioService {
         //   5. mecânica: o ferrolho batendo no fim do curso (grave e curto, sem tilintar agudo).
         // Os tiros vão também para a reverberação de campo aberto (eco do terreno), e no fim o estrondo rola longe.
         const mix = ctx.createGain();
+        mix.gain.value = power;
         mix.connect(out);
         const wet = ctx.createGain();
-        wet.gain.value = gain * 0.32;
+        wet.gain.value = gain * 0.32 * power;
         mix.connect(wet).connect(this.outdoorReverb());
         const drive = ctx.createWaveShaper();
         drive.curve = this.driveCurve(5.5);
@@ -472,7 +476,7 @@ export class AudioService {
           thump(230 * f, 110, 0.0008, 0.7 * k, 0.05, at, 'square', drive);
           burst('lowpass', 420, 0.8, 0.0015, 1.6 * k, 0.18, at, drive);
           // 4. subgrave longo (direto, sem saturar: pressão limpa e funda)
-          thump(56 * f, 26, 0.006, 1.3 * k, 0.55, at, 'sine', mix);
+          thump(56 * f, 26, 0.006, 1.3 * k * power, 0.55 * power, at, 'sine', mix);
           // 5. mecânica: ferrolho batendo no fim do curso
           burst('bandpass', 2300, 9, 0.0008, 0.42 * k, 0.045, at + 0.052, mix);
           thump(310, 190, 0.001, 0.28 * k, 0.045, at + 0.052, 'square', mix);
@@ -560,33 +564,6 @@ export class AudioService {
         thump(110, 40, 0.004, 0.9, 0.25, t, 'sine', drive);
         burst('lowpass', 380, 0.6, 0.04, 0.6, 0.9, t + len - 0.1);
         end = burst('lowpass', 200, 0.5, 0.1, 0.32, 1.4, t + len + 0.3);
-        break;
-      }
-      case 'tank_gun': {
-        // canhão de tanque (120–125 mm), seco: estalo supersônico e tapa do gás no mesmo instante,
-        // um soco médio curto (pouco grave) com saturação leve, o "clac" do recuo e do carregador e
-        // quase nenhum eco — o tiro corta, não ressoa
-        const drive = ctx.createWaveShaper();
-        drive.curve = this.driveCurve(3);
-        drive.oversample = '4x';
-        const band = ctx.createBiquadFilter();
-        band.type = 'highpass';
-        band.frequency.value = 140;
-        drive.connect(band).connect(out);
-        // estampido seco e brilhante
-        burst('highpass', 1800, 0.6, 0.0004, 2.2, 0.05);
-        burst('bandpass', 4200, 0.9, 0.0004, 1.2, 0.03);
-        burst('bandpass', 1200, 0.8, 0.0006, 1.6, 0.06, t + 0.006);
-        // soco médio e curto (sem cauda grave)
-        thump(190, 80, 0.001, 1.4, 0.09, t, 'square', drive);
-        thump(130, 60, 0.001, 1.2, 0.14, t, 'triangle', drive);
-        burst('bandpass', 700, 0.9, 0.0008, 1.5, 0.12, t, drive);
-        // mecânica: recuo e carregador
-        burst('bandpass', 2600, 10, 0.001, 0.3, 0.06, t + 0.14);
-        thump(240, 150, 0.001, 0.25, 0.06, t + 0.14, 'square');
-        burst('bandpass', 3400, 12, 0.001, 0.16, 0.04, t + 0.5);
-        // reflexo curto e seco
-        end = burst('bandpass', 900, 0.7, 0.01, 0.25, 0.25, t + 0.12);
         break;
       }
       case 'cannon':

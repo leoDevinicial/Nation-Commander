@@ -94,8 +94,8 @@ O tiro em terra é de dois disparos fortes e separados (0,2 s), um de cada canh�
 Depois dos dois tiros vem o eco do terreno, pela reverberação de campo aberto (`AudioService.outdoorReverb`, resposta ao
 impulso gerada em código, compartilhada pelo canal de combate).
 
-O **Tanque Moderno** usa a mesma receita (`mbt_gun`), com um disparo só e 20% mais grave. O tanque comum segue com
-`tank_gun`. A Antiaérea Móvel das eras anteriores (lagartas, estilo
+O **Tanque Moderno** usa a mesma receita (`mbt_gun`), com um disparo só e 20% mais grave. O tanque comum (`tank_gun`)
+também usa a receita, com um disparo, um pouco mais agudo e mais fraco: 55% do volume, menos subgrave e menos eco. A Antiaérea Móvel das eras anteriores (lagartas, estilo
 Gepard) continua com a rajada `flak` e o som `aa_gun`.
 
 **Interceptação de foguetes:** na era 4, a antiaérea intercepta as salvas do Lança-Foguetes em voo. A regra fica em
