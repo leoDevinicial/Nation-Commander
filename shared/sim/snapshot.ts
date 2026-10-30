@@ -4,7 +4,7 @@ import { encodeTerritory } from './territory.ts';
 import type { BuildingStatus, EntityId, SimEvent, Slot, UnitActivity, Vec2 } from './types.ts';
 import type { SpecId } from './upgrades.ts';
 import { combineMods, type ModId } from './modernization.ts';
-import { AIRCRAFT, MISSILE, NUCLEAR, missileSpec, type AircraftState, type AircraftType, type LaunchState, type MissionKind, type MissionResult, type MissionState } from './air.ts';
+import { AIRCRAFT, IRON_DOME, MISSILE, NUCLEAR, missileSpec, type AircraftState, type AircraftType, type LaunchState, type MissionKind, type MissionResult, type MissionState } from './air.ts';
 import { caravanIncome, type CaravanState } from './caravans.ts';
 import { TRADE_RESOURCES, TRANSPORT_MODES, type ShipmentState, type TradeContract, type TradeOffer, type TradeResource, type TransportMode } from './trade.ts';
 import type { MarketResource } from './market.ts';
@@ -162,6 +162,8 @@ export interface AirView {
   /** Missões próprias recentes, com o resultado registrado. */
   missions: { id: number; kind: MissionKind; state: MissionState; baseId: EntityId; targetType: string | null; fuel: number; count: number; result: MissionResult | null }[];
   silos: { id: EntityId; missiles: number; building: number; nuclear?: number; buildingNuclear?: boolean }[];
+  /** Baterias do Domo de Ferro do jogador: interceptadores prontos, recarga do próximo (0..1) e espera dos lançadores (s). */
+  domes: { id: EntityId; ready: number; max: number; reload: number; cooldown: number }[];
   /** Lançamentos próprios, e os inimigos em voo que miram este jogador ou estão à vista. */
   launches: { id: number; owner: Slot; siloId: EntityId; state: LaunchState; progress: number; x: number; y: number; fx: number; fy: number; tx: number; ty: number; targetOwner: Slot; gen: number; nuclear?: boolean }[];
   /** Áreas reveladas pelo reconhecimento próprio (névoa do cliente). */
@@ -496,6 +498,13 @@ export function airView(sim: Simulation, slot: Slot): AirView {
           ...(st?.buildingNuclear && st.building > 0 ? { buildingNuclear: true } : {}),
         };
       }),
+    domes: sim.buildings
+      .filter((b) => b.owner === slot && b.type === 'iron_dome' && b.progress >= 1)
+      .map((b) => {
+        const st = air.domes[b.id] ?? { ready: IRON_DOME.magazine, reload: 0, cooldown: 0 };
+        const full = IRON_DOME.reloadSeconds * TICK_RATE;
+        return { id: b.id, ready: st.ready, max: IRON_DOME.magazine, reload: st.ready < IRON_DOME.magazine ? r2(1 - st.reload / full) : 1, cooldown: r2(st.cooldown / TICK_RATE) };
+      }),
     launches,
     known: sim.buildings.filter((b) => b.owner !== slot && air.isKnown(slot, b.id)).map((b) => b.id),
     reveals: air.reveals.filter((r) => r.owner === slot).map((r) => ({ x: r2(r.pos.x), y: r2(r.pos.y), r: r.radius })),
@@ -561,6 +570,9 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
         (e.targetOwner === slot && (e.state === 'flight' || e.state === 'impact' || e.state === 'intercepted')) ||
         ((e.state === 'impact' || e.state === 'intercepted') && sim.isVisibleTo(slot, e.target))
       );
+    case 'dome':
+      // a bateria e quem lançou o míssil acompanham; os outros, se virem a bateria ou o alvo
+      return e.owner === slot || e.attacker === slot || sim.isVisibleTo(slot, e.pos) || sim.isVisibleTo(slot, e.target);
     case 'unit_promoted':
       return e.owner === slot;
     case 'era':

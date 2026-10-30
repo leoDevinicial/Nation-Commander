@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { TICK_RATE, type BuildingType } from '../sim/config.ts';
 import { parseCommand } from '../sim/commands.ts';
 import { Simulation, type NationalLink } from '../sim/Simulation.ts';
-import { AIR, AIRCRAFT, MISSILE, NUCLEAR, type AirMission } from '../sim/air.ts';
+import { AIR, AIRCRAFT, IRON_DOME, MISSILE, NUCLEAR, type AirMission } from '../sim/air.ts';
+import { BUILDINGS } from '../sim/config.ts';
 import { airView } from '../sim/snapshot.ts';
 import type { Building, SimEvent } from '../sim/types.ts';
 import { flatMap } from './helpers.ts';
@@ -473,6 +474,128 @@ describe('Fase 7 — mísseis', () => {
     }
     expect(intercepted).toBeGreaterThan(0);
     expect(intercepted + hits).toBeGreaterThan(1);
+  });
+});
+
+describe('Domo de Ferro', () => {
+  /** Silo do jogador 0 com mísseis à vontade e uma bateria do jogador 1 perto do QG dele. */
+  function scene(opts: { hit?: boolean } = {}) {
+    const s = setup();
+    const sl = s.place(0, 'missile_silo', [2, 8], [12, 14]);
+    const sl2 = s.place(0, 'missile_silo', [2, 8], [12, 14]);
+    const dome = s.place(1, 'iron_dome', [26, 26], [33, 33]);
+    const enemyHq = s.sim.hqOf(1)!;
+    run(s.sim, BUILDINGS.iron_dome.buildSeconds + 2);
+    s.sim.air.known[0] = new Set([enemyHq.id]);
+    // acerto ou erro forçado (o sorteio é o único aleatório do engajamento)
+    if (opts.hit !== undefined) (s.sim.air as unknown as { rand: () => number }).rand = () => (opts.hit ? 0 : 0.999);
+    /** Prepara, autoriza e espera o míssil sair do silo (estado de voo). */
+    const fire = (o: { nuclear?: boolean } = {}) => {
+      const st = s.sim.air.silo(sl.id);
+      st.missiles = 1;
+      if (o.nuclear) st.nuclear = 1;
+      expect(s.sim.applyCommand(0, { type: 'missile_prepare', buildingId: sl.id, x: enemyHq.pos.x, y: enemyHq.pos.y, ...(o.nuclear ? { nuclear: true } : {}) })).toBeNull();
+      const l = s.sim.air.launches.at(-1)!;
+      run(s.sim, MISSILE.prepareSeconds + 0.1);
+      expect(s.sim.applyCommand(0, { type: 'missile_authorize', launchId: l.id })).toBeNull();
+      run(s.sim, MISSILE.launchSeconds + 0.05);
+      expect(l.state).toBe('flight');
+      return l;
+    };
+    /** Salva: os dois silos lançam juntos (os mísseis saem no mesmo tick). */
+    const salvo = () => {
+      const ls = [sl, sl2].map((x) => {
+        s.sim.air.silo(x.id).missiles = 1;
+        expect(s.sim.applyCommand(0, { type: 'missile_prepare', buildingId: x.id, x: enemyHq.pos.x, y: enemyHq.pos.y })).toBeNull();
+        return s.sim.air.launches.at(-1)!;
+      });
+      run(s.sim, MISSILE.prepareSeconds + 0.1);
+      for (const l of ls) expect(s.sim.applyCommand(0, { type: 'missile_authorize', launchId: l.id })).toBeNull();
+      run(s.sim, MISSILE.launchSeconds + 0.05);
+      return ls;
+    };
+    return { ...s, silo: sl, dome, enemyHq, fire, salvo };
+  }
+  const total = (c: object) => Object.values(c).reduce((a: number, v: number) => a + v, 0);
+
+  it('é mais cara que o silo de mísseis e exige a pesquisa de mísseis', () => {
+    expect(total(BUILDINGS.iron_dome.cost)).toBeGreaterThan(total(BUILDINGS.missile_silo.cost));
+    for (const [r, v] of Object.entries(BUILDINGS.missile_silo.cost)) expect(BUILDINGS.iron_dome.cost[r as 'iron']).toBeGreaterThan(v);
+    const s = setup({ techs: [] });
+    expect(s.sim.applyCommand(1, { type: 'build', buildingType: 'iron_dome', cx: 28, cy: 28 })).toMatch(/Mísseis balísticos/);
+  });
+
+  it('dispara dois interceptadores e derruba o míssil comum no ar, sem dano no alvo', () => {
+    const { sim, dome, enemyHq, fire } = scene({ hit: true });
+    const hp = enemyHq.hp;
+    sim.drainEvents();
+    const l = fire();
+    const ev = sim.drainEvents().find((e) => e.type === 'dome');
+    expect(ev).toMatchObject({ type: 'dome', domeId: dome.id, launchId: l.id, owner: 1, attacker: 0, hit: true });
+    expect(sim.air.domeState(dome.id).ready).toBe(IRON_DOME.magazine - IRON_DOME.perEngagement);
+    run(sim, l.flightTicks / TICK_RATE + 0.2);
+    expect(l.state).toBe('intercepted');
+    expect(l.result!.damage).toBe(0);
+    expect(enemyHq.hp).toBe(hp);
+  });
+
+  it('se o interceptador erra, o míssil segue e cai no alvo', () => {
+    const { sim, enemyHq, fire } = scene({ hit: false });
+    const hp = enemyHq.hp;
+    const l = fire();
+    run(sim, l.flightTicks / TICK_RATE + 0.2);
+    expect(l.state).toBe('impact');
+    expect(enemyHq.hp).toBeLessThan(hp);
+  });
+
+  it('não dá conta de uma salva: espera entre engajamentos, magazine limitado e recarga lenta e paga', () => {
+    const { sim, dome, enemyHq, salvo } = scene({ hit: true });
+    enemyHq.maxHp = enemyHq.hp = 1e9;
+    // dois mísseis juntos: só um é engajado (os lançadores precisam de tempo entre uma interceptação e outra)
+    const [a, b] = salvo();
+    expect(a!.dome).toBeDefined();
+    expect(b!.dome).toBeUndefined();
+    // a próxima salva sai 13 s depois (preparo e contagem): pega um, e o magazine esvazia
+    const [c, d] = salvo();
+    expect(c!.dome).toBeDefined();
+    expect(d!.dome).toBeUndefined();
+    expect(sim.air.domeState(dome.id).ready).toBe(0);
+    const [e] = salvo();
+    expect(e!.dome).toBeUndefined();
+    // recarga: um interceptador por vez, 40 s cada, e cada um é pago
+    const iron = sim.players[1]!.resources.iron;
+    const reloadStart = sim.air.domeState(dome.id).reload;
+    run(sim, reloadStart / TICK_RATE + 0.1);
+    expect(sim.air.domeState(dome.id).ready).toBe(1);
+    expect(sim.players[1]!.resources.iron).toBe(iron - IRON_DOME.interceptorCost.iron!);
+    run(sim, IRON_DOME.reloadSeconds - 1);
+    expect(sim.air.domeState(dome.id).ready).toBe(1);
+    run(sim, 1.1);
+    expect(sim.air.domeState(dome.id).ready).toBe(2);
+  });
+
+  it('não intercepta a ogiva nuclear nem o míssil pesado', () => {
+    const { sim, silo: sl, enemyHq, fire } = scene({ hit: true });
+    enemyHq.maxHp = enemyHq.hp = 1e9;
+    const n = fire({ nuclear: true });
+    expect(n.dome).toBeUndefined();
+    run(sim, 30);
+    sim.air.silo(sl.id).missiles = 0;
+    sl.level = 2;
+    const h = fire();
+    expect(h.gen).toBe(2);
+    expect(h.dome).toBeUndefined();
+  });
+
+  it('salvar e carregar mantém os interceptadores e o engajamento em curso', () => {
+    const { sim, dome, fire } = scene({ hit: true });
+    const l = fire();
+    const copy = Simulation.deserialize(sim.serialize());
+    expect(copy.air.domeState(dome.id).ready).toBe(IRON_DOME.magazine - IRON_DOME.perEngagement);
+    const l2 = copy.air.launches.find((x) => x.id === l.id)!;
+    expect(l2.dome).toMatchObject({ domeId: dome.id, hit: true });
+    for (let i = 0; i < l.flightTicks + 4; i++) copy.step();
+    expect(l2.state).toBe('intercepted');
   });
 });
 

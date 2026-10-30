@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { canAfford, emptyStockpile } from '../../../shared/sim/config.ts';
 import { useMyBonus } from '../../state/myCountry.ts';
-import { AIR, AIRCRAFT_TYPES, aircraftFor, MISSILE, NUCLEAR, missileSpec, type AircraftState, type AircraftType, type LaunchState } from '../../../shared/sim/air.ts';
+import { AIR, AIRCRAFT_TYPES, aircraftFor, IRON_DOME, MISSILE, NUCLEAR, missileSpec, type AircraftState, type AircraftType, type LaunchState } from '../../../shared/sim/air.ts';
 import { TECHNOLOGIES } from '../../../shared/strategic/technologies.ts';
 import { buildingEffects, formatUsd } from '../../../shared/sim/upgrades.ts';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
@@ -209,6 +209,30 @@ export function SiloInfo({ b }: { b: SelectedBuildingInfo }) {
       {last && (last.state === 'impact' || last.state === 'intercepted' || last.state === 'aborted') && (
         <div className="mt-1 text-[11px] text-ink-400">Último lançamento: {LAUNCH_STATE[last.state].toLowerCase()}</div>
       )}
+    </div>
+  );
+}
+
+/** Domo de Ferro: interceptadores prontos, recarga do próximo e espera dos lançadores. */
+export function DomeInfo({ b }: { b: SelectedBuildingInfo }) {
+  const dome = useHudStore((s) => s.air?.domes?.find((x) => x.id === b.id));
+  if (!dome) return null;
+  const pairs = Math.floor(dome.ready / IRON_DOME.perEngagement);
+  return (
+    <div className="mt-1.5 text-xs">
+      <div className="text-ink-400">
+        Interceptadores: <span className="font-mono text-ink-100">{dome.ready}</span>/{dome.max}
+        <span> · {pairs === 1 ? '1 interceptação pronta' : `${pairs} interceptações prontas`}</span>
+      </div>
+      {dome.ready < dome.max && (
+        <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-ink-400">
+          Recarregando o próximo <Bar value={dome.reload} /> {Math.round(dome.reload * 100)}%
+        </div>
+      )}
+      {dome.cooldown > 0 && <div className="mt-0.5 text-[11px] text-amber-300">Lançadores se preparando: {Math.ceil(dome.cooldown)} s</div>}
+      <div className="mt-0.5 text-[11px] text-ink-400">
+        Protege até {IRON_DOME.range} de distância contra o míssil balístico comum. Não detém o míssil pesado nem a ogiva nuclear.
+      </div>
     </div>
   );
 }

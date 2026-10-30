@@ -20,7 +20,7 @@ export type Volumes = Record<Channel | 'master', number>;
 export const DEFAULT_VOLUMES: Volumes = { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 };
 
 export type UiSound = 'click' | 'confirm' | 'error' | 'alert' | 'success' | 'hold';
-export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'mbt_gun' | 'tank_gun' | 'vehicle_explosion' | 'vehicle_explosion_heavy' | 'nuclear_blast' | 'space_prelaunch' | 'space_liftoff' | 'gatling';
+export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'mbt_gun' | 'tank_gun' | 'vehicle_explosion' | 'vehicle_explosion_heavy' | 'nuclear_blast' | 'space_prelaunch' | 'space_liftoff' | 'dome_launch' | 'dome_intercept' | 'gatling';
 export type MissileCue = 'prepare' | 'armed' | 'authorize';
 
 /** Som de trabalho de cada edifício (os demais usam o zumbido genérico). */
@@ -66,6 +66,8 @@ const PRIORITY: Record<CombatSound, number> = {
   nuclear_blast: 9,
   space_prelaunch: 8,
   space_liftoff: 9,
+  dome_launch: 6,
+  dome_intercept: 7,
   gatling: 3,
   tank_gun: 3,
   cannon: 2,
@@ -81,7 +83,7 @@ const PRIORITY: Record<CombatSound, number> = {
 };
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
-const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, vehicle_explosion: 0.1, vehicle_explosion_heavy: 0.15, nuclear_blast: 1, space_prelaunch: 2, space_liftoff: 2, tank_gun: 0.18 };
+const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, vehicle_explosion: 0.1, vehicle_explosion_heavy: 0.15, nuclear_blast: 1, space_prelaunch: 2, space_liftoff: 2, dome_launch: 0.2, dome_intercept: 0.3, tank_gun: 0.18 };
 
 /**
  * Atenuação e panorâmica de um ponto do mapa para quem olha `L` (ponto da câmera, distância e giro).
@@ -841,6 +843,66 @@ export class AudioService {
         n.stop(t + 3.9);
         nodes.push(n);
         end = t + 3.9;
+        break;
+      }
+      case 'dome_launch': {
+        // interceptador saindo do tubo: o estalo da ignição e o baque grave da carga de expulsão, e o motor sólido
+        // rasgando para cima, um sopro que sobe de tom e some ao longe; com eco de campo aberto
+        const mix = ctx.createGain();
+        mix.connect(out);
+        const wet = ctx.createGain();
+        wet.gain.value = gain * 0.45;
+        mix.connect(wet).connect(this.outdoorReverb());
+        burst('highpass', 1700, 0.6, 0.0006, 1.1, 0.05, t, mix);
+        burst('bandpass', 700, 0.8, 0.001, 0.9, 0.12, t, mix);
+        thump(120, 42, 0.002, 1.2, 0.3, t, 'sine', mix);
+        {
+          const n = this.noiseSource();
+          const f = ctx.createBiquadFilter();
+          f.type = 'bandpass';
+          f.Q.value = 0.9;
+          f.frequency.setValueAtTime(380, t);
+          f.frequency.exponentialRampToValueAtTime(1500, t + 0.9);
+          f.frequency.exponentialRampToValueAtTime(700, t + 2.2);
+          const sat = ctx.createWaveShaper();
+          sat.curve = this.driveCurve(2);
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(1.0, t + 0.06);
+          g.gain.exponentialRampToValueAtTime(0.45, t + 0.8);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 2.4);
+          n.connect(f).connect(sat).connect(g).connect(mix);
+          n.start(t, Math.random());
+          n.stop(t + 2.5);
+          nodes.push(n);
+        }
+        end = burst('lowpass', 300, 0.6, 0.02, 0.45, 0.9, t + 0.05, mix);
+        break;
+      }
+      case 'dome_intercept': {
+        // interceptação no alto: o estalo seco e muito forte da explosão, o estrondo que vem do céu, abafado pela
+        // distância, e o eco rolando pelo terreno; com bastante reverberação de campo aberto
+        const mix = ctx.createGain();
+        mix.connect(out);
+        const wet = ctx.createGain();
+        wet.gain.value = gain * 0.7;
+        mix.connect(wet).connect(this.outdoorReverb());
+        const drive = ctx.createWaveShaper();
+        drive.curve = this.driveCurve(4);
+        const low = ctx.createBiquadFilter();
+        low.type = 'lowpass';
+        low.frequency.value = 380;
+        drive.connect(low).connect(mix);
+        const a = t + 0.08;
+        burst('highpass', 1900, 0.5, 0.0004, 1.8, 0.05, a, mix);
+        burst('bandpass', 1000, 0.6, 0.0008, 1.4, 0.16, a, mix);
+        burst('highpass', 1400, 0.6, 0.0006, 0.8, 0.05, a + 0.03, mix);
+        thump(95, 30, 0.003, 2.0, 0.7, a, 'sine', drive);
+        thump(55, 20, 0.01, 1.4, 1.4, a, 'triangle', drive);
+        burst('lowpass', 520, 0.6, 0.004, 1.2, 0.8, a, drive);
+        burst('lowpass', 360, 0.6, 0.05, 0.55, 1.2, a + 0.45, mix);
+        burst('lowpass', 240, 0.5, 0.1, 0.38, 1.8, a + 1.1, mix);
+        end = burst('lowpass', 160, 0.5, 0.2, 0.25, 2.4, a + 2, mix);
         break;
       }
       case 'space_prelaunch': {

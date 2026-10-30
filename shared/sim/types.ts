@@ -260,6 +260,12 @@ export type SimEvent =
       /** Primeiro tiro de uma rajada (armas com `burst`, como o Gatling do CIWS): o som da rajada inteira sai daqui. */
       burstStart?: boolean;
     }
+  /**
+   * Domo de Ferro disparou interceptadores contra o míssil `launchId`: saem da bateria em `pos` depois de `fireDelay` s,
+   * voam `flight` s e encontram o míssil (que vai de `from` a `target`) na fração `meet` do voo dele; `hit` diz se o
+   * derrubam (a interceptação em si chega no evento `missile` com estado `intercepted`).
+   */
+  | { type: 'dome'; tick: number; owner: Slot; attacker: Slot; domeId: EntityId; launchId: number; pos: Vec2; from: Vec2; target: Vec2; meet: number; fireDelay: number; flight: number; hit: boolean }
   /** Chegada de uma salva de foguetes: explosões espalhadas na área (dano já aplicado). */
   | { type: 'salvo_impact'; tick: number; owner: Slot; attackerId: EntityId; pos: Vec2; radius: number; rockets: number }
   /** Antiaérea Móvel do Futuro Próximo derrubou `rockets` foguetes de uma salva em voo (dono da antiaérea em `owner`). */

@@ -38,7 +38,7 @@ import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { factionColor } from '../../game/render/palette.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
 import { CardButton } from './CardButton.tsx';
-import { AirbaseButtons, AirbaseInfo, HoldToConfirm, SiloButtons, SiloInfo, airTargetText } from './AirPanels.tsx';
+import { AirbaseButtons, AirbaseInfo, DomeInfo, HoldToConfirm, SiloButtons, SiloInfo, airTargetText } from './AirPanels.tsx';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { buildingEffects, formatUsd as usdShort, specDef, upgradeTrack } from '../../../shared/sim/upgrades.ts';
@@ -57,7 +57,7 @@ type BuildTab = 'production' | 'civic' | 'military' | 'projects';
 const BUILD_TABS: { id: BuildTab; label: string; icon: string; types: BuildingType[] }[] = [
   { id: 'production', label: 'Produção', icon: '⚒', types: ['farm', 'sawmill', 'quarry', 'mine', 'oil_well', 'oil_tank', 'warehouse', 'silo', 'refinery', 'steel_mill'] },
   { id: 'civic', label: 'Cívicas', icon: '🏛', types: ['house', 'residential', 'city_hall', 'school', 'hospital', 'police_station', 'market', 'rail_station', 'port'] },
-  { id: 'military', label: 'Militares', icon: '⚔', types: ['barracks', 'factory', 'research_center', 'tower', 'tank_trap', 'aa_battery', 'airbase', 'missile_silo'] },
+  { id: 'military', label: 'Militares', icon: '⚔', types: ['barracks', 'factory', 'research_center', 'tower', 'tank_trap', 'aa_battery', 'airbase', 'missile_silo', 'iron_dome'] },
   // Grandes Projetos Nacionais (Futuro Próximo)
   { id: 'projects', label: 'Projetos', icon: '★', types: ['nuclear_plant', 'network_5g', 'hydro_dam', 'financial_center', 'space_center'] },
 ];
@@ -1159,6 +1159,7 @@ function BuildingInfo({ b, runtime }: { b: NonNullable<ReturnType<typeof useHudS
       )}
       {done && b.type === 'airbase' && <AirbaseInfo b={b} />}
       {done && b.type === 'missile_silo' && <SiloInfo b={b} />}
+      {done && b.type === 'iron_dome' && b.owner === useHudStore.getState().mySlot && <DomeInfo b={b} />}
       {done && b.type === 'city_hall' && b.owner === useHudStore.getState().mySlot && <CaravanInfo cityId={b.id} />}
       {done && b.type === 'market' && b.owner === useHudStore.getState().mySlot && <MarketInfo b={b} runtime={runtime} />}
       {done && fx.housing > 0 && <div className="text-[11px] text-ink-400">Moradia para {fx.housing} habitantes.</div>}

@@ -39,7 +39,8 @@ import { UnitVisual } from './render/UnitVisuals.ts';
 import { PostFx } from './render/PostFx.ts';
 import { CitizenLayer } from './render/CitizenLayer.ts';
 import { CargoLayer, disposeCargoModels } from './render/CargoLayer.ts';
-import { AirLayer, disposeAirModels } from './render/AirLayer.ts';
+import { AirLayer, disposeAirModels, missilePoint } from './render/AirLayer.ts';
+import { DomeLayer } from './render/DomeLayer.ts';
 import { AIRCRAFT, FLIGHT_SIGHT, NUCLEAR, missileSpec } from '../../shared/sim/air.ts';
 import { ERAS, type Era } from '../../shared/sim/eras.ts';
 import { SPACE_PAD } from './render/models/projects.ts';
@@ -200,6 +201,12 @@ export class GameRuntime {
   private roadPreview!: RoadPreview;
   private roadLayer!: RoadLayer;
   private readonly rocketLayer: RocketLayer;
+  /** Interceptadores do Domo de Ferro. */
+  private readonly domeLayer: DomeLayer;
+  /** Ponto de encontro dos interceptadores com cada míssil engajado (a explosão da interceptação sai dali). */
+  private readonly domeMeets = new Map<number, THREE.Vector3>();
+  /** Interceptações do Domo neste quadro: o som sai do ponto de encontro (ver `eventSound`). */
+  private readonly domeBursts = new Map<number, THREE.Vector3>();
   private readonly trackMarks: TrackMarks;
   private readonly projectiles: Projectiles;
   /** Visão aproximada: entidade acompanhada pela câmera e o zoom de antes (para voltar). */
@@ -359,6 +366,8 @@ export class GameRuntime {
     this.scene.add(this.airLayer.group);
     this.rocketLayer = new RocketLayer(this.effects, (at, k) => this.shakeNear(at, k), (x, z) => audio.playAt('explosion', x, z), 72, opts.profile.maxEffects > 60 ? 220 : 110);
     this.scene.add(this.rocketLayer.group);
+    this.domeLayer = new DomeLayer(this.effects, 12, opts.profile.maxEffects > 60 ? 340 : 170);
+    this.scene.add(this.domeLayer.group);
     // rastros de esteira: menos marcas guardadas nos presets leves
     this.trackMarks = new TrackMarks(opts.profile.maxEffects > 60 ? 3000 : 1200);
     this.scene.add(this.trackMarks.mesh);
@@ -867,11 +876,35 @@ export class GameRuntime {
         this.airLayer.shockwave(e.target, radius * 2.2);
         if (heavy) this.airLayer.shockwave(e.target, radius * 3.4);
         this.shakeNear(e.target, heavy ? 1.3 : 0.95);
+      } else if (e.state === 'intercepted' && this.domeMeets.has(e.launchId)) {
+        // Domo de Ferro: o míssil explode no ponto de encontro com o interceptador, alto no céu; destroços caindo e a
+        // fumaça escura da explosão contra o rastro branco dos interceptadores
+        const at = this.domeMeets.get(e.launchId)!;
+        this.domeMeets.delete(e.launchId);
+        this.domeBursts.set(e.launchId, at);
+        this.effects.airburst(at);
+        this.effects.flash(at, 5, '#fff3d6', 0.5);
+        this.effects.light(at, '#ffcf8a', 420, 60, 0.9);
+        this.effects.plume(at.clone(), { count: 9, size: 2.4, rise: -1.2, life: 9, spread: 2.4, tone: 0.32 });
+        this.shakeNear({ x: at.x, y: at.z }, 0.35);
       } else if (e.state === 'intercepted') {
         // interceptação: estouro alto no céu, sem dano no chão
         this.effects.airburst(new THREE.Vector3(e.target.x, 10, e.target.y));
         this.shakeNear(e.target, 0.2);
       }
+    } else if (e.type === 'dome') {
+      // Domo de Ferro: dois interceptadores saem dos lançadores e vão ao encontro do míssil
+      const meet = missilePoint({ fx: e.from.x, fy: e.from.y, tx: e.target.x, ty: e.target.y }, e.meet);
+      this.domeMeets.set(e.launchId, meet.clone());
+      this.domeLayer.engage({
+        domeId: e.domeId,
+        center: new THREE.Vector3(e.pos.x, 0, e.pos.y),
+        meet,
+        fireDelay: e.fireDelay,
+        flight: e.flight,
+        hit: e.hit,
+        onLaunch: (at) => audio.playAt('dome_launch', at.x, at.z),
+      });
     }
     this.eventSound(e);
     const text = describeEvent(e, this.mySlot);
@@ -1038,6 +1071,7 @@ export class GameRuntime {
     this.airLayer.frame(alpha, dt);
     // os foguetes andam no relógio da simulação: param na pausa e aceleram com a velocidade
     this.rocketLayer.update(this.paused ? 0 : dt * this.speed);
+    this.domeLayer.update(this.paused ? 0 : dt * this.speed);
     this.projectiles.update(this.paused ? 0 : dt * this.speed);
     for (let i = this.dying.length - 1; i >= 0; i--)
       if (!this.dying[i]!.updateDeath(dt)) {
@@ -2739,7 +2773,12 @@ export class GameRuntime {
           if (own || mine(e.targetOwner)) audio.play('missile_impact', 0.55);
           audio.playAt('missile_impact', e.target.x, e.target.y);
           if ((e.gen ?? 1) >= 2) audio.playAt('explosion_big', e.target.x, e.target.y);
-        } else if (e.state === 'intercepted') audio.playAt('intercept', e.target.x, e.target.y);
+        } else if (e.state === 'intercepted') {
+          const at = this.domeBursts.get(e.launchId);
+          this.domeBursts.delete(e.launchId);
+          if (at) audio.playAt('dome_intercept', at.x, at.z);
+          else audio.playAt('intercept', e.target.x, e.target.y);
+        }
         break;
       }
     }
@@ -3405,6 +3444,7 @@ export class GameRuntime {
       this.cargo.dispose();
       this.airLayer.dispose();
       this.rocketLayer.dispose();
+      this.domeLayer.dispose();
       this.trackMarks.dispose();
       this.projectiles.dispose();
       for (const v of this.dying.splice(0)) v.dispose();
@@ -3434,6 +3474,7 @@ export class GameRuntime {
     disposeCargoModels();
     this.airLayer.dispose();
       this.rocketLayer.dispose();
+      this.domeLayer.dispose();
       this.trackMarks.dispose();
       this.projectiles.dispose();
       for (const v of this.dying.splice(0)) v.dispose();

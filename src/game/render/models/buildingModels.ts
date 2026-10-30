@@ -1,3 +1,4 @@
+import { buildIronDome } from './ironDome.ts';
 import * as THREE from 'three';
 import { buildHospital, buildPoliceStation, buildRefinery, buildSchool, buildSteelMill } from './chains.ts';
 import { buildFinancialCenter, buildHydroDam, buildNetwork5g, buildNuclearPlant, buildSpaceCenter, buildTankTrap } from './projects.ts';
@@ -184,6 +185,7 @@ const BUILDERS: Record<BuildingType, () => Omit<BuildingModel, 'detail'>> = {
   airbase: buildAirbaseModel,
   aa_battery: buildAaBatteryModel,
   missile_silo: buildMissileSiloModel,
+  iron_dome: buildIronDome,
   research_center: buildResearchCenterModel,
   city_hall: buildCityHallModel,
   nuclear_plant: buildNuclearPlant,

@@ -230,6 +230,7 @@ export type BuildingType =
   | 'airbase'
   | 'aa_battery'
   | 'missile_silo'
+  | 'iron_dome'
   | 'research_center'
   | 'city_hall'
   // Grandes Projetos Nacionais (Futuro Próximo; um de cada por nação)
@@ -1272,7 +1273,23 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     buildable: true,
     requiresTech: 'ballistic_missiles',
     description: 'Guarda até 2 mísseis balísticos (produção cara e lenta). Lançar exige pesquisa, guerra com o dono do alvo e uma sequência com confirmação: preparar → autorizar → lançar.',
+  },  iron_dome: {
+    ...NONE,
+    label: 'Domo de Ferro',
+    cost: { stone: 180, iron: 260, supplies: 200, oil: 100 },
+    buildSeconds: 45,
+    maxHp: 900,
+    size: 2,
+    income: {},
+    sight: 8,
+    workers: 3,
+    upkeep: { supplies: 0.12 },
+    buildable: true,
+    requiresTech: 'ballistic_missiles',
+    description:
+      'Bateria de defesa antimíssil (três lançadores, radar e centro de controle): intercepta o míssil balístico comum que cair até 22 de distância, disparando dois interceptadores (90% de acerto). Guarda 4 interceptadores (2 interceptações); cada um é recarregado em 40 s e custa recursos, e entre uma interceptação e outra os lançadores levam 10 s. Não detém o míssil pesado nem a ogiva nuclear.',
   },
+
 };
 
 export const PRODUCTION_QUEUE_LIMIT = 5;
@@ -1314,7 +1331,7 @@ export function scaleCostBy(c: Cost, mul: number): Cost {
   return out;
 }
 
-const MILITARY_BUILDINGS: readonly BuildingType[] = ['barracks', 'factory', 'tower', 'research_center', 'tank_trap', 'aa_battery', 'airbase', 'missile_silo'];
+const MILITARY_BUILDINGS: readonly BuildingType[] = ['barracks', 'factory', 'tower', 'research_center', 'tank_trap', 'aa_battery', 'airbase', 'missile_silo', 'iron_dome'];
 for (const u of Object.values(UNITS)) u.cost = scaleCostBy(u.cost, ECONOMY.units);
 RECRUIT.cost = scaleCostBy(RECRUIT.cost, ECONOMY.recruit);
 CITIZEN.cost = scaleCostBy(CITIZEN.cost, ECONOMY.citizen);

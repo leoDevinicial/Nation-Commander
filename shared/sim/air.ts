@@ -155,6 +155,34 @@ export const MISSILE = {
 };
 
 /**
+ * Domo de Ferro: bateria de defesa antimíssil. Protege o que estiver a até `range` dela contra o míssil balístico comum
+ * (1ª geração); o pesado e a ogiva nuclear passam. Quando um míssil é lançado contra a área, a bateria dispara
+ * `perEngagement` interceptadores, que encontram o míssil a `meetProgress` do voo, com `hitChance` de derrubá-lo.
+ * Não dá para segurar uma salva: são `magazine` interceptadores prontos, cada um recarregado em `reloadSeconds` (um
+ * por vez, pagando `interceptorCost`), e os lançadores precisam de `cooldownSeconds` entre uma interceptação e outra.
+ */
+export const IRON_DOME = {
+  range: 22,
+  magazine: 4,
+  perEngagement: 2,
+  hitChance: 0.9,
+  reloadSeconds: 40,
+  cooldownSeconds: 10,
+  interceptorCost: { iron: 30, oil: 20, supplies: 30 } as Cost,
+  interceptorFlightSeconds: 1.6,
+  meetProgress: 0.72,
+};
+
+/** Interceptadores de uma bateria do Domo de Ferro. */
+export interface DomeState {
+  ready: number;
+  /** Ticks até o próximo interceptador recarregado (0 = parado, magazine cheio ou sem recursos). */
+  reload: number;
+  /** Ticks até os lançadores poderem engajar de novo. */
+  cooldown: number;
+}
+
+/**
  * Ogiva nuclear (pesquisa nacional "Armas nucleares"): muito mais cara e lenta de produzir, raio e
  * dano enormes, mais difícil de interceptar. Todo lançamento derruba a economia global por meses
  * (`NationalSimulation.nuclearShock`), inclusive a de quem lançou.
@@ -265,6 +293,8 @@ export interface MissileLaunch {
   gen?: number;
   /** Ogiva nuclear. */
   nuclear?: boolean;
+  /** Engajamento do Domo de Ferro: bateria, tick do encontro, acerto (sorteado no disparo) e se já foi resolvido. */
+  dome?: { domeId: EntityId; meetTick: number; hit: boolean; resolved?: boolean };
 }
 
 export interface SiloState {
@@ -296,6 +326,7 @@ export interface AirSave {
   reveals: Reveal[];
   known: Record<number, number[]>;
   dogfights?: Dogfight[];
+  domes?: Record<number, DomeState>;
 }
 
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -309,6 +340,8 @@ export class AirSystem {
   silos: Record<number, SiloState> = {};
   reveals: Reveal[] = [];
   dogfights: Dogfight[] = [];
+  /** Interceptadores de cada bateria do Domo de Ferro (por id do edifício). */
+  domes: Record<number, DomeState> = {};
   /** Edifícios inimigos já descobertos por cada jogador (visão ou reconhecimento). */
   known: Record<number, Set<number>> = {};
 
@@ -326,7 +359,7 @@ export class AirSystem {
     const known: Record<number, number[]> = {};
     for (const [k, v] of Object.entries(this.known)) known[Number(k)] = [...v].sort((a, b) => a - b);
     return JSON.parse(
-      JSON.stringify({ nextId: this.nextId, seed: this.seed, aircraft: this.aircraft, missions: this.missions, launches: this.launches, silos: this.silos, reveals: this.reveals, known, dogfights: this.dogfights }),
+      JSON.stringify({ nextId: this.nextId, seed: this.seed, aircraft: this.aircraft, missions: this.missions, launches: this.launches, silos: this.silos, reveals: this.reveals, known, dogfights: this.dogfights, domes: this.domes }),
     ) as AirSave;
   }
 
@@ -341,6 +374,7 @@ export class AirSystem {
     this.silos = c.silos;
     this.reveals = c.reveals;
     this.dogfights = c.dogfights ?? [];
+    this.domes = c.domes ?? {};
     this.known = Object.fromEntries(Object.entries(c.known).map(([k, v]) => [Number(k), new Set(v)]));
   }
 
@@ -706,6 +740,70 @@ export class AirSystem {
     return null;
   }
 
+  /** Interceptadores da bateria (uma bateria nova já vem com o magazine cheio). */
+  domeState(id: EntityId): DomeState {
+    return (this.domes[id] ??= { ready: IRON_DOME.magazine, reload: 0, cooldown: 0 });
+  }
+
+  /** Recarga dos interceptadores, um por vez, pagando cada um; e a espera dos lançadores entre engajamentos. */
+  private stepDomes(): void {
+    for (const id of Object.keys(this.domes).map(Number)) if (!this.building(id)) delete this.domes[id];
+    for (const b of this.sim.buildings) {
+      if (b.type !== 'iron_dome' || b.progress < 1 || b.hp <= 0) continue;
+      const st = this.domeState(b.id);
+      if (st.cooldown > 0) st.cooldown--;
+      if (st.ready >= IRON_DOME.magazine || b.unpaid) continue;
+      if (st.reload > 0) st.reload--;
+      if (st.reload > 0) continue;
+      if (!canAfford(this.sim.players[b.owner]!.resources, IRON_DOME.interceptorCost)) continue;
+      this.sim.spendResources(b.owner, IRON_DOME.interceptorCost);
+      st.ready++;
+      st.reload = st.ready < IRON_DOME.magazine ? IRON_DOME.reloadSeconds * TICK_RATE : 0;
+    }
+  }
+
+  /**
+   * Míssil comum lançado contra uma área protegida: a bateria mais perto do alvo, com interceptadores e lançadores
+   * prontos, dispara o par de interceptadores. O acerto é sorteado agora e aplicado no encontro.
+   */
+  private domeEngage(l: MissileLaunch): void {
+    if ((l.gen ?? 1) >= 2 || l.nuclear) return;
+    const tick = this.sim.tick;
+    let best: { b: Building; d: number } | null = null;
+    for (const b of this.sim.buildings) {
+      if (b.type !== 'iron_dome' || b.owner !== l.targetOwner || b.progress < 1 || b.hp <= 0 || b.unpaid) continue;
+      const d = dist(b.pos, l.target);
+      if (d > IRON_DOME.range) continue;
+      const st = this.domeState(b.id);
+      if (st.ready < IRON_DOME.perEngagement || st.cooldown > 0) continue;
+      if (!best || d < best.d) best = { b, d };
+    }
+    if (!best) return;
+    const st = this.domeState(best.b.id);
+    st.ready -= IRON_DOME.perEngagement;
+    st.cooldown = IRON_DOME.cooldownSeconds * TICK_RATE;
+    if (st.reload <= 0) st.reload = IRON_DOME.reloadSeconds * TICK_RATE;
+    const meetTick = tick + Math.max(1, Math.round(l.flightTicks * IRON_DOME.meetProgress));
+    const fireTick = Math.max(tick, meetTick - Math.round(IRON_DOME.interceptorFlightSeconds * TICK_RATE));
+    const hit = this.rand() < IRON_DOME.hitChance;
+    l.dome = { domeId: best.b.id, meetTick, hit };
+    this.sim.emitTrade({
+      type: 'dome',
+      tick,
+      owner: best.b.owner,
+      attacker: l.owner,
+      domeId: best.b.id,
+      launchId: l.id,
+      pos: { ...best.b.pos },
+      from: { ...l.from },
+      target: { ...l.target },
+      meet: (meetTick - tick) / Math.max(1, l.flightTicks),
+      fireDelay: (fireTick - tick) / TICK_RATE,
+      flight: (meetTick - fireTick) / TICK_RATE,
+      hit,
+    });
+  }
+
   private missileEvent(l: MissileLaunch, text: string): void {
     const r = l.result && !l.result.intercepted ? { damage: l.result.damage, destroyed: l.result.destroyed, casualties: l.result.casualties } : {};
     this.sim.emitTrade({ type: 'missile', tick: this.sim.tick, owner: l.owner, launchId: l.id, state: l.state, text, from: { ...l.from }, target: { ...l.target }, targetOwner: l.targetOwner, gen: l.gen ?? 1, ...(l.nuclear ? { nuclear: true } : {}), ...r });
@@ -797,6 +895,7 @@ export class AirSystem {
       }
     }
     if (tick % (TICK_RATE * 30) === 0) this.missions = this.missions.filter((m) => m.state !== 'done' || tick - m.launchTick < TICK_RATE * 120);
+    this.stepDomes();
     // silos: produção de mísseis
     for (const [id, s] of Object.entries(this.silos)) {
       const b = this.building(Number(id));
@@ -829,8 +928,19 @@ export class AirSystem {
           l.state = 'flight';
           l.timer = l.flightTicks;
           this.missileEvent(l, 'Míssil lançado');
+          this.domeEngage(l);
         }
       } else if (l.state === 'flight') {
+        if (l.dome && !l.dome.resolved && tick >= l.dome.meetTick) {
+          l.dome.resolved = true;
+          if (l.dome.hit) {
+            l.state = 'intercepted';
+            l.endTick = tick;
+            l.result = { damage: 0, destroyed: 0, casualties: 0, intercepted: true };
+            this.missileEvent(l, 'Míssil interceptado pelo Domo de Ferro');
+            continue;
+          }
+        }
         if (--l.timer <= 0) this.impact(l);
       }
     }
