@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { C, layers } from './kit.ts';
 import type { BuildingModel } from './buildingModels.ts';
 
@@ -11,7 +12,6 @@ type Built = Omit<BuildingModel, 'detail'>;
 const WHITE = '#e6e8e6';
 const STEEL = '#9aa1a8';
 const DARK = '#3a3f45';
-const ORANGE = '#c8642c';
 
 /** Usina Nuclear (3×3): duas torres de resfriamento, reator em cúpula e casa de turbinas. */
 export function buildNuclearPlant(): Built {
@@ -212,45 +212,173 @@ export function buildFinancialCenter(): Built {
   return { base: l.build(), moving: null, height: top + 0.5 };
 }
 
-/** Programa Espacial (4×4): plataforma, torre de serviço, centro de controle e antena de rastreio. */
+/** Centro da plataforma de lançamento (referencial do modelo): o foguete fica de pé aqui. */
+export const SPACE_PAD: [number, number, number] = [1.1, 0.9, -1.0];
+/** Pé da torre de lançamento: a torre fica a oeste do foguete e os braços apontam para +x. */
+export const SPACE_TOWER: [number, number, number] = [SPACE_PAD[0] - 1.15, 0.16, SPACE_PAD[2]];
+/** Altura da torre de lançamento. */
+export const SPACE_TOWER_HEIGHT = 7.4;
+
+/**
+ * Programa Espacial (4×4), complexo de lançamento em low poly:
+ * - plataforma elevada de concreto com fosso de chamas que leva o jato para fora (+x), defletor em cunha e canos do
+ *   sistema de supressão por água;
+ * - torre de lançamento em treliça de aço (montantes, anéis e diagonais em X), com plataformas, elevador, para-raios
+ *   e guindaste no topo. Os braços móveis (acesso da tripulação e umbilicais) são animados à parte, com o foguete;
+ * - fazenda de propelente: duas esferas (oxigênio líquido e querosene) com tubulação até a plataforma;
+ * - caixa-d'água elevada da supressão acústica;
+ * - prédio de montagem vertical com porta alta e faixa da nação, pista de transporte até a plataforma;
+ * - centro de controle com janelas, bunker baixo e duas antenas de rastreio;
+ * - torres para-raios nos cantos da plataforma.
+ */
 export function buildSpaceCenter(): Built {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
+  const [px, py, pz] = SPACE_PAD;
+  const SLAB = '#b9b5ab';
+  const SOOT = '#2f3135';
+  const RED = '#b5482a';
   b.box(7.6, 0.16, 7.6, C.concreteDark, [0, 0.08, 0]);
-  // plataforma de lançamento com fosso de chamas
-  b.box(3.2, 0.5, 3.2, C.concrete, [1.4, 0.41, -1.4]);
-  b.box(1.0, 0.52, 1.0, DARK, [1.4, 0.42, -1.4]);
-  b.box(3.0, 0.3, 0.9, C.concrete, [1.4, 0.3, -3.1]);
-  // torre de serviço vermelha ao lado do foguete, com braços
-  const th = 5.4;
-  for (const [x, z] of [
-    [0, 0],
-    [0.6, 0],
-    [0, 0.6],
-    [0.6, 0.6],
-  ] as const)
-    b.box(0.08, th, 0.08, ORANGE, [0.05 + x, th / 2 + 0.6, -0.55 - z]);
-  for (let y = 1.2; y < th; y += 0.8) {
-    b.box(0.7, 0.05, 0.05, ORANGE, [0.35, y, -0.55]);
-    b.box(0.7, 0.05, 0.05, ORANGE, [0.35, y, -1.15]);
-  }
-  for (const y of [2.6, 4.2]) b.box(0.75, 0.08, 0.12, STEEL, [0.95, y, -0.85]);
-  // centro de controle
-  b.box(2.8, 1.0, 1.8, WHITE, [-1.9, 0.66, 2.0]);
-  b.box(2.9, 0.08, 1.9, C.roof, [-1.9, 1.2, 2.0]);
-  for (let i = 0; i < 6; i++) g.box(0.3, 0.32, 0.02, '#ffffff', [-3.0 + i * 0.44, 0.75, 2.91]);
-  // antena de rastreio
-  b.cyl(0.08, 0.12, 1.2, STEEL, [2.4, 0.76, 2.2], undefined, 8);
-  b.sphere(0.85, WHITE, [2.4, 1.6, 2.2], [1, 0.35, 1], 14);
-  // hangar de montagem
-  b.box(1.9, 2.0, 1.6, C.concreteLight, [-2.2, 1.16, -1.9]);
-  b.box(1.4, 1.6, 0.02, DARK, [-2.2, 0.96, -1.09]);
-  a.box(1.9, 0.25, 0.03, '#ffffff', [-2.2, 1.9, -1.09]);
-  return { base: l.build(), moving: null, height: th + 0.6 };
-}
+  // pista de transporte do prédio de montagem até a plataforma (duas faixas de brita)
+  for (const dz of [-0.32, 0.32]) b.box(3.2, 0.02, 0.38, '#77746c', [-1.4, 0.17, pz + dz]);
 
-/** Posição do foguete na plataforma do Programa Espacial (referencial do modelo). */
-export const SPACE_PAD: [number, number, number] = [1.4, 0.68, -1.4];
+  // --- plataforma: base facetada em octógono, rampas e o deck
+  b.plan(
+    [
+      [px - 1.6, pz - 0.8],
+      [px - 0.8, pz - 1.6],
+      [px + 0.8, pz - 1.6],
+      [px + 1.6, pz - 0.8],
+      [px + 1.6, pz + 0.8],
+      [px + 0.8, pz + 1.6],
+      [px - 0.8, pz + 1.6],
+      [px - 1.6, pz + 0.8],
+    ],
+    py - 0.16,
+    C.concrete,
+    [0, 0.16, 0],
+  );
+  b.box(2.2, 0.04, 2.2, SLAB, [px, py + 0.02, pz]);
+  // mesa de lançamento: suporte do foguete com a abertura do jato e os grampos de retenção
+  b.box(1.1, 0.22, 1.1, '#6f7378', [px, py + 0.13, pz]);
+  b.box(0.7, 0.24, 0.7, SOOT, [px, py + 0.13, pz]);
+  for (const [dx, dz] of [
+    [0.42, 0.42],
+    [-0.42, 0.42],
+    [0.42, -0.42],
+    [-0.42, -0.42],
+  ] as const)
+    b.box(0.12, 0.3, 0.12, '#5b5f63', [px + dx, py + 0.33, pz + dz]);
+  // fosso de chamas: canal escuro que sai da plataforma para +x, defletor em cunha e parede chamuscada
+  b.box(2.5, 0.05, 0.9, SOOT, [px + 1.6, 0.19, pz]);
+  b.box(0.9, 0.3, 0.9, '#55524c', [px + 0.25, 0.32, pz], [0, 0, -0.55]);
+  for (const dz of [-0.5, 0.5]) b.box(2.5, 0.42, 0.12, C.concreteDark, [px + 1.6, 0.37, pz + dz]);
+  // canos da supressão por água ao redor da mesa
+  for (const dz of [-0.62, 0.62]) b.cyl(0.045, 0.045, 1.3, STEEL, [px, py + 0.08, pz + dz], [0, 0, Math.PI / 2], 8);
+  for (const dx of [-0.62, 0.62]) b.cyl(0.045, 0.045, 1.3, STEEL, [px + dx, py + 0.08, pz], [Math.PI / 2, 0, 0], 8);
+
+  // --- torre de lançamento em treliça
+  const [tx, ty, tz] = SPACE_TOWER;
+  const th = SPACE_TOWER_HEIGHT;
+  const w = 0.36;
+  b.box(0.95, 0.12, 0.95, C.concreteDark, [tx, ty + 0.06 + 0.55, tz]);
+  const base = py;
+  for (const dx of [-w, w]) for (const dz of [-w, w]) b.box(0.07, th, 0.07, RED, [tx + dx, base + th / 2, tz + dz]);
+  const step = 0.62;
+  for (let y = base + 0.3; y < base + th; y += step) {
+    for (const dz of [-w, w]) b.box(w * 2, 0.045, 0.045, RED, [tx, y, tz + dz]);
+    for (const dx of [-w, w]) b.box(0.045, 0.045, w * 2, RED, [tx + dx, y, tz]);
+    // diagonais em X nas faces de frente e de trás
+    const len = Math.hypot(w * 2, step);
+    const ang = Math.atan2(step, w * 2);
+    for (const dz of [-w, w]) {
+      b.box(len, 0.03, 0.03, '#9b3d23', [tx, y + step / 2, tz + dz], [0, 0, ang]);
+      b.box(len, 0.03, 0.03, '#9b3d23', [tx, y + step / 2, tz + dz], [0, 0, -ang]);
+    }
+    for (const dx of [-w, w]) {
+      b.box(0.03, 0.03, len, '#9b3d23', [tx + dx, y + step / 2, tz], [ang, 0, 0]);
+    }
+  }
+  // plataformas de serviço, elevador e escada lateral
+  for (const y of [base + 1.9, base + 3.6, base + 5.4]) b.box(1.0, 0.05, 1.0, '#7d8085', [tx, y, tz]);
+  b.box(0.3, th * 0.92, 0.3, '#8d9196', [tx - w - 0.18, base + (th * 0.92) / 2, tz]);
+  b.box(0.32, 0.32, 0.32, '#cfd2d4', [tx - w - 0.18, base + th * 0.6, tz]);
+  // topo: casa de máquinas, guindaste e para-raios
+  b.box(0.85, 0.35, 0.85, '#8a8e93', [tx, base + th + 0.18, tz]);
+  b.box(1.6, 0.08, 0.1, RED, [tx + 0.45, base + th + 0.42, tz]);
+  b.cyl(0.03, 0.03, 0.4, '#5b5f63', [tx + 1.1, base + th + 0.2, tz], undefined, 6);
+  b.cyl(0.02, 0.035, 1.6, STEEL, [tx, base + th + 1.15, tz], undefined, 6);
+  b.box(0.06, 0.06, 0.06, C.red, [tx, base + th + 1.98, tz]);
+  a.box(0.74, 0.18, 0.012, '#ffffff', [tx, base + th - 0.6, tz + w + 0.02]);
+  a.box(0.74, 0.18, 0.012, '#ffffff', [tx, base + th - 0.6, tz - w - 0.02]);
+
+  // --- torres para-raios nos cantos da plataforma
+  for (const [dx, dz] of [
+    [1.5, 1.4],
+    [-0.3, -1.6],
+  ] as const) {
+    b.cyl(0.05, 0.09, 6.6, '#c8cbcd', [px + dx, 0.16 + 3.3, pz + dz], undefined, 6);
+    b.cyl(0.015, 0.015, 0.6, STEEL, [px + dx, 6.76 + 0.3, pz + dz], undefined, 4);
+  }
+
+  // --- fazenda de propelente: esferas de oxigênio líquido e de querosene, com a tubulação até a plataforma
+  for (const [x, z, color] of [
+    [3.0, 1.0, WHITE],
+    [3.0, 2.7, '#c9c6bd'],
+  ] as const) {
+    for (const dx of [-0.32, 0.32]) for (const dz of [-0.32, 0.32]) b.box(0.06, 0.55, 0.06, STEEL, [x + dx, 0.43, z + dz]);
+    b.sphere(0.58, color, [x, 1.2, z], undefined, 12);
+    b.box(0.9, 0.04, 0.04, STEEL, [x, 0.7, z]);
+  }
+  b.cyl(0.05, 0.05, 2.2, STEEL, [3.0, 0.3, 1.85], [Math.PI / 2, 0, 0], 8);
+  b.cyl(0.05, 0.05, 1.6, STEEL, [2.3, 0.3, 0.75], [0, 0, Math.PI / 2], 8);
+  b.cyl(0.05, 0.05, 0.9, STEEL, [px + 0.9, 0.3, pz + 1.2], [Math.PI / 2, 0, 0], 8);
+
+  // --- caixa-d'água elevada da supressão acústica
+  {
+    const [x, z] = [-0.6, 2.9];
+    for (const dx of [-0.3, 0.3]) for (const dz of [-0.3, 0.3]) b.box(0.06, 2.2, 0.06, STEEL, [x + dx, 1.26, z + dz]);
+    b.cyl(0.5, 0.5, 0.75, '#d4d6d2', [x, 2.7, z], undefined, 12);
+    b.cyl(0.08, 0.5, 0.25, '#d4d6d2', [x, 3.2, z], undefined, 12);
+    a.cyl(0.505, 0.505, 0.14, '#ffffff', [x, 2.75, z], undefined, 12);
+  }
+
+  // --- prédio de montagem vertical: bloco alto, porta alta voltada para a pista e faixa da nação
+  {
+    const [x, z] = [-2.7, -1.0];
+    b.box(1.8, 3.6, 2.2, C.concreteLight, [x, 1.96, z]);
+    b.box(1.86, 0.1, 2.26, '#9a9c9a', [x, 3.81, z]);
+    b.box(0.02, 3.0, 0.9, '#5d6166', [x + 0.91, 1.66, z]);
+    for (let i = 0; i < 6; i++) b.box(0.025, 0.02, 0.92, '#7a7e83', [x + 0.92, 0.4 + i * 0.5, z]);
+    a.box(0.02, 0.6, 0.9, '#ffffff', [x + 0.91, 3.4, z - 0.15 - 0.6]);
+    for (let i = 0; i < 4; i++) b.box(0.012, 0.2, 0.3, '#8f9295', [x - 0.91, 1.0 + i * 0.7, z + 0.6]);
+  }
+
+  // --- centro de controle, bunker e antenas de rastreio
+  b.box(2.2, 0.9, 1.3, WHITE, [-2.4, 0.61, 2.3]);
+  b.box(2.3, 0.08, 1.4, C.roof, [-2.4, 1.1, 2.3]);
+  for (let i = 0; i < 5; i++) g.box(0.32, 0.3, 0.02, '#ffffff', [-3.25 + i * 0.42, 0.7, 2.96]);
+  b.plan(
+    [
+      [-1.2, 0.6],
+      [0.1, 0.6],
+      [0.3, 1.4],
+      [-1.4, 1.4],
+    ],
+    0.35,
+    C.concreteDark,
+    [0, 0.16, 0],
+  );
+  g.box(0.8, 0.06, 0.02, '#ffffff', [-0.55, 0.42, 1.41]);
+  for (const [x, z, r] of [
+    [-3.1, 0.6, 0.55],
+    [-1.6, 3.3, 0.4],
+  ] as const) {
+    b.cyl(0.06, 0.1, 0.9, STEEL, [x, 0.61, z], undefined, 8);
+    b.add(new THREE.SphereGeometry(r, 14, 6, 0, Math.PI * 2, 0, Math.PI / 2.4), WHITE, { pos: [x, 1.05 + r * 0.55, z], rot: [Math.PI - 0.7, 0, 0.3] });
+  }
+  return { base: l.build(), moving: null, height: th + 1.4 };
+}
 
 /** Obstáculo antitanque (1×1): três ouriços de aço e uma mureta de sacos de areia. */
 export function buildTankTrap(): Built {

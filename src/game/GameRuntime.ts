@@ -834,12 +834,9 @@ export class GameRuntime {
       this.effects.plume(at.clone().setY(0.3), { count: 4, size: 1.1, rise: 3, life: 3.5, spread: 0.5, tone: 0.45 });
       this.shakeNear(e.pos, 0.35);
     } else if (e.type === 'space' && e.state === 'ascent') {
-      // ignição do lançador: clarão, nuvem de fumaça rolando da plataforma e tremor longo
-      const pad = new THREE.Vector3(e.pos.x + SPACE_PAD[0], 0.4, e.pos.y + SPACE_PAD[2]);
-      this.effects.heavyIgnition(pad);
-      this.effects.flash(new THREE.Vector3(pad.x, 2, pad.z), 6, '#ffd9a0', 0.8);
-      this.airLayer.shockwave({ x: pad.x, y: pad.z }, 8);
-      this.shakeNear({ x: pad.x, y: pad.z }, 0.9);
+      // decolagem: a onda de pressão corre pelo chão a partir da plataforma (fumaça, chama e tremor ficam com o
+      // `SpaceLaunch` do Programa Espacial, no relógio da contagem)
+      this.airLayer.shockwave({ x: e.pos.x + SPACE_PAD[0], y: e.pos.y + SPACE_PAD[2] }, 8);
     } else if (e.type === 'missile') {
       const heavy = (e.gen ?? 1) >= 2 || !!e.nuclear;
       const radius = e.nuclear ? NUCLEAR.radius : missileSpec(e.gen ?? 1).radius;
@@ -879,6 +876,19 @@ export class GameRuntime {
     this.eventSound(e);
     const text = describeEvent(e, this.mySlot);
     if (text) useHudStore.getState().pushEvent({ tick: e.tick, text: text.text, tone: text.tone });
+  }
+
+  /** Tremor contínuo dos lançamentos do Programa Espacial (ignição e subida), pela proximidade da câmera. */
+  private launchRumble(dt: number): void {
+    if (this.suspended || useSettingsStore.getState().reducedMotion || prefersReducedMotion()) return;
+    for (const t of this.buildings.values()) {
+      if (t.snap.type !== 'space_center') continue;
+      const r = t.visual.launchRumble;
+      if (r < 0.01) continue;
+      const d = Math.hypot(t.visual.group.position.x - this.cameraCtl.target.x, t.visual.group.position.z - this.cameraCtl.target.z);
+      const near = 1 - Math.min(1, d / (this.cameraCtl.distance * 2.2));
+      if (near > 0) this.cameraCtl.shake(r * near * dt * 2.4, 0.42 * r * near);
+    }
   }
 
   /** Tremor de câmera proporcional à proximidade do que o jogador está olhando (sem movimento reduzido). */
@@ -1044,6 +1054,7 @@ export class GameRuntime {
     }
     this.updateRouteInspection();
     this.effects.update(dt);
+    this.launchRumble(dt);
     for (let i = this.nukes.length - 1; i >= 0; i--)
       if (!this.nukes[i]!.update(this.paused ? 0 : dt)) {
         this.nukes[i]!.dispose();
@@ -2688,11 +2699,14 @@ export class GameRuntime {
         else if (e.state === 'laid' && mine(e.owner)) audio.ui('click');
         break;
       case 'space':
-        if (e.state === 'ascent') {
-          audio.playAt('missile_launch', e.pos.x, e.pos.y);
-          audio.playAt('explosion_big', e.pos.x, e.pos.y);
-        } else if (e.state === 'orbit') audio.ui(mine(e.owner) ? 'success' : 'alert');
-        else if (e.state === 'countdown' && !mine(e.owner)) audio.ui('alert');
+        // contagem e decolagem com sons longos sincronizados com o `SpaceLaunch` (ignição a −2,2 s dentro da contagem);
+        // ouvidos em todo o mapa, mais baixos de longe
+        if (e.state === 'ascent') audio.playWide('space_liftoff', e.pos.x + SPACE_PAD[0], e.pos.y + SPACE_PAD[2], 0.3);
+        else if (e.state === 'orbit') audio.ui(mine(e.owner) ? 'success' : 'alert');
+        else if (e.state === 'countdown') {
+          audio.playWide('space_prelaunch', e.pos.x + SPACE_PAD[0], e.pos.y + SPACE_PAD[2], 0.25);
+          if (!mine(e.owner)) audio.ui('alert');
+        }
         break;
       case 'era':
         if (mine(e.owner) && e.state === 'completed') audio.ui('success');

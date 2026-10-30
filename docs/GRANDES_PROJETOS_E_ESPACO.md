@@ -28,12 +28,46 @@ petróleo, 90% do teto da verba de obras e 6 minutos de obra. Exige:
 - o Centro de Comando no nível 9;
 - a pesquisa nacional **Tecnologia espacial** (pré-requisitos: Mísseis balísticos e Sensores e óptica térmica).
 
-**Lançamento:**
+**Complexo de lançamento** (`buildSpaceCenter` em `src/game/render/models/projects.ts`, low poly):
+- plataforma elevada com fosso de chamas que leva o jato para fora, defletor em cunha e canos da supressão por água;
+- torre de lançamento em treliça de aço, com plataformas, elevador, guindaste e para-raios;
+- esferas de propelente com tubulação até a plataforma e caixa-d'água elevada da supressão acústica;
+- prédio de montagem vertical com a faixa da nação e a pista até a plataforma;
+- centro de controle, bunker e duas antenas de rastreio;
+- torres para-raios.
+
+O foguete é de dois estágios, com dois propulsores laterais, pernas recolhidas, aletas em grade, interestágio escuro
+e coifa ogival com a faixa da nação. Ele e os braços da torre ficam em `src/game/render/SpaceLaunch.ts`.
+
+**Lançamento:** a sequência anda num relógio próprio, corrigido pelo progresso das fases que vem do servidor. Por
+isso a animação e o som ficam sincronizados.
 1. Com a obra pronta, o jogador autoriza o lançamento mantendo o botão pressionado.
-2. Há uma contagem regressiva de 10 s, com vapor na plataforma.
-3. Na ignição há clarão, nuvem de fumaça, onda de choque, tremor e som. O foguete acelera, com chama e coluna de
-   fumaça, até sumir no alto da tela (cerca de 9 s).
-4. Todos os jogadores são avisados na contagem, na decolagem e no satélite em órbita.
+2. **Contagem (10 s):**
+   - o oxigênio líquido solta vapor branco pelos respiros, que escorre pelo corpo do foguete;
+   - o braço de acesso da tripulação recolhe (−7,5 a −5,5 s);
+   - a água da supressão acústica jorra em volta da mesa (−3,6 s).
+3. **Ignição (−2,2 s):** os motores acendem com o foguete ainda preso pelos grampos.
+   - A luz estoura e ilumina a plataforma.
+   - O jato bate no defletor e uma nuvem enorme de fumaça e vapor sai pelo fosso de chamas e rola pela plataforma.
+   - O foguete treme, e a câmera também, conforme a proximidade.
+4. **Decolagem (0 s):** os umbilicais se soltam e o foguete sobe devagar, acelerando.
+   - A chama (miolo branco, envelope laranja e discos de choque) se alonga e abre com a altitude.
+   - O rastro de fumaça fica no céu.
+   - A partir de ~4 s o foguete começa a inclinar (curva de gravidade) e some no alto (cerca de 9 s).
+5. Depois do satélite em órbita a plataforma fica vazia, e a fumaça se desfaz aos poucos.
+6. Todos os jogadores são avisados na contagem, na decolagem e no satélite em órbita.
+
+**Som do lançamento**, sincronizado com a animação e ouvido em todo o mapa (mais baixo de longe, `playWide`):
+- `space_prelaunch`, que toca na contagem:
+  - o ronco mecânico grave das bombas de propelente e o sopro dos respiros;
+  - a hidráulica do braço da tripulação, com o baque metálico no fim;
+  - válvulas batendo e a água da supressão acústica;
+  - na ignição (−2,2 s), o baque grave e o ronco nascendo.
+- `space_liftoff`, que toca na decolagem:
+  - ronco grave contínuo e saturado, subgrave e turbulência do ar;
+  - o estalo característico do jato de foguete, gerado pulso a pulso (`rocketCrackleBuffer`);
+  - a força cresce até ~4 s; depois o som se afasta, abafando e baixando, com os reflexos do terreno e o ronco
+    distante rolando por ~20 s.
 
 **Satélite em órbita:**
 - O dono vê o mapa inteiro, em tempo real: tropas e construções inimigas aparecem e são registradas como descobertas
@@ -64,3 +98,5 @@ O lançamento em andamento e o satélite ficam no estado salvo.
   - o lançamento completo e o satélite revelando o mapa;
   - salvar e carregar;
   - o registro nacional do satélite.
+- `src/test/spaceLaunch.test.ts`: os motores acendem com o foguete ainda preso, o foguete sobe devagar e acelerando,
+  a plataforma fica vazia depois da órbita e o tremor de câmera acompanha.

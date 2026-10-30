@@ -20,7 +20,7 @@ export type Volumes = Record<Channel | 'master', number>;
 export const DEFAULT_VOLUMES: Volumes = { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 };
 
 export type UiSound = 'click' | 'confirm' | 'error' | 'alert' | 'success' | 'hold';
-export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'mbt_gun' | 'tank_gun' | 'vehicle_explosion' | 'vehicle_explosion_heavy' | 'nuclear_blast' | 'gatling';
+export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'mbt_gun' | 'tank_gun' | 'vehicle_explosion' | 'vehicle_explosion_heavy' | 'nuclear_blast' | 'space_prelaunch' | 'space_liftoff' | 'gatling';
 export type MissileCue = 'prepare' | 'armed' | 'authorize';
 
 /** Som de trabalho de cada edifício (os demais usam o zumbido genérico). */
@@ -64,6 +64,8 @@ const PRIORITY: Record<CombatSound, number> = {
   vehicle_explosion: 4,
   vehicle_explosion_heavy: 5,
   nuclear_blast: 9,
+  space_prelaunch: 8,
+  space_liftoff: 9,
   gatling: 3,
   tank_gun: 3,
   cannon: 2,
@@ -79,7 +81,7 @@ const PRIORITY: Record<CombatSound, number> = {
 };
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
-const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, vehicle_explosion: 0.1, vehicle_explosion_heavy: 0.15, nuclear_blast: 1, tank_gun: 0.18 };
+const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, vehicle_explosion: 0.1, vehicle_explosion_heavy: 0.15, nuclear_blast: 1, space_prelaunch: 2, space_liftoff: 2, tank_gun: 0.18 };
 
 /**
  * Atenuação e panorâmica de um ponto do mapa para quem olha `L` (ponto da câmera, distância e giro).
@@ -257,6 +259,36 @@ export class AudioService {
     return conv;
   }
 
+  private rocketCrackle: AudioBuffer | null = null;
+
+  /**
+   * Estalos do jato de um motor de foguete (12 s, gerados uma vez): o som característico de um lançamento de verdade,
+   * que vem das ondas de choque fracas do jato supersônico. Pulsos curtos e assimétricos (subida rápida e queda
+   * negativa mais lenta, como ondas N), em instantes aleatórios (~90 por segundo), com força de cauda longa: muitos
+   * pequenos e alguns bem fortes.
+   */
+  private rocketCrackleBuffer(): AudioBuffer {
+    if (this.rocketCrackle) return this.rocketCrackle;
+    const ctx = this.ctx!;
+    const rate = ctx.sampleRate;
+    const len = Math.round(12 * rate);
+    const buf = ctx.createBuffer(1, len, rate);
+    const d = buf.getChannelData(0);
+    let time = 0;
+    while (time < 12) {
+      time += -Math.log(1 - Math.random()) / 90;
+      const at = Math.round(time * rate);
+      const amp = Math.min(1, 0.08 / Math.pow(Math.random(), 0.75)) * (Math.random() < 0.5 ? 1 : -1);
+      const w = Math.round((0.0004 + Math.random() * 0.0012) * rate);
+      for (let i = 0; i < w * 3 && at + i < len; i++) {
+        const x = i / w;
+        d[at + i]! += amp * (x < 1 ? x : x < 1.6 ? 1 - (x - 1) * 3.3 : -0.98 * Math.exp(-(x - 1.6) * 1.8));
+      }
+    }
+    this.rocketCrackle = buf;
+    return buf;
+  }
+
   private readonly gatlingBursts: { buffer: AudioBuffer; firing: number; lead: number }[] = [];
 
   /**
@@ -359,6 +391,17 @@ export class AudioService {
     if (!sp || sp.gain < 0.03) return;
     if (!this.gap(sound, MIN_GAP[sound] ?? 0)) return;
     this.combat(sound, sp.gain, sp.pan);
+  }
+
+  /**
+   * Som enorme, ouvido em qualquer parte do mapa (lançamento espacial): posicionado e atenuado pela distância como
+   * `playAt`, mas nunca abaixo de `minGain`, para chegar como um ronco distante mesmo com a câmera longe.
+   */
+  playWide(sound: CombatSound, x: number, y: number, minGain: number): void {
+    if (!this.ready) return;
+    if (!this.gap(sound, MIN_GAP[sound] ?? 0)) return;
+    const sp = this.spatial(x, y);
+    this.combat(sound, Math.max(minGain, sp?.gain ?? 0), sp?.pan ?? 0);
   }
 
   /** Som de combate sem posição (ex.: alerta do próprio silo). */
@@ -798,6 +841,248 @@ export class AudioService {
         n.stop(t + 3.9);
         nodes.push(n);
         end = t + 3.9;
+        break;
+      }
+      case 'space_prelaunch': {
+        // contagem do Programa Espacial (10 s até a decolagem, sincronizada com a animação): o ronco mecânico grave das
+        // bombas de propelente; o sopro do oxigênio líquido nos respiros; o braço da tripulação recolhendo (hidráulica
+        // e o baque metálico no fim, −7,5 a −5,5 s); válvulas batendo (−5, −4,1 e −3,8 s); a água da supressão acústica
+        // (−3,6 s) e a ignição a −2,2 s: o baque grave e o ronco que nasce, ainda com o foguete preso.
+        const T0 = t + 10;
+        const at = (rel: number) => T0 + rel;
+        const mix = ctx.createGain();
+        mix.connect(out);
+        const wet = ctx.createGain();
+        wet.gain.value = gain * 0.4;
+        mix.connect(wet).connect(this.outdoorReverb());
+        // ronco das bombas: dois tons graves batendo entre si, filtrados, e um ruído grave por baixo
+        const pumpG = ctx.createGain();
+        pumpG.gain.setValueAtTime(0.0001, t);
+        pumpG.gain.exponentialRampToValueAtTime(0.15, t + 1.5);
+        pumpG.gain.setValueAtTime(0.15, at(-2.4));
+        pumpG.gain.exponentialRampToValueAtTime(0.0001, at(-1.4));
+        const pumpF = ctx.createBiquadFilter();
+        pumpF.type = 'lowpass';
+        pumpF.frequency.value = 160;
+        pumpF.connect(pumpG).connect(mix);
+        for (const f of [41, 43.5, 82]) {
+          const o = ctx.createOscillator();
+          o.type = f > 80 ? 'triangle' : 'sawtooth';
+          o.frequency.value = f;
+          o.connect(pumpF);
+          o.start(t);
+          o.stop(at(-1.3));
+          nodes.push(o);
+        }
+        {
+          const n = this.noiseSource(true);
+          const f = ctx.createBiquadFilter();
+          f.type = 'bandpass';
+          f.frequency.value = 220;
+          f.Q.value = 1.2;
+          const g = ctx.createGain();
+          g.gain.value = 0.35;
+          n.connect(f).connect(g).connect(pumpG);
+          n.start(t, Math.random());
+          n.stop(at(-1.3));
+          nodes.push(n);
+        }
+        // respiros de oxigênio: sopros médios, sem agudo estridente
+        for (let rel = -9.6; rel < -2.6; rel += 1.1 + Math.random() * 0.7) burst('bandpass', 1100 + Math.random() * 400, 0.9, 0.12, 0.16, 0.7 + Math.random() * 0.4, at(rel), mix);
+        // braço da tripulação: motor hidráulico subindo e descendo de tom e o baque no fim do curso
+        {
+          const o = ctx.createOscillator();
+          o.type = 'sawtooth';
+          o.frequency.setValueAtTime(95, at(-7.5));
+          o.frequency.linearRampToValueAtTime(140, at(-6.8));
+          o.frequency.setValueAtTime(140, at(-6));
+          o.frequency.linearRampToValueAtTime(90, at(-5.5));
+          const f = ctx.createBiquadFilter();
+          f.type = 'bandpass';
+          f.frequency.value = 420;
+          f.Q.value = 1.6;
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(0.0001, at(-7.5));
+          g.gain.exponentialRampToValueAtTime(0.14, at(-7.2));
+          g.gain.setValueAtTime(0.14, at(-5.7));
+          g.gain.exponentialRampToValueAtTime(0.0001, at(-5.45));
+          o.connect(f).connect(g).connect(mix);
+          o.start(at(-7.5));
+          o.stop(at(-5.4));
+          nodes.push(o);
+        }
+        burst('bandpass', 600, 4, 0.002, 0.45, 0.18, at(-5.5), mix);
+        thump(140, 70, 0.002, 0.6, 0.25, at(-5.5), 'sine', mix);
+        // válvulas: baques metálicos curtos com o sopro do gás
+        for (const rel of [-5.0, -4.1, -3.8]) {
+          burst('bandpass', 800, 5, 0.001, 0.3, 0.08, at(rel), mix);
+          thump(210, 120, 0.001, 0.3, 0.07, at(rel), 'square', mix);
+          burst('bandpass', 1000, 0.8, 0.01, 0.1, 0.35, at(rel) + 0.02, mix);
+        }
+        // água da supressão acústica: jorro grave e cheio que cresce e fica
+        {
+          const n = this.noiseSource(true);
+          const f = ctx.createBiquadFilter();
+          f.type = 'lowpass';
+          f.frequency.value = 1300;
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(0.0001, at(-3.6));
+          g.gain.exponentialRampToValueAtTime(0.32, at(-2.8));
+          g.gain.setValueAtTime(0.32, at(0.2));
+          g.gain.exponentialRampToValueAtTime(0.0001, at(0.6));
+          n.connect(f).connect(g).connect(mix);
+          n.start(at(-3.6), Math.random());
+          n.stop(at(0.7));
+          nodes.push(n);
+        }
+        // ignição: baque grave saturado e o ronco nascendo (o foguete ainda preso), que passa a vez ao som da subida
+        {
+          const ig = at(-2.2);
+          const drive = ctx.createWaveShaper();
+          drive.curve = this.driveCurve(3.5);
+          const low = ctx.createBiquadFilter();
+          low.type = 'lowpass';
+          low.frequency.value = 240;
+          drive.connect(low).connect(mix);
+          thump(62, 24, 0.01, 1.8, 1.4, ig, 'sine', drive);
+          burst('lowpass', 500, 0.6, 0.015, 1.1, 0.8, ig, drive);
+          const n = this.noiseSource(true);
+          const f = ctx.createBiquadFilter();
+          f.type = 'lowpass';
+          f.frequency.setValueAtTime(260, ig);
+          f.frequency.exponentialRampToValueAtTime(900, at(0));
+          const sat = ctx.createWaveShaper();
+          sat.curve = this.driveCurve(2.2);
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(0.0001, ig);
+          g.gain.exponentialRampToValueAtTime(0.9, ig + 0.6);
+          g.gain.setValueAtTime(0.9, at(0.05));
+          g.gain.exponentialRampToValueAtTime(0.0001, at(0.5));
+          n.connect(f).connect(sat).connect(g).connect(mix);
+          n.start(ig, Math.random());
+          n.stop(at(0.6));
+          nodes.push(n);
+          const sub = ctx.createOscillator();
+          sub.type = 'sine';
+          sub.frequency.value = 34;
+          const sg = ctx.createGain();
+          sg.gain.setValueAtTime(0.0001, ig);
+          sg.gain.exponentialRampToValueAtTime(0.8, ig + 0.8);
+          sg.gain.setValueAtTime(0.8, at(0.05));
+          sg.gain.exponentialRampToValueAtTime(0.0001, at(0.5));
+          sub.connect(sg).connect(mix);
+          sub.start(ig);
+          sub.stop(at(0.6));
+          nodes.push(sub);
+        }
+        end = at(0.7);
+        break;
+      }
+      case 'space_liftoff': {
+        // decolagem e subida (do 0 s em diante, sincronizada com a animação). Ronco grave contínuo e saturado, o
+        // estalo característico do jato (`rocketCrackleBuffer`), a turbulência do ar (ondulação irregular) e o
+        // subgrave. A força cresce enquanto o foguete sai da plataforma (até ~4 s); depois o som se afasta, abafa (o
+        // filtro fecha) e baixa, com os reflexos do terreno e o ronco distante rolando no fim.
+        const mix = ctx.createGain();
+        mix.connect(out);
+        const wet = ctx.createGain();
+        wet.gain.value = gain * 0.55;
+        mix.connect(wet).connect(this.outdoorReverb());
+        // envelope comum: cresce até 4 s, sustenta e some ao longe até ~24 s
+        const env = ctx.createGain();
+        env.gain.setValueAtTime(0.0001, t);
+        env.gain.exponentialRampToValueAtTime(0.85, t + 0.25);
+        env.gain.linearRampToValueAtTime(1, t + 4);
+        env.gain.setValueAtTime(1, t + 6);
+        env.gain.exponentialRampToValueAtTime(0.35, t + 12);
+        env.gain.exponentialRampToValueAtTime(0.0001, t + 24);
+        env.connect(mix);
+        // distância: o filtro fecha conforme o foguete sobe
+        const dist = ctx.createBiquadFilter();
+        dist.type = 'lowpass';
+        dist.frequency.setValueAtTime(5200, t);
+        dist.frequency.setValueAtTime(5200, t + 4);
+        dist.frequency.exponentialRampToValueAtTime(900, t + 12);
+        dist.frequency.exponentialRampToValueAtTime(260, t + 22);
+        dist.connect(env);
+        // turbulência: ondulações lentas e irregulares no volume do ronco
+        const turb = ctx.createGain();
+        turb.gain.value = 1;
+        for (const [f, depth] of [
+          [0.7, 0.16],
+          [1.9, 0.1],
+          [3.3, 0.06],
+        ] as const) {
+          const lfo = ctx.createOscillator();
+          lfo.frequency.value = f * (0.9 + Math.random() * 0.2);
+          const lg = ctx.createGain();
+          lg.gain.value = depth;
+          lfo.connect(lg).connect(turb.gain);
+          lfo.start(t);
+          lfo.stop(t + 24.5);
+          nodes.push(lfo);
+        }
+        turb.connect(dist);
+        // ronco: ruído grave saturado e um corpo médio
+        {
+          const n = this.noiseSource(true);
+          const f = ctx.createBiquadFilter();
+          f.type = 'lowpass';
+          f.frequency.value = 420;
+          f.Q.value = 0.6;
+          const sat = ctx.createWaveShaper();
+          sat.curve = this.driveCurve(3);
+          sat.oversample = '2x';
+          const g = ctx.createGain();
+          g.gain.value = 1.1;
+          n.connect(f).connect(sat).connect(g).connect(turb);
+          n.start(t, Math.random());
+          n.stop(t + 24.5);
+          nodes.push(n);
+          const m = this.noiseSource(true);
+          const mf = ctx.createBiquadFilter();
+          mf.type = 'bandpass';
+          mf.frequency.value = 900;
+          mf.Q.value = 0.5;
+          const mg = ctx.createGain();
+          mg.gain.value = 0.45;
+          m.connect(mf).connect(mg).connect(turb);
+          m.start(t, Math.random());
+          m.stop(t + 24.5);
+          nodes.push(m);
+        }
+        // estalos do jato: mais fortes da saída da plataforma até a subida, e somem com a distância
+        {
+          const src = ctx.createBufferSource();
+          src.buffer = this.rocketCrackleBuffer();
+          const hp = ctx.createBiquadFilter();
+          hp.type = 'highpass';
+          hp.frequency.value = 300;
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.7, t + 1.5);
+          g.gain.setValueAtTime(0.9, t + 5);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 12);
+          src.connect(hp).connect(g).connect(dist);
+          src.start(t);
+          src.stop(t + 12);
+          nodes.push(src);
+        }
+        // subgrave
+        const sub = ctx.createOscillator();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(34, t);
+        sub.frequency.linearRampToValueAtTime(28, t + 16);
+        const sg = ctx.createGain();
+        sg.gain.value = 0.85;
+        sub.connect(sg).connect(env);
+        sub.start(t);
+        sub.stop(t + 24.5);
+        nodes.push(sub);
+        // reflexos do terreno e ronco distante rolando
+        burst('lowpass', 300, 0.6, 0.3, 0.35, 2.5, t + 6, mix);
+        burst('lowpass', 200, 0.5, 0.5, 0.3, 3.5, t + 11, mix);
+        end = burst('lowpass', 140, 0.5, 0.8, 0.22, 5, t + 17, mix);
         break;
       }
       case 'nuclear_blast': {
