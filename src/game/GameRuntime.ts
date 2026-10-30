@@ -2599,7 +2599,9 @@ export class GameRuntime {
             : attacker.visual.type === 'ciws'
               ? 'gatling'
               : attacker.visual.type === 'mobile_aa'
-                ? 'aa_gun'
+                ? attacker.visual.modelKey === unitModelKey('mobile_aa', 4)
+                  ? 'aa_twin'
+                  : 'aa_gun'
                 : attacker.visual.type === 'tank' || attacker.visual.type === 'mbt'
                   ? 'tank_gun'
                   : attacker.visual.type === 'rocket_artillery'

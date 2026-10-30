@@ -3,7 +3,7 @@ import type { Effects } from './Effects.ts';
 import { glowTexture, volumetricSmokeTexture } from './textures.ts';
 
 /** Tipo de disparo visível (ver `UnitModel.shot`). */
-export type ShotKind = 'apfsds' | 'howitzer' | 'flak' | 'autocannon' | 'gatling';
+export type ShotKind = 'apfsds' | 'howitzer' | 'flak' | 'twin' | 'autocannon' | 'gatling';
 
 interface Round {
   kind: ShotKind;
@@ -44,6 +44,8 @@ const STYLE: Record<ShotKind, { color: string; core: number; streak: number; wid
   howitzer: { color: '#ffb066', core: 0.22, streak: 0.5, width: 0.02, speed: 0 },
   // antiaérea: traçantes laranja em rajada
   flak: { color: '#ffb24a', core: 0.26, streak: 1.4, width: 0.016, speed: 55 },
+  // canhões gêmeos de 30 mm da antiaérea do Futuro Próximo: dois traçantes grossos, um de cada cano
+  twin: { color: '#ffbf5a', core: 0.34, streak: 1.8, width: 0.022, speed: 65 },
   // canhão automático do blindado: traçantes curtos amarelos
   autocannon: { color: '#ffd76a', core: 0.2, streak: 1, width: 0.014, speed: 60 },
   // Gatling do CIWS: fio contínuo de traçantes finos e muito rápidos
@@ -85,8 +87,8 @@ export class Projectiles {
    * tiro (e faz o cano recuar). Rajadas saem com um pequeno intervalo entre os tiros.
    */
   fire(kind: ShotKind, target: { x: number; y: number; z: number }, muzzle: (pos: THREE.Vector3, dir: THREE.Vector3) => void): void {
-    const burst = kind === 'flak' ? 2 : kind === 'autocannon' ? 3 : kind === 'gatling' ? 9 : 1;
-    const gap = kind === 'flak' ? 0.09 : kind === 'gatling' ? 0.04 : 0.11;
+    const burst = kind === 'flak' || kind === 'twin' ? 2 : kind === 'autocannon' ? 3 : kind === 'gatling' ? 9 : 1;
+    const gap = kind === 'flak' ? 0.09 : kind === 'twin' ? 0.2 : kind === 'gatling' ? 0.04 : 0.11;
     for (let i = 0; i < burst; i++) {
       if (this.rounds.length >= this.maxRounds) return;
       const st = STYLE[kind];
@@ -100,7 +102,7 @@ export class Projectiles {
       this.group.add(core, streak);
       if (shell) this.group.add(shell);
       // espalhamento pequeno da rajada no alvo
-      const spread = kind === 'flak' || kind === 'autocannon' ? 0.35 : kind === 'gatling' ? 0.5 : 0;
+      const spread = kind === 'flak' || kind === 'twin' || kind === 'autocannon' ? 0.35 : kind === 'gatling' ? 0.5 : 0;
       const to = new THREE.Vector3(target.x + (Math.random() - 0.5) * spread, target.y + (Math.random() - 0.5) * spread * 0.5, target.z + (Math.random() - 0.5) * spread);
       this.rounds.push({ kind, from: new THREE.Vector3(), to, start: this.time + i * gap, dur: 0, apex: 0, core, streak, shell, smokeAcc: 0, fired: false, muzzle });
     }
@@ -132,11 +134,11 @@ export class Projectiles {
       r.apex = Math.max(1.5, dist * 0.32);
     } else r.dur = Math.max(0.06, dist / STYLE[r.kind].speed);
     r.fired = true;
-    const heavy = r.kind === 'apfsds' || r.kind === 'howitzer';
+    const heavy = r.kind === 'apfsds' || r.kind === 'howitzer' || r.kind === 'twin';
     // clarão na boca (estrela de fogo) e luz no entorno
     this.effects.muzzleFlash(tmpA, tmpDir, heavy ? 0.75 : 0.28);
     if (heavy) {
-      this.effects.light(tmpA, '#ffcf8a', r.kind === 'howitzer' ? 70 : 45, 10, 0.14);
+      this.effects.light(tmpA, '#ffcf8a', r.kind === 'howitzer' ? 70 : r.kind === 'twin' ? 35 : 45, 10, 0.14);
       // fumaça da boca: anel que se abre para a frente e para os lados, e poeira levantada no chão
       for (let k = 0; k < 5; k++) {
         const a = (k / 5) * Math.PI * 2;

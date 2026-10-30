@@ -84,6 +84,10 @@ velocidade sem o efeito estroboscópico.
 - torre com dois canhões gêmeos e dois casulos de 6 mísseis interceptadores;
 - radar de busca retangular com luzes no mastro de trás, radar de tiro redondo e sensor óptico.
 
+O tiro em terra é de dois disparos fortes e separados (0,2 s), um de cada canhão gêmeo: tiro `twin` em
+`Projectiles`, com clarão e fumaça de boca, e o som `aa_twin`. A Antiaérea Móvel das eras anteriores (lagartas, estilo
+Gepard) continua com a rajada `flak` e o som `aa_gun`.
+
 **Interceptação de foguetes:** na era 4, a antiaérea intercepta as salvas do Lança-Foguetes em voo. A regra fica em
 `ROCKET_INTERCEPT`, em `shared/sim/Simulation.ts`:
 - cada antiaérea a até 9 células do ponto de impacto derruba metade dos foguetes que restam de uma salva;

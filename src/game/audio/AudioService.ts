@@ -20,7 +20,7 @@ export type Volumes = Record<Channel | 'master', number>;
 export const DEFAULT_VOLUMES: Volumes = { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 };
 
 export type UiSound = 'click' | 'confirm' | 'error' | 'alert' | 'success' | 'hold';
-export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'tank_gun' | 'gatling';
+export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'tank_gun' | 'gatling';
 export type MissileCue = 'prepare' | 'armed' | 'authorize';
 
 /** Som de trabalho de cada edifício (os demais usam o zumbido genérico). */
@@ -59,6 +59,7 @@ const PRIORITY: Record<CombatSound, number> = {
   tower: 1,
   flak: 2,
   aa_gun: 3,
+  aa_twin: 3,
   gatling: 3,
   tank_gun: 3,
   cannon: 2,
@@ -74,7 +75,7 @@ const PRIORITY: Record<CombatSound, number> = {
 };
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
-const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, aa_gun: 0.45, gatling: 0.5, tank_gun: 0.18 };
+const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, aa_gun: 0.45, aa_twin: 0.4, gatling: 0.5, tank_gun: 0.18 };
 
 /**
  * Atenuação e panorâmica de um ponto do mapa para quem olha `L` (ponto da câmera, distância e giro).
@@ -374,6 +375,42 @@ export class AudioService {
         burst('lowpass', 340, 0.6, 0.03, 1.0, 0.9, tail - rate, drive);
         burst('lowpass', 220, 0.5, 0.07, 0.55, 1.4, tail + 0.25);
         end = burst('lowpass', 150, 0.5, 0.12, 0.32, 1.8, tail + 0.7);
+        break;
+      }
+      case 'aa_twin': {
+        // canhões gêmeos de 30 mm da antiaérea do Futuro Próximo: dois tiros fortes e separados, um de cada cano
+        // (~0,2 s entre eles). Cada um: estampido seco e brilhante, soco grave saturado que se sente no peito, jato da
+        // boca e o clangor do ferrolho; no fim, o eco grave rolando pelo terreno. Nada de rajada contínua
+        const drive = ctx.createWaveShaper();
+        drive.curve = this.driveCurve(4);
+        drive.oversample = '4x';
+        const low = ctx.createBiquadFilter();
+        low.type = 'lowpass';
+        low.frequency.value = 520;
+        const body = ctx.createGain();
+        body.gain.value = 1.2;
+        drive.connect(low).connect(body).connect(out);
+        const gap = 0.19 + Math.random() * 0.03;
+        for (let i = 0; i < 2; i++) {
+          const at = t + i * gap;
+          // o segundo cano tem timbre um pouco mais grave
+          const k = i === 0 ? 1 : 0.94;
+          const f = i === 0 ? 1 : 0.9;
+          burst('highpass', 1900 * f, 0.6, 0.0005, 1.9 * k, 0.05, at);
+          burst('bandpass', 4000 * f, 0.9, 0.0005, 0.9 * k, 0.03, at);
+          burst('bandpass', 900 * f, 0.9, 0.001, 1.4 * k, 0.14, at + 0.004);
+          thump(150 * f, 46, 0.002, 1.9 * k, 0.26, at, 'sine', drive);
+          thump(80 * f, 28, 0.003, 1.4 * k, 0.42, at, 'triangle', drive);
+          thump(200 * f, 90, 0.001, 0.8 * k, 0.08, at, 'square', drive);
+          burst('lowpass', 600, 0.7, 0.002, 1.5 * k, 0.3, at, drive);
+          // mecânica: ferrolho e elo da munição
+          burst('bandpass', 2700, 9, 0.001, 0.28 * k, 0.05, at + 0.07);
+          thump(260, 170, 0.001, 0.2 * k, 0.05, at + 0.07, 'square');
+        }
+        const tail = t + gap;
+        burst('lowpass', 360, 0.6, 0.03, 0.9, 0.9, tail + 0.05, drive);
+        burst('lowpass', 230, 0.5, 0.07, 0.5, 1.4, tail + 0.35);
+        end = burst('lowpass', 160, 0.5, 0.12, 0.3, 1.8, tail + 0.8);
         break;
       }
       case 'gatling': {

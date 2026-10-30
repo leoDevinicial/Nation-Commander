@@ -32,7 +32,7 @@ export interface UnitModel {
   /** Velocidade com que a torre gira para o alvo (padrão 5; o CIWS, com servos de defesa de ponto, é muito mais rápido). */
   turretSlew?: number;
   /** Tipo de disparo visível (projétil que sai da boca do cano). */
-  shot?: 'apfsds' | 'howitzer' | 'flak' | 'autocannon' | 'gatling';
+  shot?: 'apfsds' | 'howitzer' | 'flak' | 'twin' | 'autocannon' | 'gatling';
   /**
    * Lentes e luzes acesas na torre (referencial da torre): disco brilhante com halo, voltado para `normal`.
    * `color: 'faction'` usa a cor da facção do dono.
@@ -1618,7 +1618,7 @@ function buildMobileAaFuture(): BuiltUnit {
     turretPivot: [-0.45, 0.98, 0],
     muzzle: [0.25 + Math.cos(elev) * 1.25, 0.42 + Math.sin(elev) * 1.25, 0.09],
     guns,
-    shot: 'flak',
+    shot: 'twin',
     launchers,
     glow: [
       { at: [-0.299, 1.12, 0.18], normal: [1, 0, 0], r: 0.022, color: '#7dff6a' },

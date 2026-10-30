@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { UnitVisual } from '../game/render/UnitVisuals.ts';
+import { unitModel } from '../game/render/models/unitModels.ts';
 import { TrackMarks } from '../game/render/TrackMarks.ts';
 
 const cam = new THREE.PerspectiveCamera();
@@ -111,6 +112,14 @@ describe('canos e casulo', () => {
     aa.fireGun(b, d);
     expect(Math.abs(a.z - b.z)).toBeGreaterThan(0.8);
     aa.dispose();
+    // antiaérea do Futuro Próximo: dois tiros fortes, um de cada canhão gêmeo (não rajada)
+    expect(unitModel('mobile_aa', 4).shot).toBe('twin');
+    const aa4 = new UnitVisual(9, 'mobile_aa', 0, true, 4);
+    aa4.update(1 / 60, false, 0, 1, false, cam);
+    aa4.fireGun(a, d);
+    aa4.fireGun(b, d);
+    expect(Math.abs(a.z - b.z)).toBeGreaterThan(0.1);
+    aa4.dispose();
     // Gatling do CIWS: a boca sai à frente e acima da cúpula baixa, e o feixe de canos gira na rajada
     const ciws = new UnitVisual(8, 'ciws', 0, true, 3);
     ciws.update(1 / 60, false, 0, 1, false, cam);
