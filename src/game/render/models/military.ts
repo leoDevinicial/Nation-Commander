@@ -572,16 +572,18 @@ function heavyMissile(): ModelLayers {
   // tubeira e saia traseira
   b.cyl(0.1, 0.085, 0.05, '#7d8084', [-0.555, 0, 0], X, 14);
   b.cyl(0.075, 0.06, 0.07, '#3a3c3f', [-0.61, 0, 0], X, 12);
-  // asas cruciformes no meio do corpo (trapezoidais: corda maior junto ao corpo)
+  // asas cruciformes no meio do corpo (trapezoidais: corda maior junto ao corpo). O giro em x é -ang: assim o eixo z
+  // da placa (a envergadura) aponta para (sen ang, cos ang), a mesma direção em que ela é posta, e a placa sai do corpo
+  // em vez de ficar de lado, solta no ar
   for (let i = 0; i < 4; i++) {
     const ang = (i * Math.PI) / 2 + Math.PI / 4;
     const cy = Math.sin(ang);
     const cz = Math.cos(ang);
-    b.box(0.26, 0.012, 0.13, '#cfcdc4', [0.08, cy * 0.16, cz * 0.16], [ang, 0, 0]);
-    b.box(0.16, 0.012, 0.09, '#cfcdc4', [0.1, cy * 0.27, cz * 0.27], [ang, 0, 0]);
+    b.box(0.26, 0.012, 0.13, '#cfcdc4', [0.08, cy * 0.16, cz * 0.16], [-ang, 0, 0]);
+    b.box(0.16, 0.012, 0.09, '#cfcdc4', [0.1, cy * 0.27, cz * 0.27], [-ang, 0, 0]);
     // aletas de cauda, maiores, alinhadas com as asas
-    b.box(0.22, 0.014, 0.16, '#5b5f63', [-0.47, cy * 0.17, cz * 0.17], [ang, 0, 0]);
-    b.box(0.12, 0.014, 0.08, '#5b5f63', [-0.5, cy * 0.29, cz * 0.29], [ang, 0, 0]);
+    b.box(0.22, 0.014, 0.16, '#5b5f63', [-0.47, cy * 0.17, cz * 0.17], [-ang, 0, 0]);
+    b.box(0.12, 0.014, 0.08, '#5b5f63', [-0.5, cy * 0.29, cz * 0.29], [-ang, 0, 0]);
   }
   // calhas de cabos e janelas de acesso
   b.box(0.7, 0.025, 0.03, '#b9b8b0', [0.0, 0.098, 0]);

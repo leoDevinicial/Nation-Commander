@@ -799,12 +799,73 @@ export class AudioService {
         end = t + 3.9;
         break;
       }
-      case 'missile_impact':
-        // estrondo com cauda longa (rumor que se afasta)
-        burst('highpass', 1800, 0.7, 0.002, 1, 0.25);
-        thump(55, 18, 0.02, 1.4, 2.2);
-        end = burst('lowpass', 380, 0.5, 0.015, 1.4, 3.2);
+      case 'missile_impact': {
+        // ogiva caindo no alvo, cinematográfica, em camadas:
+        //   1. onda de choque: estalo duplo, seco e muito forte;
+        //   2. bola de fogo: rugido saturado e longo, com o filtro fechando do agudo ao grave;
+        //   3. pressão: soco grave saturado e um subgrave bem fundo que dura (treme o chão);
+        //   4. destroços e terra caindo de volta (baques médios espalhados);
+        //   5. trovão: o estrondo rolando pelo terreno em ondas cada vez mais graves e espaçadas.
+        // Tudo vai também para a reverberação de campo aberto.
+        const mix = ctx.createGain();
+        mix.gain.value = 0.8;
+        mix.connect(out);
+        const wet = ctx.createGain();
+        wet.gain.value = gain * 0.6;
+        mix.connect(wet).connect(this.outdoorReverb());
+        const drive = ctx.createWaveShaper();
+        drive.curve = this.driveCurve(5);
+        drive.oversample = '4x';
+        const driveLow = ctx.createBiquadFilter();
+        driveLow.type = 'lowpass';
+        driveLow.frequency.value = 420;
+        drive.connect(driveLow).connect(mix);
+        // 1. onda de choque
+        burst('highpass', 2200, 0.5, 0.0004, 2.0, 0.05, t, mix);
+        burst('bandpass', 900, 0.6, 0.0006, 1.8, 0.12, t, mix);
+        burst('highpass', 1600, 0.6, 0.0006, 1.2, 0.06, t + 0.035, mix);
+        // 2. bola de fogo
+        {
+          const n = this.noiseSource();
+          const f = ctx.createBiquadFilter();
+          f.type = 'lowpass';
+          f.Q.value = 0.7;
+          f.frequency.setValueAtTime(4200 * vary, t);
+          f.frequency.exponentialRampToValueAtTime(900, t + 0.6);
+          f.frequency.exponentialRampToValueAtTime(180, t + 3.2);
+          const sat = ctx.createWaveShaper();
+          sat.curve = this.driveCurve(3);
+          const g = ctx.createGain();
+          n.connect(f).connect(sat).connect(g).connect(mix);
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(1.6, t + 0.03);
+          g.gain.exponentialRampToValueAtTime(0.7, t + 0.8);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 3.6);
+          n.start(t, Math.random());
+          n.stop(t + 3.7);
+          nodes.push(n);
+        }
+        // 3. pressão
+        thump(95, 26, 0.005, 2.4, 1.1, t, 'sine', drive);
+        thump(60, 18, 0.01, 1.9, 1.8, t, 'triangle', drive);
+        burst('lowpass', 240, 0.8, 0.008, 1.8, 1.4, t, drive);
+        thump(38, 14, 0.03, 1.6, 3.2, t, 'sine', mix);
+        // 4. destroços e terra caindo de volta
+        for (let i = 0; i < 8; i++) {
+          const at = t + 0.5 + Math.random() * 1.8;
+          const k = (0.18 + Math.random() * 0.2) * (1 - i / 14);
+          burst('bandpass', 500 + Math.random() * 800, 3, 0.002, k, 0.08 + Math.random() * 0.08, at, mix);
+          burst('lowpass', 200, 0.7, 0.004, k * 1.1, 0.2, at, mix);
+        }
+        burst('bandpass', 2500, 0.6, 0.4, 0.12, 1.6, t + 0.6, mix);
+        // 5. trovão rolando
+        burst('lowpass', 420, 0.6, 0.06, 0.8, 1.2, t + 0.5, drive);
+        burst('lowpass', 300, 0.5, 0.1, 0.6, 1.8, t + 1.3, mix);
+        thump(52, 22, 0.05, 0.7, 1.6, t + 1.3, 'sine', mix);
+        burst('lowpass', 210, 0.5, 0.18, 0.42, 2.4, t + 2.4, mix);
+        end = burst('lowpass', 140, 0.5, 0.3, 0.3, 3.2, t + 3.6, mix);
         break;
+      }
       case 'intercept':
         // estouro seco e alto no céu, sem o grave do impacto no solo
         end = burst('bandpass', 2200, 1.4, 0.001, 1, 0.5);
@@ -883,45 +944,125 @@ export class AudioService {
       return;
     }
     if (cue === 'armed') {
-      // armado: dois tons alternados a cada 1,2 s até autorizar ou abortar
+      // armado: sirene mecânica de ataque (rotor) que sobe e desce sem parar até autorizar ou abortar. Dois rotores
+      // um pouco desafinados entre si (o batimento dá o tremor de sirene de verdade), um pouco de saturação, o
+      // ronco do motor por baixo e um klaxon grave pulsando entre as ondas; com eco de campo aberto.
       this.stopAlarm();
-      const osc: OscillatorNode[] = [];
-      const beep = () => {
-        const at = ctx.currentTime + 0.01;
-        for (const [i, f] of [960, 720].entries()) {
+      const bus = ctx.createGain();
+      bus.gain.setValueAtTime(0.0001, t);
+      bus.gain.exponentialRampToValueAtTime(1, t + 1.2);
+      bus.connect(out);
+      const wet = ctx.createGain();
+      wet.gain.value = 0.35;
+      bus.connect(wet).connect(this.outdoorReverb());
+      const sat = ctx.createWaveShaper();
+      sat.curve = this.driveCurve(1.8);
+      const band = ctx.createBiquadFilter();
+      band.type = 'bandpass';
+      band.frequency.value = 900;
+      band.Q.value = 0.8;
+      const sirenGain = ctx.createGain();
+      sirenGain.gain.value = 0.45;
+      sat.connect(band).connect(sirenGain).connect(bus);
+      // o tom da sirene sobe e desce entre ~260 e ~760 Hz (onda de 3,2 s), começando de baixo (o rotor ganhando giro)
+      const wail = ctx.createOscillator();
+      wail.type = 'sine';
+      wail.frequency.value = 1 / 3.2;
+      const depth = ctx.createGain();
+      depth.gain.value = 250;
+      wail.connect(depth);
+      const rotors: OscillatorNode[] = [];
+      for (const detune of [0, 7]) {
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(120, t);
+        o.frequency.linearRampToValueAtTime(510, t + 1.4);
+        o.detune.value = detune * 10;
+        depth.connect(o.frequency);
+        o.connect(sat);
+        rotors.push(o);
+      }
+      // ronco do motor da sirene
+      const motor = ctx.createOscillator();
+      motor.type = 'triangle';
+      motor.frequency.setValueAtTime(30, t);
+      motor.frequency.linearRampToValueAtTime(58, t + 1.4);
+      const mg = ctx.createGain();
+      mg.gain.value = 0.12;
+      motor.connect(mg).connect(bus);
+      const all = [wail, ...rotors, motor];
+      for (const o of all) o.start(t);
+      // klaxon grave entre as ondas da sirene
+      const klaxon = () => {
+        const at = ctx.currentTime + 0.02;
+        for (const [k, f] of [180, 226].entries()) {
           const o = ctx.createOscillator();
           o.type = 'square';
           o.frequency.value = f;
+          const lp = ctx.createBiquadFilter();
+          lp.type = 'lowpass';
+          lp.frequency.value = 1200;
           const g = ctx.createGain();
-          o.connect(g).connect(out);
-          const end = this.env(g, at + i * 0.18, 0.005, 0.16, 0.14);
-          o.start(at + i * 0.18);
-          o.stop(end + 0.02);
-          osc.push(o);
+          o.connect(lp).connect(g).connect(bus);
+          const end = this.env(g, at + k * 0.02, 0.02, 0.07, 0.45);
+          o.start(at + k * 0.02);
+          o.stop(end + 0.05);
         }
       };
-      beep();
-      const timer = window.setInterval(beep, 1200);
-      this.alarm = { id: launchId, stop: () => window.clearInterval(timer) };
+      const first = window.setTimeout(klaxon, 1600);
+      const timer = window.setInterval(klaxon, 3200);
+      this.alarm = {
+        id: launchId,
+        stop: () => {
+          // desligada, a sirene desce de tom e some (o rotor perdendo giro)
+          window.clearTimeout(first);
+          window.clearInterval(timer);
+          const now = ctx.currentTime;
+          for (const o of rotors) {
+            o.frequency.cancelScheduledValues(now);
+            o.frequency.setValueAtTime(o.frequency.value, now);
+            o.frequency.exponentialRampToValueAtTime(70, now + 2.2);
+          }
+          depth.gain.setTargetAtTime(0, now, 0.3);
+          bus.gain.cancelScheduledValues(now);
+          bus.gain.setValueAtTime(Math.max(0.0001, bus.gain.value), now);
+          bus.gain.exponentialRampToValueAtTime(0.0001, now + 2.4);
+          for (const o of all) o.stop(now + 2.5);
+        },
+      };
       return;
     }
-    // autorização: sirene ascendente curta
+    // autorização: três toques fortes de klaxon de lançamento (acorde áspero e saturado), com eco
     this.stopAlarm();
-    const o = ctx.createOscillator();
-    o.type = 'sawtooth';
-    o.frequency.setValueAtTime(300, t);
-    o.frequency.exponentialRampToValueAtTime(900, t + 0.9);
-    const f = ctx.createBiquadFilter();
-    f.type = 'lowpass';
-    f.frequency.value = 1800;
-    const g = ctx.createGain();
-    o.connect(f).connect(g).connect(out);
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.3, t + 0.05);
-    g.gain.setValueAtTime(0.3, t + 0.8);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
-    o.start(t);
-    o.stop(t + 1.15);
+    const bus = ctx.createGain();
+    bus.connect(out);
+    const wet = ctx.createGain();
+    wet.gain.value = 0.4;
+    bus.connect(wet).connect(this.outdoorReverb());
+    const sat = ctx.createWaveShaper();
+    sat.curve = this.driveCurve(2.5);
+    const band = ctx.createBiquadFilter();
+    band.type = 'bandpass';
+    band.frequency.value = 700;
+    band.Q.value = 0.9;
+    sat.connect(band).connect(bus);
+    for (let i = 0; i < 3; i++) {
+      const at = t + i * 0.62;
+      for (const f of [330, 415, 494]) {
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(f * 0.94, at);
+        o.frequency.linearRampToValueAtTime(f, at + 0.06);
+        const g = ctx.createGain();
+        o.connect(g).connect(sat);
+        g.gain.setValueAtTime(0.0001, at);
+        g.gain.exponentialRampToValueAtTime(0.32, at + 0.03);
+        g.gain.setValueAtTime(0.32, at + 0.4);
+        g.gain.exponentialRampToValueAtTime(0.0001, at + 0.5);
+        o.start(at);
+        o.stop(at + 0.55);
+      }
+    }
   }
 
   /** Encerra o alarme de "armado" (de um lançamento, ou qualquer um). */

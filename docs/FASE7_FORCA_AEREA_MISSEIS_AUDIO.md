@@ -197,10 +197,14 @@ arquivo é baixado em tempo de execução e não há material de terceiros a lic
   - para ao desmarcar ou trocar a seleção.
 - **Mísseis:** sons distintos para cada etapa.
   - preparação: pulsos da bomba de combustível;
-  - armado: alarme de dois tons a cada 1,2 s até autorizar ou abortar;
-  - autorização: sirene ascendente;
+  - armado: sirene mecânica de ataque até autorizar ou abortar. O tom sobe e desce entre ~260 e ~760 Hz a cada
+    3,2 s, com dois rotores um pouco desafinados (o tremor de sirene real), o ronco do motor, um klaxon grave entre
+    as ondas e eco de campo aberto. Ao parar, desce de tom e some, como o rotor perdendo giro;
+  - autorização: três toques fortes de klaxon de lançamento (acorde áspero e saturado), com eco;
   - lançamento: ignição e rugido;
-  - impacto: estrondo com cauda longa;
+  - impacto: cinematográfico, em camadas. Vem a onda de choque (estalo duplo), a bola de fogo saturada com o filtro
+    fechando, a pressão (soco grave e subgrave longo), os destroços e a terra caindo de volta e o trovão rolando
+    pelo terreno por ~6 s, com reverberação de campo aberto;
   - interceptação: estalo seco e alto.
 - **Ambiente e música:**
   - vento baixo durante a partida;
