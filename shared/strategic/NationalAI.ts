@@ -33,6 +33,11 @@ export class NationalAI {
     readonly slot: Slot,
     /** Prioriza as pesquisas que liberam ataques aéreos e mísseis (dificuldade Difícil ou Brutal). */
     private readonly militaryFirst = false,
+    /**
+     * Orçamento de defesa desejado, em múltiplos do de referência (dificuldade): a defesa rende os suprimentos do
+     * teatro. Sobe 0,2 ponto por mês, só com o déficit sob controle.
+     */
+    private readonly defenseMul = 1,
   ) {}
 
   /** Retorna o orçamento a aplicar (ou null para manter) e a pesquisa desejada. */
@@ -60,6 +65,11 @@ export class NationalAI {
     const casualties = n.casualties30d.reduce((a, c) => a + c, 0);
     if (casualties >= 5 && n.deficitPctGdp < n.base.deficitPctGdp + 3 && b.defensePct < ref.defensePct * 2) {
       b.defensePct += 0.2;
+      changed = true;
+    }
+    // defesa da dificuldade: mais verba militar rende mais suprimentos no teatro (mesmo comando do jogador)
+    if (b.defensePct < ref.defensePct * this.defenseMul - 0.05 && n.deficitPctGdp < Math.max(3, n.base.deficitPctGdp) + 1) {
+      b.defensePct = Math.min(ref.defensePct * this.defenseMul, b.defensePct + 0.2);
       changed = true;
     }
     // pesquisa: garante um mínimo de investimento

@@ -191,6 +191,33 @@ Rodar o script do apêndice em pelo menos 5 seeds, 25 minutos cada, com os valor
 
 Depois, partidas humanas contra a IA para confirmar a sensação.
 
+### 5.1 Camada nacional e ritmo da IA (outubro de 2026)
+
+O script agora liga a camada nacional como o servidor: orçamento, pesquisa nacional (o QG 4 exige Logística), verba
+de obras, governo da IA a cada 30 dias e guerra declarada pela diplomacia. A logística externa deixou de ser 1,5/s
+fixa e vem do orçamento de defesa. O terceiro argumento escolhe as dificuldades:
+`npx tsx scripts/sim-economia.ts 1,2,3,4,5,6,7 30 easy,normal,hard,brutal`.
+
+Mudanças nos critérios:
+
+- **Primeira pesquisa militar:** antes dos 13:00 em pelo menos 90% das IAs. Era antes dos 12:00 em todas. Com a camada
+  nacional, o Centro de Pesquisa espera a era 2, que chega por volta dos 9:30.
+- **Critérios de ritmo, por dificuldade:**
+
+| Métrica | Fácil | Normal | Difícil | Brutal |
+|---|---|---|---|---|
+| Primeira ofensiva da partida (1 min antes a 2 min depois) | 14:00 | 10:00 | 8:00 | 6:00 |
+| Tropas formadas até 15:00 (média das IAs) | 6 | 10 | 11 | 11 |
+| Era 3 até (pelo menos um terço das IAs vivas) | 26:00 | 28:00 | 28:00 | 28:00 |
+
+As duas IAs brigam entre si a partir da primeira ofensiva. Por isso o exército vivo aos 15 min depende das baixas, e o
+script mede as tropas formadas.
+
+**O que a medição mostrou.** A meta proposta para a era 3 (18 a 20 min no Normal) não foi atingida. A partir dos 17
+min, comida, madeira, pedra e ferro passam de 2.000 no estoque. Os suprimentos (3,5 a 4/s) pagam o QG 5, a era 3
+(875), os recrutas e as tropas, e viram o único gargalo. Prefeituras e caravanas sobem essa renda, mas chegam tarde.
+Ver [`DIFICULDADE_VETERANIA.md`](DIFICULDADE_VETERANIA.md) para as regras da IA e os números finais.
+
 ---
 
 ## 6. Implementação

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS, PREPARATION_TICKS, RECRUIT, TICK_RATE, UNITS, costTotal, type UnitType } from '../sim/config.ts';
-import { DIFFICULTIES, DIFFICULTY, prepTicks, type Difficulty } from '../sim/difficulty.ts';
+import { DIFFICULTIES, DIFFICULTY, firstAttackTicks, prepTicks, type Difficulty } from '../sim/difficulty.ts';
 import { Simulation, targetMultiplier } from '../sim/Simulation.ts';
 import { AI_COUNTER_GROUP, AI_HARASS_FIRST_TICK, TacticalAI } from '../sim/TacticalAI.ts';
 import { rankDamageMul, rankFor, rankHpMul } from '../sim/veterancy.ts';
@@ -111,17 +111,59 @@ describe('níveis de dificuldade', () => {
     expect(Simulation.fromSave(sim.toSave()).difficulty).toBe('brutal');
   });
 
-  it('no Difícil a primeira onda sai aos 5 min; no Fácil ainda não', () => {
+  it('no Difícil a primeira ofensiva sai aos 8 min; no Fácil ainda não', () => {
     const wave = (d: Difficulty) => {
       const sim = sim2();
       sim.difficulty = d;
       const ai = new TacticalAI(1);
       for (let i = 0; i < 30; i++) sim.addUnit('infantry', 1, { x: 50, y: 50 });
-      sim.tick = prepTicks('hard') + 1;
+      sim.tick = firstAttackTicks('hard') + 1;
       return ai.think(sim).some((c) => c.type === 'attack_move' && c.unitIds.length >= DIFFICULTY[d].firstWave);
     };
     expect(wave('hard')).toBe(true);
     expect(wave('easy')).toBe(false);
+  });
+
+  it('primeira ofensiva na hora da dificuldade (14 / 10 / 8 / 6 min), com o que tiver', () => {
+    expect(DIFFICULTIES.map((d) => firstAttackTicks(d) / TICK_RATE / 60)).toEqual([14, 10, 8, 6]);
+    // nunca antes do fim do preparo
+    for (const d of DIFFICULTIES) expect(firstAttackTicks(d)).toBeGreaterThanOrEqual(prepTicks(d));
+    const attack = (tick: number, troops: number) => {
+      const sim = sim2();
+      sim.difficulty = 'normal';
+      const ai = new TacticalAI(1);
+      for (let i = 0; i < troops; i++) sim.addUnit('infantry', 1, { x: 50, y: 50 });
+      sim.tick = tick;
+      return ai.think(sim).find((c) => c.type === 'attack_move' && c.unitIds.length >= DIFFICULTY.normal.minFirstWave);
+    };
+    const t = firstAttackTicks('normal');
+    // bem abaixo da onda cheia (12), mas já na hora: ataca
+    expect(attack(t, DIFFICULTY.normal.minFirstWave)).toBeTruthy();
+    // um segundo antes, não; e sem o mínimo de tropas, também não
+    expect(attack(t - TICK_RATE, DIFFICULTY.normal.minFirstWave)).toBeUndefined();
+    expect(attack(t, DIFFICULTY.normal.minFirstWave - 1)).toBeUndefined();
+  });
+
+  it('a primeira ofensiva pequena não faz a próxima onda crescer; a seguinte espera a onda cheia', () => {
+    const sim = sim2();
+    sim.difficulty = 'normal';
+    const ai = new TacticalAI(1);
+    for (let i = 0; i < DIFFICULTY.normal.minFirstWave; i++) sim.addUnit('infantry', 1, { x: 50, y: 50 });
+    sim.tick = firstAttackTicks('normal');
+    expect(ai.think(sim).some((c) => c.type === 'attack_move')).toBe(true);
+    expect(ai.toSave().waveSize).toBe(DIFFICULTY.normal.firstWave);
+    // a ofensiva acabou; depois do intervalo, com as mesmas tropas (menos que a onda cheia), não sai outra
+    for (const u of sim.units) if (u.owner === 1) u.order = { kind: 'idle' };
+    ai.think(sim);
+    sim.tick += DIFFICULTY.normal.waveCooldownMinutes * 60 * TICK_RATE;
+    expect(ai.think(sim).some((c) => c.type === 'attack_move' && c.unitIds.length >= DIFFICULTY.normal.minFirstWave)).toBe(false);
+  });
+
+  it('a dificuldade escala o ritmo inteiro, não só o tamanho da onda', () => {
+    const asc = (k: 'prepGarrison' | 'armyPerMinute' | 'farms' | 'defenseBudgetMul') => DIFFICULTIES.every((d, i) => i === 0 || DIFFICULTY[d][k] >= DIFFICULTY[DIFFICULTIES[i - 1]!][k]);
+    const desc = (k: 'firstAttackMinutes' | 'waveCooldownMinutes' | 'eraPushMinutes') => DIFFICULTIES.every((d, i) => i === 0 || DIFFICULTY[d][k] < DIFFICULTY[DIFFICULTIES[i - 1]!][k]);
+    expect(asc('prepGarrison') && asc('armyPerMinute') && asc('farms') && asc('defenseBudgetMul')).toBe(true);
+    expect(desc('firstAttackMinutes') && desc('waveCooldownMinutes') && desc('eraPushMinutes')).toBe(true);
   });
 
   it('Brutal: bônus de coleta declarado só para quem tem o modificador', () => {

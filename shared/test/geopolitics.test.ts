@@ -4,6 +4,7 @@ import { NationalSimulation } from '../strategic/NationalSimulation.ts';
 import { Simulation } from '../sim/Simulation.ts';
 import { generateMap } from '../sim/MapGen.ts';
 import { AI_FIRST_ATTACK_TICK, AI_FIRST_WAVE, AI_PREP_GARRISON, AI_WAVE_COOLDOWN_TICKS, TacticalAI } from '../sim/TacticalAI.ts';
+import { prepTicks } from '../sim/difficulty.ts';
 import { flatMap, meet, theater } from './helpers.ts';
 
 function setup() {
@@ -220,7 +221,7 @@ describe('guerra no teatro tático', () => {
     const sim = new Simulation({ map: generateMap(5), playerCount: 2 });
     const ai = new TacticalAI(1);
     let maxArmy = 0;
-    for (let t = 0; t < AI_FIRST_ATTACK_TICK - 20; t++) {
+    for (let t = 0; t < prepTicks('normal') - 20; t++) {
       if (t % 20 === 0) for (const c of ai.think(sim)) sim.applyCommand(1, c);
       sim.step();
       if (t % 200 === 0) maxArmy = Math.max(maxArmy, sim.units.filter((u) => u.owner === 1).length);

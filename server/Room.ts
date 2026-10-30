@@ -391,7 +391,7 @@ export class Room {
       this.seed,
       this.balanceMode,
     );
-    this.nationalAIs = this.players.filter((p) => p.isAI).map((p) => new NationalAI(p.slot, DIFFICULTY[this.difficulty].missiles));
+    this.nationalAIs = this.players.filter((p) => p.isAI).map((p) => new NationalAI(p.slot, DIFFICULTY[this.difficulty].missiles, DIFFICULTY[this.difficulty].defenseBudgetMul));
     if (this.mode === 'sandbox') this.national.policiesActive = false;
     if (this.mode === 'sandbox') this.sim.sandbox = { slots: this.players.filter((p) => !p.isAI).map((p) => p.slot), instant: true, aiActive: false, reveal: false };
     this.wire();
@@ -556,7 +556,7 @@ export class Room {
       const st = save.ais.find((x) => x.slot === a.slot);
       if (st) a.load(st.state);
     }
-    room.nationalAIs = room.players.filter((p) => p.isAI).map((p) => new NationalAI(p.slot, DIFFICULTY[room.difficulty].missiles));
+    room.nationalAIs = room.players.filter((p) => p.isAI).map((p) => new NationalAI(p.slot, DIFFICULTY[room.difficulty].missiles, DIFFICULTY[room.difficulty].defenseBudgetMul));
     for (const [slot, usd] of save.gdpStart) room.gdpStart.set(slot, usd);
     room.reportSamples = save.report?.samples ?? [];
     for (const [slot, r] of save.report?.bestRank ?? []) room.bestRank.set(slot, r);
@@ -1219,7 +1219,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
 }
 
 /** O que as facções observam no teatro de um jogador. */
-function theaterStats(sim: Simulation, slot: Slot): TheaterStats {
+export function theaterStats(sim: Simulation, slot: Slot): TheaterStats {
   const buildings: TheaterStats['buildings'] = {};
   for (const b of sim.buildings) if (b.owner === slot && b.progress >= 1 && b.hp > 0) buildings[b.type] = (buildings[b.type] ?? 0) + 1;
   const pop = sim.population(slot);

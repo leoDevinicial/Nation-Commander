@@ -119,6 +119,11 @@ npm test && npm run lint && npm run typecheck
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
+- **Ritmo da IA por dificuldade** (`docs/DIFICULDADE_VETERANIA.md`, `docs/RECALIBRAGEM_RECURSOS.md` §5.1): primeira
+   ofensiva com o que tiver na hora da dificuldade, exército mínimo, QG rumo à próxima era, impasses de cidadãos
+   resolvidos, defesa nacional maior nos níveis altos. `scripts/sim-economia.ts` passou a ligar a camada nacional
+   (terceiro argumento: dificuldades). A era 3 da IA continua tardia (22 a 28 min) porque os suprimentos viram o
+   gargalo.
 - **Caravanas só por estrada e IA construindo estradas** (`roadLink` em `shared/sim/caravans.ts`,
    `TacticalAI.planRoads`/`roadRoute`): sem estrada contínua até o QG a caravana fica parada; a IA pavimenta com Dijkstra.
 - **Estradas em peças de asfalto** (`src/game/render/RoadLayer.ts`) e ferramenta marcar → confirmar (Construir/Enter).
@@ -182,6 +187,10 @@ conhecidas:
   quiser painéis neles, criar uma variante inclinada que acompanhe a água do telhado.
 - Exceção conhecida do início garantido: Rios e Pontes, 5 nações, perfil agrícola, seed 3 — a mina alcança 5 de 6 células.
 - Partidas humanas contra a IA para validar a sensação da economia nova ainda não foram feitas.
+- **Economia tardia presa em suprimentos:** com a camada nacional, depois dos ~17 min a IA acumula milhares de comida,
+  madeira, pedra e ferro, e só os suprimentos limitam. Isso atrasa a era 3 dela para 22 a 28 min e enche os silos
+  (o critério "armazém ≥ 95%" falha na comida no Normal e no Brutal). Opções a discutir com o usuário: converter o
+  excedente em suprimentos (mercado), baratear os suprimentos da era 3 ou dar mais suprimentos às prefeituras.
 - `docs/RELATORIO_POS_PARTIDA.md`: o relatório ainda não é gravado no histórico do Supabase.
 
 ## 8. Estilo de entrega que o usuário aprovou

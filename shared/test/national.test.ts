@@ -175,4 +175,25 @@ describe('modelo nacional', () => {
     expect(n.research.done.length).toBeGreaterThan(0);
     expect(spendPct(n.budget)).toBeLessThan(40);
   });
+
+  it('IA da dificuldade alta sobe a defesa aos poucos (mais suprimentos no teatro), com as contas sob controle', () => {
+    const run = (mul: number) => {
+      const sim = new NationalSimulation([{ slot: 0, countryId: 'BRA' }], 5, 'parity');
+      const ai = new NationalAI(0, false, mul);
+      for (let d = 0; d < 360; d++) {
+        if (d % 30 === 0) {
+          const r = ai.think(sim);
+          if (r.budget) sim.setBudget(0, r.budget);
+        }
+        sim.stepDay();
+      }
+      return sim.nation(0)!;
+    };
+    const base = run(1);
+    const hard = run(2);
+    expect(hard.budget.defensePct).toBeGreaterThan(base.budget.defensePct);
+    // nunca passa do múltiplo pedido
+    expect(hard.budget.defensePct).toBeLessThanOrEqual(hard.referenceBudget.defensePct * 2 + 1e-9);
+    expect(hard.theaterSupplyPerSec).toBeGreaterThan(base.theaterSupplyPerSec);
+  });
 });
