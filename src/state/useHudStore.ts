@@ -1,4 +1,4 @@
-import type { AirView, TradeView } from '../../shared/sim/snapshot.ts';
+import type { AirView, CaravanView, TradeView } from '../../shared/sim/snapshot.ts';
 import type { ModId } from '../../shared/sim/modernization.ts';
 import { create } from 'zustand';
 import type { BuildingType, DepositSize, MilitaryResearchId, ProducibleType, UnitType } from '../../shared/sim/config.ts';
@@ -134,6 +134,8 @@ export interface HudState {
   air: AirView | null;
   /** Vitórias alternativas em curso (domínio territorial, colapso político). */
   victory: { kind: 'territory' | 'political'; slot: number; progress: number }[];
+  /** Situação das caravanas internas do jogador (sem posição), por prefeitura. */
+  caravans: Pick<CaravanView, 'cityId' | 'state' | 'to' | 'income' | 'waitSeconds'>[];
   /** Rota inspecionada no mapa (id do embarque). */
   inspectedShipment: number | null;
   mySlot: number;
@@ -182,6 +184,7 @@ export const useHudStore = create<HudState>((set) => ({
   trade: null,
   air: null,
   victory: [],
+  caravans: [],
   inspectedShipment: null,
   mySlot: 0,
   paused: false,

@@ -3,6 +3,7 @@ import { RANKS, rankDamageMul, rankFor, rankHpMul } from './veterancy.ts';
 import { countryBonus, type CountryBonus } from './countryBonus.ts';
 import { ERA_CANCEL_REFUND, ERAS, buildingEra, type Era } from './eras.ts';
 import { MineSystem, type MineSave } from './mines.ts';
+import { CaravanSystem, type CaravanSave } from './caravans.ts';
 import { decodeNonFinite, encodeNonFinite } from './json.ts';
 import {
   BUILDINGS,
@@ -146,6 +147,7 @@ export interface SimulationSave {
   /** Força aérea e mísseis (Fase 7). */
   air?: AirSave;
   mines?: MineSave;
+  caravans?: CaravanSave;
   /** Militares fora do teatro em operações expedicionárias, por jogador (Fase 8). */
   detached?: number[];
   /** Salvas de foguetes ainda em voo. */
@@ -305,6 +307,8 @@ export class Simulation {
   readonly air: AirSystem = new AirSystem(this);
   /** Minas antitanque e o trabalho dos engenheiros (lote 3). */
   readonly mines: MineSystem = new MineSystem(this);
+  /** Caravanas internas entre o QG e as prefeituras. */
+  readonly caravans: CaravanSystem = new CaravanSystem(this);
   /** Militares fora do teatro em operações expedicionárias (contam na população). */
   detached: number[] = [];
   /** Batalha local de uma operação (sem atrito territorial). */
@@ -411,6 +415,7 @@ export class Simulation {
       trade: this.trade.toSave(),
       air: this.air.toSave(),
       ...(this.mines.mines.length || this.mines.tasks.length ? { mines: this.mines.toSave() } : {}),
+      ...(this.caravans.caravans.length ? { caravans: this.caravans.toSave() } : {}),
       detached: [...this.detached],
       ...(this.salvos.length ? { salvos: this.salvos.map((v) => ({ ...v, at: { ...v.at } })) } : {}),
       ...(this.battle ? { battle: true } : {}),
@@ -476,6 +481,7 @@ export class Simulation {
     sim.trade.load(data.trade);
     sim.air.load(data.air);
     sim.mines.load(data.mines);
+    sim.caravans.load(data.caravans);
     sim.detached = [...(data.detached ?? [])];
     sim.salvos = (data.salvos ?? []).map((v) => ({ ...v, at: { ...v.at } }));
     sim.battle = !!data.battle;
@@ -1698,6 +1704,7 @@ export class Simulation {
     this.trade.step();
     this.air.step();
     this.mines.step();
+    this.caravans.step();
     for (const u of this.units) this.updateUnit(u);
     this.updateInterceptions();
     this.updateSalvos();

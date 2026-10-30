@@ -23,7 +23,7 @@ servidor.
 | Onde | no próprio território; fora dele (terra neutra ou de país em guerra), com um Engenheiro de Combate a até 6 células |
 | Custo | 6 de pedra por célula e 0,2% do teto anual da verba de obras por célula |
 | Manutenção | 0,004 suprimento/s por célula |
-| Efeito | tropas mais rápidas (o terreno Estrada já valia 1,3× e o A* já preferia estradas), comboios rodoviários do comércio 30% mais rápidos sobre a estrada |
+| Efeito | tropas mais rápidas (o terreno Estrada já valia 1,3× e o A* já preferia estradas), comboios rodoviários do comércio e caravanas internas ([`CARAVANAS.md`](CARAVANAS.md)) 30% mais rápidos sobre a estrada |
 | Aprovação | moradias (Casa e Prédio Residencial) encostadas numa estrada formam o "bairro pavimentado": até +4 pontos com todas ligadas |
 
 As estradas entram no salvamento e vão para os clientes junto com o território. O cliente pinta o asfalto no mapa de

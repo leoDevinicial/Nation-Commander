@@ -5,6 +5,7 @@ import type { BuildingStatus, EntityId, SimEvent, Slot, UnitActivity, Vec2 } fro
 import type { SpecId } from './upgrades.ts';
 import { combineMods, type ModId } from './modernization.ts';
 import { AIRCRAFT, MISSILE, NUCLEAR, missileSpec, type AircraftState, type AircraftType, type LaunchState, type MissionKind, type MissionResult, type MissionState } from './air.ts';
+import { caravanIncome, type CaravanState } from './caravans.ts';
 import { TRADE_RESOURCES, TRANSPORT_MODES, type ShipmentState, type TradeContract, type TradeOffer, type TradeResource, type TransportMode } from './trade.ts';
 
 export interface UnitSnapshot {
@@ -94,6 +95,21 @@ export interface PlayerSnapshot {
 }
 
 /** Carga em trânsito: completa para quem negocia; para os demais, só o veículo visível no mapa. */
+/** Caravana interna (QG ↔ prefeitura): as próprias sempre; as inimigas só em trânsito e à vista. */
+export interface CaravanView {
+  id: number;
+  owner: Slot;
+  cityId: EntityId;
+  state: CaravanState;
+  x: number;
+  y: number;
+  heading: number;
+  /** Só para o dono: destino atual, suprimentos por chegada e segundos até sair de novo. */
+  to?: 'city' | 'hq';
+  income?: number;
+  waitSeconds?: number;
+}
+
 export interface ShipmentView {
   id: number;
   contractId: number;
@@ -165,6 +181,8 @@ export interface Snapshot {
   victory?: { kind: 'territory' | 'political'; slot: Slot; progress: number }[];
   /** Estradas construídas pelos jogadores (índices de célula), junto com o território. */
   roads?: number[];
+  /** Caravanas internas que o observador vê. */
+  caravans?: CaravanView[];
   /** Minas que o observador vê (as próprias e as inimigas detectadas). */
   mines?: { id: number; owner: Slot; x: number; y: number; clearing?: number }[];
   /** Território (um caractere por célula), enviado só quando muda (ver `territoryVersion`). */
@@ -294,6 +312,25 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
     ...(() => {
       const v = sim.victoryPressure().map((x) => ({ ...x, progress: r2(x.progress) }));
       return v.length ? { victory: v } : {};
+    })(),
+    ...(() => {
+      const list: CaravanView[] = [];
+      for (const c of sim.caravans.caravans) {
+        const own = !viewer || c.owner === viewer.slot;
+        const p = sim.caravans.position(c);
+        if (!own && !(c.state === 'moving' && sim.isVisibleTo(viewer!.slot, p))) continue;
+        list.push({
+          id: c.id,
+          owner: c.owner,
+          cityId: c.cityId,
+          state: c.state,
+          x: r2(p.x),
+          y: r2(p.y),
+          heading: r2(sim.caravans.heading(c)),
+          ...(own ? { to: c.to, income: c.pathLength > 0 ? caravanIncome(c.pathLength) : c.lastIncome, ...(c.state !== 'moving' ? { waitSeconds: Math.ceil(c.timer / TICK_RATE) } : {}) } : {}),
+        });
+      }
+      return list.length ? { caravans: list } : {};
     })(),
     ...(() => {
       const list = sim.mines.mines
@@ -506,6 +543,8 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
       return e.owner === slot || e.victim === slot || sim.isVisibleTo(slot, e.pos);
     case 'city_captured':
       return e.owner === slot || e.victim === slot || sim.isVisibleTo(slot, e.pos);
+    case 'caravan_lost':
+      return e.owner === slot || sim.isVisibleTo(slot, e.pos);
     case 'dogfight':
       return e.owner === slot || e.victim === slot || sim.isVisibleTo(slot, e.from) || sim.isVisibleTo(slot, e.to);
     case 'missile':

@@ -10,6 +10,7 @@ tomada.
 | Tamanho | 2×2 · vida 1200 · visão 11 · atalho **G** (com o QG selecionado) |
 | Fronteira | raio 10, com peso 1,4 na disputa de fronteira (mais que torres e casas, menos que o QG) |
 | Benefícios | abriga 10 · guarda 200 suprimentos e 100 de comida, madeira e pedra · rende 1 suprimento/s |
+| Caravana | mantém um caminhão de carga até o QG, que rende suprimentos a cada chegada; ver [`CARAVANAS.md`](CARAVANAS.md) |
 
 - **Nome real:** ao começar a obra, a prefeitura recebe o nome de uma cidade real do país de quem a
   fundou, das maiores para as menores, sem repetir nomes na partida. Por exemplo:

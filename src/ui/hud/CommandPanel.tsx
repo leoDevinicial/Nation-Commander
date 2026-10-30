@@ -986,6 +986,26 @@ function FragmentStat({ label, base, value, unit, sources }: { label: string; ba
   );
 }
 
+/** Situação da caravana interna da prefeitura selecionada. */
+function CaravanInfo({ cityId }: { cityId: number }) {
+  const c = useHudStore((s) => s.caravans.find((x) => x.cityId === cityId));
+  if (!c) return <div className="text-[11px] text-ink-400">🚚 Caravana: saindo do Centro de Comando…</div>;
+  const income = c.income ? ` · +${c.income} suprimentos por chegada` : '';
+  const text =
+    c.state === 'moving'
+      ? `a caminho ${c.to === 'hq' ? 'do Centro de Comando' : 'da prefeitura'}${income}`
+      : c.state === 'unloading'
+        ? `descarregando${income}`
+        : c.state === 'blocked'
+          ? `sem rota (território inimigo no caminho); nova tentativa em ${c.waitSeconds ?? 0} s`
+          : `destruída por forças inimigas; outra sai do Centro de Comando em ${c.waitSeconds ?? 0} s`;
+  return (
+    <div className={`text-[11px] ${c.state === 'destroyed' || c.state === 'blocked' ? 'text-amber-300' : 'text-ink-400'}`} title="Rende mais com rota longa e chega mais rápido pela estrada. Tropas e torres inimigas destroem a caravana no caminho.">
+      🚚 Caravana: {text}
+    </div>
+  );
+}
+
 function BuildingInfo({ b, runtime }: { b: NonNullable<ReturnType<typeof useHudStore.getState>['selectedBuilding']>; runtime: GameRuntime }) {
   const def = BUILDINGS[b.type];
   const done = b.progress >= 1;
@@ -1071,6 +1091,7 @@ function BuildingInfo({ b, runtime }: { b: NonNullable<ReturnType<typeof useHudS
       )}
       {done && b.type === 'airbase' && <AirbaseInfo b={b} />}
       {done && b.type === 'missile_silo' && <SiloInfo b={b} />}
+      {done && b.type === 'city_hall' && b.owner === useHudStore.getState().mySlot && <CaravanInfo cityId={b.id} />}
       {done && fx.housing > 0 && <div className="text-[11px] text-ink-400">Moradia para {fx.housing} habitantes.</div>}
       {done && fx.territoryRadius > 0 && <div className="text-[11px] text-ink-400">Projeta fronteira num raio de {fx.territoryRadius} células.</div>}
       {(b.type === 'barracks' || b.type === 'factory') && done && (

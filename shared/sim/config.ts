@@ -714,6 +714,25 @@ export const CITY = {
   captureHpFrac: 0.3,
 };
 
+/**
+ * Caravanas internas (lote 2, item 6 de docs/BALANCEAMENTO_E_PROGRESSAO.md): cada prefeitura pronta
+ * mantém um caminhão de carga indo e voltando até o Centro de Comando. Cada chegada rende
+ * suprimentos proporcionais ao comprimento da rota; a estrada acelera a viagem e tropas ou torres
+ * de quem está em guerra com o dono destroem a caravana no caminho.
+ */
+export const CARAVAN = {
+  /** Velocidade (mundo/s) fora da estrada; na estrada, × ROAD.convoyMul. */
+  speed: 3.2,
+  /** Suprimentos por unidade de mundo da rota, entregues a cada chegada (em qualquer ponta). */
+  suppliesPerWorld: 0.3,
+  /** Descarga parada em cada ponta. */
+  unloadSeconds: 4,
+  /** Depois de destruída, uma nova caravana sai do QG após este tempo. */
+  respawnSeconds: 45,
+  /** Sem rota (território inimigo no caminho), tenta de novo após este tempo. */
+  retrySeconds: 5,
+};
+
 /** Distância máxima (células, centro a centro) entre um poço e um tanque de petróleo válido. */
 export const OIL_TANK_RANGE = 9;
 
@@ -1107,7 +1126,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     storage: { supplies: 400, food: 200, wood: 200, stone: 200 },
     buildable: true,
     description:
-      'Funda uma cidade com o nome de uma cidade real do seu país: amplia bastante a fronteira, abriga 10, guarda recursos e rende suprimentos. Fica a pelo menos 10 células de outra prefeitura ou do QG. Se um inimigo a destruir, ele toma a cidade e os edifícios dela num raio de 8 células. Funciona como um QG secundário: pronta, forma cidadãos e abre o menu de construção.',
+      'Funda uma cidade com o nome de uma cidade real do seu país: amplia bastante a fronteira, abriga 10, guarda recursos e rende suprimentos. Fica a pelo menos 10 células de outra prefeitura ou do QG. Se um inimigo a destruir, ele toma a cidade e os edifícios dela num raio de 8 células. Funciona como um QG secundário: pronta, forma cidadãos e abre o menu de construção. Mantém uma caravana indo e voltando até o Centro de Comando: cada chegada rende suprimentos (mais com rota longa; mais rápido pela estrada).',
     hotkey: 'G',
   },
   nuclear_plant: {

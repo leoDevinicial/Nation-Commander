@@ -119,6 +119,9 @@ npm test && npm run lint && npm run typecheck
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
+- **Caravanas internas** QG ↔ prefeitura (`shared/sim/caravans.ts`, `docs/CARAVANAS.md`): uma por prefeitura,
+   renda por chegada proporcional à rota, 30% mais rápidas na estrada, emboscadas e reposição; caminhão no `CargoLayer`
+   e situação no painel da prefeitura.
 - **Guia do jogador em PDF** (`docs/GUIA_DO_JOGADOR.pdf`, 27 páginas, linguagem simples, com capturas do jogo).
    Feito com HTML + Playwright (`page.pdf`) a partir de capturas em partida contra a IA e no Sandbox; os números são
    os do jogo em 30/10/2026. Se regras ou custos mudarem, o guia precisa ser refeito.

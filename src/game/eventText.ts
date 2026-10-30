@@ -1,6 +1,6 @@
 import { MODS } from '../../shared/sim/modernization.ts';
 import { AIRCRAFT, type AircraftType } from '../../shared/sim/air.ts';
-import { BUILDINGS, MILITARY_RESEARCH, RESOURCE_LABELS, TICK_RATE, UNITS, VICTORY, type BuildingType, type UnitType } from '../../shared/sim/config.ts';
+import { BUILDINGS, CARAVAN, MILITARY_RESEARCH, RESOURCE_LABELS, TICK_RATE, UNITS, VICTORY, type BuildingType, type UnitType } from '../../shared/sim/config.ts';
 import type { BuildingStatus } from '../../shared/sim/types.ts';
 
 const HALT_TEXT: Partial<Record<BuildingStatus, string>> = {
@@ -98,6 +98,10 @@ export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone
     }
     case 'shipment_lost':
       return e.seller === mySlot || e.buyer === mySlot ? { text: `Carga perdida: ${e.reason}`, tone: 'bad' } : null;
+    case 'caravan_lost':
+      return e.owner === mySlot
+        ? { text: `Caravana de ${e.city} destruída por forças inimigas; outra sai do Centro de Comando em ${CARAVAN.respawnSeconds} s`, tone: 'bad' }
+        : { text: `Caravana inimiga destruída perto de ${e.city}`, tone: 'good' };
     case 'modernize_started':
       return e.owner === mySlot ? { text: `Modernização iniciada: ${UNITS[e.unitType].label} recebendo ${MODS[e.mod].label}`, tone: 'info' } : null;
     case 'unit_modernized':

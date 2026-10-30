@@ -107,6 +107,8 @@ interface TrackedBuilding {
 }
 
 const HUD_INTERVAL_MS = 150;
+/** Ids das caravanas internas na camada de cargas (separados dos embarques do comércio). */
+const CARAVAN_ID_BASE = 1_000_000;
 /** Painel de desempenho: atualização mais lenta (as janelas do KGPS são de ~2 s). */
 const PERF_HUD_INTERVAL_MS = 500;
 /** Piso da resolução interna (pixels de desenho por pixel de tela). */
@@ -497,9 +499,15 @@ export class GameRuntime {
 
   private onSnapshot(msg: SnapshotMsg): void {
     const s = msg.s;
-    if (s.trade && this.hudActive) {
-      useHudStore.getState().set({ trade: s.trade });
-      this.cargo.update(s.trade.shipments, this.cameraCtl.target);
+    if ((s.trade || s.caravans) && this.hudActive) {
+      if (s.trade) useHudStore.getState().set({ trade: s.trade });
+      // caravanas internas usam o mesmo caminhão dos comboios rodoviários
+      const caravans = (s.caravans ?? [])
+        .filter((c) => c.state !== 'destroyed')
+        .map((c) => ({ id: CARAVAN_ID_BASE + c.id, contractId: -1, mode: 'road' as const, state: c.state === 'moving' ? ('moving' as const) : ('loading' as const), x: c.x, y: c.y, heading: c.heading, seller: c.owner, buyer: c.owner }));
+      this.cargo.update([...(s.trade?.shipments ?? []), ...caravans], this.cameraCtl.target);
+      const mine = (s.caravans ?? []).filter((c) => c.owner === this.mySlot).map((c) => ({ cityId: c.cityId, state: c.state, to: c.to, income: c.income, waitSeconds: c.waitSeconds }));
+      if (JSON.stringify(mine) !== JSON.stringify(useHudStore.getState().caravans)) useHudStore.getState().set({ caravans: mine });
     }
     if (s.air) {
       if (this.hudActive) useHudStore.getState().set({ air: s.air });
@@ -778,6 +786,8 @@ export class GameRuntime {
         for (let i = 0; i < 3; i++) this.effects.explosion(new THREE.Vector3(e.pos.x + (Math.random() - 0.5) * 1.6, 0, e.pos.y + (Math.random() - 0.5) * 1.6), i === 0 && (e.destroyed || e.oilLost > 0));
     } else if (e.type === 'dogfight') {
       this.airLayer.dogfightShot(e);
+    } else if (e.type === 'caravan_lost') {
+      this.effects.explosion(new THREE.Vector3(e.pos.x, 0, e.pos.y), false);
     } else if (e.type === 'city_captured') {
       // a cidade troca de bandeira: clarão e onda na cor do novo dono
       this.effects.flash(new THREE.Vector3(e.pos.x, 2, e.pos.y), 2.2, '#fff1c4', 0.5);
@@ -2487,6 +2497,10 @@ export class GameRuntime {
         break;
       case 'dogfight':
         audio.playAt('rifle', e.from.x, e.from.y);
+        break;
+      case 'caravan_lost':
+        audio.playAt('explosion', e.pos.x, e.pos.y);
+        if (mine(e.owner)) audio.ui('alert');
         break;
       case 'city_captured':
         if (mine(e.owner)) audio.ui('success');

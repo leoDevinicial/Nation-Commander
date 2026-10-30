@@ -305,5 +305,7 @@ export type SimEvent =
   /** Incidente de fronteira: hostilidade limitada e com prazo, sem guerra declarada. */
   | { type: 'border_incident'; tick: number; aggressor: Slot; victim: Slot; untilTick: number; pos: Vec2 | null }
   | { type: 'city_captured'; tick: number; owner: Slot; victim: Slot; id: EntityId; city: string; buildings: number; pos: Vec2 }
+  /** Caravana interna destruída por forças inimigas no caminho entre o QG e a prefeitura. */
+  | { type: 'caravan_lost'; tick: number; owner: Slot; cityId: EntityId; city: string; pos: Vec2 }
   | { type: 'missile'; tick: number; owner: Slot; launchId: number; state: string; text: string; from: Vec2; target: Vec2; targetOwner: Slot; gen?: number; nuclear?: boolean; damage?: number; destroyed?: number; casualties?: number }
   | { type: 'modernize_cancelled'; tick: number; id: EntityId; owner: Slot; unitType: UnitType; mod: ModId; reason: 'player' | 'facility_lost'; pos: Vec2 };
