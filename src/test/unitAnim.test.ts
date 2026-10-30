@@ -119,7 +119,10 @@ describe('canos e casulo', () => {
     expect(d.y).toBeGreaterThan(0.3);
     const gat = (ciws as unknown as { guns: { barrel: THREE.Group }[] }).guns[0]!.barrel;
     for (let i = 0; i < 10; i++) ciws.update(1 / 60, false, 0, 1, false, cam);
-    expect(gat.rotation.x).toBeGreaterThan(3);
+    expect(gat.rotation.x).toBeGreaterThan(5);
+    // a torre do CIWS vira quase na hora (um tanque leva bem mais)
+    ciws.update(0.1, false, Math.PI / 2, 1, false, cam);
+    expect(ciws.turretAngle).toBeLessThan(-1.4);
     ciws.dispose();
   });
 

@@ -597,7 +597,7 @@ export class UnitVisual {
       const target = aimAngle === null ? 0 : -(aimAngle - this.facing);
       let diff = target - this.turretAngle;
       diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-      this.turretAngle += diff * Math.min(1, dt * 5);
+      this.turretAngle += diff * Math.min(1, dt * (this.model.turretSlew ?? 5));
       this.turret.rotation.y = this.turretAngle;
       this.turret.position.x = this.model.turretPivot[0] - this.recoil * 0.08;
     }

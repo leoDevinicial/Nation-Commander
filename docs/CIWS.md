@@ -1,8 +1,9 @@
 # Phalanx CIWS Móvel
 
-Tropa da **Era Digital** (era 3, a penúltima): um 8×8 blindado com a montagem do Phalanx na traseira. É a defesa de
-ponto do exército: derruba no ar parte das salvas do Lança-Foguetes que vão cair perto dele e conta como defesa
-antiaérea contra aviões e mísseis.
+Tropa da **Era Digital** (era 3, a penúltima): um 8×8 blindado com a montagem do Phalanx na traseira. É o veículo
+militar mais caro da era: custa mais que o Lança-Foguetes (550) e a Antiaérea Móvel (425) em cada recurso, e um pouco
+mais que o Tanque Moderno do Futuro Próximo (725). É a defesa de ponto do exército: derruba no ar parte das salvas
+do Lança-Foguetes que vão cair perto dele e conta como defesa antiaérea contra aviões e mísseis.
 
 ## Regra
 
@@ -10,7 +11,9 @@ antiaérea contra aviões e mísseis.
 |---|---|
 | Produção | Fábrica, atalho **G** |
 | Pesquisa | Defesa de ponto (CIWS), atalho **G** no Centro de Pesquisa: nível 2, depois de Defesa antiaérea móvel |
-| Custo-base | 80 petróleo, 90 ferro, 80 suprimentos (escalado pelo `ECONOMY`), 12 aço e 6 combustível quando houver |
+| Custo-base | 95 petróleo, 105 ferro, 95 suprimentos; com o `ECONOMY`, 240 / 265 / 240 (745 no total) |
+| Bens | 14 aço e 8 combustível, quando houver estoque |
+| Tempo de produção | 20 s |
 | Vida, velocidade, visão | 170, 4,4, 15 |
 | Arma em terra | Gatling de 20 mm: 9 de dano a cada 0,5 s, alcance 7,5; ×0,35 contra veículos e ×0,3 contra construções |
 
@@ -48,7 +51,9 @@ a torre montada embaixo, ela ficaria bege. O campo `lift` dos canos faz o mesmo 
 ## No cliente
 
 - **Disparo:** tiro `gatling` em `Projectiles`, um fio de 9 traçantes finos e rápidos por disparo. O feixe de canos
-  gira na rajada e perde a velocidade aos poucos (`spin` no modelo).
+  gira na rajada (70 rad/s) e perde a velocidade aos poucos (`spin` no modelo).
+- **Torre muito rápida:** `turretSlew: 28` no modelo, contra 5 das outras tropas. A montagem estala de um alvo para o
+  outro, como os servos de uma defesa de ponto.
 - **Interceptação:** `RocketLayer.gunIntercept`. A torre vira para cada foguete (`UnitVisual.aimToward`), e uma rajada
   de traçantes de 0,3 s sai da boca do cano até ele. O foguete explode no ar no fim da rajada.
 - **Som:** `gatling` no `AudioService`, o rasgo contínuo ("brrrt") a ~75 tiros por segundo, com o zumbido do motor
@@ -58,4 +63,5 @@ a torre montada embaixo, ela ficaria bege. O campo `lift` dos canos faz o mesmo 
 
 - `shared/test/military.test.ts`: o CIWS derruba 5 de 12 foguetes já na era 3, e fora do alcance não derruba
   nenhum. Também cobre os bloqueios da pesquisa (era, pré-requisito, nível do centro).
-- `src/test/unitAnim.test.ts`: posição da boca do Gatling e giro do feixe de canos.
+- `shared/test/military.test.ts`: o CIWS é mais caro que as outras tropas da Era Digital em cada recurso.
+- `src/test/unitAnim.test.ts`: posição da boca do Gatling, giro do feixe de canos e a torre que vira quase na hora.

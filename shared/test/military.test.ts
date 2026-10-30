@@ -3,6 +3,7 @@ import { MILITARY_RESEARCH, TICK_RATE, UNITS, militaryResearchBlocker, type Buil
 import { parseCommand } from '../sim/commands.ts';
 import { RESEARCH_CANCEL_REFUND, SPLASH_FRACTION, Simulation, targetMultiplier, type NationalLink } from '../sim/Simulation.ts';
 import { MISSILE, missileSpec } from '../sim/air.ts';
+import { UNIT_ERA } from '../sim/eras.ts';
 import { makeSnapshot } from '../sim/snapshot.ts';
 import type { Building, SimEvent, Unit } from '../sim/types.ts';
 import { militaryResearchSpeed } from '../strategic/params.ts';
@@ -308,6 +309,13 @@ describe('progressão militar — tropas novas em combate', () => {
     expect(UNITS.ciws.requires).toBe('point_defense');
     expect(UNITS.ciws.airDefense).toBe(true);
     expect(UNITS.ciws.producedBy).toBe('factory');
+    // o veículo mais caro da Era Digital: acima de todas as tropas da era em cada recurso
+    const total = (c: object) => Object.values(c).reduce((a: number, v: number) => a + v, 0);
+    for (const t of Object.keys(UNIT_ERA) as (keyof typeof UNITS)[]) {
+      if (t === 'ciws' || UNIT_ERA[t] !== 3) continue;
+      expect(total(UNITS.ciws.cost)).toBeGreaterThan(total(UNITS[t].cost));
+      for (const [r, v] of Object.entries(UNITS[t].cost)) if (r !== 'food') expect(UNITS.ciws.cost[r as 'oil'] ?? 0).toBeGreaterThan(v);
+    }
     expect(militaryResearchBlocker('point_defense', ['mobile_air_defense'], 2, 2)).toMatch(/Era Digital/);
     expect(militaryResearchBlocker('point_defense', [], 2, 3)).toMatch(/Defesa antiaérea móvel/);
     expect(militaryResearchBlocker('point_defense', ['mobile_air_defense'], 1, 3)).toMatch(/nível 2/);

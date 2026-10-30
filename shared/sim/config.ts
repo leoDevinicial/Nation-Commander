@@ -69,7 +69,7 @@ export const GOODS_USE: Partial<Record<UnitType, Partial<Goods>>> = {
   artillery: { steel: 5 },
   rocket_artillery: { steel: 10, fuel: 5 },
   mobile_aa: { steel: 10, fuel: 5 },
-  ciws: { steel: 12, fuel: 6 },
+  ciws: { steel: 14, fuel: 8 },
   mbt: { steel: 20, fuel: 10 },
 };
 export const emptyGoods = (): Goods => ({ fuel: 0, steel: 0 });
@@ -459,8 +459,9 @@ export const UNITS: Record<UnitType, UnitDef> = {
   },
   ciws: {
     label: 'Phalanx CIWS Móvel',
-    cost: { oil: 80, iron: 90, supplies: 80 },
-    buildSeconds: 15,
+    // o veículo mais caro da Era Digital (acima do Lança-Foguetes em cada recurso)
+    cost: { oil: 95, iron: 105, supplies: 95 },
+    buildSeconds: 20,
     maxHp: 170,
     speed: 4.4,
     radius: 0.95,

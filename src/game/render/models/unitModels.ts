@@ -29,6 +29,8 @@ export interface UnitModel {
    * em y por esse valor (a malha desce o mesmo), para a poeira do shader, que vai pela altura local, não pegar nele.
    */
   guns?: { layers: ModelLayers; pivot: V3; elev: number; muzzle: V3; recoil: number; spin?: number; lift?: number }[];
+  /** Velocidade com que a torre gira para o alvo (padrão 5; o CIWS, com servos de defesa de ponto, é muito mais rápido). */
+  turretSlew?: number;
   /** Tipo de disparo visível (projétil que sai da boca do cano). */
   shot?: 'apfsds' | 'howitzer' | 'flak' | 'autocannon' | 'gatling';
   /**
@@ -1853,7 +1855,8 @@ function buildCiws(): BuiltUnit {
     turret: built,
     turretPivot: [-0.95, 0, 0],
     muzzle: [pivot[0] + Math.cos(elev) * (L + 0.04), pivot[1] + Math.sin(elev) * (L + 0.04), pivot[2]],
-    guns: [{ layers: barrel, pivot, elev, muzzle: [L + 0.04, 0, 0], recoil: 0.015, spin: 40, lift: deck }],
+    guns: [{ layers: barrel, pivot, elev, muzzle: [L + 0.04, 0, 0], recoil: 0.015, spin: 70, lift: deck }],
+    turretSlew: 28,
     shot: 'gatling',
   };
 }
