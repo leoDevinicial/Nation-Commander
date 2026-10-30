@@ -214,6 +214,45 @@ export class AudioService {
     return c;
   }
 
+  private outdoor: ConvolverNode | null = null;
+
+  /**
+   * Reverberação de campo aberto (uma só, compartilhada, ligada ao canal de combate): resposta ao impulso gerada aqui,
+   * com os primeiros reflexos do terreno e de construções próximas (30 a 260 ms, cada um mais abafado) e uma cauda
+   * difusa que perde os agudos enquanto some (~2 s). É o que faz um tiro forte "rolar" pela paisagem.
+   */
+  private outdoorReverb(): ConvolverNode {
+    if (this.outdoor) return this.outdoor;
+    const ctx = this.ctx!;
+    const rate = ctx.sampleRate;
+    const len = Math.round(rate * 2.4);
+    const ir = ctx.createBuffer(2, len, rate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = ir.getChannelData(ch);
+      // reflexos iniciais: pulsos curtos com o lado esquerdo e o direito um pouco diferentes (largura estéreo)
+      const early = [0.031, 0.054, 0.083, 0.121, 0.167, 0.214, 0.262];
+      early.forEach((s, k) => {
+        const at = Math.round((s + (ch ? 0.006 : 0) * (k % 2 ? 1 : -1)) * rate);
+        const amp = 0.55 * Math.pow(0.72, k);
+        for (let i = 0; i < 90 && at + i < len; i++) d[at + i]! += (Math.random() * 2 - 1) * amp * Math.exp(-i / 18);
+      });
+      // cauda difusa: ruído com queda exponencial e um passa-baixa que fecha com o tempo (o ar come os agudos)
+      let lp = 0;
+      for (let i = Math.round(0.04 * rate); i < len; i++) {
+        const t = i / rate;
+        const k = 0.5 * Math.exp(-t * 0.9) + 0.04;
+        lp += ((Math.random() * 2 - 1) - lp) * k;
+        d[i]! += lp * 0.42 * Math.exp(-t * 2.6) * Math.min(1, (t - 0.04) / 0.08);
+      }
+    }
+    const conv = ctx.createConvolver();
+    conv.normalize = true;
+    conv.buffer = ir;
+    conv.connect(this.buses.get('combat')!);
+    this.outdoor = conv;
+    return conv;
+  }
+
   private noiseSource(loop = false): AudioBufferSourceNode {
     const s = this.ctx!.createBufferSource();
     s.buffer = this.noise;
@@ -378,39 +417,76 @@ export class AudioService {
         break;
       }
       case 'aa_twin': {
-        // canhões gêmeos de 30 mm da antiaérea do Futuro Próximo: dois tiros fortes e separados, um de cada cano
-        // (~0,2 s entre eles). Cada um: estampido seco e brilhante, soco grave saturado que se sente no peito, jato da
-        // boca e o clangor do ferrolho; no fim, o eco grave rolando pelo terreno. Nada de rajada contínua
+        // canhões gêmeos de 30 mm (antiaérea do Futuro Próximo): dois disparos pesados e separados, um de cada cano.
+        // Cada um tem cinco camadas que chegam juntas e somem em tempos diferentes:
+        //   1. estalo supersônico: o "crack" seco e muito brilhante do projétil rompendo a barreira do som;
+        //   2. sopro da boca: os gases saindo do cano, saturados (é o que dá o peso agressivo);
+        //   3. soco grave: o recuo do cano e a onda de pressão que se sente no peito;
+        //   4. subgrave: a pressão bem funda que treme o chão, mais longa que o resto;
+        //   5. mecânica: ferrolho batendo, elo da munição e, depois, os estojos de latão quicando no metal.
+        // Os tiros vão também para a reverberação de campo aberto (eco do terreno), e no fim o estrondo rola longe.
+        const mix = ctx.createGain();
+        mix.connect(out);
+        const wet = ctx.createGain();
+        wet.gain.value = gain * 0.32;
+        mix.connect(wet).connect(this.outdoorReverb());
         const drive = ctx.createWaveShaper();
-        drive.curve = this.driveCurve(4);
+        drive.curve = this.driveCurve(5.5);
         drive.oversample = '4x';
-        const low = ctx.createBiquadFilter();
-        low.type = 'lowpass';
-        low.frequency.value = 520;
+        const driveLow = ctx.createBiquadFilter();
+        driveLow.type = 'lowpass';
+        driveLow.frequency.value = 680;
+        driveLow.Q.value = 0.9;
         const body = ctx.createGain();
-        body.gain.value = 1.2;
-        drive.connect(low).connect(body).connect(out);
-        const gap = 0.19 + Math.random() * 0.03;
+        body.gain.value = 1.15;
+        drive.connect(driveLow).connect(body).connect(mix);
+        // sopro da boca saturado, mais aberto que o soco (médios rasgados)
+        const blast = ctx.createWaveShaper();
+        blast.curve = this.driveCurve(3.2);
+        blast.oversample = '4x';
+        const blastBand = ctx.createBiquadFilter();
+        blastBand.type = 'bandpass';
+        blastBand.frequency.value = 1100;
+        blastBand.Q.value = 0.55;
+        blast.connect(blastBand).connect(mix);
+        const gap = 0.2 + Math.random() * 0.025;
         for (let i = 0; i < 2; i++) {
           const at = t + i * gap;
-          // o segundo cano tem timbre um pouco mais grave
-          const k = i === 0 ? 1 : 0.94;
-          const f = i === 0 ? 1 : 0.9;
-          burst('highpass', 1900 * f, 0.6, 0.0005, 1.9 * k, 0.05, at);
-          burst('bandpass', 4000 * f, 0.9, 0.0005, 0.9 * k, 0.03, at);
-          burst('bandpass', 900 * f, 0.9, 0.001, 1.4 * k, 0.14, at + 0.004);
-          thump(150 * f, 46, 0.002, 1.9 * k, 0.26, at, 'sine', drive);
-          thump(80 * f, 28, 0.003, 1.4 * k, 0.42, at, 'triangle', drive);
-          thump(200 * f, 90, 0.001, 0.8 * k, 0.08, at, 'square', drive);
-          burst('lowpass', 600, 0.7, 0.002, 1.5 * k, 0.3, at, drive);
-          // mecânica: ferrolho e elo da munição
-          burst('bandpass', 2700, 9, 0.001, 0.28 * k, 0.05, at + 0.07);
-          thump(260, 170, 0.001, 0.2 * k, 0.05, at + 0.07, 'square');
+          // o segundo cano: um pouco mais grave e um fio mais fraco (nada soa colado)
+          const k = i === 0 ? 1 : 0.93;
+          const f = i === 0 ? 1 : 0.91;
+          // 1. estalo supersônico (duas camadas: o pico e o brilho)
+          burst('highpass', 3200 * f, 0.5, 0.0002, 2.0 * k, 0.014, at, mix);
+          burst('bandpass', 5200 * f, 0.8, 0.0003, 1.2 * k, 0.022, at, mix);
+          // 2. sopro da boca, saturado
+          burst('bandpass', 900 * f, 0.6, 0.0008, 1.9 * k, 0.08, at + 0.002, blast);
+          burst('lowpass', 2400 * f, 0.5, 0.001, 0.9 * k, 0.11, at + 0.003, mix);
+          // 3. soco grave saturado (o recuo e a onda de pressão)
+          thump(165 * f, 50, 0.0015, 2.2 * k, 0.16, at, 'sine', drive);
+          thump(98 * f, 34, 0.002, 1.6 * k, 0.24, at, 'triangle', drive);
+          thump(230 * f, 110, 0.0008, 0.7 * k, 0.05, at, 'square', drive);
+          burst('lowpass', 420, 0.8, 0.0015, 1.6 * k, 0.18, at, drive);
+          // 4. subgrave longo (direto, sem saturar: pressão limpa e funda)
+          thump(56 * f, 26, 0.006, 1.3 * k, 0.55, at, 'sine', mix);
+          // 5. mecânica: ferrolho batendo no fim do curso e o elo da fita entrando
+          burst('bandpass', 2300, 9, 0.0008, 0.42 * k, 0.045, at + 0.052, mix);
+          thump(310, 190, 0.001, 0.28 * k, 0.045, at + 0.052, 'square', mix);
+          burst('bandpass', 4300, 12, 0.0008, 0.2 * k, 0.03, at + 0.088, mix);
+          // estojos de latão: tilintar inarmônico ao bater no casco, com um quique menor depois
+          for (const [d, amp] of [
+            [0.34 + Math.random() * 0.06, 0.07],
+            [0.47 + Math.random() * 0.08, 0.04],
+          ] as const) {
+            const base = 2900 + Math.random() * 500;
+            for (const ratio of [1, 1.58, 2.31]) thump(base * ratio, base * ratio * 0.985, 0.001, amp * k, 0.09 / ratio, at + d, 'sine', out);
+          }
         }
+        // eco do terreno: o estrondo volta abafado de longe, duas vezes, e rola até sumir
         const tail = t + gap;
-        burst('lowpass', 360, 0.6, 0.03, 0.9, 0.9, tail + 0.05, drive);
-        burst('lowpass', 230, 0.5, 0.07, 0.5, 1.4, tail + 0.35);
-        end = burst('lowpass', 160, 0.5, 0.12, 0.3, 1.8, tail + 0.8);
+        burst('lowpass', 480, 0.6, 0.02, 0.32, 0.45, tail + 0.36, mix);
+        thump(64, 30, 0.015, 0.35, 0.5, tail + 0.36, 'sine', mix);
+        burst('lowpass', 300, 0.5, 0.05, 0.24, 0.9, tail + 0.7, mix);
+        end = burst('lowpass', 170, 0.5, 0.12, 0.16, 1.6, tail + 1.1, mix);
         break;
       }
       case 'gatling': {
