@@ -5,6 +5,9 @@ Supabase para contas e histórico). O jogo é todo em português.
 
 > **Começando numa conversa nova?** Leia primeiro [`docs/HANDOFF.md`](docs/HANDOFF.md): branch de trabalho, como rodar e
 > verificar, mapa do código, o que já foi feito e de onde continuar.
+>
+> **Branch de trabalho atual: `claude/youthful-dijkstra-a45emp`** (criada de `claude/serene-bell-7cjnhp` no commit
+> `20bdcc5`; ver seção 0.1 do handoff). Commits e push só nela, sem merge nem PR sem pedido do usuário.
 
 ## Regras de trabalho
 - Responder em português.

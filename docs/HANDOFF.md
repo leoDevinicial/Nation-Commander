@@ -4,12 +4,22 @@ Este arquivo é o ponto de partida para quem pega o projeto numa conversa nova (
 antes de mexer em qualquer coisa. Depois leia `CLAUDE.md` (regras curtas) e
 `docs/BALANCEAMENTO_E_PROGRESSAO.md` (direção de design + tabela "Estado da implementação").
 
-Última atualização: 30/10/2026 (transição de conta: o projeto passa para outra conta do Claude, por limite de uso; é a
-mesma equipe e o mesmo repositório, sem nenhuma mudança de rumo).
+Última atualização: 30/10/2026 (conta nova assumiu o projeto; ver seção 0.1).
 
-## 0. Comece por aqui (transição de 30/10/2026)
+## 0.1 Conta atual (assumiu em 30/10/2026)
 
-1. **Branch:** `claude/serene-bell-7cjnhp`. Último commit desta conta: o da entrega "manual, handoff e relatório low
+- **Branch de trabalho desta conta: `claude/youthful-dijkstra-a45emp`.** Foi criada a partir de
+  `claude/serene-bell-7cjnhp` no commit `20bdcc5` ("Transição de conta…"); as duas apontavam para o mesmo commit, então
+  nada foi perdido nem retrocedido. Desenvolver, commitar e dar push só nela (`git push -u origin
+  claude/youthful-dijkstra-a45emp`), salvo pedido explícito do usuário. A `claude/serene-bell-7cjnhp` fica como estava
+  (é a que publica na Vercel/Render, ver seção 2): levar o trabalho para lá só quando o usuário pedir.
+- Conferido na chegada: `npm ci`, `npm test` (51 arquivos, 468 testes), `npm run lint` e `npm run typecheck` passando.
+- Se uma conta futura assumir, repetir o processo: anotar aqui a branch nova, o commit de partida e o resultado dos
+  testes.
+
+## 0. Comece por aqui (transição de 30/10/2026, conta anterior)
+
+1. **Branch (da conta anterior):** `claude/serene-bell-7cjnhp`. Último commit desta conta: o da entrega "manual, handoff e relatório low
    poly" (ver `git log -3`). A árvore estava limpa e enviada ao GitHub, com `npm test` (468 testes), `npm run lint` e
    `npm run typecheck` passando. **Não** use a branch `ccr-0d806073-ne3r6d` nem outras `ccr-…`: o ambiente às vezes
    sugere uma branch nova, mas o usuário pediu para continuar nesta, sem merge e sem retroceder nada.
@@ -44,8 +54,8 @@ aviões, mísseis, eras). Cliente three.js + React/zustand; servidor Node autori
 ## 2. Repositório, branch e deploy
 
 - GitHub: `leoDevinicial/Nation-Commander`.
-- **Branch de trabalho = branch padrão do repositório: `claude/serene-bell-7cjnhp`.** Todo o trabalho recente está nela.
-  Continue nela (ou crie uma branch a partir dela, se o usuário pedir). Há outras branches antigas (`fase9-noticiario`,
+- **Branch padrão do repositório: `claude/serene-bell-7cjnhp`.** Todo o trabalho até 30/10 está nela. A conta atual
+  trabalha em `claude/youthful-dijkstra-a45emp`, criada a partir dela (seção 0.1). Há outras branches antigas (`fase9-noticiario`,
   `fase10-nacoes`, `e2e-fotos`, `titulo-3d-modern-geopolitical-rts`, `ccr-…`) — não são a linha principal.
 - Push na branch publica: o cliente vai para a Vercel (`vercel.json`) e o servidor para o Render (`render.yaml`, plano
   gratuito hiberna ~30–60 s). Ver `README.md`, seção de deploy.
@@ -218,7 +228,7 @@ npm test && npm run lint && npm run typecheck
     relatório pós-partida, cadeias produtivas, serviços, vitórias alternativas, estradas, engenheiro e minas, Grandes
     Projetos e Programa Espacial, eras, bônus por país e choque nuclear, etc. (ver tabela de estado).
 
-Histórico completo de cada entrega: `git log --oneline` na branch `claude/serene-bell-7cjnhp` (um commit por pedido,
+Histórico completo de cada entrega: `git log --oneline` na branch de trabalho (seção 0.1) (um commit por pedido,
 mensagens em português descrevendo o que mudou).
 
 ## 7. De onde continuar
