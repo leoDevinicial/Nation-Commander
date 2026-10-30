@@ -12,6 +12,7 @@ import { DIFFICULTY, firstAttackTicks } from './difficulty.ts';
 import { ERAS, buildingEra, type Era } from './eras.ts';
 import { AIRCRAFT, MISSILE, type AircraftType } from './air.ts';
 import { roadLink } from './caravans.ts';
+import { MARKET, MARKET_RESOURCES, marketPrice, type MarketResource } from './market.ts';
 
 /** Com que frequência a IA reavalia a situação. */
 export const AI_THINK_TICKS = TICK_RATE;
@@ -38,6 +39,15 @@ export const AI_STALL_TICKS = TICK_RATE * 300;
 export const AI_MIN_WAVE = 8;
 /** Prefeituras que a IA ergue quando sobra madeira ou pedra (sem sobra, duas). */
 const AI_MAX_CITIES = 6;
+/**
+ * Mercado interno: a IA guarda pelo menos AI_MARKET_KEEP (ou esta fração do armazém) de cada recurso e vende o resto
+ * em lotes (de 100 a 500), um a cada AI_MARKET_EVERY_TICKS, enquanto o preço estiver acima desta fração do cheio.
+ */
+const AI_MARKET_KEEP = 500;
+const AI_MARKET_KEEP_FRACTION = 0.5;
+const AI_MARKET_LOT = 100;
+const AI_MARKET_MIN_PRICE = 0.5;
+export const AI_MARKET_EVERY_TICKS = TICK_RATE * 5;
 /** Ferro do equipamento da infantaria (o mínimo para formar um soldado). */
 const AI_INFANTRY_IRON = 5;
 /** Tropas que ficam na base quando a onda sai (se a onda passa do mínimo). */
@@ -150,6 +160,7 @@ export interface TacticalAISave {
   lastReconTick?: number | null;
   lastStrikeTick?: number | null;
   lastRoadTick?: number | null;
+  lastMarketTick?: number | null;
   scoutLeg?: number;
 }
 
@@ -175,6 +186,8 @@ export class TacticalAI {
   private lastStrikeTick = -Infinity;
   /** Última obra de estrada (para espaçar as obras). */
   private lastRoadTick = -Infinity;
+  /** Última venda no mercado interno. */
+  private lastMarketTick = -Infinity;
   /** País contra o qual a IA quer declarar guerra (lido e processado pelo servidor). */
   wantsWarWith: Slot | null = null;
 
@@ -196,6 +209,7 @@ export class TacticalAI {
       lastReconTick: Number.isFinite(this.lastReconTick) ? this.lastReconTick : null,
       lastStrikeTick: Number.isFinite(this.lastStrikeTick) ? this.lastStrikeTick : null,
       lastRoadTick: Number.isFinite(this.lastRoadTick) ? this.lastRoadTick : null,
+      lastMarketTick: Number.isFinite(this.lastMarketTick) ? this.lastMarketTick : null,
       scoutLeg: this.scoutLeg,
     };
   }
@@ -214,6 +228,7 @@ export class TacticalAI {
     this.lastReconTick = s.lastReconTick ?? -Infinity;
     this.lastStrikeTick = s.lastStrikeTick ?? -Infinity;
     this.lastRoadTick = s.lastRoadTick ?? -Infinity;
+    this.lastMarketTick = s.lastMarketTick ?? -Infinity;
     this.scoutLeg = s.scoutLeg ?? 0;
   }
 
@@ -462,6 +477,8 @@ export class TacticalAI {
       ['house', pop.total >= pop.cap - 2 && pop.cap < POP_ABSOLUTE_CAP && !housingInProgress && count('house') + count('residential') < 14],
       ['oil_tank', wellsWithoutTank || (mine.some((b) => b.type === 'oil_well' && b.status === 'storage_full') && count('oil_tank') < 5)],
       ['city_hall', cityWanted],
+      // mercado interno: com material sobrando e suprimentos curtos, o Terminal Comercial troca um pelo outro
+      ['market', count('market') === 0 && this.surplus(sim, cap, res) !== null && res.supplies < cap.supplies * 0.5],
       ['warehouse', ((nearlyFull('wood') && done('sawmill')) || (nearlyFull('stone') && done('quarry')) || (nearlyFull('iron') && done('mine'))) && count('warehouse') < 4],
       ['silo', nearlyFull('food') && done('farm') && count('silo') < (savingCore ? 1 : 3)],
       // o mínimo de cada coleta; o resto vem do gargalo
@@ -666,6 +683,9 @@ export class TacticalAI {
 
     // --- incidente de fronteira no preparo (Normal ou mais): 2 a 3 tropas atacam a borda vizinha
     if (preparing && level.harassment) this.planHarass(sim, hq, army, committed, cmds);
+
+    // --- mercado interno: vende o excedente por suprimentos (o gargalo do meio de partida)
+    this.planMarket(sim, mine, cap, res, cmds);
 
     // --- explorador: percorre a vizinhança e o centro do mapa (acha depósitos e o inimigo); fora da onda
     this.planScout(sim, hq, army, committed, cmds);
@@ -897,6 +917,32 @@ export class TacticalAI {
       return null;
     }
     return null;
+  }
+
+  /** Recurso com a maior sobra acima da reserva (e quanto sobra), ou null. */
+  private surplus(sim: Simulation, cap: Stockpile, res: Stockpile): { r: MarketResource; extra: number } | null {
+    let best: { r: MarketResource; extra: number } | null = null;
+    for (const r of MARKET_RESOURCES) {
+      const keep = Math.max(AI_MARKET_KEEP, cap[r] * AI_MARKET_KEEP_FRACTION);
+      const extra = res[r] - keep;
+      // preço já muito baixo (vendeu demais há pouco): espera a recuperação
+      const price = marketPrice(r, sim.players[this.slot]!.marketPressure?.[r] ?? 0);
+      if (extra >= AI_MARKET_LOT && price >= MARKET.rates[r] * AI_MARKET_MIN_PRICE && (!best || extra * price > best.extra * marketPrice(best.r, 0))) best = { r, extra };
+    }
+    return best;
+  }
+
+  /** Uma venda por vez, a cada AI_MARKET_EVERY_TICKS, enquanto houver sobra e espaço para os suprimentos. */
+  private planMarket(sim: Simulation, mine: Building[], cap: Stockpile, res: Stockpile, cmds: Command[]): void {
+    if (sim.tick - this.lastMarketTick < AI_MARKET_EVERY_TICKS) return;
+    const market = mine.find((b) => b.type === 'market' && b.progress >= 1 && b.hp > 0);
+    if (!market || (cap.supplies > 0 && res.supplies > cap.supplies * 0.8)) return;
+    const best = this.surplus(sim, cap, res);
+    if (!best) return;
+    // lote proporcional à sobra (até 5 lotes): com a coleta alta, um lote pequeno não acompanhava a renda
+    const quantity = Math.min(AI_MARKET_LOT * 5, Math.floor(best.extra / AI_MARKET_LOT) * AI_MARKET_LOT);
+    cmds.push({ type: 'market_sell', buildingId: market.id, resource: best.r, quantity });
+    this.lastMarketTick = sim.tick;
   }
 
   private planUpgrade(sim: Simulation, mine: Building[], budget: Stockpile, take: (c: Cost) => boolean, cmds: Command[], onlyHq = false): void {

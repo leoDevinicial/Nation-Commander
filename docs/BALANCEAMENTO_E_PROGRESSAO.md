@@ -437,7 +437,8 @@ como na escolha entre os modos paridade e escala real.
 | Lote 1, §2.4 — defesa proporcional (≈1,5× a força vista) | Feito | `TacticalAI` |
 | Lote 1, §1.6 — texto do README sobre depósitos finitos | Feito | `README.md` |
 | Lote 1, §2.5 — dificuldade Fácil / Normal / Difícil / Brutal (preparo, ondas, bônus do Brutal) | Feito | `shared/sim/difficulty.ts`, sala |
-| Lote 1, §2.5 — ritmo da IA por dificuldade: primeira ofensiva com o que tiver (14 / 10 / 8 / 6 min), exército mínimo crescente, QG rumo à próxima era, mais fazendas, minas e prefeituras, defesa nacional maior; `sim-economia.ts` com a camada nacional | Feito (era 3 ainda tardia, ver `docs/RECALIBRAGEM_RECURSOS.md` §5.1) | `docs/DIFICULDADE_VETERANIA.md`, `TacticalAI`, `NationalAI` |
+| Lote 1, §2.5 — ritmo da IA por dificuldade: primeira ofensiva com o que tiver (14 / 10 / 8 / 6 min), exército mínimo crescente, QG rumo à próxima era, mais fazendas, minas e prefeituras, defesa nacional maior; `sim-economia.ts` com a camada nacional | Feito | `docs/DIFICULDADE_VETERANIA.md`, `TacticalAI`, `NationalAI` |
+| Mercado interno no Terminal Comercial (excedente → suprimentos, preço com pressão que se recupera; IA vende a sobra) | Feito | `docs/MERCADO_INTERNO.md`, `shared/sim/market.ts` |
 | Lote 1, §2.6 — incidentes de fronteira no preparo | Feito | `Simulation.startIncident`, `TacticalAI.planHarass` |
 | Lote 1, §2.7 — curva de defesa (raiz com saturação suave) | Feito | `theaterSupply` em `shared/strategic/params.ts` |
 | Lote 1, §3.2 — veterania (patentes, insígnia, painel) | Feito | `shared/sim/veterancy.ts` |

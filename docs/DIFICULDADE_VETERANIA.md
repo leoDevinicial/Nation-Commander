@@ -48,11 +48,12 @@ Medição em `scripts/sim-economia.ts`, com a camada nacional ligada (ver
 |---|---|---|---|---|
 | Primeira ofensiva da partida | 14:00–14:16 (uma 16:26) | 10:00–10:01 (11:32 e 12:55) | 8:00–8:20 (uma 9:04) | 6:24–7:00 |
 | Tropas formadas até 15:00 (média) | 8 | 11 | 11 | 11 |
-| IAs na era 3 até 30:00 | 8 de 14 (21–25 min) | 6 de 14 (21–28 min) | 9 de 14 (23–28 min) | 7 de 14 (19–28 min) |
+| IAs na era 3 até 30:00 (com o mercado interno) | 11 de 14 (20–22 min) | 13 de 14 (19–26 min) | 13 de 14 (20–30 min) | 14 de 14 (18–23 min) |
 
 Antes destas mudanças, no Normal, a primeira ofensiva saía aos 16:45, a IA tinha 3 tropas aos 10 min e quase nunca
-passava da era 2. A era 3 ainda chega tarde porque os suprimentos viram o único gargalo da IA depois dos 17 min (ver
-a seção 5.1 da recalibragem). No Fácil, as duas IAs gastam pouco em tropas e algumas partidas acabam antes dos 25 min.
+passava da era 2. Sem o mercado interno ([`MERCADO_INTERNO.md`](MERCADO_INTERNO.md)), a era 3 chegava entre 21 e
+28 min em menos da metade das IAs, presa nos suprimentos. No Fácil, as duas IAs gastam pouco em tropas, chegam à era 3
+tão cedo quanto as do Normal, e algumas partidas acabam antes dos 25 min.
 
 ## Incidentes de fronteira (assédio no preparo)
 

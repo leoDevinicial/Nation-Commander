@@ -4,6 +4,7 @@ import { countryBonus, type CountryBonus } from './countryBonus.ts';
 import { ERA_CANCEL_REFUND, ERAS, buildingEra, type Era } from './eras.ts';
 import { MineSystem, type MineSave } from './mines.ts';
 import { CaravanSystem, roadNetwork, roadRing, type CaravanSave } from './caravans.ts';
+import { marketQuote, marketRecover } from './market.ts';
 import { decodeNonFinite, encodeNonFinite } from './json.ts';
 import {
   BUILDINGS,
@@ -1102,6 +1103,23 @@ export class Simulation {
         this.territoryVersion++;
         return null;
       }
+      case 'market_sell': {
+        const b = this.entities.get(cmd.buildingId);
+        if (!b || b.kind !== 'building' || b.owner !== slot || b.type !== 'market') return 'Terminal Comercial inválido';
+        if (b.progress < 1 || b.hp <= 0) return 'O Terminal Comercial ainda está em obra';
+        if (player.resources[cmd.resource] < cmd.quantity) return 'Estoque insuficiente para a venda';
+        const pressure = (player.marketPressure ??= {});
+        const gain = marketQuote(cmd.resource, pressure[cmd.resource] ?? 0, cmd.quantity);
+        if (gain <= 0) return 'Venda pequena demais';
+        const cap = this.capacity(slot).supplies;
+        if (cap > 0 && player.resources.supplies + gain > cap) return 'Sem espaço para os suprimentos no armazém';
+        // venda não é gasto: não entra nas estatísticas de recursos gastos
+        if (cmd.resource === 'oil') this.takeOil(player, cmd.quantity);
+        else player.resources[cmd.resource] -= cmd.quantity;
+        pressure[cmd.resource] = (pressure[cmd.resource] ?? 0) + cmd.quantity;
+        this.store(slot, 'supplies', gain);
+        return null;
+      }
       case 'space_launch': {
         const b = this.entities.get(cmd.buildingId);
         if (!b || b.kind !== 'building' || b.owner !== slot || b.type !== 'space_center') return 'Programa Espacial inválido';
@@ -1720,6 +1738,7 @@ export class Simulation {
     this.updateEras();
     this.updateSpace();
     this.updateRefits();
+    for (const p of this.players) if (p.marketPressure) marketRecover(p.marketPressure);
     this.trade.step();
     this.air.step();
     this.mines.step();

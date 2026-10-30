@@ -1038,7 +1038,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     sight: 6,
     upkeep: { supplies: 0.05 },
     buildable: true,
-    description: 'Habilita o comércio internacional (ofertas e contratos no painel Nação → Comércio) e despacha comboios rodoviários. Cada terminal opera 2 embarques ao mesmo tempo.',
+    description: 'Habilita o comércio internacional (ofertas e contratos no painel Nação → Comércio) e despacha comboios rodoviários. Cada terminal opera 2 embarques ao mesmo tempo. Mercado interno: vende comida, madeira, pedra, ferro e petróleo por suprimentos (o preço cai com as vendas e se recupera com o tempo).',
     hotkey: 'K',
   },
   port: {

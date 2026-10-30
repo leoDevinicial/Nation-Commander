@@ -208,15 +208,17 @@ Mudanças nos critérios:
 |---|---|---|---|---|
 | Primeira ofensiva da partida (1 min antes a 2 min depois) | 14:00 | 10:00 | 8:00 | 6:00 |
 | Tropas formadas até 15:00 (média das IAs) | 6 | 10 | 11 | 11 |
-| Era 3 até (pelo menos um terço das IAs vivas) | 26:00 | 28:00 | 28:00 | 28:00 |
+| Era 3 até (pelo menos metade das IAs vivas) | 24:00 | 22:00 | 23:00 | 20:00 |
 
 As duas IAs brigam entre si a partir da primeira ofensiva. Por isso o exército vivo aos 15 min depende das baixas, e o
 script mede as tropas formadas.
 
-**O que a medição mostrou.** A meta proposta para a era 3 (18 a 20 min no Normal) não foi atingida. A partir dos 17
-min, comida, madeira, pedra e ferro passam de 2.000 no estoque. Os suprimentos (3,5 a 4/s) pagam o QG 5, a era 3
-(875), os recrutas e as tropas, e viram o único gargalo. Prefeituras e caravanas sobem essa renda, mas chegam tarde.
-Ver [`DIFICULDADE_VETERANIA.md`](DIFICULDADE_VETERANIA.md) para as regras da IA e os números finais.
+**O que a medição mostrou.** Sem outra mudança, a partir dos 17 min comida, madeira, pedra e ferro passavam de 2.000
+no estoque. Os suprimentos (3,5 a 4/s) pagavam o QG 5, a era 3 (875), os recrutas e as tropas, e viravam o único
+gargalo: a era 3 da IA chegava entre 21 e 28 min, em menos da metade das partidas. O **mercado interno**
+([`MERCADO_INTERNO.md`](MERCADO_INTERNO.md)) troca o excedente por suprimentos. Com ele, a era 3 chega por volta dos
+21 min no Normal e dos 18 a 19 min no Brutal, e os armazéns quase não enchem mais. Ver
+[`DIFICULDADE_VETERANIA.md`](DIFICULDADE_VETERANIA.md) para as regras da IA e os números finais.
 
 ---
 

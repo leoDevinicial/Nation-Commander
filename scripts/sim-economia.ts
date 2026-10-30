@@ -34,10 +34,10 @@ const GATHER = Object.keys(BUILDINGS).filter((k) => BUILDINGS[k as keyof typeof 
  * baixas, as tropas formadas medem a produção).
  */
 const PACE: Record<Difficulty, { firstAttack: number; era3: number; trained15: number }> = {
-  easy: { firstAttack: 14, era3: 26, trained15: 6 },
-  normal: { firstAttack: 10, era3: 28, trained15: 10 },
-  hard: { firstAttack: 8, era3: 28, trained15: 11 },
-  brutal: { firstAttack: 6, era3: 28, trained15: 11 },
+  easy: { firstAttack: 14, era3: 24, trained15: 6 },
+  normal: { firstAttack: 10, era3: 22, trained15: 10 },
+  hard: { firstAttack: 8, era3: 23, trained15: 11 },
+  brutal: { firstAttack: 6, era3: 20, trained15: 11 },
 };
 
 interface Result {
@@ -290,10 +290,10 @@ for (const difficulty of difficulties) {
   const alive = (r: Result, s: number, until: number) => r.winner === null || r.winner === s || r.end > until;
   if (minutes >= pace.era3)
     check(
-      `${label}: era 3 até ${pace.era3}:00 (em pelo menos um terço das IAs ainda vivas)`,
+      `${label}: era 3 até ${pace.era3}:00 (em pelo menos metade das IAs ainda vivas)`,
       (() => {
         const xs = all.filter(({ r, s }) => alive(r, s, pace.era3 * MIN));
-        return xs.filter(({ r, s }) => r.era3[s] !== null && r.era3[s]! <= pace.era3 * MIN).length * 3 >= xs.length;
+        return xs.filter(({ r, s }) => r.era3[s] !== null && r.era3[s]! <= pace.era3 * MIN).length * 2 >= xs.length;
       })(),
     );
   if (minutes >= 15)

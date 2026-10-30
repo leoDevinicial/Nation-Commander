@@ -44,6 +44,7 @@ import { useAppStore } from '../../state/useAppStore.ts';
 import { buildingEffects, formatUsd as usdShort, specDef, upgradeTrack } from '../../../shared/sim/upgrades.ts';
 import { effectiveEra, effectiveMilitaryResearch, effectivePopCap, effectiveTechs, isSandboxMatch, timeText } from '../../state/sandbox.ts';
 import { BUILDING_ERA, ERAS, UNIT_ERA, buildingEra, eraLabel, type Era } from '../../../shared/sim/eras.ts';
+import { MARKET, MARKET_RESOURCES, marketPrice, marketQuote } from '../../../shared/sim/market.ts';
 
 const EMPTY_TECHS: readonly string[] = [];
 
@@ -996,6 +997,53 @@ function FragmentStat({ label, base, value, unit, sources }: { label: string; ba
 }
 
 /** Situação da caravana interna da prefeitura selecionada. */
+/** Mercado interno: vende o excedente por suprimentos; o preço cai com a pressão das vendas recentes. */
+function MarketInfo({ b, runtime }: { b: { id: number }; runtime: GameRuntime }) {
+  const me = useHudStore((s) => s.players.find((p) => p.slot === s.mySlot));
+  const res = me?.resources;
+  if (!res) return null;
+  const pressure = me.market ?? {};
+  // espaço no armazém de suprimentos (sem espaço, a venda é recusada)
+  const room = me.capacity && me.capacity.supplies > 0 ? me.capacity.supplies - res.supplies : Infinity;
+  return (
+    <div className="mt-1.5">
+      <div className="text-[11px] font-semibold text-ink-200" title="Troca o excedente por suprimentos. Cada venda baixa o preço daquele recurso; o preço volta ao normal com o tempo (1.000 vendidos se recuperam em cerca de 8 min). Vender aos poucos rende o mesmo que vender de uma vez.">
+        Mercado interno: vender por suprimentos{room < 20 ? ' (armazém de suprimentos cheio)' : ''}
+      </div>
+      <div className="mt-0.5 grid w-fit grid-cols-2 gap-x-6 gap-y-0.5">
+        {MARKET_RESOURCES.map((r) => {
+          const p = pressure[r] ?? 0;
+          const price = marketPrice(r, p);
+          const full = MARKET.rates[r];
+          return (
+            <div key={r} className="flex items-center gap-1.5 text-[11px]">
+              <span className="w-14 text-ink-300">{RESOURCE_LABELS[r]}</span>
+              <span className={`w-14 ${price < full * 0.75 ? 'text-amber-300' : 'text-ink-400'}`} title={`Preço cheio: ${full} suprimento por unidade`}>
+                {price.toFixed(2)}/un
+              </span>
+              {MARKET.lots.map((q) => {
+                const gain = marketQuote(r, p, q);
+                const ok = res[r] >= q && gain > 0 && gain <= room;
+                return (
+                  <button
+                    key={q}
+                    disabled={!ok}
+                    onClick={() => runtime.send({ type: 'market_sell', buildingId: b.id, resource: r, quantity: q })}
+                    className="rounded bg-ink-800 px-1.5 py-0.5 text-ink-200 hover:bg-ink-700 disabled:opacity-40"
+                    title={`Vender ${q} de ${RESOURCE_LABELS[r].toLowerCase()} por ${gain} suprimentos`}
+                  >
+                    {q} → +{gain}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function CaravanInfo({ cityId }: { cityId: number }) {
   const c = useHudStore((s) => s.caravans.find((x) => x.cityId === cityId));
   if (!c) return <div className="text-[11px] text-ink-400">🚚 Caravana: saindo do Centro de Comando…</div>;
@@ -1111,6 +1159,7 @@ function BuildingInfo({ b, runtime }: { b: NonNullable<ReturnType<typeof useHudS
       {done && b.type === 'airbase' && <AirbaseInfo b={b} />}
       {done && b.type === 'missile_silo' && <SiloInfo b={b} />}
       {done && b.type === 'city_hall' && b.owner === useHudStore.getState().mySlot && <CaravanInfo cityId={b.id} />}
+      {done && b.type === 'market' && b.owner === useHudStore.getState().mySlot && <MarketInfo b={b} runtime={runtime} />}
       {done && fx.housing > 0 && <div className="text-[11px] text-ink-400">Moradia para {fx.housing} habitantes.</div>}
       {done && fx.territoryRadius > 0 && <div className="text-[11px] text-ink-400">Projeta fronteira num raio de {fx.territoryRadius} células.</div>}
       {(b.type === 'barracks' || b.type === 'factory') && done && (

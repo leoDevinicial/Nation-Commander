@@ -3,6 +3,7 @@ import type { MapType } from './matchMap.ts';
 import type { BuildingType, Cost, Goods, MilitaryResearchId, ProducibleType, ResourceType, Stockpile, Terrain, UnitType } from './config.ts';
 import type { SpecId } from './upgrades.ts';
 import type { ModId } from './modernization.ts';
+import type { MarketResource } from './market.ts';
 
 export type EntityId = number;
 /** Índice do jogador na partida (0..n-1). */
@@ -225,6 +226,8 @@ export interface PlayerState {
   eraAdvance?: EraAdvance | null;
   /** Bens industriais das cadeias produtivas (combustível e aço). */
   goods?: Goods;
+  /** Pressão do mercado interno por recurso vendido (baixa o preço; some com o tempo). */
+  marketPressure?: Partial<Record<MarketResource, number>>;
 }
 
 export interface MapData {

@@ -7,6 +7,7 @@ import { combineMods, type ModId } from './modernization.ts';
 import { AIRCRAFT, MISSILE, NUCLEAR, missileSpec, type AircraftState, type AircraftType, type LaunchState, type MissionKind, type MissionResult, type MissionState } from './air.ts';
 import { caravanIncome, type CaravanState } from './caravans.ts';
 import { TRADE_RESOURCES, TRANSPORT_MODES, type ShipmentState, type TradeContract, type TradeOffer, type TradeResource, type TransportMode } from './trade.ts';
+import type { MarketResource } from './market.ts';
 
 export interface UnitSnapshot {
   id: EntityId;
@@ -94,6 +95,8 @@ export interface PlayerSnapshot {
   satellite?: true;
   /** Bens industriais (só para o próprio jogador) e o teto do estoque. */
   goods?: { fuel: number; steel: number; cap: number };
+  /** Pressão do mercado interno por recurso (só para o próprio jogador; baixa o preço de venda). */
+  market?: Partial<Record<MarketResource, number>>;
 }
 
 /** Carga em trânsito: completa para quem negocia; para os demais, só o veículo visível no mapa. */
@@ -302,6 +305,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         ...(mine && p.eraAdvance ? { eraAdvance: { to: p.eraAdvance.to, progress: r2(1 - p.eraAdvance.remainingTicks / Math.max(1, p.eraAdvance.totalTicks)) } } : {}),
         ...(mine && sim.eras ? { eras: true } : {}),
         ...(p.satellite ? { satellite: true as const } : {}),
+        ...(mine && p.marketPressure && Object.keys(p.marketPressure).length ? { market: Object.fromEntries(Object.entries(p.marketPressure).map(([k, v]) => [k, Math.round(v)])) } : {}),
         ...(mine && p.goods ? { goods: { fuel: Math.floor(p.goods.fuel), steel: Math.floor(p.goods.steel), cap: sim.goodsCap(p.slot) } } : {}),
       };
     }),

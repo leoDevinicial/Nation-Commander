@@ -4,6 +4,7 @@ import { isSpecId, type SpecId } from './upgrades.ts';
 import { isModId, type ModId } from './modernization.ts';
 import { isAircraftType, type AircraftType, type MissionKind } from './air.ts';
 import { TRADE_RESOURCES, TRANSPORT_MODES, type TradeResource, type TransportMode } from './trade.ts';
+import { isMarketResource, type MarketResource } from './market.ts';
 
 export type Command =
   | { type: 'move'; unitIds: EntityId[]; x: number; y: number }
@@ -28,6 +29,8 @@ export type Command =
   | { type: 'lay_mine'; unitIds: EntityId[]; x: number; y: number }
   /** Estrada: traçado de células adjacentes (horizontal, vertical ou diagonal). */
   | { type: 'build_road'; cells: { cx: number; cy: number }[] }
+  /** Mercado interno do Terminal Comercial: vende o excedente por suprimentos. */
+  | { type: 'market_sell'; buildingId: EntityId; resource: MarketResource; quantity: number }
   /** Programa Espacial: autoriza o lançamento do satélite. */
   | { type: 'space_launch'; buildingId: EntityId }
   | { type: 'cancel_era' }
@@ -123,6 +126,9 @@ export function parseCommand(raw: unknown): Command | null {
       }
       return { type: 'build_road', cells };
     }
+    case 'market_sell':
+      if (!isId(raw.buildingId) || !isMarketResource(raw.resource) || !Number.isInteger(raw.quantity) || (raw.quantity as number) <= 0 || (raw.quantity as number) > 100_000) return null;
+      return { type: 'market_sell', buildingId: raw.buildingId, resource: raw.resource, quantity: raw.quantity as number };
     case 'space_launch':
       return isId(raw.buildingId) ? { type: 'space_launch', buildingId: raw.buildingId } : null;
     case 'cancel_production':
