@@ -212,6 +212,21 @@ arquivo é baixado em tempo de execução e não há material de terceiros a lic
   - sucesso em obra ou melhoria concluída;
   - tom ao começar a segurar a autorização.
 
+### Explosão de veículos
+
+Veículo destruído toca `vehicle_explosion`. Os pesados (Tanque, Tanque Moderno, Artilharia, Lança-Foguetes, as duas
+antiaéreas e o CIWS) tocam `vehicle_explosion_heavy`. O som tem várias camadas, que somem em tempos diferentes:
+
+- o estalo da detonação;
+- a bola de fogo saturada, com o filtro fechando do agudo ao grave;
+- o estrondo: soco grave saturado e subgrave longo;
+- destroços de metal caindo, em baques médios (sem tilintar agudo);
+- o fogo crepitando;
+- nos pesados, a munição cozinhando: três estouros menores depois do primeiro.
+
+O som também vai para a reverberação de campo aberto (`outdoorReverb`), e o estrondo rola pelo terreno por uns 3 s.
+Prédios e soldados seguem com `explosion_big` e `explosion`.
+
 ### Testes
 `shared/test/air.test.ts` (17 testes) cobre:
 - produção, hangar e piloto;

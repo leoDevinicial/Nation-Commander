@@ -20,7 +20,7 @@ export type Volumes = Record<Channel | 'master', number>;
 export const DEFAULT_VOLUMES: Volumes = { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 };
 
 export type UiSound = 'click' | 'confirm' | 'error' | 'alert' | 'success' | 'hold';
-export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'mbt_gun' | 'tank_gun' | 'gatling';
+export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'mbt_gun' | 'tank_gun' | 'vehicle_explosion' | 'vehicle_explosion_heavy' | 'gatling';
 export type MissileCue = 'prepare' | 'armed' | 'authorize';
 
 /** Som de trabalho de cada edifício (os demais usam o zumbido genérico). */
@@ -61,6 +61,8 @@ const PRIORITY: Record<CombatSound, number> = {
   aa_gun: 3,
   aa_twin: 3,
   mbt_gun: 3,
+  vehicle_explosion: 4,
+  vehicle_explosion_heavy: 5,
   gatling: 3,
   tank_gun: 3,
   cannon: 2,
@@ -76,7 +78,7 @@ const PRIORITY: Record<CombatSound, number> = {
 };
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
-const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, tank_gun: 0.18 };
+const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, vehicle_explosion: 0.1, vehicle_explosion_heavy: 0.15, tank_gun: 0.18 };
 
 /**
  * Atenuação e panorâmica de um ponto do mapa para quem olha `L` (ponto da câmera, distância e giro).
@@ -668,6 +670,83 @@ export class AudioService {
         end = burst('bandpass', 1500, 2, 0.002, 0.6, 0.18);
         burst('highpass', 3000, 0.7, 0.001, 0.3, 0.05, t + 0.03);
         break;
+      case 'vehicle_explosion':
+      case 'vehicle_explosion_heavy': {
+        // veículo destruído, cinematográfico, em camadas:
+        //   estalo da detonação; bola de fogo saturada que abre e fecha (filtro varrendo do agudo ao grave);
+        //   estrondo grave, o soco no peito e um subgrave longo; destroços de metal caindo (baques médios, sem
+        //   tilintar agudo); o fogo crepitando; nos pesados, a munição cozinhando (estouros secundários).
+        // Tudo também vai para a reverberação de campo aberto, e no fim o estrondo rola pelo terreno.
+        const heavy = sound === 'vehicle_explosion_heavy';
+        const p = heavy ? 1 : 0.75;
+        const mix = ctx.createGain();
+        mix.connect(out);
+        const wet = ctx.createGain();
+        wet.gain.value = gain * (heavy ? 0.55 : 0.42);
+        mix.connect(wet).connect(this.outdoorReverb());
+        const drive = ctx.createWaveShaper();
+        drive.curve = this.driveCurve(4.5);
+        drive.oversample = '4x';
+        const driveLow = ctx.createBiquadFilter();
+        driveLow.type = 'lowpass';
+        driveLow.frequency.value = 520;
+        drive.connect(driveLow).connect(mix);
+        // 1. estalo da detonação
+        burst('highpass', 2600, 0.5, 0.0004, 1.6 * p, 0.035, t, mix);
+        burst('bandpass', 1300, 0.7, 0.0006, 1.3 * p, 0.07, t, mix);
+        // 2. bola de fogo: ruído saturado com o filtro fechando de 3,2 kHz até 260 Hz
+        {
+          const n = this.noiseSource();
+          const f = ctx.createBiquadFilter();
+          f.type = 'lowpass';
+          f.Q.value = 0.8;
+          f.frequency.setValueAtTime(3200 * vary, t);
+          f.frequency.exponentialRampToValueAtTime(260, t + 0.9);
+          const sat = ctx.createWaveShaper();
+          sat.curve = this.driveCurve(2.6);
+          const g = ctx.createGain();
+          n.connect(f).connect(sat).connect(g).connect(mix);
+          this.env(g, t + 0.004, 0.012, 1.5 * p, heavy ? 1.3 : 1);
+          n.start(t, Math.random());
+          n.stop(t + 1.6);
+          nodes.push(n);
+        }
+        // 3. estrondo: soco saturado e subgrave limpo e longo
+        thump(120, 34, 0.004, 2.2 * p, 0.7, t, 'sine', drive);
+        thump(72, 22, 0.008, 1.7 * p, 1.2, t, 'triangle', drive);
+        burst('lowpass', 300, 0.8, 0.006, 1.6 * p, 0.8, t, drive);
+        thump(48, 17, 0.015, 1.4 * p, heavy ? 2.2 : 1.6, t, 'sine', mix);
+        // 4. destroços de metal caindo: baques médios espalhados
+        const pieces = heavy ? 6 : 4;
+        for (let i = 0; i < pieces; i++) {
+          const at = t + 0.25 + Math.random() * (heavy ? 1.3 : 0.9);
+          const k = (0.25 + Math.random() * 0.25) * p * (1 - i / (pieces * 1.6));
+          burst('bandpass', 700 + Math.random() * 900, 5, 0.001, k, 0.06 + Math.random() * 0.06, at, mix);
+          thump(190 + Math.random() * 80, 110, 0.001, k * 0.8, 0.07, at, 'square', mix);
+          burst('lowpass', 240, 0.7, 0.002, k * 0.9, 0.12, at, mix);
+        }
+        // 5. fogo: sopro que fica e estalos curtos e irregulares
+        burst('bandpass', 520, 0.6, 0.25, 0.32 * p, heavy ? 2.6 : 1.8, t + 0.2, mix);
+        const crackles = heavy ? 18 : 11;
+        for (let i = 0; i < crackles; i++) {
+          const at = t + 0.3 + Math.random() * (heavy ? 2.4 : 1.6);
+          burst('bandpass', 1400 + Math.random() * 1600, 1.4, 0.0008, (0.08 + Math.random() * 0.1) * p, 0.015 + Math.random() * 0.02, at, mix);
+        }
+        // 6. munição cozinhando nos veículos pesados: estouros secundários, menores, depois do primeiro
+        if (heavy)
+          for (let i = 0; i < 3; i++) {
+            const at = t + 0.55 + i * 0.35 + Math.random() * 0.4;
+            const k = 0.6 - i * 0.12;
+            burst('bandpass', 1100, 0.7, 0.0008, k, 0.06, at, mix);
+            burst('lowpass', 800, 0.6, 0.003, k * 0.9, 0.35, at, drive);
+            thump(110, 40, 0.003, k * 1.2, 0.3, at, 'sine', drive);
+          }
+        // 7. o estrondo rolando pelo terreno
+        burst('lowpass', 380, 0.6, 0.05, 0.55 * p, 1.0, t + 0.35, mix);
+        burst('lowpass', 220, 0.5, 0.1, 0.4 * p, 1.6, t + 0.85, mix);
+        end = burst('lowpass', 140, 0.5, 0.2, 0.28 * p, heavy ? 2.6 : 2, t + 1.5, mix);
+        break;
+      }
       case 'explosion':
         end = burst('lowpass', 700, 0.6, 0.006, 1, 0.9);
         thump(80, 30, 0.01, 0.8, 0.6);

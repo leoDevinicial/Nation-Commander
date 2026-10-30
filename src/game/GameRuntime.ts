@@ -128,6 +128,8 @@ const DRAG_THRESHOLD = 6;
 const PRODUCERS_WITH_V: readonly BuildingType[] = (Object.keys(UNITS) as UnitType[]).filter((u) => UNITS[u].hotkey === 'V').map((u) => UNITS[u].producedBy);
 
 /** Tremor (visão aproximada) por disparo dos veículos pesados; no lança-foguetes, por foguete. */
+/** Veículos pesados: a explosão deles tem a munição cozinhando (estouros secundários). */
+const HEAVY_WRECKS: ReadonlySet<string> = new Set(['tank', 'mbt', 'artillery', 'rocket_artillery', 'mobile_aa', 'ciws']);
 const HEAVY_FIRE_SHAKE: Partial<Record<UnitType, number>> = { tank: 0.22, mbt: 0.26, artillery: 0.32, rocket_artillery: 0.07 };
 
 export class GameRuntime {
@@ -2622,9 +2624,20 @@ export class GameRuntime {
       case 'salvo_impact':
         audio.playAt('explosion_big', e.pos.x, e.pos.y);
         break;
-      case 'destroyed':
-        audio.playAt(e.entity === 'building' || e.entityType === 'tank' ? 'explosion_big' : 'explosion', e.pos.x, e.pos.y);
+      case 'destroyed': {
+        // veículos: explosão cinematográfica (os pesados com a munição cozinhando); prédios e soldados como antes
+        const def = e.entity === 'unit' ? (UNITS as Record<string, { armor: string }>)[e.entityType] : undefined;
+        const sound =
+          def?.armor === 'vehicle'
+            ? HEAVY_WRECKS.has(e.entityType)
+              ? 'vehicle_explosion_heavy'
+              : 'vehicle_explosion'
+            : e.entity === 'building'
+              ? 'explosion_big'
+              : 'explosion';
+        audio.playAt(sound, e.pos.x, e.pos.y);
         break;
+      }
       case 'air_strike':
         // no bombardeio em tapete o som sai com cada bomba que cai
         if (!e.bombers) audio.playAt('bomb', e.pos.x, e.pos.y);
