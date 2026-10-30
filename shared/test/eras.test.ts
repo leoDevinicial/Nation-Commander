@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TICK_RATE, type BuildingType } from '../sim/config.ts';
-import { ERAS } from '../sim/eras.ts';
+import { ERAS, eraPhrase, eraTitle } from '../sim/eras.ts';
 import { Simulation } from '../sim/Simulation.ts';
 import { TEST_START, flatMap } from './helpers.ts';
 
@@ -31,6 +31,12 @@ function setup() {
 }
 
 describe('eras', () => {
+  it('nome da era sem "Era" repetido: "Era Digital", não "Era Era Digital"', () => {
+    expect([1, 2, 3, 4].map(eraTitle)).toEqual(['Era Guerra Fria', 'Era Pós-Guerra Fria', 'Era Digital', 'Era Futuro Próximo']);
+    expect(eraPhrase(3)).toBe('a Era Digital');
+    expect(eraPhrase(4)).toBe('a era Futuro Próximo');
+  });
+
   it('começa na Guerra Fria: construções e tropas das eras seguintes ficam bloqueadas', () => {
     const { sim, place } = setup();
     expect(sim.eraOf(0)).toBe(1);

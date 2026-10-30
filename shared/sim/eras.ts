@@ -113,6 +113,18 @@ export function researchEra(id: MilitaryResearchId, units: Record<UnitType, { re
 
 export const eraLabel = (e: number): string => ERAS[(Math.min(4, Math.max(1, e)) as Era)].label;
 
+/** Nome da era como título ("Era Guerra Fria", "Era Digital"): sem repetir o "Era" de quem já começa com ele. */
+export const eraTitle = (e: number): string => {
+  const l = eraLabel(e);
+  return l.startsWith('Era ') ? l : `Era ${l}`;
+};
+
+/** A era no meio da frase ("a era Guerra Fria", "a Era Digital"): para "Requer ${eraPhrase(e)}". */
+export const eraPhrase = (e: number): string => {
+  const l = eraLabel(e);
+  return l.startsWith('Era ') ? `a ${l}` : `a era ${l}`;
+};
+
 /** Avanço de era em andamento (obra no Centro de Comando). */
 export interface EraAdvance {
   to: Era;

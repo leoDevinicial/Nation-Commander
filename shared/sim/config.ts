@@ -1,4 +1,4 @@
-import { ERAS, eraLabel, researchEra } from './eras.ts';
+import { ERAS, eraPhrase, researchEra } from './eras.ts';
 /**
  * Tabelas de regras da operação tática. Todos os valores são parâmetros de jogo
  * (game_parameter), não dados factuais. Ajustar aqui, nunca espalhados pelo código.
@@ -589,7 +589,7 @@ export function militaryResearchBlocker(id: MilitaryResearchId, done: readonly s
   const def = MILITARY_RESEARCH[id];
   if (done.includes(id)) return 'Pesquisa já concluída';
   const need = researchEra(id, UNITS);
-  if (need > era) return `Requer a era ${eraLabel(need)} (avance de era no Centro de Comando)`;
+  if (need > era) return `Requer ${eraPhrase(need)} (avance de era no Centro de Comando)`;
   const missing = def.prereqs.filter((p) => !done.includes(p));
   if (missing.length) return `Requer: ${missing.map((m) => MILITARY_RESEARCH[m].label).join(', ')}`;
   const level = def.tier === 3 ? 3 : def.tier === 2 ? 2 : 1;

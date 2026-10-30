@@ -1,7 +1,7 @@
 import { prepTicks, type Difficulty } from './difficulty.ts';
 import { RANKS, rankDamageMul, rankFor, rankHpMul } from './veterancy.ts';
 import { countryBonus, type CountryBonus } from './countryBonus.ts';
-import { ERA_CANCEL_REFUND, ERAS, buildingEra, type Era } from './eras.ts';
+import { ERA_CANCEL_REFUND, ERAS, buildingEra, eraPhrase, type Era } from './eras.ts';
 import { MineSystem, type MineSave } from './mines.ts';
 import { CaravanSystem, roadNetwork, roadRing, type CaravanSave } from './caravans.ts';
 import { marketQuote, marketRecover } from './market.ts';
@@ -1151,7 +1151,7 @@ export class Simulation {
         const hq = this.hqOf(slot);
         if (!hq) return 'Sem Centro de Comando';
         const free = this.isSandbox(slot);
-        if (!free && this.national && !this.national.chargeWorks(slot, this.eraUsd(slot, to), `Avanço para a era ${def.label}`)) return 'Verba de obras insuficiente para o avanço de era';
+        if (!free && this.national && !this.national.chargeWorks(slot, this.eraUsd(slot, to), `Avanço para ${eraPhrase(to)}`)) return 'Verba de obras insuficiente para o avanço de era';
         if (!free) this.spend(player, def.cost);
         const ticks = free && this.sandbox?.instant ? 1 : this.duration(slot, def.seconds * TICK_RATE);
         player.eraAdvance = { to, remainingTicks: ticks, totalTicks: ticks, paid: free ? {} : { ...def.cost }, usd: free ? 0 : this.eraUsd(slot, to) };
@@ -1704,7 +1704,7 @@ export class Simulation {
     const tech = BUILDINGS[type].requiresTech;
     if (tech && !(this.national?.techs(slot) ?? []).includes(tech)) return `Exige a pesquisa ${techLabel(tech)}`;
     const era = buildingEra(type);
-    if (era > this.eraOf(slot)) return `Requer a era ${ERAS[era].label} (avance de era no Centro de Comando)`;
+    if (era > this.eraOf(slot)) return `Requer ${eraPhrase(era)} (avance de era no Centro de Comando)`;
     const bdef = BUILDINGS[type];
     if (bdef.project && this.buildings.some((b) => b.owner === slot && b.type === type)) return `${bdef.label}: só um por nação`;
     if (!this.isSandbox(slot)) {

@@ -43,7 +43,7 @@ import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { buildingEffects, formatUsd as usdShort, specDef, upgradeTrack } from '../../../shared/sim/upgrades.ts';
 import { effectiveEra, effectiveMilitaryResearch, effectivePopCap, effectiveTechs, isSandboxMatch, timeText } from '../../state/sandbox.ts';
-import { BUILDING_ERA, ERAS, UNIT_ERA, buildingEra, eraLabel, type Era } from '../../../shared/sim/eras.ts';
+import { BUILDING_ERA, ERAS, UNIT_ERA, buildingEra, eraPhrase, eraTitle, type Era } from '../../../shared/sim/eras.ts';
 import { MARKET, MARKET_RESOURCES, marketPrice, marketQuote } from '../../../shared/sim/market.ts';
 
 const EMPTY_TECHS: readonly string[] = [];
@@ -314,7 +314,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
                     ? runtime.startPlacement(type)
                     : useHudStore.getState().pushEvent({
                         tick: useHudStore.getState().tick,
-                        text: `${def.label}: ${eraMissing ? `requer a era ${eraLabel(eraMissing)} (avance de era no Centro de Comando)` : techMissing ? `exige a pesquisa ${TECHNOLOGIES[techMissing as keyof typeof TECHNOLOGIES]?.label ?? techMissing}` : hqMissing ? `requer o Centro de Comando no nível ${hqMissing}` : hasOne ? 'Grande Projeto: só um por nação' : fundShort ? `verba de obras insuficiente (${usdShort(projectUsd)})` : 'recursos insuficientes'}`,
+                        text: `${def.label}: ${eraMissing ? `requer ${eraPhrase(eraMissing)} (avance de era no Centro de Comando)` : techMissing ? `exige a pesquisa ${TECHNOLOGIES[techMissing as keyof typeof TECHNOLOGIES]?.label ?? techMissing}` : hqMissing ? `requer o Centro de Comando no nível ${hqMissing}` : hasOne ? 'Grande Projeto: só um por nação' : fundShort ? `verba de obras insuficiente (${usdShort(projectUsd)})` : 'recursos insuficientes'}`,
                         tone: 'warn',
                       })
                 }
@@ -424,10 +424,10 @@ function EraButton({ runtime }: { runtime: GameRuntime }) {
     return (
       <CardButton
         icon="⏳"
-        label={`Era ${eraLabel(me.eraAdvance.to)}`}
+        label={eraTitle(me.eraAdvance.to)}
         badge={`${Math.round(me.eraAdvance.progress * 100)}%`}
         onClick={() => runtime.send({ type: 'cancel_era' })}
-        title={`Avanço para a era ${eraLabel(me.eraAdvance.to)} em andamento (${Math.round(me.eraAdvance.progress * 100)}%). Clique para cancelar (devolve 75%).`}
+        title={`Avanço para ${eraPhrase(me.eraAdvance.to)} em andamento (${Math.round(me.eraAdvance.progress * 100)}%). Clique para cancelar (devolve 75%).`}
       >
         <span className="text-[10px] text-brass-400">cancelar</span>
       </CardButton>
@@ -453,13 +453,13 @@ function EraButton({ runtime }: { runtime: GameRuntime }) {
   return (
     <CardButton
       icon="🏛"
-      label={`Era ${def.label}`}
+      label={eraTitle(to)}
       blocked={blocker !== null}
       short={blocker}
       onClick={() =>
         blocker ? useHudStore.getState().pushEvent({ tick: useHudStore.getState().tick, text: `Avanço de era: ${blocker}`, tone: 'warn' }) : runtime.send({ type: 'advance_era' })
       }
-      title={`Avançar para a era ${def.label}: ${def.look}.\nLibera: ${unlocks.join(', ') || '—'}${def.maxUpgradeLevel > ERAS[cur as Era].maxUpgradeLevel ? `; melhorias até o nível ${def.maxUpgradeLevel}` : ''}.\nRequer o Centro de Comando no nível ${def.hqLevel} · ${usdShort(usd)} da verba de obras (${Math.round(def.usdShare * 100)}% do teto anual) · ${timeText(def.seconds)}`}
+      title={`Avançar para ${eraPhrase(to)}: ${def.look}.\nLibera: ${unlocks.join(', ') || '—'}${def.maxUpgradeLevel > ERAS[cur as Era].maxUpgradeLevel ? `; melhorias até o nível ${def.maxUpgradeLevel}` : ''}.\nRequer o Centro de Comando no nível ${def.hqLevel} · ${usdShort(usd)} da verba de obras (${Math.round(def.usdShare * 100)}% do teto anual) · ${timeText(def.seconds)}`}
     >
       <CostLabel cost={def.cost} have={me.resources ?? emptyStockpile()} compact />
     </CardButton>

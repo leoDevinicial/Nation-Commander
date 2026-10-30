@@ -1,7 +1,7 @@
 import { BUILDINGS, ECONOMY, GOODS, TICK_RATE, UNITS, canAfford, scaleCostBy, type Cost, type Goods } from './config.ts';
 import { substituteGoods } from './production.ts';
 import type { CountryBonus } from './countryBonus.ts';
-import { AIRCRAFT_ERA, eraLabel } from './eras.ts';
+import { AIRCRAFT_ERA, eraPhrase } from './eras.ts';
 import { buildingEffects, missingText } from './upgrades.ts';
 import type { Simulation } from './Simulation.ts';
 import type { Building, EntityId, Slot, Vec2 } from './types.ts';
@@ -386,7 +386,7 @@ export class AirSystem {
     const base = this.building(baseId);
     if (!this.operational(base, 'airbase', slot)) return 'Base aérea inválida ou inoperante';
     const def = this.aircraftCost(slot, type);
-    if (AIRCRAFT_ERA[type] > this.sim.eraOf(slot)) return `${def.label} exige a era ${eraLabel(AIRCRAFT_ERA[type])}`;
+    if (AIRCRAFT_ERA[type] > this.sim.eraOf(slot)) return `${def.label} exige ${eraPhrase(AIRCRAFT_ERA[type])}`;
     if (def.minBaseLevel && base.level < def.minBaseLevel) return `${def.label} exige Base Aérea nível ${def.minBaseLevel}`;
     if (this.aircraftAt(baseId).length >= AIR.hangarPerBase) return `Hangar cheio: ${AIR.hangarPerBase} aeronaves por base`;
     const p = this.sim.players[slot]!;
