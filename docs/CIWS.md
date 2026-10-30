@@ -15,7 +15,7 @@ do Lança-Foguetes que vão cair perto dele e conta como defesa antiaérea contr
 | Bens | 14 aço e 8 combustível, quando houver estoque |
 | Tempo de produção | 20 s |
 | Vida, velocidade, visão | 170, 4,4, 15 |
-| Arma em terra | Gatling de 20 mm: 9 de dano a cada 0,5 s, alcance 7,5; ×0,35 contra veículos e ×0,3 contra construções |
+| Arma em terra | Gatling de 20 mm em rajadas: 8 tiros de 9,225 de dano, um a cada 0,25 s (~1,75 s de fogo contínuo), e 2,5 s de pausa entre as rajadas (`burst` na arma); alcance 7,5; ×0,35 contra veículos e ×0,3 contra construções |
 
 **Interceptação** (`CIWS_INTERCEPT` em `shared/sim/Simulation.ts`):
 
@@ -56,12 +56,17 @@ a torre montada embaixo, ela ficaria bege. O campo `lift` dos canos faz o mesmo 
   outro, como os servos de uma defesa de ponto.
 - **Interceptação:** `RocketLayer.gunIntercept`. A torre vira para cada foguete (`UnitVisual.aimToward`), e uma rajada
   de traçantes de 0,3 s sai da boca do cano até ele. O foguete explode no ar no fim da rajada.
-- **Som:** `gatling` no `AudioService`, o rasgo contínuo ("brrrt") a ~75 tiros por segundo, com o zumbido do motor
-  que gira os canos.
+- **Som:** `gatling` no `AudioService`, um som por rajada (toca no tiro com `burstStart`).
+  - A rajada é desenhada amostra a amostra (`gatlingBurst`, três variantes): ~75 tiros por segundo, cada um com
+    estalo, corpo curto e sopro, que somem antes do próximo tiro. Assim viram o rasgo contínuo ("brrrrt"), não um
+    zumbido.
+  - Por cima, o motor dos canos subindo antes do primeiro tiro e descendo depois do último, o ronco grave da rajada e
+    o eco do terreno.
 
 ## Testes
 
 - `shared/test/military.test.ts`: o CIWS derruba 5 de 12 foguetes já na era 3, e fora do alcance não derruba
   nenhum. Também cobre os bloqueios da pesquisa (era, pré-requisito, nível do centro).
+- `shared/test/military.test.ts`: rajada de 8 tiros a cada 0,25 s, pausa de 2,5 s e dano 2,5% maior.
 - `shared/test/military.test.ts`: o CIWS é mais caro que as outras tropas da Era Digital em cada recurso.
 - `src/test/unitAnim.test.ts`: posição da boca do Gatling, giro do feixe de canos e a torre que vira quase na hora.

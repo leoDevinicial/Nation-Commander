@@ -2664,7 +2664,19 @@ export class Simulation {
         }
       }
     }
-    attacker.cooldown = Math.round(cooldownSeconds * TICK_RATE);
+    // rajada (Gatling do CIWS): tiros seguidos no ritmo da arma e, completada a rajada, a pausa
+    const burst = attacker.kind === 'unit' ? UNITS[attacker.type].weapon.burst : undefined;
+    let burstStart = false;
+    let cooldown = cooldownSeconds;
+    if (burst && attacker.kind === 'unit') {
+      burstStart = !attacker.burstShots;
+      attacker.burstShots = (attacker.burstShots ?? 0) + 1;
+      if (attacker.burstShots >= burst.shots) {
+        attacker.burstShots = 0;
+        cooldown = burst.pause;
+      }
+    }
+    attacker.cooldown = Math.round(cooldown * TICK_RATE);
     this.noteUnseenFire(target, attacker.owner, attacker.pos);
     const dealt = Math.min(damage, target.hp);
     target.hp -= damage;
@@ -2677,6 +2689,7 @@ export class Simulation {
       from: { ...attacker.pos },
       to: { ...target.pos },
       damage: dealt,
+      ...(burstStart ? { burstStart: true } : {}),
     });
     if (this.tick - (this.lastAlertTick[target.owner] ?? -Infinity) >= UNDER_ATTACK_ALERT_TICKS) {
       this.lastAlertTick[target.owner] = this.tick;

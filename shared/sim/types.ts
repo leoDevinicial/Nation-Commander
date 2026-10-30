@@ -66,6 +66,8 @@ export interface Unit {
   era?: Era;
   /** Antiaérea Móvel do Futuro Próximo: tick a partir do qual pode interceptar outra salva de foguetes. */
   interceptReadyTick?: number;
+  /** Tiros já dados na rajada atual (armas com `burst`). */
+  burstShots?: number;
 }
 
 export interface Refit {
@@ -255,6 +257,8 @@ export type SimEvent =
       /** Salva de foguetes: quantos saíram e quantos ticks até chegarem (o impacto vem em `salvo_impact`). */
       salvo?: number;
       flightTicks?: number;
+      /** Primeiro tiro de uma rajada (armas com `burst`, como o Gatling do CIWS): o som da rajada inteira sai daqui. */
+      burstStart?: boolean;
     }
   /** Chegada de uma salva de foguetes: explosões espalhadas na área (dano já aplicado). */
   | { type: 'salvo_impact'; tick: number; owner: Slot; attackerId: EntityId; pos: Vec2; radius: number; rockets: number }

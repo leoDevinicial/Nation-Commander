@@ -269,6 +269,8 @@ export interface WeaponDef {
   salvo?: number;
   /** Alcance mínimo: alvos mais perto que isso não podem ser atingidos (o lançador recua). */
   minRange?: number;
+  /** Rajada: depois de `shots` tiros seguidos (no ritmo do `cooldown`), a arma para por `pause` segundos. */
+  burst?: { shots: number; pause: number };
 }
 
 export interface UnitDef {
@@ -466,7 +468,7 @@ export const UNITS: Record<UnitType, UnitDef> = {
     speed: 4.4,
     radius: 0.95,
     sight: 15,
-    weapon: { damage: 9, range: 7.5, cooldown: 0.5, vsVehicle: 0.35, vsBuilding: 0.3 },
+    weapon: { damage: 9.225, range: 7.5, cooldown: 0.25, vsVehicle: 0.35, vsBuilding: 0.3, burst: { shots: 8, pause: 2.5 } },
     producedBy: 'factory',
     description:
       'Canhão Gatling de 20 mm guiado por radar sobre um 8×8 blindado (Era Digital): rajadas de 75 tiros por segundo derrubam no ar boa parte de cada salva do Lança-Foguetes que cair por perto, além de aeronaves e mísseis (como uma bateria antiaérea). Arrasa infantaria; fraco contra blindados.',

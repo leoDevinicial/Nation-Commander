@@ -76,7 +76,7 @@ const PRIORITY: Record<CombatSound, number> = {
 };
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
-const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.5, tank_gun: 0.18 };
+const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, tank_gun: 0.18 };
 
 /**
  * Atenuação e panorâmica de um ponto do mapa para quem olha `L` (ponto da câmera, distância e giro).
@@ -252,6 +252,46 @@ export class AudioService {
     conv.connect(this.buses.get('combat')!);
     this.outdoor = conv;
     return conv;
+  }
+
+  private readonly gatlingBursts: { buffer: AudioBuffer; firing: number; lead: number }[] = [];
+
+  /**
+   * Rajada do Gatling desenhada amostra a amostra (três variantes guardadas, sorteadas a cada uso). Cada tiro:
+   * estalo de ruído branco de ~1,5 ms, corpo em duas senoides amortecidas (~200 e ~420 Hz) e sopro grave filtrado, com
+   * pequenas variações de tempo e força. Os primeiros tiros saem mais espaçados (os canos ainda ganhando velocidade).
+   */
+  private gatlingBurst(): { buffer: AudioBuffer; firing: number; lead: number } {
+    if (this.gatlingBursts.length < 3) {
+      const ctx = this.ctx!;
+      const rate = ctx.sampleRate;
+      const lead = 0.12;
+      const firing = 1.75 + Math.random() * 0.1;
+      const rof = 72 + Math.random() * 6;
+      const len = Math.round((lead + firing + 0.08) * rate);
+      const buffer = ctx.createBuffer(1, len, rate);
+      const d = buffer.getChannelData(0);
+      let time = lead;
+      let shot = 0;
+      while (time < lead + firing) {
+        const at = Math.round((time + (Math.random() - 0.5) * 0.0016) * rate);
+        const amp = (0.82 + Math.random() * 0.18) * Math.min(1, 0.55 + shot * 0.15);
+        const f1 = 195 + Math.random() * 30;
+        let blast = 0;
+        for (let i = 0; i < Math.round(0.014 * rate) && at + i < len; i++) {
+          const s = i / rate;
+          const crack = s < 0.002 ? (Math.random() * 2 - 1) * Math.exp(-s / 0.0005) * 1.25 : 0;
+          const body = Math.sin(2 * Math.PI * f1 * s) * Math.exp(-s / 0.0042) * 0.6 + Math.sin(2 * Math.PI * f1 * 2.13 * s) * Math.exp(-s / 0.0022) * 0.3;
+          blast += ((Math.random() * 2 - 1) - blast) * 0.08;
+          d[at + i]! += amp * (crack + body + blast * Math.exp(-s / 0.005) * 2.6);
+        }
+        // spin-up: os primeiros tiros mais espaçados até a cadência plena
+        time += (1 / rof) * (shot < 4 ? 1.6 - shot * 0.15 : 1);
+        shot++;
+      }
+      this.gatlingBursts.push({ buffer, firing, lead });
+    }
+    return this.gatlingBursts[Math.floor(Math.random() * this.gatlingBursts.length)]!;
   }
 
   private noiseSource(loop = false): AudioBufferSourceNode {
@@ -490,80 +530,69 @@ export class AudioService {
         break;
       }
       case 'gatling': {
-        // Gatling de 20 mm do CIWS (~75 tiros por segundo): os disparos se fundem num rasgo contínuo ("brrrt")
-        // em vez de tiros separados. Trem de pulsos quadrado na cadência, saturado e filtrado (o zumbido
-        // rouco), ruído médio pulsando junto (o estampido de cada tiro), o giro do feixe de canos subindo e
-        // descendo de tom, e o eco grave da rajada no fim
-        const len = 0.55 + Math.random() * 0.2;
+        // Gatling de 20 mm do CIWS: uma rajada inteira (~1,8 s, ~75 tiros por segundo). Cada tiro é desenhado na
+        // amostra (`gatlingBurst`): estalo, corpo e sopro curtos, mais curtos que o intervalo entre os tiros. Por isso
+        // eles se fundem no rasgo grave e contínuo ("brrrrt") sem virar zumbido. Por cima: o motor que gira os canos
+        // (sobe antes do primeiro tiro e desce depois do último), o ronco grave da rajada e o eco do terreno.
+        const { buffer, firing, lead } = this.gatlingBurst();
+        const mix = ctx.createGain();
+        mix.connect(out);
+        const wet = ctx.createGain();
+        wet.gain.value = gain * 0.3;
+        mix.connect(wet).connect(this.outdoorReverb());
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        src.playbackRate.value = vary;
+        const hp = ctx.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.value = 55;
         const drive = ctx.createWaveShaper();
-        drive.curve = this.driveCurve(5);
+        drive.curve = this.driveCurve(2.4);
         drive.oversample = '4x';
-        const band = ctx.createBiquadFilter();
-        band.type = 'bandpass';
-        band.frequency.value = 520;
-        band.Q.value = 0.7;
-        const g = ctx.createGain();
-        g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(0.9, t + 0.03);
-        g.gain.setValueAtTime(0.9, t + len - 0.06);
-        g.gain.exponentialRampToValueAtTime(0.0001, t + len);
-        drive.connect(band).connect(g).connect(out);
-        const rate = 72 + Math.random() * 8;
-        const pulse = ctx.createOscillator();
-        pulse.type = 'square';
-        pulse.frequency.setValueAtTime(rate * 0.8 * vary, t);
-        pulse.frequency.linearRampToValueAtTime(rate * vary, t + 0.08);
-        const pg = ctx.createGain();
-        pg.gain.value = 1.2;
-        pulse.connect(pg).connect(drive);
-        pulse.start(t);
-        pulse.stop(t + len + 0.05);
-        nodes.push(pulse);
-        // estampido: ruído médio modulado pela mesma cadência
+        const level = ctx.createGain();
+        level.gain.value = 0.95;
+        src.connect(hp).connect(drive).connect(level).connect(mix);
+        src.start(t);
+        nodes.push(src);
+        const start = t + lead / vary;
+        const stop = t + (lead + firing) / vary;
+        // ronco grave contínuo da rajada (a pressão dos tiros somada)
         const n = this.noiseSource();
-        const nf = ctx.createBiquadFilter();
-        nf.type = 'bandpass';
-        nf.frequency.value = 1500;
-        nf.Q.value = 0.8;
-        const am = ctx.createGain();
-        am.gain.value = 0;
-        const lfo = ctx.createOscillator();
-        lfo.type = 'square';
-        lfo.frequency.value = rate * vary;
-        const depth = ctx.createGain();
-        depth.gain.value = 0.5;
-        lfo.connect(depth).connect(am.gain);
+        const lp = ctx.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = 240;
         const ng = ctx.createGain();
-        ng.gain.setValueAtTime(0.0001, t);
-        ng.gain.exponentialRampToValueAtTime(0.85, t + 0.02);
-        ng.gain.setValueAtTime(0.85, t + len - 0.05);
-        ng.gain.exponentialRampToValueAtTime(0.0001, t + len);
-        n.connect(nf).connect(am).connect(ng).connect(out);
+        ng.gain.setValueAtTime(0.0001, start);
+        ng.gain.exponentialRampToValueAtTime(0.55, start + 0.08);
+        ng.gain.setValueAtTime(0.55, stop - 0.05);
+        ng.gain.exponentialRampToValueAtTime(0.0001, stop + 0.15);
+        n.connect(lp).connect(ng).connect(mix);
         n.start(t, Math.random());
-        n.stop(t + len + 0.05);
-        lfo.start(t);
-        lfo.stop(t + len + 0.05);
-        nodes.push(n, lfo);
-        // giro do feixe de canos (motor elétrico): sobe no começo e desce depois da rajada
+        n.stop(stop + 0.2);
+        nodes.push(n);
+        // motor elétrico do feixe de canos: sobe antes do primeiro tiro e desce depois do último
         const whine = ctx.createOscillator();
         whine.type = 'sawtooth';
-        whine.frequency.setValueAtTime(380 * vary, t - 0.02);
-        whine.frequency.linearRampToValueAtTime(900 * vary, t + 0.12);
-        whine.frequency.setValueAtTime(900 * vary, t + len);
-        whine.frequency.exponentialRampToValueAtTime(260 * vary, t + len + 0.4);
+        whine.frequency.setValueAtTime(140, t);
+        whine.frequency.exponentialRampToValueAtTime(820, start);
+        whine.frequency.setValueAtTime(820, stop);
+        whine.frequency.exponentialRampToValueAtTime(160, stop + 0.6);
         const wf = ctx.createBiquadFilter();
         wf.type = 'bandpass';
-        wf.frequency.value = 1100;
-        wf.Q.value = 3;
+        wf.frequency.value = 900;
+        wf.Q.value = 2;
         const wg = ctx.createGain();
-        whine.connect(wf).connect(wg).connect(out);
-        this.env(wg, t, 0.06, 0.07, len + 0.35);
-        whine.start(t - 0.02);
-        whine.stop(t + len + 0.45);
+        wg.gain.setValueAtTime(0.0001, t);
+        wg.gain.exponentialRampToValueAtTime(0.05, start);
+        wg.gain.setValueAtTime(0.035, stop);
+        wg.gain.exponentialRampToValueAtTime(0.0001, stop + 0.6);
+        whine.connect(wf).connect(wg).connect(mix);
+        whine.start(t);
+        whine.stop(stop + 0.65);
         nodes.push(whine);
-        thump(110, 40, 0.004, 0.9, 0.25, t, 'sine', drive);
-        burst('lowpass', 380, 0.6, 0.04, 0.6, 0.9, t + len - 0.1);
-        end = burst('lowpass', 200, 0.5, 0.1, 0.32, 1.4, t + len + 0.3);
+        // eco do terreno depois da rajada
+        burst('lowpass', 420, 0.6, 0.03, 0.35, 0.7, stop + 0.12, mix);
+        end = burst('lowpass', 200, 0.5, 0.1, 0.2, 1.3, stop + 0.45, mix);
         break;
       }
       case 'cannon':

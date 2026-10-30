@@ -209,6 +209,8 @@ export class GameRuntime {
   private readonly raycaster = new THREE.Raycaster();
   private readonly groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   private snapshot: Snapshot | null = null;
+  /** Tick do último som de rajada de cada CIWS (o som cobre a rajada inteira). */
+  private readonly gatlingAt = new Map<number, number>();
   private snapshotAt = 0;
   private snapshotInterval = 100;
   private paused = false;
@@ -739,11 +741,9 @@ export class GameRuntime {
             dir.set(0, 1, 0);
           }
         },
-        onStart: (at) => {
-          ciws?.aimToward(at.x, at.z, 0.6);
-          audio.playAt('gatling', e.from.x, e.from.y);
-        },
+        onStart: (at) => ciws?.aimToward(at.x, at.z, 0.6),
       });
+      audio.playAt('gatling', e.from.x, e.from.y);
     } else if (e.type === 'salvo_intercepted') {
       // antiaérea do Futuro Próximo: mísseis pequenos saem dos casulos e derrubam foguetes da salva no ar
       const aa = this.units.get(e.aaId)?.visual;
@@ -2593,6 +2593,12 @@ export class GameRuntime {
         // a salva toca um sopro por foguete (na saída de cada um)
         if (e.salvo) break;
         const attacker = this.units.get(e.attackerId);
+        // Gatling do CIWS: o som cobre a rajada inteira, então toca só no primeiro tiro (ou se o começo ficou fora de vista)
+        if (attacker?.visual.type === 'ciws') {
+          const last = this.gatlingAt.get(e.attackerId) ?? -Infinity;
+          if (!e.burstStart && e.tick - last < 2 * TICK_RATE) break;
+          this.gatlingAt.set(e.attackerId, e.tick);
+        }
         const sound = attacker
           ? attacker.visual.type === 'artillery'
             ? 'howitzer'

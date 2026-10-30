@@ -305,6 +305,32 @@ describe('progressão militar — tropas novas em combate', () => {
     expect(far.impact?.rockets).toBe(UNITS.rocket_artillery.weapon.salvo);
   });
 
+  it('Phalanx CIWS Móvel atira em rajadas longas (8 tiros, 1 a cada 0,25 s) e para 2,5 s entre elas', () => {
+    const { sim } = setup();
+    const ciws = sim.spawnUnitNear(sim.hqOf(0)!, 'ciws')!;
+    const alvo = sim.spawnUnitNear(sim.hqOf(1)!, 'infantry')!;
+    alvo.maxHp = alvo.hp = 1e6;
+    alvo.pos = { x: ciws.pos.x + 4, y: ciws.pos.y };
+    const pa = { ...alvo.pos };
+    const pc = { ...ciws.pos };
+    sim.drainEvents();
+    const shots: { tick: number; start: boolean; damage: number }[] = [];
+    for (let i = 0; i < TICK_RATE * 9; i++) {
+      alvo.pos = { ...pa };
+      ciws.pos = { ...pc };
+      sim.step();
+      for (const e of sim.drainEvents()) if (e.type === 'shot' && e.attackerId === ciws.id) shots.push({ tick: e.tick, start: !!e.burstStart, damage: e.damage });
+    }
+    expect(shots.length).toBeGreaterThanOrEqual(16);
+    const gaps = shots.slice(1).map((s, i) => s.tick - shots[i]!.tick);
+    // 7 intervalos curtos dentro da rajada, depois a pausa
+    expect(gaps.slice(0, 7).every((g) => g === Math.round(0.25 * TICK_RATE))).toBe(true);
+    expect(gaps[7]).toBe(Math.round(2.5 * TICK_RATE));
+    expect(shots.filter((s) => s.start).map((s) => shots.indexOf(s)).slice(0, 2)).toEqual([0, 8]);
+    // dano 2,5% maior que os 9 de antes
+    expect(UNITS.ciws.weapon.damage).toBeCloseTo(9 * 1.025, 5);
+  });
+
   it('Phalanx CIWS Móvel: Era Digital, pesquisa de defesa de ponto depois da antiaérea móvel, conta como defesa antiaérea', () => {
     expect(UNITS.ciws.requires).toBe('point_defense');
     expect(UNITS.ciws.airDefense).toBe(true);
