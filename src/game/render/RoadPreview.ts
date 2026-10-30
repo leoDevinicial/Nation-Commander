@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 
 /** Até quantas células a prévia mostra (o traçado tem limite na simulação). */
-const MAX = 64;
+const MAX = 120;
 
 /**
- * Prévia do traçado de estrada (lote 3, seção 1): um quadrado por célula sobre o chão, verde onde
- * dá para pavimentar, cinza onde já é estrada e vermelho onde o traçado esbarra.
+ * Prévia da estrada (lote 3, seção 1): um quadrado por célula sobre o chão, verde onde dá para
+ * pavimentar, cinza onde já é estrada, vermelho onde não dá e branco na célula sob o ponteiro.
  */
 export class RoadPreview {
   readonly mesh: THREE.InstancedMesh;
@@ -30,7 +30,7 @@ export class RoadPreview {
     this.mesh.name = 'road-preview';
   }
 
-  set(cells: readonly { cx: number; cy: number; state: 'ok' | 'road' | 'bad' }[]): void {
+  set(cells: readonly { cx: number; cy: number; state: 'ok' | 'road' | 'bad' | 'hover' }[]): void {
     const n = Math.min(MAX, cells.length);
     for (let i = 0; i < n; i++) {
       const c = cells[i]!;
@@ -38,7 +38,7 @@ export class RoadPreview {
       const z = (c.cy + 0.5) * this.cellSize;
       this.m.makeTranslation(x, this.heightAt(x, z) + 0.06, z);
       this.mesh.setMatrixAt(i, this.m);
-      this.mesh.setColorAt(i, this.c.set(c.state === 'ok' ? '#5fd38a' : c.state === 'road' ? '#9aa3a8' : '#ff5a4a'));
+      this.mesh.setColorAt(i, this.c.set(c.state === 'ok' ? '#5fd38a' : c.state === 'road' ? '#9aa3a8' : c.state === 'hover' ? '#e8f2ff' : '#ff5a4a'));
     }
     this.mesh.count = n;
     this.mesh.instanceMatrix.needsUpdate = true;

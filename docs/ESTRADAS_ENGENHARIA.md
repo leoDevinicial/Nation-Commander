@@ -5,29 +5,51 @@ Engenheiro de Combate, minas antitanque e obstáculos antitanque.
 
 ## Estradas
 
-O botão **Estrada** fica no Centro de Comando e no painel do Engenheiro de Combate. Com ele, o jogador arrasta uma
-linha na grade (no toque: um toque marca o começo e outro o fim). A linha pode ser horizontal, vertical ou diagonal, com
-até 40 células por vez.
+O botão **Estrada** fica na aba Cívicas do Centro de Comando e no painel do Engenheiro de Combate. A construção tem
+duas etapas: primeiro o jogador **marca** as células, depois **confirma**.
 
-Antes de soltar, o mapa mostra uma prévia:
+**Marcar**
+- **Clique** numa célula: marca. Clique de novo numa célula marcada: desmarca.
+- **Clique e arraste**: marca um caminho em L do ponto inicial até o ponteiro. O caminho vai primeiro pelo eixo mais
+  longo e depois pelo outro, sempre em linhas retas, como numa grade de cidade.
+- **Toque** (celular e tablet): cada toque marca ou desmarca uma célula.
+- As marcações se acumulam: dá para arrastar vários trechos e acrescentar células soltas antes de construir.
+
+**Prévia**
 - verde: a célula pode virar estrada;
 - cinza: a célula já é estrada;
-- vermelho: a célula não pode virar estrada.
+- vermelho: a célula não pode virar estrada (o painel diz o motivo e quantas ficam de fora);
+- branco: a célula sob o ponteiro, antes de clicar.
 
-O painel mostra o custo e o motivo de um traçado inválido. A regra é `Simulation.roadPlan`, conferida de novo pelo
-servidor.
+O painel mostra quantas células serão pavimentadas, a pedra e a verba de obras.
+
+**Confirmar:** o botão **Construir** (ou Enter) pavimenta as células verdes, até 40 por obra. As vermelhas ficam de
+fora. A ferramenta continua aberta para o próximo trecho. **Limpar** desmarca tudo e **Cancelar** (Esc) sai. As
+células não precisam formar uma linha contínua. A regra é `Simulation.roadPlan`, conferida de novo pelo servidor.
+
+**Aparência:** cada célula vira uma peça de asfalto (`src/game/render/RoadLayer.ts`) que se encaixa pelas vizinhas
+(norte, sul, leste e oeste):
+
+| Peça | Como fica |
+|---|---|
+| Reta | faixa central tracejada; calçada com meio-fio dos dois lados |
+| Curva | a faixa central dobra de uma saída para a outra; calçada no lado de fora e no canto de dentro |
+| Fim de linha | faixa só até a saída; calçada nos três lados fechados |
+| Cruzamento em T e em cruz | faixas de pedestres em cada saída; calçada nos cantos |
+
+A estrada de terra que o mapa gera conta como vizinha: o asfalto encosta nela sem calçada.
 
 | Regra | Valor |
 |---|---|
 | Terreno | planície ou solo fértil, sem construção |
 | Onde | no próprio território; fora dele (terra neutra ou de país em guerra), com um Engenheiro de Combate a até 6 células |
-| Custo | 6 de pedra por célula e 0,2% do teto anual da verba de obras por célula |
+| Custo | 10 de pedra por célula e 0,2% do teto anual da verba de obras por célula |
 | Manutenção | 0,004 suprimento/s por célula |
 | Efeito | tropas mais rápidas (o terreno Estrada já valia 1,3× e o A* já preferia estradas), comboios rodoviários do comércio e caravanas internas ([`CARAVANAS.md`](CARAVANAS.md)) 30% mais rápidos sobre a estrada |
 | Aprovação | moradias (Casa e Prédio Residencial) encostadas numa estrada formam o "bairro pavimentado": até +4 pontos com todas ligadas |
 
-As estradas entram no salvamento e vão para os clientes junto com o território. O cliente pinta o asfalto no mapa de
-pesos do solo (`TerrainHandle.repaint`) e tira a vegetação de cima da estrada.
+As estradas entram no salvamento e vão para os clientes junto com o território. O cliente desenha as peças de asfalto,
+limpa o solo embaixo (`TerrainHandle.repaint`) e tira a vegetação de cima da estrada.
 
 A estrada vale para os dois lados: o inimigo em guerra também a usa.
 

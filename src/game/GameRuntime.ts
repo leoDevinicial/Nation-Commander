@@ -29,7 +29,8 @@ import { combineEffects } from '../../shared/strategic/technologies.ts';
 import { useNationalStore } from '../state/useNationalStore.ts';
 import { Terrain as T } from '../../shared/sim/config.ts';
 import { MineLayer } from './render/MineLayer.ts';
-import { RoadPreview, gridLine } from './render/RoadPreview.ts';
+import { RoadPreview } from './render/RoadPreview.ts';
+import { RoadLayer } from './render/RoadLayer.ts';
 import { TerritoryLayer } from './render/TerritoryLayer.ts';
 import { createSky, environmentFromSky, SKY } from './render/Sky.ts';
 import { cloudShadowTexture, disposeTextures, grimeTexture, windowTexture } from './render/textures.ts';
@@ -194,6 +195,7 @@ export class GameRuntime {
   private readonly airLayer: AirLayer;
   private mineLayer!: MineLayer;
   private roadPreview!: RoadPreview;
+  private roadLayer!: RoadLayer;
   private readonly rocketLayer: RocketLayer;
   private readonly trackMarks: TrackMarks;
   private readonly projectiles: Projectiles;
@@ -340,6 +342,8 @@ export class GameRuntime {
     this.scene.add(this.mineLayer.group);
     this.roadPreview = new RoadPreview(this.map.cellSize, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.roadPreview.mesh);
+    this.roadLayer = new RoadLayer(this.map.cellSize, this.map.width, this.map.height, (x, z) => this.groundHeight(x, z));
+    this.scene.add(this.roadLayer.mesh);
     this.citizens = new CitizenLayer(this.map, this.mySlot, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.citizens.group);
     this.scene.add(this.cargo.group);
@@ -673,6 +677,8 @@ export class GameRuntime {
       this.map.terrain[i] = T.Road;
     }
     this.terrain.repaint(fresh);
+    // peças de asfalto por cima, encaixadas pelas vizinhas
+    this.roadLayer.set(this.roadCells, (i) => this.map.terrain[i] === T.Road);
     this.decorKey = '';
   }
 
@@ -2034,15 +2040,25 @@ export class GameRuntime {
     this.effects.flash(new THREE.Vector3(p.x, 0.1, p.y), 0.4, '#e0b44c', 0.35);
   }
 
-  /** Ferramenta de estrada: arrastar na grade (ou dois toques) e soltar para pavimentar. */
+  /**
+   * Ferramenta de estrada: clique marca ou desmarca uma célula; clicar e arrastar marca um caminho
+   * em L (só retas, como numa grade de cidade). Nada é construído até o jogador confirmar
+   * ("Construir" ou Enter), com a prévia e o custo à vista.
+   */
   startRoad(): void {
-    this.roadStart = null;
+    this.roadPending.clear();
+    this.roadStroke = null;
+    this.roadHover = null;
     this.roadPreview.set([]);
-    this.setMode({ kind: 'road', started: false, cells: 0, reason: null });
+    this.setMode({ kind: 'road', cells: 0, bad: 0, marked: 0, reason: null });
   }
 
-  private roadStart: { cx: number; cy: number } | null = null;
-  private roadLine: { cx: number; cy: number }[] = [];
+  /** Células marcadas e ainda não construídas (ordem em que foram marcadas). */
+  private readonly roadPending = new Map<number, { cx: number; cy: number }>();
+  /** Arrasto em andamento: célula onde começou, células do caminho e se o ponteiro saiu dela. */
+  private roadStroke: { start: { cx: number; cy: number }; cells: { cx: number; cy: number }[]; moved: boolean } | null = null;
+  /** Célula sob o ponteiro (prévia antes de clicar). */
+  private roadHover: { cx: number; cy: number } | null = null;
 
   private cellAtScreen(clientX: number, clientY: number): { cx: number; cy: number } | null {
     const p = this.groundAt(clientX, clientY);
@@ -2052,19 +2068,27 @@ export class GameRuntime {
     return cx >= 0 && cy >= 0 && cx < this.map.width && cy < this.map.height ? { cx, cy } : null;
   }
 
-  /**
-   * Prévia do traçado com as regras que o cliente consegue conferir (terreno, construções,
-   * território e engenheiro por perto); a simulação confere o resto (guerra, pedra e verba).
-   */
-  private updateRoadPreview(end: { cx: number; cy: number } | null): void {
-    if (this.mode.kind !== 'road') return;
-    const start = this.roadStart ?? end;
-    if (!start || !end) {
-      this.roadPreview.set([]);
-      return;
+  /** Por que a célula não pode virar estrada (regras que o cliente consegue conferir), ou null. */
+  private roadCellProblem(c: { cx: number; cy: number }, occupied: Set<number>, engineers: { x: number; y: number }[]): string | null {
+    const i = c.cy * this.map.width + c.cx;
+    const t = this.map.terrain[i];
+    if (t !== T.Plains && t !== T.Fertile) return 'Estradas só em planície ou solo fértil';
+    if (occupied.has(i)) return 'Há uma construção no lugar';
+    if (this.territory[i] !== this.mySlot) {
+      const x = (c.cx + 0.5) * this.map.cellSize;
+      const z = (c.cy + 0.5) * this.map.cellSize;
+      const reach = ROAD.engineerRange * this.map.cellSize;
+      if (!engineers.some((p) => Math.hypot(p.x - x, p.y - z) <= reach)) return 'Fora do território: só com um Engenheiro de Combate por perto';
     }
-    const line = gridLine(start, end, ROAD.maxCells);
-    this.roadLine = line;
+    return null;
+  }
+
+  /**
+   * Avalia as células marcadas (mais o arrasto e a célula sob o ponteiro): verde onde dá para
+   * pavimentar, cinza onde já é estrada e vermelho onde não dá. A simulação confere o resto
+   * (guerra, pedra e verba) ao construir.
+   */
+  private evaluateRoad(): { ok: { cx: number; cy: number }[]; bad: number; reason: string | null } {
     const W = this.map.width;
     const occupied = new Set<number>();
     for (const { snap: b } of this.buildings.values()) {
@@ -2072,45 +2096,123 @@ export class GameRuntime {
       for (let dy = 0; dy < size; dy++) for (let dx = 0; dx < size; dx++) occupied.add((b.cy + dy) * W + b.cx + dx);
     }
     const engineers = [...this.units.values()].filter((u) => u.snap.owner === this.mySlot && u.snap.type === 'engineer').map((u) => u.curr);
-    const reach = ROAD.engineerRange * this.map.cellSize;
+    const marked = new Map(this.roadPending);
+    for (const c of this.roadStroke?.cells ?? []) marked.set(c.cy * W + c.cx, c);
+    const preview: { cx: number; cy: number; state: 'ok' | 'road' | 'bad' | 'hover' }[] = [];
+    const ok: { cx: number; cy: number }[] = [];
+    let bad = 0;
     let reason: string | null = null;
-    let fresh = 0;
-    const cells = line.map((c) => {
-      const i = c.cy * W + c.cx;
-      const t = this.map.terrain[i];
-      if (t === T.Road) return { ...c, state: 'road' as const };
-      let bad: string | null = null;
-      if (t !== T.Plains && t !== T.Fertile) bad = 'Estradas só em planície ou solo fértil';
-      else if (occupied.has(i)) bad = 'Há uma construção no traçado';
-      else if (this.territory[i] !== this.mySlot) {
-        const x = (c.cx + 0.5) * this.map.cellSize;
-        const z = (c.cy + 0.5) * this.map.cellSize;
-        if (!engineers.some((p) => Math.hypot(p.x - x, p.y - z) <= reach)) bad = 'Fora do território: só com um Engenheiro de Combate por perto';
+    for (const [i, c] of marked) {
+      if (this.map.terrain[i] === T.Road) {
+        preview.push({ ...c, state: 'road' });
+        continue;
       }
-      reason ??= bad;
-      if (!bad) fresh++;
-      return { ...c, state: bad ? ('bad' as const) : ('ok' as const) };
-    });
-    this.roadPreview.set(cells);
-    if (!reason && fresh === 0) reason = 'O traçado já é estrada';
-    const m = this.mode;
-    if (m.started !== !!this.roadStart || m.cells !== fresh || m.reason !== reason) this.setMode({ kind: 'road', started: !!this.roadStart, cells: fresh, reason });
+      const problem = ok.length >= ROAD.maxCells ? `Até ${ROAD.maxCells} células por obra` : this.roadCellProblem(c, occupied, engineers);
+      if (problem) {
+        bad++;
+        reason ??= problem;
+        preview.push({ ...c, state: 'bad' });
+      } else {
+        ok.push(c);
+        preview.push({ ...c, state: 'ok' });
+      }
+    }
+    const h = this.roadHover;
+    if (h && !this.roadStroke && !marked.has(h.cy * W + h.cx)) {
+      const problem = this.map.terrain[h.cy * W + h.cx] === T.Road ? 'road' : this.roadCellProblem(h, occupied, engineers);
+      preview.push({ ...h, state: problem ? 'bad' : 'hover' });
+    }
+    this.roadPreview.set(preview);
+    return { ok, bad, reason };
   }
 
-  private finishRoad(): void {
-    const line = this.roadLine;
-    this.roadStart = null;
-    this.roadLine = [];
-    this.roadPreview.set([]);
+  private refreshRoad(): void {
     if (this.mode.kind !== 'road') return;
-    const reason = this.mode.reason;
-    this.setMode({ kind: 'road', started: false, cells: 0, reason: null });
-    if (!line.length) return;
-    if (reason) {
-      useHudStore.getState().pushEvent({ tick: this.snapshot?.tick ?? 0, text: `Estrada: ${reason}`, tone: 'warn' });
+    const { ok, bad, reason } = this.evaluateRoad();
+    const marked = this.roadPending.size + (this.roadStroke?.cells.length ?? 0);
+    const m = this.mode;
+    if (m.cells !== ok.length || m.bad !== bad || m.reason !== reason || m.marked !== marked) this.setMode({ kind: 'road', cells: ok.length, bad, marked, reason });
+  }
+
+  /** Caminho em L de `a` até `b`: primeiro ao longo do eixo mais longo, depois do outro. */
+  private roadPath(a: { cx: number; cy: number }, b: { cx: number; cy: number }): { cx: number; cy: number }[] {
+    const out: { cx: number; cy: number }[] = [];
+    let x = a.cx;
+    let y = a.cy;
+    const xFirst = Math.abs(b.cx - a.cx) >= Math.abs(b.cy - a.cy);
+    out.push({ cx: x, cy: y });
+    const stepX = () => {
+      while (x !== b.cx && out.length < ROAD.maxCells * 2) out.push({ cx: (x += Math.sign(b.cx - x)), cy: y });
+    };
+    const stepY = () => {
+      while (y !== b.cy && out.length < ROAD.maxCells * 2) out.push({ cx: x, cy: (y += Math.sign(b.cy - y)) });
+    };
+    if (xFirst) {
+      stepX();
+      stepY();
+    } else {
+      stepY();
+      stepX();
+    }
+    return out;
+  }
+
+  private roadDown(c: { cx: number; cy: number } | null): void {
+    if (!c) return;
+    this.roadStroke = { start: c, cells: [c], moved: false };
+    this.refreshRoad();
+  }
+
+  private roadMove(c: { cx: number; cy: number } | null): void {
+    this.roadHover = c;
+    const st = this.roadStroke;
+    if (st && c) {
+      if (c.cx !== st.start.cx || c.cy !== st.start.cy) st.moved = true;
+      st.cells = this.roadPath(st.start, c);
+    }
+    this.refreshRoad();
+  }
+
+  private roadUp(): void {
+    const st = this.roadStroke;
+    this.roadStroke = null;
+    if (!st) return;
+    const W = this.map.width;
+    const k = st.start.cy * W + st.start.cx;
+    // clique simples numa célula já marcada desmarca
+    if (!st.moved && this.roadPending.has(k)) this.roadPending.delete(k);
+    else for (const c of st.cells) this.roadPending.set(c.cy * W + c.cx, c);
+    this.refreshRoad();
+  }
+
+  /** Toque: marca ou desmarca a célula. */
+  private roadTap(c: { cx: number; cy: number } | null): void {
+    if (!c) return;
+    const k = c.cy * this.map.width + c.cx;
+    if (this.roadPending.has(k)) this.roadPending.delete(k);
+    else this.roadPending.set(k, c);
+    this.refreshRoad();
+  }
+
+  /** Constrói as células marcadas que podem ser pavimentadas; a ferramenta continua aberta. */
+  confirmRoad(): void {
+    if (this.mode.kind !== 'road') return;
+    const { ok, reason } = this.evaluateRoad();
+    if (!ok.length) {
+      useHudStore.getState().pushEvent({ tick: this.snapshot?.tick ?? 0, text: `Estrada: ${reason ?? 'marque as células da estrada no mapa'}`, tone: 'warn' });
       return;
     }
-    this.send({ type: 'build_road', cells: line });
+    this.send({ type: 'build_road', cells: ok });
+    this.roadPending.clear();
+    this.roadStroke = null;
+    this.refreshRoad();
+  }
+
+  /** Desmarca tudo sem sair da ferramenta. */
+  clearRoad(): void {
+    this.roadPending.clear();
+    this.roadStroke = null;
+    this.refreshRoad();
   }
 
   startPlacement(type: BuildingType): void {
@@ -2249,8 +2351,9 @@ export class GameRuntime {
   }
 
   cancelMode(): void {
-    this.roadStart = null;
-    this.roadLine = [];
+    this.roadPending.clear();
+    this.roadStroke = null;
+    this.roadHover = null;
     this.roadPreview.set([]);
     if (this.ghost) {
       this.ghost.dispose();
@@ -2641,6 +2744,10 @@ export class GameRuntime {
       return;
     }
     switch (e.code) {
+      case 'Enter':
+      case 'NumpadEnter':
+        if (this.mode.kind === 'road') this.confirmRoad();
+        break;
       case 'Escape':
         if (this.mode.kind !== 'normal') this.cancelMode();
         else if (this.cameraCtl.closeUp) this.setCloseUp(false);
@@ -2734,8 +2841,7 @@ export class GameRuntime {
       return;
     }
     if (this.mode.kind === 'road') {
-      this.roadStart = this.cellAtScreen(e.clientX, e.clientY);
-      this.updateRoadPreview(this.roadStart);
+      this.roadDown(this.cellAtScreen(e.clientX, e.clientY));
       return;
     }
     this.drag = { x: e.clientX, y: e.clientY, active: false, button: 0 };
@@ -2774,7 +2880,7 @@ export class GameRuntime {
     }
     this.ghostAt = { x: e.clientX, y: e.clientY };
     if (this.mode.kind === 'place') this.updateGhost();
-    if (this.mode.kind === 'road') this.updateRoadPreview(this.cellAtScreen(e.clientX, e.clientY));
+    if (this.mode.kind === 'road') this.roadMove(this.cellAtScreen(e.clientX, e.clientY));
   }
 
   private onPointerUp(e: PointerEvent): void {
@@ -2783,8 +2889,8 @@ export class GameRuntime {
       this.touch.up(touchPoint(e));
       return;
     }
-    if (this.mode.kind === 'road' && e.button === 0 && this.roadStart) {
-      this.finishRoad();
+    if (this.mode.kind === 'road' && e.button === 0 && this.roadStroke) {
+      this.roadUp();
       return;
     }
     const d = this.drag;
@@ -2833,15 +2939,8 @@ export class GameRuntime {
       return;
     }
     if (this.mode.kind === 'road') {
-      // primeiro toque marca o começo; o segundo, o fim (e pavimenta)
-      const c = this.cellAtScreen(x, y);
-      if (!this.roadStart) {
-        this.roadStart = c;
-        this.updateRoadPreview(c);
-      } else {
-        this.updateRoadPreview(c);
-        this.finishRoad();
-      }
+      // cada toque marca ou desmarca uma célula; "Construir" pavimenta
+      this.roadTap(this.cellAtScreen(x, y));
       return;
     }
     if (this.touchTool === 'order') {
@@ -3237,6 +3336,7 @@ export class GameRuntime {
       this.territoryLayer.dispose();
       this.mineLayer.dispose();
       this.roadPreview.dispose();
+      this.roadLayer.dispose();
       this.fogTexture.dispose();
       this.renderer.dispose();
       this.renderer.forceContextLoss();
@@ -3272,6 +3372,7 @@ export class GameRuntime {
     this.territoryLayer.dispose();
     this.mineLayer.dispose();
     this.roadPreview.dispose();
+    this.roadLayer.dispose();
     this.fogTexture.dispose();
     fogUniforms.uFogMap.value = null;
     cloudUniforms.uCloudMap.value = null;

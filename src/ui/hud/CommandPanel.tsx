@@ -239,6 +239,12 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             title="Inicia a preparação do míssil para o alvo marcado (ainda exige autorização)"
           />
         )}
+        {mode.kind === 'road' && (
+          <>
+            <CardButton icon="✔" hotkey="Enter" label="Construir" disabled={mode.cells === 0} onClick={() => runtime.confirmRoad()} title="Pavimenta as células marcadas em verde (Enter)" />
+            <CardButton icon="⌫" label="Limpar" disabled={mode.marked === 0} onClick={() => runtime.clearRoad()} title="Desmarca todas as células sem sair da ferramenta" />
+          </>
+        )}
         {mode.kind !== 'normal' && <CardButton icon="✖" hotkey="Esc" label="Cancelar" onClick={() => runtime.cancelMode()} title="Cancelar (Esc)" />}
         {command && mode.kind === 'normal' && runtime.battleOp === null && (
           <div className="flex shrink-0 flex-col gap-1 sm:col-span-4 sm:flex-row [@media(max-height:520px)]:col-span-4 [@media(max-height:520px)]:flex-row" role="tablist" aria-label="Categorias de construção">
@@ -333,17 +339,20 @@ function RoadHint({ mode, touch, worksCap, stone }: { mode: Extract<ReturnType<t
   const cost = mode.cells * ROAD.stonePerCell;
   const usd = Math.round(worksCap * ROAD.usdSharePerCell * mode.cells);
   const how = touch
-    ? mode.started
-      ? 'Toque no fim do traçado para pavimentar.'
-      : 'Toque no começo do traçado.'
-    : 'Clique e arraste na grade; solte para pavimentar. Botão direito ou Esc sai da ferramenta.';
+    ? 'Toque nas células para marcar ou desmarcar a estrada; depois toque em Construir.'
+    : 'Clique para marcar ou desmarcar uma célula, ou clique e arraste para marcar um caminho. Depois, Construir (Enter). Esc sai da ferramenta.';
   return (
     <div>
-      <ModeHint title="Construir estrada" text={mode.reason ? `Traçado inválido: ${mode.reason}` : how} bad={!!mode.reason} />
-      {mode.cells > 0 && (
+      <ModeHint title="Construir estrada" text={how} bad={false} />
+      {mode.marked > 0 && (
         <div className="mt-1.5 text-xs text-ink-400">
-          {mode.cells} célula(s) · <span className={stone < cost ? 'text-signal-red' : 'text-ink-200'}>{cost} de pedra</span>
+          {mode.cells} célula(s) a pavimentar · <span className={stone < cost ? 'text-signal-red' : 'text-ink-200'}>{cost} de pedra</span>
           {usd > 0 && <span className="text-signal-green"> · {usdShort(usd)} da verba de obras</span>}
+          {mode.bad > 0 && mode.reason && (
+            <div className="text-signal-red">
+              {mode.bad} célula(s) em vermelho ficam de fora: {mode.reason}
+            </div>
+          )}
         </div>
       )}
     </div>

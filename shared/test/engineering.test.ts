@@ -44,17 +44,8 @@ function setup(opts: { fund?: number } = {}) {
 const line = (y: number, x0: number, x1: number) => Array.from({ length: x1 - x0 + 1 }, (_, k) => ({ cx: x0 + k, cy: y }));
 
 describe('Estradas do jogador', () => {
-  it('pavimenta no próprio território com pedra e verba de obras; recusa traçado quebrado e terreno ruim', () => {
+  it('pavimenta no próprio território com pedra e verba de obras; recusa terreno ruim', () => {
     const { sim, st } = setup();
-    expect(
-      sim.applyCommand(0, {
-        type: 'build_road',
-        cells: [
-          { cx: 6, cy: 10 },
-          { cx: 8, cy: 10 },
-        ],
-      }),
-    ).toMatch(/contínuo/);
     sim.map.terrain[10 * 40 + 9] = Terrain.Forest;
     expect(sim.applyCommand(0, { type: 'build_road', cells: line(10, 6, 9) })).toMatch(/planície/);
     const stone = sim.players[0]!.resources.stone;
@@ -72,6 +63,19 @@ describe('Estradas do jogador', () => {
     const copy = Simulation.fromSave(sim.toSave());
     expect(copy.roads).toHaveLength(5);
     expect(copy.grid.terrain[12 * 40 + 6]).toBe(Terrain.Road);
+  });
+
+  it('aceita células soltas (marcadas uma a uma), sem exigir traçado contínuo', () => {
+    const { sim } = setup();
+    const cells = [
+      { cx: 6, cy: 10 },
+      { cx: 8, cy: 10 },
+      { cx: 8, cy: 14 },
+    ];
+    expect(sim.applyCommand(0, { type: 'build_road', cells })).toBeNull();
+    for (const c of cells) expect(sim.map.terrain[c.cy * 40 + c.cx]).toBe(Terrain.Road);
+    expect(sim.map.terrain[10 * 40 + 7]).not.toBe(Terrain.Road);
+    expect(sim.roads).toHaveLength(3);
   });
 
   it('fora do território só com Engenheiro de Combate por perto; nunca em território de nação em paz', () => {

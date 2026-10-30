@@ -76,7 +76,8 @@ export type PointerMode =
    * Traçado de estrada (lote 3): arrasto na grade (no toque, um toque marca o começo e outro o
    * fim). `cells` são as células novas a pavimentar; `reason`, o que impede o traçado.
    */
-  | { kind: 'road'; started: boolean; cells: number; reason: string | null };
+  /** Ferramenta de estrada: células que podem ser pavimentadas, inválidas, marcadas no total e o primeiro motivo de recusa. */
+  | { kind: 'road'; cells: number; bad: number; marked: number; reason: string | null };
 
 /** Fila de produção de um edifício próprio (para o resumo de produção do HUD). */
 export interface ProductionEntry {

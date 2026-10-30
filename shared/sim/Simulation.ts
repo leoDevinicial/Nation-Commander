@@ -1470,10 +1470,8 @@ export class Simulation {
     const fail = (error: string) => ({ cells: [], stone: 0, usd: 0, error });
     if (cells.length > ROAD.maxCells) return fail(`Traçado longo demais: até ${ROAD.maxCells} células por vez`);
     const engineers = this.units.filter((u) => u.owner === slot && u.type === 'engineer' && u.hp > 0);
-    let prev: Cell | null = null;
+    // células soltas valem (o jogador marca célula por célula ou arrasta um caminho)
     for (const c of cells) {
-      if (prev && Math.max(Math.abs(c.cx - prev.cx), Math.abs(c.cy - prev.cy)) !== 1) return fail('O traçado precisa ser contínuo');
-      prev = c;
       if (!this.grid.inBounds(c.cx, c.cy)) return fail('Fora do mapa');
       const i = c.cy * this.map.width + c.cx;
       const t = this.map.terrain[i]!;

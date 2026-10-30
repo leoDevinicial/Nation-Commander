@@ -148,7 +148,7 @@ export function GameScreen() {
       if (e.code === 'F10') {
         e.preventDefault();
         setMenuOpen((v) => !v);
-      } else if (e.code === 'Enter' && !(e.target instanceof HTMLInputElement)) {
+      } else if (e.code === 'Enter' && !(e.target instanceof HTMLInputElement) && useHudStore.getState().mode.kind !== 'road') {
         setChatOpen(true);
       } else if (e.code === 'KeyG' && !(e.target instanceof HTMLInputElement)) {
         const st = useNationalStore.getState();
