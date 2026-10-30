@@ -504,7 +504,7 @@ export class GameRuntime {
       // caravanas internas usam o mesmo caminhão dos comboios rodoviários
       const caravans = (s.caravans ?? [])
         .filter((c) => c.state !== 'destroyed')
-        .map((c) => ({ id: CARAVAN_ID_BASE + c.id, contractId: -1, mode: 'road' as const, state: c.state === 'moving' ? ('moving' as const) : ('loading' as const), x: c.x, y: c.y, heading: c.heading, seller: c.owner, buyer: c.owner }));
+        .map((c) => ({ id: CARAVAN_ID_BASE + c.id, mode: 'caravan' as const, state: c.state === 'moving' ? ('moving' as const) : ('loading' as const), x: c.x, y: c.y, heading: c.heading, seller: c.owner, buyer: c.owner }));
       this.cargo.update([...(s.trade?.shipments ?? []), ...caravans], this.cameraCtl.target);
       const mine = (s.caravans ?? []).filter((c) => c.owner === this.mySlot).map((c) => ({ cityId: c.cityId, state: c.state, to: c.to, income: c.income, waitSeconds: c.waitSeconds }));
       if (JSON.stringify(mine) !== JSON.stringify(useHudStore.getState().caravans)) useHudStore.getState().set({ caravans: mine });

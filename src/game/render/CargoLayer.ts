@@ -6,9 +6,13 @@ import { cargoVehicle } from './models/logistics.ts';
 
 /** Máximo de veículos desenhados ao mesmo tempo (os mais próximos da câmera). */
 const MAX_VEHICLES = 24;
-const ALTITUDE = { road: 0, rail: 0, sea: 0.05, air: 3.2 } as const;
+const ALTITUDE = { road: 0, rail: 0, sea: 0.05, air: 3.2, caravan: 0 } as const;
 
-type Mode = ShipmentView['mode'];
+/** Modal do comércio ou caminhão-baú das caravanas internas. */
+type Mode = ShipmentView['mode'] | 'caravan';
+
+/** O que a camada desenha: um embarque do comércio ou uma caravana interna. */
+export type CargoItem = Pick<ShipmentView, 'id' | 'state' | 'x' | 'y' | 'heading' | 'seller' | 'buyer'> & { mode: Mode };
 
 interface Tracked {
   group: THREE.Group;
@@ -42,7 +46,7 @@ export class CargoLayer {
   private routeLine: THREE.Line | null = null;
   private routeFor: number | null = null;
 
-  update(shipments: ShipmentView[], camTarget: THREE.Vector3): void {
+  update(shipments: CargoItem[], camTarget: THREE.Vector3): void {
     const onMap = shipments.filter((s) => s.state === 'moving' || s.state === 'loading' || s.state === 'waiting_capacity');
     onMap.sort((a, b) => Math.hypot(a.x - camTarget.x, a.y - camTarget.z) - Math.hypot(b.x - camTarget.x, b.y - camTarget.z));
     const shown = new Set(onMap.slice(0, MAX_VEHICLES).map((s) => s.id));
