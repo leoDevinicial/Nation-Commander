@@ -2602,11 +2602,13 @@ export class GameRuntime {
                 ? attacker.visual.modelKey === unitModelKey('mobile_aa', 4)
                   ? 'aa_twin'
                   : 'aa_gun'
-                : attacker.visual.type === 'tank' || attacker.visual.type === 'mbt'
-                  ? 'tank_gun'
-                  : attacker.visual.type === 'rocket_artillery'
-                    ? 'cannon'
-                    : 'rifle'
+                : attacker.visual.type === 'mbt'
+                  ? 'mbt_gun'
+                  : attacker.visual.type === 'tank'
+                    ? 'tank_gun'
+                    : attacker.visual.type === 'rocket_artillery'
+                      ? 'cannon'
+                      : 'rifle'
           : 'tower';
         audio.playAt(sound, e.from.x, e.from.y);
         break;

@@ -20,7 +20,7 @@ export type Volumes = Record<Channel | 'master', number>;
 export const DEFAULT_VOLUMES: Volumes = { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 };
 
 export type UiSound = 'click' | 'confirm' | 'error' | 'alert' | 'success' | 'hold';
-export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'tank_gun' | 'gatling';
+export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'mbt_gun' | 'tank_gun' | 'gatling';
 export type MissileCue = 'prepare' | 'armed' | 'authorize';
 
 /** Som de trabalho de cada edifício (os demais usam o zumbido genérico). */
@@ -60,6 +60,7 @@ const PRIORITY: Record<CombatSound, number> = {
   flak: 2,
   aa_gun: 3,
   aa_twin: 3,
+  mbt_gun: 3,
   gatling: 3,
   tank_gun: 3,
   cannon: 2,
@@ -75,7 +76,7 @@ const PRIORITY: Record<CombatSound, number> = {
 };
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
-const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, aa_gun: 0.45, aa_twin: 0.4, gatling: 0.5, tank_gun: 0.18 };
+const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.5, tank_gun: 0.18 };
 
 /**
  * Atenuação e panorâmica de um ponto do mapa para quem olha `L` (ponto da câmera, distância e giro).
@@ -416,7 +417,11 @@ export class AudioService {
         end = burst('lowpass', 150, 0.5, 0.12, 0.32, 1.8, tail + 0.7);
         break;
       }
-      case 'aa_twin': {
+      case 'aa_twin':
+      case 'mbt_gun': {
+        // o Tanque Moderno usa a mesma receita com um disparo só, mais grave (canhão de calibre maior)
+        const shots = sound === 'mbt_gun' ? 1 : 2;
+        const pitch = sound === 'mbt_gun' ? 0.8 : 1;
         // canhões gêmeos de 30 mm (antiaérea do Futuro Próximo): dois disparos pesados e separados, um de cada cano.
         // Cada um tem cinco camadas que chegam juntas e somem em tempos diferentes:
         //   1. estalo supersônico: o "crack" seco e muito brilhante do projétil rompendo a barreira do som;
@@ -450,11 +455,11 @@ export class AudioService {
         blastBand.Q.value = 0.55;
         blast.connect(blastBand).connect(mix);
         const gap = 0.2 + Math.random() * 0.025;
-        for (let i = 0; i < 2; i++) {
+        for (let i = 0; i < shots; i++) {
           const at = t + i * gap;
           // o segundo cano: um pouco mais grave e um fio mais fraco (nada soa colado)
           const k = i === 0 ? 1 : 0.93;
-          const f = i === 0 ? 1 : 0.91;
+          const f = (i === 0 ? 1 : 0.91) * pitch;
           // 1. estalo supersônico (duas camadas: o pico e o brilho)
           burst('highpass', 3200 * f, 0.5, 0.0002, 2.0 * k, 0.014, at, mix);
           burst('bandpass', 5200 * f, 0.8, 0.0003, 1.2 * k, 0.022, at, mix);
@@ -473,7 +478,7 @@ export class AudioService {
           thump(310, 190, 0.001, 0.28 * k, 0.045, at + 0.052, 'square', mix);
         }
         // eco do terreno: o estrondo volta abafado de longe, duas vezes, e rola até sumir
-        const tail = t + gap;
+        const tail = t + gap * (shots - 1);
         burst('lowpass', 480, 0.6, 0.02, 0.32, 0.45, tail + 0.36, mix);
         thump(64, 30, 0.015, 0.35, 0.5, tail + 0.36, 'sine', mix);
         burst('lowpass', 300, 0.5, 0.05, 0.24, 0.9, tail + 0.7, mix);
