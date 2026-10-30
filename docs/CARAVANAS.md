@@ -46,6 +46,11 @@ A IA liga cada prefeitura pronta ao QG com a mesma ferramenta, a mesma regra e o
 - **Momento:** só quando não está guardando recursos para algo mais urgente (era, Centro de Pesquisa, QG da era 2, obra
   do plano esperando material), sem ameaça perto da base, com pedra suficiente para manter uma reserva de 80 depois da
   obra e no máximo uma obra de estrada a cada 20 s.
+- **Produção:** com as cidades ligadas, liga também as coletas e usinas sem estrada (+15% de produção, ver
+  [`ESTRADAS_ENGENHARIA.md`](ESTRADAS_ENGENHARIA.md)), a mais produtiva primeiro, só em trechos de até 10 células novas e
+  com 200 de pedra de reserva.
+- **Plantações:** o traçado não passa por células já exploradas por alguma coleta e prefere planície (custo 1) a solo
+  fértil livre (custo 3).
 - **Limite:** a IA não usa engenheiros para pavimentar fora do território. Se o único desvio possível passar por terra
   sem dono, aquela prefeitura fica sem estrada.
 

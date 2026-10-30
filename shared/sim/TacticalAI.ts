@@ -107,6 +107,9 @@ export const AI_COUNTER_GROUP = 5;
 export const AI_ROAD_COOLDOWN_TICKS = TICK_RATE * 20;
 /** Pedra que a IA mantém depois de pagar uma estrada (para obras e defesas). */
 export const AI_ROAD_STONE_RESERVE = 80;
+/** Estrada até uma coleta ou usina (+15% de produção): só trechos curtos e com mais pedra de folga. */
+export const AI_ROAD_PRODUCTION_MAX_CELLS = 10;
+export const AI_ROAD_PRODUCTION_RESERVE = 200;
 
 /** Força aproximada de uma unidade: dano por segundo × vida (raiz, para ficar na escala do custo). */
 export function unitStrength(u: Unit): number {
@@ -899,8 +902,9 @@ export class TacticalAI {
 
   /**
    * Liga cada prefeitura pronta ao QG por estrada (uma obra por vez, até 40 células, a partir do QG),
-   * com a mesma regra e o mesmo custo do jogador. Espera quando há ameaça perto da base ou quando a
-   * estrada deixaria a pedra abaixo da reserva.
+   * com a mesma regra e o mesmo custo do jogador. Com as cidades ligadas, liga também as coletas e
+   * usinas próximas (+15% de produção), só em trechos curtos e com mais pedra de folga. Espera quando
+   * há ameaça perto da base ou quando a estrada deixaria a pedra abaixo da reserva.
    */
   private planRoads(sim: Simulation, hq: Building, mine: Building[], budget: Stockpile, take: (c: Cost) => boolean, cmds: Command[]): void {
     if (sim.tick - this.lastRoadTick < AI_ROAD_COOLDOWN_TICKS) return;
@@ -921,25 +925,48 @@ export class TacticalAI {
       this.lastRoadTick = sim.tick;
       return;
     }
+    // cidades ligadas: coletas e usinas sem estrada (as que mais produzem primeiro), por trechos curtos
+    if (this.nearestThreat(sim, mine)) return;
+    const producers = mine
+      .filter((b) => (BUILDINGS[b.type].gather || BUILDINGS[b.type].process) && b.progress >= 1 && b.hp > 0 && b.status !== 'depleted' && !sim.roadLinked(b))
+      .sort((a, b) => sim.buildingRate(b) - sim.buildingRate(a) || a.id - b.id);
+    const W = sim.map.width;
+    for (const b of producers) {
+      const route = this.roadRoute(sim, b, hq);
+      if (!route) continue;
+      const fresh = route.filter((c) => sim.map.terrain[c.cy * W + c.cx] !== Terrain.Road);
+      if (!fresh.length || fresh.length > AI_ROAD_PRODUCTION_MAX_CELLS) continue;
+      const stone = fresh.length * ROAD.stonePerCell;
+      if (budget.stone - stone < AI_ROAD_PRODUCTION_RESERVE) return;
+      if (sim.roadPlan(this.slot, fresh).error) continue;
+      if (!take({ stone })) return;
+      cmds.push({ type: 'build_road', cells: fresh });
+      this.lastRoadTick = sim.tick;
+      return;
+    }
   }
 
   /**
    * Traçado de estrada entre dois edifícios (Dijkstra na grade, vizinhas norte/sul/leste/oeste): sai
    * de uma célula colada ao QG e chega a uma colada à prefeitura. Estrada existente quase não custa
-   * (é reaproveitada); planície e solo fértil livres no próprio território custam 1; água, rocha,
-   * floresta, lama, minério, construções e território alheio ficam de fora (o traçado desvia).
+   * (é reaproveitada); planície livre no próprio território custa 1 e solo fértil livre, 3; água, rocha,
+   * floresta, lama, minério, construções, plantações e território alheio ficam de fora (o traçado desvia).
    */
   private roadRoute(sim: Simulation, from: Building, to: Building): Cell[] | null {
     const W = sim.map.width;
     const H = sim.map.height;
     const T = sim.map.terrain;
+    // células já exploradas por alguma coleta (a plantação de uma fazenda) não viram estrada
+    const claimed = new Set<number>();
+    for (const b of sim.buildings) for (const i of b.claims) claimed.add(i);
     const stepCost = (i: number): number => {
       const t = T[i];
       if (t === Terrain.Road) return 0.2;
       if (t !== Terrain.Plains && t !== Terrain.Fertile) return Infinity;
-      if (sim.territory[i] !== this.slot) return Infinity;
+      if (sim.territory[i] !== this.slot || claimed.has(i)) return Infinity;
       if (sim.grid.occupant(i % W, Math.floor(i / W)) !== 0) return Infinity;
-      return 1;
+      // solo fértil livre vale uma fazenda futura: só se não houver planície por perto
+      return t === Terrain.Fertile ? 3 : 1;
     };
     const ring = (b: Building): number[] => {
       const size = BUILDINGS[b.type].size;

@@ -47,11 +47,23 @@ A estrada de terra que o mapa gera conta como vizinha: o asfalto encosta nela se
 | Manutenção | 0,004 suprimento/s por célula |
 | Efeito | tropas mais rápidas (o terreno Estrada já valia 1,3× e o A* já preferia estradas), comboios rodoviários do comércio e caravanas internas ([`CARAVANAS.md`](CARAVANAS.md)) 30% mais rápidos sobre a estrada |
 | Aprovação | moradias (Casa e Prédio Residencial) encostadas numa estrada formam o "bairro pavimentado": até +4 pontos com todas ligadas |
+| Produção | coletas (fazenda, serraria, pedreira, mina, poço), Refinaria e Siderúrgica ligadas por estrada contínua ao Centro de Comando ou a uma prefeitura própria produzem **+15%** (`ROAD.productionMul`); o painel do edifício mostra se está ligado |
+| Caravanas | só andam por estrada contínua entre o QG e a prefeitura ([`CARAVANAS.md`](CARAVANAS.md)) |
 
 As estradas entram no salvamento e vão para os clientes junto com o território. O cliente desenha as peças de asfalto,
 limpa o solo embaixo (`TerrainHandle.repaint`) e tira a vegetação de cima da estrada.
 
 A estrada vale para os dois lados: o inimigo em guerra também a usa.
+
+**Ligação por estrada** (caravanas e bônus de produção, `roadNetwork` e `roadLink` em `shared/sim/caravans.ts`): o
+edifício precisa encostar (inclusive na diagonal) numa célula de estrada, e essa estrada precisa chegar ao QG ou a uma
+prefeitura pronta do dono por células de estrada vizinhas pelo norte, sul, leste ou oeste, sem atravessar território
+de quem está em guerra com ele. Vale a estrada do jogador e a de terra que o mapa gera. A rede é recalculada a cada
+segundo de jogo e quando estradas ou fronteiras mudam.
+
+**IA:** liga as prefeituras ao QG e, depois, as coletas e usinas mais produtivas, só em trechos de até 10 células novas e
+deixando 200 de pedra de reserva. O traçado evita plantações e prefere planície a solo fértil (ver
+[`CARAVANAS.md`](CARAVANAS.md)).
 
 ## Engenheiro de Combate
 

@@ -57,6 +57,8 @@ export interface BuildingSnapshot {
   /** Só para edifícios próprios: trabalho, situação, estoque e depósito explorado. */
   workers?: number;
   workerTarget?: number;
+  /** Produção ligada por estrada ao QG ou a uma prefeitura (+15%); só para o dono, em coletas e usinas. */
+  roadLinked?: boolean;
   status?: BuildingStatus;
   /** Produção atual por segundo (edifícios de coleta). */
   rate?: number;
@@ -348,6 +350,7 @@ function ownBuildingDetail(sim: Simulation, b: Parameters<Simulation['buildingRa
     ...(sim.fx(b).workers > 0 ? { workers: b.workers, workerTarget: b.workerTarget } : {}),
     status: b.status,
     ...(def.gather ? { rate: r2(b.status === 'ok' ? sim.buildingRate(b) : 0) } : {}),
+    ...((def.gather || def.process) && b.progress >= 1 ? { roadLinked: sim.roadLinked(b) } : {}),
     ...(b.type === 'oil_tank' ? { stored: r2(b.stored) } : {}),
     ...(d ? { deposit: { remaining: Math.max(0, Math.round(d.remaining)), initial: d.initial, size: d.size, maxSites: d.maxSites } } : {}),
   };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CARAVAN, TICK_RATE, Terrain } from '../sim/config.ts';
+import { CARAVAN, ROAD, TICK_RATE, Terrain } from '../sim/config.ts';
 import { caravanIncome, roadLink } from '../sim/caravans.ts';
 import { Simulation } from '../sim/Simulation.ts';
 import { FogMemory, makeSnapshot } from '../sim/snapshot.ts';
@@ -178,5 +178,62 @@ describe('IA: estradas até as prefeituras', () => {
     const { sim, ai } = aiSetup();
     sim.players[0]!.resources.stone = 60;
     expect(roadCmds(ai.think(sim))).toHaveLength(0);
+  });
+});
+
+describe('Produção ligada por estrada (+15%)', () => {
+  // fazenda colada à estrada da linha 5 (células 10..11, linhas 6..7) com solo fértil embaixo dela
+  function prodSetup(road: boolean) {
+    const map = flatMap(40, (set) => {
+      if (road) for (const c of ROAD_ROW) set(c.cx, c.cy, Terrain.Road);
+      for (let cy = 8; cy <= 10; cy++) for (let cx = 9; cx <= 12; cx++) set(cx, cy, Terrain.Fertile);
+    });
+    const sim = new Simulation({ map, playerCount: 2, startingUnits: [] });
+    const farm = sim.addBuilding('farm', 0, { cx: 10, cy: 6 }, 1);
+    farm.workers = sim.fx(farm).workers;
+    sim.step();
+    return { sim, farm };
+  }
+
+  it('coleta ligada ao QG por estrada produz 15% a mais; sem ligação, não', () => {
+    const linked = prodSetup(true);
+    const loose = prodSetup(false);
+    expect(linked.sim.roadLinked(linked.farm)).toBe(true);
+    expect(loose.sim.roadLinked(loose.farm)).toBe(false);
+    expect(loose.sim.buildingRate(loose.farm)).toBeGreaterThan(0);
+    expect(linked.sim.buildingRate(linked.farm) / loose.sim.buildingRate(loose.farm)).toBeCloseTo(ROAD.productionMul, 5);
+  });
+
+  it('a ligação pode ser por uma prefeitura, e a estrada cortada tira o bônus', () => {
+    const { sim, farm } = prodSetup(true);
+    // corta a estrada entre o QG e a fazenda: sem prefeitura do lado de lá, perde o bônus
+    sim.map.terrain[5 * 40 + 6] = Terrain.Plains;
+    sim.grid.terrain[5 * 40 + 6] = Terrain.Plains;
+    sim.territoryVersion++;
+    expect(sim.roadLinked(farm)).toBe(false);
+    sim.addBuilding('city_hall', 0, { cx: 24, cy: 6 }, 1);
+    sim.territoryVersion++;
+    expect(sim.roadLinked(farm)).toBe(true);
+    // o dono vê o estado no painel; usina também conta
+    const snap = makeSnapshot(sim, [], { slot: 0, memory: new FogMemory() });
+    expect(snap.buildings.find((b) => b.id === farm.id)!.roadLinked).toBe(true);
+  });
+
+  it('IA liga uma coleta próxima por estrada, sem pavimentar a plantação', () => {
+    const map = flatMap(40, (set) => {
+      for (let cy = 8; cy <= 10; cy++) for (let cx = 9; cx <= 12; cx++) set(cx, cy, Terrain.Fertile);
+    });
+    const sim = new Simulation({ map, playerCount: 2, startingUnits: [] });
+    const p = sim.players[0]!;
+    for (const r of Object.keys(p.resources) as (keyof typeof p.resources)[]) p.resources[r] = 3000;
+    const farm = sim.addBuilding('farm', 0, { cx: 8, cy: 5 }, 1);
+    sim.step();
+    const cmds = new TacticalAI(0).think(sim).filter((c) => c.type === 'build_road');
+    expect(cmds).toHaveLength(1);
+    const cells = (cmds[0] as { cells: { cx: number; cy: number }[] }).cells;
+    expect(cells.length).toBeLessThanOrEqual(10);
+    for (const c of cells) expect(farm.claims).not.toContain(c.cy * 40 + c.cx);
+    expect(sim.applyCommand(0, cmds[0]!)).toBeNull();
+    expect(sim.roadLinked(farm)).toBe(true);
   });
 });

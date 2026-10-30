@@ -686,6 +686,8 @@ export const ROAD = {
   engineerRange: 6,
   /** Velocidade dos comboios rodoviários sobre a estrada. */
   convoyMul: 1.3,
+  /** Coletas, Refinaria e Siderúrgica ligadas por estrada ao QG ou a uma prefeitura própria produzem mais. */
+  productionMul: 1.15,
 };
 
 /**

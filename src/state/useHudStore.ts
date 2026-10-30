@@ -46,6 +46,8 @@ export interface SelectedBuildingInfo {
   workerTarget: number;
   status: BuildingStatus;
   rate: number;
+  /** Produção ligada por estrada ao QG ou a uma prefeitura (null: não se aplica). */
+  roadLinked: boolean | null;
   stored: number | null;
   deposit: { remaining: number; initial: number; size: DepositSize; maxSites: number } | null;
   /** Pesquisa militar em andamento (Centro de Pesquisa). */

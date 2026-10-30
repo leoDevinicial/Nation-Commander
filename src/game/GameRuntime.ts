@@ -1765,6 +1765,7 @@ export class GameRuntime {
             workerTarget: b.snap.workerTarget ?? 0,
             status: b.snap.status ?? 'ok',
             rate: b.snap.rate ?? 0,
+            roadLinked: b.snap.roadLinked ?? null,
             stored: b.snap.stored ?? null,
             deposit: b.snap.deposit ?? null,
             research: b.snap.research ?? null,

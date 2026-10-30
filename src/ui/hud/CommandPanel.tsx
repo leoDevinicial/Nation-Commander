@@ -1079,6 +1079,16 @@ function BuildingInfo({ b, runtime }: { b: NonNullable<ReturnType<typeof useHudS
           {def.gather.terrain !== null && <span className="text-ink-400">· {b.claims} células</span>}
         </div>
       )}
+      {done && b.roadLinked !== null && (
+        <div
+          className={`text-[11px] ${b.roadLinked ? 'text-signal-green' : 'text-ink-400'}`}
+          title={`Coletas, Refinaria e Siderúrgica ligadas por estrada contínua ao Centro de Comando ou a uma prefeitura produzem ${Math.round((ROAD.productionMul - 1) * 100)}% a mais.`}
+        >
+          {b.roadLinked
+            ? `▤ Ligada por estrada: +${Math.round((ROAD.productionMul - 1) * 100)}% de produção`
+            : `▤ Sem estrada até o QG ou uma prefeitura: pavimente para +${Math.round((ROAD.productionMul - 1) * 100)}% de produção`}
+        </div>
+      )}
       {b.deposit && (
         <div className="text-[11px] text-ink-400">
           Depósito {DEPOSIT_SIZE_LABELS[b.deposit.size]} (até {b.deposit.maxSites} {b.deposit.maxSites === 1 ? 'instalação' : 'instalações'}): restam{' '}

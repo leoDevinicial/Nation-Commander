@@ -211,7 +211,7 @@ export class CaravanSystem {
 }
 
 /** Células de estrada coladas ao edifício (inclusive na diagonal), como no "bairro pavimentado". */
-function roadRing(sim: Simulation, b: Building): number[] {
+export function roadRing(sim: Simulation, b: Building): number[] {
   const size = BUILDINGS[b.type].size;
   const W = sim.map.width;
   const out: number[] = [];
@@ -272,4 +272,48 @@ export function roadLink(sim: Simulation, owner: Slot, from: Building, to: Build
     }
   }
   return null;
+}
+
+/**
+ * Rede de estradas do dono a partir do Centro de Comando e das prefeituras prontas: as células de
+ * estrada alcançáveis por elas (vizinhas norte/sul/leste/oeste), sem atravessar território de quem
+ * está em guerra com o dono. Um edifício encostado numa dessas células está "ligado por estrada".
+ */
+export function roadNetwork(sim: Simulation, owner: Slot): Set<number> {
+  const W = sim.map.width;
+  const H = sim.map.height;
+  const free = (i: number) => {
+    const o = sim.territory[i] ?? -1;
+    return !(o >= 0 && o !== owner && sim.hostile(owner, o));
+  };
+  const seen = new Set<number>();
+  const queue: number[] = [];
+  for (const b of sim.buildings) {
+    if (b.owner !== owner || b.hp <= 0 || b.progress < 1 || (b.type !== 'hq' && b.type !== 'city_hall')) continue;
+    for (const i of roadRing(sim, b))
+      if (!seen.has(i) && free(i)) {
+        seen.add(i);
+        queue.push(i);
+      }
+  }
+  for (let q = 0; q < queue.length; q++) {
+    const i = queue[q]!;
+    const cx = i % W;
+    const cy = Math.floor(i / W);
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      const nx = cx + dx;
+      const ny = cy + dy;
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+      const n = ny * W + nx;
+      if (seen.has(n) || sim.map.terrain[n] !== Terrain.Road || !free(n)) continue;
+      seen.add(n);
+      queue.push(n);
+    }
+  }
+  return seen;
 }

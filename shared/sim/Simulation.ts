@@ -3,7 +3,7 @@ import { RANKS, rankDamageMul, rankFor, rankHpMul } from './veterancy.ts';
 import { countryBonus, type CountryBonus } from './countryBonus.ts';
 import { ERA_CANCEL_REFUND, ERAS, buildingEra, type Era } from './eras.ts';
 import { MineSystem, type MineSave } from './mines.ts';
-import { CaravanSystem, type CaravanSave } from './caravans.ts';
+import { CaravanSystem, roadNetwork, roadRing, type CaravanSave } from './caravans.ts';
 import { decodeNonFinite, encodeNonFinite } from './json.ts';
 import {
   BUILDINGS,
@@ -753,6 +753,26 @@ export class Simulation {
    * Produção nominal por segundo de um edifício nas condições atuais (trabalhadores, fome,
    * território, depósito). Não considera estoque cheio — esse caso aparece no `status`.
    */
+  /** Rede de estradas de cada dono (refeita a cada segundo de jogo e quando estradas ou fronteiras mudam). */
+  private roadNet: { tick: number; version: number; nets: Map<Slot, Set<number>> } | null = null;
+
+  /**
+   * Edifício de produção (coleta, Refinaria, Siderúrgica) ligado por estrada contínua ao Centro de
+   * Comando ou a uma prefeitura do dono: produz `ROAD.productionMul` vezes mais.
+   */
+  roadLinked(b: Building): boolean {
+    const def = BUILDINGS[b.type];
+    if (!def.gather && !def.process) return false;
+    if (!this.roadNet || this.tick - this.roadNet.tick >= TICK_RATE || this.roadNet.version !== this.territoryVersion) this.roadNet = { tick: this.tick, version: this.territoryVersion, nets: new Map() };
+    let net = this.roadNet.nets.get(b.owner);
+    if (!net) {
+      net = roadNetwork(this, b.owner);
+      this.roadNet.nets.set(b.owner, net);
+    }
+    if (!net.size) return false;
+    return roadRing(this, b).some((i) => net.has(i));
+  }
+
   buildingRate(b: Building): number {
     const def = BUILDINGS[b.type];
     if (b.progress < 1 || !def.gather || b.unpaid) return 0;
@@ -763,7 +783,8 @@ export class Simulation {
     const cells = def.gather.terrain === null ? 1 : b.claims.filter((i) => this.territory[i] === b.owner).length;
     const hydro = this.hasProject(b.owner, 'hydro_dam') ? PROJECT_FX.hydroGatherMul : 1;
     const school = this.serviceCovers(b.owner, 'education', b.pos) ? SERVICES.educationGatherMul : 1;
-    return gatherRate(b.type, cells) * this.fx(b).rateMul * eff * (p.modifiers.gatherMul ?? 1) * (this.bonusOf(b.owner).gatherMul?.[def.gather.resource] ?? 1) * hydro * school;
+    const road = this.roadLinked(b) ? ROAD.productionMul : 1;
+    return gatherRate(b.type, cells) * this.fx(b).rateMul * eff * (p.modifiers.gatherMul ?? 1) * (this.bonusOf(b.owner).gatherMul?.[def.gather.resource] ?? 1) * hydro * school * road;
   }
 
   /**
@@ -2033,7 +2054,7 @@ export class Simulation {
         continue;
       }
       this.setStatus(b, 'ok');
-      b.acc += proc.rate * (need > 0 ? b.workers / need : 1) * TICK_SECONDS;
+      b.acc += proc.rate * (need > 0 ? b.workers / need : 1) * (this.roadLinked(b) ? ROAD.productionMul : 1) * TICK_SECONDS;
       const whole = Math.floor(b.acc + 1e-9);
       if (whole <= 0) continue;
       b.acc -= whole;

@@ -447,7 +447,7 @@ como na escolha entre os modos paridade e escala real.
 | Lote 1, §3.1 / lote 2, item 7 — eras (avanço, liberação de tropas, construções e níveis; aparência por era) | Feito | `shared/sim/eras.ts`, `docs/ERAS.md` |
 | Lote 2, item 13 — Grandes Projetos Nacionais (usina nuclear, rede 5G, hidrelétrica, centro financeiro) | Feito | `docs/GRANDES_PROJETOS_E_ESPACO.md` |
 | Lote 2, item 13.1 — Programa Espacial (foguete, satélite sem névoa, satélite no globo) | Feito | `docs/GRANDES_PROJETOS_E_ESPACO.md` |
-| Lote 3, §1 — estradas do jogador (arrasto com prévia, pedra + verba de obras, manutenção, comboios mais rápidos, bairro pavimentado) | Feito | `docs/ESTRADAS_ENGENHARIA.md` |
+| Lote 3, §1 — estradas do jogador (peças de asfalto; marcar célula a célula ou arrastar e confirmar; pedra + verba de obras, manutenção, tropas e comboios mais rápidos, bairro pavimentado, +15% de produção para coletas e usinas ligadas ao QG ou a uma prefeitura) | Feito | `docs/ESTRADAS_ENGENHARIA.md` |
 | Lote 1, §4 — cadeias produtivas (Refinaria → combustível, Siderúrgica → aço, substituindo parte do custo) | Feito | `docs/CADEIAS_SERVICOS_VITORIAS.md` |
 | Lote 2, item 6 — caravanas internas QG ↔ prefeitura (só andam por estrada contínua; renda por chegada proporcional à rota, emboscadas, reposição; IA traça e constrói as estradas com Dijkstra, desviando de obstáculos) | Feito | `docs/CARAVANAS.md` |
 | Lote 1, §4 — serviços com raio de cobertura (Hospital, Escola, Delegacia) | Feito | `docs/CADEIAS_SERVICOS_VITORIAS.md` |
