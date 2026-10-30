@@ -1,4 +1,4 @@
-import { BUILDINGS, buildingCost, emptyStockpile, type Terrain, CITIZEN, GOODS_TYPES, MINE, OIL_TANK_RANGE, emptyGoods, RECRUIT, type ResourceType, POP_ABSOLUTE_CAP, PREPARATION_TICKS, RESOURCE_TYPES, TICK_RATE, UNITS, MILITARY_RESEARCH, militaryResearchBlocker, canAfford, type MilitaryResearchId, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
+import { BUILDINGS, buildingCost, emptyStockpile, Terrain, ROAD, CITIZEN, GOODS_TYPES, MINE, OIL_TANK_RANGE, emptyGoods, RECRUIT, type ResourceType, POP_ABSOLUTE_CAP, PREPARATION_TICKS, RESOURCE_TYPES, TICK_RATE, UNITS, MILITARY_RESEARCH, militaryResearchBlocker, canAfford, type MilitaryResearchId, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
 import { claimableCells, claimedBy } from './gathering.ts';
 import { checkProduce } from './production.ts';
 import type { Command } from './commands.ts';
@@ -11,6 +11,7 @@ import { DIPLO } from '../strategic/Diplomacy.ts';
 import { DIFFICULTY } from './difficulty.ts';
 import { ERAS, buildingEra, type Era } from './eras.ts';
 import { AIRCRAFT, MISSILE, type AircraftType } from './air.ts';
+import { roadLink } from './caravans.ts';
 
 /** Com que frequência a IA reavalia a situação. */
 export const AI_THINK_TICKS = TICK_RATE;
@@ -102,6 +103,10 @@ export const AI_DEFENSE_RATIO = 1.5;
 export const AI_COUNTER_FRESH_TICKS = TICK_RATE * 10;
 export const AI_COUNTER_COOLDOWN_TICKS = TICK_RATE * 20;
 export const AI_COUNTER_GROUP = 5;
+/** Estradas até as prefeituras (caravanas só andam por estrada): intervalo mínimo entre obras. */
+export const AI_ROAD_COOLDOWN_TICKS = TICK_RATE * 20;
+/** Pedra que a IA mantém depois de pagar uma estrada (para obras e defesas). */
+export const AI_ROAD_STONE_RESERVE = 80;
 
 /** Força aproximada de uma unidade: dano por segundo × vida (raiz, para ficar na escala do custo). */
 export function unitStrength(u: Unit): number {
@@ -132,6 +137,7 @@ export interface TacticalAISave {
   lastHarassTick?: number | null;
   lastReconTick?: number | null;
   lastStrikeTick?: number | null;
+  lastRoadTick?: number | null;
   scoutLeg?: number;
 }
 
@@ -155,6 +161,8 @@ export class TacticalAI {
   /** Últimas missões aéreas (reconhecimento e ataque). */
   private lastReconTick = -Infinity;
   private lastStrikeTick = -Infinity;
+  /** Última obra de estrada (para espaçar as obras). */
+  private lastRoadTick = -Infinity;
   /** País contra o qual a IA quer declarar guerra (lido e processado pelo servidor). */
   wantsWarWith: Slot | null = null;
 
@@ -175,6 +183,7 @@ export class TacticalAI {
       lastHarassTick: Number.isFinite(this.lastHarassTick) ? this.lastHarassTick : null,
       lastReconTick: Number.isFinite(this.lastReconTick) ? this.lastReconTick : null,
       lastStrikeTick: Number.isFinite(this.lastStrikeTick) ? this.lastStrikeTick : null,
+      lastRoadTick: Number.isFinite(this.lastRoadTick) ? this.lastRoadTick : null,
       scoutLeg: this.scoutLeg,
     };
   }
@@ -192,6 +201,7 @@ export class TacticalAI {
     this.lastHarassTick = s.lastHarassTick ?? -Infinity;
     this.lastReconTick = s.lastReconTick ?? -Infinity;
     this.lastStrikeTick = s.lastStrikeTick ?? -Infinity;
+    this.lastRoadTick = s.lastRoadTick ?? -Infinity;
     this.scoutLeg = s.scoutLeg ?? 0;
   }
 
@@ -450,6 +460,10 @@ export class TacticalAI {
         built = type;
         break;
       }
+
+    // --- estradas até as prefeituras (as caravanas só andam por estrada): fora das emergências, sem
+    // guardar recursos para algo mais urgente e com pedra de folga
+    if (!saving && !waitingFor) this.planRoads(sim, hq, mine, budget, take, cmds);
 
     // --- pesquisa militar: o centro pesquisa na ordem, antes das melhorias e das tropas; a produção usa o
     // que já foi liberado (com o centro ainda em obra, a primeira pesquisa já entra na reserva)
@@ -881,6 +895,132 @@ export class TacticalAI {
       cmds.push(spec ? { type: 'upgrade', buildingId: b.id, spec } : { type: 'upgrade', buildingId: b.id });
       return;
     }
+  }
+
+  /**
+   * Liga cada prefeitura pronta ao QG por estrada (uma obra por vez, até 40 células, a partir do QG),
+   * com a mesma regra e o mesmo custo do jogador. Espera quando há ameaça perto da base ou quando a
+   * estrada deixaria a pedra abaixo da reserva.
+   */
+  private planRoads(sim: Simulation, hq: Building, mine: Building[], budget: Stockpile, take: (c: Cost) => boolean, cmds: Command[]): void {
+    if (sim.tick - this.lastRoadTick < AI_ROAD_COOLDOWN_TICKS) return;
+    const cities = mine.filter((b) => b.type === 'city_hall' && b.progress >= 1 && b.hp > 0);
+    for (const city of cities) {
+      if (roadLink(sim, this.slot, hq, city)) continue;
+      if (this.nearestThreat(sim, mine)) return;
+      const route = this.roadRoute(sim, hq, city);
+      if (!route) continue;
+      const W = sim.map.width;
+      const fresh = route.filter((c) => sim.map.terrain[c.cy * W + c.cx] !== Terrain.Road).slice(0, ROAD.maxCells);
+      if (!fresh.length) continue;
+      const stone = fresh.length * ROAD.stonePerCell;
+      if (budget.stone - stone < AI_ROAD_STONE_RESERVE) return;
+      if (sim.roadPlan(this.slot, fresh).error) continue;
+      if (!take({ stone })) return;
+      cmds.push({ type: 'build_road', cells: fresh });
+      this.lastRoadTick = sim.tick;
+      return;
+    }
+  }
+
+  /**
+   * Traçado de estrada entre dois edifícios (Dijkstra na grade, vizinhas norte/sul/leste/oeste): sai
+   * de uma célula colada ao QG e chega a uma colada à prefeitura. Estrada existente quase não custa
+   * (é reaproveitada); planície e solo fértil livres no próprio território custam 1; água, rocha,
+   * floresta, lama, minério, construções e território alheio ficam de fora (o traçado desvia).
+   */
+  private roadRoute(sim: Simulation, from: Building, to: Building): Cell[] | null {
+    const W = sim.map.width;
+    const H = sim.map.height;
+    const T = sim.map.terrain;
+    const stepCost = (i: number): number => {
+      const t = T[i];
+      if (t === Terrain.Road) return 0.2;
+      if (t !== Terrain.Plains && t !== Terrain.Fertile) return Infinity;
+      if (sim.territory[i] !== this.slot) return Infinity;
+      if (sim.grid.occupant(i % W, Math.floor(i / W)) !== 0) return Infinity;
+      return 1;
+    };
+    const ring = (b: Building): number[] => {
+      const size = BUILDINGS[b.type].size;
+      const out: number[] = [];
+      for (let dy = -1; dy <= size; dy++)
+        for (let dx = -1; dx <= size; dx++) {
+          if (dx >= 0 && dx < size && dy >= 0 && dy < size) continue;
+          // os cantos diagonais não ligam pelas vizinhas norte/sul/leste/oeste do edifício
+          if ((dx === -1 || dx === size) && (dy === -1 || dy === size)) continue;
+          const cx = b.cell.cx + dx;
+          const cy = b.cell.cy + dy;
+          if (cx >= 0 && cy >= 0 && cx < W && cy < H && stepCost(cy * W + cx) < Infinity) out.push(cy * W + cx);
+        }
+      return out;
+    };
+    const goals = new Set(ring(to));
+    if (!goals.size) return null;
+    const best = new Float64Array(W * H).fill(Infinity);
+    const prev = new Int32Array(W * H).fill(-1);
+    // fila de prioridade (heap binário de [custo, célula])
+    const heap: [number, number][] = [];
+    const push = (c: number, i: number) => {
+      heap.push([c, i]);
+      for (let k = heap.length - 1; k > 0; ) {
+        const p = (k - 1) >> 1;
+        if (heap[p]![0] <= heap[k]![0]) break;
+        [heap[p], heap[k]] = [heap[k]!, heap[p]!];
+        k = p;
+      }
+    };
+    const pop = (): [number, number] => {
+      const top = heap[0]!;
+      const last = heap.pop()!;
+      if (heap.length) {
+        heap[0] = last;
+        for (let k = 0; ; ) {
+          const l = 2 * k + 1;
+          const r = l + 1;
+          let m = k;
+          if (l < heap.length && heap[l]![0] < heap[m]![0]) m = l;
+          if (r < heap.length && heap[r]![0] < heap[m]![0]) m = r;
+          if (m === k) break;
+          [heap[m], heap[k]] = [heap[k]!, heap[m]!];
+          k = m;
+        }
+      }
+      return top;
+    };
+    for (const i of ring(from)) {
+      best[i] = stepCost(i);
+      push(best[i]!, i);
+    }
+    while (heap.length) {
+      const [c, i] = pop();
+      if (c > best[i]!) continue;
+      if (goals.has(i)) {
+        const path: Cell[] = [];
+        for (let k = i; k !== -1; k = prev[k]!) path.push({ cx: k % W, cy: Math.floor(k / W) });
+        return path.reverse();
+      }
+      const cx = i % W;
+      const cy = Math.floor(i / W);
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ] as const) {
+        const nx = cx + dx;
+        const ny = cy + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const n = ny * W + nx;
+        const nc = c + stepCost(n);
+        if (nc < best[n]!) {
+          best[n] = nc;
+          prev[n] = i;
+          push(nc, n);
+        }
+      }
+    }
+    return null;
   }
 
   private nearestThreat(sim: Simulation, mine: Building[]): Entity | null {

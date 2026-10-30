@@ -1005,11 +1005,11 @@ function CaravanInfo({ cityId }: { cityId: number }) {
       ? `a caminho ${c.to === 'hq' ? 'do Centro de Comando' : 'da prefeitura'}${income}`
       : c.state === 'unloading'
         ? `descarregando${income}`
-        : c.state === 'blocked'
-          ? `sem rota (território inimigo no caminho); nova tentativa em ${c.waitSeconds ?? 0} s`
+        : c.state === 'no_road'
+          ? 'parada: falta uma estrada contínua até o Centro de Comando (ou ela passa por território inimigo em guerra)'
           : `destruída por forças inimigas; outra sai do Centro de Comando em ${c.waitSeconds ?? 0} s`;
   return (
-    <div className={`text-[11px] ${c.state === 'destroyed' || c.state === 'blocked' ? 'text-amber-300' : 'text-ink-400'}`} title="Rende mais com rota longa e chega mais rápido pela estrada. Tropas e torres inimigas destroem a caravana no caminho.">
+    <div className={`text-[11px] ${c.state === 'destroyed' || c.state === 'no_road' ? 'text-amber-300' : 'text-ink-400'}`} title="A caravana só anda por estrada: ligue a prefeitura ao Centro de Comando com uma estrada contínua (ferramenta Estrada). Rende mais com rota longa. Tropas e torres inimigas destroem a caravana no caminho.">
       🚚 Caravana: {text}
     </div>
   );

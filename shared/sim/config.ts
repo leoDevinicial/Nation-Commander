@@ -1126,7 +1126,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     storage: { supplies: 400, food: 200, wood: 200, stone: 200 },
     buildable: true,
     description:
-      'Funda uma cidade com o nome de uma cidade real do seu país: amplia bastante a fronteira, abriga 10, guarda recursos e rende suprimentos. Fica a pelo menos 10 células de outra prefeitura ou do QG. Se um inimigo a destruir, ele toma a cidade e os edifícios dela num raio de 8 células. Funciona como um QG secundário: pronta, forma cidadãos e abre o menu de construção. Mantém uma caravana indo e voltando até o Centro de Comando: cada chegada rende suprimentos (mais com rota longa; mais rápido pela estrada).',
+      'Funda uma cidade com o nome de uma cidade real do seu país: amplia bastante a fronteira, abriga 10, guarda recursos e rende suprimentos. Fica a pelo menos 10 células de outra prefeitura ou do QG. Se um inimigo a destruir, ele toma a cidade e os edifícios dela num raio de 8 células. Funciona como um QG secundário: pronta, forma cidadãos e abre o menu de construção. Ligada ao Centro de Comando por uma estrada contínua, mantém uma caravana indo e voltando por ela: cada chegada rende suprimentos (mais com rota longa).',
     hotkey: 'G',
   },
   nuclear_plant: {

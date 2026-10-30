@@ -119,6 +119,9 @@ npm test && npm run lint && npm run typecheck
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
+- **Caravanas só por estrada e IA construindo estradas** (`roadLink` em `shared/sim/caravans.ts`,
+   `TacticalAI.planRoads`/`roadRoute`): sem estrada contínua até o QG a caravana fica parada; a IA pavimenta com Dijkstra.
+- **Estradas em peças de asfalto** (`src/game/render/RoadLayer.ts`) e ferramenta marcar → confirmar (Construir/Enter).
 - **Caravanas internas** QG ↔ prefeitura (`shared/sim/caravans.ts`, `docs/CARAVANAS.md`): uma por prefeitura,
    renda por chegada proporcional à rota, 30% mais rápidas na estrada, emboscadas e reposição; caminhão no `CargoLayer`
    e situação no painel da prefeitura.

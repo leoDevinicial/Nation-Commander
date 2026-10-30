@@ -1,20 +1,22 @@
-import { CARAVAN, ROAD, TICK_RATE, Terrain } from './config.ts';
-import { findPath } from './pathfinding/AStar.ts';
+import { BUILDINGS, CARAVAN, ROAD, TICK_RATE, Terrain } from './config.ts';
 import type { Simulation } from './Simulation.ts';
 import { TRADE } from './trade.ts';
-import type { Building, EntityId, Slot, Vec2 } from './types.ts';
+import type { Building, Cell, EntityId, Slot, Vec2 } from './types.ts';
 
 /**
  * Caravanas internas (docs/CARAVANAS.md): cada prefeitura pronta mantém um caminhão de carga indo e
  * voltando até o Centro de Comando do mesmo dono, sem comando do jogador.
+ * - A caravana só anda por estrada: precisa de uma ligação contínua de células de estrada (a do
+ *   jogador ou a de terra do mapa) encostando no QG e na prefeitura. Sem ligação, fica parada.
  * - Cada chegada (no QG ou na prefeitura) rende suprimentos proporcionais ao comprimento da rota.
- * - A rota é refeita a cada viagem pelo pathfinding: estradas novas entram no caminho e
- *   território de quem está em guerra com o dono é evitado.
+ * - A rota é refeita a cada viagem: estradas novas entram no caminho e território de quem está em
+ *   guerra com o dono não é atravessado.
  * - Na estrada a caravana anda mais rápido (o mesmo bônus dos comboios do comércio).
  * - Tropas ou torres de quem está em guerra com o dono destroem a caravana no caminho; uma nova sai
  *   do QG depois de um tempo.
  */
-export type CaravanState = 'moving' | 'unloading' | 'blocked' | 'destroyed';
+/** `no_road`: sem estrada contínua (e livre de território inimigo em guerra) até a outra ponta. */
+export type CaravanState = 'moving' | 'unloading' | 'no_road' | 'destroyed';
 
 export interface Caravan {
   id: number;
@@ -65,7 +67,8 @@ export class CaravanSystem {
     if (!s) return;
     const c = JSON.parse(JSON.stringify(s)) as CaravanSave;
     this.nextId = c.nextId;
-    this.caravans = c.caravans;
+    // salvamentos antigos: o antigo estado de espera ('blocked') vira "sem estrada" e tenta de novo
+    this.caravans = c.caravans.map((x) => ((x.state as string) === 'blocked' ? { ...x, state: 'no_road' as const } : x));
   }
 
   /** Caravana da prefeitura (do dono atual), se houver. */
@@ -111,7 +114,7 @@ export class CaravanSystem {
     for (const city of cities) {
       if (this.caravans.some((c) => c.cityId === city.id)) continue;
       if (!this.sim.hqOf(city.owner)) continue;
-      const c: Caravan = { id: this.nextId++, owner: city.owner, cityId: city.id, to: 'city', path: [], pathLength: 0, travelled: 0, state: 'blocked', timer: 0, lastIncome: 0 };
+      const c: Caravan = { id: this.nextId++, owner: city.owner, cityId: city.id, to: 'city', path: [], pathLength: 0, travelled: 0, state: 'no_road', timer: 0, lastIncome: 0 };
       this.caravans.push(c);
       this.depart(c);
     }
@@ -123,12 +126,12 @@ export class CaravanSystem {
     return hq && city ? { hq, city } : null;
   }
 
-  /** Sai rumo à ponta `c.to`, com rota nova; sem rota, espera e tenta de novo. */
+  /** Sai rumo à ponta `c.to`, com rota nova pela estrada; sem ligação, espera e tenta de novo. */
   private depart(c: Caravan): void {
     const ends = this.endpoints(c);
-    const path = ends ? this.route(c.owner, c.to === 'city' ? ends.hq.pos : ends.city.pos, c.to === 'city' ? ends.city.pos : ends.hq.pos) : null;
+    const path = ends ? (c.to === 'city' ? this.route(c.owner, ends.hq, ends.city) : this.route(c.owner, ends.city, ends.hq)) : null;
     if (!path) {
-      c.state = 'blocked';
+      c.state = 'no_road';
       c.timer = CARAVAN.retrySeconds * TICK_RATE;
       if (ends) c.path = [{ ...(c.to === 'city' ? ends.hq.pos : ends.city.pos) }];
       c.travelled = 0;
@@ -142,29 +145,24 @@ export class CaravanSystem {
     c.timer = 0;
   }
 
-  /** Trajeto terrestre pelo pathfinding, evitando território de quem está em guerra com o dono. */
-  private route(owner: Slot, a: Vec2, b: Vec2): Vec2[] | null {
+  /** Trajeto pela estrada de `from` até `to`, ou null se não houver ligação (ver `roadLink`). */
+  private route(owner: Slot, from: Building, to: Building): Vec2[] | null {
+    const cells = roadLink(this.sim, owner, from, to);
+    if (!cells) return null;
     const g = this.sim.grid;
-    const start = g.nearestPassable(g.worldToCell(a), 4);
-    const goal = g.nearestPassable(g.worldToCell(b), 4);
-    if (!start || !goal) return null;
-    g.blocker = (cx, cy) => {
-      const o = this.sim.territoryOwner(cx, cy);
-      return o >= 0 && o !== owner && this.sim.hostile(owner, o);
-    };
-    try {
-      const cells = findPath(g, start, goal, { maxExpanded: g.width * g.height });
-      if (!cells) return null;
-      // um ponto a cada 3 células: o caminhão segue a via sem tremer
-      const pts = cells.filter((_, i) => i % 3 === 0 || i === cells.length - 1).map((cell) => g.cellCenter(cell));
-      return [{ ...a }, ...pts, { ...b }];
-    } finally {
-      g.blocker = null;
+    // um ponto a cada 2 células (e nas curvas): o caminhão segue a via sem tremer
+    const pts: Vec2[] = [];
+    for (let i = 0; i < cells.length; i++) {
+      const prev = cells[i - 1];
+      const next = cells[i + 1];
+      const turn = prev && next && (prev.cx - cells[i]!.cx !== cells[i]!.cx - next.cx || prev.cy - cells[i]!.cy !== cells[i]!.cy - next.cy);
+      if (i === 0 || i === cells.length - 1 || turn || i % 2 === 0) pts.push(g.cellCenter(cells[i]!));
     }
+    return [{ ...from.pos }, ...pts, { ...to.pos }];
   }
 
   private advance(c: Caravan): void {
-    if (c.state === 'destroyed' || c.state === 'blocked') {
+    if (c.state === 'destroyed' || c.state === 'no_road') {
       if (--c.timer > 0) return;
       if (c.state === 'destroyed') c.to = 'city';
       this.depart(c);
@@ -210,4 +208,68 @@ export class CaravanSystem {
     c.travelled = 0;
     this.sim.emitTrade({ type: 'caravan_lost', tick: this.sim.tick, owner: c.owner, cityId: c.cityId, city: (city && this.sim.cityName(city)) ?? 'Prefeitura', pos });
   }
+}
+
+/** Células de estrada coladas ao edifício (inclusive na diagonal), como no "bairro pavimentado". */
+function roadRing(sim: Simulation, b: Building): number[] {
+  const size = BUILDINGS[b.type].size;
+  const W = sim.map.width;
+  const out: number[] = [];
+  for (let dy = -1; dy <= size; dy++)
+    for (let dx = -1; dx <= size; dx++) {
+      if (dx >= 0 && dx < size && dy >= 0 && dy < size) continue;
+      const cx = b.cell.cx + dx;
+      const cy = b.cell.cy + dy;
+      if (sim.grid.inBounds(cx, cy) && sim.map.terrain[cy * W + cx] === Terrain.Road) out.push(cy * W + cx);
+    }
+  return out;
+}
+
+/**
+ * Ligação por estrada entre dois edifícios: o caminho mais curto (busca em largura, só pelas
+ * vizinhas norte/sul/leste/oeste) por células de estrada, saindo de uma célula colada a `from` e
+ * chegando a uma colada a `to`, sem atravessar território de quem está em guerra com o dono.
+ * Retorna as células do caminho ou null se não houver ligação.
+ */
+export function roadLink(sim: Simulation, owner: Slot, from: Building, to: Building): Cell[] | null {
+  const W = sim.map.width;
+  const H = sim.map.height;
+  const goals = new Set(roadRing(sim, to));
+  if (!goals.size) return null;
+  const free = (i: number) => {
+    const o = sim.territory[i] ?? -1;
+    return !(o >= 0 && o !== owner && sim.hostile(owner, o));
+  };
+  const prev = new Int32Array(W * H).fill(-2);
+  const queue: number[] = [];
+  for (const i of roadRing(sim, from)) {
+    if (!free(i) || prev[i] !== -2) continue;
+    prev[i] = -1;
+    queue.push(i);
+  }
+  for (let q = 0; q < queue.length; q++) {
+    const i = queue[q]!;
+    if (goals.has(i)) {
+      const path: Cell[] = [];
+      for (let k = i; k !== -1; k = prev[k]!) path.push({ cx: k % W, cy: Math.floor(k / W) });
+      return path.reverse();
+    }
+    const cx = i % W;
+    const cy = Math.floor(i / W);
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      const nx = cx + dx;
+      const ny = cy + dy;
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+      const n = ny * W + nx;
+      if (prev[n] !== -2 || sim.map.terrain[n] !== Terrain.Road || !free(n)) continue;
+      prev[n] = i;
+      queue.push(n);
+    }
+  }
+  return null;
 }

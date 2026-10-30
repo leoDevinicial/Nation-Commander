@@ -449,7 +449,7 @@ como na escolha entre os modos paridade e escala real.
 | Lote 2, item 13.1 — Programa Espacial (foguete, satélite sem névoa, satélite no globo) | Feito | `docs/GRANDES_PROJETOS_E_ESPACO.md` |
 | Lote 3, §1 — estradas do jogador (arrasto com prévia, pedra + verba de obras, manutenção, comboios mais rápidos, bairro pavimentado) | Feito | `docs/ESTRADAS_ENGENHARIA.md` |
 | Lote 1, §4 — cadeias produtivas (Refinaria → combustível, Siderúrgica → aço, substituindo parte do custo) | Feito | `docs/CADEIAS_SERVICOS_VITORIAS.md` |
-| Lote 2, item 6 — caravanas internas QG ↔ prefeitura (renda por chegada proporcional à rota, mais rápidas na estrada, emboscadas, reposição) | Feito | `docs/CARAVANAS.md` |
+| Lote 2, item 6 — caravanas internas QG ↔ prefeitura (só andam por estrada contínua; renda por chegada proporcional à rota, emboscadas, reposição; IA traça e constrói as estradas com Dijkstra, desviando de obstáculos) | Feito | `docs/CARAVANAS.md` |
 | Lote 1, §4 — serviços com raio de cobertura (Hospital, Escola, Delegacia) | Feito | `docs/CADEIAS_SERVICOS_VITORIAS.md` |
 | Lote 2, item 15 — vitórias alternativas (territorial e política) | Feito | `docs/CADEIAS_SERVICOS_VITORIAS.md` |
 | Lote 4, §1–2 — partidas com até 4 nações (6 para assinantes), bots e times; mapas de 96 a 160 células com simetria em N partes; IA com vários rivais | Feito | `docs/PARTIDAS_MAIORES_E_MAPAS.md` |

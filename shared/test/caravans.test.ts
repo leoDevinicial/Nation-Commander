@@ -1,16 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { CARAVAN, TICK_RATE, Terrain } from '../sim/config.ts';
-import { caravanIncome } from '../sim/caravans.ts';
+import { caravanIncome, roadLink } from '../sim/caravans.ts';
 import { Simulation } from '../sim/Simulation.ts';
 import { FogMemory, makeSnapshot } from '../sim/snapshot.ts';
+import { TacticalAI } from '../sim/TacticalAI.ts';
 import { flatMap } from './helpers.ts';
 
 /** Caravanas internas entre o Centro de Comando e as prefeituras (docs/CARAVANAS.md). */
 
-function setup(opts: { road?: boolean } = {}) {
-  // QG do jogador 0 nas células 2..4; a prefeitura fica na linha 6, ao lado de uma estrada na linha 5
+/** Estrada na linha 5, do QG (células 2..4) até a prefeitura (24..25, linhas 6..7). */
+const ROAD_ROW = Array.from({ length: 24 }, (_, k) => ({ cx: 3 + k, cy: 5 }));
+
+function setup(opts: { road?: boolean } = { road: true }) {
   const map = flatMap(40, (set) => {
-    if (opts.road) for (let cx = 3; cx <= 26; cx++) set(cx, 5, Terrain.Road);
+    if (opts.road) for (const c of ROAD_ROW) set(c.cx, c.cy, Terrain.Road);
   });
   const sim = new Simulation({ map, playerCount: 2, startingUnits: [] });
   for (const p of sim.players) p.resources.supplies = 0;
@@ -53,12 +56,35 @@ describe('Caravanas internas', () => {
     expect(sim.caravans.caravans.length).toBe(1);
   });
 
-  it('a estrada encurta a viagem', () => {
-    const plain = setup().firstArrival();
-    const paved = setup({ road: true }).firstArrival();
-    expect(plain).toBeGreaterThan(0);
-    expect(paved).toBeGreaterThan(0);
-    expect(paved).toBeLessThan(plain * 0.9);
+  it('só anda por estrada: sem ligação fica parada; com a estrada pronta, sai e segue por ela', () => {
+    const { sim, hall, run } = setup({ road: false });
+    sim.players[0]!.resources.stone = 1000;
+    run(3);
+    const c = sim.caravans.forCity(hall.id)!;
+    expect(c.state).toBe('no_road');
+    expect(c.travelled).toBe(0);
+    expect(c.lastIncome).toBe(0);
+    // uma estrada com uma lacuna ainda não liga
+    expect(sim.applyCommand(0, { type: 'build_road', cells: ROAD_ROW.filter((q) => q.cx !== 14) })).toBeNull();
+    run(CARAVAN.retrySeconds + 1);
+    expect(c.state).toBe('no_road');
+    expect(sim.applyCommand(0, { type: 'build_road', cells: [{ cx: 14, cy: 5 }] })).toBeNull();
+    run(CARAVAN.retrySeconds + 1);
+    expect(c.state).toBe('moving');
+    // todos os pontos intermediários da rota ficam sobre a estrada
+    for (const p of c.path.slice(1, -1)) {
+      const cell = sim.grid.worldToCell(p);
+      expect(sim.map.terrain[cell.cy * 40 + cell.cx]).toBe(Terrain.Road);
+    }
+  });
+
+  it('território de quem está em guerra no caminho corta a ligação', () => {
+    const { sim, hall } = setup();
+    const hq = sim.hqOf(0)!;
+    expect(roadLink(sim, 0, hq, hall)).not.toBeNull();
+    sim.setWar(0, 1, true);
+    sim.territory[5 * 40 + 14] = 1;
+    expect(roadLink(sim, 0, hq, hall)).toBeNull();
   });
 
   it('tropas de quem está em guerra destroem a caravana; uma nova sai do QG depois', () => {
@@ -66,11 +92,9 @@ describe('Caravanas internas', () => {
     run(1);
     const c = sim.caravans.forCity(hall.id)!;
     const mid = c.path[Math.floor(c.path.length / 2)]!;
-    const enemy = sim.addUnit('infantry', 1, { x: mid.x, y: mid.y + 1 });
-    // sem guerra declarada, a caravana passa
-    run(20);
-    expect(c.state).not.toBe('destroyed');
+    // (sem guerra, tropa estrangeira parada no território é retirada: a guerra vem antes)
     sim.setWar(0, 1, true);
+    const enemy = sim.addUnit('infantry', 1, { x: mid.x, y: mid.y + 1 });
     sim.drainEvents();
     let lost = false;
     for (let t = 0; t < 40 * TICK_RATE && !lost; t++) {
@@ -109,5 +133,50 @@ describe('Caravanas internas', () => {
     expect(mine[0]!.income).toBe(caravanIncome(before.pathLength));
     const theirs = makeSnapshot(sim, [], { slot: 1, memory: new FogMemory() }).caravans ?? [];
     expect(theirs.every((c) => c.income === undefined)).toBe(true);
+  });
+});
+
+describe('IA: estradas até as prefeituras', () => {
+  function aiSetup(edit?: (set: (cx: number, cy: number, t: Terrain) => void) => void) {
+    const sim = new Simulation({ map: flatMap(40, edit), playerCount: 2, startingUnits: [] });
+    const p = sim.players[0]!;
+    for (const r of Object.keys(p.resources) as (keyof typeof p.resources)[]) p.resources[r] = 3000;
+    const hall = sim.addBuilding('city_hall', 0, { cx: 22, cy: 6 }, 1);
+    sim.step();
+    return { sim, hall, ai: new TacticalAI(0) };
+  }
+  const roadCmds = (cmds: ReturnType<TacticalAI['think']>) => cmds.filter((c) => c.type === 'build_road');
+
+  it('liga a prefeitura ao QG com a mesma regra e o mesmo custo do jogador', () => {
+    const { sim, hall, ai } = aiSetup();
+    const stone = sim.players[0]!.resources.stone;
+    const cmds = roadCmds(ai.think(sim));
+    expect(cmds).toHaveLength(1);
+    for (const c of cmds) expect(sim.applyCommand(0, c)).toBeNull();
+    expect(roadLink(sim, 0, sim.hqOf(0)!, hall)).not.toBeNull();
+    expect(sim.players[0]!.resources.stone).toBeLessThan(stone);
+    // ligada: não pede outra estrada
+    expect(roadCmds(new TacticalAI(0).think(sim))).toHaveLength(0);
+  });
+
+  it('desvia de rio e floresta no traçado', () => {
+    // rio na coluna 12 (linhas 0..9) e floresta na coluna 16 (linhas 0..8): o traçado contorna os dois por baixo
+    const { sim, hall, ai } = aiSetup((set) => {
+      for (let cy = 0; cy <= 9; cy++) set(12, cy, Terrain.Water);
+      for (let cy = 0; cy <= 8; cy++) set(16, cy, Terrain.Forest);
+    });
+    const cmds = roadCmds(ai.think(sim));
+    expect(cmds).toHaveLength(1);
+    const cells = (cmds[0] as { cells: { cx: number; cy: number }[] }).cells;
+    expect(cells.every((c) => c.cx !== 12 || c.cy > 9)).toBe(true);
+    expect(cells.every((c) => c.cx !== 16 || c.cy > 8)).toBe(true);
+    expect(sim.applyCommand(0, cmds[0]!)).toBeNull();
+    expect(roadLink(sim, 0, sim.hqOf(0)!, hall)).not.toBeNull();
+  });
+
+  it('espera quando a estrada deixaria a pedra abaixo da reserva', () => {
+    const { sim, ai } = aiSetup();
+    sim.players[0]!.resources.stone = 60;
+    expect(roadCmds(ai.think(sim))).toHaveLength(0);
   });
 });
