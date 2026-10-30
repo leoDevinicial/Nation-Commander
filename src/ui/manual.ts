@@ -23,7 +23,7 @@ export const MANUAL: ManualCard[] = [
       'Vence quem destruir o Centro de Comando inimigo. Perdeu o seu, perdeu a partida.',
       'Os países usam dados reais (Banco Mundial e FMI): PIB, dívida e gastos fazem diferença.',
     ],
-    tip: 'Os primeiros 12 minutos são de preparo: a IA não ataca. Use-os para montar a economia.',
+    tip: 'Os primeiros 8 minutos são de preparo: a IA não ataca. Use-os para montar a economia.',
   },
   {
     icon: '🚀',
