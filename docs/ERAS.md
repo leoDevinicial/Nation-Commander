@@ -89,7 +89,7 @@ O tiro em terra é de dois disparos fortes e separados (0,2 s), um de cada canh�
 - o estalo supersônico;
 - o sopro saturado da boca;
 - o soco grave do recuo e um subgrave longo;
-- a mecânica: o ferrolho, o elo da fita e o tilintar dos estojos de latão.
+- a mecânica: o ferrolho batendo no fim do curso.
 
 Depois dos dois tiros vem o eco do terreno, pela reverberação de campo aberto (`AudioService.outdoorReverb`, resposta ao
 impulso gerada em código, compartilhada pelo canal de combate). A Antiaérea Móvel das eras anteriores (lagartas, estilo

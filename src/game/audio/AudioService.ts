@@ -423,7 +423,7 @@ export class AudioService {
         //   2. sopro da boca: os gases saindo do cano, saturados (é o que dá o peso agressivo);
         //   3. soco grave: o recuo do cano e a onda de pressão que se sente no peito;
         //   4. subgrave: a pressão bem funda que treme o chão, mais longa que o resto;
-        //   5. mecânica: ferrolho batendo, elo da munição e, depois, os estojos de latão quicando no metal.
+        //   5. mecânica: o ferrolho batendo no fim do curso (grave e curto, sem tilintar agudo).
         // Os tiros vão também para a reverberação de campo aberto (eco do terreno), e no fim o estrondo rola longe.
         const mix = ctx.createGain();
         mix.connect(out);
@@ -468,18 +468,9 @@ export class AudioService {
           burst('lowpass', 420, 0.8, 0.0015, 1.6 * k, 0.18, at, drive);
           // 4. subgrave longo (direto, sem saturar: pressão limpa e funda)
           thump(56 * f, 26, 0.006, 1.3 * k, 0.55, at, 'sine', mix);
-          // 5. mecânica: ferrolho batendo no fim do curso e o elo da fita entrando
+          // 5. mecânica: ferrolho batendo no fim do curso
           burst('bandpass', 2300, 9, 0.0008, 0.42 * k, 0.045, at + 0.052, mix);
           thump(310, 190, 0.001, 0.28 * k, 0.045, at + 0.052, 'square', mix);
-          burst('bandpass', 4300, 12, 0.0008, 0.2 * k, 0.03, at + 0.088, mix);
-          // estojos de latão: tilintar inarmônico ao bater no casco, com um quique menor depois
-          for (const [d, amp] of [
-            [0.34 + Math.random() * 0.06, 0.07],
-            [0.47 + Math.random() * 0.08, 0.04],
-          ] as const) {
-            const base = 2900 + Math.random() * 500;
-            for (const ratio of [1, 1.58, 2.31]) thump(base * ratio, base * ratio * 0.985, 0.001, amp * k, 0.09 / ratio, at + d, 'sine', out);
-          }
         }
         // eco do terreno: o estrondo volta abafado de longe, duas vezes, e rola até sumir
         const tail = t + gap;
