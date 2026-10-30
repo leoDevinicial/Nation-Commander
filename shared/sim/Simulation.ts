@@ -216,6 +216,19 @@ export interface SalvoInFlight {
  */
 export const ROCKET_INTERCEPT = { era: 4, range: 9, share: 0.5, cooldownTicks: 4 * TICK_RATE, minProgress: 0.3 } as const;
 
+/**
+ * Phalanx CIWS Móvel (Era Digital): o Gatling guiado por radar derruba 40% dos foguetes que restam de uma salva que
+ * vá cair perto dele (depois de 30% do voo), com 3 s entre rajadas. Funciona desde a entrada em serviço.
+ */
+export const CIWS_INTERCEPT = { range: 8, share: 0.4, cooldownTicks: 3 * TICK_RATE, minProgress: 0.3 } as const;
+
+/** Regra de interceptação da unidade (antiaérea do Futuro Próximo ou CIWS), ou null. */
+function interceptSpec(u: Unit): { range: number; share: number; cooldownTicks: number; minProgress: number } | null {
+  if (u.type === 'ciws') return CIWS_INTERCEPT;
+  if (u.type === 'mobile_aa' && (u.era ?? 1) >= ROCKET_INTERCEPT.era) return ROCKET_INTERCEPT;
+  return null;
+}
+
 /** Preparo do lança-foguetes ao parar para atirar (estabilizar e erguer o casulo). */
 export const SALVO_DEPLOY_TICKS = Math.round(1.4 * TICK_RATE);
 
@@ -2547,24 +2560,36 @@ export class Simulation {
     return false;
   }
 
-  /** Antiaéreas do Futuro Próximo derrubam parte das salvas em voo (ver `ROCKET_INTERCEPT`). */
+  /** Antiaéreas do Futuro Próximo e CIWS derrubam parte das salvas em voo (ver `ROCKET_INTERCEPT` e `CIWS_INTERCEPT`). */
   private updateInterceptions(): void {
     if (!this.salvos.length) return;
-    const aa = this.units.filter((u) => u.type === 'mobile_aa' && u.hp > 0 && (u.era ?? 1) >= ROCKET_INTERCEPT.era && !u.refit);
+    const aa = this.units.filter((u) => u.hp > 0 && !u.refit && interceptSpec(u));
     if (!aa.length) return;
     for (const v of this.salvos) {
       const total = v.rockets ?? UNITS[v.unitType].weapon.salvo ?? 1;
       if (total <= 0) continue;
       const t0 = v.launchTick ?? v.impactTick;
-      if ((this.tick - t0) / Math.max(1, v.impactTick - t0) < ROCKET_INTERCEPT.minProgress) continue;
+      const progress = (this.tick - t0) / Math.max(1, v.impactTick - t0);
       let left = total;
       for (const u of aa) {
         if (left <= 0) break;
-        if (!this.hostile(u.owner, v.owner) || (u.interceptReadyTick ?? 0) > this.tick || dist(u.pos, v.at) > ROCKET_INTERCEPT.range) continue;
-        const killed = Math.max(1, Math.ceil(left * ROCKET_INTERCEPT.share));
+        const spec = interceptSpec(u)!;
+        if (progress < spec.minProgress) continue;
+        if (!this.hostile(u.owner, v.owner) || (u.interceptReadyTick ?? 0) > this.tick || dist(u.pos, v.at) > spec.range) continue;
+        const killed = Math.max(1, Math.ceil(left * spec.share));
         left -= killed;
-        u.interceptReadyTick = this.tick + ROCKET_INTERCEPT.cooldownTicks;
-        this.emit({ type: 'salvo_intercepted', tick: this.tick, owner: u.owner, aaId: u.id, attackerId: v.attackerId, from: { ...u.pos }, at: { ...v.at }, rockets: killed });
+        u.interceptReadyTick = this.tick + spec.cooldownTicks;
+        this.emit({
+          type: 'salvo_intercepted',
+          tick: this.tick,
+          owner: u.owner,
+          aaId: u.id,
+          attackerId: v.attackerId,
+          from: { ...u.pos },
+          at: { ...v.at },
+          rockets: killed,
+          ...(u.type === 'ciws' ? { gun: true } : {}),
+        });
       }
       if (left === total) continue;
       v.base *= left / total;

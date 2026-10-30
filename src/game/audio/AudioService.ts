@@ -20,7 +20,7 @@ export type Volumes = Record<Channel | 'master', number>;
 export const DEFAULT_VOLUMES: Volumes = { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 };
 
 export type UiSound = 'click' | 'confirm' | 'error' | 'alert' | 'success' | 'hold';
-export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'tank_gun';
+export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'tank_gun' | 'gatling';
 export type MissileCue = 'prepare' | 'armed' | 'authorize';
 
 /** Som de trabalho de cada edifício (os demais usam o zumbido genérico). */
@@ -59,6 +59,7 @@ const PRIORITY: Record<CombatSound, number> = {
   tower: 1,
   flak: 2,
   aa_gun: 3,
+  gatling: 3,
   tank_gun: 3,
   cannon: 2,
   howitzer: 4,
@@ -73,7 +74,7 @@ const PRIORITY: Record<CombatSound, number> = {
 };
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
-const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, aa_gun: 0.45, tank_gun: 0.18 };
+const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, aa_gun: 0.45, gatling: 0.5, tank_gun: 0.18 };
 
 /**
  * Atenuação e panorâmica de um ponto do mapa para quem olha `L` (ponto da câmera, distância e giro).
@@ -373,6 +374,83 @@ export class AudioService {
         burst('lowpass', 340, 0.6, 0.03, 1.0, 0.9, tail - rate, drive);
         burst('lowpass', 220, 0.5, 0.07, 0.55, 1.4, tail + 0.25);
         end = burst('lowpass', 150, 0.5, 0.12, 0.32, 1.8, tail + 0.7);
+        break;
+      }
+      case 'gatling': {
+        // Gatling de 20 mm do CIWS (~75 tiros por segundo): os disparos se fundem num rasgo contínuo ("brrrt")
+        // em vez de tiros separados. Trem de pulsos quadrado na cadência, saturado e filtrado (o zumbido
+        // rouco), ruído médio pulsando junto (o estampido de cada tiro), o giro do feixe de canos subindo e
+        // descendo de tom, e o eco grave da rajada no fim
+        const len = 0.55 + Math.random() * 0.2;
+        const drive = ctx.createWaveShaper();
+        drive.curve = this.driveCurve(5);
+        drive.oversample = '4x';
+        const band = ctx.createBiquadFilter();
+        band.type = 'bandpass';
+        band.frequency.value = 520;
+        band.Q.value = 0.7;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.9, t + 0.03);
+        g.gain.setValueAtTime(0.9, t + len - 0.06);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+        drive.connect(band).connect(g).connect(out);
+        const rate = 72 + Math.random() * 8;
+        const pulse = ctx.createOscillator();
+        pulse.type = 'square';
+        pulse.frequency.setValueAtTime(rate * 0.8 * vary, t);
+        pulse.frequency.linearRampToValueAtTime(rate * vary, t + 0.08);
+        const pg = ctx.createGain();
+        pg.gain.value = 1.2;
+        pulse.connect(pg).connect(drive);
+        pulse.start(t);
+        pulse.stop(t + len + 0.05);
+        nodes.push(pulse);
+        // estampido: ruído médio modulado pela mesma cadência
+        const n = this.noiseSource();
+        const nf = ctx.createBiquadFilter();
+        nf.type = 'bandpass';
+        nf.frequency.value = 1500;
+        nf.Q.value = 0.8;
+        const am = ctx.createGain();
+        am.gain.value = 0;
+        const lfo = ctx.createOscillator();
+        lfo.type = 'square';
+        lfo.frequency.value = rate * vary;
+        const depth = ctx.createGain();
+        depth.gain.value = 0.5;
+        lfo.connect(depth).connect(am.gain);
+        const ng = ctx.createGain();
+        ng.gain.setValueAtTime(0.0001, t);
+        ng.gain.exponentialRampToValueAtTime(0.85, t + 0.02);
+        ng.gain.setValueAtTime(0.85, t + len - 0.05);
+        ng.gain.exponentialRampToValueAtTime(0.0001, t + len);
+        n.connect(nf).connect(am).connect(ng).connect(out);
+        n.start(t, Math.random());
+        n.stop(t + len + 0.05);
+        lfo.start(t);
+        lfo.stop(t + len + 0.05);
+        nodes.push(n, lfo);
+        // giro do feixe de canos (motor elétrico): sobe no começo e desce depois da rajada
+        const whine = ctx.createOscillator();
+        whine.type = 'sawtooth';
+        whine.frequency.setValueAtTime(380 * vary, t - 0.02);
+        whine.frequency.linearRampToValueAtTime(900 * vary, t + 0.12);
+        whine.frequency.setValueAtTime(900 * vary, t + len);
+        whine.frequency.exponentialRampToValueAtTime(260 * vary, t + len + 0.4);
+        const wf = ctx.createBiquadFilter();
+        wf.type = 'bandpass';
+        wf.frequency.value = 1100;
+        wf.Q.value = 3;
+        const wg = ctx.createGain();
+        whine.connect(wf).connect(wg).connect(out);
+        this.env(wg, t, 0.06, 0.07, len + 0.35);
+        whine.start(t - 0.02);
+        whine.stop(t + len + 0.45);
+        nodes.push(whine);
+        thump(110, 40, 0.004, 0.9, 0.25, t, 'sine', drive);
+        burst('lowpass', 380, 0.6, 0.04, 0.6, 0.9, t + len - 0.1);
+        end = burst('lowpass', 200, 0.5, 0.1, 0.32, 1.4, t + len + 0.3);
         break;
       }
       case 'tank_gun': {

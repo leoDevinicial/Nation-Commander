@@ -259,7 +259,7 @@ export type SimEvent =
   /** Chegada de uma salva de foguetes: explosões espalhadas na área (dano já aplicado). */
   | { type: 'salvo_impact'; tick: number; owner: Slot; attackerId: EntityId; pos: Vec2; radius: number; rockets: number }
   /** Antiaérea Móvel do Futuro Próximo derrubou `rockets` foguetes de uma salva em voo (dono da antiaérea em `owner`). */
-  | { type: 'salvo_intercepted'; tick: number; owner: Slot; aaId: EntityId; attackerId: EntityId; from: Vec2; at: Vec2; rockets: number }
+  | { type: 'salvo_intercepted'; tick: number; owner: Slot; aaId: EntityId; attackerId: EntityId; from: Vec2; at: Vec2; rockets: number; /** Derrubados pelo Gatling do CIWS (traçantes), não por mísseis. */ gun?: boolean }
   | { type: 'destroyed'; tick: number; id: EntityId; owner: Slot; entity: 'unit' | 'building'; entityType: string; pos: Vec2; killerOwner: Slot | null }
   | { type: 'construction_started'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; pos: Vec2 }
   | { type: 'construction_completed'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; pos: Vec2 }

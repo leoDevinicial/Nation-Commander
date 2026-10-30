@@ -71,6 +71,7 @@ export const UNIT_ERA: Record<UnitType, Era> = {
   artillery: 2,
   at_infantry: 2,
   mobile_aa: 3,
+  ciws: 3,
   special_forces: 3,
   rocket_artillery: 3,
   mbt: 4,

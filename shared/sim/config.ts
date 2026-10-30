@@ -69,6 +69,7 @@ export const GOODS_USE: Partial<Record<UnitType, Partial<Goods>>> = {
   artillery: { steel: 5 },
   rocket_artillery: { steel: 10, fuel: 5 },
   mobile_aa: { steel: 10, fuel: 5 },
+  ciws: { steel: 12, fuel: 6 },
   mbt: { steel: 20, fuel: 10 },
 };
 export const emptyGoods = (): Goods => ({ fuel: 0, steel: 0 });
@@ -204,7 +205,7 @@ export const OIL_DEPOSIT_AMOUNT = 5000;
 
 // ------------------------------------------------------------------ unidades
 
-export type UnitType = 'infantry' | 'apc' | 'tank' | 'artillery' | 'at_infantry' | 'special_forces' | 'mbt' | 'rocket_artillery' | 'mobile_aa' | 'engineer' | 'scout';
+export type UnitType = 'infantry' | 'apc' | 'tank' | 'artillery' | 'at_infantry' | 'special_forces' | 'mbt' | 'rocket_artillery' | 'mobile_aa' | 'ciws' | 'engineer' | 'scout';
 
 /** Classe de blindagem do alvo: define os bônus das armas (antitanque contra veículos, etc.). */
 export type ArmorClass = 'infantry' | 'vehicle';
@@ -456,11 +457,28 @@ export const UNITS: Record<UnitType, UnitDef> = {
     requires: 'mobile_air_defense',
     airDefense: true,
   },
+  ciws: {
+    label: 'Phalanx CIWS Móvel',
+    cost: { oil: 80, iron: 90, supplies: 80 },
+    buildSeconds: 15,
+    maxHp: 170,
+    speed: 4.4,
+    radius: 0.95,
+    sight: 15,
+    weapon: { damage: 9, range: 7.5, cooldown: 0.5, vsVehicle: 0.35, vsBuilding: 0.3 },
+    producedBy: 'factory',
+    description:
+      'Canhão Gatling de 20 mm guiado por radar sobre um 8×8 blindado (Era Digital): rajadas de 75 tiros por segundo derrubam no ar boa parte de cada salva do Lança-Foguetes que cair por perto, além de aeronaves e mísseis (como uma bateria antiaérea). Arrasa infantaria; fraco contra blindados.',
+    hotkey: 'G',
+    armor: 'vehicle',
+    requires: 'point_defense',
+    airDefense: true,
+  },
 };
 
 // ------------------------------------------------------------------ pesquisa militar
 
-export type MilitaryResearchId = 'tracked_armor' | 'field_artillery' | 'antitank_weapons' | 'mobile_air_defense' | 'special_operations' | 'rocket_systems' | 'modern_armor' | 'combat_engineering';
+export type MilitaryResearchId = 'tracked_armor' | 'field_artillery' | 'antitank_weapons' | 'mobile_air_defense' | 'special_operations' | 'rocket_systems' | 'modern_armor' | 'combat_engineering' | 'point_defense';
 
 /**
  * Pesquisa militar feita no Centro de Pesquisa durante a partida (fila no próprio edifício, com
@@ -550,6 +568,15 @@ export const MILITARY_RESEARCH: Record<MilitaryResearchId, MilitaryResearchDef> 
     prereqs: ['tracked_armor', 'rocket_systems'],
     tier: 3,
     hotkey: 'M',
+  },
+  point_defense: {
+    label: 'Defesa de ponto (CIWS)',
+    description: 'Canhão Gatling de 20 mm com radar próprio que acompanha e derruba foguetes em voo: libera o Phalanx CIWS Móvel.',
+    cost: { supplies: 220, iron: 160, oil: 100 },
+    seconds: 70,
+    prereqs: ['mobile_air_defense'],
+    tier: 2,
+    hotkey: 'G',
   },
 };
 

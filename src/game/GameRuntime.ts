@@ -726,6 +726,24 @@ export class GameRuntime {
         },
       });
       attacker?.visual.onFire();
+    } else if (e.type === 'salvo_intercepted' && e.gun) {
+      // Phalanx CIWS: a torre vira para cada foguete e o Gatling o corta no ar com uma rajada de traçantes
+      const ciws = this.units.get(e.aaId)?.visual;
+      this.rocketLayer.gunIntercept({
+        attackerId: e.attackerId,
+        count: e.rockets,
+        muzzle: (pos, dir) => {
+          if (ciws) ciws.fireGun(pos, dir);
+          else {
+            pos.set(e.from.x, 2, e.from.y);
+            dir.set(0, 1, 0);
+          }
+        },
+        onStart: (at) => {
+          ciws?.aimToward(at.x, at.z, 0.6);
+          audio.playAt('gatling', e.from.x, e.from.y);
+        },
+      });
     } else if (e.type === 'salvo_intercepted') {
       // antiaérea do Futuro Próximo: mísseis pequenos saem dos casulos e derrubam foguetes da salva no ar
       const aa = this.units.get(e.aaId)?.visual;
@@ -2578,13 +2596,15 @@ export class GameRuntime {
         const sound = attacker
           ? attacker.visual.type === 'artillery'
             ? 'howitzer'
-            : attacker.visual.type === 'mobile_aa'
-              ? 'aa_gun'
-              : attacker.visual.type === 'tank' || attacker.visual.type === 'mbt'
-                ? 'tank_gun'
-                : attacker.visual.type === 'rocket_artillery'
-                  ? 'cannon'
-                  : 'rifle'
+            : attacker.visual.type === 'ciws'
+              ? 'gatling'
+              : attacker.visual.type === 'mobile_aa'
+                ? 'aa_gun'
+                : attacker.visual.type === 'tank' || attacker.visual.type === 'mbt'
+                  ? 'tank_gun'
+                  : attacker.visual.type === 'rocket_artillery'
+                    ? 'cannon'
+                    : 'rifle'
           : 'tower';
         audio.playAt(sound, e.from.x, e.from.y);
         break;

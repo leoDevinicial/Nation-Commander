@@ -25,10 +25,12 @@ export interface UnitModel {
    * Canos (peças separadas da torre): giram com ela e recuam sozinhos no disparo. `pivot` é a
    * culatra no referencial da torre, `elev` a elevação (rad) e `muzzle` a boca no referencial do
    * cano, que aponta para +x. `recoil` é o curso do recuo.
+   * `spin` (rad/s) faz o feixe de canos girar durante a rajada (Gatling). `lift`: a geometria do cano foi erguida
+   * em y por esse valor (a malha desce o mesmo), para a poeira do shader, que vai pela altura local, não pegar nele.
    */
-  guns?: { layers: ModelLayers; pivot: V3; elev: number; muzzle: V3; recoil: number }[];
+  guns?: { layers: ModelLayers; pivot: V3; elev: number; muzzle: V3; recoil: number; spin?: number; lift?: number }[];
   /** Tipo de disparo visível (projétil que sai da boca do cano). */
-  shot?: 'apfsds' | 'howitzer' | 'flak' | 'autocannon';
+  shot?: 'apfsds' | 'howitzer' | 'flak' | 'autocannon' | 'gatling';
   /**
    * Lentes e luzes acesas na torre (referencial da torre): disco brilhante com halo, voltado para `normal`.
    * `color: 'faction'` usa a cor da facção do dono.
@@ -236,6 +238,7 @@ const BUILDERS: Record<UnitType, () => BuiltUnit> = {
   mbt: buildMbt,
   rocket_artillery: buildRocketArtillery,
   mobile_aa: buildMobileAa,
+  ciws: buildCiws,
   engineer: buildEngineer,
   scout: buildScout,
 };
@@ -1619,6 +1622,239 @@ function buildMobileAaFuture(): BuiltUnit {
       { at: [-0.299, 1.12, 0.18], normal: [1, 0, 0], r: 0.022, color: '#7dff6a' },
       { at: [-0.299, 1.12, -0.18], normal: [1, 0, 0], r: 0.022, color: 'faction' },
     ],
+  };
+}
+
+/**
+ * Phalanx CIWS Móvel (Era Digital): 8×8 blindado de nariz em cunha (casco em V facetado, para-brisa duplo inclinado,
+ * barra de faróis de LED), carroceria baixa com armários e escapamento vertical, e na traseira a montagem do Phalanx:
+ * base giratória, cúpula branca do radar (cilindro com tampa em domo e faixa na cor da nação), Gatling de 6 canos
+ * elevado (gira ao disparar), tambor de munição, treliça em X sob o cano, câmera térmica e a pilha de caixas de
+ * eletrônica ao lado. A torre gira para o alvo; o cano tem elevação fixa.
+ */
+function buildCiws(): BuiltUnit {
+  const hull = layers();
+  const b = hull.body;
+  const olive = '#878a63';
+  const oliveDark = '#64674a';
+  const black = '#1d1e1b';
+  const radome = '#f0ecdc';
+  const sym = (pts: V3[]): V3[] => pts.flatMap(([x, y, z]) => (z === 0 ? [[x, y, z] as V3] : [[x, y, z] as V3, [x, y, -z] as V3]));
+
+  // --- rodas: dois pares na frente, sob a cabine, e dois atrás, sob a montagem do canhão
+  for (const x of [0.98, 0.5, -0.56, -1.04]) for (const z of [0.44, -0.44]) rollingWheel([x, 0.3, z], 0.3, 0.24);
+  // longarinas e eixos (aparecem entre as rodas)
+  b.box(2.5, 0.12, 0.42, black, [-0.05, 0.42, 0]);
+  for (const x of [0.98, 0.5, -0.56, -1.04]) b.cyl(0.05, 0.05, 0.7, black, [x, 0.3, 0], [Math.PI / 2, 0, 0], 6);
+
+  // --- cabine blindada em cunha: casco em V embaixo, nariz com a barra de faróis, para-brisa inclinado
+  b.convex(
+    sym([
+      [0.18, 0.62, 0.5],
+      [0.18, 0.96, 0.5],
+      [0.18, 1.3, 0.41],
+      [0.92, 1.3, 0.39],
+      [1.16, 0.98, 0.46],
+      [1.08, 0.96, 0.5],
+      [1.3, 0.84, 0.48],
+      [1.43, 0.84, 0.33],
+      [1.34, 0.6, 0.3],
+      [1.08, 0.62, 0.5],
+      [1.02, 0.46, 0.3],
+      [0.18, 0.46, 0.3],
+    ]),
+    olive,
+  );
+  // carroceria traseira, mais baixa, com as quinas de cima chanfradas
+  b.convex(
+    sym([
+      [0.18, 0.62, 0.5],
+      [0.18, 0.95, 0.5],
+      [0.18, 1.02, 0.44],
+      [-1.5, 1.02, 0.44],
+      [-1.5, 0.95, 0.5],
+      [-1.5, 0.62, 0.5],
+      [-1.44, 0.46, 0.3],
+      [0.18, 0.46, 0.3],
+    ]),
+    olive,
+  );
+  // saias de chapa sobre as rodas (para-lamas) e frisos laterais
+  for (const z of [0.5, -0.5]) {
+    for (const [x, w] of [
+      [0.74, 0.92],
+      [-0.8, 0.92],
+    ] as const) {
+      b.box(w, 0.04, 0.12, oliveDark, [x, 0.62, z * 1.02]);
+      b.box(w - 0.04, 0.08, 0.02, oliveDark, [x, 0.58, z * 1.06]);
+    }
+    b.box(2.9, 0.035, 0.02, oliveDark, [-0.06, 0.95, z * 1.01]);
+    // caixa lateral entre os eixos (tanque e armário) com fechos
+    b.box(0.6, 0.24, 0.06, olive, [-0.03, 0.66, z * 0.98]);
+    b.box(0.6, 0.02, 0.07, oliveDark, [-0.03, 0.78, z * 0.98]);
+    for (const x of [-0.2, 0.14]) b.box(0.05, 0.03, 0.075, C.steel, [x, 0.72, z * 0.98]);
+    // painéis de blindagem aparafusados na carroceria
+    for (let i = 0; i < 3; i++) {
+      const x = -0.22 - i * 0.42;
+      b.box(0.38, 0.26, 0.02, olive, [x, 0.79, z * 1.01]);
+      for (const dx of [-0.16, 0.16]) for (const y of [0.69, 0.89]) b.box(0.02, 0.02, 0.01, oliveDark, [x + dx, y, z * 1.025]);
+    }
+  }
+
+  // --- frente: barra de faróis de LED, placa central, ganchos de reboque e para-choque
+  const noseDir = Math.atan2(0.84 - 0.6, 1.43 - 1.34);
+  for (const z of [0.2, -0.2]) {
+    b.box(0.04, 0.07, 0.2, black, [1.42, 0.8, z]);
+    for (let k = 0; k < 4; k++) b.box(0.012, 0.035, 0.03, '#f4efda', [1.443, 0.8, z + (k - 1.5) * 0.045]);
+    b.box(0.03, 0.04, 0.04, '#e39a2b', [1.33, 0.82, z * 2.3]);
+    // ganchos pendurados no casco em V
+    b.add(new THREE.TorusGeometry(0.045, 0.014, 6, 10), C.steel, { pos: [1.38, 0.6, z * 1.1], rot: [0, Math.PI / 2, 0.3] });
+  }
+  b.box(0.02, 0.1, 0.16, '#d9d6c8', [1.4, 0.7, 0], [0, 0, noseDir - Math.PI / 2]);
+  b.box(0.08, 0.06, 0.62, oliveDark, [1.37, 0.57, 0]);
+  // vincos do casco em V (lâminas na quina)
+  for (const z of [0.4, -0.4]) b.box(0.3, 0.03, 0.03, oliveDark, [1.36, 0.84, z], [0, z > 0 ? -0.9 : 0.9, 0]);
+
+  // --- para-brisa duplo inclinado, molduras e janelas laterais com a porta
+  const ws = Math.atan2(1.16 - 0.92, 1.3 - 0.98);
+  const wn = new THREE.Vector3(1.3 - 0.98, 1.16 - 0.92, 0).normalize();
+  for (const z of [0.18, -0.18]) {
+    b.box(0.014, 0.33, 0.33, black, [1.04 + wn.x * 0.004, 1.14 + wn.y * 0.004, z], [0, 0, ws]);
+    hull.glass.box(0.01, 0.27, 0.28, '#ffffff', [1.04 + wn.x * 0.012, 1.14 + wn.y * 0.012, z], [0, 0, ws]);
+  }
+  const sideTilt = Math.atan2(0.5 - 0.41, 1.3 - 0.96);
+  for (const s of [1, -1]) {
+    for (const [x, w] of [
+      [0.74, 0.34],
+      [0.36, 0.2],
+    ] as const) {
+      b.box(w + 0.04, 0.22, 0.012, black, [x, 1.13, s * 0.462], [-s * sideTilt, 0, 0]);
+      hull.glass.box(w, 0.17, 0.01, '#ffffff', [x, 1.13, s * 0.47], [-s * sideTilt, 0, 0]);
+    }
+    // porta: recorte, dobradiças e maçaneta
+    b.box(0.015, 0.34, 0.012, oliveDark, [0.55, 0.79, s * 0.505]);
+    b.box(0.015, 0.34, 0.012, oliveDark, [0.95, 0.79, s * 0.505]);
+    for (const y of [0.68, 0.9]) b.box(0.05, 0.03, 0.02, oliveDark, [0.95, y, s * 0.51]);
+    b.box(0.07, 0.02, 0.02, C.steel, [0.62, 0.82, s * 0.512]);
+    // faixa da nação na porta e luz de comboio
+    hull.accent.box(0.34, 0.08, 0.012, '#ffffff', [0.75, 0.68, s * 0.508]);
+    hull.accent.box(0.03, 0.035, 0.05, '#ffffff', [1.17, 0.99, s * 0.42]);
+  }
+  // teto: escotilha, caixas de sensores e antenas de chicote altas
+  b.box(0.28, 0.03, 0.28, oliveDark, [0.48, 1.315, 0]);
+  b.box(0.06, 0.02, 0.06, C.steel, [0.48, 1.335, 0.1]);
+  for (const z of [0.3, -0.3]) b.box(0.1, 0.07, 0.08, oliveDark, [0.86, 1.33, z]);
+  for (const z of [0.33, -0.33]) {
+    b.cyl(0.025, 0.03, 0.05, black, [0.26, 1.325, z], undefined, 6);
+    b.cyl(0.006, 0.009, 0.95, black, [0.26, 1.82, z], undefined, 4);
+  }
+
+  // --- carroceria: caixas de material atrás da cabine, plataforma do canhão, escapamento e luzes traseiras
+  b.box(0.3, 0.22, 0.78, olive, [0.0, 1.13, 0]);
+  b.box(0.3, 0.02, 0.8, oliveDark, [0.0, 1.245, 0]);
+  for (const z of [0.25, -0.25]) b.box(0.2, 0.12, 0.2, oliveDark, [-0.32, 1.08, z]);
+  for (const z of [0.4, -0.4]) {
+    // armários baixos nas bordas do convés, ao lado da montagem
+    b.box(1.0, 0.1, 0.1, olive, [-1.0, 1.07, z]);
+    for (let i = 0; i < 4; i++) b.box(0.012, 0.09, 0.11, oliveDark, [-1.42 + i * 0.28, 1.07, z]);
+  }
+  b.box(0.98, 0.1, 0.62, oliveDark, [-0.98, 1.07, 0]);
+  b.cyl(0.035, 0.035, 0.55, oliveDark, [-1.44, 1.29, -0.38], undefined, 8);
+  b.cyl(0.04, 0.035, 0.06, black, [-1.44, 1.58, -0.38], undefined, 8);
+  b.box(0.04, 0.03, 0.06, oliveDark, [-1.44, 1.2, -0.42]);
+  for (const z of [0.38, -0.38]) {
+    b.box(0.02, 0.05, 0.08, '#b23a2c', [-1.505, 0.86, z]);
+    b.add(new THREE.TorusGeometry(0.04, 0.012, 6, 10), C.steel, { pos: [-1.52, 0.6, z * 0.6], rot: [0, Math.PI / 2, 0] });
+  }
+
+  // --- montagem do Phalanx (torre): base giratória, berço, cúpula do radar, câmera, munição e eletrônica
+  const turret = layers();
+  const t = turret.body;
+  t.cyl(0.36, 0.4, 0.08, oliveDark, [0, 0.04, 0], undefined, 16);
+  t.convex(
+    sym([
+      [-0.3, 0.08, 0.28],
+      [0.3, 0.08, 0.28],
+      [0.34, 0.2, 0.22],
+      [0.24, 0.36, 0.22],
+      [-0.28, 0.36, 0.24],
+      [-0.34, 0.2, 0.28],
+    ]),
+    olive,
+  );
+  // garfo de elevação dos dois lados e a caixa do mecanismo sob a cúpula
+  for (const z of [0.26, -0.26]) t.box(0.36, 0.34, 0.06, oliveDark, [0.02, 0.5, z]);
+  t.box(0.5, 0.14, 0.44, olive, [-0.02, 0.68, 0]);
+  t.box(0.52, 0.03, 0.46, oliveDark, [-0.02, 0.76, 0]);
+  // cúpula do radar: cilindro claro com domo em cima, costuras e a faixa da nação embaixo
+  t.cyl(0.235, 0.245, 0.56, radome, [-0.04, 1.06, 0], undefined, 16);
+  t.add(new THREE.SphereGeometry(0.235, 16, 5, 0, Math.PI * 2, 0, Math.PI / 2), radome, { pos: [-0.04, 1.34, 0], scale: [1, 0.62, 1] });
+  t.cyl(0.03, 0.03, 0.03, '#c9c5ae', [-0.04, 1.49, 0], undefined, 8);
+  t.cyl(0.25, 0.25, 0.025, '#c9c5ae', [-0.04, 1.2, 0], undefined, 16);
+  t.cyl(0.252, 0.252, 0.03, oliveDark, [-0.04, 0.79, 0], undefined, 16);
+  turret.accent.cyl(0.25, 0.25, 0.07, '#ffffff', [-0.04, 0.86, 0], undefined, 16);
+  // tambor de munição atrás e embaixo da cúpula (acompanha o cano)
+  t.cyl(0.13, 0.13, 0.42, olive, [-0.2, 0.52, 0.07], [0, 0, Math.PI / 2], 14);
+  for (const x of [-0.38, -0.02]) t.cyl(0.135, 0.135, 0.03, oliveDark, [x, 0.52, 0.07], [0, 0, Math.PI / 2], 14);
+  // treliça em X sob o cano (suporte do berço)
+  for (const z of [0.205, 0.0]) {
+    t.box(0.24, 0.025, 0.025, oliveDark, [0.22, 0.4, z + 0.07]);
+    t.box(0.24, 0.025, 0.025, oliveDark, [0.22, 0.6, z + 0.07]);
+    t.box(0.025, 0.22, 0.025, oliveDark, [0.105, 0.5, z + 0.07]);
+    t.box(0.025, 0.22, 0.025, oliveDark, [0.335, 0.5, z + 0.07]);
+    t.box(0.3, 0.02, 0.02, oliveDark, [0.22, 0.5, z + 0.07], [0, 0, 0.72]);
+    t.box(0.3, 0.02, 0.02, oliveDark, [0.22, 0.5, z + 0.07], [0, 0, -0.72]);
+  }
+  // câmera térmica e telêmetro no lado oposto ao cano
+  t.box(0.06, 0.2, 0.05, oliveDark, [0.08, 0.86, -0.27]);
+  t.box(0.2, 0.15, 0.13, olive, [0.12, 0.98, -0.31]);
+  t.box(0.04, 0.11, 0.11, black, [0.23, 0.98, -0.31]);
+  for (const y of [1.01, 0.95]) turret.glass.cyl(0.03, 0.03, 0.02, '#ffffff', [0.255, y, -0.31], [0, 0, Math.PI / 2], 10);
+  // pilha de caixas de eletrônica e refrigeração ao lado da cúpula, com aletas e cabos
+  for (const [y, h, w] of [
+    [0.24, 0.3, 0.3],
+    [0.5, 0.22, 0.26],
+    [0.72, 0.2, 0.22],
+  ] as const) {
+    t.box(w, h, 0.14, olive, [-0.2, y, -0.4]);
+    t.box(w + 0.01, 0.015, 0.15, oliveDark, [-0.2, y + h / 2, -0.4]);
+  }
+  for (let i = 0; i < 5; i++) t.box(0.012, 0.18, 0.02, oliveDark, [-0.31 + i * 0.05, 0.24, -0.475]);
+  t.cyl(0.02, 0.02, 0.4, black, [-0.02, 0.6, -0.33], [0.4, 0, 0], 5);
+  t.box(0.16, 0.12, 0.1, olive, [-0.22, 0.24, 0.36]);
+  turret.accent.box(0.3, 0.07, 0.012, '#ffffff', [-0.02, 0.22, 0.3]);
+
+  // --- Gatling de 6 canos: carcaça do rotor, feixe de canos, braçadeiras e a boca com os seis furos
+  const elev = 0.38;
+  const gl = layers();
+  const g = gl.body;
+  g.cyl(0.075, 0.075, 0.26, black, [0.08, 0, 0], [0, 0, Math.PI / 2], 12);
+  g.cyl(0.06, 0.075, 0.06, '#2c2d29', [0.24, 0, 0], [0, 0, Math.PI / 2], 12);
+  const L = 1.0;
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2;
+    g.cyl(0.014, 0.014, L - 0.24, '#26272a', [0.24 + (L - 0.24) / 2, Math.sin(a) * 0.034, Math.cos(a) * 0.034], [0, 0, Math.PI / 2], 6);
+    g.add(new THREE.CircleGeometry(0.009, 6), '#030303', { pos: [L + 0.031, Math.sin(a) * 0.034, Math.cos(a) * 0.034], rot: [0, Math.PI / 2, 0] });
+  }
+  g.cyl(0.022, 0.022, L - 0.24, '#131413', [0.24 + (L - 0.24) / 2, 0, 0], [0, 0, Math.PI / 2], 6);
+  g.cyl(0.056, 0.056, 0.035, '#2c2d29', [0.56, 0, 0], [0, 0, Math.PI / 2], 12);
+  g.cyl(0.058, 0.058, 0.09, '#2c2d29', [L - 0.015, 0, 0], [0, 0, Math.PI / 2], 12);
+  g.add(new THREE.RingGeometry(0.046, 0.058, 12), '#3a3b37', { pos: [L + 0.03, 0, 0], rot: [0, Math.PI / 2, 0] });
+  g.add(new THREE.CircleGeometry(0.046, 12), '#2a2b28', { pos: [L + 0.029, 0, 0], rot: [0, Math.PI / 2, 0] });
+  // a torre é montada a partir do convés e erguida até a altura real (a poeira do shader é pela altura local)
+  const deck = 1.12;
+  const built = turret.build();
+  const barrel = gl.build();
+  for (const geo of [barrel.body, barrel.accent, barrel.glass]) if (geo.getAttribute('position')) geo.translate(0, deck, 0);
+  for (const geo of [built.body, built.accent, built.glass]) if (geo.getAttribute('position')) geo.translate(0, deck, 0);
+  const pivot: V3 = [0.2, 0.68 + deck, 0.07];
+  return {
+    hull: hull.build(),
+    turret: built,
+    turretPivot: [-0.95, 0, 0],
+    muzzle: [pivot[0] + Math.cos(elev) * (L + 0.04), pivot[1] + Math.sin(elev) * (L + 0.04), pivot[2]],
+    guns: [{ layers: barrel, pivot, elev, muzzle: [L + 0.04, 0, 0], recoil: 0.015, spin: 40, lift: deck }],
+    shot: 'gatling',
   };
 }
 

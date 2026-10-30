@@ -727,6 +727,7 @@ export function producibleIcon(t: ProducibleType): string {
     artillery: '⟋',
     rocket_artillery: '⋰',
     mobile_aa: '⌖',
+    ciws: '⊛',
     at_infantry: '➹',
     special_forces: '✦',
   };

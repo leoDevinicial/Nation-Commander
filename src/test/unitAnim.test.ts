@@ -111,6 +111,16 @@ describe('canos e casulo', () => {
     aa.fireGun(b, d);
     expect(Math.abs(a.z - b.z)).toBeGreaterThan(0.8);
     aa.dispose();
+    // Gatling do CIWS: a boca sai à frente e acima da cúpula baixa, e o feixe de canos gira na rajada
+    const ciws = new UnitVisual(8, 'ciws', 0, true, 3);
+    ciws.update(1 / 60, false, 0, 1, false, cam);
+    ciws.fireGun(a, d);
+    expect(a.y).toBeGreaterThan(1.5);
+    expect(d.y).toBeGreaterThan(0.3);
+    const gat = (ciws as unknown as { guns: { barrel: THREE.Group }[] }).guns[0]!.barrel;
+    for (let i = 0; i < 10; i++) ciws.update(1 / 60, false, 0, 1, false, cam);
+    expect(gat.rotation.x).toBeGreaterThan(3);
+    ciws.dispose();
   });
 
   it('cada foguete que sai esvazia um tubo; a guarnição recarrega depois', () => {

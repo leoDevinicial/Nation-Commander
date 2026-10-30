@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
 
 /**
  * Nível de detalhe dos modelos. No Ultra, caixas ganham arestas arredondadas (que pegam luz como
@@ -101,6 +102,14 @@ export class PartBuilder {
     const g = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false });
     g.rotateX(-Math.PI / 2);
     return this.add(g, color, { pos });
+  }
+
+  /**
+   * Casco facetado: envoltória convexa dos pontos (faces planas, uma cor). Bom para blindagem com chanfros e
+   * cunhas, em que cada face pega a luz de um jeito.
+   */
+  convex(points: V3[], color: THREE.ColorRepresentation): this {
+    return this.add(new ConvexGeometry(points.map(([x, y, z]) => new THREE.Vector3(x, y, z))), color);
   }
 
   /** Telhado de duas águas ao longo de x. */

@@ -438,6 +438,7 @@ como na escolha entre os modos paridade e escala real.
 | Lote 1, §1.6 — texto do README sobre depósitos finitos | Feito | `README.md` |
 | Lote 1, §2.5 — dificuldade Fácil / Normal / Difícil / Brutal (preparo, ondas, bônus do Brutal) | Feito | `shared/sim/difficulty.ts`, sala |
 | Lote 1, §2.5 — ritmo da IA por dificuldade: primeira ofensiva com o que tiver (14 / 10 / 8 / 6 min), exército mínimo crescente, QG rumo à próxima era, mais fazendas, minas e prefeituras, defesa nacional maior; `sim-economia.ts` com a camada nacional | Feito | `docs/DIFICULDADE_VETERANIA.md`, `TacticalAI`, `NationalAI` |
+| Phalanx CIWS Móvel (Era Digital): 8×8 com Gatling guiado por radar, derruba 40% de cada salva do Lança-Foguetes por perto e conta como defesa antiaérea; pesquisa Defesa de ponto; IA usa contra lança-foguetes | Feito | `docs/CIWS.md` |
 | Mercado interno no Terminal Comercial (excedente → suprimentos, preço com pressão que se recupera; IA vende a sobra) | Feito | `docs/MERCADO_INTERNO.md`, `shared/sim/market.ts` |
 | Lote 1, §2.6 — incidentes de fronteira no preparo | Feito | `Simulation.startIncident`, `TacticalAI.planHarass` |
 | Lote 1, §2.7 — curva de defesa (raiz com saturação suave) | Feito | `theaterSupply` em `shared/strategic/params.ts` |

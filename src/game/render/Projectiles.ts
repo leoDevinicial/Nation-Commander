@@ -3,7 +3,7 @@ import type { Effects } from './Effects.ts';
 import { glowTexture, volumetricSmokeTexture } from './textures.ts';
 
 /** Tipo de disparo visível (ver `UnitModel.shot`). */
-export type ShotKind = 'apfsds' | 'howitzer' | 'flak' | 'autocannon';
+export type ShotKind = 'apfsds' | 'howitzer' | 'flak' | 'autocannon' | 'gatling';
 
 interface Round {
   kind: ShotKind;
@@ -46,6 +46,8 @@ const STYLE: Record<ShotKind, { color: string; core: number; streak: number; wid
   flak: { color: '#ffb24a', core: 0.26, streak: 1.4, width: 0.016, speed: 55 },
   // canhão automático do blindado: traçantes curtos amarelos
   autocannon: { color: '#ffd76a', core: 0.2, streak: 1, width: 0.014, speed: 60 },
+  // Gatling do CIWS: fio contínuo de traçantes finos e muito rápidos
+  gatling: { color: '#ffe39a', core: 0.13, streak: 1.3, width: 0.01, speed: 95 },
 };
 
 /**
@@ -83,8 +85,8 @@ export class Projectiles {
    * tiro (e faz o cano recuar). Rajadas saem com um pequeno intervalo entre os tiros.
    */
   fire(kind: ShotKind, target: { x: number; y: number; z: number }, muzzle: (pos: THREE.Vector3, dir: THREE.Vector3) => void): void {
-    const burst = kind === 'flak' ? 2 : kind === 'autocannon' ? 3 : 1;
-    const gap = kind === 'flak' ? 0.09 : 0.11;
+    const burst = kind === 'flak' ? 2 : kind === 'autocannon' ? 3 : kind === 'gatling' ? 9 : 1;
+    const gap = kind === 'flak' ? 0.09 : kind === 'gatling' ? 0.04 : 0.11;
     for (let i = 0; i < burst; i++) {
       if (this.rounds.length >= this.maxRounds) return;
       const st = STYLE[kind];
@@ -98,7 +100,7 @@ export class Projectiles {
       this.group.add(core, streak);
       if (shell) this.group.add(shell);
       // espalhamento pequeno da rajada no alvo
-      const spread = kind === 'flak' || kind === 'autocannon' ? 0.35 : 0;
+      const spread = kind === 'flak' || kind === 'autocannon' ? 0.35 : kind === 'gatling' ? 0.5 : 0;
       const to = new THREE.Vector3(target.x + (Math.random() - 0.5) * spread, target.y + (Math.random() - 0.5) * spread * 0.5, target.z + (Math.random() - 0.5) * spread);
       this.rounds.push({ kind, from: new THREE.Vector3(), to, start: this.time + i * gap, dur: 0, apex: 0, core, streak, shell, smokeAcc: 0, fired: false, muzzle });
     }

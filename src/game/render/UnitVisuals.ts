@@ -192,7 +192,9 @@ export class UnitVisual {
   private roll = 0;
   private pitchTilt = 0;
   /** Canos: o recuo de cada um (1 no disparo, volta a 0) e o próximo a atirar (antiaérea alterna). */
-  private readonly guns: { barrel: THREE.Group; recoil: number; def: NonNullable<ReturnType<typeof unitModel>['guns']>[number] }[] = [];
+  private readonly guns: { barrel: THREE.Group; recoil: number; spin: number; def: NonNullable<ReturnType<typeof unitModel>['guns']>[number] }[] = [];
+  /** Mira forçada por um instante (o CIWS vira para os foguetes que derruba): ângulo no plano e segundos restantes. */
+  private aimHold: { angle: number; left: number } | null = null;
   private nextGun = 0;
   /** Ogivas dos foguetes nos tubos do casulo (somem na saída e voltam na recarga). */
   private noses: THREE.InstancedMesh | null = null;
@@ -307,10 +309,13 @@ export class UnitVisual {
       mount.position.set(...def.pivot);
       mount.rotation.z = def.elev;
       const barrel = new THREE.Group();
-      for (const m of layerMeshes(def.layers, owner, era)) barrel.add(m);
+      for (const m of layerMeshes(def.layers, owner, era)) {
+        m.position.y = -(def.lift ?? 0);
+        barrel.add(m);
+      }
       mount.add(barrel);
       this.turret.add(mount);
-      this.guns.push({ barrel, recoil: 0, def });
+      this.guns.push({ barrel, recoil: 0, spin: 0, def });
     }
     if (model.pod && this.turret) {
       this.pod = new THREE.Group();
@@ -467,6 +472,7 @@ export class UnitVisual {
     const g = this.guns[this.nextGun % this.guns.length]!;
     this.nextGun++;
     g.recoil = 1;
+    g.spin = 1;
     const mount = g.barrel.parent!;
     mount.updateWorldMatrix(true, false);
     outPos.set(...g.def.muzzle).applyMatrix4(mount.matrixWorld);
@@ -507,6 +513,11 @@ export class UnitVisual {
     this.turret.updateWorldMatrix(true, false);
     outPos.set(...l[index % l.length]!).applyMatrix4(this.turret.matrixWorld);
     outDir.set(0.6, 0.8, 0).transformDirection(this.turret.matrixWorld);
+  }
+
+  /** Vira a torre para o ponto (x, z do mundo) por `seconds`, por cima do alvo da simulação. */
+  aimToward(x: number, z: number, seconds: number): void {
+    this.aimHold = { angle: Math.atan2(z - this.renderPos.y, x - this.renderPos.x), left: seconds };
   }
 
   /** Posição de mundo da boca do cano (para efeitos de disparo). */
@@ -577,6 +588,11 @@ export class UnitVisual {
     }
     // facing da simulação: ângulo no plano (x, y) → rotação em torno do eixo Y (x, z)
     this.body.rotation.y = -this.facing;
+    if (this.aimHold) {
+      aimAngle = this.aimHold.angle;
+      this.aimHold.left -= dt;
+      if (this.aimHold.left <= 0) this.aimHold = null;
+    }
     if (this.turret) {
       const target = aimAngle === null ? 0 : -(aimAngle - this.facing);
       let diff = target - this.turretAngle;
@@ -590,6 +606,11 @@ export class UnitVisual {
     for (const g of this.guns) {
       g.barrel.position.x = -g.def.recoil * (g.recoil > 0.85 ? 1 : Math.pow(g.recoil / 0.85, 2));
       g.recoil = Math.max(0, g.recoil - dt * (g.def.recoil > 0.3 ? 1.6 : 6));
+      // Gatling: o feixe gira forte na rajada e perde velocidade aos poucos depois dela
+      if (g.def.spin && g.spin > 0) {
+        g.barrel.rotation.x += dt * g.def.spin * g.spin;
+        g.spin = Math.max(0, g.spin - dt * 0.9);
+      }
     }
     this.reloadPod(dt);
     const podDef = this.model.pod;

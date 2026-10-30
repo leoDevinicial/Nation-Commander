@@ -175,6 +175,11 @@ npm test && npm run lint && npm run typecheck
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
+- **Phalanx CIWS Móvel** (30/10, conta atual; `docs/CIWS.md`): tropa nova da Era Digital (`ciws`, Fábrica, pesquisa
+   Defesa de ponto). Gatling de 20 mm que derruba 40% de cada salva do Lança-Foguetes por perto e conta como defesa
+   antiaérea. Modelo 8×8 fiel à foto do usuário (`buildCiws`, com casco facetado por `PartBuilder.convex`). Feixe de
+   canos que gira, traçantes de interceptação (`RocketLayer.gunIntercept`) e som `gatling`. A IA usa o CIWS contra
+   lança-foguetes. O guia em PDF foi regerado (30 páginas).
 - **Entrega de transição** (30/10): manual do jogador atualizado (`docs/GUIA_DO_JOGADOR.pdf`, 29 páginas: caravanas,
    +15% de produção por estrada, mercado interno, horário do primeiro ataque da IA por dificuldade), com as fontes em
    `docs/guia/`; este handoff; relatório `docs/RELATORIO_LOW_POLY.pdf` (fontes em `docs/relatorio_lowpoly/`) e a

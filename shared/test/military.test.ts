@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MILITARY_RESEARCH, TICK_RATE, UNITS, type BuildingType } from '../sim/config.ts';
+import { MILITARY_RESEARCH, TICK_RATE, UNITS, militaryResearchBlocker, type BuildingType } from '../sim/config.ts';
 import { parseCommand } from '../sim/commands.ts';
 import { RESEARCH_CANCEL_REFUND, SPLASH_FRACTION, Simulation, targetMultiplier, type NationalLink } from '../sim/Simulation.ts';
 import { MISSILE, missileSpec } from '../sim/air.ts';
@@ -265,6 +265,53 @@ describe('progressão militar — tropas novas em combate', () => {
     expect(future.impact?.rockets).toBe(6);
     // metade dos foguetes, metade do dano da salva no alvo (o resto da perda é igual nos dois casos: o QG vizinho atira nele)
     expect(old.drop - future.drop).toBeCloseTo(UNITS.rocket_artillery.weapon.damage / 2, 0);
+  });
+
+  it('Phalanx CIWS Móvel derruba 40% da salva com o Gatling já na Era Digital; fora do alcance, não', () => {
+    const run = (gap: number) => {
+      const { sim } = setup();
+      const rl = sim.spawnUnitNear(sim.hqOf(0)!, 'rocket_artillery')!;
+      const a = sim.spawnUnitNear(sim.hqOf(1)!, 'infantry')!;
+      a.pos = { x: rl.pos.x + 8.6, y: rl.pos.y };
+      a.maxHp = a.hp = 10_000;
+      const ciws = sim.spawnUnitNear(sim.hqOf(1)!, 'ciws')!;
+      ciws.era = 3;
+      ciws.maxHp = ciws.hp = 10_000;
+      ciws.pos = { x: a.pos.x + gap, y: a.pos.y + gap };
+      const pa = { ...a.pos };
+      const pc = { ...ciws.pos };
+      sim.drainEvents();
+      let intercepted: Extract<SimEvent, { type: 'salvo_intercepted' }> | null = null;
+      let impact: Extract<SimEvent, { type: 'salvo_impact' }> | null = null;
+      for (let i = 0; i < TICK_RATE * 12 && !impact; i++) {
+        a.pos = { ...pa };
+        ciws.pos = { ...pc };
+        ciws.cooldown = 99;
+        sim.step();
+        for (const e of sim.drainEvents()) {
+          if (e.type === 'salvo_intercepted' && e.attackerId === rl.id) intercepted ??= e;
+          if (e.type === 'salvo_impact' && e.attackerId === rl.id) impact = e;
+        }
+      }
+      return { intercepted, impact };
+    };
+    const near = run(3);
+    expect(near.intercepted?.gun).toBe(true);
+    expect(near.intercepted?.rockets).toBe(5); // 40% de 12, arredondado para cima
+    expect(near.impact?.rockets).toBe(7);
+    const far = run(9);
+    expect(far.intercepted).toBeNull();
+    expect(far.impact?.rockets).toBe(UNITS.rocket_artillery.weapon.salvo);
+  });
+
+  it('Phalanx CIWS Móvel: Era Digital, pesquisa de defesa de ponto depois da antiaérea móvel, conta como defesa antiaérea', () => {
+    expect(UNITS.ciws.requires).toBe('point_defense');
+    expect(UNITS.ciws.airDefense).toBe(true);
+    expect(UNITS.ciws.producedBy).toBe('factory');
+    expect(militaryResearchBlocker('point_defense', ['mobile_air_defense'], 2, 2)).toMatch(/Era Digital/);
+    expect(militaryResearchBlocker('point_defense', [], 2, 3)).toMatch(/Defesa antiaérea móvel/);
+    expect(militaryResearchBlocker('point_defense', ['mobile_air_defense'], 1, 3)).toMatch(/nível 2/);
+    expect(militaryResearchBlocker('point_defense', ['mobile_air_defense'], 2, 3)).toBeNull();
   });
 
   it('lança-foguetes: quem sai da área durante o voo escapa; salvar e carregar mantém a salva no ar', () => {

@@ -577,6 +577,8 @@ export class TacticalAI {
     let crew = preparing ? Math.min(pop.recruits, garrisonRoom) : pop.recruits;
     const has = (u: UnitType) => !UNITS[u].requires || unlocked.includes(UNITS[u].requires!);
     const enemyArmor = sim.units.filter((u) => sim.hostile(this.slot, u.owner) && UNITS[u.type].armor === 'vehicle' && sim.canSee(this.slot, u)).length;
+    // lança-foguetes inimigo à vista: o CIWS entra no lugar da antiaérea (derruba parte das salvas)
+    const enemyRockets = sim.units.some((u) => sim.hostile(this.slot, u.owner) && u.type === 'rocket_artillery' && sim.canSee(this.slot, u));
     // engenheiros: alguns por nação (minas na defesa e remoção das minas inimigas)
     const wantEngineer = has('engineer') && army.filter((u) => u.type === 'engineer').length + mine.reduce((a, b) => a + b.queue.filter((q) => q.unitType === 'engineer').length, 0) < level.engineers;
     const barracksMix: UnitType[] = [
@@ -590,7 +592,7 @@ export class TacticalAI {
       'apc',
       has('tank') ? 'tank' : 'apc',
       has('rocket_artillery') ? 'rocket_artillery' : has('artillery') ? 'artillery' : 'apc',
-      airThreat && has('mobile_aa') ? 'mobile_aa' : has('mbt') ? 'mbt' : has('tank') ? 'tank' : 'apc',
+      enemyRockets && has('ciws') ? 'ciws' : airThreat && has('mobile_aa') ? 'mobile_aa' : has('mbt') ? 'mbt' : has('tank') ? 'tank' : 'apc',
     ];
     // força aérea depois das reservas: aviões caros consumiam os suprimentos do QG e da era
     if (level.airPower) this.planAir(sim, mine, level.missiles, natTechs, take, cmds);
@@ -905,8 +907,8 @@ export class TacticalAI {
     if (!center) return null;
     const done = sim.players[this.slot]!.militaryResearch ?? [];
     const order: MilitaryResearchId[] = airThreat
-      ? ['tracked_armor', 'mobile_air_defense', 'field_artillery', 'antitank_weapons', 'rocket_systems', 'special_operations', 'modern_armor']
-      : ['tracked_armor', 'field_artillery', 'antitank_weapons', 'rocket_systems', 'mobile_air_defense', 'modern_armor', 'special_operations'];
+      ? ['tracked_armor', 'mobile_air_defense', 'field_artillery', 'antitank_weapons', 'rocket_systems', 'special_operations', 'modern_armor', 'point_defense']
+      : ['tracked_armor', 'field_artillery', 'antitank_weapons', 'rocket_systems', 'mobile_air_defense', 'modern_armor', 'special_operations', 'point_defense'];
     // engenharia de combate depois das armas antitanque (só quando a dificuldade usa minas)
     if (DIFFICULTY[sim.difficulty].engineers > 0) order.splice(order.indexOf('antitank_weapons') + 1, 0, 'combat_engineering');
     for (const id of order) {

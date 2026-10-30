@@ -45,6 +45,22 @@ interface Interceptor {
   trailAcc: number;
 }
 
+/** Rajada do Gatling do CIWS contra um foguete: traçantes saindo da boca do cano até ele. */
+interface GunBurst {
+  start: number;
+  end: number;
+  target: Rocket;
+  acc: number;
+  started: boolean;
+  muzzle: (pos: THREE.Vector3, dir: THREE.Vector3) => void;
+  onStart: (at: THREE.Vector3) => void;
+}
+
+/** Duração da rajada contra cada foguete, intervalo entre traçantes e entre um alvo e o próximo (s). */
+const GUN_BURST = 0.3;
+const GUN_TRACER_EVERY = 0.03;
+const GUN_NEXT_TARGET = 0.18;
+
 /** Escala do interceptador em relação ao foguete do Lança-Foguetes (menor e mais fino). */
 const INTERCEPTOR_SCALE = 0.45;
 const INTERCEPTOR_FLIGHT = 0.6;
@@ -99,6 +115,7 @@ export class RocketLayer {
   private readonly mesh: THREE.InstancedMesh;
   private readonly rockets: Rocket[] = [];
   private readonly interceptors: Interceptor[] = [];
+  private readonly bursts: GunBurst[] = [];
   private readonly free: number[] = [];
   private readonly flames: THREE.Sprite[] = [];
   private readonly puffs: Puff[] = [];
@@ -201,6 +218,20 @@ export class RocketLayer {
         onLaunch: () => o.onLaunch(i),
         trailAcc: 0,
       });
+    });
+  }
+
+  /**
+   * Phalanx CIWS derruba `count` foguetes da salva de `attackerId` com o Gatling: uma rajada de traçantes por foguete,
+   * um alvo depois do outro; o foguete explode no ar no fim da rajada. `muzzle` dá a boca do cano a cada traçante
+   * (e faz o feixe girar); `onStart` avisa a posição do foguete quando a rajada começa (para a torre virar para ele).
+   */
+  gunIntercept(o: { attackerId: number; count: number; muzzle: (pos: THREE.Vector3, dir: THREE.Vector3) => void; onStart: (at: THREE.Vector3) => void }): void {
+    const targets = this.rockets.filter((r) => r.attackerId === o.attackerId && r.doomedAt === undefined).slice(0, o.count);
+    targets.forEach((target, i) => {
+      const start = this.time + i * GUN_NEXT_TARGET;
+      target.doomedAt = start + GUN_BURST;
+      this.bursts.push({ start, end: start + GUN_BURST, target, acc: GUN_TRACER_EVERY, started: false, muzzle: o.muzzle, onStart: o.onStart });
     });
   }
 
@@ -400,6 +431,31 @@ export class RocketLayer {
         this.emit(tail, { life: 0.9 + Math.random() * 0.4, size0: 0.12, size1: 0.6, peak: 0.5, tone: 1 });
       }
     }
+    // rajadas do CIWS: traçantes da boca do cano até a posição atual do foguete (com dispersão pequena)
+    for (let i = this.bursts.length - 1; i >= 0; i--) {
+      const g = this.bursts[i]!;
+      if (this.time < g.start) continue;
+      const tr = g.target;
+      if (this.time >= g.end || !this.rockets.includes(tr)) {
+        this.bursts.splice(i, 1);
+        continue;
+      }
+      this.point(tr, Math.min(1, (this.time - tr.launchAt) / tr.flight), tmpB);
+      if (!g.started) {
+        g.started = true;
+        g.onStart(tmpB);
+      }
+      g.acc += dt;
+      while (g.acc >= GUN_TRACER_EVERY) {
+        g.acc -= GUN_TRACER_EVERY;
+        g.muzzle(tmpPos, tmpDir);
+        const miss = 0.35 * (1 - (this.time - g.start) / GUN_BURST);
+        tmpA.set(tmpB.x + (Math.random() - 0.5) * miss, tmpB.y + (Math.random() - 0.5) * miss, tmpB.z + (Math.random() - 0.5) * miss);
+        this.effects.tracer(tmpPos, tmpA, false);
+        // faíscas dos projéteis que acertam o foguete
+        if (Math.random() < 0.35) this.effects.flash(tmpA, 0.12, '#ffe7a8', 0.06);
+      }
+    }
     if (dirty || (this.rockets.length === 0 && this.interceptors.length === 0)) this.mesh.instanceMatrix.needsUpdate = true;
     for (const p of this.puffs) {
       if (!p.sprite.visible) continue;
@@ -429,6 +485,7 @@ export class RocketLayer {
     for (const p of this.puffs) p.sprite.material.dispose();
     this.rockets.length = 0;
     this.interceptors.length = 0;
+    this.bursts.length = 0;
     this.group.removeFromParent();
   }
 }

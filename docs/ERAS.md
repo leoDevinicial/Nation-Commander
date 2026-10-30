@@ -22,7 +22,7 @@ devolve 75%. Ao concluir, todos os jogadores recebem o aviso: o seu com som de s
 |---|---|---|---|
 | Guerra Fria | Infantaria, Veículo Blindado | QG, casas, coleta, armazéns, Base Militar, Fábrica, Torre | até o nível 6 |
 | Pós-Guerra Fria | Tanque, Artilharia, Infantaria Antitanque | Centro de Pesquisa, Prédio Residencial, Terminal Comercial, Porto, Estação Ferroviária, Bateria Antiaérea | até o nível 6 |
-| Era Digital | Antiaérea Móvel, Forças Especiais, Lança-Foguetes; caças, reconhecimento e cargueiros | Base Aérea | até o nível 8 |
+| Era Digital | Antiaérea Móvel, Phalanx CIWS Móvel, Forças Especiais, Lança-Foguetes; caças, reconhecimento e cargueiros | Base Aérea | até o nível 8 |
 | Futuro Próximo | Tanque Moderno; bombardeiros | Silo de Mísseis | até o nível 10 |
 
 As pesquisas do Centro de Pesquisa Militar continuam existindo, mas cada uma só abre na era da tropa que libera. O
@@ -95,6 +95,9 @@ No cliente:
 - os interceptadores saem das bocas dos tubos (`launchers` no modelo, `UnitVisual.launcherWorld`);
 - são menores que os foguetes do Lança-Foguetes;
 - perseguem os foguetes, que explodem no ar (`RocketLayer.intercept`).
+
+O **Phalanx CIWS Móvel** (Era Digital) também derruba foguetes em voo, com o Gatling: 40% do que resta da salva, a
+até 8 do impacto, desde a era 3. Ver `docs/CIWS.md`.
 
 As luzes de comboio do Lança-Foguetes, as lanternas da Artilharia e as faixas desses três veículos também seguem a cor
 da facção do jogador.
