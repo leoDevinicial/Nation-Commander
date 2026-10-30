@@ -4,7 +4,35 @@ Este arquivo é o ponto de partida para quem pega o projeto numa conversa nova (
 antes de mexer em qualquer coisa. Depois leia `CLAUDE.md` (regras curtas) e
 `docs/BALANCEAMENTO_E_PROGRESSAO.md` (direção de design + tabela "Estado da implementação").
 
-Última atualização: 29/10/2026.
+Última atualização: 30/10/2026 (transição de conta: o projeto passa para outra conta do Claude, por limite de uso; é a
+mesma equipe e o mesmo repositório, sem nenhuma mudança de rumo).
+
+## 0. Comece por aqui (transição de 30/10/2026)
+
+1. **Branch:** `claude/serene-bell-7cjnhp`. Último commit desta conta: o da entrega "manual, handoff e relatório low
+   poly" (ver `git log -3`). A árvore estava limpa e enviada ao GitHub, com `npm test` (468 testes), `npm run lint` e
+   `npm run typecheck` passando. **Não** use a branch `ccr-0d806073-ne3r6d` nem outras `ccr-…`: o ambiente às vezes
+   sugere uma branch nova, mas o usuário pediu para continuar nesta, sem merge e sem retroceder nada.
+2. **Primeiro passo na conta nova:** `git fetch origin claude/serene-bell-7cjnhp && git checkout claude/serene-bell-7cjnhp
+   && git pull`, depois `npm ci && npm test && npm run lint && npm run typecheck`. Se tudo passar, o estado é idêntico
+   ao desta conta.
+3. **Leia nesta ordem:** este arquivo → `CLAUDE.md` (regras e **diretriz visual low poly**) →
+   `docs/BALANCEAMENTO_E_PROGRESSAO.md` (direção de design e tabela "Estado da implementação") → a página do sistema que
+   for mexer (`docs/*.md`).
+4. **Nada fica fora do repositório.** Tudo o que esta conta produziu está commitado: código, docs, guia em PDF e as
+   **fontes** dele (`docs/guia/`), o relatório low poly e as fontes dele (`docs/relatorio_lowpoly/`). O scratchpad da
+   conta antiga (logs de medição, capturas soltas) não é necessário para continuar.
+5. **Não há pedido pela metade.** A última entrega foi concluída inteira (seção 6). O próximo passo é o que o usuário
+   pedir; a seção 7 lista o que está aberto.
+
+### Quem é quem
+
+- **Usuário (diretor e responsável pelo projeto):** paga hospedagem e servidores, decide o rumo. Conversa em português,
+  informal, manda prints e fotos de referência.
+- **Co-diretor (irmão do usuário):** cuida principalmente do gráfico 3D. A direção visual definida pelo responsável é
+  **low poly estilizado** (ver `docs/RELATORIO_LOW_POLY.pdf` e a diretriz no `CLAUDE.md`). Pedidos visuais são
+  atendidos **dentro** dessa estética (luz, efeitos, animação, legibilidade, variantes de era), nunca puxando para o
+  realismo nem copiando a aparência de outros jogos.
 
 ## 1. O projeto em uma frase
 
@@ -36,8 +64,15 @@ aviões, mísseis, eras). Cliente three.js + React/zustand; servidor Node autori
   `npx prettier --write --single-quote --print-width 180 <arquivo>`.
 - A cada entrega: atualizar a tabela "Estado da implementação" no fim de `docs/BALANCEAMENTO_E_PROGRESSAO.md` e a página
   de docs do sistema mexido (uma página por sistema em `docs/`).
-- Ao mexer em economia ou IA: rodar `npx tsx scripts/sim-economia.ts 1,2,3,4,5,6,7 25` e conferir os 6 critérios da
-  seção 5 de `docs/RECALIBRAGEM_RECURSOS.md` (todos passavam em 12 seeds na última medição).
+- Ao mexer em economia ou IA: rodar `npx tsx scripts/sim-economia.ts 1,2,3,4,5,6,7 25` (Normal) e, para o ritmo da IA,
+  `npx tsx scripts/sim-economia.ts 1,2,3,4,5,6,7 30 easy,normal,hard,brutal` (uns 8 min; dá para rodar as quatro
+  dificuldades em paralelo, uma por processo). Critérios: seções 5 e 5.1 de `docs/RECALIBRAGEM_RECURSOS.md`. O script
+  liga a camada nacional como o servidor (`server/Room.ts`). Na última medição, os únicos critérios que falhavam eram
+  dois casos isolados no Normal: num mapa a primeira ofensiva saiu aos 12:55, e numa IA (seed 3, jogador 0) a população
+  trava no começo e os suprimentos enchem o armazém 28% do tempo. Todos os outros passavam nas 4 dificuldades.
+- **Diretriz visual:** low poly estilizado, modelos gerados por código, leitura antes de detalhe, sem copiar o visual de
+  outros jogos, até ~6 mil triângulos por modelo (regras completas no `CLAUDE.md` e no capítulo 7 do relatório low
+  poly).
 - Commits pequenos e descritivos em português, um por pedido do usuário; push logo depois.
 - Ao final de cada pedido, responder ao usuário em português, curto, dizendo o que mudou e o que foi verificado (e o que
   **não** foi verificado).
@@ -73,6 +108,13 @@ npm test && npm run lint && npm run typecheck
 - **Cuidado:** nunca usar `pkill -f` com um padrão que case com o próprio comando do shell (mata o shell). Matar por PID:
   `for p in $(ps aux | grep -E "vite --port 517[34]" | grep -v grep | awk '{print $2}'); do kill $p; done`.
 - Transcrever áudio não funciona aqui (download de modelos bloqueado): peça o pedido por escrito.
+- Para entrar como convidado no navegador, o cliente precisa de `VITE_ALLOW_GUESTS=true` e
+  `VITE_GAME_SERVER_URL=ws://localhost:8787/ws` (`VITE_ALLOW_GUESTS=true VITE_GAME_SERVER_URL=ws://localhost:8787/ws npx
+  vite --port 5173`), e o servidor de `ALLOW_GUESTS=true`. No Sandbox os recursos ficam sempre cheios: não dá para testar
+  ali o que depende de armazém com espaço (por exemplo, a venda do mercado interno).
+- **PDFs do projeto:** o guia do jogador sai de `docs/guia/` (`node pdf.cjs && python3 montar.py`, ver o README da
+  pasta) e o relatório low poly de `docs/relatorio_lowpoly/` (mesmo processo). Ao mudar uma regra que aparece no guia,
+  edite `docs/guia/guia.html` e regenere o PDF no mesmo commit.
 
 ## 5. Mapa do código
 
@@ -93,7 +135,11 @@ npm test && npm run lint && npm run typecheck
   `render/models/`), `audio/`, `perf/` (KGPS/KAICS).
 - `src/globe/` — globo diplomático (`GlobeView.ts`, satélite em `satelliteModel.ts`).
 - `src/ui/` — HUD e telas (lobby `screens/LobbyScreen.tsx`, painel de comando `hud/CommandPanel.tsx`).
-- `scripts/sim-economia.ts` — simulação IA×IA e critérios de economia.
+- `scripts/sim-economia.ts` — simulação IA×IA com a camada nacional; critérios de economia e de ritmo da IA por
+  dificuldade (terceiro argumento: `easy,normal,hard,brutal`).
+- `shared/sim/market.ts` — mercado interno (excedente → suprimentos) do Terminal Comercial.
+- `shared/sim/difficulty.ts` — tudo o que muda entre Fácil, Normal, Difícil e Brutal (preparo, primeira ofensiva,
+  exército mínimo, eras, orçamento de defesa do governo da IA, ondas, aviões, mísseis, minas).
 - `docs/` — uma página por fase/sistema; `docs/AUDITORIA_ADENDO.md` diz o estado de cada fase.
 
 ### Modelos 3D (o usuário pede muito isso)
@@ -119,6 +165,10 @@ npm test && npm run lint && npm run typecheck
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
+- **Entrega de transição** (30/10): manual do jogador atualizado (`docs/GUIA_DO_JOGADOR.pdf`, 29 páginas: caravanas,
+   +15% de produção por estrada, mercado interno, horário do primeiro ataque da IA por dificuldade), com as fontes em
+   `docs/guia/`; este handoff; relatório `docs/RELATORIO_LOW_POLY.pdf` (fontes em `docs/relatorio_lowpoly/`) e a
+   diretriz visual low poly no `CLAUDE.md`.
 - **Mercado interno** no Terminal Comercial (`docs/MERCADO_INTERNO.md`, `shared/sim/market.ts`): vende comida,
    madeira, pedra, ferro e petróleo por suprimentos; o preço cai com as vendas e se recupera. A IA vende a sobra, e a
    era 3 dela passou para ~21 min no Normal.
@@ -173,15 +223,17 @@ mensagens em português descrevendo o que mudou).
 
 ## 7. De onde continuar
 
-Não há pedido em andamento. Dois pontos abertos com o usuário: (1) um áudio dele não pôde ser transcrito — pergunte o
-que ele queria; (2) os bonecos que pareciam estar no teto do QG (ver item 1 da seção 6). Ideias pendentes e coisas
-conhecidas:
+Não há pedido em andamento. Pontos abertos com o usuário: (1) um áudio antigo dele não pôde ser transcrito; pergunte
+se ainda importa; (2) os bonecos que pareciam estar no teto do QG (ver o item 2 da lista numerada da seção 6); (3) a IA
+do Fácil chega à era 3 tão cedo quanto a do Normal (gasta pouco com exército); foi oferecido atrasar a era dela, e o
+usuário ainda não respondeu. Ideias pendentes e coisas conhecidas:
 
 - **Pendente no design:** conteúdo naval de combate (transporte com desembarque, fragata, submarino, porta-aviões) e
   depois os mapas Oceano Central e Arquipélago. Outras direções em `docs/BALANCEAMENTO_E_PROGRESSAO.md` (Tropico:
   ministros, eleições; Rise of Nations: Centros Regionais com captura, generais, espiões, caminhão logístico, recursos
   raros, teto de comércio).
-- O usuário está trocando os modelos da era "Futuro Próximo" um a um a partir de fotos de referência. Candidatos ainda
+- O usuário está trocando os modelos da era "Futuro Próximo" um a um a partir de fotos de referência (sempre em low
+  poly). Candidatos ainda
   sem variante de era 4: infantaria, APC, tanque, forças especiais, engenheiro, explorador, aviões e
   edifícios. Siga o padrão: builder novo em `unitModels.ts`, registrar em `ERA_BUILDERS`, prévia isolada, docs em
   `docs/ERAS.md`, detalhes na camada `accent`.
@@ -192,7 +244,9 @@ conhecidas:
 - Partidas humanas contra a IA para validar a sensação da economia nova ainda não foram feitas.
 - **Economia tardia:** resolvida em boa parte pelo mercado interno. A IA às vezes para o QG no nível 7 com "Requisito:
   Infraestrutura nacional com índice 1,02" (o governo da IA não sobe o orçamento de infraestrutura para isso).
-- O guia em PDF (`docs/GUIA_DO_JOGADOR.pdf`) ainda não fala do mercado interno nem dos novos horários da IA.
+- Mercado interno: só vende (excedente → suprimentos). Comprar com suprimentos não existe; se o usuário pedir, seguir a
+  mesma regra de pressão de preço (`shared/sim/market.ts`).
+- Os critérios de validação que ainda falham estão na seção 3 (dois casos isolados no Normal).
 - `docs/RELATORIO_POS_PARTIDA.md`: o relatório ainda não é gravado no histórico do Supabase.
 
 ## 8. Estilo de entrega que o usuário aprovou

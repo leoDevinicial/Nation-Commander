@@ -1,0 +1,178 @@
+<body>
+
+<!-- ============================== RESUMO -->
+<section class="page">
+  <h1>Resumo</h1>
+  <p class="lead">O Nation Commander foi idealizado como um RTS geopolítico em <b>low poly</b>, e o visual atual já entrega o que essa estética promete. Este relatório explica por que essa é a escolha certa e por que ela deve guiar o projeto daqui em diante.</p>
+
+  <div class="quote">Gráfico bom num RTS não é gráfico realista. É gráfico que se lê em um segundo, roda em qualquer aparelho e não se confunde com nenhum outro jogo.</div>
+
+  <h2>As cinco conclusões</h2>
+  <ol class="steps">
+    <li><b>Low poly é uma estética, não uma limitação.</b> Formas simples, facetas visíveis e cores chapadas são uma linguagem visual escolhida, com regras próprias. Ela envelhece bem.</li>
+    <li><b>Num RTS, ela é vantagem de jogo.</b> O jogador olha de cima para dezenas de tropas e prédios ao mesmo tempo. Silhueta clara e cor da nação valem mais do que textura detalhada, que de longe vira ruído.</li>
+    <li><b>Ela é o que permite o jogo rodar no navegador e no celular.</b> Nossos modelos têm de 700 a 6.200 triângulos, e o jogo inteiro baixa em cerca de 2,5 MB. Um visual realista multiplicaria o custo de cada modelo por 10 a 50 e o download por centenas.</li>
+    <li><b>É a estética que conseguimos produzir sozinhos, rápido e sem custo.</b> Todos os prédios e tropas são gerados por código pelo Claude, a partir de fotos de referência, sem Blender, sem licenças e sem comprar modelos. O realismo exigiria artistas 3D, pacotes pagos e semanas por modelo.</li>
+    <li><b>O nosso visual deve ser nosso.</b> Copiar a aparência de outros jogos dilui a identidade, cria inconsistência e não combina com o que o nosso jogo tem de único: eras, cores de nação, globo e escala de país.</li>
+  </ol>
+
+  <div class="box tip"><span class="t">Recomendação</span>Adotar o low poly estilizado como <b>diretriz visual oficial</b> (registrada no <code>CLAUDE.md</code>, que orienta todo o trabalho no repositório). O esforço gráfico vai para o que melhora o jogo <i>dentro</i> dessa estética: iluminação, efeitos, animação, legibilidade e as variantes de era. Não vai para o realismo.</div>
+</section>
+
+<!-- ============================== 1 -->
+<section class="page">
+  <h1><span class="num">1</span>O que é low poly</h1>
+  <p class="lead">"Poly" vem de polígono: as faces que formam um objeto 3D. Low poly é construir com poucas faces e deixar isso à mostra, de propósito.</p>
+  <div class="grid2">
+    <div class="card"><div class="ic">◆</div><h4>O que define a estética</h4><p>Silhuetas fortes e reconhecíveis; facetas visíveis; cores chapadas ou com gradientes suaves; poucos detalhes, todos escolhidos; proporções levemente exageradas para ler bem de longe.</p></div>
+    <div class="card"><div class="ic">✕</div><h4>O que ela não é</h4><p>Não é "gráfico de jogo antigo" nem "gráfico inacabado". Um modelo low poly bem feito é tão trabalhado quanto um realista: o esforço está em decidir o que mostrar, não em empilhar detalhes.</p></div>
+  </div>
+  <h2>Uma linguagem com regras</h2>
+  <p>Como um desenho animado ou uma ilustração de livro, o low poly funciona porque é <b>coerente</b>: todas as peças falam a mesma língua. Um tanque facetado ao lado de um prédio facetado, sob a mesma luz e a mesma paleta, forma um mundo crível. O realismo, ao contrário, precisa que <i>tudo</i> seja realista ao mesmo tempo. Um único modelo fraco quebra a ilusão.</p>
+  <figure><img src="img/base.jpg" style="height:70mm"><figcaption>Uma base do Nation Commander na Guerra Fria: Centro de Comando, fazendas, poço com tanque, casas, quartel e fábrica. Cada prédio se reconhece pela forma e pela cor, mesmo de longe.</figcaption></figure>
+  <h2>Ela envelhece bem</h2>
+  <p>O visual realista é uma corrida contra o tempo: o que impressiona hoje parece datado em poucos anos, porque é comparado com a tecnologia mais nova. A estética estilizada não disputa essa corrida. Ela é julgada pela coerência e pelo charme, e por isso continua bonita muitos anos depois do lançamento. Para um jogo que pretendemos manter e expandir (eras, mapas, conteúdo naval, assinaturas), isso é decisivo.</p>
+</section>
+
+<!-- ============================== 2 -->
+<section class="page">
+  <h1><span class="num">2</span>Por que funciona num RTS</h1>
+  <p class="lead">Num jogo de estratégia em tempo real, o gráfico tem um trabalho específico: deixar o jogador entender o campo de batalha rápido o bastante para decidir.</p>
+  <h2>A câmera de um RTS é alta</h2>
+  <p>O jogador passa quase toda a partida olhando de cima, com dezenas de unidades e prédios na tela. Nessa distância, o que identifica uma tropa é a <b>silhueta</b> e a <b>cor</b>. A textura de uma lagarta de tanque, o desgaste de uma parede ou o reflexo de um capacete viram poucos pixels de ruído. O realismo gasta o orçamento do computador justamente no que o jogador não consegue ver.</p>
+  <h2>Leitura em um segundo</h2>
+  <table>
+    <tr><th style="width:32%">O que o jogador precisa saber</th><th>Como o low poly entrega</th></tr>
+    <tr><td><b>De quem é esta unidade?</b></td><td>A cor da nação aplicada em partes grandes do modelo, visível de longe.</td></tr>
+    <tr><td><b>Que tipo de unidade é?</b></td><td>Silhuetas bem distintas: o cano longo do tanque, os tubos do Lança-Foguetes, o radar da antiaérea, o soldado com fuzil ou com lançador.</td></tr>
+    <tr><td><b>Que prédio é este?</b></td><td>Formas exageradas e únicas por função: silo cilíndrico, fábrica com chaminés, quartel com telhado em arco.</td></tr>
+    <tr><td><b>Onde está cada recurso?</b></td><td>Terreno com cores chapadas: solo fértil marrom, rocha cinza, floresta verde-escura, jazida de petróleo como mancha preta.</td></tr>
+    <tr><td><b>Em que era está o rival?</b></td><td>Cada era troca a aparência de todas as construções. Com formas simples, a diferença salta aos olhos.</td></tr>
+  </table>
+  <figure><img src="img/tropas.jpg" style="height:62mm"><figcaption>Um exército misto: tanques, Tanques Modernos, artilharia, Antiaérea Móvel, Lança-Foguetes e infantaria. Cada tipo se distingue pela silhueta, sem precisar de zoom.</figcaption></figure>
+  <div class="box info"><span class="t">Clareza é parte da jogabilidade</span>Num RTS, perder porque não se percebeu um ataque de artilharia ou porque não se distinguiu um tanque de um blindado é frustração, não desafio. A estética clara é uma decisão de <b>design de jogo</b>, não só de arte.</div>
+</section>
+
+<!-- ============================== 3 -->
+<section class="page">
+  <h1><span class="num">3</span>Desempenho: mais gente pode jogar</h1>
+  <p class="lead">O Nation Commander roda no navegador, no computador e no celular, sem instalar nada. Isso só é possível porque cada modelo é leve.</p>
+  <h2>Números medidos no nosso jogo</h2>
+  <div class="grid3">
+    <div class="stat"><div class="v">700–6.200</div><div class="l">triângulos por modelo (prédios e tropas)</div></div>
+    <div class="stat"><div class="v">~2,5 MB</div><div class="l">o jogo inteiro compilado (≈ 590 KB de código comprimido)</div></div>
+    <div class="stat"><div class="v">144 KB</div><div class="l">de arquivos de modelo 3D (só pedras, rochedos e arbustos; o resto é gerado por código)</div></div>
+  </div>
+  <table>
+    <tr><th>Modelo</th><th>Triângulos</th><th>Modelo</th><th>Triângulos</th></tr>
+    <tr><td>Infantaria</td><td>1.120</td><td>Casa</td><td>700</td></tr>
+    <tr><td>Veículo Blindado</td><td>1.670</td><td>Fazenda</td><td>808</td></tr>
+    <tr><td>Lança-Foguetes</td><td>1.360</td><td>Base Militar</td><td>1.372</td></tr>
+    <tr><td>Artilharia</td><td>3.654</td><td>Fábrica</td><td>1.500</td></tr>
+    <tr><td>Antiaérea Móvel</td><td>3.984</td><td>Centro de Comando</td><td>1.976</td></tr>
+    <tr><td>Tanque</td><td>5.020</td><td>Terminal Comercial</td><td>3.268</td></tr>
+    <tr><td>Tanque Moderno (Futuro Próximo)</td><td>6.176</td><td>Prefeitura</td><td>3.776</td></tr>
+  </table>
+  <p class="small">Contagem feita direto na geometria dos modelos do jogo (todas as partes, incluindo rodas, lagartas e detalhes), em outubro de 2026. Cena inteira medida no navegador (Sandbox, com 46 tropas, 15 prédios, o terreno e a vegetação do mapa): cerca de 450 mil triângulos por quadro, 369 chamadas de desenho e apenas 21 texturas.</p>
+  <h2>Comparação com um visual realista</h2>
+  <p>Em jogos realistas atuais, um veículo militar costuma ter <b>dezenas de milhares</b> de triângulos e vir acompanhado de um conjunto de texturas de alta resolução (cor, relevo, rugosidade, metal), que sozinho ocupa vários megabytes de memória de vídeo. Por isso esses jogos pedem placas de vídeo dedicadas e downloads de dezenas de gigabytes. São ordens de grandeza típicas do mercado, não medições nossas, mas a conta é clara:</p>
+  <ul>
+    <li><b>Na tela:</b> a nossa cena medida, com 46 tropas, 15 prédios, terreno e vegetação, desenha cerca de 450 mil triângulos. Só as 46 tropas em versão realista, a algumas dezenas de milhares de triângulos cada, já passariam de 1 milhão, antes de contar prédios, terreno e texturas.</li>
+    <li><b>No download:</b> o nosso jogo inteiro (2,5 MB) tem o tamanho de uma ou duas texturas de alta resolução de um único modelo realista.</li>
+    <li><b>No celular:</b> o sistema de qualidade adaptativa (KGPS) mantém 30 quadros por segundo no celular e 60 no PC, ajustando sombras e efeitos. Com modelos realistas, nem o nível mínimo caberia num celular comum.</li>
+  </ul>
+  <div class="box tip"><span class="t">Desempenho é público</span>Cada aparelho que roda o jogo é um jogador a mais. Notebooks simples, Chromebooks de escola e celulares intermediários são uma fatia enorme do público de jogos de navegador, e o low poly é o que nos permite atendê-los. Para quem paga hospedagem e servidores, é também o que permite crescer sem depender de jogadores com computador caro.</div>
+</section>
+
+<!-- ============================== 4 -->
+<section style="margin-top:8mm">
+  <h1><span class="num">4</span>Como produzimos os modelos</h1>
+  <p class="lead">Este é o argumento mais prático: a estética low poly é a que conseguimos produzir com a equipe e o orçamento que temos.</p>
+  <h2>Hoje: modelos gerados por código</h2>
+  <p>Todos os prédios e tropas do Nation Commander são <b>gerados por código</b> (cerca de 7.100 linhas em <code>src/game/render/models/</code>). Cada modelo é montado com peças geométricas simples: caixas, cilindros, cunhas e prismas, com cores por camada (corpo, detalhe, cor da nação). Não há arquivo de modelo para baixar, abrir ou licenciar.</p>
+  <ol class="steps">
+    <li><b>Referência:</b> o diretor envia fotos do veículo ou do prédio real (por exemplo, um T-90M ou um lançador 8×8).</li>
+    <li><b>Modelo:</b> o Claude escreve o código do modelo, peça por peça, respeitando proporções e silhueta.</li>
+    <li><b>Prévia:</b> o modelo é renderizado sozinho, em vários ângulos, e conferido no jogo.</li>
+    <li><b>Ajuste:</b> correções ("o canhão está curto", "a torre está alta") viram mudanças de número no código, em minutos.</li>
+  </ol>
+  <p>Foi assim que nasceram o Tanque Moderno, a Artilharia, o Lança-Foguetes e a Antiaérea Móvel do Futuro Próximo, os caminhões das caravanas e as variantes de prédio de cada era.</p>
+  <h2>Por que isso funciona bem no low poly, e não no realismo</h2>
+  <table>
+    <tr><th style="width:22%"></th><th>Low poly (o que fazemos)</th><th>Realista</th></tr>
+    <tr><td><b>Ferramenta</b></td><td>Código, revisado como qualquer outra parte do jogo</td><td>Blender ou similares, escultura digital, pintura de texturas, retopologia</td></tr>
+    <tr><td><b>Quem faz</b></td><td>O Claude, a partir de fotos de referência</td><td>Artistas 3D especializados, ou pacotes comprados</td></tr>
+    <tr><td><b>Tempo por modelo</b></td><td>Minutos a poucas horas, com ajustes na hora</td><td>Dias a semanas por modelo de qualidade</td></tr>
+    <tr><td><b>Custo</b></td><td>Nenhum além da assinatura que já usamos</td><td>Horas de artista ou licenças por modelo e por pacote</td></tr>
+    <tr><td><b>Licença</b></td><td>O código é nosso: sem risco de uso indevido</td><td>Cada pacote tem regras próprias de uso e de redistribuição</td></tr>
+    <tr><td><b>Coerência</b></td><td>Mesmo kit de peças e mesma paleta em tudo</td><td>Pacotes de origens diferentes raramente combinam entre si</td></tr>
+    <tr><td><b>Variantes de era</b></td><td>Troca de peças e de paleta no código</td><td>Novo modelo e novas texturas para cada variante</td></tr>
+  </table>
+  <div class="box warn"><span class="t">Uma limitação honesta</span>O Claude escreve geometria e cor; ele não esculpe em alta resolução nem pinta texturas fotográficas como um artista 3D. Para um visual realista, teríamos que trazer gente de fora, comprar pacotes ou aprender e manter um fluxo inteiro no Blender. O low poly é o estilo em que a nossa forma de produzir é <b>forte</b>. Mudar de estética trocaria um processo que funciona por um que não temos.</div>
+</section>
+
+<!-- ============================== 5 -->
+<section style="margin-top:8mm">
+  <h1><span class="num">5</span>Uma estética só nossa</h1>
+  <p class="lead">O visual é a primeira coisa que um jogador vê, numa loja, num vídeo ou numa captura de tela. Ele precisa dizer "Nation Commander", e não "parece aquele outro jogo".</p>
+  <h2>Por que não copiar o visual de outros jogos</h2>
+  <ul>
+    <li><b>Identidade:</b> um jogo que imita a aparência de outro é lembrado como "a versão menor daquele". Um jogo com cara própria é lembrado pelo nome.</li>
+    <li><b>Coerência:</b> cada jogo tem um visual pensado para a câmera, a escala e as regras dele. Transplantar só a aparência, sem o resto, produz um mundo desencontrado: um prédio que parece de um jogo ao lado de um tanque que parece de outro.</li>
+    <li><b>Comparação injusta:</b> imitar um jogo feito por centenas de pessoas convida o jogador a comparar, e perdemos essa comparação. Com uma estética própria, somos avaliados pelo que fazemos bem.</li>
+    <li><b>Segurança:</b> uma identidade visual nossa nos afasta de qualquer acusação de cópia de marca, estilo ou recurso visual de terceiros.</li>
+  </ul>
+  <figure><img src="img/eras.jpg" style="height:52mm"><figcaption>A mesma base na Guerra Fria e no Futuro Próximo. As eras são um recurso que poucos RTS têm, e com formas simples a transformação da nação inteira fica evidente.</figcaption></figure>
+  <h2>O que já é marca do Nation Commander</h2>
+  <div class="grid2">
+    <div class="card"><h4>Eras que mudam a nação</h4><p>Guerra Fria, Pós-Guerra Fria, Era Digital e Futuro Próximo, com prédios e tropas que trocam de aparência.</p></div>
+    <div class="card"><h4>Cor da nação</h4><p>Cada país com a sua cor, aplicada em partes grandes de cada modelo, com bandeiras e nomes de cidades reais.</p></div>
+    <div class="card"><h4>Do mapa ao globo</h4><p>O teatro de operações em 3D e o globo da diplomacia na mesma linguagem visual.</p></div>
+    <div class="card"><h4>Vida na base</h4><p>Cidadãos andando, caravanas na estrada, bombas de petróleo girando, fumaça, explosões e o foguete do Programa Espacial.</p></div>
+  </div>
+</section>
+
+<!-- ============================== 6 -->
+<section class="page">
+  <h1><span class="num">6</span>Para onde vai o esforço gráfico</h1>
+  <p class="lead">Escolher o low poly não é parar de melhorar o visual. É melhorar o visual <i>dentro</i> da nossa linguagem, onde cada hora de trabalho rende mais.</p>
+  <p>Há muito espaço para quem quer cuidar do gráfico, e é aqui que o trabalho do co-diretor faz mais diferença:</p>
+  <table>
+    <tr><th style="width:28%">Área</th><th>Exemplos que valorizam o jogo sem sair do low poly</th></tr>
+    <tr><td><b>Luz e atmosfera</b></td><td>Iluminação por hora do dia, céu e neblina por tipo de mapa, sombras suaves, contorno nas unidades selecionadas.</td></tr>
+    <tr><td><b>Efeitos</b></td><td>Explosões, fumaça, rastros de míssil, poeira de veículos, fogo em prédios danificados, tudo em formas facetadas.</td></tr>
+    <tr><td><b>Animação</b></td><td>Recuo de canhão, torres girando, soldados com poses de tiro, portas da fábrica abrindo, caminhões manobrando.</td></tr>
+    <tr><td><b>Legibilidade</b></td><td>Silhuetas ainda mais distintas, ícones de estado, cor da nação mais visível no zoom distante.</td></tr>
+    <tr><td><b>Variantes de era</b></td><td>Completar as tropas e os prédios que ainda não têm versão do Futuro Próximo (infantaria, blindado, aviões, prédios).</td></tr>
+    <tr><td><b>Mapas e biomas</b></td><td>Paletas próprias para Deserto, Montanhoso, Rios e Pontes, e os futuros mapas navais.</td></tr>
+    <tr><td><b>Interface</b></td><td>Miniaturas do menu com o modelo da era atual, painéis mais claros, retratos das unidades.</td></tr>
+  </table>
+  <div class="box info"><span class="t">Como pedir uma melhoria visual</span>Mande fotos de referência e diga o que incomoda ("o caminhão parece pequeno", "não dá para distinguir o blindado do tanque"). Isso vira código em minutos. Foi assim com os caminhões das caravanas, as estradas de asfalto e os veículos do Futuro Próximo.</div>
+  <h2>Perguntas comuns</h2>
+  <h3>"Mas jogadores não querem gráfico bonito?"</h3>
+  <p>Querem gráfico <b>bonito</b>, e bonito não é sinônimo de realista. Muitos dos jogos de estratégia e de gestão mais jogados e duradouros usam visual estilizado. O que o jogador não perdoa é um visual incoerente, pesado ou confuso.</p>
+  <h3>"Low poly não passa a impressão de jogo barato?"</h3>
+  <p>Passa quando é feito sem cuidado: peças sem coerência, cores aleatórias, sem luz nem animação. Bem feito, transmite estilo e intenção. O caminho para parecer profissional é polimento dentro da estética, que é exatamente a lista acima.</p>
+  <h3>"E se no futuro quisermos realismo?"</h3>
+  <p>Seria outro jogo: outro orçamento, outra equipe, outro público (só computadores fortes) e outro processo de produção. Não é uma melhoria incremental do jogo atual.</p>
+</section>
+
+<!-- ============================== 7 -->
+<section class="page">
+  <h1><span class="num">7</span>A diretriz visual do projeto</h1>
+  <p class="lead">A partir deste relatório, estas regras valem para todo o trabalho gráfico no Nation Commander. Elas estão registradas no <code>CLAUDE.md</code> do repositório, que orienta cada sessão de desenvolvimento.</p>
+  <ol class="steps">
+    <li><b>O Nation Commander é low poly estilizado.</b> Formas facetadas, cores chapadas por camada, silhueta forte. Não buscamos realismo fotográfico.</li>
+    <li><b>Leitura antes de detalhe.</b> Todo modelo precisa ser identificável de longe pela silhueta e pela cor da nação. Detalhe que não se lê na câmera normal do jogo não entra.</li>
+    <li><b>Coerência acima de tudo.</b> Todo modelo novo usa o mesmo kit de peças, a mesma paleta por era e a mesma luz. Nada de misturar estilos.</li>
+    <li><b>Visual próprio.</b> Fotos do mundo real servem de referência de forma e proporção. A aparência de outros jogos não é copiada nem transposta para o nosso.</li>
+    <li><b>Orçamento de desempenho.</b> Tropas e prédios ficam na faixa atual (até cerca de 6 mil triângulos por modelo), sem texturas fotográficas. O jogo precisa continuar rodando no navegador e no celular.</li>
+    <li><b>Modelos por código.</b> Prédios e tropas continuam gerados em <code>src/game/render/models/</code>. Arquivos externos só com licença livre (como os CC0 da natureza) e no mesmo estilo.</li>
+    <li><b>Investir no polimento.</b> Esforço gráfico vai para luz, efeitos, animação, legibilidade, variantes de era e biomas, não para aumentar o realismo.</li>
+  </ol>
+  <div class="box tip"><span class="t">Em uma frase</span>O Nation Commander deve ser reconhecido pela sua cara: uma nação inteira em low poly, clara, leve e coerente, que evolui de era em era.</div>
+  <p class="small" style="margin-top:8mm">Fontes dos números: geometria dos modelos do jogo e compilação de produção do cliente (outubro de 2026); sistema de qualidade adaptativa descrito em <code>docs/KGPS_KAICS.md</code>; modelos de natureza CC0 em <code>public/assets/models/nature/</code>. As faixas de triângulos e de texturas de jogos realistas são ordens de grandeza típicas do mercado, não medições nossas.</p>
+</section>
+
+</body>
+</html>

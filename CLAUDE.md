@@ -13,6 +13,22 @@ Supabase para contas e histórico). O jogo é todo em português.
 - Antes de entregar: `npm test`, `npm run lint`, `npm run typecheck`. Nunca rodar o prettier no arquivo inteiro
   (`src/game/GameRuntime.ts` vira milhares de linhas de diff); formatar só o trecho alterado.
 
+## Diretriz visual (low poly) — vale para todo trabalho gráfico
+O Nation Commander é **low poly estilizado**, por decisão do responsável pelo projeto. Fundamentos e exemplos em
+[`docs/RELATORIO_LOW_POLY.pdf`](docs/RELATORIO_LOW_POLY.pdf) (fontes em `docs/relatorio_lowpoly/`).
+- Formas facetadas, cores chapadas por camada (`body`, `accent` = cor da nação, `glass`), silhueta forte. Nada de
+  realismo fotográfico, texturas fotográficas ou mapas PBR.
+- Leitura antes de detalhe: todo modelo precisa ser reconhecível de longe, na câmera normal do RTS, pela silhueta e pela
+  cor da nação.
+- Coerência: mesmo kit (`src/game/render/models/kit.ts`), mesma paleta por era, mesma luz. Não misturar estilos.
+- Visual próprio: fotos do mundo real servem de referência de forma e proporção; a aparência de outros jogos não é
+  copiada nem transposta.
+- Orçamento: até ~6 mil triângulos por tropa ou prédio (hoje 700–6.200); o jogo precisa seguir rodando no navegador e
+  no celular.
+- Modelos gerados por código em `src/game/render/models/`. Arquivo externo só com licença livre (CC0) e no mesmo estilo.
+- Pedidos para "melhorar o gráfico" viram polimento dentro da estética: luz, efeitos, animação, legibilidade, variantes
+  de era, biomas e interface.
+
 ## Onde está cada coisa
 - `shared/sim/` — simulação tática determinística (config, IA, combate, comércio, melhorias). `shared/strategic/` —
   camada nacional (economia, orçamento, diplomacia).

@@ -1,0 +1,767 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Guia do Comandante</title>
+<style>
+  @page { size: A4; margin: 15mm 17mm 17mm; }
+  :root { --navy: #0e1624; --navy2: #182235; --gold: #e0b14a; --ink: #1d2533; --muted: #5b6577; --line: #d9dee7; --soft: #f4f6fa; --green: #2f9e63; --red: #c94a3f; --blue: #3b7fd1; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: 'Inter', 'DejaVu Sans', sans-serif; color: var(--ink); font-size: 10.1pt; line-height: 1.45; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page { break-before: page; }
+  .page:first-child { break-before: auto; }
+  figure, .box, .card, .era, tr, .grid2, .grid3, .steps li, svg, .anno, .legend { break-inside: avoid; }
+  h1, h2, h3 { break-after: avoid; }
+  figure img { max-height: 74mm; object-fit: cover; }
+  
+  .pnum { position: absolute; bottom: 8mm; right: 17mm; font-size: 8.5pt; color: var(--muted); }
+  .runhead { position: absolute; top: 7mm; left: 17mm; right: 17mm; font-size: 7.5pt; letter-spacing: .18em; text-transform: uppercase; color: #9aa3b2; display: flex; justify-content: space-between; }
+  h1 { font-family: 'Inter Display', 'Inter', sans-serif; font-weight: 800; font-size: 25pt; line-height: 1.1; margin: 4mm 0 2mm; color: var(--navy); }
+  h1 .num { display: inline-block; background: var(--gold); color: var(--navy); border-radius: 6px; padding: 0 9px; margin-right: 8px; font-size: 20pt; vertical-align: 3px; }
+  .lead { font-size: 12pt; color: var(--muted); margin: 0 0 5mm; }
+  h2 { font-family: 'Inter Display', 'Inter', sans-serif; font-size: 14pt; margin: 4.5mm 0 1.5mm; color: var(--navy); }
+  h3 { font-size: 11pt; margin: 4mm 0 1mm; color: var(--navy); }
+  p { margin: 0 0 2.5mm; }
+  ul, ol { margin: 0 0 3mm; padding-left: 5.5mm; }
+  li { margin-bottom: 1mm; }
+  b, strong { color: #101827; }
+  figure { margin: 3mm 0 4mm; }
+  figure img { width: 100%; border-radius: 6px; display: block; border: 1px solid #10192a; }
+  figcaption { font-size: 8.8pt; color: var(--muted); margin-top: 1.5mm; }
+  table { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; font-size: 9.4pt; }
+  th { background: var(--navy); color: #fff; text-align: left; padding: 2mm 2.5mm; font-weight: 600; }
+  td { padding: 1.8mm 2.5mm; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--soft); }
+  .box { border-radius: 8px; padding: 2.8mm 4mm; margin: 2.5mm 0 3mm; }
+  .tip { background: #fff7e3; border-left: 4px solid var(--gold); }
+  .warn { background: #fdecea; border-left: 4px solid var(--red); }
+  .info { background: #eaf2fc; border-left: 4px solid var(--blue); }
+  .box .t { font-weight: 700; margin-bottom: 1mm; display: block; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3mm; }
+  .card { border: 1px solid var(--line); border-radius: 8px; padding: 3mm 3.5mm; background: #fff; }
+  .card .ic { font-size: 18pt; line-height: 1; }
+  .card h4 { margin: 1.5mm 0 1mm; font-size: 10.5pt; color: var(--navy); }
+  .card p { font-size: 9.3pt; margin: 0; color: #36404f; }
+  .steps { counter-reset: s; list-style: none; padding: 0; }
+  .steps li { counter-increment: s; position: relative; padding-left: 10mm; margin-bottom: 2.5mm; }
+  .steps li::before { content: counter(s); position: absolute; left: 0; top: -0.5mm; width: 7mm; height: 7mm; border-radius: 50%; background: var(--navy); color: var(--gold); font-weight: 700; text-align: center; line-height: 7mm; font-size: 10pt; }
+  .kbd { font-family: 'JetBrains Mono', monospace; font-size: 8.6pt; background: #eef1f6; border: 1px solid #cfd6e1; border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; white-space: nowrap; }
+  .anno { position: relative; }
+  .anno img { width: 100%; display: block; border-radius: 6px; }
+  .mk { position: absolute; width: 5.6mm; height: 5.6mm; border-radius: 50%; background: var(--gold); color: var(--navy); font-weight: 800; font-size: 8pt; text-align: center; line-height: 5.6mm; box-shadow: 0 0 0 2px #0e1624; top: -6.5mm; transform: translateX(-50%); }
+  .legend { columns: 2; column-gap: 6mm; font-size: 9.3pt; margin-top: 2mm; }
+  .legend div { break-inside: avoid; margin-bottom: 1.2mm; }
+  .legend b { display: inline-block; width: 5mm; height: 5mm; border-radius: 50%; background: var(--gold); color: var(--navy); text-align: center; font-size: 7.5pt; line-height: 5mm; margin-right: 1.5mm; }
+  .pill { display: inline-block; font-size: 8pt; padding: 0.3mm 2mm; border-radius: 99px; background: #e8edf5; color: #2d3a52; font-weight: 600; }
+  .era { border-radius: 8px; padding: 3mm 3.5mm; color: #fff; }
+  .era h4 { margin: 0 0 1mm; font-size: 10.5pt; color: #fff; }
+  .era p { margin: 0; font-size: 8.8pt; color: rgba(255,255,255,.88); }
+  .era .q { font-size: 7.6pt; text-transform: uppercase; letter-spacing: .12em; color: rgba(255,255,255,.7); }
+  .toc { columns: 2; column-gap: 8mm; }
+  .toc div { display: flex; gap: 2mm; padding: 1.4mm 0; border-bottom: 1px dotted #c9d0db; break-inside: avoid; }
+  .toc span.n { color: var(--gold); font-weight: 800; width: 7mm; }
+  .small { font-size: 8.8pt; color: var(--muted); }
+  .center { text-align: center; }
+  svg text { font-family: 'Inter', sans-serif; }
+  /* capa */
+  .cover { background: radial-gradient(circle at 70% 35%, #1d3150 0%, #0e1624 55%, #070b12 100%); color: #fff; padding: 0; }
+  .cover .inner { padding: 24mm 20mm; position: relative; z-index: 2; }
+  .cover .kicker { font-size: 9pt; letter-spacing: .32em; color: var(--gold); text-transform: uppercase; }
+  .cover h1 { color: #fff; font-size: 40pt; margin: 6mm 0 3mm; }
+  .cover .brand { font-family: 'michroma', 'Inter Display', sans-serif; font-size: 13pt; letter-spacing: .3em; color: #cfd8e6; }
+  .cover .sub { font-size: 13pt; color: #c3cad6; max-width: 140mm; margin-top: 6mm; }
+  .cover .shot { position: absolute; left: 0; right: 0; bottom: 0; height: 150mm; background-size: cover; background-position: center; z-index: 1; -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 35%); mask-image: linear-gradient(to bottom, transparent 0%, #000 35%); }
+  .cover .foot { position: absolute; bottom: 12mm; left: 20mm; right: 20mm; z-index: 3; font-size: 9pt; color: #d6dbe4; display: flex; justify-content: space-between; text-shadow: 0 1px 3px #000; }
+</style>
+</head>
+<body>
+
+
+
+<!-- ============================== SUMÁRIO -->
+<section class="page">
+  <h1>O que tem neste guia</h1>
+  <p class="lead">Leia na ordem se é sua primeira partida. Depois, use como consulta.</p>
+  <div class="toc">
+    <div><span class="n">1</span>O jogo em 1 minuto</div>
+    <div><span class="n">2</span>Começando uma partida</div>
+    <div><span class="n">3</span>A tela do jogo</div>
+    <div><span class="n">4</span>Controles</div>
+    <div><span class="n">5</span>Recursos</div>
+    <div><span class="n">6</span>População</div>
+    <div><span class="n">7</span>Construir a base</div>
+    <div><span class="n">8</span>Seus primeiros 10 minutos</div>
+    <div><span class="n">9</span>As tropas</div>
+    <div><span class="n">10</span>Guerra e combate</div>
+    <div><span class="n">11</span>Eras: a evolução da nação</div>
+    <div><span class="n">12</span>Melhorias e pesquisa</div>
+    <div><span class="n">13</span>Governando o país</div>
+    <div><span class="n">14</span>O Globo e a diplomacia</div>
+    <div><span class="n">15</span>Força aérea e mísseis</div>
+    <div><span class="n">16</span>Cidades, estradas e serviços</div>
+    <div><span class="n">17</span>Grandes Projetos e Programa Espacial</div>
+    <div><span class="n">18</span>O bônus de cada país</div>
+    <div><span class="n">19</span>Dicas de estratégia</div>
+    <div><span class="n">20</span>Glossário</div>
+  </div>
+  <div class="box info" style="margin-top:8mm"><span class="t">Como ler os números deste guia</span>Os custos e valores mostrados aqui são os do jogo no momento em que este guia foi feito. O jogo é atualizado com frequência: se algum número estiver diferente, vale sempre o que aparece na tela da partida.</div>
+  <h2>Símbolos usados</h2>
+  <div class="grid3">
+    <div class="box tip" style="margin:0"><span class="t">💡 Dica</span>Um atalho ou ideia que ajuda a jogar melhor.</div>
+    <div class="box warn" style="margin:0"><span class="t">⚠ Atenção</span>Um erro comum que pode custar a partida.</div>
+    <div class="box info" style="margin:0"><span class="t">ℹ Saiba mais</span>Um detalhe para quem quer entender a fundo.</div>
+  </div>
+</section>
+
+<!-- ============================== 1 -->
+<section class="page">
+  <h1><span class="num">1</span>O jogo em 1 minuto</h1>
+  <p class="lead">Você é o líder de um país real. Ao mesmo tempo, governa a nação e comanda as tropas no campo de batalha.</p>
+  <div class="grid2">
+    <div class="card"><div class="ic">🗺</div><h4>O teatro de operações</h4><p>O mapa 3D onde tudo acontece na prática: você coleta recursos, constrói a base, forma a população e treina o exército. É a parte "jogo de estratégia em tempo real".</p></div>
+    <div class="card"><div class="ic">🏛</div><h4>O governo</h4><p>O painel da sua nação: impostos, gastos, dívida, pesquisa, aprovação do povo e diplomacia com outros países. Um dia de jogo passa a cada segundo.</p></div>
+  </div>
+  <p style="margin-top:4mm">As duas partes estão ligadas. O orçamento de defesa manda suprimentos para a base; a verba de obras paga as melhorias; as baixas na guerra derrubam a aprovação; e um povo revoltado pode derrubar o seu governo.</p>
+  <h2>Como vencer</h2>
+  <table>
+    <tr><th style="width:30%">Vitória</th><th>Como conseguir</th></tr>
+    <tr><td><b>🏆 Militar</b></td><td>Destruir o <b>Centro de Comando</b> (o QG) de todos os inimigos. É o jeito mais comum.</td></tr>
+    <tr><td><b>🗺 Territorial</b></td><td>Controlar <b>70% de todo o território</b> do mapa por 4 minutos seguidos.</td></tr>
+    <tr><td><b>⚖ Política</b></td><td>Fazer o governo inimigo cair: se a estabilidade dele ficar abaixo de 10 por 60 dias seguidos, ele é derrotado.</td></tr>
+  </table>
+  <div class="box warn"><span class="t">⚠ Como perder</span>Se o seu Centro de Comando for destruído, você perde na hora. Proteja-o sempre.</div>
+  <h2>O que torna este jogo diferente</h2>
+  <ul>
+    <li><b>Países reais com dados reais.</b> PIB, dívida, inflação e gastos militares vêm do Banco Mundial e do FMI. Cada país começa diferente.</li>
+    <li><b>Guerra precisa ser declarada.</b> Sem declaração de guerra, ninguém pode atacar ninguém.</li>
+    <li><b>Recursos são escassos.</b> Falta recurso no começo, e você precisa escolher onde gastar.</li>
+    <li><b>A nação evolui por eras</b>, da Guerra Fria ao Futuro Próximo, e muda de aparência a cada era.</li>
+  </ul>
+  
+</section>
+
+<!-- ============================== 2 -->
+<section class="page">
+  <h1><span class="num">2</span>Começando uma partida</h1>
+  <p class="lead">Do menu principal até o primeiro segundo da partida.</p>
+  <div class="grid2" style="align-items:start">
+    <figure style="margin-top:0"><img src="img/menu.jpg"><figcaption>O menu principal.</figcaption></figure>
+    <div>
+      <h3>Modos de jogo</h3>
+      <ul>
+        <li><b>Nova Partida</b> — você contra governos controlados pelo computador (IA). Ótimo para aprender.</li>
+        <li><b>Modo Sandbox</b> — recursos infinitos e tudo liberado. Serve para testar tropas e construções sem pressão.</li>
+        <li><b>Criar Sala Multijogador</b> — gera um código; seus amigos entram com ele em <b>Entrar em Sala</b>.</li>
+        <li><b>Continuar Partida</b> — volta a uma partida em andamento. A partida é salva sozinha.</li>
+      </ul>
+      <div class="box tip"><span class="t">💡 Primeira vez?</span>O botão <b>Manual</b> mostra um resumo do jogo em 7 cartões curtos.</div>
+    </div>
+  </div>
+  <h2>A sala da partida</h2>
+  <figure><img src="img/sala.jpg" style="height:72mm;object-fit:cover;object-position:top"><figcaption>A sala: escolha país, tamanho da partida, tipo de mapa, regra econômica e dificuldade.</figcaption></figure>
+  <table>
+    <tr><th style="width:28%">Opção</th><th>O que significa</th></tr>
+    <tr><td><b>Seu país</b></td><td>Cada país tem economia própria, uma região inicial (florestal, petrolífera…) e um bônus único (capítulo 18).</td></tr>
+    <tr><td><b>Nações na partida</b></td><td>De 2 a 4 na versão grátis (até 6 para assinantes). Você pode adicionar bots e formar times; quem está no mesmo time começa aliado.</td></tr>
+    <tr><td><b>Tipo de mapa</b></td><td><b>Continental</b> (o padrão), <b>Rios e Pontes</b> (passagens estreitas), <b>Montanhoso</b> (muito ferro, defesa forte), <b>Deserto</b> (pouca comida, muito petróleo) ou <b>Sorteado</b>.</td></tr>
+    <tr><td><b>Regra do teatro</b></td><td><b>Paridade</b>: todos os países com a mesma força econômica no campo (recomendado). <b>Escala real</b>: países ricos têm mais suprimentos.</td></tr>
+    <tr><td><b>Dificuldade</b></td><td>Veja a tabela da próxima página.</td></tr>
+  </table>
+</section>
+
+<section class="cont">
+  <h2 style="margin-top:2mm">Níveis de dificuldade</h2>
+  <p>No começo existe um <b>período de preparo</b>: a IA não declara guerra e você monta a economia em paz. Quanto mais difícil, mais curto ele é.</p>
+  <table>
+    <tr><th></th><th>Fácil</th><th>Normal</th><th>Difícil</th><th>Brutal</th></tr>
+    <tr><td><b>Preparo</b></td><td>12 min</td><td>8 min</td><td>5 min</td><td>3 min</td></tr>
+    <tr><td><b>Primeiro ataque da IA</b></td><td>perto dos 14 min</td><td>perto dos 10 min</td><td>perto dos 8 min</td><td>perto dos 6 min</td></tr>
+    <tr><td><b>Ataques seguintes</b></td><td>pequenos e espaçados (a cada 6 min)</td><td>médios (a cada 4 min)</td><td>grandes (a cada 3 min)</td><td>enormes (a cada 2,5 min)</td></tr>
+    <tr><td><b>Incidentes de fronteira</b></td><td>não</td><td>sim</td><td>sim</td><td>sim</td></tr>
+    <tr><td><b>Aviões / mísseis da IA</b></td><td>não / não</td><td>sim / não</td><td>sim / sim</td><td>sim / sim</td></tr>
+    <tr><td><b>Vantagem da IA</b></td><td>—</td><td>—</td><td>—</td><td>+15% de coleta</td></tr>
+  </table>
+  <div class="box warn"><span class="t">⚠ O primeiro ataque vem cedo</span>Logo depois do preparo, a IA ataca com o que tiver, mesmo que sejam só 3 ou 4 soldados. É um teste da sua defesa: quem tem alguns soldados e uma torre perto da base segura fácil. Depois disso, os ataques ficam maiores a cada onda.</div>
+  <div class="box info"><span class="t">ℹ A IA joga limpo</span>Em todos os níveis a IA segue as mesmas regras que você e também não enxerga através da névoa de guerra. O único extra é o bônus de coleta do Brutal, que aparece na sala.</div>
+  <div class="box warn"><span class="t">⚠ Incidentes de fronteira</span>A partir do Normal, durante o preparo, a IA manda 2 ou 3 soldados para assediar fazendas e serrarias na borda do seu território. Não é guerra declarada, mas há troca de tiros por 75 segundos. Tenha alguns soldados por perto.</div>
+  <h2>O que você recebe no começo</h2>
+  <div class="grid3">
+    <div class="card"><div class="ic">🏢</div><h4>Centro de Comando</h4><p>A sua capital. Forma cidadãos, guarda suprimentos e define o território.</p></div>
+    <div class="card"><div class="ic">👷</div><h4>6 cidadãos</h4><p>A mão de obra que vai trabalhar nas fazendas, serrarias e pedreiras.</p></div>
+    <div class="card"><div class="ic">🔭</div><h4>1 Explorador</h4><p>Batedor rápido que enxerga longe. Use-o para achar recursos e o inimigo.</p></div>
+  </div>
+  <p style="margin-top:3mm">Além disso: 200 suprimentos, 100 de comida, 150 de madeira, 60 de pedra e 50 de petróleo. Parece muito, mas acaba rápido — gaste com cuidado.</p>
+  <figure><img src="img/inicio.jpg" style="height:52mm"><figcaption>O começo da partida: o Centro de Comando (com o nome da sua capital), a linha azul do seu território, rochas, floresta, solo fértil (marrom) e as jazidas de petróleo (manchas escuras).</figcaption></figure>
+</section>
+
+<!-- ============================== 3 -->
+<section class="cont" style="margin-top:8mm">
+  <h1><span class="num">3</span>A tela do jogo</h1>
+  <p class="lead">Tudo o que você precisa ver fica na barra de cima e no painel de baixo.</p>
+  <h2>A barra de recursos</h2>
+  <div class="anno" style="margin-top:9mm">
+    <img src="img/hud_recursos.png">
+    <span class="mk" style="left:9%">1</span><span class="mk" style="left:20.5%">2</span><span class="mk" style="left:29%">3</span><span class="mk" style="left:42%">4</span><span class="mk" style="left:55%">5</span><span class="mk" style="left:68%">6</span><span class="mk" style="left:80.5%">7</span><span class="mk" style="left:92%">8</span><span class="mk" style="left:97.4%">9</span>
+  </div>
+  <div class="legend">
+    <div><b>1</b><strong>US$</strong> — a verba de obras do governo (paga melhorias, eras e aviões).</div>
+    <div><b>2</b><strong>🏭</strong> — quantas coisas estão sendo produzidas agora.</div>
+    <div><b>3</b><strong>Suprimentos</strong></div>
+    <div><b>4</b><strong>Comida</strong></div>
+    <div><b>5</b><strong>Madeira</strong></div>
+    <div><b>6</b><strong>Pedra</strong></div>
+    <div><b>7</b><strong>Ferro</strong></div>
+    <div><b>8</b><strong>Petróleo</strong></div>
+    <div><b>9</b><strong>População</strong> (passe o mouse para detalhes).</div>
+  </div>
+  <div class="box info"><span class="t">ℹ Como ler cada recurso</span><b>231</b> /1500 <span style="color:var(--green)">+2,9</span> quer dizer: você tem 231, cabe no máximo 1.500 e está ganhando 2,9 por segundo. Número <span style="color:var(--red)">vermelho</span> = você está perdendo esse recurso (a comida, por exemplo, é consumida pela população).</div>
+  <h2>Os botões da direita</h2>
+  <div class="anno" style="margin-top:9mm">
+    <img src="img/hud_botoes.png">
+    <span class="mk" style="left:6.5%">1</span><span class="mk" style="left:21%">2</span><span class="mk" style="left:36%">3</span><span class="mk" style="left:52%">4</span><span class="mk" style="left:64%">5</span><span class="mk" style="left:79%">6</span><span class="mk" style="left:93%">7</span>
+  </div>
+  <div class="legend">
+    <div><b>1</b><strong>Pausar</strong> (tecla <span class="kbd">Espaço</span>).</div>
+    <div><b>2</b><strong>Velocidade</strong> 1×, 2× ou 4× (só contra a IA).</div>
+    <div><b>3</b><strong>De perto</strong> — câmera cinematográfica perto das tropas.</div>
+    <div><b>4</b><strong>Globo</strong> — diplomacia e guerra (<span class="kbd">Tab</span>).</div>
+    <div><b>5</b><strong>Nação</strong> — o painel do governo (<span class="kbd">G</span>).</div>
+    <div><b>6</b><strong>Tela cheia</strong></div>
+    <div><b>7</b><strong>Menu</strong> — salvar, sair, configurações.</div>
+  </div>
+  <h2>O painel de baixo</h2>
+  <figure><img src="img/painel_hq.jpg"><figcaption>Com o Centro de Comando selecionado: à esquerda, a <b>fila</b> de produção; no meio, a vida, a descrição e o que o prédio faz; à direita, os botões de construção em abas (<b>Produção</b>, <b>Cívicas</b>, <b>Militares</b> e <b>Projetos</b>).</figcaption></figure>
+  <p>No canto inferior esquerdo fica o <b>minimapa</b>: clique nele para levar a câmera até aquele ponto. Áreas escuras ainda não foram exploradas.</p>
+  
+</section>
+
+<!-- ============================== 4 -->
+<section class="cont" style="margin-top:10mm">
+  <h1><span class="num">4</span>Controles</h1>
+  <p class="lead">O jogo funciona no computador, no celular e no tablet.</p>
+  <h2>🖱 Computador</h2>
+  <table>
+    <tr><th style="width:34%">Ação</th><th>Como fazer</th></tr>
+    <tr><td>Selecionar</td><td>Clique esquerdo. Arraste para selecionar vários. <span class="kbd">Shift</span> adiciona. Clique duplo seleciona todos do mesmo tipo.</td></tr>
+    <tr><td>Mover / atacar</td><td>Clique direito no chão (mover) ou no inimigo (atacar).</td></tr>
+    <tr><td>Avançar atacando</td><td><span class="kbd">F</span> e clique no destino: as tropas atiram em tudo pelo caminho.</td></tr>
+    <tr><td>Parar</td><td><span class="kbd">X</span></td></tr>
+    <tr><td>Ponto de reunião</td><td>Selecione o quartel ou a fábrica e clique direito no chão: as tropas novas vão para lá.</td></tr>
+    <tr><td>Grupos</td><td><span class="kbd">Ctrl</span>+<span class="kbd">1</span>…<span class="kbd">9</span> grava o grupo; <span class="kbd">1</span>…<span class="kbd">9</span> seleciona.</td></tr>
+    <tr><td>Câmera</td><td><span class="kbd">W</span><span class="kbd">A</span><span class="kbd">S</span><span class="kbd">D</span> ou setas movem · <span class="kbd">Q</span>/<span class="kbd">E</span> giram · roda do mouse aproxima · <span class="kbd">H</span> volta ao QG.</td></tr>
+    <tr><td>Painéis</td><td><span class="kbd">G</span> Nação · <span class="kbd">Tab</span> Globo · <span class="kbd">F10</span> menu · <span class="kbd">Enter</span> chat · <span class="kbd">Espaço</span> pausa.</td></tr>
+    <tr><td>Cancelar produção</td><td><span class="kbd">Del</span> cancela o último item da fila.</td></tr>
+  </table>
+  <p>Cada botão de construção e de tropa mostra a sua tecla de atalho no canto (por exemplo <span class="kbd">C</span> Fazenda, <span class="kbd">M</span> Serraria, <span class="kbd">Z</span> Cidadão).</p>
+  <h2>📱 Celular e tablet</h2>
+  <table>
+    <tr><th style="width:34%">Ação</th><th>Gesto</th></tr>
+    <tr><td>Selecionar</td><td>Toque curto. Dois toques selecionam todos do mesmo tipo. Ferramenta <b>Área</b> + arrastar seleciona vários.</td></tr>
+    <tr><td>Dar uma ordem</td><td><b>Toque longo</b> (meio segundo) no destino ou no inimigo, ou ferramenta <b>Ordem</b> + toque.</td></tr>
+    <tr><td>Construir</td><td>Toque no QG → botão da construção → toque no mapa → toque de novo no mesmo lugar ou em <b>Confirmar</b>.</td></tr>
+    <tr><td>Câmera</td><td>Arraste com um dedo · pinça para zoom · gire com dois dedos · botões Aproximar, Afastar, Girar e QG.</td></tr>
+    <tr><td>Cancelar</td><td>Botão <b>Cancelar</b>; <b>Desmarcar</b> limpa a seleção.</td></tr>
+  </table>
+  <p class="small">💡 No celular, use o botão de tela cheia para ganhar espaço. O jogo ignora toques muito curtos e movimentos pequenos para evitar ordens por engano.</p>
+</section>
+
+<!-- ============================== 5 -->
+<section class="page">
+  <h1><span class="num">5</span>Recursos</h1>
+  <p class="lead">Seis recursos movem a sua base. Cada um vem de um lugar diferente do mapa.</p>
+  <table>
+    <tr><th style="width:17%">Recurso</th><th style="width:33%">De onde vem</th><th style="width:21%">Onde guarda</th><th>Para que serve</th></tr>
+    <tr><td><b>📦 Suprimentos</b></td><td>Renda fixa do Centro de Comando e das prefeituras, mais a logística do orçamento de defesa</td><td>Centro de Comando</td><td>Veículos, recrutas, várias construções</td></tr>
+    <tr><td><b>🌾 Comida</b></td><td><b>Fazenda</b> no solo fértil (o chão marrom). Nunca acaba.</td><td>Silo</td><td>Cidadãos, infantaria e alimentar a população</td></tr>
+    <tr><td><b>🪵 Madeira</b></td><td><b>Serraria</b> perto da floresta</td><td>Armazém</td><td>Quase todas as construções</td></tr>
+    <tr><td><b>🪨 Pedra</b></td><td><b>Pedreira</b> perto das rochas</td><td>Armazém</td><td>Construções, torres, artilharia</td></tr>
+    <tr><td><b>⛓ Ferro</b></td><td><b>Mina</b> nos veios de minério das montanhas</td><td>Armazém</td><td>Veículos, aviões, pesquisas</td></tr>
+    <tr><td><b>🛢 Petróleo</b></td><td><b>Poço</b> em cima de uma jazida (mancha escura). Precisa de um <b>Tanque de Petróleo</b> por perto.</td><td>Tanque de Petróleo</td><td>Veículos, aviões, declaração de guerra</td></tr>
+  </table>
+  <h2>Como a coleta funciona</h2>
+  <svg viewBox="0 0 700 120" width="100%" style="margin:1mm 0 3mm">
+    <defs><marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#e0b14a"/></marker></defs>
+    <g font-size="13" text-anchor="middle">
+      <rect x="10" y="25" width="140" height="70" rx="10" fill="#2f5d3a"/><text x="80" y="55" fill="#fff" font-weight="700">🌲 Floresta</text><text x="80" y="76" fill="#d7e8da" font-size="11">recurso no mapa</text>
+      <rect x="190" y="25" width="140" height="70" rx="10" fill="#0e1624"/><text x="260" y="55" fill="#fff" font-weight="700">🏭 Serraria</text><text x="260" y="76" fill="#c9d1de" font-size="11">+ trabalhadores</text>
+      <rect x="370" y="25" width="140" height="70" rx="10" fill="#6b4b2a"/><text x="440" y="55" fill="#fff" font-weight="700">📦 Armazém</text><text x="440" y="76" fill="#efe1cf" font-size="11">tem limite!</text>
+      <rect x="550" y="25" width="140" height="70" rx="10" fill="#e0b14a"/><text x="620" y="55" fill="#0e1624" font-weight="700">🔨 Você gasta</text><text x="620" y="76" fill="#3a2d0c" font-size="11">obras e tropas</text>
+      <line x1="152" y1="60" x2="186" y2="60" stroke="#e0b14a" stroke-width="3" marker-end="url(#ar)"/><line x1="332" y1="60" x2="366" y2="60" stroke="#e0b14a" stroke-width="3" marker-end="url(#ar)"/><line x1="512" y1="60" x2="546" y2="60" stroke="#e0b14a" stroke-width="3" marker-end="url(#ar)"/>
+    </g>
+  </svg>
+  <ul>
+    <li><b>Posição importa.</b> Cada coleta "pega" as células de recurso ao seu redor (a fazenda, até 8 de solo fértil; a serraria, até 10 árvores). Ao posicionar, o jogo mostra quantas células você vai pegar e quanto vai render. Duas coletas não dividem as mesmas células.</li>
+    <li><b>Precisa de gente.</b> Uma coleta só rende cheia com <b>6 trabalhadores</b> (o poço, com 4). Com 3, rende metade.</li>
+    <li><b>Armazém cheio = produção parada.</b> Construa silos, armazéns e tanques antes de lotar.</li>
+    <li><b>Depósitos acabam.</b> Floresta, rocha, minério e petróleo são finitos. Quando um acaba, construa outra coleta em outro lugar. Só o solo fértil é infinito.</li>
+  </ul>
+  <div class="box warn"><span class="t">⚠ Cada prédio igual fica mais caro</span>Cada construção nova do mesmo tipo custa <b>18% a mais</b> que a anterior. A 5ª fazenda custa quase o dobro da 1ª. Por isso, pense antes de construir.</div>
+  <h2>Os bens industriais</h2>
+  <p>Na era 2 você pode construir a <b>Refinaria</b> (petróleo → ⛽ combustível) e a <b>Siderúrgica</b> (ferro → 🔩 aço). Esses bens substituem parte do custo dos veículos e aviões: <b>1 de aço vale 2 de ferro</b>, e <b>1 de combustível vale 2 de petróleo</b>. Ou seja, a cadeia dobra o rendimento do seu ferro e do seu petróleo.</p>
+</section>
+
+<!-- ============================== 6 -->
+<section class="page">
+  <h1><span class="num">6</span>População</h1>
+  <p class="lead">Pessoas são o recurso mais valioso do jogo.</p>
+  <div class="grid2">
+    <div class="card"><div class="ic">👷</div><h4>Cidadão</h4><p>Formado no Centro de Comando (<span class="kbd">Z</span>) por 50 de comida, em 10 segundos. Trabalha nas construções. Sem cidadãos, nada produz. Cidadãos sem trabalho entram sozinhos nos prédios com vaga.</p></div>
+    <div class="card"><div class="ic">🪖</div><h4>Recruta</h4><p>Alistado na Base Militar (60 de comida e 40 de suprimentos). Fica na reserva e é a <b>tripulação</b> de toda tropa: cada soldado, tanque ou avião usa 1 recruta.</p></div>
+  </div>
+  <h2>Moradia</h2>
+  <table>
+    <tr><th>Construção</th><th>Moradias</th><th>Observação</th></tr>
+    <tr><td>Centro de Comando</td><td>20</td><td>Já vem pronto</td></tr>
+    <tr><td>Casa</td><td>+10</td><td>Barata; amplia um pouco a fronteira</td></tr>
+    <tr><td>Prédio Residencial</td><td>+20</td><td>Era 2; tem manutenção (sem pagar, não abriga ninguém)</td></tr>
+    <tr><td>Prefeitura</td><td>+10</td><td>Também funda uma cidade (capítulo 16)</td></tr>
+  </table>
+  <p>O teto absoluto é de <b>200 habitantes</b> (cidadãos + militares).</p>
+  <h2>Todo mundo come</h2>
+  <p>Cada habitante consome comida o tempo todo. Se a comida acabar, há <b>fome</b> e toda a produção cai pela <b>metade</b>. Por isso a comida aparece em vermelho na barra: é o consumo.</p>
+  <div class="box tip"><span class="t">💡 A grande escolha</span>Cada recruta é uma pessoa a menos trabalhando. Exército grande demais cedo = economia fraca. Economia grande demais sem exército = alvo fácil. Equilibrar os dois é o coração do jogo.</div>
+  <div class="box warn"><span class="t">⚠ Erro comum</span>Esquecer de fazer casas. Quando a população chega ao limite de moradia, você não forma mais ninguém — nem cidadãos, nem recrutas.</div>
+</section>
+
+<!-- ============================== 7 -->
+<section class="page">
+  <h1><span class="num">7</span>Construir a base</h1>
+  <p class="lead">Selecione o Centro de Comando (ou uma Prefeitura) para abrir o menu de construção.</p>
+  <h2>O território</h2>
+  <p>A linha colorida no mapa é a sua <b>fronteira</b>. Você só constrói <b>dentro</b> dela. O território cresce com o Centro de Comando (e suas melhorias), prefeituras, torres, bases, fábricas e casas. Sem guerra declarada, tropas estrangeiras não podem entrar no seu território.</p>
+  <h2>O menu de construção tem 4 abas</h2>
+  <table>
+    <tr><th style="width:18%">Aba</th><th>O que tem</th></tr>
+    <tr><td><b>⚒ Produção</b></td><td>Cidadão, avanço de era, Fazenda, Serraria, Pedreira, Mina, Poço, Tanque de Petróleo, Armazém, Silo, Refinaria e Siderúrgica.</td></tr>
+    <tr><td><b>🏛 Cívicas</b></td><td>Casa, Prédio Residencial, Prefeitura, Escola, Hospital, Delegacia, Terminal Comercial, Porto, Estação Ferroviária e Estrada.</td></tr>
+    <tr><td><b>⚔ Militares</b></td><td>Base Militar, Fábrica de Veículos, Torre, Centro de Pesquisa Militar, Bateria Antiaérea, Base Aérea e Silo de Mísseis.</td></tr>
+    <tr><td><b>★ Projetos</b></td><td>Os Grandes Projetos Nacionais da última era (capítulo 17).</td></tr>
+  </table>
+  <h2>Como posicionar</h2>
+  <ol class="steps">
+    <li>Clique no botão da construção. Um "fantasma" do prédio segue o mouse.</li>
+    <li>Verde = pode construir; vermelho = não pode (o jogo diz o motivo). Para coletas, o painel mostra quantas células de recurso o prédio vai pegar.</li>
+    <li>Clique para confirmar. A obra começa e os recursos são descontados. Dica: deixe corredores entre os prédios, para as tropas passarem.</li>
+  </ol>
+  <figure><img src="img/base.jpg"><figcaption>Uma base em desenvolvimento na Guerra Fria: Centro de Comando (Brasília) no meio, fazendas, poço de petróleo com tanque, casas, prédios residenciais, quartel, fábrica, silos, armazém e as primeiras tropas.</figcaption></figure>
+  
+</section>
+
+<!-- ============================== 8 -->
+<section class="page">
+  <h1><span class="num">8</span>Seus primeiros 10 minutos</h1>
+  <p class="lead">Uma ordem simples que funciona bem em qualquer país. Depois que pegar o jeito, crie a sua.</p>
+  <ol class="steps">
+    <li><b>Mande o Explorador passear.</b> Selecione-o e clique longe, em direção ao centro do mapa. Ele revela recursos e mostra onde está o inimigo.</li>
+    <li><b>Forme cidadãos sem parar</b> no Centro de Comando (<span class="kbd">Z</span>), enquanto houver comida e moradia.</li>
+    <li><b>Fazenda</b> (<span class="kbd">C</span>) no solo fértil e <b>Serraria</b> (<span class="kbd">M</span>) na floresta. Essas duas sustentam todo o resto.</li>
+    <li><b>Pedreira</b> (<span class="kbd">P</span>) nas rochas e uma <b>Casa</b> antes de lotar a moradia.</li>
+    <li><b>Base Militar</b>: aliste alguns recrutas e treine 3 ou 4 infantarias para se defender dos incidentes de fronteira.</li>
+    <li><b>Mina</b> (ferro) e <b>Poço de Petróleo</b> com um <b>Tanque de Petróleo</b> ao lado. Sem eles, nada de veículos.</li>
+    <li><b>Silo e Armazém</b> quando a barra de algum recurso estiver quase cheia.</li>
+    <li><b>Melhore o Centro de Comando</b> (botão ⬆ no painel). Ele libera níveis mais altos dos outros prédios e as eras.</li>
+    <li><b>Fábrica de Veículos</b> e, no nível 3 do QG, avance para a <b>era 2</b>.</li>
+    <li><b>Antes do fim do preparo</b>, tenha um pequeno exército perto da base e uma Torre de Vigilância na direção do inimigo. No Normal, o primeiro ataque da IA chega perto dos 10 minutos.</li>
+  </ol>
+  <div class="box tip"><span class="t">💡 Olhe a barra de cima o tempo todo</span>O recurso que mais falta é o seu gargalo. Se é madeira, faça outra serraria; se é comida, outra fazenda. Recurso sobrando no limite do armazém é desperdício: gaste-o ou venda-o no mercado interno (capítulo 13).</div>
+  <div class="box tip"><span class="t">💡 Botão apagado?</span>Quando um botão está cinza, passe o mouse (ou toque) nele: o jogo explica o motivo, por exemplo "faltam 20 de petróleo", "sem recruta" ou "requer era 2".</div>
+  <div class="box info"><span class="t">ℹ E o governo?</span>Nos primeiros minutos, deixe o governo como está. Quando a base estiver rodando, abra o painel Nação (<span class="kbd">G</span>) e escolha uma pesquisa. O capítulo 13 explica o resto.</div>
+</section>
+
+<!-- ============================== 9 -->
+<section class="page">
+  <h1><span class="num">9</span>As tropas</h1>
+  <p class="lead">Cada tropa tem um papel. Nenhuma vence sozinha: misture.</p>
+  <table style="font-size:8.8pt">
+    <tr><th style="width:20%">Tropa</th><th style="width:9%">Era</th><th style="width:18%">Onde</th><th style="width:28%">Boa contra</th><th>Fraca contra / observação</th></tr>
+    <tr><td><b>Explorador</b></td><td>1</td><td>Base Militar</td><td>Ninguém — serve para ver</td><td>Quase não luta; rápido e com visão longa</td></tr>
+    <tr><td><b>Infantaria</b></td><td>1</td><td>Base Militar</td><td>Infantaria</td><td>Blindados: o fuzil quase não fere veículos</td></tr>
+    <tr><td><b>Veículo Blindado</b></td><td>1</td><td>Fábrica</td><td>Infantaria; dar visão à artilharia</td><td>Tanques. Mantém o suprimento das tropas em terra inimiga</td></tr>
+    <tr><td><b>Tanque</b></td><td>2</td><td>Fábrica</td><td>Quase tudo de perto</td><td>Infantaria Antitanque; lento na floresta e na lama</td></tr>
+    <tr><td><b>Artilharia</b></td><td>2</td><td>Fábrica</td><td>Tudo de longe (alcance 16)</td><td>Frágil e cega: precisa de alguém dando visão</td></tr>
+    <tr><td><b>Infantaria Antitanque</b></td><td>2</td><td>Base Militar</td><td><b>Veículos</b> (dano triplo)</td><td>Infantaria</td></tr>
+    <tr><td><b>Engenheiro de Combate</b></td><td>2</td><td>Base Militar</td><td>— (apoio)</td><td>Minas, estradas, obstáculos; fraco em combate</td></tr>
+    <tr><td><b>Forças Especiais</b></td><td>3</td><td>Base Militar</td><td>Infantaria e <b>edifícios</b></td><td>Rápidas e precisas; caras</td></tr>
+    <tr><td><b>Antiaérea Móvel</b></td><td>3</td><td>Fábrica</td><td><b>Aviões e mísseis</b></td><td>Fraca contra tropas terrestres</td></tr>
+    <tr><td><b>Lança-Foguetes</b></td><td>3</td><td>Fábrica</td><td><b>Bases e grupos</b> (alcance 24, dano em área)</td><td>Não atira de perto; recarga lenta; frágil</td></tr>
+    <tr><td><b>Tanque Moderno</b></td><td>4</td><td>Fábrica</td><td>Tudo</td><td>Muito caro; Antitanque ainda dói</td></tr>
+  </table>
+  <h2>O triângulo básico</h2>
+  <svg viewBox="0 0 700 210" width="100%">
+    <defs><marker id="a2" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c94a3f"/></marker></defs>
+    <g text-anchor="middle" font-size="13" font-weight="700">
+      <circle cx="350" cy="40" r="34" fill="#0e1624"/><text x="350" y="37" fill="#fff">🛡 Tanques e</text><text x="350" y="53" fill="#fff">blindados</text>
+      <circle cx="150" cy="168" r="34" fill="#2f5d3a"/><text x="150" y="165" fill="#fff">🪖 Infantaria</text><text x="150" y="181" fill="#fff">comum</text>
+      <circle cx="550" cy="168" r="34" fill="#8a3b33"/><text x="550" y="165" fill="#fff">🚀 Infantaria</text><text x="550" y="181" fill="#fff">antitanque</text>
+      <line x1="322" y1="62" x2="182" y2="148" stroke="#c94a3f" stroke-width="3" marker-end="url(#a2)"/>
+      <line x1="518" y1="168" x2="190" y2="168" stroke="#c94a3f" stroke-width="3" marker-end="url(#a2)"/>
+      <line x1="530" y1="140" x2="378" y2="62" stroke="#c94a3f" stroke-width="3" marker-end="url(#a2)"/>
+    </g>
+    <g font-size="11" fill="#5b6577" text-anchor="middle"><text x="225" y="95">esmagam</text><text x="350" y="160">vence</text><text x="485" y="95">destrói</text></g>
+  </svg>
+  <p class="small center">A seta aponta de quem vence para quem perde. Artilharia e foguetes ficam atrás, protegidos, atirando de longe.</p>
+  <h2>Veterania</h2>
+  <p>Cada abate conta para a patente da tropa. Tropas experientes valem ouro — tire-as do combate quando estiverem fracas.</p>
+  <table>
+    <tr><th>Patente</th><th>Abates</th><th>Bônus</th></tr>
+    <tr><td>Recruta</td><td>0</td><td>—</td></tr><tr><td>Veterano</td><td>2</td><td>+10% de dano, +8% de vida</td></tr>
+    <tr><td>Elite</td><td>5</td><td>+20% de dano, +16% de vida</td></tr><tr><td>Herói</td><td>10</td><td>+30% de dano, +24% de vida</td></tr>
+  </table>
+</section>
+
+<section class="cont">
+  <figure style="margin-top:2mm"><img src="img/tropas.jpg" style="height:56mm"><figcaption>Um exército misto do Futuro Próximo: Tanques Modernos, tanques, artilharia, Antiaérea Móvel, Lança-Foguetes e infantaria.</figcaption></figure>
+  <h2>Produzindo tropas</h2>
+  <ol class="steps">
+    <li>Tenha <b>recrutas na reserva</b> (aliste na Base Militar).</li>
+    <li>Selecione a Base Militar (infantaria) ou a Fábrica de Veículos (veículos) e clique na tropa. Ela entra na <b>fila</b> (até 5 itens).</li>
+    <li>Clique direito no chão com o prédio selecionado para definir o <b>ponto de reunião</b>.</li>
+  </ol>
+  <h2>Pesquisa militar</h2>
+  <p>Algumas tropas precisam ser liberadas no <b>Centro de Pesquisa Militar</b> (<span class="kbd">T</span>), além de estarem na era certa: Blindados sobre lagartas (Tanque), Artilharia de campanha, Armas antitanque, Engenharia de combate, Defesa antiaérea móvel, Operações especiais, Lança-foguetes múltiplos e Blindados de nova geração (Tanque Moderno). O botão de uma tropa bloqueada mostra o que falta.</p>
+  <h2>Modernização</h2>
+  <p>Pesquisas nacionais de defesa liberam <b>pacotes de modernização</b> (blindagem, mira, motor…). Leve a tropa até uma Base Militar ou Fábrica, selecione-a e clique no pacote. Ela fica algum tempo fora de combate enquanto recebe o equipamento.</p>
+  <p class="small">💡 <b>Exército para começar:</b> 4 infantarias + 2 blindados; depois, tanques, antitanques e 2 artilharias atrás de tudo.</p>
+</section>
+
+<!-- ============================== 10 -->
+<section class="page">
+  <h1><span class="num">10</span>Guerra e combate</h1>
+  <p class="lead">Nada de ataque surpresa: a guerra precisa ser declarada.</p>
+  <h2>Declarar guerra</h2>
+  <ol class="steps">
+    <li>Abra o <b>Globo</b> (<span class="kbd">Tab</span>) e clique no país inimigo.</li>
+    <li>Escolha <b>Declarar guerra</b>. Uma janela mostra o custo antes de confirmar.</li>
+    <li>Custo: <b>150 suprimentos, 50 de petróleo, 0,2% do PIB e 3 pontos de aprovação</b>. Os tratados com aquele país são rompidos e os aliados dele podem sancionar você.</li>
+  </ol>
+  <p>Sem guerra, as ordens de ataque são recusadas e as tropas não atiram sozinhas. A IA segue a mesma regra: ela também precisa declarar guerra antes de atacar.</p>
+  <h2>Névoa de guerra</h2>
+  <p>Você só vê o que suas tropas e prédios enxergam. Áreas nunca exploradas ficam escuras; as exploradas, mas fora de vista, ficam apagadas, e os prédios inimigos ali aparecem como da última vez em que foram vistos.</p>
+  <h2>Atrito: lutar longe de casa cansa</h2>
+  <p>Tropas em território inimigo <b>perdem vida aos poucos</b>. Para evitar, mantenha um <b>Veículo Blindado</b> por perto: ele carrega os suprimentos e protege o grupo do atrito.</p>
+  <h2>Minas e obstáculos</h2>
+  <p>O <b>Engenheiro de Combate</b> instala <b>minas antitanque</b>: elas explodem só com veículos e são invisíveis para o inimigo. Ele também detecta e remove minas inimigas por perto (sozinho, sem botão) e ergue <b>obstáculos antitanque</b> que bloqueiam a passagem.</p>
+  <div class="box warn"><span class="t">⚠ Estradas são o lugar favorito para minas</span>Avançando por uma estrada até a base inimiga? Mande um engenheiro ou infantaria na frente.</div>
+  <h2>Táticas que funcionam</h2>
+  <ul>
+    <li><b>Avance atacando</b> (<span class="kbd">F</span>) em vez de só mover: as tropas param para atirar em quem aparecer.</li>
+    <li><b>Visão primeiro.</b> Artilharia e Lança-Foguetes só atiram no que alguém vê. Use blindados, exploradores, torres ou aviões de reconhecimento.</li>
+    <li><b>Ataque a economia.</b> Fazendas, serrarias e poços inimigos costumam estar longe do QG e mal defendidos.</li>
+    <li><b>Recue tropas feridas</b>; um <b>Hospital</b> cura quem está na área dele.</li>
+    <li><b>Grupos</b> com <span class="kbd">Ctrl</span>+número: um para o exército, outro para a artilharia.</li>
+  </ul>
+</section>
+
+<!-- ============================== 11 -->
+<section class="page">
+  <h1><span class="num">11</span>Eras: a evolução da nação</h1>
+  <p class="lead">A partida avança por quatro eras. Cada uma muda a cara da sua base e libera tropas e construções novas.</p>
+  <div class="grid2" style="gap:3mm">
+    <div class="era" style="background:#5a5a48"><div class="q">Era 1 · início</div><h4>Guerra Fria</h4><p>Concreto e pintura gastos. Infantaria, Veículo Blindado, Explorador. Coleta, casas, Base Militar, Fábrica, Torre, Escola e Delegacia.</p></div>
+    <div class="era" style="background:#3f5568"><div class="q">Era 2 · QG nível 3</div><h4>Pós-Guerra Fria</h4><p>Metal pré-fabricado e radares. Tanque, Artilharia, Antitanque, Engenheiro. Centro de Pesquisa, Prédio Residencial, Comércio, Porto, Ferrovia, Antiaérea, Hospital, Refinaria e Siderúrgica.</p></div>
+    <div class="era" style="background:#2c6a86"><div class="q">Era 3 · QG nível 5</div><h4>Era Digital</h4><p>Vidro e aço, painéis solares e antenas. Antiaérea Móvel, Forças Especiais, Lança-Foguetes. Base Aérea com caças, reconhecimento e cargueiros. Melhorias até o nível 8.</p></div>
+    <div class="era" style="background:#1b1f2c"><div class="q">Era 4 · QG nível 7</div><h4>Futuro Próximo</h4><p>Compósito escuro, faixas de LED e drones. Tanque Moderno, bombardeiros, Silo de Mísseis e os Grandes Projetos. Melhorias até o nível 10.</p></div>
+  </div>
+  <h2>Como avançar</h2>
+  <p>Selecione o Centro de Comando e clique em <b>Era …</b>. É uma obra que custa recursos e US$ da verba de obras e exige o QG no nível mínimo. Durante a obra, o topo da tela mostra o progresso. Cancelar devolve 75%. Quando você avança, todos os jogadores são avisados.</p>
+  <table>
+    <tr><th>Para a era</th><th>Requisito</th><th>Custo aproximado</th><th>Tempo</th></tr>
+    <tr><td>2 · Pós-Guerra Fria</td><td>QG nível 3</td><td>375 suprimentos, 250 madeira, 190 pedra, 100 ferro + US$</td><td>60 s</td></tr>
+    <tr><td>3 · Era Digital</td><td>QG nível 5</td><td>~875 suprimentos, ~560 pedra, ~440 ferro, ~310 petróleo + US$</td><td>90 s</td></tr>
+    <tr><td>4 · Futuro Próximo</td><td>QG nível 7</td><td>~1.500 suprimentos, 750 pedra, ~875 ferro, 625 petróleo + US$</td><td>120 s</td></tr>
+  </table>
+  <figure><img src="img/eras.jpg" style="height:48mm"><figcaption>A mesma base na Guerra Fria (esquerda) e no Futuro Próximo (direita): a nação inteira muda de visual.</figcaption></figure>
+  <p class="small">💡 <b>Avançar cedo ou tarde?</b> Avançar cedo dá tropas melhores, mas consome recursos que poderiam virar exército. Sob ataque, defenda-se primeiro e avance quando estiver seguro.</p>
+</section>
+
+<!-- ============================== 12 -->
+<section class="page">
+  <h1><span class="num">12</span>Melhorias e pesquisa</h1>
+  <p class="lead">Prédios sobem de nível; o país pesquisa tecnologias.</p>
+  <h2>Melhorias de construção</h2>
+  <ul>
+    <li>Selecione um prédio pronto e clique em <b>⬆ Nível</b>. Um painel mostra o custo (recursos + US$), o tempo, os requisitos e o que melhora.</li>
+    <li>Até <b>10 níveis</b> (casa até 3, torre até 5). Nenhum prédio passa de <b>2 níveis acima do Centro de Comando</b> — por isso, melhore o QG primeiro.</li>
+    <li>Durante a obra o prédio funciona a <b>50%</b>. Cancelar devolve 80%.</li>
+    <li>No <b>nível 6</b> você escolhe uma <b>especialização</b>, que é <b>permanente</b>. Exemplo: o QG pode virar <i>Centro administrativo</i> (mais território e renda), <i>Centro logístico</i> (mais armazenagem) ou <i>QG fortificado</i> (muito mais vida e defesa).</li>
+    <li>Níveis altos pedem pesquisas nacionais, infraestrutura do país e, no QG 9+, estabilidade política.</li>
+  </ul>
+  <h2>Pesquisa nacional</h2>
+  <p>No painel <b>Nação → Pesquisa</b> você escolhe uma tecnologia por vez. A velocidade depende do quanto o país investe em pesquisa (% do PIB). Algumas tecnologias e o que fazem:</p>
+  <table>
+    <tr><th style="width:32%">Área</th><th>Exemplos</th></tr>
+    <tr><td>Estado e logística</td><td>Logística integrada (mais suprimentos), Administração territorial (mais território), Comunicações digitais</td></tr>
+    <tr><td>Recursos naturais</td><td>Mecanização agrícola, Extração mecanizada, Perfuração avançada</td></tr>
+    <tr><td>Indústria e construção</td><td>Treinamento acelerado, Construção modular, Automação industrial</td></tr>
+    <tr><td>Defesa</td><td>Blindagem composta, Munição guiada, Sensores e óptica térmica, Propulsão eficiente, Mísseis balísticos, Armas nucleares, Tecnologia espacial</td></tr>
+  </table>
+  <div class="box info"><span class="t">ℹ Duas pesquisas diferentes</span>A <b>pesquisa nacional</b> (painel Nação) melhora o país e libera modernizações e mísseis. A <b>pesquisa militar</b> (Centro de Pesquisa no mapa) libera tropas novas. O orçamento de pesquisa do país acelera as duas.</div>
+</section>
+
+<!-- ============================== 13 -->
+<section class="page">
+  <h1><span class="num">13</span>Governando o país</h1>
+  <p class="lead">O painel Nação (<span class="kbd">G</span>) é o seu gabinete de governo.</p>
+  <div class="grid2" style="align-items:start">
+    <figure style="margin-top:0"><img src="img/nacao.jpg"><figcaption>Visão Geral: PIB, crescimento, inflação, desemprego, dívida e aprovação, com gráficos.</figcaption></figure>
+    <div>
+      <h3>As abas</h3>
+      <ul style="font-size:9.6pt">
+        <li><b>Visão Geral</b> — a saúde do país.</li>
+        <li><b>Orçamento</b> — impostos e gastos (% do PIB).</li>
+        <li><b>Pesquisa</b> — tecnologias nacionais.</li>
+        <li><b>Política</b> — decretos, facções e pedidos.</li>
+        <li><b>Diplomacia</b> — relações e tratados.</li>
+        <li><b>Comércio</b> — compra e venda de recursos.</li>
+        <li><b>Diagnóstico</b> — por que a aprovação sobe ou desce.</li>
+        <li><b>Dados</b> — os números reais de partida e suas fontes.</li>
+      </ul>
+    </div>
+  </div>
+  <h2>O orçamento em palavras simples</h2>
+  <table>
+    <tr><th style="width:24%">Item</th><th>Se você aumentar…</th></tr>
+    <tr><td><b>Impostos</b></td><td>Mais dinheiro e menos dívida, mas o povo fica menos feliz e a economia cresce menos.</td></tr>
+    <tr><td><b>Defesa</b></td><td>Mais suprimentos por segundo na sua base (logística do teatro).</td></tr>
+    <tr><td><b>Educação</b></td><td>A economia cresce mais — mas só depois de alguns anos.</td></tr>
+    <tr><td><b>Saúde e previdência</b></td><td>Aprovação maior.</td></tr>
+    <tr><td><b>Infraestrutura</b></td><td>Crescimento e mais <b>verba de obras</b> (o US$ da barra, que paga melhorias e eras).</td></tr>
+    <tr><td><b>Pesquisa</b></td><td>Pesquisas nacionais e militares mais rápidas.</td></tr>
+  </table>
+  <p>Gastar mais do que arrecada cria <b>déficit</b>, que vira <b>dívida</b>; dívida alta gera juros e freia a economia.</p>
+  <h2>Aprovação e estabilidade</h2>
+  <p>A <b>aprovação</b> mostra o quanto o povo gosta do governo. Inflação, desemprego, impostos altos e <b>baixas na guerra</b> derrubam a aprovação; serviços, crescimento e vitórias a levantam. Abaixo de 35 começam os <b>protestos</b>. A <b>estabilidade</b> segue a aprovação aos poucos; se ela ficar abaixo de 10 por 60 dias, <b>o governo cai e você perde</b>.</p>
+</section>
+
+<section class="cont">
+  <h2 style="margin-top:2mm">Decretos (aba Política)</h2>
+  <p>Cada decreto tem um ganho e um preço, e vale por pelo menos 30 dias.</p>
+  <table>
+    <tr><th style="width:26%">Decreto</th><th>Ganho</th><th>Preço</th></tr>
+    <tr><td><b>Alistamento obrigatório</b></td><td>Recrutas 40% mais baratos</td><td>−4 de aprovação</td></tr>
+    <tr><td><b>Economia de guerra</b></td><td>Produção militar 20% mais rápida</td><td>Mais inflação</td></tr>
+    <tr><td><b>Racionamento</b></td><td>População come 40% menos</td><td>−3 de aprovação</td></tr>
+    <tr><td><b>Lei marcial</b></td><td>Mais estabilidade, menos protestos</td><td>−6 de aprovação</td></tr>
+  </table>
+  <h2>Facções</h2>
+  <p><b>Forças Armadas, Indústria, Agro, Sindicatos e Opinião Pública</b> têm uma satisfação de 0 a 100 e fazem exigências com prazo de 90 dias, como "ter 2 fábricas prontas" ou "manter 400 de comida em estoque".</p>
+  <ul>
+    <li><b>Cumpriu:</b> a facção fica mais feliz, a aprovação sobe e às vezes chegam recursos de presente.</li>
+    <li><b>Falhou:</b> a satisfação cai. Abaixo de 30 a facção protesta: produção militar mais lenta, coleta menor ou aprovação menor.</li>
+  </ul>
+  <p>Fique de olho no canto superior esquerdo da tela: as exigências aparecem lá (por exemplo, "Forças Armadas exigem: ter 1 base aérea pronta no teatro em 90 dias").</p>
+  <h2>Pedidos das potências</h2>
+  <p>As maiores economias que você conhece podem pedir algo com prazo de 90 dias: exportar, reforçar a defesa, concluir uma pesquisa ou <i>não</i> declarar guerra a alguém. Cumprir dá relação +12 e ajuda financeira; falhar ou recusar piora a relação.</p>
+  <h2>Comércio</h2>
+  <p>Com um <b>Terminal Comercial</b> você compra e vende recursos com outros países. A carga viaja de caminhão, trem (Estação Ferroviária), navio (Porto) ou avião (Base Aérea). Em guerra, tropas inimigas podem destruir os comboios no caminho.</p>
+  <div class="box tip"><span class="t">💡 Sobrando um recurso e faltando outro?</span>Venda o que sobra e compre o que falta. É mais rápido do que construir uma coleta nova.</div>
+  <h2>Mercado interno: excedente vira suprimentos</h2>
+  <p>No meio da partida é comum sobrar comida, madeira, pedra e ferro e faltar <b>suprimentos</b>, que pagam o QG, as eras, os recrutas e as tropas. Selecione o seu <b>Terminal Comercial</b> (era 2): o painel dele tem o <b>mercado interno</b>. Escolha um recurso e venda um lote de 100 ou 500. Os suprimentos entram na hora.</p>
+  <table>
+    <tr><th>Recurso</th><th>Comida</th><th>Madeira</th><th>Pedra</th><th>Ferro</th><th>Petróleo</th></tr>
+    <tr><td><b>Preço cheio</b> (suprimentos por unidade)</td><td>0,30</td><td>0,25</td><td>0,20</td><td>0,50</td><td>0,60</td></tr>
+    <tr><td><b>Vendendo 500 de uma vez</b></td><td>+121</td><td>+101</td><td>+81</td><td>+202</td><td>+243</td></tr>
+  </table>
+  <ul>
+    <li><b>O preço cai quando você vende muito:</b> com 1.000 unidades de um recurso vendidas há pouco, ele vale a metade. O preço atual aparece no painel (em amarelo quando está baixo).</li>
+    <li><b>O preço volta sozinho</b> em cerca de 8 minutos.</li>
+    <li>Picar a venda em lotes pequenos não rende mais do que vender tudo de uma vez.</li>
+    <li>Os botões ficam apagados quando falta estoque ou quando o armazém de suprimentos não tem espaço para o pagamento.</li>
+  </ul>
+  <div class="box tip"><span class="t">💡 Venda vários recursos um pouco</span>Mil unidades de comida, madeira, pedra e ferro vendidas juntas pagam quase o avanço para a era 3. Vender um pouco de cada rende mais do que despejar um recurso só.</div>
+</section>
+
+<!-- ============================== 14 -->
+<section class="page">
+  <h1><span class="num">14</span>O Globo e a diplomacia</h1>
+  <p class="lead">Os países que ninguém escolheu são governados pela IA, com economia própria. Eles podem ser seus parceiros — ou do seu inimigo.</p>
+  <figure><img src="img/globo.jpg" style="height:64mm;object-fit:cover"><figcaption>O Globo (<span class="kbd">Tab</span>). Os botões no alto mostram política, tratados, fronteiras e nomes. Clique num país para ver as ações.</figcaption></figure>
+  <h2>Contato</h2>
+  <p>Você só negocia com quem conhece: no início, os vizinhos da sua região e o rival do teatro. Para os demais, envie uma <b>missão de contato</b> (custa e leva alguns dias).</p>
+  <h2>Ações diplomáticas</h2>
+  <table>
+    <tr><th style="width:28%">Ação</th><th>O que faz</th></tr>
+    <tr><td><b>Acordo comercial</b></td><td>As duas economias crescem mais por 360 dias.</td></tr>
+    <tr><td><b>Acordo de defesa</b></td><td>O aliado manda ajuda militar (suprimentos por segundo) para a sua base. Exige relação alta.</td></tr>
+    <tr><td><b>Sanções</b></td><td>Prejudicam a economia e a aprovação do alvo. Você pode pedir a outros países que sancionem seu inimigo.</td></tr>
+    <tr><td><b>Missão diplomática</b></td><td>Melhora a relação aos poucos.</td></tr>
+    <tr><td><b>Ajuda</b></td><td>Melhora a relação rapidamente; é paga com dívida.</td></tr>
+  </table>
+  <p>As relações vão de −100 a +100 e o jogo sempre mostra o motivo de cada número. Romper um acordo antes do prazo prejudica a sua reputação com todos.</p>
+  <h2>Operações em outros países</h2>
+  <p>Em guerra com um país que não está no seu mapa? Pelo <b>Mapa Operacional</b> do Globo você escolhe uma região dele e envia tropas reais da sua base. Elas viajam, lutam numa batalha local e voltam com o que sobrou. Regiões ocupadas rendem suprimentos (e petróleo, se houver).</p>
+</section>
+
+<!-- ============================== 15 -->
+<section class="page">
+  <h1><span class="num">15</span>Força aérea e mísseis</h1>
+  <p class="lead">Na era 3 o céu entra na guerra.</p>
+  <h2>Base Aérea</h2>
+  <p>Tem hangar para <b>4 aeronaves</b>. Cada avião precisa de um recruta como piloto, gasta petróleo (ou combustível) a cada missão e tem manutenção.</p>
+  <table>
+    <tr><th style="width:24%">Aeronave</th><th>Para que serve</th></tr>
+    <tr><td><b>Reconhecimento</b></td><td>Revela uma área por 40 segundos e marca os prédios inimigos vistos.</td></tr>
+    <tr><td><b>Caça multifunção</b></td><td>Ataca alvos já descobertos e intercepta aviões inimigos perto da sua base.</td></tr>
+    <tr><td><b>Bombardeiro</b> (era 4)</td><td>Bombardeio em tapete: muito dano no alvo e nos prédios vizinhos. Lento e sem defesa contra caças.</td></tr>
+    <tr><td><b>Cargueiro</b></td><td>Amplia o comércio aéreo.</td></tr>
+  </table>
+  <div class="box info"><span class="t">ℹ Primeiro descobrir, depois atacar</span>Caças e bombardeiros só atacam prédios que você já descobriu (com reconhecimento, tropas ou satélite). Atacar infraestrutura exige a pesquisa nacional <b>Munição guiada</b>.</div>
+  <h2>Defesa antiaérea</h2>
+  <p><b>Bateria Antiaérea</b> (fixa), <b>Antiaérea Móvel</b> (acompanha o exército), torres e caças prontos na base têm chance de derrubar aviões e interceptar mísseis. Mais defesas = mais chance (até um limite).</p>
+  <h2>Mísseis balísticos</h2>
+  <ol class="steps">
+    <li>Pesquise <b>Mísseis balísticos</b> e construa um <b>Silo de Mísseis</b> (guarda até 2).</li>
+    <li>Produza o míssil (caro e lento).</li>
+    <li>Escolha o alvo (precisa estar em guerra com o dono), <b>prepare</b>, <b>autorize</b> segurando o botão e lance.</li>
+  </ol>
+  <div class="box warn"><span class="t">☢ Ogiva nuclear</span>Com a pesquisa <b>Armas nucleares</b>, o silo pode produzir uma ogiva nuclear: dano enorme numa área grande e metade da chance de ser interceptada. Mas todo lançamento nuclear causa um <b>choque na economia do mundo inteiro</b>, inclusive na sua: o PIB cai, a inflação e o desemprego sobem e a renda da base diminui por alguns meses. Use com muito cuidado.</div>
+</section>
+
+<!-- ============================== 16 -->
+<section class="page">
+  <h1><span class="num">16</span>Cidades, estradas e serviços</h1>
+  <h2>Prefeituras: funde novas cidades</h2>
+  <p>A <b>Prefeitura</b> (aba Cívicas) funda uma cidade com o nome de uma cidade real do seu país — São Paulo, Rio de Janeiro, Salvador… Ela amplia muito a fronteira, abriga 10 pessoas, guarda recursos, rende suprimentos e serve como segundo centro de construção. Precisa ficar a pelo menos 10 células de outra cidade.</p>
+  <div class="box warn"><span class="t">⚠ Cidades podem ser tomadas</span>Se o inimigo destruir uma prefeitura sua, ela <b>passa para ele</b>, junto com os seus prédios num raio de 8 células. Você pode retomá-la do mesmo jeito. O Centro de Comando nunca é tomado: só destruído.</div>
+  <h2>Estradas</h2>
+  <p>Clique em <b>Estrada</b> (aba Cívicas do QG, ou no Engenheiro). Depois <b>marque</b> as células: um clique marca ou desmarca uma célula, e clicar e arrastar marca um caminho em L. No celular, cada toque marca uma célula. A prévia mostra em verde onde dá para pavimentar e em vermelho onde não dá. Para terminar, toque em <b>Construir</b> (ou Enter): até 40 células por obra, pagando pedra e um pouco de verba por célula. Cada célula vira um trecho de asfalto com faixa, calçada e meio-fio, e os cruzamentos ganham faixa de pedestres.</p>
+  <ul>
+    <li>Todas as unidades andam mais rápido na estrada, e os comboios do comércio também.</li>
+    <li>Casas e prédios residenciais ligados a uma estrada dão até +4 de aprovação ("bairro pavimentado").</li>
+    <li><b>+15% de produção:</b> fazendas, serrarias, pedreiras, minas, poços, refinaria e siderúrgica ligados por estrada ao Centro de Comando ou a uma prefeitura produzem 15% a mais.</li>
+    <li>Fora do território, só com um Engenheiro por perto.</li>
+    <li>Cuidado: o inimigo em guerra também usa as suas estradas.</li>
+  </ul>
+  <h2>Caravanas</h2>
+  <p>Cada prefeitura pronta tem um <b>caminhão de carga</b> que vai e volta sozinho entre ela e o Centro de Comando. Cada chegada traz suprimentos: quanto mais longa a rota, mais carga. Na prática, uma prefeitura ligada ao QG quase dobra o que rende.</p>
+  <figure><img src="img/caravana.jpg" style="height:44mm;object-fit:cover"><figcaption>A caravana (caminhão branco) na estrada entre Brasília e São Paulo.</figcaption></figure>
+  <div class="box warn"><span class="t">⚠ A caravana só anda por estrada</span>Ela precisa de uma estrada contínua, sem buracos, encostando no Centro de Comando e na prefeitura. A estrada de terra do mapa também vale. Sem ligação, o caminhão fica parado e a prefeitura rende só a renda fixa. Território inimigo em guerra no meio do caminho corta a ligação, e tropas inimigas destroem a caravana (outra sai do QG em 45 s).</div>
+  <h2>Serviços</h2>
+  <p>Funcionam num raio de 10 células (o anel verde aparece ao posicionar) e cada um dá até +2 de aprovação.</p>
+  <table>
+    <tr><th style="width:20%">Serviço</th><th style="width:10%">Era</th><th>Efeito na área</th></tr>
+    <tr><td><b>Escola</b></td><td>1</td><td>Coletas rendem 10% a mais; tropas formadas por perto já saem <b>Veteranas</b>.</td></tr>
+    <tr><td><b>Delegacia</b></td><td>1</td><td>Protestos pesam menos na estabilidade.</td></tr>
+    <tr><td><b>Hospital</b></td><td>2</td><td>Tropas suas na área recuperam vida aos poucos.</td></tr>
+  </table>
+  <div class="box tip"><span class="t">💡 Escola perto do quartel</span>Uma escola cobrindo a Base Militar e a Fábrica faz todas as tropas novas nascerem Veteranas: +10% de dano e +8% de vida de graça.</div>
+</section>
+
+<!-- ============================== 17 -->
+<section class="page">
+  <h1><span class="num">17</span>Grandes Projetos e Programa Espacial</h1>
+  <p class="lead">Na era 4, obras gigantes dão bônus para a nação inteira. Uma de cada por país.</p>
+  <table>
+    <tr><th style="width:24%">Projeto</th><th>Bônus enquanto estiver de pé</th></tr>
+    <tr><td><b>Usina Nuclear</b></td><td>+4 suprimentos/s, obras 10% mais rápidas, economia cresce mais</td></tr>
+    <tr><td><b>Rede 5G Nacional</b></td><td>Pesquisa militar 30% mais rápida, +2 de visão para todas as tropas</td></tr>
+    <tr><td><b>Hidrelétrica</b></td><td>+15% na coleta de todos os recursos, +2 suprimentos/s (na margem da água)</td></tr>
+    <tr><td><b>Centro Financeiro</b></td><td>Verba de obras 50% maior, +3 suprimentos/s</td></tr>
+    <tr><td><b>Programa Espacial 🛰</b></td><td>Lança um satélite: você vê <b>o mapa inteiro em tempo real</b></td></tr>
+  </table>
+  <h2>🚀 O Programa Espacial</h2>
+  <p>É a construção <b>mais cara do jogo</b>: cerca de 1.950 suprimentos, 1.560 de ferro, 1.040 de pedra, 780 de madeira, 780 de petróleo, quase toda a verba de obras do ano e 6 minutos de obra. Exige o QG no nível 9 e a pesquisa <b>Tecnologia espacial</b>.</p>
+  <ol class="steps">
+    <li>Com a obra pronta, selecione o centro espacial e <b>segure o botão de autorizar</b>.</li>
+    <li>Contagem regressiva de 10 segundos, com vapor saindo da plataforma.</li>
+    <li>Ignição: clarão, fumaça, tremor — e o foguete sobe até sumir no céu.</li>
+    <li>O satélite entra em órbita e aparece girando em volta do Globo, com a sua bandeira, para todos verem.</li>
+  </ol>
+  <p>A partir daí, a névoa de guerra some para você: todas as tropas e prédios inimigos ficam visíveis e viram alvos para aviões e mísseis. Só as <b>minas terrestres</b> continuam escondidas.</p>
+  <div class="box warn"><span class="t">⚠ Proteja o investimento</span>Os Grandes Projetos são alvos enormes. Cerque-os de antiaérea e tropas: se um for destruído, o bônus acaba.</div>
+</section>
+
+<!-- ============================== 18 -->
+<section class="page">
+  <h1><span class="num">18</span>O bônus de cada país</h1>
+  <p class="lead">Todo país tem uma vantagem própria. Escolha o que combina com o seu jeito de jogar.</p>
+  <table style="font-size:9pt">
+    <tr><th style="width:21%">País</th><th style="width:28%">Bônus</th><th>Efeito</th></tr>
+    <tr><td>🇧🇷 Brasil</td><td>Guerra na selva</td><td>Tropas 25% mais rápidas na floresta; metade do atrito em terra inimiga</td></tr>
+    <tr><td>🇦🇷 Argentina</td><td>Celeiro do mundo</td><td>+25% de comida</td></tr>
+    <tr><td>🇺🇸 Estados Unidos</td><td>Logística aérea</td><td>Aeronaves 30% mais baratas</td></tr>
+    <tr><td>🇲🇽 México</td><td>Indústria de montagem</td><td>Veículo Blindado 20% mais barato</td></tr>
+    <tr><td>🇩🇪 Alemanha</td><td>Engenharia blindada</td><td>Tanques com 15% mais vida</td></tr>
+    <tr><td>🇫🇷 França</td><td>Força de intervenção</td><td>Forças Especiais e Antitanque 20% mais baratas</td></tr>
+    <tr><td>🇮🇳 Índia</td><td>Grande reserva humana</td><td>Recrutas 25% mais baratos</td></tr>
+    <tr><td>🇯🇵 Japão</td><td>Eficiência industrial</td><td>Obras 15% mais rápidas</td></tr>
+    <tr><td>🇿🇦 África do Sul</td><td>Minerais estratégicos</td><td>+30% de ferro</td></tr>
+    <tr><td>🇦🇺 Austrália</td><td>Mineração em escala</td><td>+20% de pedra e ferro</td></tr>
+    <tr><td>🇬🇧 Reino Unido</td><td>Forças especiais de elite</td><td>Forças Especiais com +20% de vida e 15% mais baratas</td></tr>
+    <tr><td>🇨🇳 China</td><td>Produção em massa</td><td>Tropas produzidas 20% mais rápido</td></tr>
+    <tr><td>🇮🇹 Itália</td><td>Engenharia civil</td><td>Obras 12% mais rápidas e +10% de pedra</td></tr>
+    <tr><td>🇨🇦 Canadá</td><td>Recursos florestais</td><td>+25% de madeira</td></tr>
+    <tr><td>🇸🇦 Arábia Saudita</td><td>Petróleo abundante</td><td>+30% de petróleo</td></tr>
+    <tr><td>🇪🇸 Espanha</td><td>Infantaria de montanha</td><td>Infantaria 15% mais barata e +10% de vida</td></tr>
+    <tr><td>🇪🇬 Egito</td><td>Muralha antiaérea</td><td>Antiaérea própria 20% mais eficaz</td></tr>
+    <tr><td>🇷🇺 Rússia</td><td>Artilharia em massa</td><td>Artilharia e Lança-Foguetes 25% mais baratos</td></tr>
+    <tr><td>🇹🇷 Turquia</td><td>Indústria de defesa</td><td>Antiaérea Móvel e Blindado 15% mais baratos</td></tr>
+    <tr><td>🇰🇷 Coreia do Sul</td><td>Defesa antiaérea superior</td><td>Antiaérea própria 30% mais eficaz</td></tr>
+    <tr><td>🇰🇵 Coreia do Norte</td><td>Exército de massa</td><td>Artilharia 20% e recrutas 15% mais baratos</td></tr>
+  </table>
+  <p class="small">O bônus aparece no cartão do país na sala. Cada país também tem uma <b>região inicial</b> (florestal, petrolífera, agrícola…) que muda os recursos perto da base.</p>
+</section>
+
+<!-- ============================== 19 -->
+<section class="page">
+  <h1><span class="num">19</span>Dicas de estratégia</h1>
+  <h2>Os 10 mandamentos do comandante</h2>
+  <ol class="steps">
+    <li><b>Nunca pare de formar cidadãos</b> no começo. Gente parada é economia parada.</li>
+    <li><b>Ache o seu gargalo.</b> O recurso que mais falta decide o que construir a seguir.</li>
+    <li><b>Não deixe recurso encostado no limite.</b> Armazém cheio é produção jogada fora.</li>
+    <li><b>Melhore o Centro de Comando cedo</b>: ele destrava eras e melhorias de todo o resto.</li>
+    <li><b>Explore.</b> Saber onde estão o inimigo e as jazidas vale mais que um tanque.</li>
+    <li><b>Defenda-se antes do fim do preparo.</b> A primeira onda da IA chega pontualmente.</li>
+    <li><b>Misture tropas.</b> Um exército de um tipo só tem um contra óbvio.</li>
+    <li><b>Dê visão à artilharia.</b> Sem olhos, ela não atira.</li>
+    <li><b>Cuide do povo.</b> Baixas demais, impostos altos e fome derrubam a aprovação — e o governo.</li>
+    <li><b>Use a diplomacia.</b> Um acordo de defesa manda suprimentos de graça; sanções enfraquecem o inimigo sem gastar uma bala.</li>
+  </ol>
+  <h2>Erros comuns de iniciante</h2>
+  <div class="grid2">
+    <div class="box warn" style="margin:0"><span class="t">Poço sem tanque</span>O poço de petróleo só funciona com um Tanque de Petróleo a até 9 células.</div>
+    <div class="box warn" style="margin:0"><span class="t">Sem recrutas</span>Clicou na tropa e nada? Falta recruta na reserva. Aliste na Base Militar.</div>
+    <div class="box warn" style="margin:0"><span class="t">Atacar sem guerra</span>As tropas não atiram? Declare guerra no Globo primeiro.</div>
+    <div class="box warn" style="margin:0"><span class="t">Exército longe de casa</span>Tropas em terra inimiga perdem vida. Leve um Veículo Blindado junto.</div>
+  </div>
+  <h2>Três estratégias para experimentar</h2>
+  <div class="grid3">
+    <div class="card"><div class="ic">⚡</div><h4>Ataque rápido</h4><p>Economia mínima, muitos soldados e blindados, ataque logo depois do preparo. Bom contra quem constrói devagar.</p></div>
+    <div class="card"><div class="ic">🏗</div><h4>Economia forte</h4><p>Muitas coletas e melhorias, defesa com torres e antitanque, avanço rápido de eras. Vence no longo prazo.</p></div>
+    <div class="card"><div class="ic">🗺</div><h4>Expansão</h4><p>Prefeituras e estradas para dominar o mapa. Pode levar à vitória territorial (70% do mapa).</p></div>
+  </div>
+</section>
+
+<!-- ============================== 20 -->
+<section class="page">
+  <h1><span class="num">20</span>Glossário</h1>
+  <table>
+    <tr><th style="width:26%">Termo</th><th>Significado</th></tr>
+    <tr><td><b>Caravana</b></td><td>Caminhão que leva suprimentos entre uma prefeitura e o QG; só anda por estrada.</td></tr>
+    <tr><td><b>Atrito</b></td><td>Perda de vida das tropas em território inimigo sem um blindado por perto.</td></tr>
+    <tr><td><b>Centro de Comando (QG)</b></td><td>A sua capital no mapa. Se cair, você perde.</td></tr>
+    <tr><td><b>Custo crescente</b></td><td>Cada construção nova do mesmo tipo custa 18% a mais.</td></tr>
+    <tr><td><b>Depósito</b></td><td>Grupo de células de um recurso (floresta, rocha, minério, jazida). Acaba com o uso.</td></tr>
+    <tr><td><b>Era</b></td><td>Etapa da evolução da nação; libera tropas, prédios e muda o visual.</td></tr>
+    <tr><td><b>Especialização</b></td><td>Escolha permanente feita no nível 6 de um prédio.</td></tr>
+    <tr><td><b>Estabilidade</b></td><td>A firmeza do governo. Abaixo de 10 por 60 dias, o governo cai.</td></tr>
+    <tr><td><b>Gargalo</b></td><td>O recurso que mais limita o seu crescimento no momento.</td></tr>
+    <tr><td><b>Incidente de fronteira</b></td><td>Assédio rápido da IA durante o preparo, sem guerra declarada.</td></tr>
+    <tr><td><b>Mercado interno</b></td><td>Venda de excedente por suprimentos no Terminal Comercial; o preço cai com as vendas e volta com o tempo.</td></tr>
+    <tr><td><b>Logística do teatro</b></td><td>Suprimentos por segundo que o orçamento de defesa manda para a base.</td></tr>
+    <tr><td><b>Névoa de guerra</b></td><td>A parte do mapa que você não está vendo agora.</td></tr>
+    <tr><td><b>Paridade / Escala real</b></td><td>Regras da sala: todos iguais, ou países ricos mais fortes.</td></tr>
+    <tr><td><b>Período de preparo</b></td><td>Os primeiros minutos, em que a IA não declara guerra.</td></tr>
+    <tr><td><b>Recruta</b></td><td>Pessoa na reserva militar; tripula cada tropa ou avião.</td></tr>
+    <tr><td><b>Teatro de operações</b></td><td>O mapa 3D da partida.</td></tr>
+    <tr><td><b>Verba de obras (US$)</b></td><td>Dinheiro do orçamento de infraestrutura que paga melhorias, eras e projetos.</td></tr>
+    <tr><td><b>Veterania</b></td><td>Patente ganha com abates: Veterano, Elite e Herói.</td></tr>
+  </table>
+  <div class="box tip" style="margin-top:8mm"><span class="t">Boa sorte, Comandante!</span>O melhor jeito de aprender é jogar. Comece no Fácil, teste tropas no Modo Sandbox e volte a este guia sempre que tiver dúvida.</div>
+</section>
+
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Guia do Comandante</title>
+<style>
+  @page { size: A4; margin: 0; }
+  :root { --navy: #0e1624; --navy2: #182235; --gold: #e0b14a; --ink: #1d2533; --muted: #5b6577; --line: #d9dee7; --soft: #f4f6fa; --green: #2f9e63; --red: #c94a3f; --blue: #3b7fd1; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: 'Inter', 'DejaVu Sans', sans-serif; color: var(--ink); font-size: 10.6pt; line-height: 1.5; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page { width: 210mm; min-height: 297mm; padding: 16mm 17mm 18mm; position: relative; page-break-after: always; overflow: hidden; }
+  .page:last-child { page-break-after: auto; }
+  .pnum { position: absolute; bottom: 8mm; right: 17mm; font-size: 8.5pt; color: var(--muted); }
+  .runhead { position: absolute; top: 7mm; left: 17mm; right: 17mm; font-size: 7.5pt; letter-spacing: .18em; text-transform: uppercase; color: #9aa3b2; display: flex; justify-content: space-between; }
+  h1 { font-family: 'Inter Display', 'Inter', sans-serif; font-weight: 800; font-size: 25pt; line-height: 1.1; margin: 4mm 0 2mm; color: var(--navy); }
+  h1 .num { display: inline-block; background: var(--gold); color: var(--navy); border-radius: 6px; padding: 0 9px; margin-right: 8px; font-size: 20pt; vertical-align: 3px; }
+  .lead { font-size: 12pt; color: var(--muted); margin: 0 0 5mm; }
+  h2 { font-family: 'Inter Display', 'Inter', sans-serif; font-size: 14pt; margin: 6mm 0 2mm; color: var(--navy); }
+  h3 { font-size: 11pt; margin: 4mm 0 1mm; color: var(--navy); }
+  p { margin: 0 0 2.5mm; }
+  ul, ol { margin: 0 0 3mm; padding-left: 5.5mm; }
+  li { margin-bottom: 1mm; }
+  b, strong { color: #101827; }
+  figure { margin: 3mm 0 4mm; }
+  figure img { width: 100%; border-radius: 6px; display: block; border: 1px solid #10192a; }
+  figcaption { font-size: 8.8pt; color: var(--muted); margin-top: 1.5mm; }
+  table { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; font-size: 9.4pt; }
+  th { background: var(--navy); color: #fff; text-align: left; padding: 2mm 2.5mm; font-weight: 600; }
+  td { padding: 1.8mm 2.5mm; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--soft); }
+  .box { border-radius: 8px; padding: 3.5mm 4.5mm; margin: 3mm 0 4mm; }
+  .tip { background: #fff7e3; border-left: 4px solid var(--gold); }
+  .warn { background: #fdecea; border-left: 4px solid var(--red); }
+  .info { background: #eaf2fc; border-left: 4px solid var(--blue); }
+  .box .t { font-weight: 700; margin-bottom: 1mm; display: block; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3mm; }
+  .card { border: 1px solid var(--line); border-radius: 8px; padding: 3mm 3.5mm; background: #fff; }
+  .card .ic { font-size: 18pt; line-height: 1; }
+  .card h4 { margin: 1.5mm 0 1mm; font-size: 10.5pt; color: var(--navy); }
+  .card p { font-size: 9.3pt; margin: 0; color: #36404f; }
+  .steps { counter-reset: s; list-style: none; padding: 0; }
+  .steps li { counter-increment: s; position: relative; padding-left: 10mm; margin-bottom: 2.5mm; }
+  .steps li::before { content: counter(s); position: absolute; left: 0; top: -0.5mm; width: 7mm; height: 7mm; border-radius: 50%; background: var(--navy); color: var(--gold); font-weight: 700; text-align: center; line-height: 7mm; font-size: 10pt; }
+  .kbd { font-family: 'JetBrains Mono', monospace; font-size: 8.6pt; background: #eef1f6; border: 1px solid #cfd6e1; border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; white-space: nowrap; }
+  .anno { position: relative; }
+  .anno img { width: 100%; display: block; border-radius: 6px; }
+  .mk { position: absolute; width: 5.6mm; height: 5.6mm; border-radius: 50%; background: var(--gold); color: var(--navy); font-weight: 800; font-size: 8pt; text-align: center; line-height: 5.6mm; box-shadow: 0 0 0 2px #0e1624; top: -6.5mm; transform: translateX(-50%); }
+  .legend { columns: 2; column-gap: 6mm; font-size: 9.3pt; margin-top: 2mm; }
+  .legend div { break-inside: avoid; margin-bottom: 1.2mm; }
+  .legend b { display: inline-block; width: 5mm; height: 5mm; border-radius: 50%; background: var(--gold); color: var(--navy); text-align: center; font-size: 7.5pt; line-height: 5mm; margin-right: 1.5mm; }
+  .pill { display: inline-block; font-size: 8pt; padding: 0.3mm 2mm; border-radius: 99px; background: #e8edf5; color: #2d3a52; font-weight: 600; }
+  .era { border-radius: 8px; padding: 3mm 3.5mm; color: #fff; }
+  .era h4 { margin: 0 0 1mm; font-size: 10.5pt; color: #fff; }
+  .era p { margin: 0; font-size: 8.8pt; color: rgba(255,255,255,.88); }
+  .era .q { font-size: 7.6pt; text-transform: uppercase; letter-spacing: .12em; color: rgba(255,255,255,.7); }
+  .toc { columns: 2; column-gap: 8mm; }
+  .toc div { display: flex; gap: 2mm; padding: 1.4mm 0; border-bottom: 1px dotted #c9d0db; break-inside: avoid; }
+  .toc span.n { color: var(--gold); font-weight: 800; width: 7mm; }
+  .small { font-size: 8.8pt; color: var(--muted); }
+  .center { text-align: center; }
+  svg text { font-family: 'Inter', sans-serif; }
+  /* capa */
+  .cover { background: radial-gradient(circle at 70% 35%, #1d3150 0%, #0e1624 55%, #070b12 100%); color: #fff; padding: 0; }
+  .cover .inner { padding: 24mm 20mm; position: relative; z-index: 2; }
+  .cover .kicker { font-size: 9pt; letter-spacing: .32em; color: var(--gold); text-transform: uppercase; }
+  .cover h1 { color: #fff; font-size: 40pt; margin: 6mm 0 3mm; }
+  .cover .brand { font-family: 'michroma', 'Inter Display', sans-serif; font-size: 13pt; letter-spacing: .3em; color: #cfd8e6; }
+  .cover .sub { font-size: 13pt; color: #c3cad6; max-width: 140mm; margin-top: 6mm; }
+  .cover .shot { position: absolute; left: 0; right: 0; bottom: 0; height: 150mm; background-size: cover; background-position: center; z-index: 1; -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 35%); mask-image: linear-gradient(to bottom, transparent 0%, #000 35%); }
+  .cover .foot { position: absolute; bottom: 12mm; left: 20mm; right: 20mm; z-index: 3; font-size: 9pt; color: #d6dbe4; display: flex; justify-content: space-between; text-shadow: 0 1px 3px #000; }
+</style>
+</head>
+<body>
+<section class="page cover">
+  <div class="inner">
+    <div class="kicker">Manual do jogador</div>
+    <h1>Guia do<br>Comandante</h1>
+    <div class="brand">NATIONS COMMANDER</div>
+    <p class="sub">3D Modern Geopolitical RTS — tudo o que você precisa saber para governar um país, montar uma base e vencer a guerra, explicado de um jeito simples.</p>
+  </div>
+  <div class="shot" style="background-image:url('img/capa.jpg')"></div>
+  <div class="foot"><span>Para iniciantes e para quem quer jogar melhor</span><span>Edição de outubro de 2026</span></div>
+</section>
+</body></html>
