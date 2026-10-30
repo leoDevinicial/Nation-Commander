@@ -20,6 +20,7 @@ import { BIOME_TINT, buildTerrain, type TerrainHandle } from './render/TerrainFa
 import { cloudUniforms, disposeMaterials, fogUniforms, setCloudShadows, weatherUniforms, windUniforms } from './render/materials.ts';
 import { disposeBuildingModels } from './render/models/buildingModels.ts';
 import { disposeCitizenModel, disposeUnitModels, unitModel, unitModelKey } from './render/models/unitModels.ts';
+import { NuclearBlast } from './render/NuclearBlast.ts';
 import { setModelDetail } from './render/models/kit.ts';
 import { chooseClaims, claimedBy, gatherRate, sitesByDeposit } from '../../shared/sim/gathering.ts';
 import { findDeposits, type DepositIndex } from '../../shared/sim/deposits.ts';
@@ -213,6 +214,8 @@ export class GameRuntime {
   private snapshot: Snapshot | null = null;
   /** Tick do último som de rajada de cada CIWS (o som cobre a rajada inteira). */
   private readonly gatlingAt = new Map<number, number>();
+  /** Cogumelos nucleares em andamento. */
+  private readonly nukes: NuclearBlast[] = [];
   private snapshotAt = 0;
   private snapshotInterval = 100;
   private paused = false;
@@ -847,13 +850,18 @@ export class GameRuntime {
         this.airLayer.shockwave(e.from, heavy ? 6 : 3);
         this.shakeNear(e.from, heavy ? 0.7 : 0.35);
       } else if (e.state === 'impact' && e.nuclear) {
-        // detonação nuclear: clarão branco enorme, bola de fogo, várias ondas de choque e tremor forte
+        // detonação nuclear: clarão branco enorme e o cogumelo (NuclearBlast); a onda de choque, o tremor forte e o
+        // som chegam depois do clarão, como de longe
         const at = new THREE.Vector3(e.target.x, 0, e.target.y);
         this.effects.flash(new THREE.Vector3(e.target.x, 8, e.target.y), radius * 2.6, '#fff6de', 1.6);
         this.effects.heavyMissileImpact(at, radius * 0.6);
-        this.effects.heavyMissileImpact(at, radius);
-        for (const k of [1, 1.8, 2.8, 4]) this.airLayer.shockwave(e.target, radius * k);
-        this.shakeNear(e.target, 2.2);
+        this.shakeNear(e.target, 0.35);
+        const blast = new NuclearBlast(at, radius, () => {
+          for (const k of [1, 1.8, 2.8, 4]) this.airLayer.shockwave(e.target, radius * k);
+          this.shakeNear(e.target, 2.2);
+        });
+        this.scene.add(blast.group);
+        this.nukes.push(blast);
       } else if (e.state === 'impact') {
         if (heavy) this.effects.heavyMissileImpact(new THREE.Vector3(e.target.x, 0, e.target.y), radius);
         else this.effects.missileImpact(new THREE.Vector3(e.target.x, 0, e.target.y), radius);
@@ -1036,6 +1044,11 @@ export class GameRuntime {
     }
     this.updateRouteInspection();
     this.effects.update(dt);
+    for (let i = this.nukes.length - 1; i >= 0; i--)
+      if (!this.nukes[i]!.update(this.paused ? 0 : dt)) {
+        this.nukes[i]!.dispose();
+        this.nukes.splice(i, 1);
+      }
     this.citizens.update(this.paused ? 0 : dt * this.speed);
     if (!this.suspended) {
       this.sky.position.copy(this.camera.position);
@@ -2705,6 +2718,9 @@ export class GameRuntime {
           if ((e.gen ?? 1) >= 2) audio.playAt('explosion_big', e.from.x, e.from.y);
           // o país-alvo ouve o alarme mesmo com a câmera longe
           if (mine(e.targetOwner)) audio.ui('alert');
+        } else if (e.state === 'impact' && e.nuclear) {
+          // a detonação nuclear se ouve de longe em qualquer parte do mapa
+          audio.play('nuclear_blast', 0.95);
         } else if (e.state === 'impact') {
           if (own || mine(e.targetOwner)) audio.play('missile_impact', 0.55);
           audio.playAt('missile_impact', e.target.x, e.target.y);
@@ -3362,6 +3378,8 @@ export class GameRuntime {
     for (const t of this.units.values()) t.visual.dispose();
     for (const t of this.buildings.values()) t.visual.dispose();
     this.effects.dispose();
+    for (const n of this.nukes) n.dispose();
+    this.nukes.length = 0;
     this.postFx?.dispose();
     this.citizens.dispose();
     this.exposure?.dispose();

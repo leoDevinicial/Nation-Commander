@@ -206,6 +206,10 @@ arquivo é baixado em tempo de execução e não há material de terceiros a lic
     fechando, a pressão (soco grave e subgrave longo), os destroços e a terra caindo de volta e o trovão rolando
     pelo terreno por ~6 s, com reverberação de campo aberto;
   - interceptação: estalo seco e alto.
+  - detonação nuclear (`nuclear_blast`): ouvida de longe, em qualquer parte do mapa. O clarão vem primeiro e o som
+    chega 0,75 s depois, abafado (sem o estalo agudo). Vêm o estrondo e um subgrave de vários segundos, o ronco que
+    incha e ondula, o vento da onda de choque passando, estalos distantes e o trovão rolando por ~12 s, com bastante
+    reverberação de campo aberto.
 - **Ambiente e música:**
   - vento baixo durante a partida;
   - trilha procedural de acordes lentos (canal de música, baixo por padrão).
@@ -215,6 +219,19 @@ arquivo é baixado em tempo de execução e não há material de terceiros a lic
   - alerta de ataque e de míssil inimigo;
   - sucesso em obra ou melhoria concluída;
   - tom ao começar a segurar a autorização.
+
+### Cogumelo nuclear
+
+`src/game/render/NuclearBlast.ts`, em low poly (formas facetadas, cores chapadas), com cerca de 30 s:
+- clarão branco e luz forte que cai devagar, ficando laranja;
+- bola de fogo que cresce em 2 s, sobe e esfria do branco ao laranja e ao marrom-fumaça;
+- chapéu de bolhas facetadas (domo, rolo de fora, anel de cima e saia de baixo) que rola para fora e sobe até ~2,2 ×
+  o raio, com um brilho quente embaixo;
+- coluna em perfil girado: larga na base, fina no meio, abrindo no alto;
+- anel de condensação em volta do chapéu (1,5 a 5 s) e onda de poeira rasteira correndo até ~2,6 × o raio;
+- desfaz-se no céu entre 18 e 30 s.
+
+A onda de choque (os anéis no chão) e o tremor forte de câmera chegam 0,8 s depois do clarão, junto com o som.
 
 ### Explosão de veículos
 

@@ -20,7 +20,7 @@ export type Volumes = Record<Channel | 'master', number>;
 export const DEFAULT_VOLUMES: Volumes = { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 };
 
 export type UiSound = 'click' | 'confirm' | 'error' | 'alert' | 'success' | 'hold';
-export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'mbt_gun' | 'tank_gun' | 'vehicle_explosion' | 'vehicle_explosion_heavy' | 'gatling';
+export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'mbt_gun' | 'tank_gun' | 'vehicle_explosion' | 'vehicle_explosion_heavy' | 'nuclear_blast' | 'gatling';
 export type MissileCue = 'prepare' | 'armed' | 'authorize';
 
 /** Som de trabalho de cada edifício (os demais usam o zumbido genérico). */
@@ -63,6 +63,7 @@ const PRIORITY: Record<CombatSound, number> = {
   mbt_gun: 3,
   vehicle_explosion: 4,
   vehicle_explosion_heavy: 5,
+  nuclear_blast: 9,
   gatling: 3,
   tank_gun: 3,
   cannon: 2,
@@ -78,7 +79,7 @@ const PRIORITY: Record<CombatSound, number> = {
 };
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
-const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, vehicle_explosion: 0.1, vehicle_explosion_heavy: 0.15, tank_gun: 0.18 };
+const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, vehicle_explosion: 0.1, vehicle_explosion_heavy: 0.15, nuclear_blast: 1, tank_gun: 0.18 };
 
 /**
  * Atenuação e panorâmica de um ponto do mapa para quem olha `L` (ponto da câmera, distância e giro).
@@ -797,6 +798,98 @@ export class AudioService {
         n.stop(t + 3.9);
         nodes.push(n);
         end = t + 3.9;
+        break;
+      }
+      case 'nuclear_blast': {
+        // detonação nuclear ouvida de longe, cinematográfica. O clarão vem antes (a luz chega primeiro) e o som chega
+        // depois de `d`, sem o estalo agudo, que a distância come. Chegam:
+        //   o estrondo abafado e enorme: soco grave saturado e um subgrave que dura segundos;
+        //   o ronco que incha e se sustenta, ondulando devagar (a bola de fogo subindo);
+        //   o vento da onda de choque passando (sopro que sobe e desce de tom);
+        //   estalos distantes e baixos (coisas quebrando longe);
+        //   o trovão rolando pelo terreno em ondas cada vez mais graves e espaçadas.
+        // Quase tudo vai também para a reverberação de campo aberto, bem mais forte que nos outros sons.
+        const d = 0.75;
+        const a = t + d;
+        const mix = ctx.createGain();
+        mix.gain.value = 0.85;
+        mix.connect(out);
+        const wet = ctx.createGain();
+        wet.gain.value = gain * 0.8;
+        mix.connect(wet).connect(this.outdoorReverb());
+        const drive = ctx.createWaveShaper();
+        drive.curve = this.driveCurve(4);
+        drive.oversample = '4x';
+        const driveLow = ctx.createBiquadFilter();
+        driveLow.type = 'lowpass';
+        driveLow.frequency.value = 200;
+        drive.connect(driveLow).connect(mix);
+        // estrondo abafado
+        burst('lowpass', 420, 0.6, 0.02, 1.4, 1.2, a, mix);
+        thump(70, 20, 0.02, 2.4, 2.2, a, 'sine', drive);
+        thump(44, 15, 0.05, 2.0, 4.5, a, 'triangle', drive);
+        thump(32, 12, 0.12, 1.5, 6.5, a, 'sine', mix);
+        // ronco que incha e ondula
+        {
+          const n = this.noiseSource(true);
+          const f = ctx.createBiquadFilter();
+          f.type = 'lowpass';
+          f.frequency.setValueAtTime(320, a);
+          f.frequency.exponentialRampToValueAtTime(160, a + 6);
+          f.frequency.exponentialRampToValueAtTime(90, a + 13);
+          const sat = ctx.createWaveShaper();
+          sat.curve = this.driveCurve(2.4);
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(0.0001, a);
+          g.gain.exponentialRampToValueAtTime(1.5, a + 1.4);
+          g.gain.setValueAtTime(1.5, a + 3.5);
+          g.gain.exponentialRampToValueAtTime(0.0001, a + 14);
+          // ondulação lenta (o rumor rolando)
+          const lfo = ctx.createOscillator();
+          lfo.frequency.value = 0.45;
+          const lg = ctx.createGain();
+          lg.gain.value = 0.35;
+          const wob = ctx.createGain();
+          wob.gain.value = 1;
+          lfo.connect(lg).connect(wob.gain);
+          n.connect(f).connect(sat).connect(wob).connect(g).connect(mix);
+          n.start(a, Math.random());
+          n.stop(a + 14.2);
+          lfo.start(a);
+          lfo.stop(a + 14.2);
+          nodes.push(n, lfo);
+        }
+        // vento da onda de choque
+        {
+          const n = this.noiseSource();
+          const f = ctx.createBiquadFilter();
+          f.type = 'bandpass';
+          f.Q.value = 0.9;
+          f.frequency.setValueAtTime(260, a + 0.9);
+          f.frequency.exponentialRampToValueAtTime(820, a + 2.3);
+          f.frequency.exponentialRampToValueAtTime(300, a + 5.5);
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(0.0001, a + 0.9);
+          g.gain.exponentialRampToValueAtTime(0.55, a + 2.2);
+          g.gain.exponentialRampToValueAtTime(0.0001, a + 5.8);
+          n.connect(f).connect(g).connect(mix);
+          n.start(a + 0.9, Math.random());
+          n.stop(a + 6);
+          nodes.push(n);
+        }
+        // estalos distantes
+        for (let i = 0; i < 14; i++) {
+          const at = a + 1.5 + Math.random() * 7;
+          const k = 0.05 + Math.random() * 0.07;
+          burst('bandpass', 700 + Math.random() * 700, 1.2, 0.002, k, 0.05 + Math.random() * 0.05, at, mix);
+        }
+        // trovão rolando
+        burst('lowpass', 300, 0.6, 0.15, 0.9, 2.2, a + 2.2, drive);
+        thump(48, 20, 0.1, 0.9, 2.4, a + 2.2, 'sine', mix);
+        burst('lowpass', 220, 0.5, 0.25, 0.7, 2.8, a + 4, mix);
+        burst('lowpass', 170, 0.5, 0.35, 0.5, 3.4, a + 6.2, mix);
+        thump(40, 18, 0.2, 0.6, 3, a + 6.2, 'sine', mix);
+        end = burst('lowpass', 120, 0.5, 0.5, 0.35, 4.5, a + 9, mix);
         break;
       }
       case 'missile_impact': {
