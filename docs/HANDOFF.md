@@ -119,6 +119,9 @@ npm test && npm run lint && npm run typecheck
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
+- **Guia do jogador em PDF** (`docs/GUIA_DO_JOGADOR.pdf`, 27 páginas, linguagem simples, com capturas do jogo).
+   Feito com HTML + Playwright (`page.pdf`) a partir de capturas em partida contra a IA e no Sandbox; os números são
+   os do jogo em 30/10/2026. Se regras ou custos mudarem, o guia precisa ser refeito.
 1. **Antiaérea Móvel do Futuro Próximo** (8×8 estilo Pantsir, `buildMobileAaFuture`) e **interceptação de
    salvas do Lança-Foguetes** em voo:
    - a regra fica em `ROCKET_INTERCEPT` e `Simulation.updateInterceptions`; gera o evento `salvo_intercepted`, com
