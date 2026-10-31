@@ -579,7 +579,7 @@ describe('moderação do chat da comunidade', () => {
     await say(a!, 'seu merda filho da puta');
     expect(a!.last('error')?.message).toMatch(/silenciado/);
     await say(a!, 'agora falo bonito');
-    expect(a!.last('error')?.message).toMatch(/silenciado no chat até/);
+    expect(a!.last('error')?.message).toMatch(/silenciado no chat por mais/);
   });
 
   it('3 denúncias de pessoas diferentes removem a mensagem e silenciam o autor; cada denúncia é gravada', async () => {
@@ -614,5 +614,64 @@ describe('moderação do chat da comunidade', () => {
     expect(c!.last('community_remove')?.id).toBe(id);
     await say(b!, 'voltei');
     expect(b!.last('error')?.message).toMatch(/silenciado/);
+  });
+});
+
+describe('moderação justa', () => {
+  async function chat(names: string[]) {
+    const { send, deps } = setup();
+    const t = { now: 1_000_000 };
+    deps.community = new CommunityChat({ now: () => t.now, saveReport: () => true });
+    deps.allowGuests = true;
+    const conns = [];
+    for (const n of names) {
+      const c = fakeConn();
+      if (n.startsWith('guest')) await send(c.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: null, guestId: n, guestName: n });
+      else await send(c.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: `ok-${n}` });
+      await send(c.conn, { t: 'community_join' });
+      conns.push(c);
+    }
+    const say = async (c: ReturnType<typeof fakeConn>, text: string) => {
+      t.now += 5000;
+      await send(c.conn, { t: 'community_say', text });
+    };
+    return { send, conns, say, t };
+  }
+
+  it('denúncias de convidados valem meio voto', async () => {
+    const { send, conns, say } = await chat(['ana', 'guest1', 'guest2', 'guest3', 'beto']);
+    const [a, g1, g2, g3, b] = conns;
+    await say(a!, 'mensagem normal');
+    const id = b!.last('community_msg')!.msg.id;
+    for (const g of [g1, g2, g3]) await send(g!.conn, { t: 'community_report', id, reason: 'spam' });
+    expect(b!.last('community_remove')).toBeUndefined();
+    await send(b!.conn, { t: 'community_report', id, reason: 'spam' });
+    await send(conns[0]!.conn, { t: 'community_report', id, reason: 'spam' });
+    expect(b!.last('community_remove')).toBeUndefined();
+  });
+
+  it('as duas primeiras ofensas só avisam; a punição cresce com a reincidência', async () => {
+    const { conns, say, t } = await chat(['ana', 'beto']);
+    const [a] = conns;
+    await say(a!, 'arrombado');
+    expect(a!.last('error')?.message).toMatch(/^Aviso/);
+    await say(a!, 'arrombado');
+    await say(a!, 'arrombado');
+    expect(a!.last('error')?.message).toMatch(/por 5 min/);
+    t.now += 6 * 60_000;
+    for (let i = 0; i < 3; i++) await say(a!, 'arrombado');
+    expect(a!.last('error')?.message).toMatch(/por 15 min/);
+  });
+
+  it('cada pessoa denuncia no máximo 5 vezes a cada 10 min', async () => {
+    const { send, conns, say } = await chat(['ana', 'beto']);
+    const [a, b] = conns;
+    const ids: number[] = [];
+    for (let i = 0; i < 6; i++) {
+      await say(a!, `mensagem ${i}`);
+      ids.push(b!.last('community_msg')!.msg.id);
+    }
+    for (const id of ids) await send(b!.conn, { t: 'community_report', id, reason: 'spam' });
+    expect(b!.last('community_notice')?.text).toMatch(/muitas denúncias/);
   });
 });

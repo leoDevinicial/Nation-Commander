@@ -259,8 +259,9 @@ export function CommunityScreen() {
       </form>
       {notice && <p className={`mt-1 text-xs ${notice.bad ? 'text-brass-400' : 'text-signal-green'}`}>{notice.text}</p>}
       <p className="mt-2 text-[11px] text-ink-400">
-        Seja respeitoso. Ofensas são ocultadas e quem insiste é silenciado; use ⋯ para denunciar ou silenciar alguém. O chat mostra as últimas 80 mensagens e
-        recomeça quando o servidor é atualizado.
+        Seja respeitoso. Ofensas são ocultadas: as duas primeiras vezes só avisam, depois vem um silenciamento curto que cresce com a reincidência. Use ⋯ para
+        denunciar ou silenciar alguém só para você. Toda punição diz o motivo e o tempo; se achar injusta, conte em Feedback. O chat mostra as últimas 80
+        mensagens e recomeça quando o servidor é atualizado.
       </p>
     </Shell>
   );

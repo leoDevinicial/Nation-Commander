@@ -19,13 +19,20 @@
     turco, árabe transliterado e indonésio):
     - resiste a disfarces: l3tr4s, acentos, letras repetidas e letras separadas ("f u c k");
     - a palavra vira asteriscos e a mensagem ganha a marca "(filtrada)";
-    - 3 mensagens filtradas em 10 min silenciam o autor por 10 min.
+    - as duas primeiras vezes em 10 min só avisam (com quantas faltam); a terceira silencia.
     - Palavras comuns que também são ofensa em outro idioma ficaram de fora para evitar falsos positivos ("negro",
       "pede", "macaco", "Níger"…).
     - **Testes:** `server/profanity.test.ts`.
   - **Denúncia** (⋯ → ⚑ Denunciar, com o motivo: ofensa, ódio, spam, trapaça ou outro):
     - cada denúncia é gravada em `public.community_reports` (migração `20261101010000_community_reports.sql`);
-    - 3 denúncias de pessoas diferentes apagam a mensagem para todos e silenciam o autor por 15 min.
+    - 3 votos de pessoas diferentes apagam a mensagem para todos e silenciam o autor. Conta vale 1 voto e convidado
+      vale 0,5, para contas descartáveis não derrubarem ninguém sozinhas;
+    - cada pessoa denuncia no máximo 5 vezes a cada 10 min.
+  - **Punição automática progressiva** (filtro ou denúncias):
+    - 5 min na 1ª, 15 min na 2ª, 60 min na 3ª e 4 h da 4ª em diante, contando as punições das últimas 24 h;
+    - toda punição avisa o motivo e a duração e lembra que dá para contestar pelo Feedback;
+    - quem está silenciado continua lendo o chat e vê quantos minutos faltam;
+    - as ações dos moderadores ficam no log do servidor.
   - **Silenciar para mim:** esconde as mensagens de alguém só para quem silenciou (guardado no navegador); o link
     "Silenciados" desfaz.
   - **Moderadores:** ids de conta do Supabase na variável `COMMUNITY_MODERATORS` do servidor (separados por vírgula).
