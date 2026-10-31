@@ -16,12 +16,20 @@ export type RoomMode = 'pvp' | 'vs_ai' | 'sandbox';
 /** Mensagem do chat da Comunidade (menu). */
 export interface CommunityMessage {
   id: number;
+  /** Identificador público do autor (não é o id da conta): serve para silenciar e para moderar. */
+  uid: string;
   from: string;
   text: string;
   /** Hora do servidor (ms). */
   at: number;
   guest?: boolean;
+  /** Parte do texto foi ocultada pelo filtro de ofensas. */
+  filtered?: boolean;
 }
+
+/** Motivo de uma denúncia no chat da Comunidade. */
+export type ReportReason = 'offense' | 'hate' | 'spam' | 'cheat' | 'other';
+export const REPORT_REASONS: readonly ReportReason[] = ['offense', 'hate', 'spam', 'cheat', 'other'];
 
 /** Tipo de feedback enviado na área Comunidade e Feedback do menu. */
 export type FeedbackCategory = 'bug' | 'suggestion' | 'balance' | 'praise' | 'other';
@@ -169,6 +177,8 @@ export type ClientMessage =
   | { t: 'community_join' }
   | { t: 'community_leave' }
   | { t: 'community_say'; text: string }
+  | { t: 'community_report'; id: number; reason: ReportReason }
+  | { t: 'community_mod'; action: 'delete' | 'mute'; id: number; minutes?: number }
   | { t: 'feedback'; category: FeedbackCategory; message: string; rating?: number }
   | { t: 'join_room'; code: string; countryId: string }
   | { t: 'leave_room' }
@@ -200,7 +210,9 @@ export type ServerMessage =
   | { t: 'room'; room: RoomInfo | null }
   | { t: 'room_list'; rooms: PublicRoomSummary[] }
   | { t: 'feedback_ok' }
-  | { t: 'community_history'; messages: CommunityMessage[]; online: number }
+  | { t: 'community_history'; messages: CommunityMessage[]; online: number; you: string; moderator?: boolean }
+  | { t: 'community_remove'; id: number }
+  | { t: 'community_notice'; text: string }
   | { t: 'community_msg'; msg: CommunityMessage }
   | { t: 'community_online'; online: number }
   | { t: 'match_start'; match: MatchStartInfo }

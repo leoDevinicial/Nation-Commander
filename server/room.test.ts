@@ -5,6 +5,7 @@ import { Connection } from './Connection.ts';
 import { handleClose, handleMessage, type HandlerDeps } from './handler.ts';
 import { parseClientMessage } from './messages.ts';
 import { RoomManager } from './RoomManager.ts';
+import { CommunityChat } from './communityChat.ts';
 import type { MatchRecord } from './supabase.ts';
 import { PROTOCOL_VERSION } from '../shared/version.ts';
 import { COUNTRIES } from '../shared/data/countries.ts';
@@ -545,5 +546,73 @@ describe('chat da comunidade', () => {
     expect(b.last('error')?.code).toBe('community');
     await send(b.conn, { t: 'community_leave' });
     expect(a.last('community_online')?.online).toBe(1);
+  });
+});
+
+describe('moderação do chat da comunidade', () => {
+  async function chat(names: string[]) {
+    const { send, deps } = setup();
+    const reports: unknown[] = [];
+    const t = { now: 1_000_000 };
+    deps.community = new CommunityChat({ now: () => t.now, moderators: ['mod'], saveReport: (r) => (reports.push(r), true) });
+    const conns = [];
+    for (const n of names) {
+      const c = fakeConn();
+      await send(c.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: `ok-${n}` });
+      await send(c.conn, { t: 'community_join' });
+      conns.push(c);
+    }
+    const say = async (c: ReturnType<typeof fakeConn>, text: string) => {
+      t.now += 5000;
+      await send(c.conn, { t: 'community_say', text });
+    };
+    return { send, conns, say, reports, t };
+  }
+
+  it('o filtro oculta ofensas e silencia quem insiste', async () => {
+    const { conns, say } = await chat(['ana', 'beto']);
+    const [a, b] = conns;
+    await say(a!, 'vai tomar no cu, arrombado');
+    expect(b!.last('community_msg')?.msg).toMatchObject({ filtered: true });
+    expect(b!.last('community_msg')?.msg.text).not.toMatch(/arrombado/);
+    await say(a!, 'f u c k');
+    await say(a!, 'seu merda filho da puta');
+    expect(a!.last('error')?.message).toMatch(/silenciado/);
+    await say(a!, 'agora falo bonito');
+    expect(a!.last('error')?.message).toMatch(/silenciado no chat até/);
+  });
+
+  it('3 denúncias de pessoas diferentes removem a mensagem e silenciam o autor; cada denúncia é gravada', async () => {
+    const { send, conns, say, reports } = await chat(['ana', 'beto', 'caio', 'duda']);
+    const [a, b, c, d] = conns;
+    await say(a!, 'spam spam spam compre moedas');
+    const id = b!.last('community_msg')!.msg.id;
+    await send(a!.conn, { t: 'community_report', id, reason: 'spam' });
+    expect(a!.last('community_notice')?.text).toMatch(/própria/);
+    await send(b!.conn, { t: 'community_report', id, reason: 'spam' });
+    await send(b!.conn, { t: 'community_report', id, reason: 'spam' });
+    expect(b!.last('community_notice')?.text).toMatch(/já denunciou/);
+    await send(c!.conn, { t: 'community_report', id, reason: 'spam' });
+    await send(d!.conn, { t: 'community_report', id, reason: 'offense' });
+    expect(b!.last('community_remove')?.id).toBe(id);
+    expect(reports).toHaveLength(3);
+    expect(reports.at(-1)).toMatchObject({ removed: true, author_id: 'ana' });
+    await say(a!, 'oi');
+    expect(a!.last('error')?.message).toMatch(/silenciado/);
+  });
+
+  it('moderador apaga e silencia; quem não é moderador não consegue', async () => {
+    const { send, conns, say } = await chat(['mod', 'beto', 'caio']);
+    const [m, b, c] = conns;
+    expect(m!.last('community_history')?.moderator).toBe(true);
+    expect(b!.last('community_history')?.moderator).toBeUndefined();
+    await say(b!, 'mensagem chata');
+    const id = c!.last('community_msg')!.msg.id;
+    await send(c!.conn, { t: 'community_mod', action: 'delete', id });
+    expect(c!.last('community_notice')?.text).toMatch(/Só moderadores/);
+    await send(m!.conn, { t: 'community_mod', action: 'mute', id, minutes: 60 });
+    expect(c!.last('community_remove')?.id).toBe(id);
+    await say(b!, 'voltei');
+    expect(b!.last('error')?.message).toMatch(/silenciado/);
   });
 });

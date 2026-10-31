@@ -4,7 +4,8 @@ import { PROTOCOL_VERSION, GAME_VERSION } from '../shared/version.ts';
 import type { Connection } from './Connection.ts';
 import type { RoomManager } from './RoomManager.ts';
 import { sanitizeName } from './messages.ts';
-import { saveFeedback, type FeedbackRecord } from './supabase.ts';
+import { saveCommunityReport, saveFeedback, type FeedbackRecord } from './supabase.ts';
+import { config } from './config.ts';
 import { CommunityChat } from './communityChat.ts';
 
 export interface HandlerDeps {
@@ -19,6 +20,11 @@ export interface HandlerDeps {
   community?: CommunityChat;
   /** Último feedback de cada usuário (ms): no máximo um a cada `FEEDBACK_COOLDOWN_MS`. */
   feedbackAt?: Map<string, number>;
+}
+
+/** Chat da Comunidade (criado na primeira vez, com os moderadores e a gravação de denúncias do servidor). */
+function community(deps: HandlerDeps): CommunityChat {
+  return (deps.community ??= new CommunityChat({ moderators: config.communityModerators, saveReport: saveCommunityReport }));
 }
 
 /** Intervalo mínimo entre dois feedbacks do mesmo jogador. */
@@ -126,16 +132,22 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
       return;
     }
     case 'community_join':
-      (deps.community ??= new CommunityChat()).join(conn);
+      community(deps).join(conn);
       return;
     case 'community_leave':
       deps.community?.leave(conn);
       return;
     case 'community_say': {
-      const err = (deps.community ??= new CommunityChat()).post(conn, msg.text);
+      const err = community(deps).post(conn, msg.text);
       if (err) conn.send({ t: 'error', code: 'community', message: err });
       return;
     }
+    case 'community_report':
+      conn.send({ t: 'community_notice', text: community(deps).report(conn, msg.id, msg.reason) });
+      return;
+    case 'community_mod':
+      conn.send({ t: 'community_notice', text: community(deps).moderate(conn, msg.action, msg.id, msg.minutes) });
+      return;
     case 'list_rooms':
       conn.send({ t: 'room_list', rooms: deps.rooms.listPublic() });
       return;

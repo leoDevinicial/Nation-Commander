@@ -19,6 +19,11 @@ export const config = {
   saveIntervalMs: Number(process.env.SAVE_INTERVAL_MS ?? 30_000),
   /** Sem Supabase: diretório onde gravar as partidas (vazio = não grava). */
   matchStoreDir: process.env.MATCH_STORE_DIR ?? '',
+  /** Moderadores do chat da Comunidade: ids de usuário do Supabase, separados por vírgula. */
+  communityModerators: (process.env.COMMUNITY_MODERATORS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
 };
 
 export type ServerConfig = typeof config;

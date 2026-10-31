@@ -4,6 +4,7 @@ import type { PlayerStats } from '../shared/sim/types.ts';
 import type { MatchReport } from '../shared/sim/report.ts';
 import { config } from './config.ts';
 import { log } from './logger.ts';
+import type { CommunityReport } from './communityChat.ts';
 
 let client: SupabaseClient | null = null;
 
@@ -58,6 +59,18 @@ export async function saveFeedback(rec: FeedbackRecord): Promise<boolean> {
     return false;
   }
   return true;
+}
+
+/** Grava uma denúncia do chat da Comunidade (tabela `community_reports`). Sem Supabase, fica só no log. */
+export async function saveCommunityReport(rec: CommunityReport): Promise<boolean> {
+  const sb = getSupabase();
+  if (!sb) {
+    log.info('Denúncia no chat (sem Supabase: só no log)', { ...rec });
+    return true;
+  }
+  const { error } = await sb.from('community_reports').insert(rec);
+  if (error) log.error('Falha ao gravar denúncia', { err: error.message });
+  return !error;
 }
 
 export interface MatchRecord {

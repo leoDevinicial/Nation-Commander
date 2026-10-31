@@ -2,7 +2,7 @@ import { isDecreeId } from '../shared/strategic/policies.ts';
 import { isMapType } from '../shared/sim/matchMap.ts';
 import { isDifficulty } from '../shared/sim/difficulty.ts';
 import { isCountryId } from '../shared/data/countries.ts';
-import { MAX_COMMUNITY_LENGTH, FEEDBACK_CATEGORIES, GAME_SPEEDS, MAX_CHAT_LENGTH, type ClientMessage, type FeedbackCategory, type GameSpeed } from '../shared/protocol.ts';
+import { MAX_COMMUNITY_LENGTH, REPORT_REASONS, type ReportReason, FEEDBACK_CATEGORIES, GAME_SPEEDS, MAX_CHAT_LENGTH, type ClientMessage, type FeedbackCategory, type GameSpeed } from '../shared/protocol.ts';
 import { parseCommand } from '../shared/sim/commands.ts';
 import { BUDGET_KEYS, type Budget } from '../shared/strategic/NationalSimulation.ts';
 import { TECHNOLOGIES, type TechId } from '../shared/strategic/technologies.ts';
@@ -43,6 +43,13 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       // eslint-disable-next-line no-control-regex -- remove caracteres de controle do chat
       const text = data.text.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, MAX_COMMUNITY_LENGTH);
       return text ? { t: 'community_say', text } : null;
+    }
+    case 'community_report':
+      return Number.isInteger(data.id) && REPORT_REASONS.includes(data.reason as ReportReason) ? { t: 'community_report', id: data.id as number, reason: data.reason as ReportReason } : null;
+    case 'community_mod': {
+      if (!Number.isInteger(data.id) || (data.action !== 'delete' && data.action !== 'mute')) return null;
+      const minutes = typeof data.minutes === 'number' && Number.isFinite(data.minutes) ? data.minutes : undefined;
+      return { t: 'community_mod', action: data.action, id: data.id as number, ...(minutes !== undefined ? { minutes } : {}) };
     }
     case 'feedback': {
       if (!FEEDBACK_CATEGORIES.includes(data.category as FeedbackCategory) || typeof data.message !== 'string') return null;

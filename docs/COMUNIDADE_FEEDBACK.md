@@ -13,8 +13,27 @@
 - **Servidor** (`server/communityChat.ts`):
   - mensagens `community_join`, `community_leave` e `community_say`;
   - respostas `community_history`, `community_msg` e `community_online`.
-- **Histórico:** fica na memória do servidor e some quando ele é atualizado ou reiniciado. Guardar no Supabase e criar
-  moderação (denunciar, silenciar) ficam para depois.
+- **Histórico:** fica na memória do servidor e some quando ele é atualizado ou reiniciado.
+- **Moderação** (`server/communityChat.ts` e `server/profanity.ts`):
+  - **Filtro de ofensas graves em vários idiomas** (português, inglês, espanhol, francês, italiano, alemão, russo,
+    turco, árabe transliterado e indonésio):
+    - resiste a disfarces: l3tr4s, acentos, letras repetidas e letras separadas ("f u c k");
+    - a palavra vira asteriscos e a mensagem ganha a marca "(filtrada)";
+    - 3 mensagens filtradas em 10 min silenciam o autor por 10 min.
+    - Palavras comuns que também são ofensa em outro idioma ficaram de fora para evitar falsos positivos ("negro",
+      "pede", "macaco", "Níger"…).
+    - **Testes:** `server/profanity.test.ts`.
+  - **Denúncia** (⋯ → ⚑ Denunciar, com o motivo: ofensa, ódio, spam, trapaça ou outro):
+    - cada denúncia é gravada em `public.community_reports` (migração `20261101010000_community_reports.sql`);
+    - 3 denúncias de pessoas diferentes apagam a mensagem para todos e silenciam o autor por 15 min.
+  - **Silenciar para mim:** esconde as mensagens de alguém só para quem silenciou (guardado no navegador); o link
+    "Silenciados" desfaz.
+  - **Moderadores:** ids de conta do Supabase na variável `COMMUNITY_MODERATORS` do servidor (separados por vírgula).
+    - Veem a etiqueta "Moderador" e, no ⋯, "Apagar" e "Silenciar 1 h / 24 h / 7 dias".
+    - Silenciar também apaga as mensagens recentes da pessoa.
+  - O autor aparece por um identificador público (`uid`, hash do id da conta): o id real não vai para os outros
+    jogadores.
+  - **Testes:** `server/room.test.ts`, bloco "moderação do chat da comunidade".
 - **Testes:** `server/room.test.ts`, bloco "chat da comunidade".
 
 
