@@ -313,7 +313,7 @@ mensagens em português descrevendo o que mudou).
    - conteúdo naval (transporte, fragata, submarino) e os mapas Oceano Central e Arquipélago;
    - generais, espiões e Centros Regionais (direções em `docs/BALANCEAMENTO_E_PROGRESSAO.md`).
 
-Pendência de infraestrutura (o usuário disse em 31/10 que vai rodar): aplicar a migração `supabase/migrations/20261031000000_match_report.sql` no banco.
+Migração `supabase/migrations/20261031000000_match_report.sql` aplicada no banco pelo usuário em 31/10 (relatório pós-partida gravado em `matches.report`).
 
 
 Não há pedido em andamento. A rede elétrica foi feita em 31/10 (`docs/REDE_ELETRICA.md`); ainda sem partida humana de teste. Pontos abertos com o usuário: (1) um áudio antigo dele não pôde ser transcrito; pergunte
@@ -340,7 +340,7 @@ usuário ainda não respondeu. Ideias pendentes e coisas conhecidas:
 - Mercado interno: vende e compra (a compra desde 31/10, ver `docs/MERCADO_INTERNO.md`). A IA ainda só vende.
 - Os critérios de validação que ainda falham estão na seção 3 (dois casos isolados no Normal).
 - Relatório pós-partida gravado no Supabase (`matches.report`) desde 31/10; a migração
-  `20261031000000_match_report.sql` precisa ser aplicada no banco.
+  `20261031000000_match_report.sql` já foi aplicada (31/10).
 
 ## 8. Estilo de entrega que o usuário aprovou
 
