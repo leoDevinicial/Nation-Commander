@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { C, layers } from './kit.ts';
-import type { BuildingModel } from './buildingModels.ts';
+import type { BuildingModel, ModelAnim } from './buildingModels.ts';
+import { railing, strut } from './rigging.ts';
 
 /**
  * Grandes Projetos Nacionais (lote 2, item 13): construções de fim de partida, maiores e mais
@@ -42,42 +43,140 @@ export function buildNuclearPlant(): Built {
   return { base: l.build(), moving: null, height: 3.5, smoke: [[-1.55, 3.5, -1.3], [-1.55, 3.5, 1.3]] };
 }
 
-/** Rede 5G Nacional (2×2): torre treliçada alta com painéis de antena e prédio de equipamentos. */
+/**
+ * Rede 5G Nacional (2×2), polo de telecomunicações em low poly:
+ * - torre treliçada afunilada (quatro montantes que convergem de verdade, anéis, diagonais em X, plataformas e escada);
+ * - topo com moldura triangular e três setores de antenas-painel, as unidades de rádio atrás delas, anel de LED na cor da
+ *   nação e luz de balizamento; enlaces de micro-ondas (tambores) no meio da torre;
+ * - data center com fachada de vidro e faixa acesa, e ventiladores de ar-condicionado no teto que giram;
+ * - antena parabólica de satélite, postes de small cells 5G, armários de baterias, gerador, eletrocalha até a torre e
+ *   cerca com portão.
+ */
 export function buildNetwork5g(): Built {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
-  b.box(3.6, 0.14, 3.6, C.concreteDark, [0, 0.07, 0]);
-  b.box(1.4, 0.8, 1.0, C.concreteLight, [-0.9, 0.54, 0.95]);
-  g.box(0.9, 0.24, 0.02, '#ffffff', [-0.9, 0.6, 1.46]);
-  const h = 6.2;
-  // torre: quatro montantes convergindo e travamentos
-  for (const [x, z] of [
-    [-0.5, -0.5],
-    [0.5, -0.5],
-    [-0.5, 0.5],
-    [0.5, 0.5],
+  const TOWER = '#c3c9cf';
+  const DARK = '#3a3f45';
+  b.box(3.8, 0.14, 3.8, C.concreteDark, [0, 0.07, 0]);
+  b.box(3.5, 0.02, 3.5, '#8f8b82', [0, 0.15, 0]);
+  // cerca com portão na frente
+  railing(b, [-1.85, -1.85], [1.85, -1.85], 0.14, 0.34, '#aab0b5', 6);
+  railing(b, [-1.85, -1.85], [-1.85, 1.85], 0.14, 0.34, '#aab0b5', 6);
+  railing(b, [1.85, -1.85], [1.85, 1.85], 0.14, 0.34, '#aab0b5', 6);
+  railing(b, [-1.85, 1.85], [-0.4, 1.85], 0.14, 0.34, '#aab0b5', 3);
+  railing(b, [0.5, 1.85], [1.85, 1.85], 0.14, 0.34, '#aab0b5', 3);
+
+  // --- torre treliçada afunilada
+  const [tx, tz] = [0.75, -0.75];
+  const h = 6.4;
+  const base = 0.62;
+  const top = 0.2;
+  const corner = (y: number, sx: number, sz: number): [number, number, number] => {
+    const w = base + (top - base) * (y / h);
+    return [tx + sx * w, 0.15 + y, tz + sz * w];
+  };
+  const corners: [number, number][] = [
+    [-1, -1],
+    [1, -1],
+    [1, 1],
+    [-1, 1],
+  ];
+  for (const [sx, sz] of corners) {
+    strut(b, corner(0, sx, sz), corner(h, sx, sz), 0.06, TOWER);
+    b.box(0.2, 0.12, 0.2, C.concrete, [corner(0, sx, sz)[0], 0.2, corner(0, sx, sz)[2]]);
+  }
+  const step = 0.8;
+  for (let y = 0; y < h - 0.1; y += step) {
+    for (let k = 0; k < 4; k++) {
+      const [sx, sz] = corners[k]!;
+      const [nx, nz] = corners[(k + 1) % 4]!;
+      // anel e diagonais em X em cada face
+      strut(b, corner(y + step, sx, sz), corner(y + step, nx, nz), 0.03, TOWER);
+      strut(b, corner(y, sx, sz), corner(Math.min(h, y + step), nx, nz), 0.022, '#aeb4ba');
+      strut(b, corner(y, nx, nz), corner(Math.min(h, y + step), sx, sz), 0.022, '#aeb4ba');
+    }
+  }
+  // plataformas de serviço e escada
+  for (const y of [2.4, 4.6]) {
+    const w = base + (top - base) * (y / h) + 0.14;
+    b.box(w * 2, 0.04, w * 2, '#7d8287', [tx, 0.15 + y, tz]);
+  }
+  strut(b, [tx - base - 0.05, 0.15, tz + 0.1], [tx - top - 0.05, h + 0.15, tz + 0.1], 0.025, '#e0c040');
+  // eletrocalha do data center até a torre
+  strut(b, [-0.3, 1.2, 0.35], [tx - 0.3, 1.2, tz + 0.3], 0.06, DARK);
+  // enlaces de micro-ondas: tambores no meio da torre, voltados para fora
+  for (const [y, ang] of [
+    [3.3, 0.6],
+    [3.9, -2.2],
+    [3.6, 2.4],
   ] as const) {
-    b.box(0.07, h, 0.07, STEEL, [x * 0.55 + 0.6, h / 2, z * 0.55 - 0.6], [z * 0.08, 0, -x * 0.08]);
+    const w = base + (top - base) * (y / h);
+    const x = tx + Math.cos(ang) * (w + 0.2);
+    const z = tz + Math.sin(ang) * (w + 0.2);
+    b.cyl(0.26, 0.26, 0.16, '#e8ebec', [x, 0.15 + y, z], [0, -ang, Math.PI / 2], 14);
+    b.cyl(0.23, 0.23, 0.02, '#cfd4d7', [x + Math.cos(ang) * 0.085, 0.15 + y, z + Math.sin(ang) * 0.085], [0, -ang, Math.PI / 2], 14);
   }
-  for (let y = 0.8; y < h - 0.5; y += 0.9) {
-    const w = 0.6 * (1 - (y / h) * 0.55);
-    b.box(w, 0.04, 0.04, STEEL, [0.6, y, -0.6 + w / 2]);
-    b.box(w, 0.04, 0.04, STEEL, [0.6, y, -0.6 - w / 2]);
-    b.box(0.04, 0.04, w, STEEL, [0.6 + w / 2, y, -0.6]);
-    b.box(0.04, 0.04, w, STEEL, [0.6 - w / 2, y, -0.6]);
+
+  // --- topo: moldura triangular, três setores de antenas-painel e unidades de rádio
+  const headY = 0.15 + h - 0.2;
+  b.cyl(0.42, 0.42, 0.05, '#7d8287', [tx, headY - 0.55, tz], undefined, 3);
+  b.cyl(0.42, 0.42, 0.05, '#7d8287', [tx, headY + 0.45, tz], undefined, 3);
+  for (let k = 0; k < 3; k++) {
+    const ang = (k / 3) * Math.PI * 2 + Math.PI / 6;
+    const cx = tx + Math.cos(ang) * 0.36;
+    const cz = tz + Math.sin(ang) * 0.36;
+    for (const off of [-0.13, 0, 0.13]) {
+      const px = cx - Math.sin(ang) * off;
+      const pz = cz + Math.cos(ang) * off;
+      b.box(0.06, 0.74, 0.12, '#f2f4f4', [px, headY, pz], [0, -ang, 0]);
+      b.box(0.06, 0.16, 0.08, DARK, [px - Math.cos(ang) * 0.08, headY - 0.18, pz - Math.sin(ang) * 0.08], [0, -ang, 0]);
+    }
   }
-  // painéis de antena em três alturas, nos quatro lados
-  for (const y of [h - 0.4, h - 1.3, h - 2.2]) {
-    for (const [dx, dz, w, d] of [
-      [0.25, 0, 0.05, 0.22],
-      [-0.25, 0, 0.05, 0.22],
-      [0, 0.25, 0.22, 0.05],
-      [0, -0.25, 0.22, 0.05],
-    ] as const)
-      b.box(w, 0.55, d, WHITE, [0.6 + dx, y, -0.6 + dz]);
+  // anel de LED na cor da nação, mastro e luz de balizamento
+  a.cyl(0.3, 0.3, 0.08, '#ffffff', [tx, headY + 0.6, tz], undefined, 12);
+  b.cyl(0.02, 0.03, 0.8, '#d9dcde', [tx, headY + 1.05, tz], undefined, 6);
+  b.box(0.08, 0.08, 0.08, C.red, [tx, headY + 1.48, tz]);
+
+  // --- data center: bloco com fachada de vidro, faixa acesa e casa de máquinas
+  const [dx, dz] = [-0.85, 0.75];
+  b.box(1.7, 1.1, 1.2, '#dfe3e6', [dx, 0.7, dz]);
+  b.box(1.76, 0.06, 1.26, '#9aa1a8', [dx, 1.28, dz]);
+  g.box(1.5, 0.5, 0.02, '#ffffff', [dx, 0.78, dz + 0.61]);
+  for (let k = 0; k < 6; k++) b.box(0.02, 0.5, 0.03, '#9aa1a8', [dx - 0.75 + k * 0.3, 0.78, dz + 0.62]);
+  a.box(1.5, 0.06, 0.02, '#ffffff', [dx, 1.12, dz + 0.61]);
+  b.box(0.36, 0.5, 0.04, '#5d6166', [dx + 0.6, 0.4, dz + 0.61]);
+  // ventiladores do ar-condicionado no teto (as hélices giram)
+  for (const fx of [-0.35, 0.35]) {
+    b.box(0.5, 0.18, 0.5, '#b8bec4', [dx + fx, 1.4, dz]);
+    b.cyl(0.2, 0.2, 0.02, '#3a3f45', [dx + fx, 1.5, dz], undefined, 12);
   }
-  a.box(0.12, 0.3, 0.12, '#ffffff', [0.6, h + 0.15, -0.6]);
-  return { base: l.build(), moving: null, height: h + 0.3 };
+  // antena parabólica de satélite
+  b.cyl(0.06, 0.09, 0.5, STEEL, [-1.2, 0.4, -1.1], undefined, 8);
+  b.add(new THREE.SphereGeometry(0.42, 14, 6, 0, Math.PI * 2, 0, Math.PI / 2.4), '#eef0ee', { pos: [-1.2, 0.85, -1.1], rot: [Math.PI - 0.8, 0, 0.4] });
+  b.cyl(0.015, 0.015, 0.4, DARK, [-1.12, 0.95, -0.98], [0.8, 0, 0], 5);
+  // postes de small cells 5G
+  for (const [x, z] of [
+    [1.55, 1.3],
+    [-1.55, -0.1],
+    [0.2, 1.4],
+  ] as const) {
+    b.cyl(0.035, 0.05, 1.5, '#9aa1a8', [x, 0.9, z], undefined, 6);
+    b.cyl(0.07, 0.07, 0.32, '#eef0ee', [x, 1.8, z], undefined, 8);
+    a.cyl(0.072, 0.072, 0.04, '#ffffff', [x, 1.68, z], undefined, 8);
+  }
+  // armários de baterias e gerador
+  for (const k of [0, 1, 2]) b.box(0.3, 0.5, 0.3, '#e4e7e9', [1.0 + k * 0.34, 0.4, 0.55]);
+  for (const k of [0, 1, 2]) b.box(0.22, 0.03, 0.02, '#9aa1a8', [1.0 + k * 0.34, 0.5, 0.71]);
+  b.box(0.7, 0.4, 0.4, '#5e6b55', [-1.3, 0.35, -0.2]);
+  b.cyl(0.03, 0.03, 0.3, DARK, [-1.15, 0.65, -0.3], undefined, 6);
+
+  // hélices dos ventiladores (anim)
+  const fan = layers();
+  for (let k = 0; k < 3; k++) fan.body.box(0.34, 0.012, 0.07, '#d4d9dd', [0, 0, 0], [0, (k * Math.PI) / 3, 0]);
+  fan.body.cyl(0.04, 0.04, 0.03, '#3a3f45', [0, 0, 0], undefined, 8);
+  const fanLayers = fan.build();
+  const anims: ModelAnim[] = [-0.35, 0.35].map((fx) => ({ layers: fanLayers, pivot: [dx + fx, 1.53, dz] as [number, number, number], motion: { kind: 'spin', axis: 'y', speed: 6 } }));
+  return { base: l.build(), moving: null, anims, height: h + 1.7 };
 }
 
 /** Hidrelétrica (3×3): paredão de concreto curvo, comportas, casa de força e linhas de transmissão. */
