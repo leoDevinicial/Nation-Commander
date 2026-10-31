@@ -829,6 +829,8 @@ export class GameRuntime {
           this.effects.explosion(at, i % 3 === 0);
           if (i % 4 === 0) this.effects.plume(at.clone().setY(0.3), { count: 3, size: 1.1, rise: 3.5, life: 4, spread: 0.5, tone: 0.3 });
           if (i % 2 === 0) audio.playAt('bomb', at.x, at.z);
+          // a primeira bomba solta o trovão contínuo que acompanha a fileira inteira
+          if (i === 0) audio.playAt('carpet_rumble', at.x, at.z);
           if (i % 5 === 0) this.shakeNear({ x: at.x, y: at.z }, 0.3);
         });
       } else
