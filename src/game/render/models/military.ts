@@ -283,21 +283,74 @@ function gripen(b: PartBuilder, a: PartBuilder, g: PartBuilder, at: V3, s = 1): 
   b.cyl(0.006 * s, 0.006 * s, 0.2 * s, GRIPEN.metal, P(1.31, 0, 0), [0, 0, Math.PI / 2], 4);
 }
 
-/** Avião de reconhecimento: asa reta e longa, hélice dupla e radome. */
+/**
+ * Avião de reconhecimento: drone de vigilância de longa autonomia (nariz para +x). Fuselagem longa e fina com a corcova
+ * da antena de satélite no nariz, asa reta muito comprida (alto alongamento) no meio do corpo, duas vigas de cauda com
+ * derivas inclinadas para fora e o estabilizador entre elas, hélice propulsora atrás, mastro com a antena de enlace,
+ * torreta da câmera sob o nariz e trem de pouso fixo. Cinza-claro; faixas das derivas e pontas das asas na cor da nação.
+ */
 function reconPlane(b: PartBuilder, a: PartBuilder, g: PartBuilder, at: V3, s = 1): void {
-  const [x, y, z] = at;
-  b.cyl(0.06 * s, 0.05 * s, 0.85 * s, '#9aa1a6', [x, y, z], [0, 0, Math.PI / 2], 8);
-  b.sphere(0.07 * s, '#9aa1a6', [x + 0.43 * s, y, z], [1.4, 1, 1]);
-  g.box(0.1 * s, 0.04 * s, 0.09 * s, '#ffffff', [x + 0.36 * s, y + 0.05 * s, z]);
-  b.box(0.14 * s, 0.015 * s, 1.3 * s, '#8b9298', [x + 0.05 * s, y + 0.03 * s, z]);
+  const [x0, y0, z0] = at;
+  const P = (x: number, y: number, z: number): V3 => [x0 + x * s, y0 + y * s, z0 + z * s];
+  const S = (pts: [number, number][]) => pts.map(([x, z]) => [x0 + x * s, z0 + z * s] as [number, number]);
+  const X: V3 = [0, 0, Math.PI / 2];
+  const grey = '#b8bfc5';
+  const light = '#c9cfd4';
+  const dark = '#3a3e42';
+  // fuselagem: corpo fino que afina para trás, e a corcova grande da antena de satélite no nariz
+  lathe(b, [[-0.62, 0.02], [-0.5, 0.05], [-0.1, 0.065], [0.35, 0.075], [0.55, 0.085], [0.75, 0.08], [0.88, 0.06], [0.96, 0.03], [0.99, 0]], grey, P(0, 0, 0), s, [1, 1], undefined, 12);
+  // corcova da antena de satélite: domo que nasce e morre dentro do corpo (sobe só por cima)
+  lathe(b, [[0.25, 0], [0.38, 0.045], [0.56, 0.075], [0.72, 0.068], [0.84, 0.045], [0.93, 0]], light, P(0, 0.03, 0), s, [1.05, 0.95], undefined, 12);
+  b.cyl(0.003 * s, 0.003 * s, 0.1 * s, dark, P(1.01, 0, 0), X, 4);
+  // asa reta muito comprida, um pouco afilada, e as pontas na cor da nação
+  mirrored(b, S([[0.12, 0], [0.12, 0.08], [0.08, 1.15], [0.0, 1.17], [-0.06, 1.15], [-0.04, 0.08], [-0.04, 0]]), 0.018 * s, grey, P(0, 0.03, 0));
   for (const sz of [-1, 1]) {
-    b.cyl(0.035 * s, 0.03 * s, 0.22 * s, '#6f767c', [x + 0.1 * s, y + 0.02 * s, z + sz * 0.3 * s], [0, 0, Math.PI / 2], 6);
-    b.box(0.01 * s, 0.18 * s, 0.02 * s, '#2b2d30', [x + 0.22 * s, y + 0.02 * s, z + sz * 0.3 * s]);
+    a.box(0.1 * s, 0.022 * s, 0.07 * s, '#ffffff', P(0.02, 0.039, sz * 1.13));
+    // casulos sob a asa (sensores e rádio) e as carenagens do trem principal
+    b.cyl(0.018 * s, 0.018 * s, 0.22 * s, light, P(0.03, 0.0, sz * 0.62), X, 8);
+    strut(b, P(0.0, 0.02, sz * 0.12), P(-0.02, -0.17, sz * 0.2), 0.012 * s, dark, true);
+    b.cyl(0.035 * s, 0.035 * s, 0.025 * s, '#1b1c1e', P(-0.02, -0.18, sz * 0.21), [Math.PI / 2, 0, 0], 10);
   }
-  b.box(0.12 * s, 0.015 * s, 0.4 * s, '#8b9298', [x - 0.38 * s, y + 0.03 * s, z]);
-  b.box(0.12 * s, 0.16 * s, 0.015 * s, '#8b9298', [x - 0.38 * s, y + 0.1 * s, z]);
-  b.cyl(0.12 * s, 0.12 * s, 0.025 * s, '#d9d8d0', [x - 0.1 * s, y + 0.1 * s, z], undefined, 12);
-  a.box(0.2 * s, 0.012 * s, 0.03 * s, '#ffffff', [x - 0.1 * s, y - 0.03 * s, z]);
+  // duas vigas de cauda saindo da asa, com as derivas inclinadas para fora e as faixas da nação
+  for (const sz of [-1, 1]) {
+    b.cyl(0.018 * s, 0.022 * s, 1.0 * s, grey, P(-0.45, 0.03, sz * 0.3), X, 8);
+    const fin: [number, number][] = [
+      [-1.0 * s, 0],
+      [-0.78 * s, 0],
+      [-0.92 * s, 0.32 * s],
+      [-1.02 * s, 0.32 * s],
+    ];
+    b.side(fin, 0.014 * s, grey, P(0, 0.035, sz * 0.3), [sz * 0.32, 0, 0]);
+    a.side(
+      [
+        [-1.012 * s, 0.24 * s],
+        [-0.895 * s, 0.24 * s],
+        [-0.915 * s, 0.3 * s],
+        [-1.017 * s, 0.3 * s],
+      ],
+      0.018 * s,
+      '#ffffff',
+      P(0, 0.035, sz * 0.3),
+      [sz * 0.32, 0, 0],
+    );
+  }
+  b.box(0.1 * s, 0.012 * s, 0.6 * s, grey, P(-0.95, 0.06, 0));
+  // hélice propulsora de três pás atrás da fuselagem
+  b.cyl(0.0, 0.03 * s, 0.06 * s, dark, P(-0.66, 0, 0), [0, 0, Math.PI / 2], 8);
+  for (let k = 0; k < 3; k++) {
+    const ang = (k / 3) * Math.PI * 2;
+    b.box(0.008 * s, 0.2 * s, 0.03 * s, dark, P(-0.64, Math.cos(ang) * 0.1, Math.sin(ang) * 0.1), [ang, 0, 0.15]);
+  }
+  // mastro da antena de enlace (haste com o prato achatado)
+  b.box(0.06 * s, 0.24 * s, 0.025 * s, light, P(0.12, 0.18, 0), [0, 0, 0.12]);
+  b.sphere(0.045 * s, light, P(0.1, 0.31, 0), [1.5, 0.4, 1.1], 10);
+  // torreta da câmera sob o nariz (bola com a janela escura) e o trem do nariz
+  b.sphere(0.04 * s, light, P(0.72, -0.08, 0), [1, 1, 1], 10);
+  g.box(0.012 * s, 0.03 * s, 0.03 * s, '#ffffff', P(0.758, -0.085, 0));
+  strut(b, P(0.82, -0.04, 0), P(0.82, -0.17, 0), 0.01 * s, dark, true);
+  b.cyl(0.025 * s, 0.025 * s, 0.02 * s, '#1b1c1e', P(0.82, -0.18, 0), [Math.PI / 2, 0, 0], 10);
+  // antenas pequenas do dorso
+  for (const x of [-0.2, 0.35]) b.box(0.03 * s, 0.05 * s, 0.006 * s, dark, P(x, 0.08, 0), [0, 0, -0.4]);
 }
 
 const CARGO = { white: '#eceff1', belly: '#cfd4d8', dark: '#2b2e31', metal: '#9aa0a6', prop: '#1d1f22' };
@@ -842,7 +895,7 @@ export function aircraftModel(type: 'fighter' | 'gripen' | 'bomber' | 'recon' | 
   if (type === 'fighter') fighter(b, a, g, [0, 0, 0], 0.85 * FIGHTER_SCALE);
   else if (type === 'gripen') gripen(b, a, g, [0, 0, 0], 0.82 * FIGHTER_SCALE);
   else if (type === 'bomber') bomberPlane(b, a, g, [0, 0, 0], 1.3);
-  else if (type === 'recon') reconPlane(b, a, g, [0, 0, 0], 1.4);
+  else if (type === 'recon') reconPlane(b, a, g, [0, 0, 0], 1.0);
   // cargueiro: turboélice nas eras 1 e 2; o pesado de quatro motores nas eras 3 e 4
   else if (type === 'transport') cargoTurboprop(b, a, g, 1.15);
   else cargoHeavy(b, a, g, 1.05);
