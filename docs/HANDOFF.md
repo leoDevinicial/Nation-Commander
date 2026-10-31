@@ -4,8 +4,8 @@ Este arquivo é o ponto de partida para quem pega o projeto numa conversa nova (
 antes de mexer em qualquer coisa. Depois leia `CLAUDE.md` (regras curtas) e
 `docs/BALANCEAMENTO_E_PROGRESSAO.md` (direção de design + tabela "Estado da implementação").
 
-Última atualização: 31/10/2026 (versão 1.1.0 publicada: rede elétrica, clima, salas públicas. A 1.2.0, com Comunidade,
-Feedback e o KAC, está pronta na branch de trabalho e ainda não foi publicada; próximo passo na seção 7).
+Última atualização: 31/10/2026 (versão 1.2.0 publicada: Comunidade, Feedback e o KAC completo; antes, 1.1.0 com rede
+elétrica, clima e salas públicas; próximo passo na seção 7).
 
 ## 0.1 Conta atual (assumiu em 30/10/2026)
 
