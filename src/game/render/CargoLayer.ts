@@ -3,10 +3,11 @@ import type { ShipmentView } from '../../../shared/sim/snapshot.ts';
 import { accentMaterial, bodyMaterial, glassMaterial } from './materials.ts';
 import type { ModelLayers } from './models/kit.ts';
 import { cargoVehicle } from './models/logistics.ts';
+import { aircraftModel } from './models/military.ts';
 
 /** Máximo de veículos desenhados ao mesmo tempo (os mais próximos da câmera). */
 const MAX_VEHICLES = 24;
-const ALTITUDE = { road: 0, rail: 0, sea: 0.05, air: 3.2, caravan: 0 } as const;
+const ALTITUDE = { road: 0, rail: 0, sea: 0.05, air: 4.5, caravan: 0 } as const;
 
 /** Modal do comércio ou caminhão-baú das caravanas internas. */
 type Mode = ShipmentView['mode'] | 'caravan';
@@ -24,12 +25,14 @@ interface Tracked {
   bob: number;
 }
 
-const modelCache = new Map<Mode, ModelLayers>();
-function model(mode: Mode): ModelLayers {
-  let m = modelCache.get(mode);
+const modelCache = new Map<string, ModelLayers>();
+/** Comércio aéreo: o cargueiro da era de quem despacha (turboélice nas eras 1 e 2, o pesado depois). */
+function model(mode: Mode, era: number): ModelLayers {
+  const key = mode === 'air' ? `air${era >= 3 ? 2 : 1}` : mode;
+  let m = modelCache.get(key);
   if (!m) {
-    m = cargoVehicle(mode);
-    modelCache.set(mode, m);
+    m = mode === 'air' ? aircraftModel(era >= 3 ? 'transport2' : 'transport') : cargoVehicle(mode);
+    modelCache.set(key, m);
   }
   return m;
 }
@@ -46,7 +49,7 @@ export class CargoLayer {
   private routeLine: THREE.Line | null = null;
   private routeFor: number | null = null;
 
-  update(shipments: CargoItem[], camTarget: THREE.Vector3): void {
+  update(shipments: CargoItem[], camTarget: THREE.Vector3, eraOf: (slot: number) => number = () => 1): void {
     const onMap = shipments.filter((s) => s.state === 'moving' || s.state === 'loading' || s.state === 'waiting_capacity');
     onMap.sort((a, b) => Math.hypot(a.x - camTarget.x, a.y - camTarget.z) - Math.hypot(b.x - camTarget.x, b.y - camTarget.z));
     const shown = new Set(onMap.slice(0, MAX_VEHICLES).map((s) => s.id));
@@ -56,7 +59,7 @@ export class CargoLayer {
       const p = new THREE.Vector2(s.x, s.y);
       if (!t) {
         const group = new THREE.Group();
-        const l = model(s.mode);
+        const l = model(s.mode, eraOf(s.seller < 100 ? s.seller : s.buyer));
         for (const [geo, mat] of [
           [l.body, bodyMaterial()],
           [l.accent, accentMaterial(s.seller < 100 ? s.seller : s.buyer)],

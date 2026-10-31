@@ -300,18 +300,103 @@ function reconPlane(b: PartBuilder, a: PartBuilder, g: PartBuilder, at: V3, s = 
   a.box(0.2 * s, 0.012 * s, 0.03 * s, '#ffffff', [x - 0.1 * s, y - 0.03 * s, z]);
 }
 
-/** Cargueiro de asa alta, quatro motores e rampa traseira. */
-function transportPlane(b: PartBuilder, a: PartBuilder, g: PartBuilder, at: V3, s = 1): void {
-  const [x, y, z] = at;
-  b.cyl(0.11 * s, 0.11 * s, 1.0 * s, '#7c8580', [x, y, z], [0, 0, Math.PI / 2], 10);
-  b.sphere(0.11 * s, '#7c8580', [x + 0.5 * s, y, z], [1.2, 1, 1]);
-  b.cyl(0.11 * s, 0.05 * s, 0.35 * s, '#7c8580', [x - 0.66 * s, y + 0.03 * s, z], [0, 0, Math.PI / 2], 10);
-  g.box(0.08 * s, 0.04 * s, 0.14 * s, '#ffffff', [x + 0.52 * s, y + 0.06 * s, z]);
-  b.box(0.22 * s, 0.025 * s, 1.5 * s, '#6f7873', [x + 0.05 * s, y + 0.11 * s, z]);
-  for (const sz of [-0.55, -0.3, 0.3, 0.55]) b.cyl(0.04 * s, 0.035 * s, 0.2 * s, '#4a504c', [x + 0.1 * s, y + 0.07 * s, z + sz * s], [0, 0, Math.PI / 2], 8);
-  b.box(0.18 * s, 0.02 * s, 0.55 * s, '#6f7873', [x - 0.78 * s, y + 0.25 * s, z]);
-  b.box(0.2 * s, 0.24 * s, 0.02 * s, '#6f7873', [x - 0.76 * s, y + 0.14 * s, z]);
-  a.box(0.3 * s, 0.05 * s, 0.01 * s, '#ffffff', [x - 0.1 * s, y + 0.03 * s, z + 0.111 * s]);
+const CARGO = { white: '#eceff1', belly: '#cfd4d8', dark: '#2b2e31', metal: '#9aa0a6', prop: '#1d1f22' };
+
+/** Hélice de seis pás com o cubo (cone) na frente da nacele. */
+function propeller(b: PartBuilder, x: number, y: number, z: number, r: number, s: number): void {
+  b.cyl(0, 0.04 * s, 0.09 * s, CARGO.prop, [x + 0.045 * s, y, z], [0, 0, -Math.PI / 2], 10);
+  for (let k = 0; k < 6; k++) {
+    const ang = (k / 6) * Math.PI * 2 + 0.3;
+    b.box(0.01 * s, r * s, 0.05 * s, CARGO.prop, [x, y + Math.cos(ang) * r * 0.5 * s, z + Math.sin(ang) * r * 0.5 * s], [ang, 0, 0.12]);
+  }
+}
+
+/**
+ * Cargueiro turboélice das primeiras eras (Guerra Fria e Pós-Guerra Fria), nariz para +x: fuselagem fina e longa com
+ * nariz arredondado e cauda que sobe, asa alta reta e comprida, dois turboélices com hélice de seis pás, carenagens do
+ * trem de pouso na barriga e cauda em T. Branco; a deriva, o estabilizador e a faixa da traseira vão na cor da nação.
+ */
+function cargoTurboprop(b: PartBuilder, a: PartBuilder, g: PartBuilder, s = 1): void {
+  const P = (x: number, y: number, z: number): V3 => [x * s, y * s, z * s];
+  const X: V3 = [0, 0, Math.PI / 2];
+  const S = (pts: [number, number][]) => pts.map(([x, z]) => [x * s, z * s] as [number, number]);
+  // fuselagem: corpo, nariz e cone de cauda levantado
+  b.cyl(0.11 * s, 0.11 * s, 1.25 * s, CARGO.white, P(0.17, 0, 0), X, 14);
+  lathe(b, [[0.79, 0.11], [0.93, 0.098], [1.03, 0.068], [1.09, 0.028], [1.11, 0]], CARGO.white, [0, 0, 0], s, [1, 1], undefined, 14);
+  b.cyl(0.03 * s, 0.11 * s, 0.62 * s, CARGO.white, P(-0.75, 0.035, 0), [0, 0, Math.PI / 2 + 0.11], 14);
+  b.box(1.5 * s, 0.03 * s, 0.17 * s, CARGO.belly, P(0.1, -0.095, 0));
+  // cabine: para-brisa em faixas e as janelas laterais
+  g.box(0.08 * s, 0.035 * s, 0.17 * s, '#ffffff', P(0.98, 0.058, 0), [0, 0, -0.55]);
+  for (const sz of [-1, 1]) g.box(0.09 * s, 0.03 * s, 0.006 * s, '#ffffff', P(0.92, 0.05, sz * 0.096));
+  // porta de carga dianteira (contorno)
+  for (const sz of [-1, 1]) b.box(0.2 * s, 0.13 * s, 0.004 * s, '#c4c9cd', P(0.6, 0.0, sz * 0.111));
+  // carenagens do trem de pouso
+  for (const sz of [-1, 1]) b.box(0.32 * s, 0.07 * s, 0.07 * s, CARGO.white, P(0.05, -0.08, sz * 0.12));
+  // asa alta reta e longa, com o bordo de ataque escuro (degelo) e as pontas
+  mirrored(b, S([[0.24, 0], [0.24, 0.2], [0.19, 1.28], [0.1, 1.3], [0.02, 1.28], [-0.02, 0.2], [-0.02, 0]]), 0.03 * s, CARGO.white, P(0, 0.105, 0));
+  mirrored(b, S([[0.245, 0], [0.245, 0.2], [0.195, 1.27], [0.17, 1.27], [0.215, 0.2], [0.215, 0]]), 0.032 * s, CARGO.dark, P(0, 0.104, 0));
+  b.box(0.22 * s, 0.07 * s, 0.24 * s, CARGO.white, P(0.11, 0.13, 0));
+  // turboélices: nacele sob a asa, escape e hélice
+  for (const sz of [-1, 1]) {
+    b.cyl(0.055 * s, 0.045 * s, 0.42 * s, CARGO.white, P(0.12, 0.07, sz * 0.4), X, 10);
+    b.cyl(0.035 * s, 0.02 * s, 0.12 * s, CARGO.dark, P(-0.13, 0.07, sz * 0.4), X, 8);
+    b.box(0.16 * s, 0.015 * s, 0.03 * s, CARGO.dark, P(0.0, 0.03, sz * 0.4));
+    propeller(b, 0.34 * s, 0.07 * s, sz * 0.4 * s, 0.2, s);
+  }
+  // cauda em T: deriva enflechada e estabilizador no topo, na cor da nação
+  a.side([[-1.07 * s, 0.07 * s], [-0.68 * s, 0.07 * s], [-0.92 * s, 0.47 * s], [-1.08 * s, 0.47 * s]], 0.03 * s, '#ffffff', P(0, 0, 0));
+  a.plan(S([[-0.92, 0], [-0.95, 0.4], [-1.06, 0.4], [-1.09, 0], [-1.06, -0.4], [-0.95, -0.4]]), 0.02 * s, '#ffffff', P(0, 0.46, 0));
+  // faixa da nação na traseira (a parte de baixo do cone)
+  a.box(0.5 * s, 0.07 * s, 0.2 * s, '#ffffff', P(-0.62, -0.03, 0), [0, 0, 0.11]);
+}
+
+/**
+ * Cargueiro pesado das eras modernas (Era Digital e Futuro Próximo), nariz para +x: fuselagem larga e longa com o
+ * nariz rombudo (porta de carga que levanta) e a cabine elevada, asa alta enflechada com quatro turbofans em pilones,
+ * carenagens grossas do trem de pouso com muitas rodas, cauda alta enflechada com o estabilizador embaixo. Branco com
+ * a barriga cinza; a faixa ao longo da fuselagem e a deriva vão na cor da nação.
+ */
+function cargoHeavy(b: PartBuilder, a: PartBuilder, g: PartBuilder, s = 1): void {
+  const P = (x: number, y: number, z: number): V3 => [x * s, y * s, z * s];
+  const X: V3 = [0, 0, Math.PI / 2];
+  const S = (pts: [number, number][]) => pts.map(([x, z]) => [x * s, z * s] as [number, number]);
+  b.cyl(0.2 * s, 0.2 * s, 1.55 * s, CARGO.white, P(0.1, 0, 0), X, 16);
+  lathe(b, [[0.87, 0.2], [1.02, 0.19], [1.14, 0.15], [1.22, 0.09], [1.26, 0]], CARGO.white, [0, 0, 0], s, [0.95, 1], undefined, 16);
+  b.cyl(0.04 * s, 0.2 * s, 0.75 * s, CARGO.white, P(-1.02, 0.07, 0), [0, 0, Math.PI / 2 + 0.13], 16);
+  // barriga cinza e a corcova da cabine elevada
+  b.box(1.9 * s, 0.05 * s, 0.3 * s, CARGO.belly, P(0.05, -0.18, 0));
+  lathe(b, [[0.55, 0.0], [0.65, 0.07], [0.95, 0.08], [1.08, 0.04], [1.12, 0]], CARGO.white, P(0, 0.17, 0), s, [0.8, 1.4], undefined, 12);
+  g.box(0.07 * s, 0.035 * s, 0.17 * s, '#ffffff', P(1.06, 0.205, 0), [0, 0, -0.6]);
+  for (const sz of [-1, 1]) g.box(0.12 * s, 0.03 * s, 0.006 * s, '#ffffff', P(0.95, 0.2, sz * 0.092));
+  // faixa larga da nação ao longo da fuselagem (o lugar das cores da referência, sem bandeira)
+  for (const sz of [-1, 1]) {
+    a.box(1.85 * s, 0.07 * s, 0.006 * s, '#ffffff', P(0.05, -0.07, sz * 0.2));
+    a.box(0.4 * s, 0.07 * s, 0.006 * s, '#ffffff', P(1.0, -0.07, sz * 0.185), [0, sz * 0.3, 0]);
+  }
+  // carenagens do trem de pouso e as rodas em fila
+  for (const sz of [-1, 1]) {
+    b.box(0.95 * s, 0.1 * s, 0.09 * s, CARGO.white, P(-0.05, -0.15, sz * 0.2));
+    for (let k = 0; k < 5; k++) b.cyl(0.04 * s, 0.04 * s, 0.05 * s, CARGO.dark, P(-0.4 + k * 0.18, -0.21, sz * 0.21), [Math.PI / 2, 0, 0], 8);
+  }
+  // asa alta enflechada
+  const wing: [number, number][] = [[0.35, 0], [0.35, 0.18], [-0.38, 1.62], [-0.52, 1.64], [-0.33, 0.18], [-0.33, 0]];
+  mirrored(b, S(wing), 0.04 * s, CARGO.white, P(0, 0.16, 0));
+  b.box(0.7 * s, 0.08 * s, 0.4 * s, CARGO.white, P(0.0, 0.2, 0));
+  // quatro turbofans em pilones, com a entrada de ar escura e o cone de saída
+  for (const sz of [-1, 1])
+    for (const zz of [0.5, 0.95]) {
+      const lead = 0.35 - (zz - 0.18) * (0.73 / 1.44);
+      const ex = lead - 0.02;
+      b.box(0.24 * s, 0.08 * s, 0.025 * s, CARGO.white, P(ex - 0.08, 0.1, sz * zz));
+      b.cyl(0.085 * s, 0.075 * s, 0.4 * s, CARGO.white, P(ex - 0.02, 0.0, sz * zz), X, 12);
+      b.cyl(0.07 * s, 0.07 * s, 0.02 * s, CARGO.dark, P(ex + 0.185, 0.0, sz * zz), X, 12);
+      b.cyl(0.02 * s, 0.05 * s, 0.1 * s, CARGO.metal, P(ex - 0.26, 0.0, sz * zz), X, 10);
+      a.cyl(0.087 * s, 0.087 * s, 0.03 * s, '#ffffff', P(ex + 0.13, 0.0, sz * zz), X, 12);
+    }
+  // cauda: deriva alta enflechada (na cor da nação na parte de cima) e estabilizador baixo enflechado
+  b.side([[-1.4 * s, 0.12 * s], [-0.85 * s, 0.12 * s], [-1.22 * s, 0.82 * s], [-1.4 * s, 0.82 * s]], 0.035 * s, CARGO.white, P(0, 0, 0));
+  a.side([[-1.395 * s, 0.5 * s], [-1.05 * s, 0.5 * s], [-1.22 * s, 0.82 * s], [-1.395 * s, 0.82 * s]], 0.039 * s, '#ffffff', P(0, 0, 0));
+  mirrored(b, S([[-0.95, 0], [-0.95, 0.06], [-1.25, 0.66], [-1.36, 0.66], [-1.28, 0.06], [-1.28, 0]]), 0.025 * s, CARGO.white, P(0, 0.12, 0));
 }
 
 /**
@@ -750,7 +835,7 @@ export function buildMissileSiloModel(): Built {
 export const FIGHTER_SCALE = 1.45;
 
 /** Aeronave em voo (nariz para +x), com a cor da nação nas marcas. */
-export function aircraftModel(type: 'fighter' | 'gripen' | 'bomber' | 'recon' | 'transport'): ModelLayers {
+export function aircraftModel(type: 'fighter' | 'gripen' | 'bomber' | 'recon' | 'transport' | 'transport2'): ModelLayers {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
   // caças 45% maiores que no começo (presença em tela), com a mesma proporção entre os dois modelos
@@ -758,7 +843,9 @@ export function aircraftModel(type: 'fighter' | 'gripen' | 'bomber' | 'recon' | 
   else if (type === 'gripen') gripen(b, a, g, [0, 0, 0], 0.82 * FIGHTER_SCALE);
   else if (type === 'bomber') bomberPlane(b, a, g, [0, 0, 0], 1.3);
   else if (type === 'recon') reconPlane(b, a, g, [0, 0, 0], 1.4);
-  else transportPlane(b, a, g, [0, 0, 0], 1.4);
+  // cargueiro: turboélice nas eras 1 e 2; o pesado de quatro motores nas eras 3 e 4
+  else if (type === 'transport') cargoTurboprop(b, a, g, 1.15);
+  else cargoHeavy(b, a, g, 1.05);
   return l.build();
 }
 

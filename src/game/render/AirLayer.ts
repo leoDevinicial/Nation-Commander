@@ -8,7 +8,7 @@ import { glowTexture, volumetricSmokeTexture } from './textures.ts';
 
 type Flight = AirView['flights'][number];
 type Launch = AirView['launches'][number];
-type Kind = 'fighter' | 'gripen' | 'bomber' | 'recon' | 'transport' | 'missile' | 'missile2' | 'stores';
+type Kind = 'fighter' | 'gripen' | 'bomber' | 'recon' | 'transport' | 'transport2' | 'missile' | 'missile2' | 'stores';
 
 const ALTITUDE = 7;
 /** Altitude no fundo do mergulho de ataque. */
@@ -499,6 +499,8 @@ export class AirLayer {
   private flareNext = 0;
   private readonly bursts: GunBurst[] = [];
   private readonly shots: AirMissile[] = [];
+  /** Era do jogador (modelo do cargueiro no pátio). */
+  era = 1;
   private ground: (x: number, z: number) => number = () => 0;
 
   constructor(
@@ -699,7 +701,8 @@ export class AirLayer {
       if (!slot || !at) continue;
       perBase.set(a.baseId, n + 1);
       keep.add(a.id);
-      const kind: Kind = a.type === 'fighter' ? (a.gen >= 2 ? 'gripen' : 'fighter') : a.type;
+      // cargueiro: turboélice nas eras 1 e 2, o pesado de quatro motores a partir da Era Digital
+      const kind: Kind = a.type === 'fighter' ? (a.gen >= 2 ? 'gripen' : 'fighter') : a.type === 'transport' && this.era >= 3 ? 'transport2' : a.type;
       let p = this.parked.get(a.id);
       if (p && p.kind !== kind) {
         p.group.removeFromParent();
@@ -711,6 +714,7 @@ export class AirLayer {
         if (kind === 'bomber') p.group.add(meshes(model('stores'), this.mySlot, true));
         // o bombardeiro e o cargueiro são maiores que a vaga de caça
         if (kind === 'bomber' || kind === 'transport') p.group.scale.setScalar(0.65);
+        else if (kind === 'transport2') p.group.scale.setScalar(0.56);
         // no voo os caças são maiores; no pátio voltam ao tamanho da vaga
         else if (kind === 'fighter' || kind === 'gripen') p.group.scale.setScalar(1 / FIGHTER_SCALE);
         p.group.rotation.y = slot.heading;

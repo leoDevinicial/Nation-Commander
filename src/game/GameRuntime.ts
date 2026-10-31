@@ -559,12 +559,13 @@ export class GameRuntime {
       const caravans = (s.caravans ?? [])
         .filter((c) => c.state !== 'destroyed')
         .map((c) => ({ id: CARAVAN_ID_BASE + c.id, mode: 'caravan' as const, state: c.state === 'moving' ? ('moving' as const) : ('loading' as const), x: c.x, y: c.y, heading: c.heading, seller: c.owner, buyer: c.owner }));
-      this.cargo.update([...(s.trade?.shipments ?? []), ...caravans], this.cameraCtl.target);
+      this.cargo.update([...(s.trade?.shipments ?? []), ...caravans], this.cameraCtl.target, (slot) => s.players.find((p) => p.slot === slot)?.era ?? 1);
       const mine = (s.caravans ?? []).filter((c) => c.owner === this.mySlot).map((c) => ({ cityId: c.cityId, state: c.state, to: c.to, income: c.income, waitSeconds: c.waitSeconds }));
       if (JSON.stringify(mine) !== JSON.stringify(useHudStore.getState().caravans)) useHudStore.getState().set({ caravans: mine });
     }
     if (s.air) {
       if (this.hudActive) useHudStore.getState().set({ air: s.air });
+      this.airLayer.era = s.players.find((p) => p.slot === this.mySlot)?.era ?? 1;
       this.airLayer.update(s.air);
       // sobrevoo: quando a formação entra no mapa (própria ou inimiga à vista) e de novo sempre que passa perto da
       // câmera; o bombardeiro tem o próprio ronco
