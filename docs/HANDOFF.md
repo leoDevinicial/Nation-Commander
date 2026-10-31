@@ -350,9 +350,8 @@ mensagens em português descrevendo o que mudou).
 
 Migração `supabase/migrations/20261031000000_match_report.sql` aplicada no banco pelo usuário em 31/10 (relatório pós-partida gravado em `matches.report`).
 
-**KAC (31/10):** falta o usuário rodar `supabase/migrations/20261101020000_kac_events.sql` no Supabase (sem ela, o
-servidor só registra no log a falha ao gravar `kac_events`; o jogo segue normal) e, se quiser o painel `/kac`, criar
-`KAC_ADMIN_TOKEN` no Render. Depois de publicar a 1.2.0, ler o "KAC resumo" no log do Render para fechar o KAC-04
+**KAC (31/10):** migração `supabase/migrations/20261101020000_kac_events.sql` aplicada no banco pelo usuário em 31/10
+(versão 1.2.0 publicada). Para o painel `/kac`, o usuário define `KAC_ADMIN_TOKEN` no Render. Depois de publicar a 1.2.0, ler o "KAC resumo" no log do Render para fechar o KAC-04
 (próximas etapas em `docs/kac/KAC_IMPLEMENTATION_ROADMAP.md`).
 
 

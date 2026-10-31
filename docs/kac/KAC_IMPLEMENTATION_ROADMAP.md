@@ -20,7 +20,7 @@ Ordem por risco encontrado na auditoria (não por arquitetura genérica). Estado
 | KAC-07: `targetId` só de alvo visível | ADVERSARIALLY TESTED | `visibleTarget` em `shared/sim/snapshot.ts`; `shared/test/kacProjection.test.ts` |
 | KAC-12: base aérea de voo inimigo só se visível | ADVERSARIALLY TESTED | `airView`; `AirLayer` sem base; teste em `shared/test/air.test.ts` |
 | KAC-11: decisões nacionais recusadas na pausa | ADVERSARIALLY TESTED | `Room.nationalCommand` |
-| KAC-08: diário persistente (`kac_events`, 90 dias) | UNIT TESTED | `server/kac/store.ts`, `kacSupabaseBackend`; migração ainda não aplicada no banco |
+| KAC-08: diário persistente (`kac_events`, 90 dias) | UNIT TESTED | `server/kac/store.ts`, `kacSupabaseBackend`; migração aplicada em 31/10 |
 | KAC-09: sinais de automação (só alerta) | INTEGRATION TESTED | `server/kac/behavior.ts`, `Room.command`; falta calibrar com partidas reais |
 | Relatório de integridade da partida | INTEGRATION TESTED | `server/kac/integrity.ts`, `matches.report.integrity` |
 | Painel de leitura `/kac` | ADVERSARIALLY TESTED | `server/kac/admin.ts`; ligado só com `KAC_ADMIN_TOKEN` |
@@ -31,7 +31,6 @@ Ordem por risco encontrado na auditoria (não por arquitetura genérica). Estado
 ## Próximas etapas
 
 1. **Publicar e observar (P0)**
-   - Rodar a migração `20261101020000_kac_events.sql` no Supabase.
    - Ler no log do Render os eventos "KAC" e o "KAC resumo" de 10 em 10 minutos.
    - Confirmar o KAC-04 com `xffMaxHops` e `rede.busiestIp` do resumo.
    - Medir se algum limite atrapalha jogador legítimo e se o KAC-09 gera alerta em partidas normais.
