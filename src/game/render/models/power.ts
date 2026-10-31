@@ -9,7 +9,8 @@ type Built = Omit<BuildingModel, 'detail'>;
  * - termelétrica a carvão: casa de caldeiras de tijolo, chaminé alta listrada com fumaça, pátio de carvão (pilha
  *   escura), esteira inclinada até a caldeira e o transformador com isoladores;
  * - parque eólico: três turbinas brancas de alturas diferentes com o rotor de três pás girando ao vento;
- * - usina solar: fileiras de painéis inclinados para o sol em estruturas metálicas e o inversor com a faixa da nação.
+ * - usina solar: mesas de painéis espalhadas em fileiras com corredores de grama, inclinadas para o sol, com a grade
+ *   das células, caixas de junção e o inversor com a faixa da nação; os painéis têm material próprio que reflete o sol.
  * A faixa da nação (accent) vai na fachada, na nacele e no inversor.
  */
 export function buildCoalPlant(): Built {
@@ -73,22 +74,56 @@ export function buildWindFarm(): Built {
 
 export function buildSolarFarm(): Built {
   const l = layers();
-  const { body: b, accent: a, glass: g } = l;
-  b.box(3.8, 0.05, 3.8, '#8a876f', [0, 0.025, 0]);
-  // quatro fileiras de painéis inclinados para o sol (que vem de −z/−x no jogo)
-  for (let r = 0; r < 4; r++) {
-    const z = -1.35 + r * 0.82;
-    for (const x of [-0.8, 0.55]) {
-      for (const dx of [-0.45, 0.45]) strut(b, [x + dx, 0.05, z + 0.12], [x + dx, 0.32, z + 0.12], 0.03, C.steel, true);
-      b.box(1.25, 0.03, 0.55, C.metal, [x, 0.36, z], [0.5, 0, 0]);
-      g.box(1.18, 0.02, 0.5, '#ffffff', [x, 0.385, z - 0.005], [0.5, 0, 0]);
-      for (let k = 1; k < 4; k++) b.box(0.015, 0.025, 0.5, '#9aa3ab', [x - 0.59 + k * 0.295, 0.39, z - 0.005], [0.5, 0, 0]);
-    }
-  }
-  // inversor e cerca
-  b.box(0.45, 0.4, 0.35, '#d7d9d6', [1.55, 0.25, 1.55]);
-  a.box(0.3, 0.08, 0.01, '#ffffff', [1.55, 0.33, 1.73]);
-  railing(b, [-1.85, 1.85], [1.85, 1.85], 0.04, 0.25, C.steel, 6);
-  railing(b, [-1.85, -1.85], [1.85, -1.85], 0.04, 0.25, C.steel, 6);
-  return { base: l.build(), moving: null, height: 0.8 };
+  const { body: b, accent: a } = l;
+  const pv = layers();
+  const p = pv.body;
+  // terreno de brita com faixas de grama entre as fileiras (a usina é espalhada, com corredores de manutenção)
+  b.box(3.85, 0.04, 3.85, '#8c8a7e', [0, 0.02, 0]);
+  for (let r = 0; r < 4; r++) b.box(3.6, 0.012, 0.32, '#6f7d55', [0, 0.046, -1.48 + r * 0.98 + 0.42]);
+  // quatro fileiras de mesas soltas, cada mesa com dois painéis (retrato), inclinadas para o sol (que vem de −z)
+  const tilt = 0.36;
+  const rows = [-1.48, -0.5, 0.48, 1.46];
+  const tables = [-1.3, -0.12, 1.06];
+  rows.forEach((z, r) => {
+    tables.forEach((x0, t) => {
+      // o canto do inversor e do transformador fica livre
+      if (r === rows.length - 1 && t === tables.length - 1) return;
+      // pequeno desalinhamento de obra entre as mesas (nada fica perfeitamente igual)
+      const x = x0 + ((r * 3 + t) % 3 === 1 ? 0.04 : 0);
+      const w = 0.98;
+      const d = 0.6;
+      // pernas: as da frente baixas e as de trás altas, com a travessa
+      for (const dx of [-0.38, 0.38]) {
+        strut(b, [x + dx, 0.04, z - 0.18], [x + dx, 0.13, z - 0.18], 0.022, C.steel, true);
+        strut(b, [x + dx, 0.04, z + 0.18], [x + dx, 0.26, z + 0.18], 0.022, C.steel, true);
+        strut(b, [x + dx, 0.13, z - 0.18], [x + dx, 0.26, z + 0.18], 0.014, C.steel, true);
+      }
+      b.box(w, 0.02, 0.03, C.metal, [x, 0.19, z], [-tilt, 0, 0]);
+      // os painéis (vidro escuro azulado) com a moldura de alumínio e a grade das células por cima
+      const y = 0.215;
+      p.box(w - 0.02, 0.018, d - 0.02, '#1f2f4c', [x, y, z], [-tilt, 0, 0]);
+      b.box(w, 0.016, d, '#b9bfc5', [x, y - 0.006, z], [-tilt, 0, 0]);
+      const ny = Math.cos(tilt);
+      const nz = -Math.sin(tilt);
+      const lift = 0.011;
+      // divisão entre os dois painéis e as linhas das células (finas, em tom mais claro)
+      b.box(0.012, 0.004, d - 0.03, '#c3c9ce', [x, y + ny * lift, z + nz * lift], [-tilt, 0, 0]);
+      for (let k = 1; k < 4; k++) {
+        const off = -d / 2 + (k * d) / 4;
+        b.box(w - 0.04, 0.003, 0.006, '#3a5378', [x, y + ny * lift + Math.sin(tilt) * off, z + nz * lift + Math.cos(tilt) * off], [-tilt, 0, 0]);
+      }
+    });
+  });
+  // caixas de junção nas pontas das fileiras e a vala de cabos até o inversor
+  for (const z of rows) b.box(0.12, 0.12, 0.08, '#d7d9d6', [1.72, 0.1, z + 0.18]);
+  b.box(0.05, 0.015, 3.0, '#5a5a52', [1.72, 0.047, 0.0]);
+  // inversor (contêiner com a faixa da nação), transformador e a cerca
+  b.box(0.55, 0.42, 0.34, '#d7d9d6', [1.45, 0.25, 1.72]);
+  a.box(0.4, 0.07, 0.01, '#ffffff', [1.45, 0.36, 1.892]);
+  b.box(0.28, 0.3, 0.22, '#5c6a5c', [0.95, 0.19, 1.72]);
+  for (let i = 0; i < 3; i++) b.cyl(0.022, 0.03, 0.16, '#c9c2b0', [0.87 + i * 0.08, 0.42, 1.72], undefined, 6);
+  railing(b, [-1.9, 1.9], [1.9, 1.9], 0.04, 0.25, C.steel, 7);
+  railing(b, [-1.9, -1.9], [1.9, -1.9], 0.04, 0.25, C.steel, 7);
+  railing(b, [-1.9, -1.9], [-1.9, 1.9], 0.04, 0.25, C.steel, 7);
+  return { base: l.build(), moving: null, height: 0.8, panels: pv.build() };
 }

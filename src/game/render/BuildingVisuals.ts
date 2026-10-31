@@ -30,6 +30,14 @@ function layerMeshes(l: ModelLayers, owner: number, era = 1): THREE.Mesh[] {
   return out;
 }
 
+/**
+ * Painel fotovoltaico: vidro azul-escuro sobre as células, liso e um pouco metálico, então o sol do jogo brilha nele
+ * de acordo com o ângulo entre o sol, o painel e a câmera (reflexo especular), sem textura fotográfica.
+ */
+function solarPanelMaterial(): THREE.Material {
+  return sharedMaterial('solar-panel', () => withFog(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.14, metalness: 0.45, envMapIntensity: 1.3 })));
+}
+
 export interface BuildingVisualOptions {
   center: THREE.Vector2;
   cellSize: number;
@@ -331,6 +339,13 @@ export class BuildingVisual {
     this.parts.clear();
     this.detail.clear();
     for (const m of layerMeshes(def.base, this.owner, this.era)) this.parts.add(m);
+    if (def.panels?.body.getAttribute('position')) {
+      // mesas de painéis com um leve giro próprio de cada usina (o reflexo do sol muda de uma para outra)
+      const panels = new THREE.Mesh(def.panels.body, solarPanelMaterial());
+      panels.castShadow = true;
+      panels.receiveShadow = true;
+      this.parts.add(panels);
+    }
     if (def.detail)
       for (const m of layerMeshes(def.detail, this.owner, this.era)) {
         m.castShadow = false;

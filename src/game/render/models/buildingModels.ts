@@ -37,6 +37,11 @@ export interface BuildingModel {
    */
   hatch?: { layers: ModelLayers; pivot: [number, number, number]; side: 1 | -1 }[];
   height: number;
+  /**
+   * Painéis fotovoltaicos (só a camada `body` é usada): material próprio, azul-escuro e liso, que reflete o sol
+   * conforme o ângulo; não muda com a era.
+   */
+  panels?: ModelLayers;
   /** Topos de chaminé que soltam fumaça (coordenadas locais). */
   smoke?: [number, number, number][];
 }
