@@ -13,7 +13,12 @@ ataque.
 
 ## Primeira pessoa (`src/game/render/DroneFpv.ts`)
 
-- Câmera no nariz, inclinada para baixo, campo de visão largo; a interface do mapa some.
+- Câmera no nariz, inclinada para baixo, com campo de visão de **120°** como nos jogos de tiro (medido em 4:3, o padrão
+  de Quake/CS/Apex: ~105° na vertical e ~133° na horizontal em tela 16:9); a interface do mapa some.
+- Pilotagem suave: o cliente prevê o voo com as mesmas contas do servidor, então a câmera responde ao mouse e ao
+  teclado na hora; a previsão é puxada aos poucos para a pose do servidor (adiantada ~0,25 s pelo atraso) e pula para
+  ela se o desvio passar de 6. O mouse tem sensibilidade baixa, zona morta pequena e filtro contra o tremido da mão; a
+  câmera inclina pouco nas curvas (70% da inclinação).
 - OSD no estilo dos óculos de FPV: faixas pretas, modo (ACRO/MAX), bússola, velocidade (km/h), altitude (m), sinal,
   tensão da bateria (por célula e total), porcentagem e segundos de bateria, tempo de voo, horizonte artificial, mira,
   chiado analógico (mais forte com bateria baixa).
@@ -33,7 +38,8 @@ ataque.
 
 - Tudo é calculado na simulação; o cliente só manda a intenção (`drone_steer` com valores de −1 a 1, limitados de novo
   no servidor), a ~10 por segundo. Só o dono pilota, e só depois de assumir dentro da janela.
-- Velocidade 3,6 a 10,5; curva 1,6 rad/s; bateria de 80 s (acelerar gasta mais); sem comando por 2 s, segue reto.
+- Velocidade 3,0 a 8,6 (cruzeiro 5,4); curva 1,25 rad/s; subida 1,9 (mergulho ×1,5). O manche chega ao drone aos
+  poucos (resposta de 3,2/s, ~0,3 s para a curva toda) e o acelerador em ~0,6 s, sem trancos; bateria de 80 s (acelerar gasta mais); sem comando por 2 s, segue reto.
 - Explode ao tocar o chão, um edifício alheio ou uma tropa de outro país; Espaço detona onde estiver.
 - Ogiva: 360 em tropas e 320 em edifícios no raio de 2,6, só contra quem está em guerra com o dono.
 - Antiaérea (baterias e defesa móvel) a até 12: chance por segundo de derrubar o drone.

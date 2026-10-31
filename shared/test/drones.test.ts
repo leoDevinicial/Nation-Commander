@@ -78,9 +78,15 @@ describe('drone de ataque', () => {
     expect(raw).toEqual({ type: 'drone_steer', droneId: d.id, turn: 1, climb: -1, throttle: 1 });
     expect(sim.air.drones.steer(0, d.id, 99, 0, 0)).toBeNull();
     expect(d.input.turn).toBe(1);
+    // o manche chega aos poucos (sem tranco) e depois a curva fica na taxa cheia
     const h0 = d.heading;
     run(sim, 1);
-    expect(d.heading - h0).toBeCloseTo(DRONE.turnRate, 1);
+    const h1 = d.heading;
+    expect(h1 - h0).toBeGreaterThan(DRONE.turnRate * 0.5);
+    expect(h1 - h0).toBeLessThan(DRONE.turnRate * 0.9);
+    sim.air.drones.steer(0, d.id, 1, 0, 0);
+    run(sim, 1);
+    expect(d.heading - h1).toBeCloseTo(DRONE.turnRate, 1);
   });
 
   it('a janela para assumir fecha; sem comando por 2 s (conexão caiu) o drone segue reto e nivelado', () => {
@@ -95,10 +101,11 @@ describe('drone de ataque', () => {
     run(e.sim, 2);
     e.sim.applyCommand(0, { type: 'drone_control', droneId: d2.id, take: true });
     e.sim.applyCommand(0, { type: 'drone_steer', droneId: d2.id, turn: 1, climb: 0, throttle: 0 });
-    run(e.sim, DRONE.inputTimeoutSeconds + 0.2);
+    // o manche volta ao centro aos poucos depois do tempo limite
+    run(e.sim, DRONE.inputTimeoutSeconds + 2);
     const h = d2.heading;
     run(e.sim, 1);
-    expect(d2.heading).toBeCloseTo(h, 5);
+    expect(d2.heading).toBeCloseTo(h, 2);
   });
 
   it('pilotado para baixo, bate no chão; longe de inimigos não causa dano a ninguém', () => {

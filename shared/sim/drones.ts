@@ -16,13 +16,20 @@ import type { Building, Slot, Vec2 } from './types.ts';
  */
 export const DRONE = {
   /** Velocidades (unidades de mundo por segundo): lenta, de cruzeiro e com o acelerador no máximo. */
-  slowSpeed: 3.6,
-  cruiseSpeed: 6.5,
-  boostSpeed: 10.5,
+  slowSpeed: 3.0,
+  cruiseSpeed: 5.4,
+  boostSpeed: 8.6,
   /** Velocidade de curva (rad/s) e de subida/descida (unidades/s); o mergulho é mais rápido que a subida. */
-  turnRate: 1.6,
-  climbRate: 2.4,
-  diveMul: 1.7,
+  turnRate: 1.25,
+  climbRate: 1.9,
+  diveMul: 1.5,
+  /**
+   * Resposta do manche (1/s): o comando do piloto chega ao drone aos poucos (~0,3 s para a curva toda), sem trancos. O
+   * cliente usa a mesma conta para prever o voo na câmera.
+   */
+  stickResponse: 3.2,
+  /** Resposta do acelerador (1/s). */
+  throttleResponse: 1.6,
   cruiseAlt: 5,
   maxAlt: 12,
   /** Bateria (s de voo no cruzeiro); acelerar gasta mais. */
@@ -63,6 +70,9 @@ export interface Drone {
   battery: number;
   controlled: boolean;
   input: { turn: number; climb: number; throttle: number };
+  /** Manche já suavizado (o que está valendo neste passo); vai de 0 até `input` aos poucos. */
+  turnNow?: number;
+  climbNow?: number;
   lastInputTick: number;
   phase: DronePhase;
   end?: DroneEnd;
@@ -180,9 +190,15 @@ export class DroneSystem {
         climb = clamp((wantAlt - d.alt) * 0.8, -1, 1);
         throttle = flat < 9 ? 0.6 : 0;
       }
+      // o manche chega aos poucos: curva e subida sem trancos (no piloto automático também)
+      const k = Math.min(1, dt * DRONE.stickResponse);
+      d.turnNow = (d.turnNow ?? 0) + (turn - (d.turnNow ?? 0)) * k;
+      d.climbNow = (d.climbNow ?? 0) + (climb - (d.climbNow ?? 0)) * k;
+      turn = d.turnNow;
+      climb = d.climbNow;
       const speedWant =
         throttle >= 0 ? DRONE.cruiseSpeed + (DRONE.boostSpeed - DRONE.cruiseSpeed) * throttle : DRONE.cruiseSpeed + (DRONE.cruiseSpeed - DRONE.slowSpeed) * throttle;
-      d.speed += (speedWant - d.speed) * Math.min(1, dt * 2);
+      d.speed += (speedWant - d.speed) * Math.min(1, dt * DRONE.throttleResponse);
       d.heading += turn * DRONE.turnRate * dt;
       const vz = climb * DRONE.climbRate * (climb < 0 ? DRONE.diveMul : 1);
       const prevAlt = d.alt;

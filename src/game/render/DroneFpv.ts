@@ -29,6 +29,29 @@ export interface FpvSteer {
 /** Metros por unidade de mundo, só para os números da tela (velocidade e altitude). */
 const METERS = 4;
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+const angDiff = (a: number, b: number) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+
+/**
+ * Campo de visão de 120°, como nos jogos de tiro (medido em 4:3, o padrão de Quake, CS e Apex): o ângulo vertical fica
+ * fixo e a tela larga ganha mais lado (~133° em 16:9).
+ */
+export const FPV_FOV = 120;
+const FPV_VFOV = (2 * Math.atan(Math.tan(((FPV_FOV / 2) * Math.PI) / 180) / (4 / 3)) * 180) / Math.PI;
+/** Atraso estimado entre o manche e a posição que chega do servidor (envio + rede + interpolação), em segundos. */
+const LEAD = 0.25;
+/** Pose prevista no cliente: a câmera responde na hora e é puxada aos poucos para a posição do servidor. */
+interface Pred {
+  x: number;
+  z: number;
+  alt: number;
+  heading: number;
+  speed: number;
+  turn: number;
+  climb: number;
+  vz: number;
+  bank: number;
+  pitch: number;
+}
 
 /**
  * Câmera em primeira pessoa do drone de ataque, no estilo dos óculos de FPV: a imagem da câmera de bordo com o OSD
@@ -49,12 +72,15 @@ export class DroneFpv {
   private dragFrom: { x: number; y: number } | null = null;
   /** Mira do mouse com o cursor travado: o movimento empurra o manche, que volta sozinho ao centro. */
   private aim = { x: 0, y: 0 };
+  /** A mira do mouse filtrada (tira o tremido do movimento da mão). */
+  private aimSmooth = { x: 0, y: 0 };
+  private pred: Pred | null = null;
   /** O jogador soltou o cursor (Esc do navegador, troca de janela): devolve o drone ao piloto automático. */
   onLockLost: (() => void) | null = null;
   private readonly onMouse = (e: MouseEvent) => {
     if (!this.locked()) return;
-    this.aim.x = clamp(this.aim.x + e.movementX * 0.006, -1, 1);
-    this.aim.y = clamp(this.aim.y + e.movementY * 0.006, -1, 1);
+    this.aim.x = clamp(this.aim.x + e.movementX * 0.0034, -1, 1);
+    this.aim.y = clamp(this.aim.y + e.movementY * 0.0034, -1, 1);
   };
   private readonly onLockChange = () => {
     if (!this.locked() && this.active && !this.lostAt && this.wasLocked) this.onLockLost?.();
@@ -97,11 +123,13 @@ export class DroneFpv {
     this.keys.clear();
     this.stick = null;
     this.savedCam ??= { fov: camera.fov, near: camera.near };
-    camera.fov = 88;
+    camera.fov = FPV_VFOV;
     camera.near = 0.04;
     camera.updateProjectionMatrix();
     this.canvas.style.display = 'block';
     this.aim = { x: 0, y: 0 };
+    this.aimSmooth = { x: 0, y: 0 };
+    this.pred = null;
     // o mouse vira a direção: trava o cursor no centro (no celular não existe; lá o dedo é o manche)
     try {
       const req = this.host.requestPointerLock() as unknown as Promise<void> | undefined;
@@ -113,6 +141,7 @@ export class DroneFpv {
 
   exit(camera: THREE.PerspectiveCamera): void {
     this.droneId = null;
+    this.pred = null;
     this.lostAt = 0;
     this.keys.clear();
     this.stick = null;
@@ -164,14 +193,14 @@ export class DroneFpv {
    */
   private input(): FpvSteer {
     const k = this.keys;
-    const q = (v: number) => Math.round(v * 20) / 20;
     let turn = ((k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0)) * 0.6;
     let climb = (k.has('Space') ? 1 : 0) - (k.has('ControlLeft') || k.has('ControlRight') || k.has('KeyC') ? 1 : 0);
     const throttle = (k.has('KeyW') || k.has('ArrowUp') || k.has('ShiftLeft') || k.has('ShiftRight') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
     if (this.locked()) {
-      turn = clamp(turn + this.aim.x * 1.3, -1, 1);
+      const dz = (v: number) => (Math.abs(v) < 0.04 ? 0 : v - Math.sign(v) * 0.04);
+      turn = clamp(turn + dz(this.aimSmooth.x) * 1.15, -1, 1);
       // mouse para cima levanta o nariz (sobe), para baixo mergulha
-      climb = clamp(climb - this.aim.y * 1.3, -1, 1);
+      climb = clamp(climb - dz(this.aimSmooth.y) * 1.15, -1, 1);
     }
     if (this.stick) {
       const dz = (v: number) => (Math.abs(v) < 0.08 ? 0 : v);
@@ -179,7 +208,7 @@ export class DroneFpv {
       // arrastar para cima sobe
       climb = clamp(climb - dz(this.stick.y) * 1.2, -1, 1);
     }
-    return { turn: q(turn), climb: q(climb), throttle };
+    return { turn, climb, throttle };
   }
 
   /**
@@ -189,14 +218,24 @@ export class DroneFpv {
   frame(dt: number, view: FpvDroneView | null, camera: THREE.PerspectiveCamera, targets: FpvTarget[], flightSeconds: number): FpvSteer | null {
     this.time += dt;
     // a mira do mouse volta devagar ao centro: mexer o mouse vira, parar endireita
-    const back = Math.exp(-dt * 2.2);
+    const back = Math.exp(-dt * 1.8);
     this.aim.x *= back;
     this.aim.y *= back;
+    const f = 1 - Math.exp(-dt * 12);
+    this.aimSmooth.x += (this.aim.x - this.aimSmooth.x) * f;
+    this.aimSmooth.y += (this.aim.y - this.aimSmooth.y) * f;
     this.resize();
-    if (view && !this.lostAt) this.placeCamera(view, camera);
-    this.draw(view, camera, targets, flightSeconds);
+    if (Math.abs(camera.fov - FPV_VFOV) > 0.01) {
+      camera.fov = FPV_VFOV;
+      camera.updateProjectionMatrix();
+    }
+    const raw = this.input();
+    const shown = view && !this.lostAt ? this.predict(dt, raw, view) : view;
+    if (shown && !this.lostAt) this.placeCamera(shown, camera);
+    this.draw(shown, camera, targets, flightSeconds);
     if (!view || this.lostAt) return null;
-    const s = this.input();
+    const q = (v: number) => Math.round(v * 20) / 20;
+    const s = { turn: q(raw.turn), climb: q(raw.climb), throttle: q(raw.throttle) };
     const changed = s.turn !== this.lastSent.turn || s.climb !== this.lastSent.climb || s.throttle !== this.lastSent.throttle;
     const since = this.time - this.sentAt;
     if ((changed && since >= 0.1) || since >= 0.6) {
@@ -207,6 +246,43 @@ export class DroneFpv {
     return null;
   }
 
+  /**
+   * Prevê o voo no cliente com as mesmas contas do servidor (manche suavizado, curva, subida, acelerador): a câmera
+   * responde ao mouse e ao teclado na hora, sem esperar a volta da rede. A previsão é puxada com suavidade para a pose do
+   * servidor (adiantada pelo atraso estimado), e um desvio grande faz ela pular para a do servidor. Quem decide onde o
+   * drone está continua sendo o servidor.
+   */
+  private predict(dt: number, s: FpvSteer, v: FpvDroneView): FpvDroneView {
+    let p = this.pred;
+    if (!p || Math.hypot(p.x - v.pos.x, p.z - v.pos.z) > 6 || Math.abs(p.alt - v.pos.y) > 4) {
+      p = this.pred = { x: v.pos.x, z: v.pos.z, alt: v.pos.y, heading: v.heading, speed: v.speed, turn: p?.turn ?? 0, climb: p?.climb ?? 0, vz: 0, bank: v.bank, pitch: v.pitch };
+    }
+    const h = Math.min(dt, 0.1);
+    const k = Math.min(1, h * DRONE.stickResponse);
+    p.turn += (s.turn - p.turn) * k;
+    p.climb += (s.climb - p.climb) * k;
+    const want = s.throttle >= 0 ? DRONE.cruiseSpeed + (DRONE.boostSpeed - DRONE.cruiseSpeed) * s.throttle : DRONE.cruiseSpeed + (DRONE.cruiseSpeed - DRONE.slowSpeed) * s.throttle;
+    p.speed += (want - p.speed) * Math.min(1, h * DRONE.throttleResponse);
+    p.heading += p.turn * DRONE.turnRate * h;
+    p.vz = p.climb * DRONE.climbRate * (p.climb < 0 ? DRONE.diveMul : 1);
+    p.alt = clamp(p.alt + p.vz * h, 0.3, DRONE.maxAlt);
+    p.x += Math.cos(p.heading) * p.speed * h;
+    p.z += Math.sin(p.heading) * p.speed * h;
+    // correção suave para a pose do servidor, adiantada pelo atraso (senão a câmera ficaria sempre para trás)
+    const c = 1 - Math.exp(-h * 1.6);
+    const sh = v.heading + p.turn * DRONE.turnRate * LEAD;
+    p.heading += angDiff(sh, p.heading) * c;
+    p.x += (v.pos.x + Math.cos(v.heading) * v.speed * LEAD - p.x) * c;
+    p.z += (v.pos.z + Math.sin(v.heading) * v.speed * LEAD - p.z) * c;
+    p.alt += (clamp(v.pos.y + p.vz * LEAD, 0.3, DRONE.maxAlt) - p.alt) * c;
+    p.speed += (v.speed - p.speed) * c * 0.5;
+    // atitude da câmera: inclina na curva e levanta/baixa o nariz, sempre suave
+    const a = 1 - Math.exp(-h * 5);
+    p.bank += (clamp(p.turn * DRONE.turnRate * 0.42, -0.5, 0.5) - p.bank) * a;
+    p.pitch += (Math.atan2(p.vz, Math.max(1, p.speed)) * 0.8 - p.pitch) * a;
+    return { pos: new THREE.Vector3(p.x, p.alt, p.z), heading: p.heading, pitch: p.pitch, bank: p.bank, speed: p.speed, alt: p.alt, battery: v.battery };
+  }
+
   private placeCamera(v: FpvDroneView, camera: THREE.PerspectiveCamera): void {
     const fwd = new THREE.Vector3(Math.cos(v.heading) * Math.cos(v.pitch), Math.sin(v.pitch), Math.sin(v.heading) * Math.cos(v.pitch));
     // câmera no nariz, olhando um pouco para baixo (como a câmera inclinada de um drone de corrida)
@@ -214,10 +290,11 @@ export class DroneFpv {
       .copy(v.pos)
       .addScaledVector(fwd, 0.95)
       .add(new THREE.Vector3(0, -0.05, 0));
-    const look = new THREE.Vector3(Math.cos(v.heading) * Math.cos(v.pitch - 0.22), Math.sin(v.pitch - 0.22), Math.sin(v.heading) * Math.cos(v.pitch - 0.22));
+    const tilt = v.pitch - 0.2;
+    const look = new THREE.Vector3(Math.cos(v.heading) * Math.cos(tilt), Math.sin(tilt), Math.sin(v.heading) * Math.cos(tilt));
     camera.up.set(0, 1, 0);
     camera.lookAt(camera.position.clone().add(look));
-    camera.rotateZ(-v.bank * 0.9);
+    camera.rotateZ(-v.bank * 0.7);
     camera.updateMatrixWorld();
   }
 
@@ -276,7 +353,7 @@ export class DroneFpv {
     const cy = H / 2;
     c.save();
     c.translate(cx, cy + view.pitch * H * 0.6);
-    c.rotate(view.bank * 0.9);
+    c.rotate(view.bank * 0.7);
     c.strokeStyle = 'rgba(255,255,255,0.75)';
     c.lineWidth = 2 * u;
     c.beginPath();
