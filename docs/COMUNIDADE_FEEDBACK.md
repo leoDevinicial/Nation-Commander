@@ -24,7 +24,7 @@
       "pede", "macaco", "Níger"…).
     - **Testes:** `server/profanity.test.ts`.
   - **Denúncia** (⋯ → ⚑ Denunciar, com o motivo: ofensa, ódio, spam, trapaça ou outro):
-    - cada denúncia é gravada em `public.community_reports` (migração `20261101010000_community_reports.sql`);
+    - cada denúncia é gravada em `public.community_reports` (migração `20261101010000_community_reports.sql`, aplicada pelo usuário em 31/10);
     - 3 votos de pessoas diferentes apagam a mensagem para todos e silenciam o autor. Conta vale 1 voto e convidado
       vale 0,5, para contas descartáveis não derrubarem ninguém sozinhas;
     - cada pessoa denuncia no máximo 5 vezes a cada 10 min.
