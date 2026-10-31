@@ -3449,6 +3449,7 @@ export class GameRuntime {
         // obstáculos perto de um engenheiro próprio: fora do território (a guerra o servidor confere)
         ...(BUILDINGS[type].engineerOutside && this.engineerNearCell(cell) ? { outsideOk: () => true } : {}),
         deposits: this.deposits,
+        builtRoads: this.roadCells,
       },
       this.mySlot,
       type,

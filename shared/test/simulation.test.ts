@@ -394,3 +394,32 @@ describe('jazida de petróleo', () => {
     expect(sim.placementError(0, 'house', { cx: node.cx + 2, cy: node.cy })).toBeNull();
   });
 });
+
+describe('obras que travam o caminho', () => {
+  it('estrada construída por um jogador não recebe edifício em cima; estrada do mapa segue livre', () => {
+    const sim = emptySim();
+    sim.roads.push({ i: 9 * 32 + 8, owner: 0 });
+    sim.map.terrain[9 * 32 + 8] = Terrain.Road;
+    sim.map.terrain[12 * 32 + 8] = Terrain.Road;
+    expect(sim.placementError(0, 'tower', { cx: 8, cy: 9 })).toMatch(/Estrada no caminho/);
+    expect(sim.placementError(0, 'tower', { cx: 8, cy: 12 })).toBeNull();
+  });
+
+  it('não deixa fechar a última saída de um quartel, e a tropa de um quartel já cercado nasce do lado de fora', () => {
+    const sim = emptySim();
+    const bar = sim.addBuilding('barracks', 0, { cx: 8, cy: 8 }, 1);
+    const s = BUILDINGS.barracks.size;
+    // anel de torres a uma célula do quartel (sobra um corredor livre por dentro), com uma única brecha
+    const ring: { cx: number; cy: number }[] = [];
+    for (let y = 6; y <= 9 + s; y++) for (let x = 6; x <= 9 + s; x++) if (x === 6 || y === 6 || x === 9 + s || y === 9 + s) ring.push({ cx: x, cy: y });
+    const gap = ring.splice(ring.findIndex((c) => c.cx === 8 && c.cy === 6), 1)[0]!;
+    for (const c of ring) sim.addBuilding('tower', 0, c, 1);
+    expect(sim.placementError(0, 'tower', gap)).toMatch(/Fecharia a saída/);
+    // cercado de vez (obra antiga): a unidade nasce fora do anel, onde dá para andar
+    sim.addBuilding('tower', 0, gap, 1);
+    const u = sim.spawnUnitNear(bar, 'infantry')!;
+    const c = sim.grid.worldToCell(u.pos);
+    const inside = c.cx >= 6 && c.cx <= 9 + s && c.cy >= 6 && c.cy <= 9 + s;
+    expect(inside).toBe(false);
+  });
+});

@@ -317,6 +317,16 @@ export class Simulation {
   private readonly wars = new Set<string>();
   /** Estradas construídas pelos jogadores (célula e dono, para a manutenção). */
   roads: { i: number; owner: Slot }[] = [];
+  private roadSet: Set<number> | null = null;
+  private roadSetSize = -1;
+  /** Células das estradas dos jogadores (cache; as estradas só são acrescentadas). */
+  get builtRoads(): Set<number> {
+    if (!this.roadSet || this.roadSetSize !== this.roads.length) {
+      this.roadSet = new Set(this.roads.map((r) => r.i));
+      this.roadSetSize = this.roads.length;
+    }
+    return this.roadSet;
+  }
   /** Rede elétrica ligada nesta partida (ver `power.ts`). */
   power = false;
   /** Padrão de `SimulationInit.power` (os testes de regra antigos o desligam em `shared/test/setup.ts`). */
@@ -1846,6 +1856,7 @@ export class Simulation {
         // obstáculos: fora do território (terra neutra ou de quem está em guerra), perto de um engenheiro
         ...(BUILDINGS[type].engineerOutside && this.engineerNear(slot, cell) ? { outsideOk: (owner: number) => this.hostile(slot, owner) } : {}),
         deposits: this.deposits,
+        builtRoads: this.builtRoads,
       },
       slot,
       type,
@@ -3235,7 +3246,14 @@ export class Simulation {
   spawnUnitNear(b: Building, type: UnitType, hpMul = 1, mods: readonly ModId[] = []): Unit | null {
     const size = BUILDINGS[b.type].size;
     const occupied = new Set(this.units.map((u) => this.grid.index(...cellTuple(this.grid.worldToCell(u.pos)))));
-    for (let r = 1; r <= 4; r++) {
+    // primeiro só células com saída (o edifício pode ter sido cercado por obras); se nada servir, a regra antiga
+    const cell = this.spawnCell(b, size, occupied, 12, true) ?? this.spawnCell(b, size, occupied, 4, false);
+    return cell ? this.addUnit(type, b.owner, this.grid.cellCenter(cell), hpMul, mods) : null;
+  }
+
+  /** Célula livre no anel mais próximo do edifício (até `maxR`), voltada para o centro do mapa; `open`: exige saída. */
+  private spawnCell(b: Building, size: number, occupied: Set<number>, maxR: number, open: boolean): Cell | null {
+    for (let r = 1; r <= maxR; r++) {
       const candidates: Cell[] = [];
       for (let y = b.cell.cy - r; y < b.cell.cy + size + r; y++) {
         for (let x = b.cell.cx - r; x < b.cell.cx + size + r; x++) {
@@ -3248,10 +3266,34 @@ export class Simulation {
       // prioriza células voltadas para o centro do mapa
       const mid = { x: (this.map.width * this.map.cellSize) / 2, y: (this.map.height * this.map.cellSize) / 2 };
       candidates.sort((a, c) => dist(this.grid.cellCenter(a), mid) - dist(this.grid.cellCenter(c), mid));
-      const cell = candidates[0];
-      if (cell) return this.addUnit(type, b.owner, this.grid.cellCenter(cell), hpMul, mods);
+      const cell = open ? candidates.find((c) => this.reachesOut(c.cx, c.cy)) : candidates[0];
+      if (cell) return cell;
     }
     return null;
+  }
+
+  /** A partir da célula, dá para andar por pelo menos 120 células livres (não está num bolsão cercado)? */
+  private reachesOut(cx: number, cy: number): boolean {
+    const w = this.map.width;
+    const seen = new Set<number>([cy * w + cx]);
+    const queue = [cy * w + cx];
+    for (let q = 0; q < queue.length && seen.size < 120; q++) {
+      const i = queue[q]!;
+      const x = i % w;
+      const y = (i - x) / w;
+      for (const [nx, ny] of [
+        [x + 1, y],
+        [x - 1, y],
+        [x, y + 1],
+        [x, y - 1],
+      ] as const) {
+        const n = ny * w + nx;
+        if (seen.has(n) || !this.grid.isPassable(nx, ny)) continue;
+        seen.add(n);
+        queue.push(n);
+      }
+    }
+    return seen.size >= 120;
   }
 
   /**
