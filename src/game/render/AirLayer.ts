@@ -3,7 +3,7 @@ import type { AirView } from '../../../shared/sim/snapshot.ts';
 import type { Effects } from './Effects.ts';
 import { factionColor } from './palette.ts';
 import type { ModelLayers } from './models/kit.ts';
-import { AIRBASE_SLOTS, FIGHTER_SCALE, aircraftModel, bomberStoresModel, missileModel } from './models/military.ts';
+import { AIRBASE_RUNWAY, AIRBASE_SLOTS, FIGHTER_SCALE, aircraftModel, bomberStoresModel, missileModel } from './models/military.ts';
 import { glowTexture, volumetricSmokeTexture } from './textures.ts';
 
 type Flight = AirView['flights'][number];
@@ -234,9 +234,9 @@ const LAND_FROM = -15;
 const TAKEOFF_ROLL = 2.2;
 const TAKEOFF_GAP = 0.6;
 /** Pista da Base Aérea no referencial da base (ao longo de +x, do lado +z): início e fim da corrida. */
-const RUNWAY_Z = 2.75;
-const RUNWAY_X0 = -3.3;
-const RUNWAY_X1 = 3.2;
+const RUNWAY_Z = AIRBASE_RUNWAY.z;
+const RUNWAY_X0 = AIRBASE_RUNWAY.x0;
+const RUNWAY_X1 = AIRBASE_RUNWAY.x1;
 
 /**
  * Esquadrilha em voo. O servidor dá só o centro da missão (ida em linha reta e volta); aqui a

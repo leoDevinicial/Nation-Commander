@@ -15,7 +15,7 @@ precisão, interceptação) usa um gerador determinístico salvo no estado: salv
 ## Instalações
 | Construção | Custo | Para quê |
 |---|---|---|
-| Base Aérea (4×4 desde a 1.0) | 100 madeira, 150 pedra, 120 ferro, 100 suprimentos; manutenção 0,1 suprimentos/s + 0,03 petróleo/s | hangar para 4 aeronaves, pista, torre de controle, combustível; terminal do comércio aéreo |
+| Base Aérea (5×5 desde a 1.2; 4×4 na 1.0) | 100 madeira, 150 pedra, 120 ferro, 100 suprimentos; manutenção 0,1 suprimentos/s + 0,03 petróleo/s | hangar para 4 aeronaves, pista, torre de controle, combustível; terminal do comércio aéreo |
 | Bateria Antiaérea (1×1) | 60 pedra, 90 ferro, 40 suprimentos; manutenção 0,04/s | defende num raio de 12 contra aeronaves e mísseis; não dispara contra tropas |
 | Silo de Mísseis (1×1) | 160 pedra, 200 ferro, 120 suprimentos; manutenção 0,08/s | guarda até 2 mísseis; exige a pesquisa **Mísseis balísticos** |
 

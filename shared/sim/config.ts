@@ -1149,7 +1149,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     cost: { wood: 100, stone: 150, iron: 120, supplies: 100 },
     buildSeconds: 24,
     maxHp: 900,
-    size: 4,
+    size: 5,
     income: {},
     sight: 10,
     workers: 4,
