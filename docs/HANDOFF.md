@@ -179,6 +179,9 @@ npm test && npm run lint && npm run typecheck
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
+- **Salas públicas no menu** (31/10, `docs/SALAS_PUBLICAS.md`): lista de salas multijogador abertas com vaga, botão de
+  criar sala pública e a opção "Sala pública" no lobby.
+
 - **Rede elétrica** (31/10, `docs/REDE_ELETRICA.md`):
   - carvão como recurso (sai das minas);
   - termelétrica, eólica e solar, e a nuclear e a hidrelétrica como fontes;

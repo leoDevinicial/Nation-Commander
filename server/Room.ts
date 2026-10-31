@@ -9,6 +9,7 @@ import type {
   MatchEndInfo,
   MatchStartInfo,
   RoomInfo,
+  PublicRoomSummary,
   RoomMode,
   RoomPlayerInfo,
   ServerMessage,
@@ -95,6 +96,8 @@ export class Room {
   status: 'lobby' | 'playing' | 'ended' = 'lobby';
   readonly players: RoomPlayer[] = [];
   hostUserId = '';
+  /** Sala pública (lista do menu); só multijogador. */
+  isPublic = false;
   /** Nações na sala (o anfitrião escolhe de 2 até `nationLimit`). */
   maxPlayers = 2;
   /** Teto de nações: 4 na versão grátis, 6 com o anfitrião assinante; 2 no Sandbox. */
@@ -182,8 +185,17 @@ export class Room {
       balanceMode: this.balanceMode,
       mapType: this.mapType,
       nationLimit: this.nationLimit,
+      ...(this.isPublic ? { isPublic: true } : {}),
       ...(this.mode !== 'pvp' || this.players.some((p) => p.isAI) ? { difficulty: this.difficulty } : {}),
     };
+  }
+
+  /** Linha da lista pública (null quando a sala não deve aparecer: privada, em jogo ou cheia). */
+  publicSummary(): PublicRoomSummary | null {
+    if (!this.isPublic || this.mode !== 'pvp' || this.status !== 'lobby' || this.players.length >= this.maxPlayers) return null;
+    const host = this.players.find((p) => p.userId === this.hostUserId);
+    if (!host?.connected) return null;
+    return { code: this.code, hostName: host.name, players: this.players.length, maxPlayers: this.maxPlayers, mapType: this.mapType, countries: this.players.map((p) => p.countryId) };
   }
 
   hasUser(userId: string): boolean {
@@ -284,8 +296,12 @@ export class Room {
   }
 
   /** Anfitrião: número de nações e tipo de mapa. */
-  setRoom(conn: Connection, opts: { maxPlayers?: number; mapType?: MapType | 'random' }): void {
+  setRoom(conn: Connection, opts: { maxPlayers?: number; mapType?: MapType | 'random'; isPublic?: boolean }): void {
     if (this.status !== 'lobby' || conn.user?.id !== this.hostUserId || this.mode === 'sandbox') return;
+    if (opts.isPublic !== undefined && this.mode === 'pvp' && opts.isPublic !== this.isPublic) {
+      this.isPublic = opts.isPublic;
+      this.system(opts.isPublic ? 'Sala pública: aparece na lista do menu.' : 'Sala privada: só entra quem tiver o código.');
+    }
     if (opts.maxPlayers !== undefined) this.maxPlayers = Math.max(2, this.players.length, Math.min(this.nationLimit, opts.maxPlayers));
     if (opts.mapType !== undefined) {
       this.mapType = opts.mapType;

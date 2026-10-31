@@ -83,6 +83,20 @@ export interface RoomInfo {
   mapType?: MapType | 'random';
   /** Teto de nações desta sala (4 na versão grátis, 6 com o anfitrião assinante). */
   nationLimit?: number;
+  /** Sala pública: aparece na lista do menu para qualquer jogador entrar. */
+  isPublic?: boolean;
+}
+
+/** Linha da lista de salas públicas do menu (só salas multijogador no lobby, com vaga). */
+export interface PublicRoomSummary {
+  code: string;
+  hostName: string;
+  /** Nações ocupadas (humanos e bots) e o teto da sala. */
+  players: number;
+  maxPlayers: number;
+  mapType: MapType | 'random';
+  /** Países já escolhidos (bandeiras na lista). */
+  countries: string[];
 }
 
 export interface MatchStartInfo {
@@ -133,7 +147,8 @@ export interface MatchEndInfo {
 
 export type ClientMessage =
   | { t: 'hello'; protocol: number; token: string | null; guestId?: string; guestName?: string }
-  | { t: 'create_room'; mode: RoomMode; countryId: string }
+  | { t: 'create_room'; mode: RoomMode; countryId: string; isPublic?: boolean }
+  | { t: 'list_rooms' }
   | { t: 'join_room'; code: string; countryId: string }
   | { t: 'leave_room' }
   | { t: 'set_country'; countryId: string }
@@ -145,7 +160,7 @@ export type ClientMessage =
   | { t: 'set_balance'; mode: BalanceMode }
   | { t: 'set_difficulty'; difficulty: Difficulty }
   /** Anfitrião: número de nações da sala e tipo de mapa. */
-  | { t: 'set_room'; maxPlayers?: number; mapType?: MapType | 'random' }
+  | { t: 'set_room'; maxPlayers?: number; mapType?: MapType | 'random'; isPublic?: boolean }
   | { t: 'add_bot' }
   | { t: 'remove_bot'; slot: Slot }
   /** Anfitrião: país de um bot (ou sorteado entre os livres). */
@@ -162,6 +177,7 @@ export type ServerMessage =
   | { t: 'welcome'; user: PublicUser; serverVersion: string }
   | { t: 'error'; code: string; message: string }
   | { t: 'room'; room: RoomInfo | null }
+  | { t: 'room_list'; rooms: PublicRoomSummary[] }
   | { t: 'match_start'; match: MatchStartInfo }
   | { t: 'snapshot'; s: Snapshot; paused: boolean; speed: GameSpeed; pausedBy: string | null; scope?: 'battle'; opId?: number }
   /** Batalha local de uma operação começou: mapa e contexto da região (o jogador é o slot 0). */

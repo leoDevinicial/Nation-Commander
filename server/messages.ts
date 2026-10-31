@@ -31,7 +31,9 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     }
     case 'create_room':
       if ((data.mode !== 'pvp' && data.mode !== 'vs_ai' && data.mode !== 'sandbox') || !isCountryId(data.countryId)) return null;
-      return { t: 'create_room', mode: data.mode, countryId: data.countryId };
+      return { t: 'create_room', mode: data.mode, countryId: data.countryId, ...(data.isPublic === true && data.mode === 'pvp' ? { isPublic: true } : {}) };
+    case 'list_rooms':
+      return { t: 'list_rooms' };
     case 'join_room': {
       const code = typeof data.code === 'string' ? data.code.trim().toUpperCase() : '';
       if (!ROOM_CODE.test(code) || !isCountryId(data.countryId)) return null;
@@ -48,8 +50,9 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     case 'set_room': {
       const maxPlayers = typeof data.maxPlayers === 'number' && Number.isInteger(data.maxPlayers) && data.maxPlayers >= 2 && data.maxPlayers <= 6 ? data.maxPlayers : undefined;
       const mapType = data.mapType === 'random' || isMapType(data.mapType) ? data.mapType : undefined;
-      if (maxPlayers === undefined && mapType === undefined) return null;
-      return { t: 'set_room', ...(maxPlayers !== undefined ? { maxPlayers } : {}), ...(mapType !== undefined ? { mapType } : {}) };
+      const isPublic = typeof data.isPublic === 'boolean' ? data.isPublic : undefined;
+      if (maxPlayers === undefined && mapType === undefined && isPublic === undefined) return null;
+      return { t: 'set_room', ...(maxPlayers !== undefined ? { maxPlayers } : {}), ...(mapType !== undefined ? { mapType } : {}), ...(isPublic !== undefined ? { isPublic } : {}) };
     }
     case 'add_bot':
       return { t: 'add_bot' };

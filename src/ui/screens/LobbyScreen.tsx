@@ -122,6 +122,15 @@ export function LobbyScreen() {
           {!sandbox && (
             <fieldset className="mt-4 rounded border border-ink-700 p-3">
               <legend className="label px-1">Nações e mapa</legend>
+              {room.mode === 'pvp' && (
+                <label className={`mb-2 flex items-center gap-2 text-xs ${isHost ? 'cursor-pointer' : 'opacity-80'}`}>
+                  <input type="checkbox" className="accent-[#e0b44c]" checked={!!room.isPublic} disabled={!isHost} onChange={(e) => gameClient.send({ t: 'set_room', isPublic: e.target.checked })} />
+                  <span>
+                    <span className="font-semibold text-ink-100">Sala pública</span>
+                    <span className="text-ink-400"> — aparece em "Salas públicas" no menu; sem marcar, só entra quem tiver o código</span>
+                  </span>
+                </label>
+              )}
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="text-ink-300">Nações na partida:</span>
                 {Array.from({ length: Math.max(0, limit - 1) }, (_, i) => i + 2).map((n) => (

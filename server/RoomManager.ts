@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import type { RoomMode } from '../shared/protocol.ts';
+import type { PublicRoomSummary, RoomMode } from '../shared/protocol.ts';
 import { GAME_VERSION } from '../shared/version.ts';
 import type { Connection } from './Connection.ts';
 import { log } from './logger.ts';
@@ -38,13 +38,24 @@ export class RoomManager {
     return this.rooms.get(code);
   }
 
-  create(host: Connection, mode: RoomMode, countryId: string): Room | string {
+  /** Salas públicas com vaga, as mais cheias primeiro (até 30). */
+  listPublic(): PublicRoomSummary[] {
+    const out: PublicRoomSummary[] = [];
+    for (const r of this.rooms.values()) {
+      const s = r.publicSummary();
+      if (s) out.push(s);
+    }
+    return out.sort((a, b) => b.players - a.players || a.code.localeCompare(b.code)).slice(0, 30);
+  }
+
+  create(host: Connection, mode: RoomMode, countryId: string, isPublic = false): Room | string {
     if (this.rooms.size >= this.maxRooms) return 'Servidor cheio, tente novamente em instantes';
     let code: string;
     do {
       code = Array.from({ length: 5 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
     } while (this.rooms.has(code));
     const room = new Room(code, mode, { conn: host, countryId }, this.roomDeps);
+    if (isPublic && mode === 'pvp') room.isPublic = true;
     this.rooms.set(code, room);
     return room;
   }

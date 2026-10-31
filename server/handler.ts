@@ -68,7 +68,7 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
   switch (msg.t) {
     case 'create_room': {
       if (room) room.leave(conn);
-      const created = deps.rooms.create(conn, msg.mode, msg.countryId);
+      const created = deps.rooms.create(conn, msg.mode, msg.countryId, msg.isPublic === true);
       if (typeof created === 'string') conn.send({ t: 'error', code: 'room', message: created });
       else created.broadcastRoom();
       return;
@@ -88,6 +88,9 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
       if (err) conn.send({ t: 'error', code: 'room', message: err });
       return;
     }
+    case 'list_rooms':
+      conn.send({ t: 'room_list', rooms: deps.rooms.listPublic() });
+      return;
     case 'leave_room':
       room?.leave(conn);
       conn.roomCode = null;

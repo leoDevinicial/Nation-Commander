@@ -458,3 +458,44 @@ describe('operações expedicionárias pela rede (Fase 8)', () => {
     }
   });
 });
+
+describe('salas públicas', () => {
+  it('a sala pública aparece na lista do menu, some quando enche ou fica privada, e dá para entrar pela lista', async () => {
+    const { send } = setup();
+    const host = fakeConn();
+    const guest = fakeConn();
+    await send(host.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-ana' });
+    await send(guest.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-beto' });
+    // sala privada não aparece
+    await send(host.conn, { t: 'create_room', mode: 'pvp', countryId: COUNTRIES[0]!.id });
+    await send(guest.conn, { t: 'list_rooms' });
+    expect(guest.last('room_list')?.rooms).toEqual([]);
+    // o anfitrião abre a sala
+    await send(host.conn, { t: 'set_room', isPublic: true });
+    await send(guest.conn, { t: 'list_rooms' });
+    const list = guest.last('room_list')!.rooms;
+    expect(list).toHaveLength(1);
+    expect(list[0]!.hostName).toBe('ana');
+    expect(list[0]!.players).toBe(1);
+    // entra pela lista; com 2 de 2 a sala some
+    await send(guest.conn, { t: 'join_room', code: list[0]!.code, countryId: COUNTRIES[1]!.id });
+    expect(guest.last('room')?.room?.players).toHaveLength(2);
+    await send(guest.conn, { t: 'list_rooms' });
+    expect(guest.last('room_list')?.rooms).toEqual([]);
+  });
+
+  it('só salas multijogador podem ser públicas', async () => {
+    const { send } = setup();
+    const a = fakeConn();
+    const b = fakeConn();
+    await send(a.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-ana' });
+    await send(b.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-beto' });
+    await send(a.conn, { t: 'create_room', mode: 'vs_ai', countryId: COUNTRIES[0]!.id, isPublic: true });
+    await send(b.conn, { t: 'list_rooms' });
+    expect(b.last('room_list')?.rooms).toEqual([]);
+    await send(a.conn, { t: 'leave_room' });
+    await send(a.conn, { t: 'create_room', mode: 'pvp', countryId: COUNTRIES[0]!.id, isPublic: true });
+    await send(b.conn, { t: 'list_rooms' });
+    expect(b.last('room_list')?.rooms).toHaveLength(1);
+  });
+});
