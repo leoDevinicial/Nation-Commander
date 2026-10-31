@@ -25,8 +25,8 @@ contar como militar na população.
 
 | Classe | Custo | Produção | Alcance | Velocidade | Combustível | Manutenção | Papel |
 |---|---|---|---|---|---|---|---|
-| Caça multifunção | 60 ferro, 40 petróleo, 50 supr. + US$ 3 mi | 30 s | 170 | 6,5 | 0,12 petróleo por unidade voada | 0,04 supr./s; 25 s em solo após voar | ataque e interceptação |
-| Bombardeiro (exige Base Aérea nível 2) | 110 ferro, 70 petróleo, 80 supr. + US$ 6 mi | 45 s | 190 | 4,6 | 0,2 | 0,07 supr./s; 40 s | bombardeio em tapete contra edifícios |
+| Caça multifunção | 60 ferro, 40 petróleo, 50 supr. + US$ 3 mi | 30 s | 170 | 7,25 (6,5 até a 1.2) | 0,12 petróleo por unidade voada | 0,04 supr./s; 25 s em solo após voar | ataque e interceptação |
+| Bombardeiro (exige Base Aérea nível 2) | 110 ferro, 70 petróleo, 80 supr. + US$ 6 mi | 45 s | 190 | 5,13 (4,6 até a 1.2) | 0,2 | 0,07 supr./s; 40 s | bombardeio em tapete contra edifícios |
 | Reconhecimento | 30 ferro, 25 petróleo, 30 supr. + US$ 1,5 mi | 20 s | 200 | 7,5 | 0,08 | 0,02 supr./s; 15 s | revela área e registra edifícios |
 | Cargueiro | 50 ferro, 30 petróleo, 40 supr. + US$ 2,5 mi | 25 s | — | — | — | 0,03 supr./s | +1 embarque aéreo simultâneo no comércio |
 
@@ -67,7 +67,7 @@ base avançada encurta o voo (menos combustível, menos tempo exposto e manuten�
   - dano de 520 por bombardeiro, com precisão de 70% a 100% (quase 3× o caça);
   - os edifícios inimigos num raio de 5 do alvo levam 40% desse dano, menos quanto mais longe (mínimo de
     35% disso);
-  - lento (4,6) e sem defesa contra caças: só metralhadoras, com 5% de chance por rodada de derrubar um caça;
+  - lento (5,13) e sem defesa contra caças: só metralhadoras, com 5% de chance por rodada de derrubar um caça;
   - no mapa, cada bombardeiro solta uma fileira de 6 bombas que caem ao longo do rumo da passagem e explodem em
     sequência, com som e tremor perto da câmera.
 - **Combate aéreo (dogfight):** duas esquadrilhas de países em guerra que se cruzam no ar (a até 9 uma da

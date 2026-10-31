@@ -1391,8 +1391,8 @@ export class AirLayer {
     const victims = this.planesOf(e.targetMissionId);
     const shooter = shooters.length ? shooters[Math.floor(Math.random() * shooters.length)]! : null;
     const victim = victims.length ? victims[Math.floor(Math.random() * victims.length)]! : null;
-    // rajada do canhão: ~10 traçantes em 0,6 s saindo do nariz do atirador, que acompanham os dois aviões em movimento
-    this.bursts.push({ shooter, from: new THREE.Vector3(e.from.x, ALTITUDE, e.from.y), victim, to: new THREE.Vector3(e.to.x, ALTITUDE, e.to.y), next: this.time, left: 10, kill: e.kill });
+    // rajada do canhão: ~16 traçantes em ~1 s saindo do nariz do atirador, que acompanham os dois aviões em movimento
+    this.bursts.push({ shooter, from: new THREE.Vector3(e.from.x, ALTITUDE, e.from.y), victim, to: new THREE.Vector3(e.to.x, ALTITUDE, e.to.y), next: this.time, left: 16, kill: e.kill });
   }
 
   private frameBursts(): void {
@@ -1405,7 +1405,7 @@ export class AirLayer {
       if (b.ground) {
         // rasante: cada tiro cai um pouco mais à frente na linha, levantando terra
         const g = b.ground;
-        const k = 1 - b.left / 12;
+        const k = 1 - b.left / 18;
         const hitAt = g.start.clone().addScaledVector(g.dir, g.len * k).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0.05, (Math.random() - 0.5) * 0.5));
         const gdir = tmpB.copy(hitAt).sub(from).normalize();
         const muzzle = from.clone().addScaledVector(gdir, 0.9);
@@ -1421,7 +1421,7 @@ export class AirLayer {
       if (b.shooter?.parent) dir.lerp(new THREE.Vector3(1, 0, 0).applyEuler(b.shooter.rotation), 0.35).normalize();
       const nose = from.clone().addScaledVector(dir, 0.85);
       const reach = Math.min(18, from.distanceTo(to) + 2);
-      const hit = b.kill && b.left < 3;
+      const hit = b.kill && b.left < 4;
       const end = hit ? to.clone() : nose.clone().addScaledVector(dir, reach).add(new THREE.Vector3((Math.random() - 0.5) * 0.9, (Math.random() - 0.5) * 0.9, (Math.random() - 0.5) * 0.9));
       this.effects.tracer(nose, end, false);
       if (b.left % 3 === 0) this.effects.muzzleFlash(nose, dir, 0.3);
@@ -1554,7 +1554,7 @@ export class AirLayer {
         victim: null,
         to: lineStart,
         next: this.time + k * 0.18,
-        left: 12,
+        left: 18,
         kill: false,
         ground: { start: lineStart, dir: flat, len: 6, dust: fx.dust },
       });

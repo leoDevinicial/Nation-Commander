@@ -352,7 +352,7 @@ export class AudioService {
     if (this.cannonBursts.length < 3) {
       const ctx = this.ctx!;
       const rate = ctx.sampleRate;
-      const firing = 0.62 + Math.random() * 0.2;
+      const firing = 0.85 + Math.random() * 0.25;
       const rof = 96 + Math.random() * 10;
       const len = Math.round((firing + 0.06) * rate);
       const buffer = ctx.createBuffer(1, len, rate);
@@ -1238,7 +1238,7 @@ export class AudioService {
         const wet = ctx.createGain();
         wet.gain.value = gain * 0.4;
         mix.connect(wet).connect(this.outdoorReverb());
-        const shots = 10 + Math.floor(Math.random() * 4);
+        const shots = 16 + Math.floor(Math.random() * 4);
         for (let i = 0; i < shots; i++) {
           const at = t + i * 0.055 + Math.random() * 0.006;
           burst('bandpass', 1800, 1.2, 0.0006, 0.55, 0.035, at, mix);

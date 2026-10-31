@@ -56,8 +56,8 @@ export const AIRCRAFT: Record<AircraftType, AircraftDef> = {
     usd: 3_000_000,
     buildSeconds: 30,
     range: 170,
-    // velocidades reduzidas: no 1× um caça leva ~20 s para cruzar o mapa (antes ~9 s)
-    speed: 6.5,
+    // no 1× um caça leva ~18 s para cruzar o mapa (versão 1.2: +11,5%, de 6,5)
+    speed: 7.25,
     fuelPerWorld: 0.12,
     upkeep: 0.04,
     maintenanceSeconds: 25,
@@ -70,7 +70,8 @@ export const AIRCRAFT: Record<AircraftType, AircraftDef> = {
     usd: 6_000_000,
     buildSeconds: 45,
     range: 190,
-    speed: 4.6,
+    // +11,5% na versão 1.2 (era 4,6)
+    speed: 5.13,
     fuelPerWorld: 0.2,
     upkeep: 0.07,
     maintenanceSeconds: 40,
