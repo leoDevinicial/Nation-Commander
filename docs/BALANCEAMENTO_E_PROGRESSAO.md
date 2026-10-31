@@ -427,6 +427,38 @@ como na escolha entre os modos paridade e escala real.
 
 ---
 
+# Próximo grande bloco: rede elétrica (feedback do gerente, versão 1.0)
+
+Proposta registrada a partir do feedback da versão 1.0. Ainda não implementada.
+
+- **Postes e linhas:**
+  - os postes vão nas estradas, e a energia chega pelas estradas;
+  - uma estrada cortada (destruída, ocupada pelo inimigo) derruba a energia do que estiver depois dela.
+- **Usinas:**
+  - toda nação começa com uma usina inicial pequena;
+  - depois constrói usinas a carvão (barata, polui e consome carvão ou petróleo), eólica (depende do mapa e do vento,
+    gera pouco) e solar (cara, limpa, melhora na Era Digital).
+  - A Usina Nuclear e a Hidrelétrica dos Grandes Projetos entram nessa rede como as maiores fontes.
+- **Oferta e demanda:**
+  - cada fábrica, quartel, centro de pesquisa, casa e edifício consome energia;
+  - sem oferta suficiente, a produção desacelera na proporção do déficit;
+  - painel com geração e consumo e um alerta de apagão.
+- **Guerra contra a infraestrutura:**
+  - atacar usinas, postes ou subestações inimigas para parar as fábricas do rival;
+  - vira alvo natural de bombardeiros, mísseis e incursões;
+  - a IA precisa defender e reconstruir.
+- **Aprovação:**
+  - casas e prédios com luz dão aprovação;
+  - apagão ou estrada cortada que deixa um bairro sem luz derruba a aprovação, ligando a rede ao sistema político
+    (decretos, facções, eleições).
+- **Por onde começar:**
+  - na simulação, demanda × oferta por componente conexa da malha de estradas (o mesmo grafo das caravanas e do bônus
+    de +15%);
+  - depois a usina inicial, os três tipos de usina e o modificador de produção;
+  - por último o visual (postes low poly ao longo das estradas, fios, bairro apagado à noite) e a IA.
+
+---
+
 # Estado da implementação
 
 | Item | Estado | Onde |
@@ -440,6 +472,8 @@ como na escolha entre os modos paridade e escala real.
 | Lote 1, §2.5 — ritmo da IA por dificuldade: primeira ofensiva com o que tiver (14 / 10 / 8 / 6 min), exército mínimo crescente, QG rumo à próxima era, mais fazendas, minas e prefeituras, defesa nacional maior; `sim-economia.ts` com a camada nacional | Feito | `docs/DIFICULDADE_VETERANIA.md`, `TacticalAI`, `NationalAI` |
 | Phalanx CIWS Móvel (Era Digital): 8×8 com Gatling guiado por radar, derruba 40% de cada salva do Lança-Foguetes por perto e conta como defesa antiaérea; pesquisa Defesa de ponto; IA usa contra lança-foguetes | Feito | `docs/CIWS.md` |
 | Domo de Ferro: bateria antimíssil (Futuro Próximo) que intercepta o míssil comum com 2 interceptadores (90%), magazine de 4, recarga paga de 40 s e espera de 10 s entre engajamentos; não detém o pesado nem o nuclear | Feito (a IA ainda não constrói) | `docs/DOMO_DE_FERRO.md` |
+| Versão 1.0 — obras com o dobro do tempo (Centro de Pesquisa ×1,3); Base Aérea 4×4 com pista maior e aeronaves reais estacionadas no pátio | Feito | `docs/ECONOMIA.md`, `docs/FASE7_FORCA_AEREA_MISSEIS_AUDIO.md` |
+| Rede elétrica (postes nas estradas, usinas, oferta × demanda, ataque à infraestrutura, aprovação) | Pendente: próximo grande bloco | seção "Próximo grande bloco: rede elétrica" |
 | Mercado interno no Terminal Comercial (excedente → suprimentos, preço com pressão que se recupera; IA vende a sobra) | Feito | `docs/MERCADO_INTERNO.md`, `shared/sim/market.ts` |
 | Lote 1, §2.6 — incidentes de fronteira no preparo | Feito | `Simulation.startIncident`, `TacticalAI.planHarass` |
 | Lote 1, §2.7 — curva de defesa (raiz com saturação suave) | Feito | `theaterSupply` em `shared/strategic/params.ts` |

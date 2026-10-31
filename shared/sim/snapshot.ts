@@ -2,7 +2,7 @@ import { BUILDINGS, MINE, RESOURCE_TYPES, SPACE, TICK_RATE, UNITS, type Building
 import type { Population, Simulation } from './Simulation.ts';
 import { encodeTerritory } from './territory.ts';
 import type { BuildingStatus, EntityId, SimEvent, Slot, UnitActivity, Vec2 } from './types.ts';
-import type { SpecId } from './upgrades.ts';
+import { buildingEffects, type SpecId } from './upgrades.ts';
 import { combineMods, type ModId } from './modernization.ts';
 import { AIRCRAFT, IRON_DOME, MISSILE, NUCLEAR, missileSpec, type AircraftState, type AircraftType, type LaunchState, type MissionKind, type MissionResult, type MissionState } from './air.ts';
 import { caravanIncome, type CaravanState } from './caravans.ts';
@@ -153,8 +153,8 @@ export interface TradeView {
 
 /** Força aérea e mísseis do ponto de vista de um jogador (Fase 7). */
 export interface AirView {
-  /** Aeronaves próprias. `progress`: produção ou manutenção (0..1). */
-  aircraft: { id: number; type: AircraftType; baseId: EntityId; state: AircraftState; progress: number }[];
+  /** Aeronaves próprias. `progress`: produção ou manutenção (0..1); `gen`: modelo dos caças da base (desenho no pátio). */
+  aircraft: { id: number; type: AircraftType; baseId: EntityId; state: AircraftState; progress: number; gen: number }[];
   /** Voos no mapa: os próprios e os inimigos visíveis. */
   /**
    * Voos em andamento. `gen`: modelo dos caças (1 = F-5EM, 2 = F-39 Gripen); `bx/by`: base de
@@ -481,7 +481,9 @@ export function airView(sim: Simulation, slot: Slot): AirView {
       .filter((a) => a.owner === slot)
       .map((a) => {
         const total = a.state === 'building' ? AIRCRAFT[a.type].buildSeconds * TICK_RATE : AIRCRAFT[a.type].maintenanceSeconds * TICK_RATE;
-        return { id: a.id, type: a.type, baseId: a.baseId, state: a.state, progress: a.state === 'building' || a.state === 'maintenance' ? r2(1 - a.timer / Math.max(1, total)) : 1 };
+        const base = sim.entities.get(a.baseId);
+        const gen = base && 'level' in base ? buildingEffects('airbase', base.level).fighterGen : 1;
+        return { id: a.id, type: a.type, baseId: a.baseId, state: a.state, progress: a.state === 'building' || a.state === 'maintenance' ? r2(1 - a.timer / Math.max(1, total)) : 1, gen };
       }),
     flights,
     missions: air.missions

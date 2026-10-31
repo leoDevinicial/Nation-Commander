@@ -66,6 +66,18 @@ IA leem o mesmo valor já escalado.
 
 Para mudar o ritmo da economia, ajuste os multiplicadores em vez dos valores espalhados pelas definições.
 
+## Tempo de obra (versão 1.0)
+
+Pedido do gerente na 1.0: construir deve ser "uma gota, igual no Rise", e não instantâneo. `ECONOMY.buildTime` dobra
+o tempo de obra (`buildSeconds`) de todas as construções comuns ao carregar a configuração. Ficam de fora os Grandes
+Projetos, que já são longos, e o obstáculo antitanque, erguido em combate. O Centro de Pesquisa tem fator próprio,
+×1,3 em `ECONOMY.buildTimeBy`, porque abre a árvore militar.
+
+Validação com `sim-economia.ts 1,2,3,4,5,6,7 25`: 8 dos 9 critérios passam, um a mais que antes. O que ainda falha é a
+primeira pesquisa militar antes dos 13:00: um terço das IAs a faz entre 13:10 e 13:20. Com o Centro de Pesquisa em ×1
+o resultado foi o mesmo, então o atraso vem das outras obras do começo, não dele. Os testes de regra esperam `BUILDINGS[tipo].buildSeconds`, o valor já
+escalado, e não segundos fixos.
+
 ## Exemplos de custo
 
 | Item                | Custo                                                                                 |

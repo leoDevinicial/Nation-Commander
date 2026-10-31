@@ -59,7 +59,7 @@ function withBase(opts: { techs?: string[]; war?: boolean; fighters?: number; re
   const s = setup(opts);
   const base = s.place(0, 'airbase', [2, 8], [12, 14]);
   const tank = s.place(1, 'oil_tank', [24, 24], [33, 33]);
-  run(s.sim, 40);
+  run(s.sim, BUILDINGS.airbase.buildSeconds + 1);
   const ids: number[] = [];
   for (let i = 0; i < (opts.fighters ?? 2); i++) expect(s.sim.applyCommand(0, { type: 'build_aircraft', buildingId: base.id, aircraftType: 'fighter' })).toBeNull();
   for (let i = 0; i < (opts.recon ?? 1); i++) expect(s.sim.applyCommand(0, { type: 'build_aircraft', buildingId: base.id, aircraftType: 'recon' })).toBeNull();
@@ -79,7 +79,7 @@ describe('Fase 7 — aeronaves e bases aéreas', () => {
     expect(sim.applyCommand(0, { type: 'build_aircraft', buildingId: hq.id, aircraftType: 'fighter' })).toMatch(/Base aérea/);
     const base = place(0, 'airbase', [2, 8], [12, 14]);
     expect(sim.applyCommand(0, { type: 'build_aircraft', buildingId: base.id, aircraftType: 'fighter' })).toMatch(/inoperante/);
-    run(sim, 30);
+    run(sim, BUILDINGS.airbase.buildSeconds + 1);
     p.recruits = 0;
     expect(sim.applyCommand(0, { type: 'build_aircraft', buildingId: base.id, aircraftType: 'fighter' })).toMatch(/piloto/);
     p.recruits = 10;
@@ -207,7 +207,7 @@ describe('Fase 7 — aeronaves e bases aéreas', () => {
   it('antiaérea derruba aeronaves (determinístico); sem defesa ninguém cai', () => {
     const { sim, base, tank, place } = withBase({ fighters: 4, recon: 0 });
     for (let i = 0; i < 3; i++) place(1, 'aa_battery', [22 + i * 2, 22], [33, 33]);
-    run(sim, 20);
+    run(sim, BUILDINGS.aa_battery.buildSeconds + 1);
     for (const a of sim.air.aircraft) a.state = 'ready';
     sim.air.known[0] = new Set([tank.id]);
     let lost = 0;
@@ -277,7 +277,7 @@ describe('Bombardeiro e combate aéreo', () => {
     const { sim, base, tank, place } = withBase({ recon: 0 });
     const base1 = place(1, 'airbase', [16, 16], [34, 34]);
     const target0 = sim.hqOf(0)!;
-    run(sim, 30);
+    run(sim, BUILDINGS.airbase.buildSeconds + 1);
     for (let i = 0; i < 2; i++) expect(sim.applyCommand(1, { type: 'build_aircraft', buildingId: base1.id, aircraftType: 'fighter' })).toBeNull();
     run(sim, AIRCRAFT.fighter.buildSeconds + 1);
     sim.air.known[0] = new Set([tank.id]);
@@ -375,7 +375,7 @@ describe('Fase 7 — mísseis', () => {
     const s = setup(opts);
     const sl = s.place(0, 'missile_silo', [2, 8], [12, 14]);
     const enemyHq = s.sim.hqOf(1)!;
-    run(s.sim, 35);
+    run(s.sim, BUILDINGS.missile_silo.buildSeconds + 1);
     return { ...s, silo: sl, enemyHq };
   }
 
@@ -454,7 +454,7 @@ describe('Fase 7 — mísseis', () => {
   it('antiaérea perto do alvo pode interceptar o míssil (sem dano)', () => {
     const { sim, silo: sl, enemyHq, place } = silo();
     for (let i = 0; i < 3; i++) place(1, 'aa_battery', [29, 29], [34, 34]);
-    run(sim, 20);
+    run(sim, BUILDINGS.aa_battery.buildSeconds + 1);
     expect(sim.buildings.filter((b) => b.type === 'aa_battery' && Math.hypot(b.pos.x - enemyHq.pos.x, b.pos.y - enemyHq.pos.y) <= MISSILE.interceptRange)).toHaveLength(3);
     sim.air.known[0] = new Set([enemyHq.id]);
     let intercepted = 0;
@@ -603,7 +603,7 @@ describe('Fase 7 — persistência, comandos e comércio aéreo', () => {
   it('salvar no meio de uma missão e de um lançamento e continuar é idêntico', () => {
     const { sim, base, tank, place } = withBase();
     const sl = place(0, 'missile_silo', [2, 2], [14, 14]);
-    run(sim, 32);
+    run(sim, BUILDINGS.missile_silo.buildSeconds + 1);
     sim.air.known[0] = new Set([tank.id, sim.hqOf(1)!.id]);
     for (const a of sim.air.aircraft) a.state = 'ready';
     sim.air.silo(sl.id).missiles = 1;
@@ -634,10 +634,10 @@ describe('Fase 7 — persistência, comandos e comércio aéreo', () => {
   it('base aérea habilita o modal aéreo do comércio e cada cargueiro pronto amplia os embarques', () => {
     const { sim, place } = setup();
     place(0, 'market', [2, 8], [14, 14]);
-    run(sim, 20);
+    run(sim, BUILDINGS.market.buildSeconds + 1);
     expect(sim.trade.modeBlocker(0, 'air')).toMatch(/Base Aérea/);
     const base = place(0, 'airbase', [2, 8], [14, 14]);
-    run(sim, 30);
+    run(sim, BUILDINGS.airbase.buildSeconds + 1);
     expect(sim.trade.modeBlocker(0, 'air')).toBeNull();
     const before = sim.trade.convoyLimit(0, 'air');
     expect(sim.applyCommand(0, { type: 'build_aircraft', buildingId: base.id, aircraftType: 'transport' })).toBeNull();
@@ -649,7 +649,7 @@ describe('Fase 7 — persistência, comandos e comércio aéreo', () => {
     const { sim, base, place } = withBase();
     void base;
     const sl = place(0, 'missile_silo', [2, 2], [14, 14]);
-    run(sim, 32);
+    run(sim, BUILDINGS.missile_silo.buildSeconds + 1);
     const hq1 = sim.hqOf(1)!;
     sim.air.known[0] = new Set([hq1.id]);
     sim.air.silo(sl.id).missiles = 1;
@@ -689,7 +689,7 @@ describe('ogiva nuclear e choque econômico global', () => {
     const s = setup({ techs: ['guided_munitions', 'ballistic_missiles'] });
     const silo = s.place(0, 'missile_silo', [2, 8], [12, 14]);
     const target = s.place(1, 'oil_tank', [24, 24], [33, 33]);
-    run(s.sim, 35);
+    run(s.sim, BUILDINGS.missile_silo.buildSeconds + 1);
     expect(s.sim.applyCommand(0, { type: 'build_missile', buildingId: silo.id, nuclear: true })).toMatch(/Armas nucleares/);
     s.N.st.techs = ['guided_munitions', 'ballistic_missiles', 'nuclear_weapons'];
     expect(s.sim.applyCommand(0, { type: 'build_missile', buildingId: silo.id, nuclear: true })).toBeNull();

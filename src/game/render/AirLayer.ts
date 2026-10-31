@@ -3,7 +3,7 @@ import type { AirView } from '../../../shared/sim/snapshot.ts';
 import type { Effects } from './Effects.ts';
 import { factionColor } from './palette.ts';
 import type { ModelLayers } from './models/kit.ts';
-import { aircraftModel, missileModel } from './models/military.ts';
+import { AIRBASE_SLOTS, aircraftModel, missileModel } from './models/military.ts';
 import { glowTexture, volumetricSmokeTexture } from './textures.ts';
 
 type Flight = AirView['flights'][number];
@@ -223,6 +223,8 @@ export class AirLayer {
     return f ? { x: f.pos.x, y: f.pos.y } : null;
   }
   private readonly missiles = new Map<number, TrackedMissile>();
+  /** Aeronaves próprias paradas no pátio da base (prontas, em manutenção ou sem piloto), nas vagas do modelo. */
+  private readonly parked = new Map<number, { group: THREE.Group; kind: Kind }>();
   private readonly beacons = new Map<number, THREE.Sprite>();
   private readonly targetRings = new Map<number, THREE.Mesh>();
   private readonly rangeRing = ring('#f2c94c', 0.55);
@@ -320,6 +322,8 @@ export class AirLayer {
         this.flights.delete(id);
       }
 
+    this.updateParked(air.aircraft);
+
     this.launches = air.launches;
     const live = new Set<number>();
     for (const l of air.launches) {
@@ -390,6 +394,44 @@ export class AirLayer {
         r.geometry.dispose();
         (r.material as THREE.Material).dispose();
         this.targetRings.delete(id);
+      }
+  }
+
+  /**
+   * Desenha nas vagas da base as aeronaves que existem de fato (até 4 por base, como o hangar), viradas para a pista:
+   * o pátio mostra de relance quantas estão estacionadas. As que saem em missão ou ainda estão em produção somem dali.
+   */
+  private updateParked(list: AirView['aircraft']): void {
+    const perBase = new Map<number, number>();
+    const keep = new Set<number>();
+    for (const a of list) {
+      if (a.state === 'building' || a.state === 'mission') continue;
+      const n = perBase.get(a.baseId) ?? 0;
+      const slot = AIRBASE_SLOTS[n];
+      const at = this.posOf(a.baseId);
+      if (!slot || !at) continue;
+      perBase.set(a.baseId, n + 1);
+      keep.add(a.id);
+      const kind: Kind = a.type === 'fighter' ? (a.gen >= 2 ? 'gripen' : 'fighter') : a.type;
+      let p = this.parked.get(a.id);
+      if (p && p.kind !== kind) {
+        p.group.removeFromParent();
+        p = undefined;
+      }
+      if (!p) {
+        p = { group: meshes(model(kind), this.mySlot, true), kind };
+        // o bombardeiro e o cargueiro são maiores que a vaga de caça
+        if (kind === 'bomber' || kind === 'transport') p.group.scale.setScalar(0.65);
+        p.group.rotation.y = slot.heading;
+        this.group.add(p.group);
+        this.parked.set(a.id, p);
+      }
+      p.group.position.set(at.x + slot.x, 0.24, at.y + slot.z);
+    }
+    for (const [id, p] of this.parked)
+      if (!keep.has(id)) {
+        p.group.removeFromParent();
+        this.parked.delete(id);
       }
   }
 
@@ -912,6 +954,8 @@ export class AirLayer {
   }
 
   dispose(): void {
+    for (const p of this.parked.values()) p.group.removeFromParent();
+    this.parked.clear();
     for (const t of this.flights.values()) for (const pl of t.planes) this.disposePlane(pl);
     this.flights.clear();
     for (const m of this.missiles.values()) {

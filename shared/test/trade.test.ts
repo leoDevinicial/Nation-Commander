@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TICK_RATE, Terrain, type BuildingType } from '../sim/config.ts';
+import { BUILDINGS, TICK_RATE, Terrain, type BuildingType } from '../sim/config.ts';
 import { parseCommand } from '../sim/commands.ts';
 import { Simulation } from '../sim/Simulation.ts';
 import { TRADE, TRANSPORT, type TradeLink } from '../sim/trade.ts';
@@ -50,7 +50,7 @@ function setup(opts: { wall?: boolean; types?: BuildingType[] } = {}) {
   for (const r of Object.keys(p.resources) as (keyof typeof p.resources)[]) p.resources[r] = 1000;
   const built: Partial<Record<BuildingType, Building>> = {};
   for (const t of opts.types ?? ['market', 'silo', 'oil_tank']) built[t] = place(t);
-  run(sim, 20 * TICK_RATE);
+  run(sim, (Math.max(...Object.values(built).map((b) => BUILDINGS[b.type].buildSeconds)) + 1) * TICK_RATE);
   // estoque controlado: 200 de ferro no armazém inicial
   p.resources.iron = 200;
   return { sim, p, ...L, built };

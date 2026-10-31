@@ -315,11 +315,12 @@ function transportPlane(b: PartBuilder, a: PartBuilder, g: PartBuilder, at: V3, 
 }
 
 /**
- * Bombardeiro estratégico de asa em flecha (perfil B-1/Tu-160, nariz para +x): fuselagem longa e
- * afilada com dorso, nariz pontudo, cabine escalonada, asas em flecha presas a uma luva fixa,
- * quatro motores em duas naceles sob a raiz das asas, deriva alta inclinada e portas do
- * compartimento de bombas sob a barriga.
+ * Vagas de estacionamento das aeronaves no pátio da Base Aérea (referencial do modelo = mundo, centrado no edifício):
+ * posição e rumo (rad, nariz para +z, voltado para a pista). Uma por vaga do hangar (`AIR.hangarPerBase`); as aeronaves
+ * paradas de verdade são desenhadas nelas pela camada aérea.
  */
+export const AIRBASE_SLOTS: { x: number; z: number; heading: number }[] = [-1.15, 0.05, 1.25, 2.45].map((x) => ({ x, z: 0.55, heading: -Math.PI / 2 }));
+
 function bomberPlane(b: PartBuilder, a: PartBuilder, g: PartBuilder, at: V3, s = 1): void {
   const [x, y, z] = at;
   const P = (dx: number, dy: number, dz: number): V3 => [x + dx * s, y + dy * s, z + dz * s];
@@ -374,72 +375,81 @@ function bomberPlane(b: PartBuilder, a: PartBuilder, g: PartBuilder, at: V3, s =
 
 // ------------------------------------------------------------------ base aérea
 
+/**
+ * Base Aérea (4×4): pista de ponta a ponta (7,8 de comprimento, cabeceiras zebradas, eixo tracejado, luzes de borda),
+ * pista de taxiamento até o pátio com quatro vagas marcadas, hangar em arco, torre de controle, tanques de combustível
+ * com bacia, caminhão-tanque, radar de vigilância girando, bandeira e biruta. As aeronaves paradas não fazem parte do
+ * modelo: a camada aérea desenha as que existem de fato, nas vagas (`AIRBASE_SLOTS`).
+ */
 export function buildAirbaseModel(): Built {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
-  // pátio e pista (ao longo de x, lado +z)
-  b.box(5.9, 0.05, 5.9, '#7b7d76', [0, 0.025, 0]);
-  b.box(5.8, 0.03, 1.2, C.asphalt, [0, 0.065, 2.1]);
-  for (let i = 0; i < 9; i++) b.box(0.32, 0.01, 0.05, C.white, [-2.5 + i * 0.62, 0.085, 2.1]);
-  for (const sz of [-1, 1]) b.box(5.7, 0.01, 0.03, C.white, [0, 0.085, 2.1 + sz * 0.54]);
-  for (let i = 0; i < 6; i++) for (const sx of [-1, 1]) b.box(0.05, 0.01, 0.28, C.white, [sx * (2.55 - (i % 3) * 0.12), 0.085, 1.78 + Math.floor(i / 3) * 0.64]);
-  // luzes de borda da pista
-  for (let i = 0; i < 8; i++) for (const sz of [-1, 1]) b.box(0.05, 0.05, 0.05, i % 2 ? '#f2e6a0' : '#d65a4a', [-2.8 + i * 0.8, 0.1, 2.1 + sz * 0.66]);
-  // pista de taxiamento e pátio de estacionamento
-  b.box(0.7, 0.03, 1.6, C.asphalt, [1.3, 0.06, 0.75]);
-  b.box(2.6, 0.03, 1.5, '#55585b', [0.9, 0.06, -0.15]);
-  b.box(0.04, 0.008, 1.5, C.yellow, [1.3, 0.08, 0.8]);
-  for (const x of [0.2, 1.4]) b.box(0.9, 0.008, 0.04, C.yellow, [x, 0.08, -0.15]);
-  // hangar em arco (meia-cana) com portões abertos
-  const hx = -1.4;
-  const hz = -1.0;
-  b.add(cylHalf(1.0, 2.0), '#8e959b', { pos: [hx, 0.06, hz] });
-  for (let i = 0; i < 6; i++) b.add(cylHalf(1.02, 0.03), '#767d83', { pos: [hx, 0.06, hz - 0.95 + i * 0.38] });
-  b.box(1.75, 0.82, 0.04, '#2a2d30', [hx, 0.47, hz + 1.0]); // vão escuro do portão
-  b.box(0.06, 0.95, 0.12, '#6d7378', [hx - 0.92, 0.5, hz + 1.0]);
-  b.box(0.06, 0.95, 0.12, '#6d7378', [hx + 0.92, 0.5, hz + 1.0]);
-  a.box(0.8, 0.14, 0.02, '#ffffff', [hx, 0.98, hz + 0.98]);
-  fighter(b, a, g, [hx + 0.1, 0.2, hz + 1.5], 0.52);
-  // torre de controle com cabine envidraçada
-  const tx = 2.3;
-  const tz = -2.2;
-  b.box(0.6, 0.5, 0.6, '#cfd2d0', [tx, 0.3, tz]);
-  b.cyl(0.18, 0.2, 1.1, '#cfd2d0', [tx, 1.05, tz], undefined, 10);
-  b.cyl(0.36, 0.3, 0.06, C.concreteDark, [tx, 1.62, tz], undefined, 12);
-  g.cyl(0.36, 0.3, 0.3, '#ffffff', [tx, 1.8, tz], undefined, 12);
-  b.cyl(0.4, 0.4, 0.05, C.roof, [tx, 1.97, tz], undefined, 12);
-  strut(b, [tx, 2.0, tz], [tx, 2.35, tz], 0.025, C.steel, true);
-  b.box(0.05, 0.05, 0.05, C.red, [tx, 2.37, tz]);
-  railing(b, [tx - 0.4, tz - 0.4], [tx + 0.4, tz - 0.4], 1.65, 0.1, C.steel, 2);
-  // tanques de combustível com bacia de contenção
-  b.box(1.4, 0.08, 0.8, C.concreteDark, [0.6, 0.09, -2.35]);
-  for (const x of [0.2, 1.0]) {
-    b.cyl(0.3, 0.3, 0.5, C.white, [x, 0.38, -2.35], undefined, 14);
-    b.cyl(0.31, 0.31, 0.04, '#9a9a92', [x, 0.64, -2.35], undefined, 14);
-    a.box(0.3, 0.06, 0.01, '#ffffff', [x, 0.42, -2.04]);
+  b.box(7.9, 0.05, 7.9, '#7b7d76', [0, 0.025, 0]);
+  // pista (ao longo de x, lado +z)
+  const rz = 2.75;
+  b.box(7.8, 0.03, 1.7, C.asphalt, [0, 0.065, rz]);
+  for (let i = 0; i < 12; i++) b.box(0.36, 0.01, 0.06, C.white, [-3.3 + i * 0.6, 0.085, rz]);
+  for (const sz of [-1, 1]) b.box(7.7, 0.01, 0.04, C.white, [0, 0.085, rz + sz * 0.78]);
+  // cabeceiras zebradas nas duas pontas
+  for (const sx of [-1, 1]) for (let i = 0; i < 6; i++) b.box(0.42, 0.01, 0.09, C.white, [sx * 3.55, 0.085, rz - 0.6 + i * 0.24]);
+  // luzes de borda
+  for (let i = 0; i < 11; i++) for (const sz of [-1, 1]) b.box(0.05, 0.05, 0.05, i % 2 ? '#f2e6a0' : '#d65a4a', [-3.8 + i * 0.76, 0.1, rz + sz * 0.92]);
+  // pista de taxiamento e pátio com as vagas
+  b.box(0.8, 0.03, 1.2, C.asphalt, [3.15, 0.06, 1.35]);
+  b.box(0.04, 0.008, 1.2, C.yellow, [3.15, 0.08, 1.35]);
+  b.box(5.3, 0.03, 1.9, '#55585b', [0.75, 0.06, 0.55]);
+  for (const s of AIRBASE_SLOTS) {
+    b.box(0.05, 0.008, 1.3, C.yellow, [s.x, 0.08, s.z + 0.2]);
+    b.box(0.9, 0.008, 0.04, C.yellow, [s.x, 0.08, s.z - 0.75]);
   }
-  strut(b, [0.2, 0.2, -2.0], [1.0, 0.2, -2.0], 0.03, C.metal, true);
-  // caminhão-tanque de reabastecimento no pátio
-  b.box(0.5, 0.18, 0.2, '#c8c3b4', [2.25, 0.2, -0.6]);
-  b.box(0.18, 0.2, 0.2, '#5b6650', [2.6, 0.2, -0.6]);
-  for (const dx of [-0.15, 0.15, 0.55]) for (const sz of [-1, 1]) b.cyl(0.05, 0.05, 0.04, C.rubber, [2.25 + dx, 0.11, -0.6 + sz * 0.11], [Math.PI / 2, 0, 0], 8);
-  fighter(b, a, g, [0.35, 0.18, -0.15], 0.5);
-  // mastro da bandeira e biruta
-  strut(b, [-2.7, 0.05, 0.9], [-2.7, 1.3, 0.9], 0.03, C.steel, true);
-  a.box(0.02, 0.24, 0.38, '#ffffff', [-2.7, 1.18, 1.1]);
-  strut(b, [2.7, 0.05, 1.2], [2.7, 0.75, 1.2], 0.025, C.steel, true);
-  b.cyl(0.05, 0.025, 0.25, '#e07a2e', [2.82, 0.72, 1.2], [0, 0, Math.PI / 2], 6);
-  // radar de vigilância girando sobre a torre do radar
-  const rx = -2.4;
-  const rz = -2.4;
-  b.box(0.4, 0.3, 0.4, '#cfd2d0', [rx, 0.2, rz]);
-  strut(b, [rx, 0.35, rz], [rx, 0.95, rz], 0.08, C.steel);
+  // hangar em arco (meia-cana) com o portão aberto para o pátio
+  const hx = -2.5;
+  const hz = -1.5;
+  b.add(cylHalf(1.25, 2.6), '#8e959b', { pos: [hx, 0.06, hz] });
+  for (let i = 0; i < 7; i++) b.add(cylHalf(1.27, 0.03), '#767d83', { pos: [hx, 0.06, hz - 1.25 + i * 0.42] });
+  b.box(2.2, 1.05, 0.04, '#2a2d30', [hx, 0.58, hz + 1.3]);
+  b.box(0.07, 1.2, 0.14, '#6d7378', [hx - 1.15, 0.62, hz + 1.3]);
+  b.box(0.07, 1.2, 0.14, '#6d7378', [hx + 1.15, 0.62, hz + 1.3]);
+  a.box(1.0, 0.16, 0.02, '#ffffff', [hx, 1.22, hz + 1.28]);
+  // torre de controle com cabine envidraçada
+  const tx = 3.1;
+  const tz = -2.9;
+  b.box(0.7, 0.6, 0.7, '#cfd2d0', [tx, 0.35, tz]);
+  b.cyl(0.2, 0.22, 1.4, '#cfd2d0', [tx, 1.25, tz], undefined, 10);
+  b.cyl(0.42, 0.34, 0.06, C.concreteDark, [tx, 1.98, tz], undefined, 12);
+  g.cyl(0.42, 0.34, 0.34, '#ffffff', [tx, 2.18, tz], undefined, 12);
+  b.cyl(0.46, 0.46, 0.05, C.roof, [tx, 2.37, tz], undefined, 12);
+  strut(b, [tx, 2.4, tz], [tx, 2.8, tz], 0.025, C.steel, true);
+  b.box(0.05, 0.05, 0.05, C.red, [tx, 2.82, tz]);
+  railing(b, [tx - 0.46, tz - 0.46], [tx + 0.46, tz - 0.46], 2.01, 0.1, C.steel, 2);
+  // tanques de combustível com bacia de contenção
+  b.box(1.6, 0.08, 0.9, C.concreteDark, [0.6, 0.09, -3.1]);
+  for (const x of [0.15, 1.05]) {
+    b.cyl(0.34, 0.34, 0.56, C.white, [x, 0.4, -3.1], undefined, 14);
+    b.cyl(0.35, 0.35, 0.04, '#9a9a92', [x, 0.69, -3.1], undefined, 14);
+    a.box(0.32, 0.06, 0.01, '#ffffff', [x, 0.45, -2.75]);
+  }
+  strut(b, [0.15, 0.2, -2.7], [1.05, 0.2, -2.7], 0.03, C.metal, true);
+  // caminhão-tanque de reabastecimento perto do pátio
+  b.box(0.55, 0.2, 0.22, '#c8c3b4', [3.0, 0.21, -0.9]);
+  b.box(0.2, 0.22, 0.22, '#5b6650', [3.38, 0.21, -0.9]);
+  for (const dx of [-0.17, 0.17, 0.6]) for (const sz of [-1, 1]) b.cyl(0.055, 0.055, 0.04, C.rubber, [3.0 + dx, 0.11, -0.9 + sz * 0.12], [Math.PI / 2, 0, 0], 8);
+  // mastro da bandeira e biruta nas pontas da pista
+  strut(b, [-3.7, 0.05, 1.3], [-3.7, 1.45, 1.3], 0.03, C.steel, true);
+  a.box(0.02, 0.26, 0.42, '#ffffff', [-3.7, 1.32, 1.52]);
+  strut(b, [3.7, 0.05, 1.5], [3.7, 0.8, 1.5], 0.025, C.steel, true);
+  b.cyl(0.055, 0.025, 0.28, '#e07a2e', [3.84, 0.77, 1.5], [0, 0, Math.PI / 2], 6);
+  // radar de vigilância girando sobre o abrigo
+  const rx = -3.25;
+  const rzr = -3.25;
+  b.box(0.45, 0.32, 0.45, '#cfd2d0', [rx, 0.21, rzr]);
+  strut(b, [rx, 0.37, rzr], [rx, 1.0, rzr], 0.08, C.steel);
   const radar = layers();
-  radar.body.box(0.7, 0.24, 0.04, '#d9d8d0', [0, 0.1, 0]);
-  for (let i = 0; i < 5; i++) radar.body.box(0.012, 0.22, 0.05, '#9aa0a6', [-0.3 + i * 0.15, 0.1, 0.01]);
+  radar.body.box(0.8, 0.26, 0.04, '#d9d8d0', [0, 0.1, 0]);
+  for (let i = 0; i < 5; i++) radar.body.box(0.012, 0.24, 0.05, '#9aa0a6', [-0.32 + i * 0.16, 0.1, 0.01]);
   radar.body.box(0.06, 0.06, 0.18, C.metalDark, [0, -0.02, -0.06]);
-  const anims: ModelAnim[] = [{ layers: radar.build(), pivot: [rx, 1.0, rz], motion: { kind: 'spin', axis: 'y', speed: 1.6 } }];
-  return { base: l.build(), moving: null, anims, height: 2.4 };
+  const anims: ModelAnim[] = [{ layers: radar.build(), pivot: [rx, 1.05, rzr], motion: { kind: 'spin', axis: 'y', speed: 1.6 } }];
+  return { base: l.build(), moving: null, anims, height: 2.9 };
 }
 
 // ------------------------------------------------------------------ bateria antiaérea

@@ -15,7 +15,7 @@ precisão, interceptação) usa um gerador determinístico salvo no estado: salv
 ## Instalações
 | Construção | Custo | Para quê |
 |---|---|---|
-| Base Aérea (3×3) | 100 madeira, 150 pedra, 120 ferro, 100 suprimentos; manutenção 0,1 suprimentos/s + 0,03 petróleo/s | hangar para 4 aeronaves, pista, torre de controle, combustível; terminal do comércio aéreo |
+| Base Aérea (4×4 desde a 1.0) | 100 madeira, 150 pedra, 120 ferro, 100 suprimentos; manutenção 0,1 suprimentos/s + 0,03 petróleo/s | hangar para 4 aeronaves, pista, torre de controle, combustível; terminal do comércio aéreo |
 | Bateria Antiaérea (1×1) | 60 pedra, 90 ferro, 40 suprimentos; manutenção 0,04/s | defende num raio de 12 contra aeronaves e mísseis; não dispara contra tropas |
 | Silo de Mísseis (1×1) | 160 pedra, 200 ferro, 120 suprimentos; manutenção 0,08/s | guarda até 2 mísseis; exige a pesquisa **Mísseis balísticos** |
 
@@ -155,8 +155,17 @@ poço simples por uma **torre de lançamento** e passa a usar o **míssil pesado
 
 ## Visual
 - **Modelos novos:**
-  - Base aérea: pista com faixas e luzes, hangar em arco com caça no pátio, torre de controle envidraçada,
-    tanques de combustível, caminhão-tanque, biruta e radar girando.
+  - Base aérea (4×4 desde a 1.0, pedido do gerente: a pista de 3 células era curta demais):
+    - pista de ponta a ponta com 7,8 de comprimento, cabeceiras zebradas, eixo tracejado e luzes de borda;
+    - pista de taxiamento e pátio com quatro vagas marcadas;
+    - hangar em arco, torre de controle envidraçada, tanques de combustível com bacia;
+    - caminhão-tanque, bandeira, biruta e radar girando.
+  - Aeronaves paradas na base: o modelo não traz mais caças fixos. A camada aérea (`AirLayer.updateParked`) desenha
+    nas vagas (`AIRBASE_SLOTS`) as aeronaves que existem de fato e não estão em missão nem em produção, até 4 por base
+    como o hangar:
+    - caça F-5EM ou Gripen conforme o nível da base, bombardeiro, reconhecimento ou cargueiro;
+    - viradas para a pista, para mostrar de relance quantas estão estacionadas;
+    - só o dono as vê, porque o snapshot aéreo só lista as aeronaves próprias.
   - Bateria antiaérea: lançador de quatro tubos girando, radar de tiro e sacos de areia.
   - Silo: tampa blindada, bunker, cerca, luz de alerta e antena.
 - **Aeronaves em voo:** em formação na altitude de voo, com a cor da nação. As inimigas só aparecem quando

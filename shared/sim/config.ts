@@ -1104,7 +1104,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     cost: { wood: 100, stone: 150, iron: 120, supplies: 100 },
     buildSeconds: 24,
     maxHp: 900,
-    size: 3,
+    size: 4,
     income: {},
     sight: 10,
     workers: 4,
@@ -1308,6 +1308,16 @@ export const CHASE_REPATH_TICKS = 10;
  * em 5); a armazenagem foi dobrada direto nas definições para caber os custos novos.
  */
 export const ECONOMY = {
+  /**
+   * Tempo de obra das construções comuns (1.0: as obras eram rápidas demais; com o dobro, construir volta a ser um risco,
+   * como no Rise of Nations). Os Grandes Projetos, já longos, e o obstáculo antitanque, erguido em combate, ficam como estão.
+   */
+  buildTime: 2,
+  /**
+   * Exceções ao multiplicador de obra: o centro de pesquisa abre toda a árvore militar, e com o dobro a primeira pesquisa
+   * da IA passava dos 13:00 (critério de docs/RECALIBRAGEM_RECURSOS.md).
+   */
+  buildTimeBy: { research_center: 1.3 } as Partial<Record<BuildingType, number>>,
   units: 2.5,
   recruit: 1.5,
   citizen: 1.25,
@@ -1340,6 +1350,7 @@ for (const [type, b] of Object.entries(BUILDINGS) as [BuildingType, BuildingDef]
   if (type === 'hq') continue;
   b.cost = scaleCostBy(b.cost, b.project ? ECONOMY.projects : MILITARY_BUILDINGS.includes(type) ? ECONOMY.militaryBuildings : ECONOMY.economicBuildings);
   if (b.gather) b.gather.ratePerCell = Math.round(b.gather.ratePerCell * ECONOMY.gather * 1000) / 1000;
+  if (!b.project && type !== 'tank_trap') b.buildSeconds = Math.round(b.buildSeconds * (ECONOMY.buildTimeBy[type] ?? ECONOMY.buildTime));
 }
 MINE.cost = scaleCostBy(MINE.cost, 2);
 

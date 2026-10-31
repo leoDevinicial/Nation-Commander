@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MILITARY_RESEARCH, TICK_RATE, UNITS, militaryResearchBlocker, type BuildingType } from '../sim/config.ts';
+import { BUILDINGS, MILITARY_RESEARCH, TICK_RATE, UNITS, militaryResearchBlocker, type BuildingType } from '../sim/config.ts';
 import { parseCommand } from '../sim/commands.ts';
 import { RESEARCH_CANCEL_REFUND, SPLASH_FRACTION, Simulation, targetMultiplier, type NationalLink } from '../sim/Simulation.ts';
 import { MISSILE, missileSpec } from '../sim/air.ts';
@@ -46,7 +46,7 @@ function setup(opts: { speed?: number; war?: boolean } = {}) {
 function withCenter(opts: { speed?: number } = {}) {
   const s = setup(opts);
   const center = s.place(0, 'research_center', [2, 8], [12, 14]);
-  run(s.sim, 32);
+  run(s.sim, BUILDINGS.research_center.buildSeconds + 2);
   s.sim.staff(0);
   return { ...s, center };
 }
@@ -406,7 +406,7 @@ describe('progressão militar — tropas novas em combate', () => {
   it('antiaérea móvel perto do alvo intercepta mísseis como uma bateria', () => {
     const { sim, place } = setup();
     const silo = place(0, 'missile_silo', [2, 8], [12, 14]);
-    run(sim, 35);
+    run(sim, BUILDINGS.missile_silo.buildSeconds + 1);
     const enemyHq = sim.hqOf(1)!;
     for (let i = 0; i < 6; i++) {
       const u = sim.spawnUnitNear(enemyHq, 'mobile_aa')!;
@@ -429,7 +429,7 @@ describe('progressão militar — tropas novas em combate', () => {
   it('silo nível 2: míssil pesado (abastece em 5 s, contagem de 2 s, voa mais rápido, raio e dano maiores)', () => {
     const { sim, place } = setup();
     const silo = place(0, 'missile_silo', [2, 8], [12, 14]);
-    run(sim, 35);
+    run(sim, BUILDINGS.missile_silo.buildSeconds + 1);
     // a melhoria passa pela regra normal de obra
     const plan = sim.upgradePlan(silo);
     expect(plan.toLevel).toBe(2);

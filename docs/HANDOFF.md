@@ -179,6 +179,13 @@ npm test && npm run lint && npm run typecheck
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
+- **Versão 1.0** (31/10, feedback do gerente):
+  - obras com o dobro do tempo (`ECONOMY.buildTime`, Centro de Pesquisa ×1,3);
+  - Base Aérea 4×4 com pista de ponta a ponta;
+  - as aeronaves reais aparecem estacionadas nas vagas do pátio (`AirLayer.updateParked`, `AIRBASE_SLOTS`).
+  - A rede elétrica ficou registrada como o próximo grande bloco (`docs/BALANCEAMENTO_E_PROGRESSAO.md`).
+  - Publicada na `claude/serene-bell-7cjnhp` como versão 1.0.0.
+
 - **Phalanx CIWS Móvel** (30/10, conta atual; `docs/CIWS.md`): tropa nova da Era Digital (`ciws`, Fábrica, pesquisa
    Defesa de ponto). Gatling de 20 mm que derruba 40% de cada salva do Lança-Foguetes por perto e conta como defesa
    antiaérea. Modelo 8×8 fiel à foto do usuário (`buildCiws`, com casco facetado por `PartBuilder.convex`). Feixe de
@@ -244,7 +251,7 @@ mensagens em português descrevendo o que mudou).
 
 ## 7. De onde continuar
 
-Não há pedido em andamento. Pontos abertos com o usuário: (1) um áudio antigo dele não pôde ser transcrito; pergunte
+Não há pedido em andamento. O próximo grande bloco sugerido pelo gerente é a **rede elétrica** (ver `docs/BALANCEAMENTO_E_PROGRESSAO.md`). Pontos abertos com o usuário: (1) um áudio antigo dele não pôde ser transcrito; pergunte
 se ainda importa; (2) os bonecos que pareciam estar no teto do QG (ver o item 2 da lista numerada da seção 6); (3) a IA
 do Fácil chega à era 3 tão cedo quanto a do Normal (gasta pouco com exército); foi oferecido atrasar a era dela, e o
 usuário ainda não respondeu. Ideias pendentes e coisas conhecidas:
