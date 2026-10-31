@@ -20,7 +20,7 @@ export type Volumes = Record<Channel | 'master', number>;
 export const DEFAULT_VOLUMES: Volumes = { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 };
 
 export type UiSound = 'click' | 'confirm' | 'error' | 'alert' | 'success' | 'hold';
-export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'mbt_gun' | 'tank_gun' | 'vehicle_explosion' | 'vehicle_explosion_heavy' | 'nuclear_blast' | 'space_prelaunch' | 'space_liftoff' | 'dome_launch' | 'dome_intercept' | 'gatling' | 'bomber' | 'jet_cannon' | 'bomb_whistle' | 'carpet_rumble';
+export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'mbt_gun' | 'tank_gun' | 'vehicle_explosion' | 'vehicle_explosion_heavy' | 'nuclear_blast' | 'space_prelaunch' | 'space_liftoff' | 'dome_launch' | 'dome_intercept' | 'gatling' | 'bomber' | 'jet_cannon' | 'bomb_whistle' | 'carpet_rumble' | 'aam_launch' | 'agm_launch' | 'air_mg';
 export type MissileCue = 'prepare' | 'armed' | 'authorize';
 
 /** Som de trabalho de cada edifício (os demais usam o zumbido genérico). */
@@ -76,6 +76,9 @@ const PRIORITY: Record<CombatSound, number> = {
   jet: 2,
   bomber: 3,
   jet_cannon: 3,
+  aam_launch: 4,
+  agm_launch: 4,
+  air_mg: 2,
   bomb_whistle: 3,
   carpet_rumble: 5,
   explosion: 3,
@@ -87,7 +90,7 @@ const PRIORITY: Record<CombatSound, number> = {
 };
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
-const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, bomber: 1.2, jet_cannon: 0.12, bomb_whistle: 0.4, carpet_rumble: 1.5, bomb: 0.07, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, vehicle_explosion: 0.1, vehicle_explosion_heavy: 0.15, nuclear_blast: 1, space_prelaunch: 2, space_liftoff: 2, dome_launch: 0.2, dome_intercept: 0.3, tank_gun: 0.18 };
+const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, bomber: 1.2, jet_cannon: 0.12, aam_launch: 0.25, agm_launch: 0.2, air_mg: 0.18, bomb_whistle: 0.4, carpet_rumble: 1.5, bomb: 0.07, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, vehicle_explosion: 0.1, vehicle_explosion_heavy: 0.15, nuclear_blast: 1, space_prelaunch: 2, space_liftoff: 2, dome_launch: 0.2, dome_intercept: 0.3, tank_gun: 0.18 };
 
 /**
  * Atenuação e panorâmica de um ponto do mapa para quem olha `L` (ponto da câmera, distância e giro).
@@ -1149,6 +1152,68 @@ export class AudioService {
             nodes.push(o);
           }
         end = t + dur;
+        break;
+      }
+      case 'aam_launch':
+      case 'agm_launch': {
+        // míssil do caça: o estalo seco da ignição no trilho, o "fssshhh" rasgado do motor de combustível sólido que
+        // acelera e se afasta (o tom sobe e o volume cai), o ronco grave da queima por baixo e o eco no céu aberto.
+        // O ar-terra é mais pesado: ignição mais grave, motor mais encorpado e queima mais longa.
+        const heavy = sound === 'agm_launch';
+        const len = heavy ? 2.1 : 1.6;
+        const mix = ctx.createGain();
+        mix.connect(out);
+        const wet = ctx.createGain();
+        wet.gain.value = gain * 0.5;
+        mix.connect(wet).connect(this.outdoorReverb());
+        burst('highpass', heavy ? 1400 : 2200, 0.7, 0.0008, 0.9, 0.045, t, mix);
+        thump(heavy ? 95 : 130, 45, 0.004, heavy ? 0.9 : 0.6, 0.22, t, 'sine', mix);
+        const n = this.noiseSource();
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.Q.value = 0.9;
+        bp.frequency.setValueAtTime(heavy ? 700 : 900, t);
+        bp.frequency.exponentialRampToValueAtTime(heavy ? 2600 : 3800, t + len * 0.55);
+        bp.frequency.exponentialRampToValueAtTime(heavy ? 1500 : 2000, t + len);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(heavy ? 0.85 : 0.75, t + 0.04);
+        g.gain.exponentialRampToValueAtTime(0.3, t + len * 0.45);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+        n.connect(bp).connect(g).connect(mix);
+        n.start(t, Math.random());
+        n.stop(t + len + 0.05);
+        nodes.push(n);
+        const r = this.noiseSource();
+        const lp = ctx.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = heavy ? 260 : 200;
+        const rg = ctx.createGain();
+        rg.gain.setValueAtTime(0.0001, t);
+        rg.gain.exponentialRampToValueAtTime(heavy ? 0.7 : 0.45, t + 0.05);
+        rg.gain.exponentialRampToValueAtTime(0.0001, t + len * 0.8);
+        r.connect(lp).connect(rg).connect(mix);
+        r.start(t, Math.random());
+        r.stop(t + len);
+        nodes.push(r);
+        end = t + len + 0.1;
+        break;
+      }
+      case 'air_mg': {
+        // metralhadora pesada do caça (~1.100 tiros/min, rajada de ~0,6 s): cada tiro é um estampido curto e seco com o
+        // corpo grave do cano; o conjunto vira o "tá-tá-tá" rápido e cheio, com eco no céu
+        const mix = ctx.createGain();
+        mix.connect(out);
+        const wet = ctx.createGain();
+        wet.gain.value = gain * 0.4;
+        mix.connect(wet).connect(this.outdoorReverb());
+        const shots = 10 + Math.floor(Math.random() * 4);
+        for (let i = 0; i < shots; i++) {
+          const at = t + i * 0.055 + Math.random() * 0.006;
+          burst('bandpass', 1800, 1.2, 0.0006, 0.55, 0.035, at, mix);
+          thump(160, 70, 0.002, 0.45, 0.06, at, 'triangle', mix);
+        }
+        end = t + shots * 0.055 + 0.3;
         break;
       }
       case 'missile_launch': {

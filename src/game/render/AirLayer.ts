@@ -219,6 +219,8 @@ interface GunBurst {
   next: number;
   left: number;
   kill: boolean;
+  /** Rajada contra o chão (rasante): a linha de impactos corre de `start` por `len` no rumo `dir`. */
+  ground?: { start: THREE.Vector3; dir: THREE.Vector3; len: number; dust: (p: THREE.Vector3) => void };
 }
 
 /** Corrida de decolagem na pista (s) e o intervalo entre os aviões da esquadrilha. */
@@ -268,6 +270,49 @@ interface TrackedFlight {
   nextFlare: number;
   /** Pouso: sentido da pista escolhido na aproximação (+1 para +x, −1 para −x; 0 = ainda não). */
   landDir: number;
+}
+
+/**
+ * Míssil disparado por um caça (visual): sai do avião, acelera com o rastro de fumaça e vai até o alvo, que pode estar
+ * se movendo (outro avião). `onEnd` recebe o ponto final (impacto, explosão por proximidade ou o míssil enganado pelos
+ * flares).
+ */
+interface AirMissile {
+  mesh: THREE.Group;
+  from: THREE.Vector3;
+  /** Avião que dispara: o míssil sai de onde ele está no momento do disparo (com `offset`). */
+  shooter: THREE.Object3D | null;
+  offset: THREE.Vector3;
+  target: THREE.Object3D | null;
+  to: THREE.Vector3;
+  /** Desvio do alvo no fim (míssil enganado pelos flares). */
+  miss: THREE.Vector3;
+  age: number;
+  delay: number;
+  dur: number;
+  /** Queda inicial ao soltar do trilho/cabide antes do motor acender. */
+  drop: number;
+  smoke: number;
+  onEnd: (at: THREE.Vector3) => void;
+  onLaunch?: () => void;
+}
+
+let shotGeo: THREE.BufferGeometry | null = null;
+let shotMat: THREE.Material | null = null;
+function shotMesh(): THREE.Group {
+  if (!shotGeo || !shotMat) {
+    shotGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.5, 8);
+    shotGeo.rotateZ(Math.PI / 2);
+    shotMat = new THREE.MeshStandardMaterial({ color: '#e6e6e0', roughness: 0.5, metalness: 0.3 });
+  }
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(shotGeo, shotMat));
+  const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: '#ffd59a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  flame.position.set(-0.3, 0, 0);
+  flame.scale.setScalar(0.45);
+  g.add(flame);
+  g.visible = false;
+  return g;
 }
 
 /** Bomba em queda (visual): parte do bombardeiro e explode no chão. */
@@ -453,6 +498,7 @@ export class AirLayer {
   private readonly flares: Flare[] = [];
   private flareNext = 0;
   private readonly bursts: GunBurst[] = [];
+  private readonly shots: AirMissile[] = [];
   private ground: (x: number, z: number) => number = () => 0;
 
   constructor(
@@ -1099,6 +1145,7 @@ export class AirLayer {
     this.framePuffs(dt);
     this.frameFlares(dt);
     this.frameBursts();
+    this.frameShots(dt);
     this.frameBombs(dt);
     this.frameWrecks(dt);
     for (let i = this.fading.length - 1; i >= 0; i--) {
@@ -1324,6 +1371,19 @@ export class AirLayer {
       b.next = this.time + 0.06;
       b.left--;
       const from = b.shooter?.parent ? b.shooter.position : b.from;
+      if (b.ground) {
+        // rasante: cada tiro cai um pouco mais à frente na linha, levantando terra
+        const g = b.ground;
+        const k = 1 - b.left / 12;
+        const hitAt = g.start.clone().addScaledVector(g.dir, g.len * k).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0.05, (Math.random() - 0.5) * 0.5));
+        const gdir = tmpB.copy(hitAt).sub(from).normalize();
+        const muzzle = from.clone().addScaledVector(gdir, 0.9);
+        this.effects.tracer(muzzle, hitAt, false);
+        if (b.left % 3 === 0) this.effects.muzzleFlash(muzzle, gdir, 0.3);
+        if (b.left % 2 === 0) g.dust(hitAt);
+        if (b.left <= 0) this.bursts.splice(i, 1);
+        continue;
+      }
       const to = b.victim?.parent ? b.victim.position : b.to;
       const dir = tmpB.copy(to).sub(from).normalize();
       // o tiro sai na direção do nariz, puxado para o alvo (o atirador está mirando com o avião)
@@ -1336,6 +1396,143 @@ export class AirLayer {
       if (b.left % 3 === 0) this.effects.muzzleFlash(nose, dir, 0.3);
       if (hit) this.effects.flash(to, 0.5, '#ffd38a', 0.12);
       if (b.left <= 0) this.bursts.splice(i, 1);
+    }
+  }
+
+  /** Caças da esquadrilha de `owner` mais perto de `at` (os que fazem o ataque ao solo). */
+  private strikersNear(at: { x: number; y: number }, owner: number): THREE.Group[] {
+    let best: TrackedFlight | null = null;
+    let bestD = 30;
+    for (const t of this.flights.values()) {
+      const f = t.snap;
+      if (f.owner !== owner || f.plane === 'bomber' || f.kind !== 'strike' || !t.planes.length) continue;
+      const d = Math.hypot(t.pos.x - at.x, t.pos.y - at.y);
+      if (d < bestD) {
+        bestD = d;
+        best = t;
+      }
+    }
+    return best ? best.planes.map((p) => p.group) : [];
+  }
+
+  /**
+   * Ataque ao solo dos caças (não soltam bombas, isso é do bombardeiro): cada caça abre o canhão num rasante, com a
+   * linha de impactos atravessando o alvo, e dispara um míssil ar-terra. `fx` faz o som e as explosões.
+   * Sem os aviões à vista, o ataque sai do alto, no rumo de onde viriam.
+   */
+  strikeRun(
+    at: { x: number; y: number },
+    owner: number,
+    fx: { gun: (x: number, z: number) => void; launch: (x: number, z: number) => void; impact: (p: THREE.Vector3, i: number) => void; dust: (p: THREE.Vector3) => void },
+  ): void {
+    const planes = this.strikersNear(at, owner).slice(0, 3);
+    const target = new THREE.Vector3(at.x, 0, at.y);
+    const shooters = planes.length ? planes : [null];
+    shooters.forEach((pl, k) => {
+      const from = pl ? pl.position.clone() : target.clone().add(new THREE.Vector3(-14 + k * 2, ALTITUDE, -3 + k * 3));
+      const fwd = pl ? new THREE.Vector3(1, 0, 0).applyEuler(pl.rotation) : target.clone().sub(from).normalize();
+      // rajada: a linha de impactos corre pelo chão até passar do alvo
+      const flat = new THREE.Vector3(fwd.x, 0, fwd.z).normalize();
+      const side = new THREE.Vector3(-flat.z, 0, flat.x);
+      const lineStart = target.clone().addScaledVector(flat, -3.5).addScaledVector(side, (k - (shooters.length - 1) / 2) * 1.2);
+      this.bursts.push({
+        shooter: pl,
+        from,
+        victim: null,
+        to: lineStart,
+        next: this.time + k * 0.18,
+        left: 12,
+        kill: false,
+        ground: { start: lineStart, dir: flat, len: 6, dust: fx.dust },
+      });
+      fx.gun(from.x, from.z);
+      // míssil ar-terra logo depois da rajada, saindo do cabide sob a asa
+      const m = shotMesh();
+      this.group.add(m);
+      const aim = target.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.2, 0.2, (Math.random() - 0.5) * 1.2));
+      this.shots.push({
+        mesh: m,
+        from: from.clone().add(new THREE.Vector3(0, -0.25, 0)).addScaledVector(side, k % 2 ? 0.45 : -0.45),
+        shooter: pl,
+        offset: new THREE.Vector3(0, -0.25, 0).addScaledVector(side, k % 2 ? 0.45 : -0.45),
+        target: null,
+        to: aim,
+        miss: new THREE.Vector3(),
+        age: 0,
+        delay: 0.1 + k * 0.22,
+        dur: 0.9 + Math.min(0.8, from.distanceTo(aim) / 25),
+        drop: 0.35,
+        smoke: 0,
+        onLaunch: () => fx.launch(from.x, from.z),
+        onEnd: (p) => fx.impact(p, k),
+      });
+    });
+  }
+
+  /**
+   * Míssil ar-ar num combate aéreo: sai de um avião da esquadrilha atiradora atrás de um da outra. Sem abate, o alvo
+   * solta flares e o míssil se perde neles ou explode perto (estilhaços); o abate em si vem do evento da simulação.
+   */
+  airMissile(e: { missionId: number; targetMissionId: number; from: { x: number; y: number }; to: { x: number; y: number } }, fx: { launch: (x: number, z: number) => void; burst: (p: THREE.Vector3) => void }): void {
+    const shooters = this.planesOf(e.missionId);
+    const victims = this.planesOf(e.targetMissionId);
+    const shooter = shooters[Math.floor(Math.random() * shooters.length)] ?? null;
+    const victim = victims[Math.floor(Math.random() * victims.length)] ?? null;
+    const from = shooter ? shooter.position.clone() : new THREE.Vector3(e.from.x, ALTITUDE, e.from.y);
+    const decoyed = Math.random() < 0.55;
+    if (victim && decoyed) this.popFlares(victim, 6, 0.25);
+    const m = shotMesh();
+    this.group.add(m);
+    this.shots.push({
+      mesh: m,
+      from: from.add(new THREE.Vector3(0, -0.15, 0)),
+      shooter,
+      offset: new THREE.Vector3(0, -0.15, 0),
+      target: victim,
+      to: new THREE.Vector3(e.to.x, ALTITUDE, e.to.y),
+      // enganado: termina atrás e abaixo do alvo, no meio dos flares
+      miss: decoyed ? new THREE.Vector3((Math.random() - 0.5) * 3, -1.2 - Math.random(), (Math.random() - 0.5) * 3) : new THREE.Vector3((Math.random() - 0.5) * 0.8, 0.3, (Math.random() - 0.5) * 0.8),
+      age: 0,
+      delay: 0,
+      dur: 0.9 + Math.random() * 0.4,
+      drop: 0.12,
+      smoke: 0,
+      onLaunch: () => fx.launch(from.x, from.z),
+      onEnd: (p) => fx.burst(p),
+    });
+  }
+
+  private frameShots(dt: number): void {
+    for (let i = this.shots.length - 1; i >= 0; i--) {
+      const s = this.shots[i]!;
+      s.age += dt;
+      const t = (s.age - s.delay) / s.dur;
+      if (t < 0) continue;
+      if (!s.mesh.visible) {
+        s.mesh.visible = true;
+        if (s.shooter?.parent) s.from.copy(s.shooter.position).add(s.offset);
+        s.onLaunch?.();
+      }
+      const to = (s.target?.parent ? tmpA.copy(s.target.position) : tmpA.copy(s.to)).add(tmpRib.copy(s.miss).multiplyScalar(smooth(0.4, 1, t)));
+      if (t >= 1) {
+        s.onEnd(to.clone());
+        s.mesh.removeFromParent();
+        (s.mesh.children[1] as THREE.Sprite).material.dispose();
+        this.shots.splice(i, 1);
+        continue;
+      }
+      // solta do trilho e cai um pouco, o motor acende e acelera (posição com aceleração), curvando para o alvo
+      const k = t * t * (1.6 - 0.6 * t);
+      const prev = s.mesh.position.clone();
+      s.mesh.position.lerpVectors(s.from, to, k);
+      s.mesh.position.y -= s.drop * Math.sin(Math.min(1, t * 4) * Math.PI) * (1 - t);
+      const dir = tmpB.copy(s.mesh.position).sub(prev);
+      if (dir.lengthSq() > 1e-8) s.mesh.quaternion.setFromUnitVectors(AXIS, dir.normalize());
+      s.smoke += dt;
+      if (s.smoke > 0.025) {
+        s.smoke = 0;
+        this.emit(s.mesh.position.clone(), { life: 1.4, size0: 0.14, size1: 0.9, peak: 0.42, tone: 1 });
+      }
     }
   }
 

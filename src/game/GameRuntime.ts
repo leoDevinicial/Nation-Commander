@@ -881,11 +881,37 @@ export class GameRuntime {
           if (i === 0) audio.playAt('carpet_rumble', at.x, at.z);
           if (i % 5 === 0) this.shakeNear({ x: at.x, y: at.z }, 0.3);
         });
-      } else
-        // bombas guiadas: impactos em sequência sobre o alvo
-        for (let i = 0; i < 3; i++) this.effects.explosion(new THREE.Vector3(e.pos.x + (Math.random() - 0.5) * 1.6, 0, e.pos.y + (Math.random() - 0.5) * 1.6), i === 0 && (e.destroyed || e.oilLost > 0));
+      } else {
+        // caças: rasante com canhão e metralhadora (linha de impactos levantando terra) e um míssil ar-terra por avião
+        const big = e.destroyed || e.oilLost > 0;
+        this.airLayer.strikeRun(e.pos, e.owner, {
+          gun: (x, z) => {
+            audio.playAt('jet_cannon', x, z);
+            audio.playAt('air_mg', x, z);
+          },
+          launch: (x, z) => audio.playAt('agm_launch', x, z),
+          impact: (at, i) => {
+            this.effects.explosion(at, i === 0 && big);
+            this.effects.flash(at.clone().setY(1), 1.4, '#ffcf8a', 0.25);
+            if (i === 0) this.effects.plume(at.clone().setY(0.3), { count: 3, size: 1.1, rise: 3.5, life: 4, spread: 0.5, tone: 0.3 });
+            audio.playAt(i === 0 ? 'explosion_big' : 'explosion', at.x, at.z);
+            if (i === 0) this.shakeNear({ x: at.x, y: at.z }, 0.2);
+          },
+          dust: (at) => this.effects.plume(at, { count: 1, size: 0.35, rise: 0.8, life: 0.9, spread: 0.15, tone: 0.75 }),
+        });
+      }
     } else if (e.type === 'dogfight') {
       this.airLayer.dogfightShot(e);
+      // de vez em quando, além do canhão, um míssil ar-ar (o alvo solta flares; o abate vem do evento próprio)
+      if (!e.kill && Math.random() < 0.35)
+        this.airLayer.airMissile(e, {
+          launch: (x, z) => audio.playAt('aam_launch', x, z),
+          burst: (at) => {
+            this.effects.flash(at, 1.2, '#ffd38a', 0.2);
+            this.effects.explosion(at, false);
+            audio.playAt('explosion', at.x, at.z);
+          },
+        });
     } else if (e.type === 'caravan_lost') {
       this.effects.explosion(new THREE.Vector3(e.pos.x, 0, e.pos.y), false);
     } else if (e.type === 'city_captured') {
@@ -2787,11 +2813,11 @@ export class GameRuntime {
         break;
       }
       case 'air_strike':
-        // no bombardeio em tapete o som sai com cada bomba que cai
-        if (!e.bombers) audio.playAt('bomb', e.pos.x, e.pos.y);
+        // bombardeio e ataque dos caças: o som sai com cada bomba, tiro e míssil (na camada aérea)
         break;
       case 'dogfight':
         audio.playAt('jet_cannon', e.from.x, e.from.y);
+        if (Math.random() < 0.5) audio.playAt('air_mg', e.from.x, e.from.y);
         break;
       case 'caravan_lost':
         audio.playAt('explosion', e.pos.x, e.pos.y);
