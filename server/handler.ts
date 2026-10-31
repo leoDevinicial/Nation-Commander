@@ -5,6 +5,7 @@ import type { Connection } from './Connection.ts';
 import type { RoomManager } from './RoomManager.ts';
 import { sanitizeName } from './messages.ts';
 import { saveFeedback, type FeedbackRecord } from './supabase.ts';
+import { CommunityChat } from './communityChat.ts';
 
 export interface HandlerDeps {
   rooms: RoomManager;
@@ -14,6 +15,8 @@ export interface HandlerDeps {
   sessions: Map<string, Connection>;
   /** Grava um feedback (padrão: Supabase, ou só o log sem Supabase). */
   saveFeedback?: (rec: FeedbackRecord) => Promise<boolean>;
+  /** Chat da Comunidade do menu (um canal para todos). */
+  community?: CommunityChat;
   /** Último feedback de cada usuário (ms): no máximo um a cada `FEEDBACK_COOLDOWN_MS`. */
   feedbackAt?: Map<string, number>;
 }
@@ -122,6 +125,17 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
       }
       return;
     }
+    case 'community_join':
+      (deps.community ??= new CommunityChat()).join(conn);
+      return;
+    case 'community_leave':
+      deps.community?.leave(conn);
+      return;
+    case 'community_say': {
+      const err = (deps.community ??= new CommunityChat()).post(conn, msg.text);
+      if (err) conn.send({ t: 'error', code: 'community', message: err });
+      return;
+    }
     case 'list_rooms':
       conn.send({ t: 'room_list', rooms: deps.rooms.listPublic() });
       return;
@@ -187,6 +201,7 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
 
 export function handleClose(conn: Connection, deps: HandlerDeps): void {
   if (conn.user && deps.sessions.get(conn.user.id) === conn) deps.sessions.delete(conn.user.id);
+  deps.community?.leave(conn);
   const room = conn.roomCode ? deps.rooms.get(conn.roomCode) : undefined;
   room?.onDisconnect(conn);
 }

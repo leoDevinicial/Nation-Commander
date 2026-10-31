@@ -2,7 +2,7 @@ import { isDecreeId } from '../shared/strategic/policies.ts';
 import { isMapType } from '../shared/sim/matchMap.ts';
 import { isDifficulty } from '../shared/sim/difficulty.ts';
 import { isCountryId } from '../shared/data/countries.ts';
-import { FEEDBACK_CATEGORIES, GAME_SPEEDS, MAX_CHAT_LENGTH, type ClientMessage, type FeedbackCategory, type GameSpeed } from '../shared/protocol.ts';
+import { MAX_COMMUNITY_LENGTH, FEEDBACK_CATEGORIES, GAME_SPEEDS, MAX_CHAT_LENGTH, type ClientMessage, type FeedbackCategory, type GameSpeed } from '../shared/protocol.ts';
 import { parseCommand } from '../shared/sim/commands.ts';
 import { BUDGET_KEYS, type Budget } from '../shared/strategic/NationalSimulation.ts';
 import { TECHNOLOGIES, type TechId } from '../shared/strategic/technologies.ts';
@@ -34,6 +34,16 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return { t: 'create_room', mode: data.mode, countryId: data.countryId, ...(data.isPublic === true && data.mode === 'pvp' ? { isPublic: true } : {}) };
     case 'list_rooms':
       return { t: 'list_rooms' };
+    case 'community_join':
+      return { t: 'community_join' };
+    case 'community_leave':
+      return { t: 'community_leave' };
+    case 'community_say': {
+      if (typeof data.text !== 'string') return null;
+      // eslint-disable-next-line no-control-regex -- remove caracteres de controle do chat
+      const text = data.text.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, MAX_COMMUNITY_LENGTH);
+      return text ? { t: 'community_say', text } : null;
+    }
     case 'feedback': {
       if (!FEEDBACK_CATEGORIES.includes(data.category as FeedbackCategory) || typeof data.message !== 'string') return null;
       // eslint-disable-next-line no-control-regex -- remove caracteres de controle (mantém as quebras de linha)

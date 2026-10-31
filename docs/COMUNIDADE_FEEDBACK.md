@@ -1,10 +1,28 @@
 # Comunidade e Feedback (menu)
 
+> Depois do pedido de 31/10 a área virou dois botões no menu: **🗨 Comunidade** (chat aberto entre os jogadores,
+> `CommunityScreen`) e **💬 Feedback** (o formulário descrito abaixo, `FeedbackScreen`).
+
+## Comunidade (chat)
+
+- **Canal:** um canal só, para todos os jogadores conectados que abrem a tela.
+  - Quem entra recebe as últimas 80 mensagens e o número de pessoas no chat.
+  - As mensagens novas chegam na hora.
+- **Limites:** até 300 caracteres por mensagem, uma a cada 1,5 s e no máximo 12 por minuto por jogador.
+- **Convidados:** aparecem com a etiqueta "convidado".
+- **Servidor** (`server/communityChat.ts`):
+  - mensagens `community_join`, `community_leave` e `community_say`;
+  - respostas `community_history`, `community_msg` e `community_online`.
+- **Histórico:** fica na memória do servidor e some quando ele é atualizado ou reiniciado. Guardar no Supabase e criar
+  moderação (denunciar, silenciar) ficam para depois.
+- **Testes:** `server/room.test.ts`, bloco "chat da comunidade".
+
+
 Pedido do usuário (31/10): uma área de comunidade e feedback do Nation Commander no menu.
 
 ## O que tem
 
-- **Menu → "💬 Comunidade e Feedback"** abre a tela `CommunityScreen`.
+- **Menu → "💬 Feedback"** abre a tela `FeedbackScreen`.
 - **Envie seu feedback:**
   - tipo: Problema, Sugestão, Balanceamento, Elogio ou Outro;
   - mensagem de 5 a 2.000 caracteres, com uma dica de preenchimento para cada tipo;

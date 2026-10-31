@@ -100,9 +100,14 @@ export function MenuScreen() {
         </button>
       </div>
 
-      <button className="btn mt-4 w-full" onClick={() => setScreen('community')} title="Mande sua opinião, veja as novidades e encontre outros comandantes">
-        <span aria-hidden>💬</span> Feedback
-      </button>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <button className="btn" disabled={!online} title={online ? 'Converse com outros comandantes que gostam do jogo' : offlineHint} onClick={() => setScreen('community')}>
+          <span aria-hidden>🗨</span> Comunidade
+        </button>
+        <button className="btn" onClick={() => setScreen('feedback')} title="Mande sua opinião para a equipe e veja as novidades">
+          <span aria-hidden>💬</span> Feedback
+        </button>
+      </div>
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <button className="btn" onClick={() => setScreen('manual')} title="O básico do jogo em 7 cartões curtos">
           Manual

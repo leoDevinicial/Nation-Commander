@@ -524,3 +524,26 @@ describe('comunidade e feedback', () => {
     expect(saved).toHaveLength(1);
   });
 });
+
+describe('chat da comunidade', () => {
+  it('quem entra recebe o histórico e o número de pessoas; mensagens chegam a todos; limite de ritmo', async () => {
+    const { send } = setup();
+    const a = fakeConn();
+    const b = fakeConn();
+    await send(a.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-ana' });
+    await send(b.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-beto' });
+    await send(a.conn, { t: 'community_join' });
+    await send(a.conn, { t: 'community_say', text: 'Olá, comandantes!' });
+    await send(b.conn, { t: 'community_join' });
+    expect(b.last('community_history')?.messages.map((m) => m.text)).toEqual(['Olá, comandantes!']);
+    expect(b.last('community_history')?.online).toBe(2);
+    expect(a.last('community_online')?.online).toBe(2);
+    await send(b.conn, { t: 'community_say', text: 'Bora uma partida?' });
+    expect(a.last('community_msg')?.msg.from).toBe('beto');
+    // segunda mensagem logo em seguida: recusada
+    await send(b.conn, { t: 'community_say', text: 'de novo' });
+    expect(b.last('error')?.code).toBe('community');
+    await send(b.conn, { t: 'community_leave' });
+    expect(a.last('community_online')?.online).toBe(1);
+  });
+});

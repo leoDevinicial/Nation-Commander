@@ -13,6 +13,16 @@ import type { DecreeId } from './strategic/policies.ts';
 /** `sandbox`: modo livre contra uma IA (recursos ilimitados, tudo liberado, ferramentas de teste). */
 export type RoomMode = 'pvp' | 'vs_ai' | 'sandbox';
 
+/** Mensagem do chat da Comunidade (menu). */
+export interface CommunityMessage {
+  id: number;
+  from: string;
+  text: string;
+  /** Hora do servidor (ms). */
+  at: number;
+  guest?: boolean;
+}
+
 /** Tipo de feedback enviado na área Comunidade e Feedback do menu. */
 export type FeedbackCategory = 'bug' | 'suggestion' | 'balance' | 'praise' | 'other';
 export const FEEDBACK_CATEGORIES: readonly FeedbackCategory[] = ['bug', 'suggestion', 'balance', 'praise', 'other'];
@@ -156,6 +166,9 @@ export type ClientMessage =
   | { t: 'hello'; protocol: number; token: string | null; guestId?: string; guestName?: string }
   | { t: 'create_room'; mode: RoomMode; countryId: string; isPublic?: boolean }
   | { t: 'list_rooms' }
+  | { t: 'community_join' }
+  | { t: 'community_leave' }
+  | { t: 'community_say'; text: string }
   | { t: 'feedback'; category: FeedbackCategory; message: string; rating?: number }
   | { t: 'join_room'; code: string; countryId: string }
   | { t: 'leave_room' }
@@ -187,6 +200,9 @@ export type ServerMessage =
   | { t: 'room'; room: RoomInfo | null }
   | { t: 'room_list'; rooms: PublicRoomSummary[] }
   | { t: 'feedback_ok' }
+  | { t: 'community_history'; messages: CommunityMessage[]; online: number }
+  | { t: 'community_msg'; msg: CommunityMessage }
+  | { t: 'community_online'; online: number }
   | { t: 'match_start'; match: MatchStartInfo }
   | { t: 'snapshot'; s: Snapshot; paused: boolean; speed: GameSpeed; pausedBy: string | null; scope?: 'battle'; opId?: number }
   /** Batalha local de uma operação começou: mapa e contexto da região (o jogador é o slot 0). */
@@ -203,3 +219,5 @@ export type ServerMessage =
   | { t: 'pong'; n: number };
 
 export const MAX_CHAT_LENGTH = 200;
+/** Tamanho máximo de uma mensagem do chat da Comunidade. */
+export const MAX_COMMUNITY_LENGTH = 300;

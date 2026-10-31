@@ -179,6 +179,10 @@ npm test && npm run lint && npm run typecheck
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
+- **Chat da Comunidade** (31/10, `docs/COMUNIDADE_FEEDBACK.md`): botão 🗨 Comunidade no menu com chat global em tempo
+  real (`server/communityChat.ts`, histórico de 80 mensagens em memória, limite de ritmo); o formulário virou o botão
+  💬 Feedback (`FeedbackScreen`).
+
 - **Comunidade e Feedback** (31/10, `docs/COMUNIDADE_FEEDBACK.md`): tela no menu com formulário de feedback
   (gravado pelo servidor na tabela `feedback`, migração `20261101000000_feedback.sql`), novidades das versões
   (`src/ui/changelog.ts`) e atalhos da comunidade (links por variáveis `VITE_COMMUNITY_*`).
