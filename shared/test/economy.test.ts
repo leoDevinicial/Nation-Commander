@@ -39,7 +39,7 @@ describe('população e moradia', () => {
     build(s, 0, 'house', { cx: 8, cy: 8 });
     expect(s.population(0).cap).toBe(30);
     s.players[0]!.resources.stone = 300;
-    build(s, 0, 'residential', { cx: 9, cy: 3 });
+    build(s, 0, 'residential', { cx: 12, cy: 6 });
     expect(s.population(0).cap).toBe(50);
     for (let i = 0; i < 12; i++) forceBuilding(s, 0, 'residential', { cx: (i % 6) * 2, cy: 18 + Math.floor(i / 6) * 2 });
     expect(s.population(0).housing).toBeGreaterThan(POP_ABSOLUTE_CAP);

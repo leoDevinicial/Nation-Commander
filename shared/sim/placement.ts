@@ -4,6 +4,8 @@ import { chooseClaims, claimedBy, sitesByDeposit } from './gathering.ts';
 import type { Cell, Slot } from './types.ts';
 
 const WATER = 4 as Terrain;
+/** Células livres em volta da poça de uma jazida de petróleo (o desenho da poça passa um pouco das 2×2 células). */
+const OIL_MARGIN = 0;
 
 /** Visão mínima do mundo necessária para validar uma construção (usada no servidor e no cliente). */
 export interface PlacementWorld {
@@ -51,6 +53,13 @@ export function placementError(w: PlacementWorld, slot: Slot, type: BuildingType
   } else {
     if (foreign >= 0) return 'Território de outra nação: não é possível construir aqui';
     if (outside) return 'Fora do seu território: amplie a fronteira com casas, bases ou torres';
+  }
+  // a poça de petróleo (2×2 células a partir da jazida) e uma célula de margem em volta ficam reservadas para o poço
+  if (def.gather?.terrain !== null) {
+    for (const n of w.resourceNodes) {
+      const overlaps = cell.cx < n.cx + 2 + OIL_MARGIN && cell.cx + def.size > n.cx - OIL_MARGIN && cell.cy < n.cy + 2 + OIL_MARGIN && cell.cy + def.size > n.cy - OIL_MARGIN;
+      if (overlaps) return 'Jazida de petróleo: aqui só cabe um Poço de Petróleo';
+    }
   }
   if (type === 'city_hall') {
     // cidades espaçadas: a prefeitura precisa de distância de outra prefeitura e de qualquer QG

@@ -267,11 +267,14 @@ describe('modificadores da camada nacional', () => {
 });
 
 describe('coleta de recursos', () => {
-  const resourceMap = () =>
-    flatMap(32, (set) => {
+  // sem jazida de petróleo (a poça reservaria as células da fazenda vizinha)
+  const resourceMap = () => ({
+    ...flatMap(32, (set) => {
       for (let y = 10; y < 16; y++) for (let x = 0; x < 4; x++) set(x, y, Terrain.Forest); // 24 células de floresta (média)
       for (let y = 0; y < 2; y++) for (let x = 12; x < 16; x++) set(x, y, Terrain.Fertile); // 8 de solo fértil
-    });
+    }),
+    resourceNodes: [],
+  });
 
   it('serraria reivindica as árvores próximas e rende por célula; a segunda não pode reutilizá-las', () => {
     const sim = emptySim(resourceMap());
@@ -377,5 +380,17 @@ describe('névoa de guerra', () => {
     run(sim, TICK_RATE * 6);
     expect(target.hp).toBeLessThan(10_000);
     expect(sim.drainEvents().some((e) => e.type === 'shot' && e.attackerId === art.id)).toBe(true);
+  });
+});
+
+describe('jazida de petróleo', () => {
+  it('a poça fica reservada para o Poço de Petróleo: outro edifício não é construído em cima dela', () => {
+    const sim = emptySim();
+    const node = sim.map.resourceNodes[0]!;
+    expect(sim.placementError(0, 'house', { cx: node.cx, cy: node.cy })).toMatch(/Jazida de petróleo/);
+    expect(sim.placementError(0, 'barracks', { cx: node.cx - 1, cy: node.cy + 1 })).toMatch(/Jazida de petróleo/);
+    expect(sim.placementError(0, 'oil_well', { cx: node.cx, cy: node.cy })).toBeNull();
+    // ao lado da poça continua livre
+    expect(sim.placementError(0, 'house', { cx: node.cx + 2, cy: node.cy })).toBeNull();
   });
 });
