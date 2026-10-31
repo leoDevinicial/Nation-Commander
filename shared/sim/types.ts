@@ -230,6 +230,8 @@ export interface PlayerState {
   goods?: Goods;
   /** Pressão do mercado interno por recurso vendido (baixa o preço; some com o tempo). */
   marketPressure?: Partial<Record<MarketResource, number>>;
+  /** Demanda do mercado interno por recurso comprado (sobe o preço de compra; some com o tempo). */
+  marketDemand?: Partial<Record<MarketResource, number>>;
 }
 
 export interface MapData {

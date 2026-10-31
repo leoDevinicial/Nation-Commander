@@ -263,12 +263,12 @@ usuário ainda não respondeu. Ideias pendentes e coisas conhecidas:
   quiser painéis neles, criar uma variante inclinada que acompanhe a água do telhado.
 - Exceção conhecida do início garantido: Rios e Pontes, 5 nações, perfil agrícola, seed 3 — a mina alcança 5 de 6 células.
 - Partidas humanas contra a IA para validar a sensação da economia nova ainda não foram feitas.
-- **Economia tardia:** resolvida em boa parte pelo mercado interno. A IA às vezes para o QG no nível 7 com "Requisito:
-  Infraestrutura nacional com índice 1,02" (o governo da IA não sobe o orçamento de infraestrutura para isso).
-- Mercado interno: só vende (excedente → suprimentos). Comprar com suprimentos não existe; se o usuário pedir, seguir a
-  mesma regra de pressão de preço (`shared/sim/market.ts`).
+- **Economia tardia:** resolvida em boa parte pelo mercado interno. O QG da IA travado no nível 7 pelo requisito de
+  infraestrutura foi corrigido em 31/10: o governo da IA sobe a verba de infraestrutura até o índice passar 1,02.
+- Mercado interno: vende e compra (a compra desde 31/10, ver `docs/MERCADO_INTERNO.md`). A IA ainda só vende.
 - Os critérios de validação que ainda falham estão na seção 3 (dois casos isolados no Normal).
-- `docs/RELATORIO_POS_PARTIDA.md`: o relatório ainda não é gravado no histórico do Supabase.
+- Relatório pós-partida gravado no Supabase (`matches.report`) desde 31/10; a migração
+  `20261031000000_match_report.sql` precisa ser aplicada no banco.
 
 ## 8. Estilo de entrega que o usuário aprovou
 

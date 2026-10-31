@@ -3,6 +3,8 @@ import { spendPct, type Budget, type NationalSimulation } from './NationalSimula
 import { researchBlocker, TECH_IDS, type TechId } from './technologies.ts';
 import type { DiplomaticAction } from './Diplomacy.ts';
 import type { DecreeId } from './policies.ts';
+import { BASE_INFRASTRUCTURE_PCT } from './params.ts';
+import { INFRA_GATE_MIN } from '../sim/upgrades.ts';
 
 /** Ordem de pesquisa da IA: primeiro o que ajuda no teatro, depois a economia. */
 const AI_RESEARCH_ORDER: TechId[] = [
@@ -28,6 +30,9 @@ const AI_RESEARCH_ORDER: TechId[] = [
 /** Com a força aérea e os mísseis na dificuldade: munição guiada e mísseis vêm primeiro. */
 const AI_MILITARY_FIRST: TechId[] = ['logistics', 'digital_comms', 'guided_munitions', 'ballistic_missiles'];
 
+/** Dia (1 dia = 1 s de partida) a partir do qual o governo da IA puxa o índice de infraestrutura. */
+export const AI_INFRA_FROM_DAY = 720;
+
 export class NationalAI {
   constructor(
     readonly slot: Slot,
@@ -48,10 +53,15 @@ export class NationalAI {
     const ref = n.referenceBudget;
     let changed = false;
 
+    // o índice de infraestrutura só cresce com a verba acima da base e destrava os níveis altos do Centro de Comando
+    // (nível 8 em diante exige INFRA_GATE_MIN): enquanto ele não passa com folga, a verba não cai abaixo da base
+    // (só a partir de ~12 min de partida: antes disso o gasto extra atrasa a economia do começo, e o QG só chega ao
+    // nível 8 por volta dos 25 min; a verba leva uns 3 min para levar o índice acima da exigência)
+    const infraLow = sim.day >= AI_INFRA_FROM_DAY && n.infrastructureIndex < INFRA_GATE_MIN + 0.05;
     // déficit muito acima do de referência: corta despesas discricionárias e sobe impostos
     if (n.deficitPctGdp > Math.max(3, n.base.deficitPctGdp) + 2) {
       b.socialPct = Math.max(ref.socialPct * 0.9, b.socialPct - 0.3);
-      b.infrastructurePct = Math.max(ref.infrastructurePct * 0.8, b.infrastructurePct - 0.2);
+      b.infrastructurePct = Math.max(ref.infrastructurePct * 0.8, infraLow ? BASE_INFRASTRUCTURE_PCT : 0, b.infrastructurePct - 0.2);
       if (n.approval > 45) b.taxPct += 0.3;
       changed = true;
     }
@@ -70,6 +80,15 @@ export class NationalAI {
     // defesa da dificuldade: mais verba militar rende mais suprimentos no teatro (mesmo comando do jogador)
     if (b.defensePct < ref.defensePct * this.defenseMul - 0.05 && n.deficitPctGdp < Math.max(3, n.base.deficitPctGdp) + 1) {
       b.defensePct = Math.min(ref.defensePct * this.defenseMul, b.defensePct + 0.2);
+      changed = true;
+    }
+    // infraestrutura: sobe a verba aos poucos até o índice passar a exigência do QG com folga (e rende mais verba de
+    // obras); depois volta para perto da base, sem deixar o índice cair
+    if (infraLow && b.infrastructurePct < BASE_INFRASTRUCTURE_PCT + 1 && n.deficitPctGdp < Math.max(3, n.base.deficitPctGdp) + 1) {
+      b.infrastructurePct = Math.min(BASE_INFRASTRUCTURE_PCT + 1, Math.max(b.infrastructurePct, BASE_INFRASTRUCTURE_PCT) + 0.25);
+      changed = true;
+    } else if (n.infrastructureIndex > INFRA_GATE_MIN + 0.1 && b.infrastructurePct > Math.max(ref.infrastructurePct, BASE_INFRASTRUCTURE_PCT) + 0.25) {
+      b.infrastructurePct = Math.max(Math.max(ref.infrastructurePct, BASE_INFRASTRUCTURE_PCT) + 0.1, b.infrastructurePct - 0.2);
       changed = true;
     }
     // pesquisa: garante um mínimo de investimento

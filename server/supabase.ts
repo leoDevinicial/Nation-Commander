@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { BalanceMode, EndReason, NationalSummary, RoomMode } from '../shared/protocol.ts';
 import type { PlayerStats } from '../shared/sim/types.ts';
+import type { MatchReport } from '../shared/sim/report.ts';
 import { config } from './config.ts';
 import { log } from './logger.ts';
 
@@ -55,6 +56,8 @@ export interface MatchRecord {
     stats: PlayerStats;
     national: NationalSummary | null;
   }[];
+  /** Relatório pós-partida (amostras ao longo do tempo e medalhas), gravado em `matches.report`. */
+  report: MatchReport;
 }
 
 /** Grava a partida via RPC atômica. Retorna true se gravada. */

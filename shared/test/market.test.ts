@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TICK_RATE } from '../sim/config.ts';
 import { Simulation } from '../sim/Simulation.ts';
-import { MARKET, marketPrice, marketQuote } from '../sim/market.ts';
+import { MARKET, marketBuyPrice, marketBuyQuote, marketPrice, marketQuote } from '../sim/market.ts';
 import { parseCommand } from '../sim/commands.ts';
 import { TacticalAI } from '../sim/TacticalAI.ts';
 import { flatMap } from './helpers.ts';
@@ -66,6 +66,38 @@ describe('mercado interno (excedente → suprimentos)', () => {
     const { sim, market } = withMarket();
     sim.applyCommand(0, { type: 'market_sell', buildingId: market.id, resource: 'wood', quantity: 300 });
     expect(Simulation.fromSave(sim.toSave()).players[0]!.marketPressure?.wood).toBe(300);
+  });
+
+  it('compra com suprimentos: custa mais do que a venda rende, encarece com a demanda e volta com o tempo', () => {
+    const { sim, market, p } = withMarket();
+    p.resources.supplies = 1000;
+    const iron = p.resources.iron;
+    const cost = marketBuyQuote('iron', 0, 100);
+    // comprar e revender sempre dá prejuízo
+    expect(cost).toBeGreaterThan(marketQuote('iron', 0, 100));
+    expect(sim.applyCommand(0, { type: 'market_buy', buildingId: market.id, resource: 'iron', quantity: 100 })).toBeNull();
+    expect(p.resources.iron).toBe(iron + 100);
+    expect(p.resources.supplies).toBe(1000 - cost);
+    expect(p.marketDemand?.iron).toBe(100);
+    // a próxima compra igual custa mais; com o tempo o preço volta
+    expect(marketBuyQuote('iron', 100, 100)).toBeGreaterThan(cost);
+    for (let i = 0; i < 60 * TICK_RATE; i++) sim.step();
+    expect(p.marketDemand?.iron).toBeUndefined();
+    expect(marketBuyPrice('iron', 0)).toBeCloseTo(MARKET.rates.iron * MARKET.buySpread, 6);
+  });
+
+  it('compra: picar não sai mais barato; recusa sem suprimentos ou sem espaço no armazém', () => {
+    const { sim, market, p } = withMarket();
+    let parts = 0;
+    for (let k = 0; k < 5; k++) parts += marketBuyQuote('food', k * 100, 100);
+    expect(parts).toBeGreaterThanOrEqual(marketBuyQuote('food', 0, 500));
+    p.resources.supplies = 10;
+    expect(sim.applyCommand(0, { type: 'market_buy', buildingId: market.id, resource: 'food', quantity: 100 })).toMatch(/Suprimentos insuficientes/);
+    p.resources.supplies = 5000;
+    p.resources.food = sim.capacity(0).food - 50;
+    expect(sim.applyCommand(0, { type: 'market_buy', buildingId: market.id, resource: 'food', quantity: 100 })).toMatch(/Sem espaço/);
+    expect(parseCommand({ type: 'market_buy', buildingId: market.id, resource: 'supplies', quantity: 100 })).toBeNull();
+    expect(parseCommand({ type: 'market_buy', buildingId: market.id, resource: 'oil', quantity: 100 })).toEqual({ type: 'market_buy', buildingId: market.id, resource: 'oil', quantity: 100 });
   });
 
   it('a IA vende o excedente por suprimentos e guarda uma reserva', () => {

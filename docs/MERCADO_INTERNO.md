@@ -30,6 +30,22 @@ Os preços seguem a proporção do preço internacional de cada recurso (`BASE_P
   pagamento.
 - A venda não conta como recurso gasto nem coletado nas estatísticas do relatório.
 
+## Compra com suprimentos
+
+O mesmo painel também compra os cinco recursos, em lotes de 100 ou 500, pagando em suprimentos.
+
+- **Preço de compra:** começa em 1,6 × o preço cheio (`MARKET.buySpread`) e sobe com a demanda acumulada daquele
+  recurso: `cheio × 1,6 × (1000 + demanda) / 1000`.
+- **Sem lucro em comprar e revender:** a compra custa sempre mais do que a venda rende.
+- **Sem truque de lote:** o custo é a integral do preço enquanto a demanda sobe, arredondado para cima. Picar a compra
+  não sai mais barato.
+- **Recuperação:** a demanda cai 2 por segundo, como a pressão da venda.
+- **Exemplo:** 100 de ferro custam 84 suprimentos (a venda de 100 rende 47).
+- **Recusas:** terminal em obra ou de outro jogador, suprimentos insuficientes, armazém sem espaço para o recurso
+  comprado.
+- A compra também não entra nas estatísticas de gasto e de coleta.
+- **IA:** por enquanto, a IA só vende.
+
 ## IA
 
 - Ergue o Terminal Comercial quando tem sobra e menos da metade do armazém de suprimentos.
@@ -54,8 +70,8 @@ armazéns quase não enchem mais: a comida cheia caiu de até 45% do tempo para 
 | O quê | Onde |
 |---|---|
 | Números e cálculo | `MARKET`, `marketPrice`, `marketQuote`, `marketRecover` em `shared/sim/market.ts` |
-| Comando | `market_sell` (`shared/sim/commands.ts`), validado em `Simulation.applyCommand` |
-| Estado | `PlayerState.marketPressure` (vai no salvamento); `PlayerSnapshot.market` só para o dono |
+| Comando | `market_sell` e `market_buy` (`shared/sim/commands.ts`), validados em `Simulation.applyCommand` |
+| Estado | `PlayerState.marketPressure` e `marketDemand` (vão no salvamento); `PlayerSnapshot.market` e `marketDemand` só para o dono |
 | Painel | `MarketInfo` em `src/ui/hud/CommandPanel.tsx` |
 | IA | `TacticalAI.planMarket` e `TacticalAI.surplus` |
 | Testes | `shared/test/market.test.ts` |

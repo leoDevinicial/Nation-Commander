@@ -44,7 +44,7 @@ import { useAppStore } from '../../state/useAppStore.ts';
 import { buildingEffects, formatUsd as usdShort, specDef, upgradeTrack } from '../../../shared/sim/upgrades.ts';
 import { effectiveEra, effectiveMilitaryResearch, effectivePopCap, effectiveTechs, isSandboxMatch, timeText } from '../../state/sandbox.ts';
 import { BUILDING_ERA, ERAS, UNIT_ERA, buildingEra, eraPhrase, eraTitle, type Era } from '../../../shared/sim/eras.ts';
-import { MARKET, MARKET_RESOURCES, marketPrice, marketQuote } from '../../../shared/sim/market.ts';
+import { MARKET, MARKET_RESOURCES, marketPrice, marketQuote, marketBuyPrice, marketBuyQuote } from '../../../shared/sim/market.ts';
 
 const EMPTY_TECHS: readonly string[] = [];
 
@@ -1034,6 +1034,40 @@ function MarketInfo({ b, runtime }: { b: { id: number }; runtime: GameRuntime })
                     title={`Vender ${q} de ${RESOURCE_LABELS[r].toLowerCase()} por ${gain} suprimentos`}
                   >
                     {q} → +{gain}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+      <div
+        className="mt-1.5 text-[11px] font-semibold text-ink-200"
+        title="Compra recursos pagando suprimentos. Custa mais do que a venda rende (comprar e revender dá prejuízo), e cada compra encarece aquele recurso; o preço volta ao normal com o tempo."
+      >
+        Mercado interno: comprar com suprimentos
+      </div>
+      <div className="mt-0.5 grid w-fit grid-cols-2 gap-x-6 gap-y-0.5">
+        {MARKET_RESOURCES.map((r) => {
+          const d = me.marketDemand?.[r] ?? 0;
+          const price = marketBuyPrice(r, d);
+          const roomR = me.capacity ? me.capacity[r] - res[r] : Infinity;
+          return (
+            <div key={r} className="flex items-center gap-1.5 text-[11px]">
+              <span className="w-14 text-ink-300">{RESOURCE_LABELS[r]}</span>
+              <span className={`w-14 ${price > MARKET.rates[r] * MARKET.buySpread * 1.25 ? 'text-amber-300' : 'text-ink-400'}`}>{price.toFixed(2)}/un</span>
+              {MARKET.lots.map((q) => {
+                const cost = marketBuyQuote(r, d, q);
+                const ok = res.supplies >= cost && roomR >= q;
+                return (
+                  <button
+                    key={q}
+                    disabled={!ok}
+                    onClick={() => runtime.send({ type: 'market_buy', buildingId: b.id, resource: r, quantity: q })}
+                    className="rounded bg-ink-800 px-1.5 py-0.5 text-ink-200 hover:bg-ink-700 disabled:opacity-40"
+                    title={roomR < q ? `Sem espaço no armazém para ${q} de ${RESOURCE_LABELS[r].toLowerCase()}` : `Comprar ${q} de ${RESOURCE_LABELS[r].toLowerCase()} por ${cost} suprimentos`}
+                  >
+                    +{q} ← {cost}
                   </button>
                 );
               })}

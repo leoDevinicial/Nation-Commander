@@ -118,6 +118,9 @@ describe('servidor de partidas', () => {
     expect(records).toHaveLength(1);
     expect(records[0]!.winner_id).toBe('alice');
     expect(records[0]!.players.map((p) => p.result)).toEqual(['win', 'loss']);
+    // relatório pós-partida vai junto para o histórico, igual ao da tela de resultado
+    expect(records[0]!.report.samples.length).toBeGreaterThan(0);
+    expect(records[0]!.report.medals.map((m) => m.slot)).toEqual([0, 1]);
     // relatório pós-partida: amostra inicial e final, medalha de vitória para quem venceu
     expect(end.report!.samples.length).toBeGreaterThanOrEqual(2);
     expect(end.report!.medals.find((m) => m.slot === 0)!.medals).toContain('victory');

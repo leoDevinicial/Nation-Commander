@@ -40,4 +40,8 @@ As medalhas aparecem ao lado do nome de cada comandante; o nome e o critério de
 "Evolução da partida" mostra uma linha por comandante, na cor da facção, e tem botões para trocar a métrica: Tropas,
 Construções, Território, Recursos coletados e PIB.
 
-O relatório vai na mensagem `match_end` (`MatchEndInfo.report`). Ele ainda não é gravado no histórico do Supabase.
+O relatório vai na mensagem `match_end` (`MatchEndInfo.report`) e também é gravado no histórico do Supabase, na coluna
+`matches.report` (jsonb), pela função `record_match` (migração `20261031000000_match_report.sql`).
+- As partidas gravadas antes da migração ficam com o relatório nulo.
+- Enquanto a migração não for aplicada no banco, a função antiga ignora o campo e a gravação segue funcionando, só sem
+  o relatório.

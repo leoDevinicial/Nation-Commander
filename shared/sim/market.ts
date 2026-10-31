@@ -19,6 +19,11 @@ export const MARKET = {
   recoveryPerSec: 2,
   /** Lotes oferecidos no painel. */
   lots: [100, 500] as const,
+  /**
+   * Compra: o preço de compra parte de `buySpread` × o cheio e sobe com a demanda acumulada (que some no mesmo ritmo da
+   * pressão de venda). Como a compra custa sempre mais que a venda rende, comprar e revender só dá prejuízo.
+   */
+  buySpread: 1.6,
 };
 
 /** Preço atual (suprimentos por unidade) com a pressão acumulada. */
@@ -34,6 +39,21 @@ export function marketQuote(resource: MarketResource, pressure: number, quantity
   if (quantity <= 0) return 0;
   const p = Math.max(0, pressure);
   return Math.floor(MARKET.rates[resource] * MARKET.depth * Math.log((MARKET.depth + p + quantity) / (MARKET.depth + p)));
+}
+
+/** Preço de compra atual (suprimentos por unidade) com a demanda acumulada. */
+export function marketBuyPrice(resource: MarketResource, demand: number): number {
+  return (MARKET.rates[resource] * MARKET.buySpread * (MARKET.depth + Math.max(0, demand))) / MARKET.depth;
+}
+
+/**
+ * Suprimentos pagos por `quantity` unidades compradas: a integral do preço enquanto a demanda sobe (comprar aos poucos
+ * ou de uma vez custa o mesmo, fora o arredondamento, sempre para cima).
+ */
+export function marketBuyQuote(resource: MarketResource, demand: number, quantity: number): number {
+  if (quantity <= 0) return 0;
+  const d = Math.max(0, demand);
+  return Math.ceil((MARKET.rates[resource] * MARKET.buySpread * (quantity * (MARKET.depth + d) + (quantity * quantity) / 2)) / MARKET.depth);
 }
 
 /** Recuperação da pressão em um tick. */

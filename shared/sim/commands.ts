@@ -31,6 +31,7 @@ export type Command =
   | { type: 'build_road'; cells: { cx: number; cy: number }[] }
   /** Mercado interno do Terminal Comercial: vende o excedente por suprimentos. */
   | { type: 'market_sell'; buildingId: EntityId; resource: MarketResource; quantity: number }
+  | { type: 'market_buy'; buildingId: EntityId; resource: MarketResource; quantity: number }
   /** Programa Espacial: autoriza o lançamento do satélite. */
   | { type: 'space_launch'; buildingId: EntityId }
   | { type: 'cancel_era' }
@@ -129,6 +130,9 @@ export function parseCommand(raw: unknown): Command | null {
     case 'market_sell':
       if (!isId(raw.buildingId) || !isMarketResource(raw.resource) || !Number.isInteger(raw.quantity) || (raw.quantity as number) <= 0 || (raw.quantity as number) > 100_000) return null;
       return { type: 'market_sell', buildingId: raw.buildingId, resource: raw.resource, quantity: raw.quantity as number };
+    case 'market_buy':
+      if (!isId(raw.buildingId) || !isMarketResource(raw.resource) || !Number.isInteger(raw.quantity) || (raw.quantity as number) <= 0 || (raw.quantity as number) > 100_000) return null;
+      return { type: 'market_buy', buildingId: raw.buildingId, resource: raw.resource, quantity: raw.quantity as number };
     case 'space_launch':
       return isId(raw.buildingId) ? { type: 'space_launch', buildingId: raw.buildingId } : null;
     case 'cancel_production':

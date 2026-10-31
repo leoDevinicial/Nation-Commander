@@ -1025,6 +1025,26 @@ export class Room {
     const result = (slot: Slot): 'win' | 'loss' | 'draw' => (winnerSlot === null ? 'draw' : winnerSlot === slot ? 'win' : 'loss');
     const winner = this.players.find((p) => p.slot === winnerSlot);
 
+    // relatório pós-partida: vai na tela de resultado e também no histórico do Supabase
+    this.reportSamples = pushSample(this.reportSamples, this.sampleReport());
+    const report: MatchReport = {
+      samples: this.reportSamples,
+      medals: this.players.map((p) => {
+        const nat = this.nationalSummary(p.slot);
+        return {
+          slot: p.slot,
+          medals: medalsFor({
+            result: result(p.slot),
+            reason,
+            durationSeconds,
+            stats: sim.players[p.slot]!.stats,
+            gdpStartUsd: nat?.gdpStartUsd ?? null,
+            gdpEndUsd: nat?.gdpEndUsd ?? null,
+            bestRank: this.bestRank.get(p.slot) ?? 0,
+          }),
+        };
+      }),
+    };
     // o Sandbox não conta no histórico nem no ranking
     const realUsers = this.mode === 'sandbox' ? [] : this.players.filter((p) => !p.isAI && p.userId && !p.userId.startsWith('guest:'));
     let recorded = false;
@@ -1053,6 +1073,7 @@ export class Room {
               national: this.nationalSummary(p.slot),
             })),
             balance_mode: this.balanceMode,
+            report,
           }),
           RECORD_TIMEOUT_MS,
           false,
@@ -1062,25 +1083,6 @@ export class Room {
       }
     }
 
-    this.reportSamples = pushSample(this.reportSamples, this.sampleReport());
-    const report: MatchReport = {
-      samples: this.reportSamples,
-      medals: this.players.map((p) => {
-        const nat = this.nationalSummary(p.slot);
-        return {
-          slot: p.slot,
-          medals: medalsFor({
-            result: result(p.slot),
-            reason,
-            durationSeconds,
-            stats: sim.players[p.slot]!.stats,
-            gdpStartUsd: nat?.gdpStartUsd ?? null,
-            gdpEndUsd: nat?.gdpEndUsd ?? null,
-            bestRank: this.bestRank.get(p.slot) ?? 0,
-          }),
-        };
-      }),
-    };
     const end: MatchEndInfo = {
       winnerSlot,
       reason,

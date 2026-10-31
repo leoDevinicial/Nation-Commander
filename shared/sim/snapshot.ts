@@ -97,6 +97,8 @@ export interface PlayerSnapshot {
   goods?: { fuel: number; steel: number; cap: number };
   /** Pressão do mercado interno por recurso (só para o próprio jogador; baixa o preço de venda). */
   market?: Partial<Record<MarketResource, number>>;
+  /** Demanda acumulada das compras no mercado interno (só para o dono). */
+  marketDemand?: Partial<Record<MarketResource, number>>;
 }
 
 /** Carga em trânsito: completa para quem negocia; para os demais, só o veículo visível no mapa. */
@@ -308,6 +310,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         ...(mine && sim.eras ? { eras: true } : {}),
         ...(p.satellite ? { satellite: true as const } : {}),
         ...(mine && p.marketPressure && Object.keys(p.marketPressure).length ? { market: Object.fromEntries(Object.entries(p.marketPressure).map(([k, v]) => [k, Math.round(v)])) } : {}),
+        ...(mine && p.marketDemand && Object.keys(p.marketDemand).length ? { marketDemand: Object.fromEntries(Object.entries(p.marketDemand).map(([k, v]) => [k, Math.round(v)])) } : {}),
         ...(mine && p.goods ? { goods: { fuel: Math.floor(p.goods.fuel), steel: Math.floor(p.goods.steel), cap: sim.goodsCap(p.slot) } } : {}),
       };
     }),

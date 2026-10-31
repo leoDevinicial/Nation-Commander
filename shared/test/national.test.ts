@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ESTIMATES } from '../data/reference/estimates.ts';
 import { COUNTRIES } from '../data/countries.ts';
 import { NationalAI } from '../strategic/NationalAI.ts';
+import { INFRA_GATE_MIN } from '../sim/upgrades.ts';
 import { createNation, NationalSimulation, spendPct } from '../strategic/NationalSimulation.ts';
 import { countryReference, hasReferenceData } from '../strategic/reference.ts';
 import { TECHNOLOGIES } from '../strategic/technologies.ts';
@@ -174,6 +175,25 @@ describe('modelo nacional', () => {
     const n = sim.nation(0)!;
     expect(n.research.done.length).toBeGreaterThan(0);
     expect(spendPct(n.budget)).toBeLessThan(40);
+  });
+
+  it('IA sobe a verba de infraestrutura até o índice passar a exigência do Centro de Comando nível 8', () => {
+    for (const country of ['BRA', 'USA', 'IND']) {
+      const sim = new NationalSimulation([{ slot: 0, countryId: country }], 5, 'parity');
+      const ai = new NationalAI(0);
+      // 1 dia = 1 s de partida: o QG da IA chega ao nível 8 por volta dos 25 min (dia 1500)
+      for (let d = 0; d < 25 * 60; d++) {
+        if (d % 30 === 0) {
+          const r = ai.think(sim);
+          if (r.budget) sim.setBudget(0, r.budget);
+        }
+        sim.stepDay();
+      }
+      const n = sim.nation(0)!;
+      // aos 25 min o índice já destrava o nível 8 (antes ficava em 1,00 ou abaixo, e o QG da IA travava no 7)
+      expect(n.infrastructureIndex, country).toBeGreaterThanOrEqual(INFRA_GATE_MIN);
+      expect(spendPct(n.budget), country).toBeLessThan(40);
+    }
   });
 
   it('IA da dificuldade alta sobe a defesa aos poucos (mais suprimentos no teatro), com as contas sob controle', () => {
