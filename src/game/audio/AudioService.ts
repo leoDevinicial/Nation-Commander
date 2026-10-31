@@ -2058,11 +2058,16 @@ export class AudioService {
     this.music = { stop: () => window.clearInterval(this.musicTimer) };
   }
 
-  private weatherLoop: { rain: GainNode; drops: GainNode; snow: GainNode; stop: () => void } | null = null;
+  private weatherLoop: { wash: GainNode; hiss: GainNode; roof: GainNode; snow: GainNode; stop: () => void } | null = null;
+  private weatherRain = 0;
 
   /**
-   * Clima (canal ambiente): chuva (chiado largo do aguaceiro e o tamborilar agudo das gotas por cima) e o vento frio da
-   * nevasca (sopro grave que sobe e desce). `rain` e `snow` de 0 a 1; as mudanças entram devagar.
+   * Clima (canal ambiente). Chuva em camadas, sem nada que assobie ou pulse:
+   * - o "lençol" da chuva: ruído rosado abafado (passa-baixa suave), largo e constante;
+   * - um chiado fino bem baixo por cima (a água batendo em folhas e no chão);
+   * - o tamborilar grave nos telhados;
+   * - gotas soltas (estalos curtos, de altura e posição variadas no estéreo), sorteadas a cada chamada.
+   * Neve: só o vento frio, grave e lento. `rain` e `snow` de 0 a 1; as mudanças entram devagar.
    */
   setWeather(rain: number, snow: number): void {
     if (!this.ready) return;
@@ -2071,28 +2076,29 @@ export class AudioService {
       if (rain < 0.01 && snow < 0.01) return;
       const out = this.out('ambient', 1);
       const stops: (() => void)[] = [];
-      const layer = (type: BiquadFilterType, freq: number, q: number, hp?: number, lfo?: { rate: number; depth: number }) => {
+      const layer = (filters: [BiquadFilterType, number, number][], lfo?: { rate: number; depth: number; target: 'freq' | 'gain' }) => {
         const n = this.noiseSource(true);
-        const f = ctx.createBiquadFilter();
-        f.type = type;
-        f.frequency.value = freq;
-        f.Q.value = q;
-        let node: AudioNode = n.connect(f);
-        if (hp) {
-          const h = ctx.createBiquadFilter();
-          h.type = 'highpass';
-          h.frequency.value = hp;
-          node = node.connect(h);
+        let node: AudioNode = n;
+        let first: BiquadFilterNode | null = null;
+        for (const [type, freq, q] of filters) {
+          const f = ctx.createBiquadFilter();
+          f.type = type;
+          f.frequency.value = freq;
+          f.Q.value = q;
+          first ??= f;
+          node = node.connect(f);
         }
         const g = ctx.createGain();
         g.gain.value = 0;
-        node.connect(g).connect(out);
+        const sway = ctx.createGain();
+        sway.gain.value = 1;
+        node.connect(sway).connect(g).connect(out);
         if (lfo) {
           const l = ctx.createOscillator();
           l.frequency.value = lfo.rate;
           const d = ctx.createGain();
           d.gain.value = lfo.depth;
-          l.connect(d).connect(f.frequency);
+          l.connect(d).connect(lfo.target === 'freq' ? first!.frequency : sway.gain);
           l.start();
           stops.push(() => l.stop());
         }
@@ -2100,15 +2106,62 @@ export class AudioService {
         stops.push(() => n.stop());
         return g;
       };
-      const rainG = layer('lowpass', 2800, 0.5, 350);
-      const dropsG = layer('bandpass', 5200, 0.9, undefined, { rate: 7.3, depth: 900 });
-      const snowG = layer('lowpass', 420, 0.8, 60, { rate: 0.09, depth: 240 });
-      this.weatherLoop = { rain: rainG, drops: dropsG, snow: snowG, stop: () => stops.forEach((f) => f()) };
+      // ruído rosado aproximado: duas passa-baixas em cascata; rajadas lentas de vento mexem no volume
+      const wash = layer(
+        [
+          ['highpass', 180, 0.5],
+          ['lowpass', 2200, 0.4],
+          ['lowpass', 3600, 0.4],
+        ],
+        { rate: 0.06, depth: 0.18, target: 'gain' },
+      );
+      const hiss = layer([
+        ['highpass', 4200, 0.4],
+        ['lowpass', 9000, 0.4],
+      ]);
+      const roof = layer(
+        [
+          ['highpass', 70, 0.5],
+          ['lowpass', 420, 0.6],
+        ],
+        { rate: 0.11, depth: 0.12, target: 'gain' },
+      );
+      const snowG = layer(
+        [
+          ['highpass', 60, 0.5],
+          ['lowpass', 420, 0.8],
+        ],
+        { rate: 0.09, depth: 240, target: 'freq' },
+      );
+      this.weatherLoop = { wash, hiss, roof, snow: snowG, stop: () => stops.forEach((f) => f()) };
     }
     const t = ctx.currentTime;
-    this.weatherLoop.rain.gain.setTargetAtTime(0.5 * rain, t, 1.5);
-    this.weatherLoop.drops.gain.setTargetAtTime(0.12 * rain, t, 1.5);
-    this.weatherLoop.snow.gain.setTargetAtTime(0.45 * snow, t, 2);
+    // volumes confortáveis: a chuva fica atrás do jogo, nunca na frente
+    this.weatherLoop.wash.gain.setTargetAtTime(0.3 * rain, t, 2);
+    this.weatherLoop.hiss.gain.setTargetAtTime(0.035 * rain, t, 2);
+    this.weatherLoop.roof.gain.setTargetAtTime(0.16 * rain, t, 2);
+    this.weatherLoop.snow.gain.setTargetAtTime(0.3 * snow, t, 2.5);
+    this.weatherRain += (rain - this.weatherRain) * 0.3;
+    // gotas soltas para o próximo meio segundo (a função é chamada a cada ~0,5 s)
+    const drops = Math.round(this.weatherRain * 9 * (0.7 + Math.random() * 0.6));
+    for (let i = 0; i < drops; i++) this.rainDrop(t + Math.random() * 0.5, this.weatherRain);
+  }
+
+  /** Uma gota: estalo curtíssimo e abafado (folha, telha ou poça), com altura e lado sorteados. */
+  private rainDrop(at: number, rain: number): void {
+    const ctx = this.ctx!;
+    const out = this.out('ambient', 1, Math.random() * 1.6 - 0.8);
+    const n = this.noiseSource();
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    const roofy = Math.random() < 0.35;
+    f.frequency.value = roofy ? 900 + Math.random() * 700 : 2400 + Math.random() * 2600;
+    f.Q.value = 2.5 + Math.random() * 2;
+    const g = ctx.createGain();
+    n.connect(f).connect(g).connect(out);
+    const end = this.env(g, at, 0.002, (roofy ? 0.05 : 0.03) * (0.4 + rain * 0.6) * (0.5 + Math.random()), 0.02 + Math.random() * 0.03);
+    n.start(at, Math.random() * 2);
+    n.stop(end + 0.02);
   }
 
   /**

@@ -41,6 +41,10 @@ export interface WeatherHooks {
   lightning: (x: number, z: number) => void;
 }
 
+/** Neve no chão: no máximo manchas (0,85 cobria tudo de branco); depois de derreter fica só o resíduo. */
+const SNOW_MAX = 0.38;
+const SNOW_RESIDUE = 0.07;
+
 export class WeatherSystem {
   readonly group = new THREE.Group();
   private readonly base: {
@@ -64,6 +68,8 @@ export class WeatherSystem {
   /** Estado suavizado (as mudanças de clima nunca são bruscas). */
   private readonly now: WeatherState = { rain: 0, snow: 0, storm: 0, cover: 0 };
   private snowCover = 0;
+  /** Já nevou nesta partida: depois de derreter, sobram manchas pequenas (sombra, beira de mato). */
+  private snowed = false;
   private wet = 0;
   private flash = 0;
   private nextBolt = 4;
@@ -213,9 +219,13 @@ export class WeatherSystem {
     this.now.storm += (want.storm - this.now.storm) * k;
     this.now.cover += (want.cover - this.now.cover) * k;
     const { rain, snow, storm, cover } = this.now;
-    // neve acumula em ~1 min de nevasca e derrete em ~4 min; o chão seca em ~1,5 min
-    this.snowCover = THREE.MathUtils.clamp(this.snowCover + (snow > 0.15 ? (dt / 60) * snow : -dt / 240), 0, 0.85);
-    this.wet = THREE.MathUtils.clamp(this.wet + (rain > 0.1 ? (dt / 15) * rain : -dt / 90), 0, 1);
+    // neve: acumula pouco (só manchas, nunca cobre o mapa) e derrete em ~1,5 min, deixando restos mínimos;
+    // chuva: molha em ~15 s e seca em ~2 min
+    if (this.snowCover > 0.15) this.snowed = true;
+    const residue = this.snowed ? SNOW_RESIDUE : 0;
+    const snowStep = snow > 0.12 ? (dt / 50) * snow : this.snowCover > residue ? -dt / 90 : 0;
+    this.snowCover = THREE.MathUtils.clamp(this.snowCover + snowStep, residue, SNOW_MAX);
+    this.wet = THREE.MathUtils.clamp(this.wet + (rain > 0.1 ? (dt / 15) * rain : -dt / 120), 0, 1);
     climateUniforms.uSnow.value = this.snowCover;
     climateUniforms.uWet.value = this.wet * (1 - this.snowCover);
     climateUniforms.uNight.value = dl.night;
@@ -253,7 +263,7 @@ export class WeatherSystem {
     const fog = this.scene.fog as THREE.Fog | null;
     if (fog) {
       fog.color.copy(SKY.haze);
-      const thick = Math.max(rain * 0.75, snow * 0.9);
+      const thick = Math.max(rain * 0.6, snow * 0.5);
       fog.near = this.base.fogNear * (1 - thick * 0.6);
       fog.far = this.base.fogFar * (1 - thick * 0.45);
     }

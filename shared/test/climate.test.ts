@@ -43,3 +43,27 @@ describe('clima da partida', () => {
     expect(rain).toBeGreaterThan(0.3);
   });
 });
+
+describe('clima ocasional e curto', () => {
+  it('chuva e neve ocupam pouco tempo e cada evento dura no máximo ~1,5 min', () => {
+    for (const climate of ['snow', 'tropical', 'temperate'] as const) {
+      let wet = 0;
+      let total = 0;
+      let longest = 0;
+      for (let seed = 1; seed <= 20; seed++) {
+        let run = 0;
+        for (let s = 0; s < 2 * 3600; s++) {
+          const w = weatherAt(seed, climate, s);
+          const on = w.rain > 0.05 || w.snow > 0.05;
+          total++;
+          if (on) wet++;
+          run = on ? run + 1 : 0;
+          longest = Math.max(longest, run);
+        }
+      }
+      expect(wet / total).toBeLessThan(0.14);
+      expect(wet / total).toBeGreaterThan(0.02);
+      expect(longest).toBeLessThanOrEqual(90);
+    }
+  });
+});

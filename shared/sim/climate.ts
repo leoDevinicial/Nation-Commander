@@ -5,7 +5,7 @@ import type { MapType } from './matchMap.ts';
  * Clima da partida (só visual: não muda nenhuma regra). Decidido pelos países escolhidos no lobby (humanos e IA) e
  * pelo tipo de mapa. Todos os jogadores calculam o mesmo resultado, a partir da semente e do tempo da partida, então o
  * céu é igual para todo mundo.
- * - `snow`: todas as nações são da Europa. Nevascas de tempos em tempos (e a neve fica no chão), às vezes chuva fria.
+ * - `snow`: todas as nações são da Europa. Nevascas curtas de vez em quando (a neve derrete e sobram só manchas).
  * - `tropical`: alguma nação entre os trópicos (|latitude da capital| < 23,5°). Chuvas fortes e frequentes, com raios.
  * - `arid`: mapa Deserto. Chuva rara e fraca.
  * - `temperate`: o resto. Chuva de vez em quando.
@@ -75,13 +75,19 @@ export interface WeatherState {
   cover: number;
 }
 
-/** Janelas de clima (s): cada janela tem ou não um evento, com entrada e saída suaves. */
-export const WEATHER_WINDOW = 150;
+/**
+ * Janelas de clima (s): cada janela de 6 min tem ou não um evento, e o evento é curto (50 a 90 s, com entrada e saída
+ * suaves) e cai num momento sorteado da janela. Tempo bom é a regra; chuva e neve são ocasiões.
+ */
+export const WEATHER_WINDOW = 360;
+const EVENT_MIN = 50;
+const EVENT_SPAN = 40;
+const FADE = 12;
 const CHANCE: Record<Climate, { rain: number; snow: number; storm: number }> = {
-  snow: { rain: 0.12, snow: 0.55, storm: 0 },
-  tropical: { rain: 0.5, snow: 0, storm: 0.45 },
-  temperate: { rain: 0.35, snow: 0, storm: 0.25 },
-  arid: { rain: 0.07, snow: 0, storm: 0 },
+  snow: { rain: 0.08, snow: 0.32, storm: 0 },
+  tropical: { rain: 0.42, snow: 0, storm: 0.4 },
+  temperate: { rain: 0.28, snow: 0, storm: 0.2 },
+  arid: { rain: 0.06, snow: 0, storm: 0 },
 };
 
 /** Sorteio determinístico (0..1) por semente, janela e canal. */
@@ -103,12 +109,16 @@ export function weatherAt(seed: number, climate: Climate, seconds: number): Weat
   const roll = hash(seed, w, 1);
   const kind: 'snow' | 'rain' | null = roll < c.snow ? 'snow' : roll < c.snow + c.rain ? 'rain' : null;
   if (!kind) return out;
-  // força do evento e a curva: entra em ~25 s, fica, e sai nos últimos ~25 s da janela
-  const strength = 0.45 + hash(seed, w, 2) * 0.55;
-  const env = smooth(5, 30, local) * (1 - smooth(WEATHER_WINDOW - 30, WEATHER_WINDOW - 3, local));
-  const cover = smooth(0, 20, local) * (1 - smooth(WEATHER_WINDOW - 20, WEATHER_WINDOW, local));
-  out.cover = Math.min(1, cover * (0.55 + strength * 0.45));
-  if (kind === 'snow') out.snow = env * strength;
+  // evento curto num momento sorteado da janela: o céu fecha um pouco antes e abre um pouco depois
+  const strength = 0.4 + hash(seed, w, 2) * 0.5;
+  const len = EVENT_MIN + hash(seed, w, 4) * EVENT_SPAN;
+  const start = 20 + hash(seed, w, 5) * (WEATHER_WINDOW - len - 50);
+  const end = start + len;
+  const env = smooth(start, start + FADE, local) * (1 - smooth(end - FADE, end, local));
+  const cover = smooth(start - 15, start + 5, local) * (1 - smooth(end - 5, end + 15, local));
+  out.cover = Math.min(1, cover * (0.5 + strength * 0.4));
+  // neve leve: flocos esparsos, não nevasca
+  if (kind === 'snow') out.snow = env * strength * 0.65;
   else {
     out.rain = env * strength;
     if (hash(seed, w, 3) < c.storm && strength > 0.6) out.storm = env * smooth(0.6, 1, strength) * 0.6 + env * 0.4;

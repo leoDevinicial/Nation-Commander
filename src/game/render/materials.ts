@@ -233,12 +233,13 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
-        if (uWet > 0.0) diffuseColor.rgb *= 1.0 - 0.22 * uWet;`,
+        if (uWet > 0.0) diffuseColor.rgb *= 1.0 - 0.3 * uWet;`,
       )
       .replace(
         '#include <roughnessmap_fragment>',
         `#include <roughnessmap_fragment>
-        roughnessFactor *= 1.0 - 0.45 * uWet;`,
+        // molhado: superfície lisa e brilhante (reflete o céu), como telhado e asfalto depois da chuva
+        roughnessFactor = mix(roughnessFactor, roughnessFactor * 0.32, uWet);`,
       )
       .replace(
         '#include <emissivemap_fragment>',
@@ -259,7 +260,7 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
         ${FOG_GLSL}`,
     );
   };
-  material.customProgramCacheKey = () => `nc-fog-v7-w${weather}-p${panes ? 1 : 0}-${ch}-c${clouds ? 1 : 0}-s${sway}`;
+  material.customProgramCacheKey = () => `nc-fog-v8-w${weather}-p${panes ? 1 : 0}-${ch}-c${clouds ? 1 : 0}-s${sway}`;
   return material;
 }
 
