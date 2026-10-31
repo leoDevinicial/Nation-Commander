@@ -1,4 +1,5 @@
 import { Random } from '../sim/Random.ts';
+import { POWER } from '../sim/power.ts';
 import { decodeNonFinite, encodeNonFinite } from '../sim/json.ts';
 import type { SimEvent, Slot } from '../sim/types.ts';
 import {
@@ -969,6 +970,11 @@ export class NationalSimulation {
     const svc = stats?.services;
     if (svc && svc.health + svc.education + svc.security > 0)
       factors.push({ key: 'services_coverage', label: 'Hospitais, escolas e delegacias cobrindo os bairros', value: SERVICES.approvalMax * (svc.health + svc.education + svc.security) });
+    // rede elétrica: casas com luz agradam; bairros no escuro (apagão, estrada cortada) pesam mais
+    if (stats?.homes && stats.litHomes !== undefined) {
+      const lit = stats.litHomes / stats.homes;
+      factors.push({ key: 'power', label: lit >= 0.999 ? 'Bairros com energia elétrica' : 'Bairros sem energia elétrica', value: POWER.approvalLit * lit - POWER.approvalDark * (1 - lit) });
+    }
     if (stats?.leftoverMines) factors.push({ key: 'mines', label: 'Minas esquecidas no território', value: Math.max(-ROAD_APPROVAL.minesMax, -ROAD_APPROVAL.perMine * stats.leftoverMines) });
     const shock = this.shockLevel();
     if (shock > 0.01) factors.push({ key: 'nuclear', label: 'Medo e crise do lançamento nuclear', value: NUCLEAR_SHOCK.approval * shock });

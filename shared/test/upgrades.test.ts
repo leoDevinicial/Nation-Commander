@@ -55,7 +55,7 @@ function sim(link: NationalLink | null = fakeNation().link, map = fertile) {
   return s;
 }
 
-const RICH: Stockpile = { supplies: 50_000, food: 50_000, wood: 50_000, stone: 50_000, iron: 50_000, oil: 0 };
+const RICH: Stockpile = { supplies: 50_000, food: 50_000, wood: 50_000, stone: 50_000, iron: 50_000, oil: 0, coal: 0 };
 const rich = (s: Simulation, slot = 0) => (s.players[slot]!.resources = { ...RICH });
 
 /** Constrói e conclui um edifício pelo comando validado. */
@@ -149,7 +149,7 @@ describe('regras do comando de melhoria', () => {
     const { st, link } = fakeNation({ fund: 50e6 });
     const s = sim(link);
     const hq = s.hqOf(0)!;
-    s.players[0]!.resources = { supplies: 10, food: 0, wood: 0, stone: 0, iron: 0, oil: s.players[0]!.resources.oil };
+    s.players[0]!.resources = { supplies: 10, food: 0, wood: 0, stone: 0, iron: 0, oil: s.players[0]!.resources.oil, coal: 0 };
     const before = { ...s.players[0]!.resources };
     expect(s.applyCommand(0, { type: 'upgrade', buildingId: hq.id })).toMatch(/Recursos insuficientes/);
     expect(s.players[0]!.resources).toEqual(before);
@@ -317,7 +317,7 @@ describe('regras do comando de melhoria', () => {
     upgrade(s, factory, 'advanced');
     expect(factory.spec).toBe('advanced');
     // estoques dentro da capacidade, para o reembolso entrar inteiro
-    Object.assign(s.players[0]!.resources, { supplies: 800, iron: 300, oil: 300 });
+    Object.assign(s.players[0]!.resources, { supplies: 800, iron: 300, oil: 300, coal: 0 });
     s.players[0]!.oilReserve = 300;
     const before = { ...s.players[0]!.resources };
     expect(s.applyCommand(0, { type: 'produce', buildingId: factory.id, unitType: 'tank' })).toBeNull();

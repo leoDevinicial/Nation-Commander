@@ -1234,6 +1234,7 @@ export function theaterStats(sim: Simulation, slot: Slot): TheaterStats {
     food: sim.players[slot]?.resources.food ?? 0,
     homes: homes.homes,
     pavedHomes: homes.paved,
+    ...(sim.power ? { litHomes: sim.litHomesOf(slot).lit } : {}),
     leftoverMines,
     services: sim.serviceCoverage(slot),
   };

@@ -3380,7 +3380,7 @@ export class GameRuntime {
         resourceNodes: this.map.resourceNodes,
         buildings: this.placementBuildings(),
         units: [...this.units.values()].map((t) => ({ type: t.snap.type, pos: { x: t.visual.renderPos.x, y: t.visual.renderPos.y } })),
-        resources: me?.resources ?? { supplies: 0, food: 0, wood: 0, stone: 0, iron: 0, oil: 0 },
+        resources: me?.resources ?? { supplies: 0, food: 0, wood: 0, stone: 0, iron: 0, oil: 0, coal: 0 },
         territory: this.territory,
         // obstáculos perto de um engenheiro próprio: fora do território (a guerra o servidor confere)
         ...(BUILDINGS[type].engineerOutside && this.engineerNearCell(cell) ? { outsideOk: () => true } : {}),

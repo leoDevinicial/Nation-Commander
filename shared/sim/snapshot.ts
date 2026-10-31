@@ -1,5 +1,5 @@
 import { BUILDINGS, MINE, RESOURCE_TYPES, SPACE, TICK_RATE, UNITS, type BuildingType, type DepositSize, type MilitaryResearchId, type ProducibleType, type Stockpile, type UnitType } from './config.ts';
-import type { Population, Simulation } from './Simulation.ts';
+import type { PlayerPower, Population, Simulation } from './Simulation.ts';
 import { encodeTerritory } from './territory.ts';
 import type { BuildingStatus, EntityId, SimEvent, Slot, UnitActivity, Vec2 } from './types.ts';
 import { buildingEffects, type SpecId } from './upgrades.ts';
@@ -82,6 +82,8 @@ export interface PlayerSnapshot {
   income: Stockpile | null;
   capacity: Stockpile | null;
   population: Population | null;
+  /** Rede elétrica (só para o próprio jogador, com a rede ligada). */
+  power?: PlayerPower;
   hungry: boolean | null;
   defeated: boolean;
   /** Pesquisas militares concluídas (só para o próprio jogador). */
@@ -302,6 +304,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         income: mine ? roundStock(sim.incomePerSecond(p.slot)) : null,
         capacity: mine ? sim.capacity(p.slot) : null,
         population: mine ? sim.population(p.slot) : null,
+        ...(mine && sim.power && sim.powerInfo[p.slot] ? { power: sim.powerInfo[p.slot] } : {}),
         hungry: mine ? p.hungry : null,
         defeated: p.defeated,
         ...(mine ? { militaryResearch: [...(p.militaryResearch ?? [])] } : {}),
@@ -555,6 +558,7 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
     case 'storage_lost':
     case 'shortage':
     case 'attrition':
+    case 'blackout':
       return e.owner === slot;
     case 'air_mission':
       return e.owner === slot;

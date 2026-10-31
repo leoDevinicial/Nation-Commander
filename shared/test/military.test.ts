@@ -57,10 +57,10 @@ describe('produção sem recursos para o equipamento de linha', () => {
   it('a unidade sai básica (sem modernização) em vez de travar a produção', async () => {
     const { checkProduce } = await import('../sim/production.ts');
     const ctx = { buildingType: 'barracks' as const, level: 1, spec: null, progress: 1, queueLength: 0, recruits: 2, popTotal: 0, popCap: 99, techs: ['composite_armor'], militaryResearch: [] };
-    const full = checkProduce('infantry', { ...ctx, resources: { supplies: 300, food: 300, wood: 0, stone: 0, iron: 50, oil: 0 } });
+    const full = checkProduce('infantry', { ...ctx, resources: { supplies: 300, food: 300, wood: 0, stone: 0, iron: 50, oil: 0, coal: 0 } });
     expect(full.mods).toContain('body_armor');
     expect(full.basic).toBe(false);
-    const noIron = checkProduce('infantry', { ...ctx, resources: { supplies: 300, food: 300, wood: 0, stone: 0, iron: 0, oil: 0 } });
+    const noIron = checkProduce('infantry', { ...ctx, resources: { supplies: 300, food: 300, wood: 0, stone: 0, iron: 0, oil: 0, coal: 0 } });
     expect(noIron.blocker).toBeNull();
     expect(noIron.basic).toBe(true);
     expect(noIron.mods).toEqual([]);

@@ -136,6 +136,8 @@ export interface Building {
   stored: number;
   /** Produção fracionária acumulada (mantém inteiros no estoque, sem perda). */
   acc: number;
+  /** Fração de carvão acumulada (minas: o carvão sai junto com o ferro). */
+  coalAcc?: number;
   status: BuildingStatus;
   /** Manutenção não paga: o edifício não fornece seus benefícios. */
   unpaid: boolean;
@@ -162,7 +164,7 @@ export interface MilitaryResearchWork {
 }
 
 /** Por que um edifício não está produzindo (ou 'ok'). */
-export type BuildingStatus = 'ok' | 'no_workers' | 'storage_full' | 'no_tank' | 'depleted' | 'outside_territory' | 'unpaid' | 'no_input';
+export type BuildingStatus = 'ok' | 'no_workers' | 'storage_full' | 'no_tank' | 'depleted' | 'outside_territory' | 'unpaid' | 'no_input' | 'no_power';
 
 export type Entity = Unit | Building;
 
@@ -305,6 +307,8 @@ export type SimEvent =
   | { type: 'dogfight'; tick: number; owner: Slot; victim: Slot; missionId: number; targetMissionId: number; from: Vec2; to: Vec2; kill: boolean }
   /** Prefeitura destruída por um inimigo: ele toma a cidade e os edifícios vinculados a ela. */
   /** Mina antitanque: instalada, removida por um engenheiro inimigo ou detonada por um veículo. */
+  /** Construções que dependem de luz pararam: rede sem geração suficiente (`supply`) ou longe da malha (`grid`). */
+  | { type: 'blackout'; tick: number; owner: Slot; dark: number; reason: 'supply' | 'grid' }
   | { type: 'mine'; tick: number; owner: Slot; state: 'laid' | 'cleared' | 'blast'; by?: Slot; pos: Vec2 }
   /**
    * Vitória alternativa em curso (anunciada a todos): `slot` domina o território ou está em

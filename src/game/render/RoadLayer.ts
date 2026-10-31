@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { withFog } from './materials.ts';
 import { layers, type PartBuilder } from './models/kit.ts';
+import { strut } from './models/rigging.ts';
 
 const ASPHALT = '#1f2227';
 const SIDEWALK = '#8e8b84';
@@ -54,9 +55,59 @@ export class RoadLayer {
         se: road(cx + 1, cy + 1),
       });
     }
+    this.poles(b, paved, road);
     const geo = l.build().body;
     this.mesh.geometry.dispose();
     this.mesh.geometry = geo;
+  }
+
+  /**
+   * Rede elétrica: postes de madeira na calçada a cada três células de asfalto (cruzeta, isoladores) e os fios entre
+   * postes vizinhos da mesma rua, com uma leve barriga no meio.
+   */
+  private poles(b: PartBuilder, paved: ReadonlySet<number>, road: (cx: number, cy: number) => boolean): void {
+    const W = this.width;
+    const cs = this.cellSize;
+    const tops = new Map<number, THREE.Vector3>();
+    for (const i of paved) {
+      const cx = i % W;
+      const cy = Math.floor(i / W);
+      if ((cx + cy) % 3 !== 0) continue;
+      // o poste fica do lado em que não há estrada vizinha (na calçada); rua cercada dos dois lados: no canto
+      const horizontal = road(cx - 1, cy) || road(cx + 1, cy);
+      const side = horizontal ? (road(cx, cy - 1) ? 1 : -1) : road(cx - 1, cy) ? 1 : -1;
+      const x = (cx + 0.5) * cs + (horizontal ? 0 : side * cs * 0.42);
+      const z = (cy + 0.5) * cs + (horizontal ? side * cs * 0.42 : 0);
+      const g = this.heightAt(x, z);
+      const H = 1.55;
+      b.cyl(0.035, 0.05, H, '#6b5038', [x, g + H / 2, z], undefined, 6);
+      // cruzeta perpendicular à rua, com três isoladores
+      const arm: [number, number] = horizontal ? [0, 1] : [1, 0];
+      b.box(horizontal ? 0.04 : 0.5, 0.04, horizontal ? 0.5 : 0.04, '#5a432f', [x, g + H - 0.08, z]);
+      for (const k of [-0.2, 0, 0.2]) b.cyl(0.018, 0.022, 0.07, '#cfd6d8', [x + arm[0] * k, g + H - 0.02, z + arm[1] * k], undefined, 5);
+      tops.set(i, new THREE.Vector3(x, g + H - 0.01, z));
+    }
+    // fios: liga cada poste ao próximo da mesma linha ou coluna (3 células adiante), se a estrada segue entre eles
+    for (const [i, p] of tops) {
+      const cx = i % W;
+      const cy = Math.floor(i / W);
+      for (const [dx, dy] of [
+        [3, 0],
+        [0, 3],
+      ] as const) {
+        const j = (cy + dy) * W + (cx + dx);
+        const q = cy + dy < this.height && cx + dx >= 0 && cx + dx < W ? tops.get(j) : undefined;
+        if (!q || (!road(cx + Math.sign(dx), cy) && !road(cx, cy + Math.sign(dy)))) continue;
+        const mid = p.clone().lerp(q, 0.5);
+        mid.y -= 0.12;
+        for (const [a, c] of [
+          [p, mid],
+          [mid, q],
+        ] as const) {
+          strut(b, [a.x, a.y, a.z], [c.x, c.y, c.z], 0.015, '#1d1f22');
+        }
+      }
+    }
   }
 
   private tile(b: PartBuilder, cx: number, cy: number, c: { n: boolean; s: boolean; w: boolean; e: boolean }, d: { nw: boolean; ne: boolean; sw: boolean; se: boolean }): void {

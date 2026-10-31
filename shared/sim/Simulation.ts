@@ -3,6 +3,8 @@ import { RANKS, rankDamageMul, rankFor, rankHpMul } from './veterancy.ts';
 import { countryBonus, type CountryBonus } from './countryBonus.ts';
 import { ERA_CANCEL_REFUND, ERAS, buildingEra, eraPhrase, type Era } from './eras.ts';
 import { MineSystem, type MineSave } from './mines.ts';
+import { POWER, POWER_GEN, POWER_USE, solvePower, windFactor, type PowerNode } from './power.ts';
+import { dayLight } from './climate.ts';
 import { CaravanSystem, roadNetwork, roadRing, type CaravanSave } from './caravans.ts';
 import { marketBuyQuote, marketQuote, marketRecover } from './market.ts';
 import { decodeNonFinite, encodeNonFinite } from './json.ts';
@@ -87,6 +89,24 @@ export interface SimulationInit {
    * não há atrito por território inimigo.
    */
   battle?: boolean;
+  /**
+   * Rede elétrica (versão 1.1): começa com uma termelétrica ligada ao Centro de Comando por uma estrada com postes, e
+   * as construções que dependem de luz param sem energia. Padrão: ligada, exceto nas batalhas locais.
+   */
+  power?: boolean;
+}
+
+/** Energia de um jogador (para o painel e a IA). */
+export interface PlayerPower {
+  supply: number;
+  demand: number;
+  served: number;
+  /** Consumidoras que param e estão sem luz agora (sem malha por perto ou por falta de geração). */
+  dark: number;
+  /** Delas, as que estão longe de qualquer estrada, usina ou Centro de Comando. */
+  isolated: number;
+  /** Carvão queimado por minuto no ritmo atual. */
+  coalPerMin: number;
 }
 
 export const NEUTRAL_MODIFIERS: TacticalModifiers = {
@@ -134,6 +154,9 @@ export interface SimulationSave {
   incidents?: [string, number][];
   difficulty?: Difficulty;
   eras?: boolean;
+  /** Rede elétrica ligada (ausente nos salvamentos de antes dela: tudo fica com luz). */
+  power?: boolean;
+  powerState?: { powered: number[]; load: [number, number][]; coalDebt: number[]; info: PlayerPower[]; homes: { homes: number; lit: number }[] };
   roads?: { i: number; owner: Slot }[];
   victory?: VictoryKind | null;
   territoryHold?: number[];
@@ -284,6 +307,20 @@ export class Simulation {
   private readonly wars = new Set<string>();
   /** Estradas construídas pelos jogadores (célula e dono, para a manutenção). */
   roads: { i: number; owner: Slot }[] = [];
+  /** Rede elétrica ligada nesta partida (ver `power.ts`). */
+  power = false;
+  /** Padrão de `SimulationInit.power` (os testes de regra antigos o desligam em `shared/test/setup.ts`). */
+  static powerByDefault = true;
+  /** Consumidoras com luz no último cálculo da rede. */
+  private powered = new Set<number>();
+  /** Carga (0..1) de cada usina no último cálculo (o carvão queima conforme a carga). */
+  private powerLoad = new Map<number, number>();
+  /** Resumo da energia por jogador. */
+  powerInfo: PlayerPower[] = [];
+  /** Moradias com luz por jogador (aprovação). */
+  private litHomes: { homes: number; lit: number }[] = [];
+  /** Carvão queimado ainda não descontado (frações) por jogador. */
+  private coalDebt: number[] = [];
   /** Como a partida foi vencida, quando não foi pela queda do QG. */
   victory: VictoryKind | null = null;
   /** Ticks seguidos com o domínio territorial (por jogador) e dias seguidos em colapso político. */
@@ -341,6 +378,7 @@ export class Simulation {
     this.map = init.map;
     this.grid = new Grid(init.map.width, init.map.height, init.map.cellSize, [...init.map.terrain]);
     this.battle = !!init.battle;
+    this.power = init.power ?? (Simulation.powerByDefault && !init.battle);
     this.players = [];
     this.lastAlertTick = [];
     this.deposits = findDeposits(init.map);
@@ -379,6 +417,7 @@ export class Simulation {
       const toCenter = spawn.cx < init.map.width / 2 ? 1 : -1;
       const wh = { cx: toCenter > 0 ? spawn.cx + 3 : spawn.cx - 4, cy: spawn.cy - 1 };
       if (this.footprintFree(wh, BUILDINGS.warehouse.size)) this.addBuilding('warehouse', slot, wh, 1);
+      if (this.power) this.placeStartingPower(slot, spawn);
     }
     this.recomputeTerritory();
     for (let slot = 0; slot < init.playerCount; slot++) {
@@ -390,6 +429,50 @@ export class Simulation {
       this.clampToCapacity(slot, 'capacity');
     }
     if (init.allAtWar) for (let a = 0; a < init.playerCount; a++) for (let b = a + 1; b < init.playerCount; b++) this.setWar(a, b, true);
+  }
+
+  /**
+   * Começo da rede elétrica: uma termelétrica a carvão a poucas células do Centro de Comando, ligada a ele por uma
+   * estrada pavimentada de 3 a 4 células (com postes). Tenta para cima/baixo (rumo ao meio do mapa) e depois para os
+   * lados; se nada couber, a usina fica encostada no QG.
+   */
+  private placeStartingPower(slot: Slot, spawn: Cell): void {
+    const w = this.map.width;
+    const towardY = spawn.cy < this.map.height / 2 ? 1 : -1;
+    const towardX = spawn.cx < w / 2 ? 1 : -1;
+    // QG ocupa (cx−1..cx+1, cy−1..cy+1); usina 2×2
+    const options: { road: Cell[]; plant: Cell }[] = [];
+    for (const len of [4, 3]) {
+      for (const dy of [towardY, -towardY]) {
+        const road = Array.from({ length: len }, (_, k) => ({ cx: spawn.cx, cy: spawn.cy + dy * (2 + k) }));
+        options.push({ road, plant: { cx: spawn.cx - (dy > 0 ? 0 : 1), cy: dy > 0 ? spawn.cy + 2 + len : spawn.cy - 2 - len - 1 } });
+      }
+      for (const dx of [-towardX, towardX]) {
+        const road = Array.from({ length: len }, (_, k) => ({ cx: spawn.cx + dx * (2 + k), cy: spawn.cy }));
+        options.push({ road, plant: { cx: dx > 0 ? spawn.cx + 2 + len : spawn.cx - 2 - len - 1, cy: spawn.cy - (dx > 0 ? 0 : 1) } });
+      }
+    }
+    const cellFree = (c: Cell) => this.footprintFree(c, 1);
+    for (const o of options) {
+      if (!o.road.every(cellFree) || !this.footprintFree(o.plant, BUILDINGS.coal_plant.size)) continue;
+      this.addBuilding('coal_plant', slot, o.plant, 1);
+      for (const c of o.road) {
+        const i = c.cy * w + c.cx;
+        this.map.terrain[i] = Terrain.Road;
+        this.grid.terrain[i] = Terrain.Road;
+        this.roads.push({ i, owner: slot });
+      }
+      return;
+    }
+    for (let r = 2; r <= 6; r++)
+      for (let dy = -r; dy <= r; dy++)
+        for (let dx = -r; dx <= r; dx++) {
+          const c = { cx: spawn.cx + dx, cy: spawn.cy + dy };
+          if (this.footprintFree(c, BUILDINGS.coal_plant.size)) {
+            this.addBuilding('coal_plant', slot, c, 1);
+            return;
+          }
+        }
   }
 
   footprintFree(cell: Cell, size: number): boolean {
@@ -418,6 +501,7 @@ export class Simulation {
       ...(this.incidents.size ? { incidents: [...this.incidents] } : {}),
       ...(this.difficulty !== 'normal' ? { difficulty: this.difficulty } : {}),
       ...(this.eras ? { eras: true } : {}),
+      ...(this.power ? { power: true, powerState: { powered: [...this.powered], load: [...this.powerLoad], coalDebt: [...this.coalDebt], info: this.powerInfo.map((p) => ({ ...p })), homes: this.litHomes.map((h) => ({ ...h })) } } : {}),
       ...(this.roads.length ? { roads: this.roads.map((r) => ({ ...r })) } : {}),
       ...(this.victory ? { victory: this.victory } : {}),
       ...(this.territoryHold.some((v) => v > 0) ? { territoryHold: [...this.territoryHold] } : {}),
@@ -452,7 +536,7 @@ export class Simulation {
   static fromSave(saved: SimulationSave): Simulation {
     if (saved.version !== 1) throw new Error(`Versão de salvamento não suportada: ${String(saved.version)}`);
     const data = JSON.parse(JSON.stringify(saved, encodeNonFinite), decodeNonFinite) as SimulationSave;
-    const sim = new Simulation({ map: data.map, playerCount: data.players.length, startingUnits: [] });
+    const sim = new Simulation({ map: data.map, playerCount: data.players.length, startingUnits: [], power: false });
     // descarta o estado inicial criado pelo construtor e aplica o salvo
     for (const b of sim.buildings) sim.grid.setOccupied(b.cell, BUILDINGS[b.type].size, 0);
     sim.entities.clear();
@@ -460,6 +544,8 @@ export class Simulation {
     sim.tick = data.tick;
     sim.nextId = data.nextId;
     sim.players.splice(0, sim.players.length, ...data.players);
+    // salvamentos de antes do carvão (versão 1.0) não tinham o recurso
+    for (const p of sim.players) p.resources.coal ??= 0;
     for (const e of data.entities) {
       // salvamentos de antes da Fase 5 não tinham equipamento por unidade
       if (e.kind === 'unit') {
@@ -499,6 +585,14 @@ export class Simulation {
     sim.detached = [...(data.detached ?? [])];
     sim.salvos = (data.salvos ?? []).map((v) => ({ ...v, at: { ...v.at } }));
     sim.battle = !!data.battle;
+    sim.power = !!data.power;
+    if (data.powerState) {
+      sim.powered = new Set(data.powerState.powered);
+      sim.powerLoad = new Map(data.powerState.load);
+      sim.coalDebt = [...data.powerState.coalDebt];
+      sim.powerInfo = data.powerState.info.map((p) => ({ ...p }));
+      sim.litHomes = data.powerState.homes.map((h) => ({ ...h }));
+    }
     sim.countries = [...(data.countries ?? [])];
     sim.sandbox = data.sandbox ? { ...data.sandbox, slots: [...data.sandbox.slots] } : null;
     return sim;
@@ -1761,6 +1855,7 @@ export class Simulation {
     this.updateUpkeep();
     this.updateConstruction();
     this.updateUpgrades();
+    this.updatePower();
     this.updateProduction();
     this.updateMilitaryResearch();
     this.updateEras();
@@ -1785,6 +1880,96 @@ export class Simulation {
     this.checkVictory();
     this.updateTerritorialVictory();
     this.sandboxTopUp();
+  }
+
+  // ---------------------------------------------------------------- energia
+
+  /** A construção tem luz (ou não depende dela). Sem a rede elétrica ligada, tudo tem luz. */
+  isPowered(b: Building): boolean {
+    if (!this.power || !POWER_USE[b.type]?.stops) return true;
+    return this.powered.has(b.id);
+  }
+
+  /** Geração disponível agora de uma usina pronta (vento, sol, era e carvão no estoque). */
+  powerGen(b: Building): number {
+    const g = POWER_GEN[b.type];
+    if (!g || b.progress < 1 || b.hp <= 0 || b.unpaid) return 0;
+    const seconds = this.tick / TICK_RATE;
+    switch (g.source) {
+      case 'coal':
+        return (this.players[b.owner]?.resources.coal ?? 0) >= 0.5 ? g.gen : 0;
+      case 'wind':
+        return g.gen * windFactor(seconds, b.id);
+      case 'solar': {
+        const era = this.players[b.owner]?.era ?? 1;
+        return g.gen * dayLight(seconds).day * (era >= 3 ? POWER.solarEraMul : 1);
+      }
+      default:
+        return g.gen;
+    }
+  }
+
+  /** Recalcula a rede de cada jogador (a cada `POWER.everyTicks`) e queima o carvão das termelétricas a cada tick. */
+  private updatePower(): void {
+    if (!this.power) return;
+    if (this.tick % POWER.everyTicks === 1 || this.powerInfo.length === 0) {
+      this.powered = new Set();
+      this.powerLoad = new Map();
+      const w = this.map.width;
+      for (const p of this.players) {
+        const slot = p.slot;
+        const roads: number[] = [];
+        for (const r of this.roads) if (r.owner === slot) roads.push(r.i);
+        const hubs: PowerNode[] = [];
+        const nodes: PowerNode[] = [];
+        let homes = 0;
+        for (const b of this.buildings) {
+          if (b.owner !== slot || b.progress < 1 || b.hp <= 0) continue;
+          const node: PowerNode = { id: b.id, type: b.type, cx: b.cell.cx, cy: b.cell.cy, size: BUILDINGS[b.type].size, gen: this.powerGen(b), use: POWER_USE[b.type]?.use ?? 0 };
+          if (b.type === 'hq' || POWER_GEN[b.type]) hubs.push(node);
+          else if (node.use > 0) nodes.push(node);
+          if (b.type === 'house' || b.type === 'residential') homes++;
+        }
+        // estradas do mapa dentro do território também levam a energia
+        for (let i = 0; i < this.territory.length; i++) if (this.territory[i] === slot && this.map.terrain[i] === Terrain.Road) roads.push(i);
+        const res = solvePower(w, this.map.height, roads, hubs, nodes);
+        for (const id of res.powered) this.powered.add(id);
+        for (const [id, l] of res.load) this.powerLoad.set(id, l);
+        let dark = 0;
+        let lit = 0;
+        for (const n of nodes) {
+          const on = res.powered.has(n.id);
+          if (POWER_USE[n.type]?.stops && !on) dark++;
+          if ((n.type === 'house' || n.type === 'residential') && on) lit++;
+        }
+        let coalPerSec = 0;
+        for (const h of hubs) coalPerSec += (POWER_GEN[h.type]?.coal ?? 0) * (h.gen > 0 ? (res.load.get(h.id) ?? 0) : 0);
+        const prev = this.powerInfo[slot];
+        const isolated = nodes.filter((n) => POWER_USE[n.type]?.stops && res.isolated.has(n.id)).length;
+        this.powerInfo[slot] = { supply: Math.round(res.supply), demand: res.demand, served: res.served, dark, isolated, coalPerMin: Math.round(coalPerSec * 60 * 10) / 10 };
+        this.litHomes[slot] = { homes, lit };
+        // aviso de apagão: quando construções começam a parar por falta de luz
+        if (dark > 0 && (prev?.dark ?? 0) === 0 && this.tick > TICK_RATE * 5)
+          this.emit({ type: 'blackout', tick: this.tick, owner: slot, dark, reason: res.supply < res.demand ? 'supply' : 'grid' });
+      }
+    }
+    // carvão: cada termelétrica queima conforme a carga
+    for (const b of this.buildings) {
+      const g = POWER_GEN[b.type];
+      if (!g?.coal || b.progress < 1 || b.hp <= 0) continue;
+      const load = this.powerLoad.get(b.id) ?? 0;
+      if (load <= 0) continue;
+      const debt = (this.coalDebt[b.owner] ?? 0) + g.coal * load * TICK_SECONDS;
+      const whole = Math.floor(debt);
+      const p = this.players[b.owner]!;
+      if (whole > 0) p.resources.coal = Math.max(0, p.resources.coal - whole);
+      this.coalDebt[b.owner] = debt - whole;
+    }
+  }
+
+  /** Moradias do jogador e quantas estão com luz (aprovação). */
+  litHomesOf(slot: Slot): { homes: number; lit: number } {
+    return this.litHomes[slot] ?? { homes: 0, lit: 0 };
   }
 
   /** Jogador com as regras do Sandbox (recursos ilimitados e tudo liberado). */
@@ -2052,6 +2237,15 @@ export class Simulation {
       b.acc -= whole;
       if (deposit) deposit.remaining = Math.max(0, deposit.remaining - amount * depletion);
       p.stats.resourcesGathered += amount;
+      // a mina tira carvão junto com o ferro (os veios dão os dois), sem gastar mais do depósito
+      if (b.type === 'mine' && amount > 0) {
+        b.coalAcc = (b.coalAcc ?? 0) + amount * POWER.coalPerIron;
+        const coal = Math.floor(b.coalAcc + 1e-9);
+        if (coal > 0) {
+          b.coalAcc -= coal;
+          p.stats.resourcesGathered += this.store(b.owner, 'coal', coal);
+        }
+      }
     }
   }
 
@@ -2090,6 +2284,10 @@ export class Simulation {
       const need = this.fx(b).workers;
       if (need > 0 && b.workers === 0) {
         this.setStatus(b, 'no_workers');
+        continue;
+      }
+      if (!this.isPowered(b)) {
+        this.setStatus(b, 'no_power');
         continue;
       }
       const goods = (p.goods ??= emptyGoods());
@@ -2219,6 +2417,10 @@ export class Simulation {
         this.setStatus(b, 'unpaid');
         continue;
       }
+      if (!this.isPowered(b)) {
+        this.setStatus(b, 'no_power');
+        continue;
+      }
       // bases e fábricas produzem no ritmo dos trabalhadores alocados (sem nenhum, param);
       // durante uma obra de melhoria, a meio ritmo
       const eff = this.workEfficiency(b) * (this.players[b.owner]!.hungry ? HUNGER_EFFICIENCY : 1) * (b.upgrade ? UPGRADE_WORK_EFFICIENCY : 1);
@@ -2316,6 +2518,10 @@ export class Simulation {
       if (!r || b.progress < 1 || b.hp <= 0) continue;
       if (b.unpaid) {
         this.setStatus(b, 'unpaid');
+        continue;
+      }
+      if (!this.isPowered(b)) {
+        this.setStatus(b, 'no_power');
         continue;
       }
       const eff = this.workEfficiency(b) * (this.players[b.owner]!.hungry ? HUNGER_EFFICIENCY : 1) * (b.upgrade ? UPGRADE_WORK_EFFICIENCY : 1);

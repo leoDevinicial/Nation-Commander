@@ -1,3 +1,4 @@
+import { buildCoalPlant, buildSolarFarm, buildWindFarm } from './power.ts';
 import { buildIronDome } from './ironDome.ts';
 import * as THREE from 'three';
 import { buildHospital, buildPoliceStation, buildRefinery, buildSchool, buildSteelMill } from './chains.ts';
@@ -165,6 +166,9 @@ export function disposeBuildingModels(): void {
 }
 
 const BUILDERS: Record<BuildingType, () => Omit<BuildingModel, 'detail'>> = {
+  coal_plant: buildCoalPlant,
+  wind_farm: buildWindFarm,
+  solar_farm: buildSolarFarm,
   hq: buildHq,
   barracks: buildBarracks,
   factory: buildFactory,

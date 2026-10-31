@@ -220,7 +220,7 @@ describe('salvar e carregar as camadas da partida', () => {
       { slot: 1, countryId: 'ARG' },
     ];
     const a = new NationalSimulation(players, 42, 'parity');
-    const link = { resources: () => ({ supplies: 1e6, food: 0, wood: 0, stone: 0, iron: 0, oil: 1e6 }), spend: () => {}, setWar: () => {} };
+    const link = { resources: () => ({ supplies: 1e6, food: 0, wood: 0, stone: 0, iron: 0, oil: 1e6, coal: 0 }), spend: () => {}, setWar: () => {} };
     a.attachTheater(link);
     a.setResearch(0, 'logistics');
     for (let d = 0; d < 120; d++) a.stepDay();

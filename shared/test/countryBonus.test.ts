@@ -9,7 +9,7 @@ import { flatMap } from './helpers.ts';
 
 /** Bônus único por país (lote 2, item 12). */
 
-const ctx = { level: 1, spec: null, progress: 1, queueLength: 0, recruits: 5, popTotal: 0, popCap: 99, techs: null, militaryResearch: ['field_artillery', 'rocket_systems'], resources: { supplies: 9999, food: 9999, wood: 9999, stone: 9999, iron: 9999, oil: 9999 } };
+const ctx = { level: 1, spec: null, progress: 1, queueLength: 0, recruits: 5, popTotal: 0, popCap: 99, techs: null, militaryResearch: ['field_artillery', 'rocket_systems'], resources: { supplies: 9999, food: 9999, wood: 9999, stone: 9999, iron: 9999, oil: 9999, coal: 0 } };
 
 describe('bônus único por país', () => {
   it('todo país jogável tem um bônus com título e descrição', () => {

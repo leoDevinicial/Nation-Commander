@@ -13,6 +13,7 @@ import { ERAS, buildingEra, type Era } from './eras.ts';
 import { AIRCRAFT, MISSILE, type AircraftType } from './air.ts';
 import { roadLink } from './caravans.ts';
 import { MARKET, MARKET_RESOURCES, marketPrice, type MarketResource } from './market.ts';
+import { POWER, POWER_GEN, POWER_USE } from './power.ts';
 
 /** Com que frequência a IA reavalia a situação. */
 export const AI_THINK_TICKS = TICK_RATE;
@@ -114,7 +115,8 @@ export const AI_AIR_TICK = TICK_RATE * 60 * 9;
 export const AI_RECON_EVERY_TICKS = TICK_RATE * 60;
 export const AI_STRIKE_EVERY_TICKS = TICK_RATE * 45;
 /** Alvos preferidos dos ataques aéreos e mísseis (os primeiros da lista primeiro). */
-const AIR_TARGETS: BuildingType[] = ['airbase', 'missile_silo', 'refinery', 'steel_mill', 'factory', 'research_center', 'barracks', 'oil_well', 'oil_tank', 'mine', 'hq'];
+// usinas logo depois da força aérea: sem energia, quartéis, fábricas e pesquisa do inimigo param
+const AIR_TARGETS: BuildingType[] = ['airbase', 'missile_silo', 'coal_plant', 'nuclear_plant', 'hydro_dam', 'refinery', 'steel_mill', 'factory', 'research_center', 'barracks', 'oil_well', 'oil_tank', 'mine', 'hq'];
 
 /** Força defensiva enviada contra a força inimiga vista perto da base. */
 export const AI_DEFENSE_RATIO = 1.5;
@@ -473,7 +475,17 @@ export class TacticalAI {
     // caravana dela
     const cityCap = nearlyFull('wood') || nearlyFull('stone') ? AI_MAX_CITIES : 2;
     const cityWanted = !savingCore && count('city_hall') < cityCap && done('factory') && done('tower') && this.citySiteExists(sim, hq);
+    // rede elétrica: geração abaixo da demanda (com o que está em obra) pede outra usina; carvão acabando pede mina
+    const power = sim.power ? sim.powerInfo[this.slot] : undefined;
+    const plantInProgress = mine.some((b) => POWER_GEN[b.type] && b.progress < 1);
+    const pendingUse = mine.reduce((a, b) => a + (b.progress < 1 ? (POWER_USE[b.type]?.use ?? 0) : 0), 0);
+    const powerShort = !!power && !plantInProgress && power.supply < power.demand + pendingUse + 4;
+    const coalLow = sim.power && res.coal < 60;
+    const plantType: BuildingType =
+      era >= 3 && count('solar_farm') < count('coal_plant') ? 'solar_farm' : coalLow && era >= 2 && count('wind_farm') < 4 ? 'wind_farm' : 'coal_plant';
     const plan: [BuildingType, boolean][] = [
+      [plantType, powerShort],
+      ['mine', !!coalLow && active('mine') === 0 && !mine.some((b) => b.type === 'mine' && b.progress < 1)],
       ['house', pop.total >= pop.cap - 2 && pop.cap < POP_ABSOLUTE_CAP && !housingInProgress && count('house') + count('residential') < 14],
       ['oil_tank', wellsWithoutTank || (mine.some((b) => b.type === 'oil_well' && b.status === 'storage_full') && count('oil_tank') < 5)],
       ['city_hall', cityWanted],
@@ -1029,6 +1041,25 @@ export class TacticalAI {
     }
     // cidades ligadas: coletas e usinas sem estrada (as que mais produzem primeiro), por trechos curtos
     if (this.nearestThreat(sim, mine)) return;
+    // rede elétrica: construções paradas longe da malha ganham estrada até o QG (a energia anda por ela)
+    if (sim.power) {
+      const near = this.meshNear(sim);
+      const W2 = sim.map.width;
+      for (const b of mine) {
+        if (!POWER_USE[b.type]?.stops || b.progress < 1 || b.hp <= 0 || sim.isPowered(b) || near(b.cell, BUILDINGS[b.type].size)) continue;
+        const route = this.roadRoute(sim, b, hq);
+        if (!route) continue;
+        const fresh = route.filter((c) => sim.map.terrain[c.cy * W2 + c.cx] !== Terrain.Road).slice(0, ROAD.maxCells);
+        if (!fresh.length) continue;
+        const stone = fresh.length * ROAD.stonePerCell;
+        if (budget.stone - stone < 20) return;
+        if (sim.roadPlan(this.slot, fresh).error) continue;
+        if (!take({ stone })) return;
+        cmds.push({ type: 'build_road', cells: fresh });
+        this.lastRoadTick = sim.tick;
+        return;
+      }
+    }
     const producers = mine
       .filter((b) => (BUILDINGS[b.type].gather || BUILDINGS[b.type].process) && b.progress >= 1 && b.hp > 0 && b.status !== 'depleted' && !sim.roadLinked(b))
       .sort((a, b) => sim.buildingRate(b) - sim.buildingRate(a) || a.id - b.id);
@@ -1302,6 +1333,8 @@ export class TacticalAI {
     const mid = { x: (sim.map.width * sim.map.cellSize) / 2, y: (sim.map.height * sim.map.cellSize) / 2 };
     const gather = BUILDINGS[type].gather;
     const claimed = gather ? claimedBy(sim.buildings, type) : null;
+    // rede elétrica: consumidoras e usinas ficam ao alcance da malha (estradas, usinas e QG)
+    const wired = sim.power && (POWER_USE[type]?.use || POWER_GEN[type]) ? this.meshNear(sim) : null;
     const scan = (center: Cell, reach: number): Cell | null => {
       const candidates: { cell: Cell; score: number }[] = [];
       for (let dy = -reach; dy <= reach; dy++) {
@@ -1312,6 +1345,7 @@ export class TacticalAI {
           const c = sim.grid.cellCenter(cell);
           let score = r * 4 + dist(c, mid) * 0.2;
           if (gather && claimed) score -= claimableCells(sim.map, type, cell, claimed).length * 12;
+          if (wired && !wired(cell, BUILDINGS[type].size)) score += 400;
           candidates.push({ cell, score });
         }
       }
@@ -1335,6 +1369,24 @@ export class TacticalAI {
       if (far) return far;
     }
     return null;
+  }
+
+  /** Teste "a construção em `cell` alcança a malha elétrica" (estradas próprias, usinas e QG). */
+  private meshNear(sim: Simulation): (cell: Cell, size: number) => boolean {
+    const W = sim.map.width;
+    const mesh = new Uint8Array(W * sim.map.height);
+    for (const r of sim.roads) if (r.owner === this.slot) mesh[r.i] = 1;
+    for (const b of sim.buildings)
+      if (b.owner === this.slot && (b.type === 'hq' || POWER_GEN[b.type])) {
+        const n = BUILDINGS[b.type].size;
+        for (let y = b.cell.cy; y < b.cell.cy + n; y++) for (let x = b.cell.cx; x < b.cell.cx + n; x++) mesh[y * W + x] = 1;
+      }
+    const R = POWER.reach;
+    return (cell, size) => {
+      for (let y = Math.max(0, cell.cy - R); y < Math.min(sim.map.height, cell.cy + size + R); y++)
+        for (let x = Math.max(0, cell.cx - R); x < Math.min(W, cell.cx + size + R); x++) if (mesh[y * W + x]) return true;
+      return false;
+    };
   }
 
   private hasClearance(sim: Simulation, cell: Cell, size: number): boolean {

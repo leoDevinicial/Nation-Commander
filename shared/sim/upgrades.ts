@@ -824,6 +824,7 @@ const RES_NAMES: Record<ResourceType, string> = {
   stone: 'pedra',
   iron: 'ferro',
   oil: 'petróleo',
+  coal: 'carvão',
 };
 
 export function formatUsd(usd: number): string {

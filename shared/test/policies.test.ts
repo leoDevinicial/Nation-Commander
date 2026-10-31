@@ -23,7 +23,7 @@ function setup(stats: TheaterStats | null = null) {
   const grants: Cost[] = [];
   const st = { stats };
   sim.attachTheater({
-    resources: () => ({ supplies: 1000, food: 0, wood: 0, stone: 0, iron: 0, oil: 1000 }),
+    resources: () => ({ supplies: 1000, food: 0, wood: 0, stone: 0, iron: 0, oil: 1000, coal: 0 }),
     spend: () => {},
     setWar: () => {},
     stats: () => st.stats,

@@ -111,6 +111,8 @@ export interface TheaterStats {
   /** Moradias prontas e quantas ficam ligadas à estrada ("bairro pavimentado"). */
   homes?: number;
   pavedHomes?: number;
+  /** Moradias com luz (rede elétrica); ausente quando a rede está desligada. */
+  litHomes?: number;
   /** Minas próprias que sobram no mapa sem guerra em curso. */
   leftoverMines?: number;
   /** Fração das moradias cobertas por Hospital, Escola e Delegacia (0 a 1). */

@@ -40,8 +40,8 @@ export const HUNGER_EFFICIENCY = 0.5;
 
 // ------------------------------------------------------------------ recursos
 
-export type ResourceType = 'supplies' | 'food' | 'wood' | 'stone' | 'iron' | 'oil';
-export const RESOURCE_TYPES: readonly ResourceType[] = ['supplies', 'food', 'wood', 'stone', 'iron', 'oil'];
+export type ResourceType = 'supplies' | 'food' | 'wood' | 'stone' | 'iron' | 'oil' | 'coal';
+export const RESOURCE_TYPES: readonly ResourceType[] = ['supplies', 'food', 'wood', 'stone', 'iron', 'oil', 'coal'];
 
 /**
  * Bens industriais das cadeias produtivas (lote 1, §4): a Refinaria transforma petróleo em
@@ -97,6 +97,7 @@ export const RESOURCE_LABELS: Record<ResourceType, string> = {
   stone: 'Pedra',
   iron: 'Ferro',
   oil: 'Petróleo',
+  coal: 'Carvão',
 };
 
 /**
@@ -111,16 +112,18 @@ export const STORAGE_LABEL: Record<ResourceType, string> = {
   stone: 'Armazéns de Recursos',
   iron: 'Armazéns de Recursos',
   oil: 'Tanques de Petróleo',
+  coal: 'Armazéns de Recursos',
 };
 
 export type Cost = Partial<Record<ResourceType, number>>;
 export type Stockpile = Record<ResourceType, number>;
 
 /** Começo enxuto (só o essencial para a primeira fazenda e a primeira serraria): administrar recursos é o centro do jogo. */
-export const STARTING_RESOURCES: Stockpile = { supplies: 200, food: 100, wood: 150, stone: 60, iron: 0, oil: 50 };
+/** O carvão inicial abastece a termelétrica do começo por alguns minutos, até a primeira mina. */
+export const STARTING_RESOURCES: Stockpile = { supplies: 200, food: 100, wood: 150, stone: 60, iron: 0, oil: 50, coal: 160 };
 
 export function emptyStockpile(): Stockpile {
-  return { supplies: 0, food: 0, wood: 0, stone: 0, iron: 0, oil: 0 };
+  return { supplies: 0, food: 0, wood: 0, stone: 0, iron: 0, oil: 0, coal: 0 };
 }
 
 export function canAfford(have: Stockpile, cost: Cost): boolean {
@@ -246,7 +249,11 @@ export type BuildingType =
   | 'steel_mill'
   | 'hospital'
   | 'school'
-  | 'police_station';
+  | 'police_station'
+  // rede elétrica (versão 1.1)
+  | 'coal_plant'
+  | 'wind_farm'
+  | 'solar_farm';
 
 /** O que uma fila de produção pode produzir. */
 export type ProducibleType = UnitType | 'citizen' | 'recruit';
@@ -785,7 +792,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     territoryRadius: 13,
     territoryWeight: 1.5,
     housing: 20,
-    storage: { supplies: 1500, food: 300, wood: 300, stone: 300, iron: 200, oil: 200 },
+    storage: { supplies: 1500, food: 300, wood: 300, stone: 300, iron: 200, oil: 200, coal: 300 },
     buildable: false,
     description: 'Sede do governo no teatro: forma cidadãos, abriga 20 habitantes, guarda suprimentos e projeta o maior território. Se for destruído, a operação está perdida.',
   },
@@ -876,7 +883,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     sight: 7,
     workers: 6,
     buildable: true,
-    description: 'Extrai ferro de veios de minério nas montanhas. Necessário para veículos. Finito.',
+    description: 'Extrai ferro e carvão de veios de minério nas montanhas. Ferro para veículos, carvão para as termelétricas. Finito.',
     hotkey: 'J',
   },
   oil_well: {
@@ -1025,7 +1032,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     size: 2,
     income: {},
     sight: 6,
-    storage: { wood: 800, stone: 800, iron: 800 },
+    storage: { wood: 800, stone: 800, iron: 800, coal: 800 },
     buildable: true,
     description: 'Guarda madeira, pedra e ferro (800 de cada). Destruído, o excedente acima da capacidade restante se perde.',
     hotkey: 'R',
@@ -1043,6 +1050,44 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     buildable: true,
     description: 'Guarda 800 de comida. Fazendas pausam quando todos os silos estão cheios.',
     hotkey: 'L',
+  },
+  coal_plant: {
+    ...NONE,
+    label: 'Termelétrica a Carvão',
+    cost: { stone: 90, iron: 50, wood: 50 },
+    buildSeconds: 26,
+    maxHp: 650,
+    size: 2,
+    income: {},
+    sight: 6,
+    upkeep: { supplies: 0.02 },
+    buildable: true,
+    description:
+      'Gera 30 de energia queimando carvão (até 0,35 por segundo, conforme a carga). Barata e forte, mas depende das minas. A energia anda pelas estradas: construções a até 4 células da estrada, de uma usina ou do Centro de Comando recebem luz.',
+  },
+  wind_farm: {
+    ...NONE,
+    label: 'Parque Eólico',
+    cost: { iron: 90, stone: 30, supplies: 60 },
+    buildSeconds: 22,
+    maxHp: 380,
+    size: 2,
+    income: {},
+    sight: 6,
+    buildable: true,
+    description: 'Três turbinas: até 12 de energia, sem combustível, variando com o vento (de 35% a 130%).',
+  },
+  solar_farm: {
+    ...NONE,
+    label: 'Usina Solar',
+    cost: { iron: 120, stone: 40, supplies: 120 },
+    buildSeconds: 24,
+    maxHp: 380,
+    size: 2,
+    income: {},
+    sight: 5,
+    buildable: true,
+    description: 'Painéis solares: até 18 de energia de dia (40% a mais a partir da Era Digital), nada à noite. Sem combustível.',
   },
   oil_tank: {
     ...NONE,
@@ -1175,8 +1220,8 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     upkeep: { supplies: 0.1 },
     territoryRadius: 5,
     buildable: true,
-    project: { usdShare: 0.4, effect: '+4 suprimentos/s e obras 10% mais rápidas; +0,5 p.p. de crescimento nacional', growth: 0.5 },
-    description: 'Grande Projeto Nacional: energia firme para a nação. +4 suprimentos/s, obras 10% mais rápidas e +0,5 p.p. de crescimento. Um por nação.',
+    project: { usdShare: 0.4, effect: '150 de energia, +4 suprimentos/s e obras 10% mais rápidas; +0,5 p.p. de crescimento nacional', growth: 0.5 },
+    description: 'Grande Projeto Nacional: energia firme para a nação. Gera 150 de energia, +4 suprimentos/s, obras 10% mais rápidas e +0,5 p.p. de crescimento. Um por nação.',
   },
   network_5g: {
     ...NONE,

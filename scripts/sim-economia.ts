@@ -156,6 +156,14 @@ function run(seed: number, difficulty: Difficulty): Result {
         }
       }
     sim.step();
+    // POWER_LOG=1: rede elétrica de cada IA a cada minuto (diagnóstico)
+    if (process.env.POWER_LOG && t % MIN === 0)
+      for (const s of [0, 1]) {
+        const p = sim.powerInfo[s];
+        const plants = sim.buildings.filter((b) => b.owner === s && ['coal_plant', 'wind_farm', 'solar_farm'].includes(b.type)).length;
+        const dark = sim.buildings.filter((b) => b.owner === s && b.progress >= 1 && !sim.isPowered(b)).map((b) => b.type);
+        console.log(`${t / MIN}min P${s} oferta ${p?.supply} demanda ${p?.demand} apagados ${dark.join(',') || '-'} isolados ${p?.isolated} usinas ${plants} carvão ${Math.round(sim.players[s]!.resources.coal)}`);
+      }
     const events = sim.drainEvents();
     if (t < 15 * MIN) for (const e of events) if (e.type === 'unit_produced') trained[e.owner]!++;
     if (t < 15 * MIN) for (const e of events) if (e.type === 'destroyed' && e.entity === 'unit') lost[e.owner]!++;

@@ -13,6 +13,8 @@ const PATHS: Record<ResourceType, { d: string; color: string }> = {
   iron: { d: 'M2 11l3-5h6l3 5z M5 6l1 2h4l1-2', color: '#9aa5b1' },
   // gota de petróleo
   oil: { d: 'M8 2c3 4 4.5 6 4.5 8a4.5 4.5 0 01-9 0C3.5 8 5 6 8 2z', color: '#8fa0b4' },
+  // pedras de carvão
+  coal: { d: 'M3 12l2-4 3 1 2-4 3 3-1 5H4z M6 9l1 3 M10 8l1 4', color: '#5a5e63' },
 };
 
 export function ResourceIcon({ type, size = 14 }: { type: ResourceType; size?: number }) {

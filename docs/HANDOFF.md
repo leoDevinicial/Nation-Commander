@@ -179,6 +179,15 @@ npm test && npm run lint && npm run typecheck
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
+- **Rede elétrica** (31/10, `docs/REDE_ELETRICA.md`):
+  - carvão como recurso (sai das minas);
+  - termelétrica, eólica e solar, e a nuclear e a hidrelétrica como fontes;
+  - a energia anda pelas estradas (alcance de 4 células);
+  - construções militares e industriais param sem luz; moradias com luz dão aprovação;
+  - começo com termelétrica, estrada e postes;
+  - a IA constrói usinas, liga os prédios à malha e ataca usinas inimigas;
+  - `sim-economia` com `POWER_LOG=1` mostra a rede da IA minuto a minuto (7 de 9 critérios, como antes).
+
 - **Clima, dia e noite** (31/10, `docs/CLIMA_DIA_NOITE.md`): neve se todas as nações forem da Europa, chuva e
   tempestades conforme a região, ciclo de dia e noite de 16 min com janelas acesas. Só visual e determinístico.
 
@@ -263,7 +272,7 @@ mensagens em português descrevendo o que mudou).
 
 ## 7. De onde continuar
 
-Não há pedido em andamento. O próximo grande bloco sugerido pelo gerente é a **rede elétrica** (ver `docs/BALANCEAMENTO_E_PROGRESSAO.md`). Pontos abertos com o usuário: (1) um áudio antigo dele não pôde ser transcrito; pergunte
+Não há pedido em andamento. A rede elétrica foi feita em 31/10 (`docs/REDE_ELETRICA.md`); ainda sem partida humana de teste. Pontos abertos com o usuário: (1) um áudio antigo dele não pôde ser transcrito; pergunte
 se ainda importa; (2) os bonecos que pareciam estar no teto do QG (ver o item 2 da lista numerada da seção 6); (3) a IA
 do Fácil chega à era 3 tão cedo quanto a do Normal (gasta pouco com exército); foi oferecido atrasar a era dela, e o
 usuário ainda não respondeu. Ideias pendentes e coisas conhecidas:

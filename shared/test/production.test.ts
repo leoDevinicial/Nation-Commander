@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PRODUCTION_QUEUE_LIMIT, POP_ABSOLUTE_CAP, RECRUIT, UNITS, emptyStockpile } from '../sim/config.ts';
 import { checkProduce, type ProduceContext } from '../sim/production.ts';
 
-const rich = { supplies: 900, food: 900, wood: 900, stone: 900, iron: 900, oil: 900 };
+const rich = { supplies: 900, food: 900, wood: 900, stone: 900, iron: 900, oil: 900, coal: 0 };
 const ctx = (over: Partial<ProduceContext> = {}): ProduceContext => ({
   buildingType: 'barracks',
   level: 1,

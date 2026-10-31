@@ -540,7 +540,7 @@ export class AirSystem {
     for (const b of this.sim.buildings) {
       if (!enemy(b.owner) || b.progress < 1 || b.hp <= 0) continue;
       const d = dist(b.pos, m.target);
-      if (b.type === 'aa_battery' && d <= AIR.aaRange) chance += AIR.aaChance * (this.sim.bonusOf(b.owner).aaMul ?? 1);
+      if (b.type === 'aa_battery' && d <= AIR.aaRange && this.sim.isPowered(b)) chance += AIR.aaChance * (this.sim.bonusOf(b.owner).aaMul ?? 1);
       else if (b.type === 'tower' && d <= AIR.aaRange * 0.7) chance += AIR.towerAaChance;
       else if (b.type === 'airbase' && d <= AIR.interceptRadius) chance += AIR.fighterInterceptChance * this.aircraftAt(b.id).filter((a) => a.type === 'fighter' && a.state === 'ready').length;
     }
@@ -752,7 +752,7 @@ export class AirSystem {
       if (b.type !== 'iron_dome' || b.progress < 1 || b.hp <= 0) continue;
       const st = this.domeState(b.id);
       if (st.cooldown > 0) st.cooldown--;
-      if (st.ready >= IRON_DOME.magazine || b.unpaid) continue;
+      if (st.ready >= IRON_DOME.magazine || b.unpaid || !this.sim.isPowered(b)) continue;
       if (st.reload > 0) st.reload--;
       if (st.reload > 0) continue;
       if (!canAfford(this.sim.players[b.owner]!.resources, IRON_DOME.interceptorCost)) continue;
@@ -771,7 +771,7 @@ export class AirSystem {
     const tick = this.sim.tick;
     let best: { b: Building; d: number } | null = null;
     for (const b of this.sim.buildings) {
-      if (b.type !== 'iron_dome' || b.owner !== l.targetOwner || b.progress < 1 || b.hp <= 0 || b.unpaid) continue;
+      if (b.type !== 'iron_dome' || b.owner !== l.targetOwner || b.progress < 1 || b.hp <= 0 || b.unpaid || !this.sim.isPowered(b)) continue;
       const d = dist(b.pos, l.target);
       if (d > IRON_DOME.range) continue;
       const st = this.domeState(b.id);
@@ -815,7 +815,7 @@ export class AirSystem {
     // interceptação pelas baterias antiaéreas perto do alvo
     let chance = 0;
     for (const b of this.sim.buildings)
-      if (b.owner === l.targetOwner && b.type === 'aa_battery' && b.progress >= 1 && b.hp > 0 && dist(b.pos, l.target) <= MISSILE.interceptRange) chance += spec.interceptChance;
+      if (b.owner === l.targetOwner && b.type === 'aa_battery' && b.progress >= 1 && b.hp > 0 && this.sim.isPowered(b) && dist(b.pos, l.target) <= MISSILE.interceptRange) chance += spec.interceptChance;
     for (const u of this.sim.units)
       if (u.owner === l.targetOwner && u.hp > 0 && UNITS[u.type].airDefense && dist(u.pos, l.target) <= MISSILE.interceptRange) chance += spec.interceptChance * MOBILE_AA_FACTOR;
     chance = Math.min(spec.maxIntercept, chance * (this.sim.bonusOf(l.targetOwner).aaMul ?? 1));
@@ -859,7 +859,9 @@ export class AirSystem {
     }
     for (const a of this.aircraft) {
       if (a.state === 'building' || a.state === 'maintenance') {
-        if (!this.building(a.baseId)) continue;
+        const base = this.building(a.baseId);
+        // base sem energia: a linha de montagem e a manutenção param
+        if (!base || !this.sim.isPowered(base)) continue;
         if (--a.timer <= 0) a.state = 'ready';
       }
     }
@@ -903,7 +905,7 @@ export class AirSystem {
         delete this.silos[Number(id)];
         continue;
       }
-      if (s.building > 0 && !b.unpaid && --s.building <= 0) {
+      if (s.building > 0 && !b.unpaid && this.sim.isPowered(b) && --s.building <= 0) {
         s.building = 0;
         s.missiles++;
         if (s.buildingNuclear) s.nuclear = (s.nuclear ?? 0) + 1;

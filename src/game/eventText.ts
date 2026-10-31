@@ -49,6 +49,16 @@ export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone
       return e.owner === mySlot
         ? { text: `Perda de ${e.amount} de ${RESOURCE_LABELS[e.resource].toLowerCase()} (${e.reason === 'destroyed' ? 'depósito destruído' : e.reason === 'attack' ? 'depósito atingido por ataque' : 'sem espaço de armazenamento'})`, tone: 'bad' }
         : null;
+    case 'blackout':
+      return e.owner === mySlot
+        ? {
+            text:
+              e.reason === 'supply'
+                ? `Apagão: ${e.dark} construção(ões) parada(s) por falta de energia — construa outra usina ou mais carvão`
+                : `Sem energia: ${e.dark} construção(ões) longe da rede — ligue com estrada a uma usina ou ao QG`,
+            tone: 'bad',
+          }
+        : null;
     case 'shortage':
       return e.owner === mySlot
         ? {

@@ -78,6 +78,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
               </div>
             );
           })}
+        {!sandbox && me?.power && <PowerChip power={me.power} />}
         {!sandbox && me?.goods && (me.goods.fuel > 0 || me.goods.steel > 0 || me.goods.cap > GOODS.baseCap) && (
           <div
             className="flex shrink-0 items-center gap-1.5"
@@ -291,5 +292,23 @@ function SkyChip({ sky }: { sky: { hour: number; weather: 'clear' | 'rain' | 'st
       <span aria-hidden>{icon}</span>
       {hh}:{mm}
     </span>
+  );
+}
+
+/** Rede elétrica: geração e consumo; vermelho quando há construções paradas sem luz. */
+function PowerChip({ power }: { power: { supply: number; demand: number; served: number; dark: number; isolated: number; coalPerMin: number } }) {
+  const short = power.dark > 0;
+  const why = power.isolated > 0 ? `${power.isolated} longe da rede (ligue com estrada a até 4 células de uma usina, do QG ou de outra estrada)` : 'falta geração: construa outra usina';
+  return (
+    <div
+      className="flex shrink-0 items-center gap-1"
+      title={`Energia: geração ${power.supply}, consumo ${power.demand}${power.coalPerMin > 0 ? ` · termelétricas queimam ${power.coalPerMin} de carvão/min` : ''}${short ? ` — ${power.dark} construção(ões) PARADA(S) sem luz: ${why}` : ''}`}
+      aria-label={`Energia ${power.supply} de geração, ${power.demand} de consumo`}
+    >
+      <span aria-hidden className={short ? 'text-red-300' : 'text-brass-400'}>⚡</span>
+      <span className={`font-mono font-bold ${short ? 'text-red-300' : ''}`}>
+        {power.served}/{power.supply}
+      </span>
+    </div>
   );
 }

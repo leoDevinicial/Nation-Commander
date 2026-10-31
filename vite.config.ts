@@ -11,6 +11,8 @@ export default defineConfig({
   },
   test: {
     include: ['shared/**/*.test.ts', 'server/**/*.test.ts', 'src/**/*.test.ts'],
+    // testes de regra antigos rodam sem a rede elétrica; os de energia a ligam explicitamente
+    setupFiles: ['shared/test/setup.ts'],
     environment: 'node',
   },
 });

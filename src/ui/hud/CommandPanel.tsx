@@ -53,9 +53,11 @@ const EMPTY_TECHS: readonly string[] = [];
  * produtivas), cívicas (moradia, cidades, serviços, comércio e transporte), militares e os Grandes
  * Projetos Nacionais. Os atalhos de teclado continuam valendo em qualquer aba.
  */
-type BuildTab = 'production' | 'civic' | 'military' | 'projects';
+type BuildTab = 'production' | 'energy' | 'civic' | 'military' | 'projects';
 const BUILD_TABS: { id: BuildTab; label: string; icon: string; types: BuildingType[] }[] = [
   { id: 'production', label: 'Produção', icon: '⚒', types: ['farm', 'sawmill', 'quarry', 'mine', 'oil_well', 'oil_tank', 'warehouse', 'silo', 'refinery', 'steel_mill'] },
+  // rede elétrica: as usinas (a nuclear e a hidrelétrica continuam nos Grandes Projetos)
+  { id: 'energy', label: 'Energia', icon: '⚡', types: ['coal_plant', 'wind_farm', 'solar_farm'] },
   { id: 'civic', label: 'Cívicas', icon: '🏛', types: ['house', 'residential', 'city_hall', 'school', 'hospital', 'police_station', 'market', 'rail_station', 'port'] },
   { id: 'military', label: 'Militares', icon: '⚔', types: ['barracks', 'factory', 'research_center', 'tower', 'tank_trap', 'aa_battery', 'airbase', 'missile_silo', 'iron_dome'] },
   // Grandes Projetos Nacionais (Futuro Próximo)
@@ -73,6 +75,7 @@ export const STATUS_TEXT: Record<BuildingStatus, string> = {
   outside_territory: 'Parado: os recursos ficaram fora do seu território',
   unpaid: 'Sem manutenção paga (faltam suprimentos): não abriga ninguém',
   no_input: 'Parado: sem matéria-prima (petróleo para a Refinaria, ferro para a Siderúrgica)',
+  no_power: 'Parado: sem energia — ligue-o à rede (estrada a até 4 células de uma usina ou do QG) ou construa mais usinas',
 };
 
 /** Cidadãos selecionados no mapa e como mandá-los trabalhar. */
