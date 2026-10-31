@@ -476,6 +476,10 @@ describe('salas públicas', () => {
     const list = guest.last('room_list')!.rooms;
     expect(list).toHaveLength(1);
     expect(list[0]!.hostName).toBe('ana');
+    expect(list[0]!.name).toBe('Sala de ana');
+    await send(host.conn, { t: 'set_room', name: '  Guerra   Fria <b>!</b> ' });
+    await send(guest.conn, { t: 'list_rooms' });
+    expect(guest.last('room_list')!.rooms[0]!.name).toBe('Guerra Fria b!b');
     expect(list[0]!.players).toBe(1);
     // entra pela lista; com 2 de 2 a sala some
     await send(guest.conn, { t: 'join_room', code: list[0]!.code, countryId: COUNTRIES[1]!.id });

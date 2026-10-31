@@ -85,11 +85,14 @@ export interface RoomInfo {
   nationLimit?: number;
   /** Sala pública: aparece na lista do menu para qualquer jogador entrar. */
   isPublic?: boolean;
+  /** Nome escolhido pelo anfitrião (padrão "Sala de <anfitrião>"). */
+  name?: string;
 }
 
 /** Linha da lista de salas públicas do menu (só salas multijogador no lobby, com vaga). */
 export interface PublicRoomSummary {
   code: string;
+  name: string;
   hostName: string;
   /** Nações ocupadas (humanos e bots) e o teto da sala. */
   players: number;
@@ -160,7 +163,7 @@ export type ClientMessage =
   | { t: 'set_balance'; mode: BalanceMode }
   | { t: 'set_difficulty'; difficulty: Difficulty }
   /** Anfitrião: número de nações da sala e tipo de mapa. */
-  | { t: 'set_room'; maxPlayers?: number; mapType?: MapType | 'random'; isPublic?: boolean }
+  | { t: 'set_room'; maxPlayers?: number; mapType?: MapType | 'random'; isPublic?: boolean; name?: string }
   | { t: 'add_bot' }
   | { t: 'remove_bot'; slot: Slot }
   /** Anfitrião: país de um bot (ou sorteado entre os livres). */

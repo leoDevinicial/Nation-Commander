@@ -36,7 +36,7 @@ export function LobbyScreen() {
   };
 
   return (
-    <Shell title={room.mode === 'sandbox' ? 'Modo Sandbox' : room.mode === 'vs_ai' ? 'Operação contra a IA' : 'Sala multijogador'} wide="xl">
+    <Shell title={room.mode === 'sandbox' ? 'Modo Sandbox' : room.mode === 'vs_ai' ? 'Operação contra a IA' : (room.name ?? 'Sala multijogador')} wide="xl">
       <div className="grid gap-6 md:grid-cols-[1fr_280px]">
         <div>
           {room.mode === 'pvp' && (
@@ -48,6 +48,7 @@ export function LobbyScreen() {
               </button>
             </div>
           )}
+          {room.mode === 'pvp' && <RoomNameField name={room.name ?? ''} isHost={isHost} />}
           <ul className="space-y-2">
             {Array.from({ length: room.maxPlayers }, (_, slot) => {
               const p = room.players.find((x) => x.slot === slot);
@@ -107,7 +108,9 @@ export function LobbyScreen() {
                     </>
                   ) : (
                     <>
-                      <span className="flex-1 text-sm text-ink-400">{room.mode === 'pvp' ? 'Vaga aberta — compartilhe o código ou adicione um bot.' : 'Vaga aberta para um bot.'}</span>
+                      <span className="flex-1 text-sm text-ink-400">
+                        {room.mode === 'pvp' ? 'Vaga aberta para um jogador' + (isHost ? ' — ou preencha com um bot' : '') : 'Vaga aberta para um bot.'}
+                      </span>
                       {isHost && (
                         <button className="btn min-h-7 px-2 py-0.5 text-xs" onClick={() => gameClient.send({ t: 'add_bot' })}>
                           + Bot (IA)
@@ -132,7 +135,7 @@ export function LobbyScreen() {
                 </label>
               )}
               <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-ink-300">Nações na partida:</span>
+                <span className="text-ink-300">Vagas na sala:</span>
                 {Array.from({ length: Math.max(0, limit - 1) }, (_, i) => i + 2).map((n) => (
                   <button
                     key={n}
@@ -245,5 +248,33 @@ export function LobbyScreen() {
         <ChatBox />
       </div>
     </Shell>
+  );
+}
+
+/** Nome da sala: o anfitrião edita (envia ao sair do campo ou com Enter); os outros só veem. */
+function RoomNameField({ name, isHost }: { name: string; isHost: boolean }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const value = draft ?? name;
+  const commit = () => {
+    if (draft !== null && draft.trim() !== name) gameClient.send({ t: 'set_room', name: draft.trim() });
+    setDraft(null);
+  };
+  return (
+    <label className="mb-4 block">
+      <span className="label">Nome da sala</span>
+      <input
+        className="field"
+        value={value}
+        maxLength={32}
+        disabled={!isHost}
+        placeholder="Ex.: Guerra Fria — só veteranos"
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        }}
+      />
+      {!isHost && <span className="mt-0.5 block text-[11px] text-ink-400">Só o anfitrião muda o nome.</span>}
+    </label>
   );
 }

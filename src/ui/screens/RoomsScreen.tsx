@@ -46,7 +46,7 @@ export function RoomsScreen() {
     return (rooms ?? []).filter(
       (r) =>
         (!onlyEmpty || r.maxPlayers - r.players >= 2) &&
-        (!f || r.hostName.toLowerCase().includes(f) || r.code.toLowerCase().includes(f) || r.countries.some((c) => countryName(c).toLowerCase().includes(f))),
+        (!f || r.name.toLowerCase().includes(f) || r.hostName.toLowerCase().includes(f) || r.code.toLowerCase().includes(f) || r.countries.some((c) => countryName(c).toLowerCase().includes(f))),
     );
   }, [rooms, filter, onlyEmpty]);
 
@@ -68,7 +68,7 @@ export function RoomsScreen() {
         <button className="btn" disabled={!online} onClick={ask} title="Atualiza a lista agora (ela também se atualiza sozinha a cada 5 s)">
           ⟳ Atualizar
         </button>
-        <input className="field min-w-0 flex-1" placeholder="Filtrar por anfitrião, país ou código" aria-label="Filtrar salas" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <input className="field min-w-0 flex-1" placeholder="Filtrar por nome, anfitrião, país ou código" aria-label="Filtrar salas" value={filter} onChange={(e) => setFilter(e.target.value)} />
         <label className="flex cursor-pointer items-center gap-1.5 text-xs text-ink-300">
           <input type="checkbox" className="accent-[#e0b44c]" checked={onlyEmpty} onChange={(e) => setOnlyEmpty(e.target.checked)} />
           Com 2 ou mais vagas
@@ -103,8 +103,10 @@ export function RoomsScreen() {
                 onDoubleClick={() => join(r.code)}
               >
                 <span className="min-w-0">
-                  <span className="block truncate font-semibold text-ink-100">Sala de {r.hostName}</span>
-                  <span className="font-mono text-[11px] text-ink-400">{r.code}</span>
+                  <span className="block truncate font-semibold text-ink-100">{r.name}</span>
+                  <span className="text-[11px] text-ink-400">
+                    ★ {r.hostName} · <span className="font-mono">{r.code}</span>
+                  </span>
                 </span>
                 <span className="hidden truncate text-ink-300 sm:block">{r.mapType === 'random' ? 'Sorteado' : MAP_TYPE_INFO[r.mapType].label}</span>
                 <span className="col-span-2 truncate text-xs text-ink-300 sm:col-span-1 sm:text-sm">{r.countries.map((c) => countryName(c)).join(', ')}</span>

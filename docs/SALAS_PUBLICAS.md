@@ -13,6 +13,12 @@ Pedido do usuário (31/10): no menu, uma seção de salas públicas onde os joga
   - "+ Criar sala pública" cria uma sala multijogador já aberta;
   - embaixo, "Entrar com código" para salas privadas.
 - **"Criar Sala Privada":** continua no menu e gera um código para convidar outro comandante.
+- **Lobby (anfitrião):**
+  - **Nome da sala:** até 32 caracteres; o padrão é "Sala de <anfitrião>". Aparece no título do lobby e na lista.
+  - **Vagas na sala:** de 2 a 4 na versão grátis, até 6 para assinante (monetização futura).
+  - **Mapa:** o tipo do mapa, ou sorteado.
+  - **Vagas:** cada vaga livre fica aberta para jogador ou é preenchida com "+ Bot (IA)"; o ✖ reabre a vaga.
+  - **Iniciar Operação:** liberado com 2 ou mais nações e os jogadores prontos.
 - **Lobby:** o anfitrião de uma sala multijogador marca ou desmarca "Sala pública" a qualquer momento. Sem marcar,
   a sala é privada e só entra quem tiver o código, como antes.
 - **Quando a sala sai da lista:** quando a partida começa, quando lota, quando o anfitrião fica desconectado ou quando

@@ -51,8 +51,15 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       const maxPlayers = typeof data.maxPlayers === 'number' && Number.isInteger(data.maxPlayers) && data.maxPlayers >= 2 && data.maxPlayers <= 6 ? data.maxPlayers : undefined;
       const mapType = data.mapType === 'random' || isMapType(data.mapType) ? data.mapType : undefined;
       const isPublic = typeof data.isPublic === 'boolean' ? data.isPublic : undefined;
-      if (maxPlayers === undefined && mapType === undefined && isPublic === undefined) return null;
-      return { t: 'set_room', ...(maxPlayers !== undefined ? { maxPlayers } : {}), ...(mapType !== undefined ? { mapType } : {}), ...(isPublic !== undefined ? { isPublic } : {}) };
+      const name = typeof data.name === 'string' ? sanitizeRoomName(data.name) : undefined;
+      if (maxPlayers === undefined && mapType === undefined && isPublic === undefined && name === undefined) return null;
+      return {
+        t: 'set_room',
+        ...(maxPlayers !== undefined ? { maxPlayers } : {}),
+        ...(mapType !== undefined ? { mapType } : {}),
+        ...(isPublic !== undefined ? { isPublic } : {}),
+        ...(name !== undefined ? { name } : {}),
+      };
     }
     case 'add_bot':
       return { t: 'add_bot' };
@@ -148,6 +155,15 @@ export function parseDiplomaticAction(raw: unknown): DiplomaticAction | null {
     default:
       return null;
   }
+}
+
+/** Nome de sala: letras, números, espaço e pontuação simples, até 32 caracteres (vazio volta ao padrão). */
+export function sanitizeRoomName(name: string): string {
+  return name
+    .replace(/[^\p{L}\p{N}_ .,!?'()#&+-]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 32);
 }
 
 export function sanitizeName(name: string): string {

@@ -98,6 +98,8 @@ export class Room {
   hostUserId = '';
   /** Sala pública (lista do menu); só multijogador. */
   isPublic = false;
+  /** Nome escolhido pelo anfitrião ('' = padrão "Sala de <anfitrião>"). */
+  name = '';
   /** Nações na sala (o anfitrião escolhe de 2 até `nationLimit`). */
   maxPlayers = 2;
   /** Teto de nações: 4 na versão grátis, 6 com o anfitrião assinante; 2 no Sandbox. */
@@ -186,6 +188,7 @@ export class Room {
       mapType: this.mapType,
       nationLimit: this.nationLimit,
       ...(this.isPublic ? { isPublic: true } : {}),
+      name: this.displayName(),
       ...(this.mode !== 'pvp' || this.players.some((p) => p.isAI) ? { difficulty: this.difficulty } : {}),
     };
   }
@@ -195,7 +198,14 @@ export class Room {
     if (!this.isPublic || this.mode !== 'pvp' || this.status !== 'lobby' || this.players.length >= this.maxPlayers) return null;
     const host = this.players.find((p) => p.userId === this.hostUserId);
     if (!host?.connected) return null;
-    return { code: this.code, hostName: host.name, players: this.players.length, maxPlayers: this.maxPlayers, mapType: this.mapType, countries: this.players.map((p) => p.countryId) };
+    return { code: this.code, name: this.displayName(), hostName: host.name, players: this.players.length, maxPlayers: this.maxPlayers, mapType: this.mapType, countries: this.players.map((p) => p.countryId) };
+  }
+
+  /** Nome mostrado: o escolhido pelo anfitrião ou "Sala de <anfitrião>". */
+  displayName(): string {
+    if (this.name) return this.name;
+    const host = this.players.find((p) => p.userId === this.hostUserId);
+    return host ? `Sala de ${host.name}` : `Sala ${this.code}`;
   }
 
   hasUser(userId: string): boolean {
@@ -296,8 +306,12 @@ export class Room {
   }
 
   /** Anfitrião: número de nações e tipo de mapa. */
-  setRoom(conn: Connection, opts: { maxPlayers?: number; mapType?: MapType | 'random'; isPublic?: boolean }): void {
+  setRoom(conn: Connection, opts: { maxPlayers?: number; mapType?: MapType | 'random'; isPublic?: boolean; name?: string }): void {
     if (this.status !== 'lobby' || conn.user?.id !== this.hostUserId || this.mode === 'sandbox') return;
+    if (opts.name !== undefined && opts.name !== this.name) {
+      this.name = opts.name;
+      this.system(`Sala renomeada: ${this.displayName()}.`);
+    }
     if (opts.isPublic !== undefined && this.mode === 'pvp' && opts.isPublic !== this.isPublic) {
       this.isPublic = opts.isPublic;
       this.system(opts.isPublic ? 'Sala pública: aparece na lista do menu.' : 'Sala privada: só entra quem tiver o código.');
