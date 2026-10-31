@@ -39,6 +39,7 @@ import { UnitVisual } from './render/UnitVisuals.ts';
 import { PostFx } from './render/PostFx.ts';
 import { CitizenLayer } from './render/CitizenLayer.ts';
 import { CargoLayer, disposeCargoModels } from './render/CargoLayer.ts';
+import { AmbientLife } from './render/AmbientLife.ts';
 import { AirLayer, disposeAirModels, missilePoint } from './render/AirLayer.ts';
 import { DomeLayer } from './render/DomeLayer.ts';
 import { AIRCRAFT, FLIGHT_SIGHT, NUCLEAR, missileSpec } from '../../shared/sim/air.ts';
@@ -198,6 +199,9 @@ export class GameRuntime {
   private readonly heardFlights = new Map<number, number>();
   /** Aeronaves, mísseis, faróis dos silos e alvos (Fase 7). */
   private readonly airLayer: AirLayer;
+  /** Pássaros e cervos (vida ambiente, só visual). */
+  private readonly ambient: AmbientLife;
+  private ambientKey = '';
   private mineLayer!: MineLayer;
   private roadPreview!: RoadPreview;
   private roadLayer!: RoadLayer;
@@ -366,6 +370,8 @@ export class GameRuntime {
     this.effects = new Effects(this.scene, opts.profile.maxEffects, opts.profile.dynamicLights, opts.profile.cinematic ? 'cinematic' : opts.profile.ultra ? 'volumetric' : 'basic');
     this.airLayer = new AirLayer(this.effects, this.mySlot, (id) => this.positionOf(id), opts.profile.maxEffects > 60 ? 140 : 60);
     this.airLayer.setGround((x, z) => this.groundHeight(x, z));
+    this.ambient = new AmbientLife(this.map, (x, z) => this.groundHeight(x, z), () => this.unitPositions(), opts.profile.terrain === 'low');
+    this.scene.add(this.ambient.group);
     this.scene.add(this.airLayer.group);
     this.rocketLayer = new RocketLayer(this.effects, (at, k) => this.shakeNear(at, k), (x, z) => audio.playAt('explosion', x, z), 72, opts.profile.maxEffects > 60 ? 220 : 110);
     this.scene.add(this.rocketLayer.group);
@@ -671,6 +677,12 @@ export class GameRuntime {
       }
     }
     this.clearDecorUnderBuildings();
+    // a vida ambiente evita as construções (refeito só quando a lista de construções muda)
+    const ambientKey = `${s.buildings.length}:${s.buildings.reduce((a, b) => a + b.id, 0)}`;
+    if (ambientKey !== this.ambientKey) {
+      this.ambientKey = ambientKey;
+      this.ambient.setBuildings(s.buildings.map((b) => ({ cx: b.cx, cy: b.cy, size: BUILDINGS[b.type].size })));
+    }
     this.updateSiloHatches(s);
 
     this.updateFog();
@@ -726,7 +738,14 @@ export class GameRuntime {
     if (this.terrain.clearUnder(rects)) this.shadowDirty = true;
   }
 
+  private *unitPositions(): Iterable<{ x: number; y: number }> {
+    for (const t of this.units.values()) yield t.visual.renderPos;
+  }
+
   private handleEvent(e: SimEvent): void {
+    // tiros fortes, explosões e bombas assustam os pássaros e as manadas por perto
+    if (e.type === 'destroyed' || e.type === 'air_strike' || e.type === 'caravan_lost' || (e.type === 'mine' && e.state === 'blast')) this.ambient.disturb(e.pos.x, e.pos.y, e.type === 'air_strike' ? 22 : 14);
+    else if (e.type === 'shot') this.ambient.disturb(e.from.x, e.from.y, 9);
     if (e.type === 'shot' && e.salvo) {
       // salva do lança-foguetes: os foguetes saem dos tubos do casulo, um a um
       const attacker = this.units.get(e.attackerId);
@@ -1090,6 +1109,7 @@ export class GameRuntime {
     }
     this.cargo.frame(alpha, dt);
     this.airLayer.frame(alpha, dt);
+    this.ambient.update(this.paused ? 0 : dt);
     // os foguetes andam no relógio da simulação: param na pausa e aceleram com a velocidade
     this.rocketLayer.update(this.paused ? 0 : dt * this.speed);
     this.domeLayer.update(this.paused ? 0 : dt * this.speed);
@@ -3464,6 +3484,7 @@ export class GameRuntime {
       // (caches de módulo) e continuam em uso por ele; só o que é desta cena é liberado
       this.cargo.dispose();
       this.airLayer.dispose();
+      this.ambient.dispose();
       this.rocketLayer.dispose();
       this.domeLayer.dispose();
       this.trackMarks.dispose();
@@ -3494,6 +3515,7 @@ export class GameRuntime {
     this.cargo.dispose();
     disposeCargoModels();
     this.airLayer.dispose();
+    this.ambient.dispose();
       this.rocketLayer.dispose();
       this.domeLayer.dispose();
       this.trackMarks.dispose();

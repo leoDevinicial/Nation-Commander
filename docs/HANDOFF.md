@@ -179,6 +179,9 @@ npm test && npm run lint && npm run typecheck
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
+- **Vida ambiente** (31/10, `docs/VIDA_AMBIENTE.md`): bandos de pássaros e gaivotas e manadas de cervos que pastam e
+  fogem de tropas e explosões. Só visual.
+
 - **Aviões mais realistas** (31/10, depois da 1.0; `docs/FASE7_FORCA_AEREA_MISSEIS_AUDIO.md`, seção "Voo dos aviões e sons
   aéreos"):
   - decolagem pela pista, curva coordenada, pós-combustor e luzes de navegação;
