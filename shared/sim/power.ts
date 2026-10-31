@@ -97,8 +97,8 @@ export interface PowerResult {
 /**
  * Resolve a rede de um jogador: malha = células de estrada + área das usinas e do Centro de Comando; cada pedaço
  * conexo (4 vizinhos) é uma rede. Construções a até `reach` células de uma rede entram nela; uma construção que alcança
- * duas redes as une (a fiação dela passa por dentro). Em cada rede, a geração atende as consumidoras em ordem de id
- * (as mais antigas primeiro).
+ * duas redes as une (a fiação dela passa por dentro). Em cada rede, a geração atende as consumidoras na ordem em que
+ * chegam em `nodes`, que é a de construção (as mais antigas primeiro; os ids não têm ordem, ver `ids.ts`).
  */
 export function solvePower(width: number, height: number, roadCells: Iterable<number>, hubs: readonly PowerNode[], nodes: readonly PowerNode[]): PowerResult {
   const grid = new Int32Array(width * height).fill(-1);
@@ -177,7 +177,8 @@ export function solvePower(width: number, height: number, roadCells: Iterable<nu
   const isolated = new Set<number>();
   let demand = 0;
   let served = 0;
-  for (const n of [...nodes].sort((a, b) => a.id - b.id)) {
+  // na ordem recebida, que é a de construção (os ids não têm ordem: KAC-06)
+  for (const n of nodes) {
     if (n.use <= 0) continue;
     demand += n.use;
     const t = touches.get(n.id);

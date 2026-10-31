@@ -25,7 +25,7 @@ Ordem por risco encontrado na auditoria (não por arquitetura genérica). Estado
 | Relatório de integridade da partida | INTEGRATION TESTED | `server/kac/integrity.ts`, `matches.report.integrity` |
 | Painel de leitura `/kac` | ADVERSARIALLY TESTED | `server/kac/admin.ts`; ligado só com `KAC_ADMIN_TOKEN` |
 | Política de sanções | DESIGNED | `KAC_ENFORCEMENT_POLICY.md`; não há ranking nem banimento no jogo ainda |
-| KAC-06: ids de entidade opacos por observador | DESIGNED | ver o registro de riscos |
+| KAC-06: ids opacos (permutação secreta por partida) | ADVERSARIALLY TESTED | `server/kac/entityIds.ts`, `shared/sim/ids.ts`; chave no salvamento da sala |
 | Observação em produção | NOT ASSESSED | depende de publicar e ler os logs do Render ("KAC" e "KAC resumo") |
 
 ## Próximas etapas
@@ -39,13 +39,10 @@ Ordem por risco encontrado na auditoria (não por arquitetura genérica). Estado
 2. **Calibrar o KAC-09 (P1)**
    - Com algumas semanas de `kac_events`, ver a distribuição dos alertas.
    - Ajustar `BEHAVIOR_POLICY` se aparecer falso positivo. Nada de sanção antes disso.
-3. **Ids opacos por observador (P2, KAC-06)**
-   - Tabela por jogador (id real ↔ id opaco) no snapshot, nos eventos e na volta dos comandos.
-   - Teste por comando com alvo.
-4. **Replay para disputas (P2)**
+3. **Replay para disputas (P2)**
    - Gravar os comandos aceitos de partidas ranqueadas.
    - Reexecutar a partir da semente e comparar com o `stateHash` do relatório de integridade.
-5. **Antes do ranking (P2/P3)**
+4. **Antes do ranking (P2/P3)**
    - Sinais de conluio e multicontas.
    - Ferramenta de sanção que siga `KAC_ENFORCEMENT_POLICY.md`: registro da decisão, aviso ao jogador e contestação.
 
@@ -62,4 +59,4 @@ curl -s -H "Authorization: Bearer $KAC_ADMIN_TOKEN" "https://<servidor>/kac?limi
 ```
 
 Para provar que um teste pega o ataque, desfaça a correção correspondente e rode de novo. Os testes do KAC-01, KAC-05,
-KAC-07 e KAC-12 falham com o código antigo; essa verificação foi feita em 31/10.
+KAC-06, KAC-07 e KAC-12 falham com o código antigo; essa verificação foi feita em 31/10.

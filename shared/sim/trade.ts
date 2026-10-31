@@ -615,8 +615,7 @@ export class TradeSystem {
 
   private pickDepot(slot: Slot, r: TradeResource): Building | null {
     const depots = this.facilities(slot, DEPOT_FOR[r]);
-    if (r === 'oil') depots.sort((a, b) => b.stored - a.stored || a.id - b.id);
-    else depots.sort((a, b) => a.id - b.id);
+    if (r === 'oil') depots.sort((a, b) => b.stored - a.stored); // estável: empate fica com o mais antigo
     return depots[0] ?? null;
   }
 

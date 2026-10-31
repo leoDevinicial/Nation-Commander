@@ -1,4 +1,5 @@
 import { prepTicks, type Difficulty } from './difficulty.ts';
+import type { IdCipher, IdSpace } from './ids.ts';
 import { RANKS, rankDamageMul, rankFor, rankHpMul } from './veterancy.ts';
 import { countryBonus, type CountryBonus } from './countryBonus.ts';
 import { ERA_CANCEL_REFUND, ERAS, buildingEra, eraPhrase, type Era } from './eras.ts';
@@ -94,6 +95,8 @@ export interface SimulationInit {
    * as construções que dependem de luz param sem energia. Padrão: ligada, exceto nas batalhas locais.
    */
   power?: boolean;
+  /** KAC-06: permutação secreta dos ids (só o servidor passa; ver `ids.ts`). */
+  idCipher?: IdCipher | null;
 }
 
 /** Energia de um jogador (para o painel e a IA). */
@@ -298,6 +301,13 @@ export class Simulation {
   /** Eventos acumulados desde a última chamada a `drainEvents`. */
   private events: SimEvent[] = [];
   private nextId = 1;
+  /** KAC-06: permutação secreta dos ids (definida pelo servidor; sem ela, o id é o contador). Não vai no salvamento. */
+  idCipher: IdCipher | null = null;
+
+  /** Id publicado para o contador `n` do espaço `space` (ver `shared/sim/ids.ts`). */
+  opaqueId(space: IdSpace, n: number): number {
+    return this.idCipher ? this.idCipher(space, n) : n;
+  }
   private lastAlertTick: number[];
   /** Salvas de foguetes em voo (o dano chega no impacto). */
   private salvos: SalvoInFlight[] = [];
@@ -375,6 +385,8 @@ export class Simulation {
   }
 
   constructor(init: SimulationInit) {
+    // antes de qualquer entidade nascer (o construtor já cria o QG e a usina inicial)
+    this.idCipher = init.idCipher ?? null;
     this.map = init.map;
     this.grid = new Grid(init.map.width, init.map.height, init.map.cellSize, [...init.map.terrain]);
     this.battle = !!init.battle;
@@ -798,7 +810,7 @@ export class Simulation {
   /** Retira petróleo dos tanques (os mais cheios primeiro) e, por último, da reserva do QG. */
   private takeOil(p: PlayerState, amount: number): void {
     let left = amount;
-    const tanks = this.tanks(p.slot).sort((a, b) => b.stored - a.stored || a.id - b.id);
+    const tanks = this.tanks(p.slot).sort((a, b) => b.stored - a.stored); // estável: empate fica com o mais antigo
     for (const t of tanks) {
       if (left <= 0) break;
       const take = Math.min(left, t.stored);
@@ -1553,7 +1565,7 @@ export class Simulation {
     const p = this.players[slot]!;
     if (r === 'oil') {
       let left = amount;
-      for (const t of this.tanks(slot).sort((a, b) => b.stored - a.stored || a.id - b.id)) {
+      for (const t of this.tanks(slot).sort((a, b) => b.stored - a.stored)) {
         const take = Math.min(left, t.stored);
         t.stored -= take;
         left -= take;
@@ -2109,7 +2121,8 @@ export class Simulation {
    */
   staff(slot: Slot): void {
     const p = this.players[slot]!;
-    const mine = this.buildings.filter((b) => b.owner === slot).sort((a, b) => a.id - b.id);
+    // ordem de construção = ordem de inserção (os ids não têm ordem: KAC-06)
+    const mine = this.buildings.filter((b) => b.owner === slot);
     let employed = 0;
     for (const b of mine) {
       const limit = b.progress >= 1 && b.hp > 0 ? Math.min(b.workerTarget, this.fx(b).workers) : 0;
@@ -3177,7 +3190,7 @@ export class Simulation {
     const cs = this.grid.cellSize;
     const b: Building = {
       kind: 'building',
-      id: this.nextId++,
+      id: this.opaqueId('entity', this.nextId++),
       type,
       owner,
       cell: { ...cell },
@@ -3249,7 +3262,7 @@ export class Simulation {
     const maxHp = Math.round(UNITS[type].maxHp * hpMul * combineMods(mods).hpMul);
     const u: Unit = {
       kind: 'unit',
-      id: this.nextId++,
+      id: this.opaqueId('entity', this.nextId++),
       type,
       owner,
       pos: { ...pos },

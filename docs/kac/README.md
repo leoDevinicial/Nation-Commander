@@ -47,6 +47,7 @@ conteúdo:
 | `server/kac/behavior.ts` | KAC-09: sinais de automação (só alerta) |
 | `server/kac/integrity.ts` | Relatório de integridade da partida (`matches.report.integrity`) |
 | `server/kac/admin.ts` | Painel de leitura `GET /kac` (token `KAC_ADMIN_TOKEN`) |
+| `server/kac/entityIds.ts`, `shared/sim/ids.ts` | KAC-06: ids embaralhados por uma chave secreta da partida |
 | `shared/sim/snapshot.ts` | KAC-07 e KAC-12: o snapshot não cita alvo nem base aérea fora da visão |
 | `server/kac.test.ts`, `shared/test/kacProjection.test.ts` | Testes adversariais: cada um reproduz um ataque e prova que ele não funciona mais |
 
@@ -60,5 +61,5 @@ conteúdo:
 - **Decisões nacionais na pausa:** nas partidas entre humanos, orçamento, pesquisa e diplomacia também esperam a
   partida voltar.
 - **Voos inimigos:** só mostram a decolagem e o pouso quando a base deles está à vista; fora disso, aparecem já no ar.
-- **Sem efeito visível:** ids públicos na sala, diário persistente, sinais de automação e relatório de integridade.
+- **Sem efeito visível:** ids embaralhados, ids públicos na sala, diário persistente, sinais de automação e relatório de integridade.
   Nenhum deles muda o jogo ou pune alguém.

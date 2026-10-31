@@ -444,7 +444,7 @@ export class AirSystem {
     this.sim.spendResources(slot, def.cost);
     if (def.goods) this.sim.spendGoods(this.sim.players[slot]!, def.goods);
     this.sim.players[slot]!.recruits--;
-    this.aircraft.push({ id: this.nextId++, type, owner: slot, baseId, home: { ...this.building(baseId)!.pos }, state: 'building', timer: this.sim.duration(slot, def.buildSeconds * TICK_RATE), missionId: null });
+    this.aircraft.push({ id: this.sim.opaqueId('air', this.nextId++), type, owner: slot, baseId, home: { ...this.building(baseId)!.pos }, state: 'building', timer: this.sim.duration(slot, def.buildSeconds * TICK_RATE), missionId: null });
     return null;
   }
 
@@ -497,7 +497,7 @@ export class AirSystem {
     this.sim.spendResources(slot, { oil: Math.max(0, fuel - fromGoods * GOODS.saves) });
     const speed = Math.min(...planes.map((a) => AIRCRAFT[a.type].speed));
     const m: AirMission = {
-      id: this.nextId++,
+      id: this.sim.opaqueId('air', this.nextId++),
       owner: slot,
       kind,
       aircraft: ids,
@@ -694,7 +694,7 @@ export class AirSystem {
     const gen = buildingEffects('missile_silo', b.level).missileGen;
     const spec = missileSpec(gen);
     const l: MissileLaunch = {
-      id: this.nextId++,
+      id: this.sim.opaqueId('air', this.nextId++),
       owner: slot,
       siloId,
       target: p,

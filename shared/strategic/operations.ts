@@ -299,7 +299,7 @@ export class OperationsSystem {
     const def = sectorById(op.sectorId)!;
     const st = this.sector(op.target, op.sectorId)!;
     const map = generateBattleMap(op.seed, def, OPS.battleMapSize);
-    const sim = new Simulation({ map, playerCount: 2, startingUnits: [], startingResources: { supplies: 0, food: 0, wood: 0, stone: 0, iron: 0, oil: 0, coal: 0 }, allAtWar: true, battle: true });
+    const sim = new Simulation({ map, playerCount: 2, startingUnits: [], startingResources: { supplies: 0, food: 0, wood: 0, stone: 0, iron: 0, oil: 0, coal: 0 }, allAtWar: true, battle: true, idCipher: this.theater.idCipher });
     for (const p of sim.players) p.recruits = 0;
     // atacantes: as mesmas unidades enviadas, com vida e equipamento preservados
     const fieldHq = sim.hqOf(0)!;
@@ -481,7 +481,9 @@ export class OperationsSystem {
     this.sectors = c.sectors;
     this.battles.clear();
     for (const [id, save] of Object.entries(c.battles)) {
-      this.battles.set(Number(id), Simulation.deserialize(save));
+      const battle = Simulation.deserialize(save);
+      battle.idCipher = this.theater.idCipher;
+      this.battles.set(Number(id), battle);
       this.battleEvents.set(Number(id), []);
     }
   }

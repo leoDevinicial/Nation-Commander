@@ -16,6 +16,8 @@ import { BEHAVIOR_POLICY, BehaviorMonitor } from './kac/behavior.ts';
 import { buildIntegrity, stateHash } from './kac/integrity.ts';
 import { KacEventStore, STORE_POLICY, type KacEventRow, type KacStoreBackend } from './kac/store.ts';
 import { ADMIN_POLICY, KacAdmin, tokenMatches } from './kac/admin.ts';
+import { idCipher, newIdKey } from './kac/entityIds.ts';
+import { Room } from './Room.ts';
 import { KacJournal, type KacEvent } from './kac/journal.ts';
 
 /**
@@ -439,7 +441,7 @@ describe('KAC — relatório de integridade da partida', () => {
     const room = rooms.get(code)!;
     const unit = room.sim!.units.find((u) => u.owner === 0)!;
     await send(a.conn, { t: 'cmd', cmd: { type: 'move', unitIds: [unit.id], x: unit.pos.x + 4, y: unit.pos.y } });
-    await send(a.conn, { t: 'cmd', cmd: { type: 'move', unitIds: [999_999], x: 1, y: 1 } });
+    await send(a.conn, { t: 'cmd', cmd: { type: 'move', unitIds: [2 ** 30], x: 1, y: 1 } });
     room.advance();
     const r1 = room.integrityReport(room.sim!);
     expect(r1.verdict).toBe('clean');
@@ -605,5 +607,65 @@ describe('KAC — painel de leitura /kac', () => {
     expect(tokenMatches(TOKEN, TOKEN)).toBe(true);
     expect(tokenMatches(TOKEN.slice(0, -1), TOKEN)).toBe(false);
     expect(tokenMatches(undefined, TOKEN)).toBe(false);
+  });
+});
+
+describe('KAC-06 — ids opacos', () => {
+  it('a permutação é uma bijeção estável por chave, separada por espaço, e não preserva a ordem', () => {
+    const key = newIdKey();
+    const p = idCipher(key);
+    const seen = new Set<number>();
+    let ascents = 0;
+    let prev = 0;
+    for (let n = 0; n < 50_000; n++) {
+      const id = p('entity', n);
+      expect(id).toBeGreaterThanOrEqual(1);
+      expect(id).toBeLessThanOrEqual(2 ** 24);
+      seen.add(id);
+      if (n && id > prev) ascents++;
+      prev = id;
+    }
+    expect(seen.size).toBe(50_000);
+    // num contador comum, 100% dos passos sobem; numa permutação aleatória, perto de metade
+    expect(ascents / 49_999).toBeGreaterThan(0.45);
+    expect(ascents / 49_999).toBeLessThan(0.55);
+    expect(idCipher(key)('entity', 77)).toBe(p('entity', 77));
+    expect(idCipher(newIdKey())('entity', 77)).not.toBe(p('entity', 77));
+    expect(p('air', 77)).not.toBe(p('entity', 77));
+    // além do domínio: segue único, em sequência
+    expect(p('entity', 2 ** 24)).toBe(2 ** 24 + 1);
+  });
+
+  it('ataque: pelos ids, o adversário não descobre quantas unidades e prédios o inimigo criou', async () => {
+    const { send, a, b, rooms, code } = await pvpWithAccounts();
+    await send(b.conn, { t: 'set_ready', ready: true });
+    await send(a.conn, { t: 'start' });
+    const sim = rooms.get(code)!.sim!;
+    const hq = sim.hqOf(0)!;
+    // o inimigo (slot 0) cria 30 unidades em sequência; antes cada uma tinha o id da anterior + 1 (ou mais, se outros
+    // criaram no meio), e a diferença entre dois ids vistos contava a produção
+    const ids = Array.from({ length: 30 }, () => sim.addUnit('infantry', 0, { x: hq.pos.x, y: hq.pos.y + 6 }).id);
+    let ascents = 0;
+    for (let i = 1; i < ids.length; i++) if (ids[i]! > ids[i - 1]!) ascents++;
+    expect(ascents).toBeLessThan(ids.length - 1);
+    expect(new Set(ids).size).toBe(ids.length);
+    // e os ids iniciais de cada jogador não são uma sequência (o QG não é mais o id 1)
+    expect(sim.hqOf(0)!.id).not.toBe(1);
+  });
+
+  it('a chave nunca vai para o cliente e continua a mesma depois de retomar a partida salva', async () => {
+    const { send, a, b, rooms, code, clock } = await pvpWithAccounts();
+    await send(b.conn, { t: 'set_ready', ready: true });
+    await send(a.conn, { t: 'start' });
+    const room = rooms.get(code)!;
+    room.advance();
+    const save = room.toSave()!;
+    expect(save.idKey).toMatch(/^[0-9a-f]{64}$/);
+    for (const c of [a, b]) expect(JSON.stringify(c.sent)).not.toContain(save.idKey!);
+    const restored = Room.restore(save, { reconnectGraceMs: 1000, record: async () => true, onEmpty: () => {}, now: () => clock.t });
+    const hq = room.sim!.hqOf(1)!;
+    const next = room.sim!.addUnit('tank', 1, { x: hq.pos.x, y: hq.pos.y + 6 }).id;
+    const again = restored.sim!.addUnit('tank', 1, { x: hq.pos.x, y: hq.pos.y + 6 }).id;
+    expect(again).toBe(next);
   });
 });

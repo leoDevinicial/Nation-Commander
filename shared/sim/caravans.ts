@@ -114,7 +114,7 @@ export class CaravanSystem {
     for (const city of cities) {
       if (this.caravans.some((c) => c.cityId === city.id)) continue;
       if (!this.sim.hqOf(city.owner)) continue;
-      const c: Caravan = { id: this.nextId++, owner: city.owner, cityId: city.id, to: 'city', path: [], pathLength: 0, travelled: 0, state: 'no_road', timer: 0, lastIncome: 0 };
+      const c: Caravan = { id: this.sim.opaqueId('caravan', this.nextId++), owner: city.owner, cityId: city.id, to: 'city', path: [], pathLength: 0, travelled: 0, state: 'no_road', timer: 0, lastIncome: 0 };
       this.caravans.push(c);
       this.depart(c);
     }

@@ -39,6 +39,7 @@ import { publicId } from './kac/identity.ts';
 import { BehaviorMonitor } from './kac/behavior.ts';
 import { buildIntegrity, type IntegrityCounters, type MatchIntegrity } from './kac/integrity.ts';
 import { PAUSE_POLICY } from './kac/policy.ts';
+import { idCipher, newIdKey } from './kac/entityIds.ts';
 import type { MatchRecord } from './supabase.ts';
 
 export const SNAPSHOT_EVERY = 2; // 10 snapshots/s
@@ -71,6 +72,8 @@ export interface RoomSave {
   fog: [Slot, [EntityId, BuildingSnapshot][]][];
   /** Relatório pós-partida em construção (amostras e maior patente por jogador). */
   report?: { samples: ReportSample[]; bestRank: [Slot, number][] };
+  /** KAC-06: chave da permutação dos ids (só no servidor). Salvamentos antigos não têm: ids seguem sequenciais. */
+  idKey?: string;
 }
 
 interface RoomPlayer extends RoomPlayerInfo {
@@ -156,6 +159,8 @@ export class Room {
   private readonly behavior = new BehaviorMonitor();
   /** Eventos de segurança relevantes (média ou maior) desta sala durante a partida. */
   private kacEvents = 0;
+  /** KAC-06: chave secreta da permutação dos ids desta partida (nunca vai para o cliente). */
+  private idKey: string | null = null;
 
   /** `host` nulo: sala retomada de um salvamento (ver `Room.restore`). */
   private readonly rand: () => number;
@@ -424,7 +429,8 @@ export class Room {
     this.players.sort((a, b) => a.slot - b.slot).forEach((p, i) => (p.slot = i));
     const type = this.mapType === 'random' ? MAP_TYPES[this.seed % MAP_TYPES.length]! : this.mapType;
     const map = generateMatchMap(this.seed, { nations: this.players.length, type, countries: this.players.map((p) => p.countryId) });
-    this.sim = new Simulation({ map, playerCount: this.players.length });
+    this.idKey = newIdKey();
+    this.sim = new Simulation({ map, playerCount: this.players.length, idCipher: idCipher(this.idKey) });
     this.sim.difficulty = this.difficulty;
     // progressão por eras (no Sandbox tudo fica liberado, mas o visual pode avançar)
     this.sim.eras = true;
@@ -565,6 +571,7 @@ export class Room {
       gdpStart: [...this.gdpStart],
       fog: [...this.fogMemory].map(([slot, m]) => [slot, [...m.known]]),
       report: { samples: this.reportSamples, bestRank: [...this.bestRank] },
+      ...(this.idKey ? { idKey: this.idKey } : {}),
     };
   }
 
@@ -585,6 +592,11 @@ export class Room {
     for (const p of save.players) room.players.push({ ...p, ready: true, connected: p.isAI, conn: null, disconnectedAt: p.isAI ? null : now });
     room.players.sort((a, b) => a.slot - b.slot);
     room.sim = Simulation.deserialize(save.sim);
+    // KAC-06: a mesma chave, para os ids seguintes continuarem únicos e iguais aos da partida original
+    if (save.idKey) {
+      room.idKey = save.idKey;
+      room.sim.idCipher = idCipher(save.idKey);
+    }
     room.difficulty = room.sim.difficulty;
     room.national = new NationalSimulation(
       room.players.map((p) => ({ slot: p.slot, countryId: p.countryId })),

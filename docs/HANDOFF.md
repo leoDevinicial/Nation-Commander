@@ -192,7 +192,10 @@ npm test && npm run lint && npm run typecheck
   - relatório de integridade de cada partida em `matches.report.integrity` (`server/kac/integrity.ts`);
   - painel de leitura `GET /kac`, ligado só com `KAC_ADMIN_TOKEN` (`server/kac/admin.ts`);
   - política de sanções sem punição automática: `docs/kac/KAC_ENFORCEMENT_POLICY.md`;
-  - aberto: KAC-04 (confirmar o IP no Render pelo "KAC resumo"), KAC-06 (ids opacos), KAC-10 (uma instância).
+  - KAC-06: ids de entidade, voo, míssil, mina e caravana passam por uma permutação secreta da partida
+    (`server/kac/entityIds.ts`, chave em `RoomSave.idKey`). **Nada na simulação pode depender da ordem dos ids**: "mais
+    antigo primeiro" usa a ordem de inserção de `Simulation.entities`;
+  - aberto: KAC-04 (confirmar o IP no Render pelo "KAC resumo") e KAC-10 (uma instância).
 
 - **KAC — Kaiser Anti Cheat, fase 0 e P0** (31/10, `docs/kac/`):
   - a auditoria confirmou servidor autoritativo (modelo A);

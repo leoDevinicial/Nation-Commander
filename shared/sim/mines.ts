@@ -141,7 +141,7 @@ export class MineSystem {
       if (--t.ticks > 0) continue;
       this.tasks = this.tasks.filter((x) => x !== t);
       const m: Mine = {
-        id: this.nextId++,
+        id: this.sim.opaqueId('mine', this.nextId++),
         owner: t.owner,
         pos: { ...t.pos },
         seenBy: [],
