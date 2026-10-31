@@ -3427,7 +3427,7 @@ export class GameRuntime {
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    this.powerArea = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: '#f2d24c', transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide }));
+    this.powerArea = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: '#f2d24c', transparent: true, opacity: 0.26, depthWrite: false, side: THREE.DoubleSide }));
     this.powerArea.renderOrder = 3;
     this.scene.add(this.powerArea);
   }
