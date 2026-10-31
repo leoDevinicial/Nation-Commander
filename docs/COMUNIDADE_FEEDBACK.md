@@ -30,4 +30,4 @@ Pedido do usuário (31/10): uma área de comunidade e feedback do Nation Command
 - **Servidor sem Supabase** (desenvolvimento): o feedback fica só no log do servidor.
 - **Testes:** `server/room.test.ts`, bloco "comunidade e feedback".
 
-**Antes de publicar, aplicar a migração no Supabase.** Sem ela, o envio responde "Não foi possível enviar agora".
+Migração aplicada no Supabase pelo usuário em 31/10; área publicada.
