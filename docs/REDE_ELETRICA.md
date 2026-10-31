@@ -17,7 +17,7 @@ Onde está:
 ## Carvão
 
 - Recurso novo (`coal`), guardado no QG (300) e nos Armazéns (800).
-- A Mina tira 0,2 de carvão por unidade de ferro, sem gastar mais do depósito (começou em 0,6 e depois 0,3: o carvão sobrava).
+- A Mina tira 0,15 de carvão por unidade de ferro, sem gastar mais do depósito (começou em 0,6, depois 0,3 e 0,2: o carvão sobrava).
 - Começo: 160 de carvão, o bastante para a termelétrica inicial por bastante tempo até a primeira mina.
 
 ## Fontes
@@ -92,12 +92,19 @@ QG.
 - **Usinas:** constrói outra quando a capacidade instalada (solar e eólica contam 60%) fica abaixo da demanda, somando o que está em obra mais uma folga de 4.
   - Termelétrica por padrão.
   - Da era 2 em diante, a eólica alterna com a termelétrica e passa na frente com menos de 150 de carvão (até 4).
-  - Solar alternada com a termelétrica a partir da Era Digital.
+  - A primeira solar logo ao chegar na Era Digital; depois, alternada com a termelétrica.
 - **Carvão:** com o carvão abaixo de 60 e sem mina, a mina vira prioridade.
 - **Posição:** posiciona quartéis, fábricas e usinas ao alcance da malha.
 - **Construções isoladas:** traça estrada até o QG para uma construção que ficou longe da rede.
 - **Ataque:** as usinas (termelétrica, nuclear, hidrelétrica) entram logo depois da base aérea e do silo na lista de
   alvos aéreos.
+
+## Na tela
+
+- Construção sem luz: ícone ⚡ vermelho piscando acima dela (só o dono vê) e "Parado: sem energia" no painel.
+- Ao posicionar uma construção que usa ou gera luz: a área energizada aparece amarela no chão, e o painel diz
+  "⚡ Com energia aqui" ou "⚠ Sem energia aqui".
+- Barra de cima: ⚡ consumo atendido / geração, vermelho com construções paradas.
 
 ## Mercado interno
 

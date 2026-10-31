@@ -65,7 +65,7 @@ export interface HudEvent {
 
 export type PointerMode =
   | { kind: 'normal' }
-  | { kind: 'place'; buildingType: BuildingType; valid: boolean; reason: string | null; yield: { cells: number; rate: number } | null }
+  | { kind: 'place'; buildingType: BuildingType; valid: boolean; reason: string | null; yield: { cells: number; rate: number } | null; power?: 'on' | 'off' }
   | { kind: 'attack_move' }
   /**
    * Escolha de alvo da força aérea (Fase 7): ponto do reconhecimento, edifício inimigo descoberto

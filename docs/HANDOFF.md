@@ -4,7 +4,7 @@ Este arquivo é o ponto de partida para quem pega o projeto numa conversa nova (
 antes de mexer em qualquer coisa. Depois leia `CLAUDE.md` (regras curtas) e
 `docs/BALANCEAMENTO_E_PROGRESSAO.md` (direção de design + tabela "Estado da implementação").
 
-Última atualização: 30/10/2026 (conta nova assumiu o projeto; ver seção 0.1).
+Última atualização: 31/10/2026 (versão 1.1.0 publicada: rede elétrica, clima, salas públicas; próximo passo na seção 7).
 
 ## 0.1 Conta atual (assumiu em 30/10/2026)
 
@@ -179,6 +179,16 @@ npm test && npm run lint && npm run typecheck
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
+- **Energia mais visível e ajuste fino** (31/10, `docs/REDE_ELETRICA.md`):
+  - visibilidade:
+    - ícone ⚡ vermelho piscando sobre a construção sem luz (snapshot `unpowered`, só para o dono);
+    - ao posicionar, a área energizada aparece amarela no chão (`showPowerArea`) e o painel diz "Com energia aqui"
+      ou "Sem energia aqui";
+  - ajuste fino:
+    - IA ergue a primeira solar ao chegar na Era Digital;
+    - carvão 0,15 por ferro: sobra 300 a 580 aos 24 min;
+    - critérios da `sim-economia` iguais (7 de 9).
+
 - **Lobby** (31/10): nome da sala escolhido pelo anfitrião; "Vagas na sala" (4 grátis, 6 assinante); vaga aberta
   para jogador ou bot. Publicado com a tela de Salas Públicas.
 
@@ -287,14 +297,11 @@ mensagens em português descrevendo o que mudou).
      - a tela de salas atualiza?
      - o nome da sala aparece para quem entra?
    - Corrigir o que aparecer antes de qualquer conteúdo novo.
-2. **Clareza visual da energia.**
-   - Construção sem luz: ícone ⚡ vermelho piscando sobre ela e janelas apagadas.
-   - Ao escolher onde construir: mostrar a área energizada (4 células em volta da malha) no chão, como o raio de
-     território.
-   - Estrada cortada destruída por bombardeio (hoje a estrada não é destruída: avaliar).
-3. **Balanceamento fino da energia** com `POWER_LOG=1 npx tsx scripts/sim-economia.ts 2,5,6 25`.
-   - A IA quase não constrói solar: considerar prioridade da solar logo ao chegar na Era Digital.
-   - O carvão ainda sobra no fim (~500–700 aos 24 min): apertar se o teste humano confirmar.
+2. ~~Clareza visual da energia~~ e ~~ajuste fino~~: feitos em 31/10 (ícone ⚡ vermelho sobre prédios sem luz, área
+   energizada amarela no chão ao posicionar e aviso no painel; solar na Era Digital; carvão 0,15 por ferro).
+   - Ainda aberto: estrada destruída por bombardeio (hoje a estrada não é destruída) e um apagão curto de vez em
+     quando na IA, quando o vento cai (some sozinho).
+3. Jogar e observar se os números da energia (geração 24 da térmica, consumo dos prédios) parecem justos.
 4. **Guia do jogador (PDF):** atualizar `docs/guia/` com:
    - carvão, usinas, energia pelas estradas e apagão;
    - salas públicas e nome da sala;
@@ -306,7 +313,7 @@ mensagens em português descrevendo o que mudou).
    - conteúdo naval (transporte, fragata, submarino) e os mapas Oceano Central e Arquipélago;
    - generais, espiões e Centros Regionais (direções em `docs/BALANCEAMENTO_E_PROGRESSAO.md`).
 
-Pendência de infraestrutura: aplicar a migração `supabase/migrations/20261031000000_match_report.sql` no banco.
+Pendência de infraestrutura (o usuário disse em 31/10 que vai rodar): aplicar a migração `supabase/migrations/20261031000000_match_report.sql` no banco.
 
 
 Não há pedido em andamento. A rede elétrica foi feita em 31/10 (`docs/REDE_ELETRICA.md`); ainda sem partida humana de teste. Pontos abertos com o usuário: (1) um áudio antigo dele não pôde ser transcrito; pergunte

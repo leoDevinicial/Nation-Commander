@@ -44,6 +44,11 @@ O Nation Commander é **low poly estilizado**, por decisão do responsável pelo
 - Custo crescente: construir usa `buildingCost(type, existentes)` (+18% por edifício do tipo), não `BUILDINGS[t].cost`.
   Ao mexer em economia ou na IA, rodar `npx tsx scripts/sim-economia.ts 1,2,3,4,5,6,7 25` e conferir os critérios de
   `docs/RECALIBRAGEM_RECURSOS.md` (seção 5).
+- Rede elétrica (`shared/sim/power.ts`, `docs/REDE_ELETRICA.md`): carvão é recurso (sai das minas); a energia anda
+  pelas estradas (alcance de 4 células); quartel, fábrica, pesquisa e militares param sem luz. Testes de regra antigos
+  rodam sem a rede (`shared/test/setup.ts`); ao mexer na IA ou na energia, rodar
+  `POWER_LOG=1 npx tsx scripts/sim-economia.ts 2,5,6 25`.
+- Clima e dia/noite (`shared/sim/climate.ts`, `docs/CLIMA_DIA_NOITE.md`) são só visuais, exceto a usina solar.
 - Minas terrestres (`shared/sim/mines.ts`) não são entidades: o snapshot envia só as do dono e as já detectadas
   (`MineSystem.visibleTo`). O satélite do Programa Espacial revela o resto do mapa, mas nunca as minas.
 

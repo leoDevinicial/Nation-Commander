@@ -15,7 +15,7 @@ import type { BuildingType } from './config.ts';
  */
 export const POWER = {
   /** Carvão por unidade de ferro extraída numa mina. */
-  coalPerIron: 0.2,
+  coalPerIron: 0.15,
   /** Distância (células) da malha até onde a fiação alcança. */
   reach: 4,
   /** Recalcula a rede a cada N ticks. */

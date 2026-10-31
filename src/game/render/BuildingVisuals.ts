@@ -375,6 +375,25 @@ export class BuildingVisual {
   private cityTag: THREE.Sprite | null = null;
   private cityText: string | undefined;
 
+  private powerIcon: THREE.Sprite | null = null;
+  private powerT = 0;
+
+  /** Sem energia: raio vermelho piscando acima da construção (só o dono vê; some quando a luz volta). */
+  setUnpowered(on: boolean): void {
+    if (on === !!this.powerIcon) return;
+    if (!on) {
+      this.powerIcon!.material.dispose();
+      this.powerIcon!.removeFromParent();
+      this.powerIcon = null;
+      return;
+    }
+    this.powerIcon = new THREE.Sprite(new THREE.SpriteMaterial({ map: boltTexture(), transparent: true, depthTest: false, depthWrite: false }));
+    this.powerIcon.renderOrder = 20;
+    this.powerIcon.scale.setScalar(1.1);
+    this.powerIcon.position.y = this.height + 1.9;
+    this.group.add(this.powerIcon);
+  }
+
   /** Placa com o nome da cidade acima da prefeitura (e da capital, no QG). */
   setCity(name: string | undefined): void {
     if (name === this.cityText) return;
@@ -408,6 +427,13 @@ export class BuildingVisual {
     active = true,
   ): void {
     this.t += dt;
+    if (this.powerIcon) {
+      // pisca devagar e pulsa um pouco, para chamar atenção sem cansar
+      this.powerT += dt;
+      const on = Math.sin(this.powerT * 4) > -0.35;
+      this.powerIcon.material.opacity = on ? 1 : 0.25;
+      this.powerIcon.scale.setScalar(1.05 + 0.12 * Math.max(0, Math.sin(this.powerT * 8)));
+    }
     // as máquinas acompanham o funcionamento: param devagar sem trabalhadores, sem pagar a
     // manutenção, com o depósito esgotado ou o armazém cheio, e voltam a girar suaves
     this.workRate += ((active ? 1 : 0) - this.workRate) * (1 - Math.exp(-dt * 1.6));
@@ -710,3 +736,37 @@ export class PlacementGhost {
 }
 
 /** Foguete lançador: corpo branco, propulsores laterais, aletas, faixa na cor da facção, chama e fumaça. */
+
+let boltTex: THREE.CanvasTexture | null = null;
+/** Ícone de falta de energia: raio branco num disco vermelho com borda escura (lê de longe, em qualquer fundo). */
+function boltTexture(): THREE.CanvasTexture {
+  if (boltTex) return boltTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#1a0d0b';
+  g.beginPath();
+  g.arc(32, 32, 30, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#d8342a';
+  g.beginPath();
+  g.arc(32, 32, 26, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#fff6d8';
+  g.beginPath();
+  for (const [x, y] of [
+    [36, 8],
+    [18, 36],
+    [30, 36],
+    [26, 56],
+    [46, 26],
+    [34, 26],
+    [40, 8],
+  ] as const)
+    g.lineTo(x, y);
+  g.closePath();
+  g.fill();
+  boltTex = new THREE.CanvasTexture(c);
+  boltTex.colorSpace = THREE.SRGBColorSpace;
+  return boltTex;
+}

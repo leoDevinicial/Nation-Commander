@@ -494,6 +494,8 @@ export class TacticalAI {
           : 'coal_plant';
     const plan: [BuildingType, boolean][] = [
       [plantType, powerShort],
+      // a primeira usina solar entra logo na Era Digital (energia limpa, sem depender do carvão)
+      ['solar_farm', !!power && era >= 3 && count('solar_farm') === 0 && !plantInProgress && budget.iron > 250 && budget.supplies > 300],
       ['mine', !!coalLow && active('mine') === 0 && !mine.some((b) => b.type === 'mine' && b.progress < 1)],
       ['house', pop.total >= pop.cap - 2 && pop.cap < POP_ABSOLUTE_CAP && !housingInProgress && count('house') + count('residential') < 14],
       ['oil_tank', wellsWithoutTank || (mine.some((b) => b.type === 'oil_well' && b.status === 'storage_full') && count('oil_tank') < 5)],

@@ -1,6 +1,7 @@
 import { BUILDINGS, MINE, RESOURCE_TYPES, SPACE, TICK_RATE, UNITS, type BuildingType, type DepositSize, type MilitaryResearchId, type ProducibleType, type Stockpile, type UnitType } from './config.ts';
 import type { PlayerPower, Population, Simulation } from './Simulation.ts';
 import { encodeTerritory } from './territory.ts';
+import { POWER_USE } from './power.ts';
 import type { BuildingStatus, EntityId, SimEvent, Slot, UnitActivity, Vec2 } from './types.ts';
 import { buildingEffects, type SpecId } from './upgrades.ts';
 import { combineMods, type ModId } from './modernization.ts';
@@ -60,6 +61,8 @@ export interface BuildingSnapshot {
   workerTarget?: number;
   /** Produção ligada por estrada ao QG ou a uma prefeitura (+15%); só para o dono, em coletas e usinas. */
   roadLinked?: boolean;
+  /** Construção que depende de luz e está sem energia (só para o dono). */
+  unpowered?: boolean;
   status?: BuildingStatus;
   /** Produção atual por segundo (edifícios de coleta). */
   rate?: number;
@@ -363,6 +366,7 @@ function ownBuildingDetail(sim: Simulation, b: Parameters<Simulation['buildingRa
     status: b.status,
     ...(def.gather ? { rate: r2(b.status === 'ok' ? sim.buildingRate(b) : 0) } : {}),
     ...((def.gather || def.process) && b.progress >= 1 ? { roadLinked: sim.roadLinked(b) } : {}),
+    ...(sim.power && b.progress >= 1 && b.hp > 0 && POWER_USE[b.type]?.stops && !sim.isPowered(b) ? { unpowered: true } : {}),
     ...(b.type === 'oil_tank' ? { stored: r2(b.stored) } : {}),
     ...(d ? { deposit: { remaining: Math.max(0, Math.round(d.remaining)), initial: d.initial, size: d.size, maxSites: d.maxSites } } : {}),
   };

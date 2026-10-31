@@ -40,6 +40,7 @@ import { PostFx } from './render/PostFx.ts';
 import { CitizenLayer } from './render/CitizenLayer.ts';
 import { CargoLayer, disposeCargoModels } from './render/CargoLayer.ts';
 import { AmbientLife } from './render/AmbientLife.ts';
+import { POWER, POWER_GEN, POWER_USE } from '../../shared/sim/power.ts';
 import { WeatherSystem } from './render/Weather.ts';
 import { CLIMATE_LABELS, dayLight, matchClimate } from '../../shared/sim/climate.ts';
 import { AirLayer, disposeAirModels, missilePoint } from './render/AirLayer.ts';
@@ -682,6 +683,7 @@ export class GameRuntime {
       } else t.snap = b;
       t.visual.remembered = b.remembered === true;
       t.visual.setCity(b.city);
+      t.visual.setUnpowered(b.owner === this.mySlot && b.unpowered === true);
       // o modelo acompanha o nível e a especialização registrados na simulação
       t.visual.setVariant(b.level, b.spec);
       // e a era da nação dona (pública: aparece nas construções)
@@ -2384,6 +2386,7 @@ export class GameRuntime {
     this.ghost?.dispose();
     this.ghost = new PlacementGhost(type, this.map.cellSize, this.mySlot);
     this.scene.add(this.ghost.group);
+    this.showPowerArea(type);
     if (useHudStore.getState().touchUi || (this.ghostAt.x === 0 && this.ghostAt.y === 0)) {
       // sem cursor (toque, ou mouse ainda parado): o fantasma começa no centro da vista
       const r = this.renderer.domElement.getBoundingClientRect();
@@ -2523,6 +2526,7 @@ export class GameRuntime {
       this.ghost.dispose();
       this.ghost = null;
     }
+    this.showPowerArea(null);
     this.setMode({ kind: 'normal' });
   }
 
@@ -3364,8 +3368,68 @@ export class GameRuntime {
     const reason = this.localPlacementError(type, cell);
     this.ghost.setValid(!reason);
     const yieldPreview = this.previewYield(type, cell);
-    if (this.mode.valid !== !reason || this.mode.reason !== reason || this.mode.yield?.cells !== yieldPreview?.cells)
-      this.setMode({ kind: 'place', buildingType: type, valid: !reason, reason, yield: yieldPreview });
+    // rede elétrica: a construção nesta posição alcança a malha?
+    let power: 'on' | 'off' | undefined;
+    if (this.powerMask && (POWER_USE[type]?.stops || POWER_GEN[type])) {
+      let on = false;
+      for (let y = cell.cy; y < cell.cy + size && !on; y++) for (let x = cell.cx; x < cell.cx + size && !on; x++) if (this.powerMask[y * this.map.width + x]) on = true;
+      power = on ? 'on' : 'off';
+    }
+    if (this.mode.valid !== !reason || this.mode.reason !== reason || this.mode.yield?.cells !== yieldPreview?.cells || this.mode.power !== power)
+      this.setMode({ kind: 'place', buildingType: type, valid: !reason, reason, yield: yieldPreview, ...(power ? { power } : {}) });
+  }
+
+  /** Células energizadas (a até `POWER.reach` da malha própria), durante o posicionamento. */
+  private powerMask: Uint8Array | null = null;
+  private powerArea: THREE.Mesh | null = null;
+
+  /**
+   * Rede elétrica ao posicionar uma construção que usa ou gera luz: pinta de verde, rente ao chão, as células que a
+   * fiação alcança (malha = estradas no próprio território, QG e usinas próprios, mais `POWER.reach` em volta).
+   */
+  private showPowerArea(type: BuildingType | null): void {
+    if (this.powerArea) {
+      this.powerArea.geometry.dispose();
+      (this.powerArea.material as THREE.Material).dispose();
+      this.powerArea.removeFromParent();
+      this.powerArea = null;
+    }
+    this.powerMask = null;
+    const me = this.snapshot?.players.find((p) => p.slot === this.mySlot);
+    if (!type || !me?.power || !(POWER_USE[type]?.stops || POWER_GEN[type])) return;
+    const W = this.map.width;
+    const H = this.map.height;
+    const mesh = new Uint8Array(W * H);
+    for (const i of this.roadCells) if (this.territory[i] === this.mySlot) mesh[i] = 1;
+    for (const t of this.buildings.values()) {
+      const b = t.snap;
+      if (b.owner !== this.mySlot || b.progress < 1 || (b.type !== 'hq' && !POWER_GEN[b.type])) continue;
+      const n = BUILDINGS[b.type].size;
+      for (let y = b.cy; y < b.cy + n; y++) for (let x = b.cx; x < b.cx + n; x++) if (x >= 0 && y >= 0 && x < W && y < H) mesh[y * W + x] = 1;
+    }
+    const R = POWER.reach;
+    const mask = new Uint8Array(W * H);
+    for (let i = 0; i < mesh.length; i++) {
+      if (!mesh[i]) continue;
+      const cx = i % W;
+      const cy = (i - cx) / W;
+      for (let y = Math.max(0, cy - R); y <= Math.min(H - 1, cy + R); y++) for (let x = Math.max(0, cx - R); x <= Math.min(W - 1, cx + R); x++) mask[y * W + x] = 1;
+    }
+    this.powerMask = mask;
+    const cs = this.map.cellSize;
+    const pos: number[] = [];
+    for (let i = 0; i < mask.length; i++) {
+      if (!mask[i]) continue;
+      const x0 = (i % W) * cs;
+      const z0 = Math.floor(i / W) * cs;
+      const y = this.groundHeight(x0 + cs / 2, z0 + cs / 2) + 0.07;
+      pos.push(x0, y, z0, x0, y, z0 + cs, x0 + cs, y, z0, x0 + cs, y, z0, x0, y, z0 + cs, x0 + cs, y, z0 + cs);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    this.powerArea = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: '#f2d24c', transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide }));
+    this.powerArea.renderOrder = 3;
+    this.scene.add(this.powerArea);
   }
 
   private localPlacementError(type: BuildingType, cell: Cell): string | null {

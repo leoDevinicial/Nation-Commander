@@ -44,6 +44,7 @@ import { useAppStore } from '../../state/useAppStore.ts';
 import { buildingEffects, formatUsd as usdShort, specDef, upgradeTrack } from '../../../shared/sim/upgrades.ts';
 import { effectiveEra, effectiveMilitaryResearch, effectivePopCap, effectiveTechs, isSandboxMatch, timeText } from '../../state/sandbox.ts';
 import { BUILDING_ERA, ERAS, UNIT_ERA, buildingEra, eraPhrase, eraTitle, type Era } from '../../../shared/sim/eras.ts';
+import { POWER_GEN } from '../../../shared/sim/power.ts';
 import { MARKET, MARKET_RESOURCES, marketPrice, marketQuote, marketBuyPrice, marketBuyQuote } from '../../../shared/sim/market.ts';
 
 const EMPTY_TECHS: readonly string[] = [];
@@ -155,6 +156,15 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
                   <span className="ml-1 text-ink-500">· o próximo: {costText(buildingCost(mode.buildingType, (ownCounts[mode.buildingType] ?? 0) + 1))}</span>
                 )}
               </div>
+              {mode.power && (
+                <div className={`mt-1 text-xs font-semibold ${mode.power === 'on' ? 'text-brass-400' : 'text-red-300'}`}>
+                  {mode.power === 'on'
+                    ? '⚡ Com energia aqui (área amarela no chão)'
+                    : POWER_GEN[mode.buildingType]
+                      ? '⚠ Longe da rede: a usina ficará isolada — ligue-a com estrada'
+                      : '⚠ Sem energia aqui: ficará parada. Construa na área amarela ou leve estrada até aqui'}
+                </div>
+              )}
               {mode.yield && BUILDINGS[mode.buildingType].gather && (
                 <div className="mt-1 flex items-center gap-1.5 text-xs text-ink-200">
                   <ResourceIcon type={BUILDINGS[mode.buildingType].gather!.resource} />
