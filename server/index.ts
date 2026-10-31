@@ -1,5 +1,7 @@
 import { createServer } from 'node:http';
 import { WebSocketServer } from 'ws';
+import { kacJournal } from './kac/journal.ts';
+import { clientIp, networkGuard } from './kac/network.ts';
 import { GAME_VERSION } from '../shared/version.ts';
 import { config } from './config.ts';
 import { Connection } from './Connection.ts';
@@ -53,8 +55,15 @@ const wss = new WebSocketServer({
   },
 });
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
   const conn = new Connection(ws);
+  // KAC-03: teto de conexões simultâneas por IP
+  conn.ip = clientIp(req);
+  if (!networkGuard.connect(conn.ip)) {
+    kacJournal.record({ category: 'network.connection_limit', severity: 'medium', detail: 'conexões demais do mesmo IP' });
+    ws.close(4009, 'too many connections');
+    return;
+  }
   let alive = true;
   ws.on('pong', () => (alive = true));
   const heartbeat = setInterval(() => {
@@ -71,11 +80,15 @@ wss.on('connection', (ws) => {
   ws.on('message', (data, isBinary) => {
     if (isBinary) return;
     if (!conn.allowMessage()) {
-      if (++conn.violations > 50) conn.close(4008, 'rate limit');
+      const v = ++conn.violations;
+      // KAC: registra a 1ª, a 10ª e a 50ª violação (sem inundar o diário)
+      if (v === 1 || v === 10 || v === 50) kacJournal.record({ category: 'protocol.rate_limited', severity: v >= 50 ? 'medium' : 'low', ...(conn.user ? { user: conn.user.id } : {}), detail: `${v} mensagens acima do limite` });
+      if (v > 50) conn.close(4008, 'rate limit');
       return;
     }
     const msg = parseClientMessage(data.toString());
     if (!msg) {
+      kacJournal.record({ category: 'protocol.malformed', severity: 'low', ...(conn.user ? { user: conn.user.id } : {}) });
       conn.send({ t: 'error', code: 'bad_message', message: 'Mensagem inválida.' });
       return;
     }
@@ -83,6 +96,7 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
+    networkGuard.disconnect(conn.ip);
     clearInterval(heartbeat);
     clearTimeout(helloTimeout);
     handleClose(conn, deps);
@@ -91,6 +105,11 @@ wss.on('connection', (ws) => {
 });
 
 setInterval(() => rooms.sweep(), 30_000).unref();
+// KAC: resumo do diário de segurança a cada 10 min (só quando houve algo)
+setInterval(() => {
+  const summary = kacJournal.summary();
+  if (Object.keys(summary).length) log.info('KAC resumo', summary);
+}, 10 * 60_000).unref();
 let saving = false;
 setInterval(() => {
   if (saving) return;

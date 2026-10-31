@@ -1,3 +1,4 @@
+import { NetworkGuard } from './kac/network.ts';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -48,6 +49,7 @@ function server(store: MemoryMatchStore, now: { t: number }) {
     rooms,
     allowGuests: false,
     sessions: new Map(),
+    network: new NetworkGuard(),
     verify: async (token) => (token.startsWith('ok-') ? { id: token.slice(3), name: token.slice(3) } : null),
   };
   const send = (c: Connection, raw: object) => {

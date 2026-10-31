@@ -34,6 +34,8 @@ import { OperationsSystem, operationsView, type Operation, type OperationsSave }
 import { sectorById } from '../shared/data/sectors.ts';
 import type { Connection } from './Connection.ts';
 import { log } from './logger.ts';
+import { kacJournal } from './kac/journal.ts';
+import { PAUSE_POLICY } from './kac/policy.ts';
 import type { MatchRecord } from './supabase.ts';
 
 export const SNAPSHOT_EVERY = 2; // 10 snapshots/s
@@ -142,6 +144,10 @@ export class Room {
   private graceUntil = 0;
   /** A pausa foi automática, pela queda da conexão (volta sozinha na reconexão). */
   private pausedForDisconnect = false;
+  /** KAC-02: pausas já usadas por jogador, quem pausou e quando (partidas entre humanos). */
+  private readonly pausesUsed = new Map<Slot, number>();
+  private pausedSlot: Slot | null = null;
+  private pausedAt = 0;
 
   /** `host` nulo: sala retomada de um salvamento (ver `Room.restore`). */
   private readonly rand: () => number;
@@ -638,6 +644,14 @@ export class Room {
     const elapsed = Math.min(now - this.lastLoopTime, 250); // limita saltos após travamentos
     this.lastLoopTime = now;
     this.checkDisconnects();
+    // KAC-02: pausa de jogador nas partidas entre humanos volta sozinha depois do limite
+    if (this.paused && this.pausedSlot !== null && now - this.pausedAt >= PAUSE_POLICY.maxMs) {
+      this.paused = false;
+      this.pausedBy = null;
+      this.pausedSlot = null;
+      this.system(`Pausa encerrada automaticamente (máximo de ${PAUSE_POLICY.maxMs / 1000} s).`);
+      this.broadcastSnapshot();
+    }
     if (this.status !== 'playing' || this.paused) return;
     this.accumulator += elapsed * this.speed;
     const tickMs = 1000 / TICK_RATE;
@@ -690,8 +704,10 @@ export class Room {
               ? this.ops.retreat(slot, cmd.opId)
               : 'Indisponível'
             : sim.applyCommand(slot, cmd);
-      if (err) conn?.send({ t: 'cmd_rejected', reason: err });
-      else if (cmd.type === 'launch_operation' || cmd.type === 'operation_retreat') this.opsDirty.add(slot);
+      if (err) {
+        conn?.send({ t: 'cmd_rejected', reason: err });
+        kacJournal.record({ category: 'command.rejected', severity: 'info', room: this.code, user: this.players.find((x) => x.slot === slot)?.userId ?? undefined, detail: `${cmd.type}: ${err}` });
+      } else if (cmd.type === 'launch_operation' || cmd.type === 'operation_retreat') this.opsDirty.add(slot);
     }
     for (const { slot, cmd, conn } of this.pendingBattle.splice(0, this.pendingBattle.length)) {
       const err = this.ops ? this.ops.battleCommand(slot, cmd) : 'Indisponível';
@@ -914,6 +930,12 @@ export class Room {
   command(conn: Connection, cmd: Command, scope?: 'battle'): void {
     const p = this.playerOf(conn);
     if (!p || this.status !== 'playing' || !this.sim) return;
+    // KAC-02: ordens com o jogo pausado não entram na fila nas partidas entre humanos (sem planejar com o tempo parado)
+    if (this.paused && this.competitive) {
+      conn.send({ t: 'cmd_rejected', reason: 'A partida está pausada.' });
+      kacJournal.record({ category: 'match.command_while_paused', severity: 'info', room: this.code, user: p.userId ?? undefined, detail: cmd.type });
+      return;
+    }
     if (scope === 'battle') {
       if (this.pendingBattle.filter((x) => x.slot === p.slot).length >= MAX_COMMANDS_PER_TICK) return;
       this.pendingBattle.push({ slot: p.slot, cmd, conn });
@@ -926,12 +948,41 @@ export class Room {
     this.pending.push({ slot: p.slot, cmd, conn });
   }
 
+  /** Partida entre dois ou mais humanos: vale a política de pausa e de ordens do KAC. */
+  get competitive(): boolean {
+    return this.players.filter((x) => !x.isAI).length >= 2;
+  }
+
   setPaused(conn: Connection, paused: boolean): void {
     const p = this.playerOf(conn);
     if (!p || this.status !== 'playing') return;
+    if (this.competitive && paused !== this.paused) {
+      const now = this.now();
+      if (paused) {
+        const used = this.pausesUsed.get(p.slot) ?? 0;
+        if (used >= PAUSE_POLICY.perPlayer) {
+          conn.send({ t: 'cmd_rejected', reason: `Você já usou as ${PAUSE_POLICY.perPlayer} pausas desta partida.` });
+          kacJournal.record({ category: 'match.pause_denied', severity: 'low', room: this.code, user: p.userId ?? undefined, detail: 'sem pausas' });
+          return;
+        }
+        this.pausesUsed.set(p.slot, used + 1);
+        this.pausedSlot = p.slot;
+        this.pausedAt = now;
+      } else if (this.pausedSlot !== null && this.pausedSlot !== p.slot && now - this.pausedAt < PAUSE_POLICY.ownerOnlyMs) {
+        conn.send({ t: 'cmd_rejected', reason: `Só quem pausou pode retomar nos primeiros ${PAUSE_POLICY.ownerOnlyMs / 1000} s.` });
+        kacJournal.record({ category: 'match.pause_denied', severity: 'info', room: this.code, user: p.userId ?? undefined, detail: 'pausa de outro jogador' });
+        return;
+      } else this.pausedSlot = null;
+    }
     this.paused = paused;
     this.pausedBy = paused ? p.name : null;
     this.pausedForDisconnect = false;
+    if (paused && this.competitive) {
+      const left = PAUSE_POLICY.perPlayer - (this.pausesUsed.get(p.slot) ?? 0);
+      this.system(`${p.name} pausou a partida (até ${PAUSE_POLICY.maxMs / 1000} s; restam ${left} ${left === 1 ? 'pausa' : 'pausas'}).`);
+      this.broadcastSnapshot();
+      return;
+    }
     this.system(paused ? `${p.name} pausou a partida.` : `${p.name} retomou a partida.`);
     this.broadcastSnapshot();
   }

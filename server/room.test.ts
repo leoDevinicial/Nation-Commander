@@ -1,3 +1,4 @@
+import { NetworkGuard } from './kac/network.ts';
 import { describe, expect, it, vi } from 'vitest';
 import type { WebSocket } from 'ws';
 import type { ServerMessage } from '../shared/protocol.ts';
@@ -43,6 +44,7 @@ function setup(now = { t: 0 }) {
     rooms,
     allowGuests: false,
     sessions: new Map(),
+    network: new NetworkGuard(),
     verify: async (token) => (token.startsWith('ok-') ? { id: token.slice(3), name: token.slice(3) } : null),
   };
   const send = (c: Connection, raw: object) => {
@@ -444,7 +446,8 @@ describe('operações expedicionárias pela rede (Fase 8)', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     try {
       const rooms = new RoomManager({ reconnectGraceMs: 1000, record: () => new Promise<boolean>(() => {}), autoLoop: false, seed: 5, now: () => 0 }, 10);
-      const deps: HandlerDeps = { rooms, allowGuests: false, sessions: new Map(), verify: async (token) => ({ id: token, name: token }) };
+      const deps: HandlerDeps = { rooms, allowGuests: false, sessions: new Map(),
+    network: new NetworkGuard(), verify: async (token) => ({ id: token, name: token }) };
       const a = fakeConn();
       const send = (raw: object) => handleMessage(a.conn, parseClientMessage(JSON.stringify(raw))!, deps);
       await send({ t: 'hello', protocol: PROTOCOL_VERSION, token: 'alice' });

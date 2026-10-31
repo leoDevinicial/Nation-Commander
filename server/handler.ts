@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import type { ClientMessage } from '../shared/protocol.ts';
 import { PROTOCOL_VERSION, GAME_VERSION } from '../shared/version.ts';
 import type { Connection } from './Connection.ts';
@@ -6,6 +5,9 @@ import type { RoomManager } from './RoomManager.ts';
 import { sanitizeName } from './messages.ts';
 import { saveCommunityReport, saveFeedback, type FeedbackRecord } from './supabase.ts';
 import { config } from './config.ts';
+import { guestIdentity } from './kac/identity.ts';
+import { kacJournal } from './kac/journal.ts';
+import { networkGuard, type NetworkGuard } from './kac/network.ts';
 import { CommunityChat } from './communityChat.ts';
 
 export interface HandlerDeps {
@@ -16,6 +18,8 @@ export interface HandlerDeps {
   sessions: Map<string, Connection>;
   /** Grava um feedback (padrão: Supabase, ou só o log sem Supabase). */
   saveFeedback?: (rec: FeedbackRecord) => Promise<boolean>;
+  /** Proteção por IP do KAC (padrão: a do processo). */
+  network?: NetworkGuard;
   /** Chat da Comunidade do menu (um canal para todos). */
   community?: CommunityChat;
   /** Último feedback de cada usuário (ms): no máximo um a cada `FEEDBACK_COOLDOWN_MS`. */
@@ -54,8 +58,11 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
       }
       conn.user = { id: user.id, name: user.name, guest: false, ...(user.subscriber ? { subscriber: true } : {}) };
     } else if (deps.allowGuests) {
-      const gid = msg.guestId ?? randomUUID();
-      conn.user = { id: `guest:${gid}`, name: sanitizeName(msg.guestName ?? 'Convidado'), guest: true };
+      // KAC-01: o id público é um hash do segredo do convidado (o segredo nunca sai desta conexão)
+      conn.user = { id: guestIdentity(msg.guestId), name: sanitizeName(msg.guestName ?? 'Convidado'), guest: true };
+      // quem manda como segredo o id público de alguém conectado está tentando assumir a vaga dessa pessoa
+      if (msg.guestId && deps.sessions.has(`guest:${msg.guestId}`))
+        kacJournal.record({ category: 'identity.guest_impersonation', severity: 'high', user: conn.user.id, detail: 'hello com o id público de outro convidado' });
     } else {
       conn.send({ t: 'error', code: 'auth', message: 'É necessário entrar com uma conta.' });
       conn.close(4003, 'auth');
@@ -84,6 +91,12 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
 
   switch (msg.t) {
     case 'create_room': {
+      // KAC-03: teto de salas novas por IP (sem isso, um script esgotava as salas do servidor)
+      if (!(deps.network ?? networkGuard).createRoom(conn.ip)) {
+        kacJournal.record({ category: 'network.room_limit', severity: 'medium', user: conn.user.id, detail: 'salas demais do mesmo IP' });
+        conn.send({ t: 'error', code: 'room', message: 'Muitas salas criadas em pouco tempo. Aguarde alguns minutos.' });
+        return;
+      }
       if (room) room.leave(conn);
       const created = deps.rooms.create(conn, msg.mode, msg.countryId, msg.isPublic === true);
       if (typeof created === 'string') conn.send({ t: 'error', code: 'room', message: created });

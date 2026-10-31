@@ -1,3 +1,4 @@
+import { NetworkGuard } from './kac/network.ts';
 import { describe, expect, it, vi } from 'vitest';
 import type { WebSocket } from 'ws';
 import type { ServerMessage } from '../shared/protocol.ts';
@@ -22,7 +23,8 @@ async function sandboxRoom(mode: 'sandbox' | 'vs_ai' = 'sandbox') {
   const now = { t: 0 };
   const records: MatchRecord[] = [];
   const rooms = new RoomManager({ reconnectGraceMs: 1000, record: async (r) => (records.push(r), true), autoLoop: false, seed: 5, now: () => now.t }, 10, new MemoryMatchStore(() => now.t));
-  const deps: HandlerDeps = { rooms, allowGuests: false, sessions: new Map(), verify: async (t) => ({ id: t, name: 'Teste' }) };
+  const deps: HandlerDeps = { rooms, allowGuests: false, sessions: new Map(),
+    network: new NetworkGuard(), verify: async (t) => ({ id: t, name: 'Teste' }) };
   const a = fakeConn();
   const send = (raw: object) => handleMessage(a.conn, parseClientMessage(JSON.stringify(raw))!, deps);
   await send({ t: 'hello', protocol: PROTOCOL_VERSION, token: 'u1' });

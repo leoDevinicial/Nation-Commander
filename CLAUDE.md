@@ -48,6 +48,9 @@ O Nation Commander é **low poly estilizado**, por decisão do responsável pelo
   pelas estradas (alcance de 4 células); quartel, fábrica, pesquisa e militares param sem luz. Testes de regra antigos
   rodam sem a rede (`shared/test/setup.ts`); ao mexer na IA ou na energia, rodar
   `POWER_LOG=1 npx tsx scripts/sim-economia.ts 2,5,6 25`.
+- KAC — Kaiser Anti Cheat (`server/kac/`, `docs/kac/`): o cliente só pede, o servidor decide. Qualquer comando ou
+  mensagem nova passa por validação no servidor e confere o dono pela conexão, nunca pelo payload. Riscos abertos em
+  `docs/kac/KAC_THREAT_MODEL.md`; ataques reproduzidos em `server/kac.test.ts`.
 - Clima e dia/noite (`shared/sim/climate.ts`, `docs/CLIMA_DIA_NOITE.md`) são só visuais, exceto a usina solar.
 - Minas terrestres (`shared/sim/mines.ts`) não são entidades: o snapshot envia só as do dono e as já detectadas
   (`MineSystem.visibleTo`). O satélite do Programa Espacial revela o resto do mapa, mas nunca as minas.

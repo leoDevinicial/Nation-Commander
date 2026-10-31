@@ -25,6 +25,8 @@ export class Connection {
   user: PublicUser | null = null;
   authenticating = false;
   roomCode: string | null = null;
+  /** IP do cliente (KAC: limites por IP; não vai para logs públicos nem para outros jogadores). */
+  ip = 'desconhecido';
   private readonly limiter = new RateLimiter(30, 60);
   violations = 0;
 

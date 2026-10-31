@@ -179,6 +179,15 @@ npm test && npm run lint && npm run typecheck
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
+- **KAC — Kaiser Anti Cheat, fase 0 e P0** (31/10, `docs/kac/`):
+  - a auditoria confirmou servidor autoritativo (modelo A);
+  - três falhas achadas e corrigidas, com testes adversariais em `server/kac.test.ts`:
+    - KAC-01: sequestro de convidado pelo id que vazava na sala;
+    - KAC-02: abuso da pausa entre humanos;
+    - KAC-03: esgotar as salas do servidor sem limite por IP;
+  - diário de eventos de segurança (`server/kac/journal.ts`);
+  - riscos abertos e próximas etapas em `KAC_THREAT_MODEL.md` e `KAC_IMPLEMENTATION_ROADMAP.md`.
+
 - **Chat da Comunidade** (31/10, `docs/COMUNIDADE_FEEDBACK.md`): botão 🗨 Comunidade no menu com chat global em tempo
   real (`server/communityChat.ts`, histórico de 80 mensagens em memória, limite de ritmo); o formulário virou o botão
   💬 Feedback (`FeedbackScreen`).

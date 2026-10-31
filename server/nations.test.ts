@@ -1,3 +1,4 @@
+import { NetworkGuard } from './kac/network.ts';
 import { describe, expect, it, vi } from 'vitest';
 import type { WebSocket } from 'ws';
 import type { ServerMessage } from '../shared/protocol.ts';
@@ -23,6 +24,7 @@ function setup() {
     rooms,
     allowGuests: false,
     sessions: new Map(),
+    network: new NetworkGuard(),
     // "ok-sub-x": assinante
     verify: async (token) => (token.startsWith('ok-') ? { id: token.slice(3), name: token.slice(3), subscriber: token.startsWith('ok-sub-') } : null),
   };
