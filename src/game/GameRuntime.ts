@@ -221,6 +221,7 @@ export class GameRuntime {
   private snapshot: Snapshot | null = null;
   /** Tick do último som de rajada de cada CIWS (o som cobre a rajada inteira). */
   private readonly gatlingAt = new Map<number, number>();
+  private readonly launchLightAt = new THREE.Vector3();
   /** Cogumelos nucleares em andamento. */
   private readonly nukes: NuclearBlast[] = [];
   private snapshotAt = 0;
@@ -805,6 +806,7 @@ export class GameRuntime {
       const from = attacker ? attacker.visual.muzzleWorld() : new THREE.Vector3(e.from.x, 2, e.from.y);
       this.effects.tracer(from, new THREE.Vector3(tp.x, target ? 0.7 : 1.4, tp.y), heavy);
     } else if (e.type === 'destroyed') {
+      this.gatlingAt.delete(e.id);
       const heavy = e.entity === 'building' || e.entityType === 'tank' || e.entityType === 'mbt';
       this.effects.explosion(new THREE.Vector3(e.pos.x, 0, e.pos.y), heavy);
       // veículo destruído: os destroços queimam e soltam uma coluna de fumaça escura
@@ -861,6 +863,8 @@ export class GameRuntime {
         const at = new THREE.Vector3(e.target.x, 0, e.target.y);
         this.effects.flash(new THREE.Vector3(e.target.x, 8, e.target.y), radius * 2.6, '#fff6de', 1.6);
         this.effects.heavyMissileImpact(at, radius * 0.6);
+        // luz do clarão pela reserva de luzes do Effects (uma luz nova na cena faria todos os materiais recompilarem)
+        this.effects.light(at.clone().setY(radius * 0.4), '#ffd7a0', 2600, radius * 7, 5);
         this.shakeNear(e.target, 0.35);
         const blast = new NuclearBlast(at, radius, () => {
           for (const k of [1, 1.8, 2.8, 4]) this.airLayer.shockwave(e.target, radius * k);
@@ -869,6 +873,8 @@ export class GameRuntime {
         this.scene.add(blast.group);
         this.nukes.push(blast);
       } else if (e.state === 'impact') {
+        // o interceptador do Domo errou: o ponto de encontro guardado não serve mais
+        this.domeMeets.delete(e.launchId);
         if (heavy) this.effects.heavyMissileImpact(new THREE.Vector3(e.target.x, 0, e.target.y), radius);
         else this.effects.missileImpact(new THREE.Vector3(e.target.x, 0, e.target.y), radius);
         // duas ondas: o clarão rápido e a poeira mais lenta e larga (três no pesado)
@@ -911,11 +917,14 @@ export class GameRuntime {
     if (text) useHudStore.getState().pushEvent({ tick: e.tick, text: text.text, tone: text.tone });
   }
 
-  /** Tremor contínuo dos lançamentos do Programa Espacial (ignição e subida), pela proximidade da câmera. */
+  /** Lançamentos do Programa Espacial: luz da chama (reserva do Effects) e tremor contínuo pela proximidade da câmera. */
   private launchRumble(dt: number): void {
-    if (this.suspended || useSettingsStore.getState().reducedMotion || prefersReducedMotion()) return;
     for (const t of this.buildings.values()) {
       if (t.snap.type !== 'space_center') continue;
+      // luz da chama do lançamento, pela reserva de luzes (renovada a cada quadro enquanto queima)
+      const power = t.visual.launchFlame(this.launchLightAt);
+      if (power > 0) this.effects.light(this.launchLightAt, '#ffc98a', (380 + Math.random() * 90) * power, 40, 0.15);
+      if (this.suspended || useSettingsStore.getState().reducedMotion || prefersReducedMotion()) continue;
       const r = t.visual.launchRumble;
       if (r < 0.01) continue;
       const d = Math.hypot(t.visual.group.position.x - this.cameraCtl.target.x, t.visual.group.position.z - this.cameraCtl.target.z);

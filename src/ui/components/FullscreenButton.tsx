@@ -72,7 +72,7 @@ export function FullscreenButton({ variant = 'hud' }: { variant?: 'hud' | 'float
         onClick={() => (mode === 'install' ? setTip(!tip) : void toggleFullscreen(lockLandscape))}
       >
         <FullscreenIcon active={active} />
-        {variant === 'hud' && <span className="hidden lg:inline">{active ? 'Sair' : 'Tela cheia'}</span>}
+        {variant === 'hud' && <span className="hidden min-[2100px]:inline">{active ? 'Sair' : 'Tela cheia'}</span>}
       </button>
       {tip && (
         <div className={`absolute right-0 z-50 ${variant === 'floating' ? 'bottom-full mb-1' : 'top-full mt-1'}`}>

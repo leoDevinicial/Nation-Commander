@@ -25,7 +25,6 @@ export class NuclearBlast {
   private readonly stem: THREE.Mesh;
   private readonly ring: THREE.Mesh;
   private readonly dust: { mesh: THREE.Mesh; angle: number; s: number }[] = [];
-  private readonly light = new THREE.PointLight('#ffd7a0', 0, 0, 1.4);
   private readonly geos: THREE.BufferGeometry[] = [];
   private shocked = false;
 
@@ -90,8 +89,6 @@ export class NuclearBlast {
       // duas faixas: a da frente, que corre mais, e a de trás, mais densa
       this.dust.push({ mesh, angle: (i / 40) * Math.PI * 2 + Math.random() * 0.15, s: (i % 2 ? 0.75 : 1.05) + Math.random() * 0.35 });
     }
-    this.light.position.set(0, R * 0.4, 0);
-    this.group.add(this.light);
   }
 
   private geo<T extends THREE.BufferGeometry>(g: T): T {
@@ -113,9 +110,6 @@ export class NuclearBlast {
     // sumir no fim
     const fade = 1 - smooth(18, 30, t);
 
-    // luz: estoura no clarão e cai devagar, ficando laranja
-    this.light.intensity = (t < 0.15 ? 9000 : 9000 * Math.exp(-(t - 0.15) / 1.4) + 600 * heat) * (R / 14) ** 2;
-    this.light.color.setRGB(1, 0.75 + 0.2 * Math.exp(-t), 0.45 + 0.4 * Math.exp(-t * 2));
 
     // bola de fogo: cresce em 2 s, sobe e se funde ao chapéu
     const grow = 1 - Math.exp(-t * 2.4);
@@ -184,7 +178,6 @@ export class NuclearBlast {
     this.group.removeFromParent();
     for (const g of this.geos) g.dispose();
     for (const m of [this.fireMat, this.cloudMat, this.stemMat, this.ringMat, this.dustMat]) m.dispose();
-    this.light.dispose();
   }
 }
 

@@ -1,0 +1,50 @@
+<!doctype html><html><body style="margin:0;background:#222"><canvas id="c" width="2000" height="1500"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { BuildingVisual } from '/src/game/render/BuildingVisuals.ts';
+import { UnitVisual } from '/src/game/render/UnitVisuals.ts';
+import { BUILDINGS, UNITS } from '/shared/sim/config.ts';
+import { fogUniforms, weatherUniforms } from '/src/game/render/materials.ts';
+import { grimeTexture } from '/src/game/render/textures.ts';
+import { environmentFromSky } from '/src/game/render/Sky.ts';
+weatherUniforms.uGrime.value = grimeTexture(256);
+const wt = new THREE.DataTexture(new Uint8Array([255,255,255,255]),1,1); wt.needsUpdate = true;
+fogUniforms.uFogMap.value = wt; fogUniforms.uFogSize.value.set(1000, 1000);
+const q = new URLSearchParams(location.search);
+const kind = q.get('kind') || 'building', era = Number(q.get('era') || 1), level = Number(q.get('level') || 1);
+const page = Number(q.get('page') || 0), per = 20;
+const canvas = document.getElementById('c');
+const r = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.setScissorTest(true);
+const env = environmentFromSky(r);
+const types = (kind === 'building' ? Object.keys(BUILDINGS) : Object.keys(UNITS)).slice(page * per, page * per + per);
+const cols = 5, w = 400, h = 375;
+const cam = new THREE.PerspectiveCamera(32, w / h, 0.05, 500);
+types.forEach((t, i) => {
+  const scene = new THREE.Scene(); scene.background = new THREE.Color('#9fb6c9'); scene.environment = env;
+  scene.add(new THREE.HemisphereLight('#c9dcec', '#5b5340', 1.0));
+  const sun = new THREE.DirectionalLight('#fff4e0', 2.6); sun.position.set(-20, 40, 30); scene.add(sun);
+  const g = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: '#7d8a5c' })); g.rotation.x = -Math.PI / 2; scene.add(g);
+  let obj;
+  if (kind === 'building') {
+    const v = new BuildingVisual(i + 1, t, 0, true, { center: new THREE.Vector2(0, 0), cellSize: 2, mapWidth: 64, era, level });
+    for (let k = 0; k < 10; k++) v.update(1 / 30, 1, 1, false, cam, null, false, false, true);
+    obj = v.group;
+  } else {
+    const v = new UnitVisual(i + 1, t, 0, true, era);
+    v.hp.group.visible = false;
+    for (let k = 0; k < 40; k++) v.update(1 / 30, false, 0.6, 1, false, cam);
+    obj = v.group;
+  }
+  scene.add(obj);
+  obj.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(obj, true);
+  const size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+  const d = Math.max(size.x, size.y, size.z) * 1.9 + 1;
+  cam.position.set(c.x - d * 0.55, c.y + d * 0.5, c.z + d * 0.75); cam.lookAt(c);
+  const x = (i % cols) * w, y = 1500 - (Math.floor(i / cols) + 1) * h;
+  r.setViewport(x, y, w, h); r.setScissor(x, y, w, h); r.render(scene, cam);
+});
+window.labels = types;
+window.done = true;
+</script></body></html>

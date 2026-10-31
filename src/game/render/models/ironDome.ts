@@ -9,7 +9,8 @@ type V3 = [number, number, number];
 const SAND = '#dcc088';
 const SAND_DARK = '#b59b6a';
 const SAND_LIGHT = '#ead5a6';
-const CAP = '#3a3e41';
+// tampas dos tubos bem escuras: com a pintura metálica do Futuro Próximo, um tom médio refletia o céu e parecia painel solar
+const CAP = '#16181a';
 const STEEL = '#8f969d';
 
 /** Inclinação dos lançadores (rad acima da horizontal) e o giro do referencial do casulo em torno de x. */

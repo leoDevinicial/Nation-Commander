@@ -283,6 +283,14 @@ export class BuildingVisual {
     this.launch.setState(launch ? launch.phase : satellite ? 'gone' : 'idle', launch?.progress ?? 0);
   }
 
+  /** Chama do lançamento: posição no mundo e força (0 = apagada), para a luz da reserva do runtime. */
+  launchFlame(out: THREE.Vector3): number {
+    if (!this.launch || !this.launch.group.visible || this.launch.flame.power <= 0.01) return 0;
+    this.model.updateWorldMatrix(true, false);
+    out.copy(this.launch.flame.pos).applyMatrix4(this.model.matrixWorld);
+    return this.launch.flame.power;
+  }
+
   /** Tremor de câmera pedido pelo lançamento em andamento (0..1). */
   get launchRumble(): number {
     return this.launch?.rumble ?? 0;
@@ -526,6 +534,8 @@ export class BuildingVisual {
     this.setCity(undefined);
     this.hp.dispose();
     this.smoke?.dispose();
+    // sequência do lançamento espacial: foguete, luz e as centenas de partículas de fumaça
+    this.launch?.dispose();
     this.fields?.geometry.dispose();
     if (this.crane) this.crane.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
     this.rally.removeFromParent();

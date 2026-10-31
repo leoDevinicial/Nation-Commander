@@ -60,13 +60,33 @@ export function roofSampler(root: THREE.Object3D): RoofSampler {
   };
 }
 
-/** Ponto de telhado mais perto de (x, z), andando em direção ao centro (o canto pode cair fora do modelo). */
-function roofNear(roofAt: RoofSampler, x: number, z: number): { x: number; z: number; y: number } | null {
-  for (let k = 0; k <= 10; k++) {
-    const f = 1 - k * 0.1;
-    const y = roofAt(x * f, z * f);
-    if (y !== null && y > 0.2) return { x: x * f, z: z * f, y };
+/** O ponto está num trecho plano de telhado: os vizinhos a `r` em volta ficam na mesma altura (nada de chaminé ou cumeeira). */
+function flatAt(roofAt: RoofSampler, x: number, z: number, y: number, r: number, tol: number): boolean {
+  for (const [dx, dz] of [
+    [r, 0],
+    [-r, 0],
+    [0, r],
+    [0, -r],
+  ] as const) {
+    const n = roofAt(x + dx, z + dz);
+    if (n === null || Math.abs(n - y) > tol) return false;
   }
+  return true;
+}
+
+/**
+ * Ponto de telhado plano mais perto de (x, z), andando em direção ao centro (o canto pode cair fora do modelo). O trecho
+ * precisa ser plano num raio `r` (a base da peça): sem isso o radar ia parar no topo da chaminé da fábrica.
+ */
+function roofNear(roofAt: RoofSampler, x: number, z: number, r = 0.25): { x: number; z: number; y: number } | null {
+  // primeiro um trecho plano; sem nenhum (telhado em arco ou de duas águas), aceita inclinação suave. O topo de uma
+  // chaminé nunca passa: em volta dele o telhado fica um metro ou mais abaixo
+  for (const tol of [0.08, 0.3])
+    for (let k = 0; k <= 10; k++) {
+      const f = 1 - k * 0.1;
+      const y = roofAt(x * f, z * f);
+      if (y !== null && y > 0.2 && flatAt(roofAt, x * f, z * f, y, r, tol)) return { x: x * f, z: z * f, y };
+    }
   return null;
 }
 

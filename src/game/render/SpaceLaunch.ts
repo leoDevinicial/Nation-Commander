@@ -54,7 +54,11 @@ export class SpaceLaunch {
   private crewArm!: THREE.Group;
   private readonly umbilicals: THREE.Group[] = [];
   private readonly flames: { group: THREE.Group; core: THREE.Mesh; outer: THREE.Mesh; diamonds: THREE.Sprite[]; scale: number }[] = [];
-  private readonly light = new THREE.PointLight('#ffc98a', 0, 40, 1.6);
+  /**
+   * Luz da chama: só a posição (no referencial do grupo) e a força. Quem desenha a cena acende uma luz da reserva do
+   * `Effects` ali (uma luz própria faria todos os materiais recompilarem quando o Programa Espacial aparece).
+   */
+  readonly flame = { pos: new THREE.Vector3(), power: 0 };
   /** Brilho grande na saída dos motores (a chama lida de longe). */
   private readonly glow = new THREE.Sprite(
     new THREE.SpriteMaterial({ map: glowTexture(), color: '#ffd59a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }),
@@ -78,7 +82,6 @@ export class SpaceLaunch {
     this.rocket.position.copy(this.base);
     this.group.add(this.rocket);
     this.buildArms();
-    this.group.add(this.light);
     this.glow.visible = false;
     this.group.add(this.glow);
     for (let i = 0; i < budget; i++) {
@@ -250,8 +253,8 @@ export class SpaceLaunch {
       });
     }
     // luz da chama: forte na ignição e na decolagem, sobe junto com o foguete
-    this.light.position.set(this.rocket.position.x, this.rocket.position.y - 0.6, this.rocket.position.z);
-    this.light.intensity = this.burn * (380 + Math.random() * 90) * (1 - smooth(5, 10, t));
+    this.flame.pos.set(this.rocket.position.x, this.rocket.position.y - 0.6, this.rocket.position.z);
+    this.flame.power = this.rocket.visible ? this.burn * (1 - smooth(5, 10, t)) : 0;
     this.glow.visible = this.burn > 0.01 && this.phase !== 'gone';
     if (this.glow.visible) {
       tmpB.set(0, -0.5, 0).applyEuler(this.rocket.rotation);
@@ -466,7 +469,6 @@ export class SpaceLaunch {
       (f.outer.material as THREE.Material).dispose();
       for (const d of f.diamonds) d.material.dispose();
     }
-    this.light.dispose();
     this.glow.material.dispose();
   }
 }

@@ -32,7 +32,7 @@ export function MoneyChip({ open, onToggle }: { open: boolean; onToggle: () => v
         US$
       </span>
       <span className="font-mono font-bold">{formatUsd(works.fundUsd).replace('US$ ', '')}</span>
-      <span className={`hidden text-[11px] sm:inline ${full ? 'text-ink-400' : 'text-signal-green'}`}>{full ? 'cheio' : `+${formatUsd(perSec).replace('US$ ', '')}/s`}</span>
+      <span className={`hidden text-[11px] min-[1800px]:inline ${full ? 'text-ink-400' : 'text-signal-green'}`}>{full ? 'cheio' : `+${formatUsd(perSec).replace('US$ ', '')}/s`}</span>
     </button>
   );
 }

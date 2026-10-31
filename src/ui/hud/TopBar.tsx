@@ -47,7 +47,9 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
   return (
     <div className="panel absolute top-2 right-2 left-2 z-40 flex h-11 items-center gap-2 px-2 text-xs sm:top-3 sm:right-3 sm:left-3 sm:h-10 sm:gap-4 sm:px-3 sm:text-sm">
       {/* indicadores: rolam na horizontal em telas estreitas em vez de cortar */}
-      <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-3 overflow-x-auto sm:gap-4">
+      {/* prioridade por largura: os valores (recursos, população, era, tempo, aprovação) cabem sempre; capacidade, saldo,
+          data, nomes e o texto dos botões aparecem conforme sobra espaço (o detalhe completo fica na dica de cada item) */}
+      <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto xl:gap-2.5 2xl:gap-4">
         {/* dinheiro e produção primeiro: ficam visíveis mesmo na tela estreita do celular */}
         {sandbox && <SandboxChip open={pop === 'sandbox'} onToggle={() => toggle('sandbox')} />}
         {/* Sandbox: sem economia na tela (recursos ilimitados) */}
@@ -67,8 +69,8 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
               >
                 <ResourceIcon type={r} />
                 <span className={`font-mono font-bold ${full ? 'text-brass-400' : r === 'food' && me?.hungry ? 'text-red-300' : ''}`}>{have}</span>
-                <span className="hidden font-mono text-[10px] text-ink-400 lg:inline">/{cap}</span>
-                <span className={`hidden text-[11px] xl:inline ${net < 0 ? 'text-red-300' : 'text-signal-green'}`}>
+                <span className="hidden font-mono text-[10px] text-ink-400 2xl:inline">/{cap}</span>
+                <span className={`hidden text-[11px] min-[1800px]:inline ${net < 0 ? 'text-red-300' : 'text-signal-green'}`}>
                   {net >= 0 ? '+' : ''}
                   {net.toFixed(1)}
                 </span>
@@ -97,7 +99,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
             <span className={`font-mono ${me.population.total >= me.population.cap ? 'text-brass-400' : ''}`}>
               {me.population.total}/{me.population.cap}
             </span>
-            <span className="hidden text-[11px] text-ink-400 lg:inline">
+            <span className="hidden text-[11px] text-ink-400 min-[2000px]:inline">
               · {me.population.idle} ociosos · 🎖{me.population.recruits} recrutas · ⚔{me.population.military}
             </span>
           </div>
@@ -108,8 +110,8 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
             title={`Era atual: ${ERAS[(me.era ?? 1) as Era].label} — ${ERAS[(me.era ?? 1) as Era].look}.${me.eraAdvance ? ` Avançando para ${ERAS[me.eraAdvance.to as Era].label}: ${Math.round(me.eraAdvance.progress * 100)}%.` : ' Avance de era no Centro de Comando.'}`}
           >
             <span aria-hidden>🏛</span>
-            <span className="hidden md:inline">{ERAS[(me.era ?? 1) as Era].label}</span>
-            <span className="md:hidden font-mono">E{me.era ?? 1}</span>
+            <span className="hidden xl:inline">{ERAS[(me.era ?? 1) as Era].label}</span>
+            <span className="xl:hidden font-mono">E{me.era ?? 1}</span>
             {me.eraAdvance && <span className="font-mono text-brass-400">→ {Math.round(me.eraAdvance.progress * 100)}%</span>}
           </div>
         )}
@@ -142,12 +144,12 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
             title={`Período de preparo (${DIFFICULTY[difficulty].label}): os governos de IA não declaram guerra nem lançam ofensivas.${DIFFICULTY[difficulty].harassment ? ' Podem provocar incidentes de fronteira com poucas tropas.' : ''} Use para montar a economia e as defesas.`}
           >
             <span aria-hidden>🛡</span>
-            <span className="hidden sm:inline">Preparo</span>
+            <span className="hidden xl:inline">Preparo</span>
             <span className="font-mono">{formatDuration(Math.ceil((prep - tick) / TICK_RATE))}</span>
           </div>
         )}
         {date && (
-          <div className="hidden shrink-0 items-center gap-2 lg:flex" title="Data do cenário (1 dia de jogo por segundo a 1×)">
+          <div className="hidden shrink-0 items-center gap-2 min-[1700px]:flex" title="Data do cenário (1 dia de jogo por segundo a 1×)">
             <span className="text-ink-400" aria-hidden>
               📅
             </span>
@@ -156,14 +158,14 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
         )}
         {nation && (
           <div className="flex shrink-0 items-center gap-1.5" title="Aprovação do governo">
-            <span className="hidden text-ink-400 lg:inline">Aprovação</span>
-            <span className="text-ink-400 lg:hidden" aria-hidden>
+            <span className="hidden text-ink-400 2xl:inline">Aprovação</span>
+            <span className="text-ink-400 2xl:hidden" aria-hidden>
               ☺
             </span>
             <span className={`font-mono ${nation.approval < 35 ? 'text-red-300' : 'text-ink-100'}`}>{formatPct(nation.approval, 0)}</span>
           </div>
         )}
-        <div className="hidden items-center gap-3 2xl:flex">
+        <div className="hidden items-center gap-3 min-[2200px]:flex">
           {roster.map((p) => (
             <span key={p.slot} className="flex items-center gap-1.5 text-xs">
               <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: factionColor(p.slot) }} aria-hidden />
@@ -185,9 +187,9 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
         {paused && <span className="hidden text-xs font-semibold text-brass-400 md:inline">PAUSADO{pausedBy ? ` por ${pausedBy}` : ''}</span>}
         <button className="btn min-h-8 px-2 py-1 text-xs whitespace-nowrap" onClick={() => runtime.togglePause()} title="Pausar/retomar (Espaço)" aria-label={paused ? 'Retomar' : 'Pausar'}>
           <PlayPauseIcon playing={!paused} />
-          <span className="hidden sm:inline">{paused ? 'Retomar' : 'Pausar'}</span>
+          <span className="hidden min-[2100px]:inline">{paused ? 'Retomar' : 'Pausar'}</span>
         </button>
-        <div className="hidden gap-1 md:flex">
+        <div className="hidden gap-1 xl:flex">
           {GAME_SPEEDS.map((s) => (
             <button
               key={s}
@@ -201,7 +203,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
           ))}
         </div>
         <button
-          className="btn min-h-8 px-2 py-1 font-mono text-xs md:hidden"
+          className="btn min-h-8 px-2 py-1 font-mono text-xs xl:hidden"
           disabled={!canControlSpeed}
           title={canControlSpeed ? `Velocidade atual ${speed}× — tocar alterna para ${nextSpeed}×` : 'Velocidade fixa em partidas entre jogadores'}
           aria-label={`Velocidade ${speed}×`}
@@ -216,7 +218,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
           aria-label="Visão aproximada"
           aria-pressed={closeUp}
         >
-          🎥<span className="hidden lg:inline">De perto</span>
+          🎥<span className="hidden min-[2100px]:inline">De perto</span>
         </button>
         <button
           className={`btn min-h-8 px-2 py-1 text-xs whitespace-nowrap ${globeOpen ? 'btn-primary' : ''}`}
@@ -224,7 +226,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
           title="Globo diplomático: países, contatos, relações, tratados e guerras (Tab)"
           aria-label="Globo"
         >
-          🌐<span className="hidden sm:inline">Globo</span>
+          🌐<span className="hidden min-[2100px]:inline">Globo</span>
         </button>
         <button
           className={`btn min-h-8 px-2 py-1 text-xs whitespace-nowrap ${panelOpen ? 'btn-primary' : ''}`}
@@ -232,11 +234,11 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
           title="Painel nacional: economia, orçamento, pesquisa e diplomacia (G)"
           aria-label="Nação"
         >
-          🏛<span className="hidden sm:inline">Nação</span>
+          🏛<span className="hidden min-[2100px]:inline">Nação</span>
         </button>
         <FullscreenButton />
         <button className="btn min-h-8 px-2 py-1 text-xs whitespace-nowrap" onClick={onMenu} title="Menu (F10)" aria-label="Menu">
-          ☰<span className="hidden sm:inline">Menu</span>
+          ☰<span className="hidden min-[2100px]:inline">Menu</span>
         </button>
       </div>
       {pop && (
