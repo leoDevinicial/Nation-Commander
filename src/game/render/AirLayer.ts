@@ -3,7 +3,7 @@ import type { AirView } from '../../../shared/sim/snapshot.ts';
 import type { Effects } from './Effects.ts';
 import { factionColor } from './palette.ts';
 import type { ModelLayers } from './models/kit.ts';
-import { AIRBASE_SLOTS, aircraftModel, bomberStoresModel, missileModel } from './models/military.ts';
+import { AIRBASE_SLOTS, FIGHTER_SCALE, aircraftModel, bomberStoresModel, missileModel } from './models/military.ts';
 import { glowTexture, volumetricSmokeTexture } from './textures.ts';
 
 type Flight = AirView['flights'][number];
@@ -59,6 +59,8 @@ interface Plane {
   nozzles: THREE.Sprite[];
   /** Balanço próprio do avião pesado (turbulência lenta). */
   sway: number;
+  /** Rolagem própria: os alas seguem a do líder com um pequeno atraso (a esquadrilha rola em cascata). */
+  roll: number;
 }
 
 /** Fitas de rastro: um ponto novo a cada RIB_STEP segundos. */
@@ -225,6 +227,10 @@ const BOMBER_NOZZLES = [0.31, -0.31, 0.49, -0.49].map((z) => new THREE.Vector3(-
 /** O bombardeiro pesado faz curvas bem mais abertas e inclina menos que o caça. */
 const BOMBER_TURN = 2.1;
 const BOMBER_MAX_BANK = 0.55;
+/** Raio (do centro da esquadrilha até a base) em que começa a aproximação final para o pouso. */
+const LAND_RADIUS = 18;
+/** Ponto da aproximação: a final começa a 15 da cabeceira; o toque é em `RUNWAY_X0` (k = 0,64). */
+const LAND_FROM = -15;
 const TAKEOFF_ROLL = 2.2;
 const TAKEOFF_GAP = 0.6;
 /** Pista da Base Aérea no referencial da base (ao longo de +x, do lado +z): início e fim da corrida. */
@@ -260,6 +266,8 @@ interface TrackedFlight {
   flareArmed: boolean;
   /** Próximo flare no combate aéreo (tempo próprio). */
   nextFlare: number;
+  /** Pouso: sentido da pista escolhido na aproximação (+1 para +x, −1 para −x; 0 = ainda não). */
+  landDir: number;
 }
 
 /** Bomba em queda (visual): parte do bombardeiro e explode no chão. */
@@ -527,7 +535,7 @@ export class AirLayer {
       let t = this.flights.get(f.id);
       const p = new THREE.Vector2(f.x, f.y);
       if (!t) {
-        t = { snap: f, planes: [], prev: p.clone(), curr: p.clone(), lastC: null, pos: p.clone(), heading: f.heading, turn: 0, speed: 0, alt: 0, t: 0, phase: (f.id * 2.399) % 6.283, bank: 0, takeoff: -1, flareArmed: false, nextFlare: 3 };
+        t = { snap: f, planes: [], prev: p.clone(), curr: p.clone(), lastC: null, pos: p.clone(), heading: f.heading, turn: 0, speed: 0, alt: 0, t: 0, phase: (f.id * 2.399) % 6.283, bank: 0, takeoff: -1, flareArmed: false, nextFlare: 3, landDir: 0 };
         // decolando: a esquadrilha começa na cabeceira da pista e corre um avião de cada vez, se ainda estiver perto da
         // base na saída
         // (a base de um voo inimigo só vem quando o jogador a enxerga: sem ela, o voo já aparece no ar)
@@ -657,6 +665,8 @@ export class AirLayer {
         if (kind === 'bomber') p.group.add(meshes(model('stores'), this.mySlot, true));
         // o bombardeiro e o cargueiro são maiores que a vaga de caça
         if (kind === 'bomber' || kind === 'transport') p.group.scale.setScalar(0.65);
+        // no voo os caças são maiores; no pátio voltam ao tamanho da vaga
+        else if (kind === 'fighter' || kind === 'gripen') p.group.scale.setScalar(1 / FIGHTER_SCALE);
         p.group.rotation.y = slot.heading;
         this.group.add(p.group);
         this.parked.set(a.id, p);
@@ -679,7 +689,7 @@ export class AirLayer {
     if (!m.body.boundingBox) m.body.computeBoundingBox();
     const bb = m.body.boundingBox!;
     const tipZ = bb.max.z * 0.96;
-    const tail = kind === 'bomber' ? -0.8 : kind === 'gripen' ? -1.1 : -0.95;
+    const tail = kind === 'bomber' ? -0.8 : kind === 'gripen' ? -1.1 * FIGHTER_SCALE : kind === 'fighter' ? -0.95 * FIGHTER_SCALE : -0.95;
     for (let i = 0; i < Math.min(4, f.count); i++) {
       const group = new THREE.Group();
       group.add(meshes(m, f.owner, false));
@@ -734,7 +744,7 @@ export class AirLayer {
       const shadow = new THREE.Mesh(shadowGeometry(), shadowMaterial());
       shadow.renderOrder = 1;
       this.group.add(shadow);
-      t.planes.push({ group, glow, prevLat: 0, prevAlt: 0, trailAcc: Math.random() * 0.1, flame, strobe, ribbons, ribbonAt, shadow, shadowSize: [(bb.max.x - bb.min.x) * 0.85, tipZ * 1.25], big, blink: Math.random() * 1.3, stores, nozzles, sway: Math.random() * 10 });
+      t.planes.push({ group, glow, prevLat: 0, prevAlt: 0, trailAcc: Math.random() * 0.1, flame, strobe, ribbons, ribbonAt, shadow, shadowSize: [(bb.max.x - bb.min.x) * 0.85, tipZ * 1.25], big, blink: Math.random() * 1.3, stores, nozzles, sway: Math.random() * 10, roll: 0 });
     }
   }
 
@@ -859,8 +869,13 @@ export class AirLayer {
     // lado direito no plano do mapa (+z do modelo)
     const rgtX = -fwdY;
     const rgtY = fwdX;
+    // chegada: a esquadrilha alinha com a pista (no sentido de onde vem), desce em fila e pousa um atrás do outro
+    const toBase = Math.hypot(cx - bx, cy - by);
+    const landK = hasBase && f.state === 'returning' && t.takeoff < 0 && !f.engaged ? smooth(LAND_RADIUS, 0, toBase) : 0;
+    if (landK <= 0) t.landDir = 0;
+    else if (t.landDir === 0) t.landDir = t.pos.x - bx < 0 ? 1 : -1;
     const cruise = bomber ? 0.4 : nearBase * (1 - dive);
-    const spread = bomber ? 2.5 : 1;
+    const spread = bomber ? 2.5 : f.kind === 'recon' ? 1 : FIGHTER_SCALE;
     // potência do motor (pós-combustor dos caças): decolagem, subida, mergulho e combate
     const thrBase = Math.max(t.takeoff >= 0 ? 1 : 0, dive * 0.9, f.engaged ? 0.85 : 0, Math.min(1, Math.max(0, climb) * 0.5));
     for (let i = 0; i < n; i++) {
@@ -925,6 +940,30 @@ export class AirLayer {
         pitchI = rp + (pitch - rp) * w;
         rollI *= w;
       }
+      if (landK > 0) {
+        // aproximação final e pouso: cada avião um pouco atrás do anterior na mesma rampa
+        const k = Math.max(0, landK - i * 0.1);
+        const dir = t.landDir;
+        const xr = LAND_FROM + (RUNWAY_X1 - 0.4 - LAND_FROM) * k;
+        const touch = (RUNWAY_X0 - LAND_FROM) / (RUNWAY_X1 - 0.4 - LAND_FROM);
+        const g = this.ground(bx, by);
+        const glide = Math.min(1, k / touch);
+        // rampa de descida com arredondamento no fim (flare)
+        const ralt = k < touch ? 0.24 + g + (ALTITUDE * 0.55 - 0.24) * (1 - glide) ** 1.6 : 0.24 + g;
+        const rx = bx + dir * xr;
+        const ry = by + RUNWAY_Z + (i % 2 ? 0.35 : -0.35) * smooth(touch, 1, k);
+        const w = smooth(0, 0.45, k);
+        x += (rx - x) * w;
+        y += (ry - y) * w;
+        alt += (ralt - alt) * w;
+        const runwayYaw = dir > 0 ? 0 : Math.PI;
+        yaw += angDiff(runwayYaw, yaw) * w;
+        // nariz um pouco para cima na final, mais no arredondamento; na pista, quase nivelado
+        const flare = k < touch ? 0.05 + 0.1 * smooth(touch * 0.75, touch, k) : 0.04;
+        pitchI += (flare - pitchI) * w;
+        rollI *= 1 - w;
+        thr = Math.min(thr, 0.15);
+      }
       if (pl.big && t.takeoff < 0) {
         // avião pesado no ar: sobe e desce devagar na turbulência, balança pouco nas asas e o nariz atrasa na curva
         const sw = this.time * 0.55 + pl.sway;
@@ -938,7 +977,9 @@ export class AirLayer {
       pl.prevAlt = alt;
       pl.group.position.set(x, alt, y);
       // guinada, depois arfagem, depois rolagem (inclina para dentro das curvas e das trocas de posição)
-      pl.group.rotation.set(rollI + Math.max(-0.35, Math.min(0.35, latVel * (pl.big ? 0.12 : 0.25))), -yaw, pitchI, 'YZX');
+      // rolagem em cascata: o líder rola primeiro e cada ala acompanha um instante depois
+      pl.roll += (rollI - pl.roll) * Math.min(1, dt * (i === 0 ? 6 : 6 / (1 + i * 0.6)));
+      pl.group.rotation.set(pl.roll + Math.max(-0.35, Math.min(0.35, latVel * (pl.big ? 0.12 : 0.25))), -yaw, pitchI, 'YZX');
       // bombas sob as asas só na ida; na volta a esquadrilha já despejou a carga
       if (pl.stores) pl.stores.visible = f.state === 'outbound';
       // motor: brilho e chama do pós-combustor crescem com a potência, com tremulação
@@ -967,7 +1008,7 @@ export class AirLayer {
       // carga (curva fechada, recuperação do mergulho, combate)
       const pull = dive > 0.3 && climb > 0.6 ? 0.6 : 0;
       const g = Math.min(1, Math.abs(t.bank) * 0.9 + pull + (f.engaged ? 0.35 : 0));
-      const strength = pl.big ? smooth(4.5, 6.5, alt) : smooth(0.45, 0.85, g);
+      const strength = (pl.big ? smooth(4.5, 6.5, alt) : smooth(0.45, 0.85, g)) * (1 - landK);
       pl.group.updateMatrixWorld();
       for (let k = 0; k < pl.ribbons.length; k++) {
         tmpRib.copy(pl.ribbonAt[k]!).applyMatrix4(pl.group.matrixWorld);

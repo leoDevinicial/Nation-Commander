@@ -652,12 +652,16 @@ export function buildMissileSiloModel(): Built {
 
 // ------------------------------------------------------------------ em voo
 
+/** Aumento dos caças em voo em relação ao tamanho original (no pátio, a camada aérea desfaz para caber na vaga). */
+export const FIGHTER_SCALE = 1.45;
+
 /** Aeronave em voo (nariz para +x), com a cor da nação nas marcas. */
 export function aircraftModel(type: 'fighter' | 'gripen' | 'bomber' | 'recon' | 'transport'): ModelLayers {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
-  if (type === 'fighter') fighter(b, a, g, [0, 0, 0], 0.85);
-  else if (type === 'gripen') gripen(b, a, g, [0, 0, 0], 0.82);
+  // caças 45% maiores que no começo (presença em tela), com a mesma proporção entre os dois modelos
+  if (type === 'fighter') fighter(b, a, g, [0, 0, 0], 0.85 * FIGHTER_SCALE);
+  else if (type === 'gripen') gripen(b, a, g, [0, 0, 0], 0.82 * FIGHTER_SCALE);
   else if (type === 'bomber') bomberPlane(b, a, g, [0, 0, 0], 1.3);
   else if (type === 'recon') reconPlane(b, a, g, [0, 0, 0], 1.4);
   else transportPlane(b, a, g, [0, 0, 0], 1.4);
