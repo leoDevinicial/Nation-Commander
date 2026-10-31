@@ -669,3 +669,18 @@ describe('KAC-06 — ids opacos', () => {
     expect(again).toBe(next);
   });
 });
+
+describe('KAC — drone em primeira pessoa', () => {
+  it('o manche do drone chega em ritmo fixo (10/s) e não vira alerta de automação; as outras ordens continuam medidas', async () => {
+    const { send, a, b, code, clock } = await pvpWithAccounts();
+    await send(b.conn, { t: 'set_ready', ready: true });
+    await send(a.conn, { t: 'start' });
+    const before = kacJournal.count('behavior.automation_suspected');
+    for (let i = 0; i < BEHAVIOR_POLICY.window * 3; i++) {
+      clock.t += 100;
+      await send(a.conn, { t: 'cmd', cmd: { type: 'drone_steer', droneId: 77, turn: 0.5, climb: 0, throttle: 0 } });
+    }
+    expect(kacJournal.count('behavior.automation_suspected')).toBe(before);
+    expect(code).toBeTruthy();
+  });
+});

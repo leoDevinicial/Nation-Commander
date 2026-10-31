@@ -977,7 +977,9 @@ export class Room {
       return;
     }
     this.pending.push({ slot: p.slot, cmd, conn });
-    // KAC-09: ritmo das ordens no relógio do servidor (só alerta; nunca bloqueia nem pune)
+    // KAC-09: ritmo das ordens no relógio do servidor (só alerta; nunca bloqueia nem pune). A pilotagem do drone chega
+    // de propósito num ritmo fixo (o cliente manda o manche ~10 vezes por segundo) e fica fora dessa conta.
+    if (cmd.type === 'drone_steer') return;
     const signal = this.behavior.record(String(p.slot), this.now());
     if (signal) {
       this.counter(p.slot).automationAlerts++;

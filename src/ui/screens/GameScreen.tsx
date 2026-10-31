@@ -93,6 +93,8 @@ export function GameScreen() {
   }, [runtime, battleRt, battleActive, globeOpen]);
   const active = battleActive ? battleRt : runtime;
   const reducedMotion = useSettingsStore((s) => s.reducedMotion);
+  const fpv = useHudStore((s) => s.fpv);
+  const droneTakeover = useHudStore((s) => s.droneTakeover);
 
   // eventos nacionais entram no painel de eventos da operação
   useEffect(() => {
@@ -199,7 +201,16 @@ export function GameScreen() {
           </div>
         </div>
       )}
-      {runtime && active && (
+      {runtime && !fpv && droneTakeover && !battleActive && (
+        <button
+          className="btn btn-primary absolute top-28 left-1/2 z-30 -translate-x-1/2 px-3 py-2 text-sm shadow-lg"
+          onClick={() => runtime.takeDrone(droneTakeover.id)}
+          title="Pilote o drone em primeira pessoa até o alvo"
+        >
+          🎮 Assumir o drone (T) · {droneTakeover.left}s
+        </button>
+      )}
+      {runtime && active && !fpv && (
         <>
           {battleActive && !globeOpen ? <BattleBar runtime={active} /> : <TopBar runtime={runtime} onMenu={() => setMenuOpen(true)} canControlSpeed={match.canControlSpeed} />}
           {!battleActive && !globeOpen && !nationalOpen && <OperationChip />}

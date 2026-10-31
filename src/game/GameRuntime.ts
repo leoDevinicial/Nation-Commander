@@ -39,6 +39,7 @@ import { UnitVisual } from './render/UnitVisuals.ts';
 import { PostFx } from './render/PostFx.ts';
 import { CitizenLayer } from './render/CitizenLayer.ts';
 import { CargoLayer, disposeCargoModels } from './render/CargoLayer.ts';
+import { DroneFpv, type FpvTarget } from './render/DroneFpv.ts';
 import { AmbientLife } from './render/AmbientLife.ts';
 import { POWER, POWER_GEN, POWER_USE } from '../../shared/sim/power.ts';
 import { WeatherSystem } from './render/Weather.ts';
@@ -202,6 +203,12 @@ export class GameRuntime {
   private readonly heardFlights = new Map<number, number>();
   /** Aeronaves, mísseis, faróis dos silos e alvos (Fase 7). */
   private readonly airLayer: AirLayer;
+  /** Câmera em primeira pessoa do drone de ataque e o OSD por cima. */
+  private readonly fpv: DroneFpv;
+  /** Drone cujo controle foi pedido ao servidor (a câmera entra quando o snapshot confirmar). */
+  private fpvWanted: number | null = null;
+  private fpvStartedAt = 0;
+  private fpvLastPos: THREE.Vector3 | null = null;
   /** Pássaros e cervos (vida ambiente, só visual). */
   private readonly ambient: AmbientLife;
   private ambientKey = '';
@@ -384,6 +391,7 @@ export class GameRuntime {
     this.scene.add(this.cargo.group);
     this.effects = new Effects(this.scene, opts.profile.maxEffects, opts.profile.dynamicLights, opts.profile.cinematic ? 'cinematic' : opts.profile.ultra ? 'volumetric' : 'basic');
     this.airLayer = new AirLayer(this.effects, this.mySlot, (id) => this.positionOf(id), opts.profile.maxEffects > 60 ? 140 : 60);
+    this.fpv = new DroneFpv(container);
     this.airLayer.setGround((x, z) => this.groundHeight(x, z));
     this.ambient = new AmbientLife(this.map, (x, z) => this.groundHeight(x, z), () => this.unitPositions(), opts.profile.terrain === 'low');
     this.scene.add(this.ambient.group);
@@ -567,6 +575,7 @@ export class GameRuntime {
       if (this.hudActive) useHudStore.getState().set({ air: s.air });
       this.airLayer.era = s.players.find((p) => p.slot === this.mySlot)?.era ?? 1;
       this.airLayer.update(s.air);
+      this.syncDrones(s.air.drones ?? []);
       // sobrevoo: quando a formação entra no mapa (própria ou inimiga à vista) e de novo sempre que passa perto da
       // câmera; o bombardeiro tem o próprio ronco
       const now = performance.now() / 1000;
@@ -913,6 +922,19 @@ export class GameRuntime {
             audio.playAt('explosion', at.x, at.z);
           },
         });
+    } else if (e.type === 'drone' && e.phase !== 'launched') {
+      const at = new THREE.Vector3(e.pos.x, Math.max(0.2, e.alt ?? 0), e.pos.y);
+      if (e.phase === 'shot_down') {
+        // derrubado no ar: estouro pequeno e os destroços soltando fumaça
+        this.effects.flash(at, 0.9, '#ffd38a', 0.25);
+        this.effects.plume(at, { count: 2, size: 0.6, rise: 1.5, life: 2.5, spread: 0.3, tone: 0.3 });
+      } else {
+        // a ogiva: bola de fogo, clarão, fumaça e um tremor leve perto da câmera
+        this.effects.explosion(at.setY(0.2), true);
+        this.effects.flash(at.clone().setY(1.2), 1.6, '#ffcf8a', 0.3);
+        this.effects.plume(at.clone().setY(0.3), { count: 3, size: 1.0, rise: 3.2, life: 3.5, spread: 0.5, tone: 0.3 });
+        this.shakeNear({ x: e.pos.x, y: e.pos.y }, 0.25);
+      }
     } else if (e.type === 'caravan_lost') {
       this.effects.explosion(new THREE.Vector3(e.pos.x, 0, e.pos.y), false);
     } else if (e.type === 'city_captured') {
@@ -1113,7 +1135,8 @@ export class GameRuntime {
     const dt = Math.min(interval / 1000, 0.1); // limita delta após perder foco
     this.lastFrame = now;
 
-    this.updateCameraFromKeys(dt);
+    // pilotando o drone, WASD e as setas são o manche (a câmera do mapa não anda)
+    if (!this.fpv.active) this.updateCameraFromKeys(dt);
     if (this.intro && !this.suspended) {
       // o zoom do jogador interrompe a aproximação (ver zoomBy)
       this.intro.t = Math.min(1, this.intro.t + dt / 0.9);
@@ -1165,6 +1188,7 @@ export class GameRuntime {
     }
     this.cargo.frame(alpha, dt);
     this.airLayer.frame(alpha, dt);
+    this.frameFpv(dt);
     this.ambient.update(this.paused ? 0 : dt);
     // os foguetes andam no relógio da simulação: param na pausa e aceleram com a velocidade
     this.rocketLayer.update(this.paused ? 0 : dt * this.speed);
@@ -2490,7 +2514,7 @@ export class GameRuntime {
   }
 
   /** Escolha de alvo da força aérea: reconhecimento (ponto), ataque (edifício) ou míssil (ponto). */
-  startAirTarget(purpose: 'recon' | 'strike' | 'missile', sourceId: number, aircraftIds: number[] = [], nuclear = false): void {
+  startAirTarget(purpose: 'recon' | 'strike' | 'missile' | 'drone', sourceId: number, aircraftIds: number[] = [], nuclear = false): void {
     this.setMode({ kind: 'air_target', purpose, sourceId, aircraftIds, target: null, ...(nuclear ? { nuclear: true } : {}) });
   }
 
@@ -2508,6 +2532,13 @@ export class GameRuntime {
     const p = this.groundAt(clientX, clientY);
     if (!p) return;
     const warn = (text: string) => useHudStore.getState().pushEvent({ tick: this.snapshot?.tick ?? 0, text, tone: 'warn' });
+    if (m.purpose === 'drone') {
+      // drone de ataque: sai rumo ao ponto; nos primeiros segundos dá para assumir o controle (clique nele ou T)
+      this.send({ type: 'launch_drone', buildingId: m.sourceId, x: p.x, y: p.y });
+      this.effects.flash(new THREE.Vector3(p.x, 0.2, p.y), 0.8, '#ff9a5a', 0.5);
+      this.cancelMode();
+      return;
+    }
     if (m.purpose === 'recon') {
       this.send({ type: 'air_mission', buildingId: m.sourceId, aircraftIds: m.aircraftIds, mission: 'recon', x: p.x, y: p.y });
       this.effects.flash(new THREE.Vector3(p.x, 0.2, p.y), 0.8, '#7fc4ff', 0.5);
@@ -2526,6 +2557,106 @@ export class GameRuntime {
     }
     // míssil: só marca o alvo; a preparação sai pelo botão "Confirmar alvo"
     this.setMode({ ...m, target: { x: p.x, y: p.y } });
+  }
+
+  // ------------------------------------------------------------ drone em primeira pessoa
+
+  /** Pede ao servidor o controle do drone; a câmera entra quando o snapshot confirmar. */
+  takeDrone(id: number): void {
+    this.fpvWanted = id;
+    this.send({ type: 'drone_control', droneId: id, take: true });
+    audio.ui('click');
+  }
+
+  /** Devolve o drone ao piloto automático e volta ao mapa. */
+  private releaseDrone(): void {
+    const id = this.fpv.droneId;
+    if (id !== null) this.send({ type: 'drone_control', droneId: id, take: false });
+    this.exitFpv();
+  }
+
+  private exitFpv(): void {
+    this.fpvWanted = null;
+    this.fpv.exit(this.camera);
+    this.airLayer.hiddenDrone = null;
+    audio.setDroneFpv(false, 0);
+    if (this.fpvLastPos) this.cameraCtl.target.set(this.fpvLastPos.x, 0, this.fpvLastPos.z);
+    this.fpvLastPos = null;
+    if (this.hudActive) useHudStore.getState().set({ fpv: false });
+  }
+
+  /** Drone próprio (ainda na janela de controle) sob o ponteiro, a até 48 px na tela. */
+  private droneUnderPointer(x: number, y: number): number | null {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    let best: number | null = null;
+    let bestD = 48;
+    const v = new THREE.Vector3();
+    for (const c of this.airLayer.takeoverCandidates()) {
+      v.copy(c.pos).project(this.camera);
+      if (v.z >= 1) continue;
+      const d = Math.hypot(r.left + (v.x * 0.5 + 0.5) * r.width - x, r.top + (-v.y * 0.5 + 0.5) * r.height - y);
+      if (d < bestD) {
+        bestD = d;
+        best = c.id;
+      }
+    }
+    return best;
+  }
+
+  /** A cada snapshot: aviso para assumir, entrada confirmada e sinal perdido (o drone sumiu). */
+  private syncDrones(list: NonNullable<Snapshot['air']>['drones']): void {
+    const mine = list.filter((d) => d.owner === this.mySlot);
+    const open = mine.find((d) => (d.takeover ?? 0) > 0 && !d.controlled);
+    const prompt = open ? { id: open.id, left: Math.ceil(open.takeover ?? 0) } : null;
+    const cur = useHudStore.getState().droneTakeover;
+    if (this.hudActive && (cur?.id !== prompt?.id || cur?.left !== prompt?.left)) useHudStore.getState().set({ droneTakeover: prompt });
+    if (this.fpvWanted !== null && !this.fpv.active && mine.some((d) => d.id === this.fpvWanted && d.controlled)) {
+      this.fpv.enter(this.fpvWanted, this.camera);
+      this.fpvStartedAt = performance.now();
+      if (this.hudActive) useHudStore.getState().set({ fpv: true, droneTakeover: null });
+      this.clearSelection();
+      if (this.mode.kind !== 'normal') this.cancelMode();
+    }
+    if (this.fpv.active && !this.fpv.lost && !mine.some((d) => d.id === this.fpv.droneId)) {
+      this.fpv.signalLost();
+      audio.setDroneFpv(false, 0);
+    }
+  }
+
+  /** Um quadro da primeira pessoa: câmera no drone, OSD com os alvos à vista e o manche para o servidor. */
+  private frameFpv(dt: number): void {
+    if (!this.fpv.active) return;
+    const id = this.fpv.droneId!;
+    if (this.fpv.lost && this.fpv.lostFor() > 1.4) {
+      this.exitFpv();
+      return;
+    }
+    const v = this.airLayer.droneView(id);
+    if (v) this.fpvLastPos = v.pos.clone();
+    const view = v && !this.fpv.lost ? { pos: v.pos, heading: v.heading, pitch: v.pitch, bank: v.bank, speed: v.snap.speed, alt: v.snap.alt, battery: v.snap.battery ?? 0 } : null;
+    const targets: FpvTarget[] = [];
+    if (view) {
+      const near = (x: number, z: number) => Math.hypot(x - view.pos.x, z - view.pos.z) < 80;
+      for (const t of this.units.values()) {
+        if (t.snap.owner === this.mySlot || t.snap.hp <= 0) continue;
+        const p = t.visual.renderPos;
+        if (near(p.x, p.y)) targets.push({ pos: new THREE.Vector3(p.x, 0.6, p.y), label: UNITS[t.snap.type].label.toUpperCase(), kind: 'unit' });
+      }
+      for (const t of this.buildings.values()) {
+        if (t.snap.owner === this.mySlot || t.snap.remembered) continue;
+        const size = BUILDINGS[t.snap.type].size * this.map.cellSize;
+        const x = t.snap.cx * this.map.cellSize + size / 2;
+        const z = t.snap.cy * this.map.cellSize + size / 2;
+        if (near(x, z)) targets.push({ pos: new THREE.Vector3(x, 0.8, z), label: BUILDINGS[t.snap.type].label.toUpperCase(), kind: 'building' });
+      }
+      targets.sort((a, b) => a.pos.distanceTo(view.pos) - b.pos.distanceTo(view.pos));
+      targets.length = Math.min(targets.length, 14);
+      this.cameraCtl.target.set(view.pos.x, 0, view.pos.z);
+      audio.setDroneFpv(true, view.speed);
+    }
+    this.airLayer.hiddenDrone = this.fpv.lost ? null : id;
+    const steer = this.fpv.frame(dt, view, this.camera, targets, (performance.now() - this.fpvStartedAt) / 1000);
+    if (steer) this.send({ type: 'drone_steer', droneId: id, ...steer });
   }
 
   /** Raio de ação e alvo marcado no chão durante a escolha de alvo. */
@@ -2820,6 +2951,10 @@ export class GameRuntime {
         audio.playAt('jet_cannon', e.from.x, e.from.y);
         if (Math.random() < 0.5) audio.playAt('air_mg', e.from.x, e.from.y);
         break;
+      case 'drone':
+        if (e.phase === 'launched') audio.playAt('agm_launch', e.pos.x, e.pos.y);
+        else audio.playAt(e.phase === 'shot_down' ? 'explosion' : 'explosion_big', e.pos.x, e.pos.y);
+        break;
       case 'caravan_lost':
         audio.playAt('explosion', e.pos.x, e.pos.y);
         if (mine(e.owner)) audio.ui('alert');
@@ -2939,7 +3074,10 @@ export class GameRuntime {
       { passive: false },
     );
     on(window, 'keydown', (e) => this.onKeyDown(e));
-    on(window, 'keyup', (e) => this.keys.delete(e.code));
+    on(window, 'keyup', (e) => {
+      this.keys.delete(e.code);
+      this.fpv.key(e.code, false);
+    });
     on(window, 'blur', () => this.keys.clear());
     const onResize = () => {
       this.resize();
@@ -2958,6 +3096,23 @@ export class GameRuntime {
 
   private onKeyDown(e: KeyboardEvent): void {
     if (this.isTyping(e) || this.suspended) return;
+    if (this.fpv.active) {
+      // drone em primeira pessoa: as teclas são do piloto
+      const id = this.fpv.droneId!;
+      if (e.code === 'Escape') this.releaseDrone();
+      else if (e.code === 'Space') this.send({ type: 'drone_detonate', droneId: id });
+      else this.fpv.key(e.code, true);
+      if (e.code === 'Space' || e.code.startsWith('Arrow') || e.code === 'Tab') e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (e.code === 'KeyT') {
+      const c = this.airLayer.takeoverCandidates()[0];
+      if (c) {
+        this.takeDrone(c.id);
+        return;
+      }
+    }
     this.keys.add(e.code);
     const digit = /^Digit([0-9])$/.exec(e.code)?.[1];
     if (digit) {
@@ -3033,6 +3188,18 @@ export class GameRuntime {
   }
 
   private onPointerDown(e: PointerEvent): void {
+    if (this.fpv.active) {
+      this.fpv.pointerDown(e.clientX, e.clientY);
+      return;
+    }
+    // clique (ou toque) em cima de um drone próprio que ainda dá para assumir: entra na primeira pessoa
+    if (e.button === 0 || e.pointerType === 'touch') {
+      const hit = this.droneUnderPointer(e.clientX, e.clientY);
+      if (hit !== null) {
+        this.takeDrone(hit);
+        return;
+      }
+    }
     if (e.pointerType === 'touch') {
       if (!useHudStore.getState().touchUi) useHudStore.getState().set({ touchUi: true });
       this.touch.down(touchPoint(e));
@@ -3079,6 +3246,10 @@ export class GameRuntime {
 
   private onPointerMove(e: PointerEvent): void {
     if (this.suspended) return;
+    if (this.fpv.active) {
+      this.fpv.pointerMove(e.clientX, e.clientY);
+      return;
+    }
     if (e.pointerType === 'touch') {
       this.touch.move(touchPoint(e));
       return;
@@ -3115,6 +3286,10 @@ export class GameRuntime {
 
   private onPointerUp(e: PointerEvent): void {
     if (this.suspended) return;
+    if (this.fpv.active) {
+      this.fpv.pointerUp();
+      return;
+    }
     if (e.pointerType === 'touch') {
       this.touch.up(touchPoint(e));
       return;
@@ -3653,6 +3828,8 @@ export class GameRuntime {
     this.cargo.dispose();
     disposeCargoModels();
     this.airLayer.dispose();
+    this.fpv.dispose();
+    audio.setDroneFpv(false, 0);
     this.ambient.dispose();
       this.rocketLayer.dispose();
       this.domeLayer.dispose();

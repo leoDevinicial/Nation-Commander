@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { canAfford, emptyStockpile } from '../../../shared/sim/config.ts';
 import { useMyBonus } from '../../state/myCountry.ts';
+import { DRONE } from '../../../shared/sim/drones.ts';
 import { AIR, AIRCRAFT_TYPES, aircraftFor, IRON_DOME, MISSILE, NUCLEAR, missileSpec, type AircraftState, type AircraftType, type LaunchState } from '../../../shared/sim/air.ts';
 import { TECHNOLOGIES } from '../../../shared/strategic/technologies.ts';
 import { buildingEffects, formatUsd } from '../../../shared/sim/upgrades.ts';
@@ -13,8 +14,8 @@ import { audio } from '../../game/audio/AudioService.ts';
 import { effectiveEra, effectiveFund, effectiveTechs, timeText } from '../../state/sandbox.ts';
 import { AIRCRAFT_ERA } from '../../../shared/sim/eras.ts';
 
-const ICON: Record<AircraftType, string> = { fighter: '✈', bomber: '💣', recon: '🔭', transport: '📦' };
-const SHORT: Record<AircraftType, string> = { fighter: 'Caça', bomber: 'Bombardeiro', recon: 'Reconhecimento', transport: 'Cargueiro' };
+const ICON: Record<AircraftType, string> = { fighter: '✈', bomber: '💣', recon: '🔭', transport: '📦', drone: '🛩' };
+const SHORT: Record<AircraftType, string> = { fighter: 'Caça', bomber: 'Bombardeiro', recon: 'Reconhecimento', transport: 'Cargueiro', drone: 'Drone' };
 const STATE: Record<AircraftState, string> = {
   building: 'em produção',
   ready: 'pronta',
@@ -121,6 +122,8 @@ export function AirbaseButtons({ b, runtime }: { b: SelectedBuildingInfo; runtim
   const strikeBlock = noTech ?? (fighters.length === 0 ? 'nenhum caça pronto' : null);
   const bombBlock = noTech ?? (bombers.length === 0 ? 'nenhum bombardeiro pronto' : null);
   const hasBombers = planes.some((a) => a.type === 'bomber');
+  const drones = ready('drone');
+  const hasDrones = planes.some((a) => a.type === 'drone');
   return (
     <>
       {AIRCRAFT_TYPES.map((t) => {
@@ -159,6 +162,16 @@ export function AirbaseButtons({ b, runtime }: { b: SelectedBuildingInfo; runtim
         onClick={() => (strikeBlock ? warn(`Ataque aéreo: ${strikeBlock}`) : runtime.startAirTarget('strike', b.id, fighters.slice(0, 4)))}
         title={`Ataque com os caças prontos (até 4) contra um edifício inimigo já descoberto, em guerra e no alcance. Antiaérea e caças inimigos podem derrubar aeronaves; o dano costuma ser parcial. Caças que cruzam com uma esquadrilha inimiga entram em combate aéreo.`}
       />
+      {hasDrones && (
+        <CardButton
+          icon="🛩"
+          label="Lançar drone"
+          blocked={drones.length === 0}
+          short={drones.length === 0 ? 'nenhum pronto' : null}
+          onClick={() => (drones.length ? runtime.startAirTarget('drone', b.id, drones.slice(0, 1)) : warn('Drone: nenhum drone pronto nesta base'))}
+          title={`Drone de ataque: escolha um ponto no alcance (${DRONE.range}). Ele voa sozinho e mergulha no alvo. Nos primeiros ${DRONE.takeoverSeconds}s de voo, clique no drone (ou aperte T) para pilotar em primeira pessoa: A/D ou ←/→ viram, W/S descem e sobem, Shift acelera, Espaço detona, Esc devolve ao piloto automático. Só fere quem está em guerra com você; a antiaérea pode derrubá-lo.`}
+        />
+      )}
       {hasBombers && (
         <CardButton
           icon="💣"
@@ -409,8 +422,9 @@ export function HoldToConfirm({ label, onConfirm, ms = 1500 }: { label: string; 
 }
 
 /** Dica do modo de escolha de alvo (e confirmação do alvo do míssil). */
-export function airTargetText(purpose: 'recon' | 'strike' | 'missile', touch: boolean, hasTarget: boolean, missileGen = 1): { title: string; text: string } {
+export function airTargetText(purpose: 'recon' | 'strike' | 'missile' | 'drone', touch: boolean, hasTarget: boolean, missileGen = 1): { title: string; text: string } {
   const act = touch ? 'Toque' : 'Clique';
+  if (purpose === 'drone') return { title: 'Drone de ataque', text: `${act} no ponto do ataque, dentro do anel de alcance. Depois, ${touch ? 'toque no drone' : 'clique no drone ou aperte T'} nos primeiros ${DRONE.takeoverSeconds}s para pilotar.` };
   if (purpose === 'recon') return { title: 'Reconhecimento aéreo', text: `${act} no ponto a reconhecer, dentro do anel de alcance. Botão direito ou Cancelar desiste.` };
   if (purpose === 'strike') return { title: 'Ataque aéreo', text: `${act} num edifício inimigo já descoberto, dentro do anel de alcance.` };
   return hasTarget

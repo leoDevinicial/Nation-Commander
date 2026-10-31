@@ -104,7 +104,7 @@ export const BUILDING_ERA: Partial<Record<BuildingType, Era>> = {
 };
 
 /** Aeronaves: caças, reconhecimento e cargueiros na Era Digital; bombardeiros no Futuro Próximo. */
-export const AIRCRAFT_ERA: Record<AircraftType, Era> = { fighter: 3, recon: 3, transport: 3, bomber: 4 };
+export const AIRCRAFT_ERA: Record<AircraftType, Era> = { fighter: 3, recon: 3, transport: 3, bomber: 4, drone: 3 };
 
 export const buildingEra = (t: BuildingType): Era => BUILDING_ERA[t] ?? 1;
 

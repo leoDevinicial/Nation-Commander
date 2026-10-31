@@ -1444,6 +1444,14 @@ export class Simulation {
           ...(cmd.targetId !== undefined ? { buildingId: cmd.targetId } : {}),
           ...(cmd.x !== undefined && cmd.y !== undefined ? { x: cmd.x, y: cmd.y } : {}),
         });
+      case 'launch_drone':
+        return this.air.launchDrone(slot, cmd.buildingId, cmd.x, cmd.y);
+      case 'drone_control':
+        return this.air.drones.control(slot, cmd.droneId, cmd.take);
+      case 'drone_steer':
+        return this.air.drones.steer(slot, cmd.droneId, cmd.turn, cmd.climb, cmd.throttle);
+      case 'drone_detonate':
+        return this.air.drones.detonate(slot, cmd.droneId);
       case 'build_missile':
         return this.air.buildMissile(slot, cmd.buildingId, !!cmd.nuclear);
       case 'missile_prepare':

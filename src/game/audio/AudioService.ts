@@ -2212,6 +2212,79 @@ export class AudioService {
     for (let i = 0; i < drops; i++) this.rainDrop(t + Math.random() * 0.5, this.weatherRain);
   }
 
+  private droneLoop: { motor: OscillatorNode[]; gain: GainNode; noise: GainNode; hiss: GainNode; filter: BiquadFilterNode; stop: () => void } | null = null;
+
+  /**
+   * Drone em primeira pessoa: o zumbido do motor elétrico (duas dentes-de-serra levemente desafinadas, filtradas) que
+   * sobe de tom com a velocidade, o sopro da hélice e um chiado baixo de rádio analógico. `speed` em unidades/s.
+   */
+  setDroneFpv(active: boolean, speed: number): void {
+    if (!this.ready) return;
+    const ctx = this.ctx!;
+    const t = ctx.currentTime;
+    if (!active) {
+      if (!this.droneLoop) return;
+      const loop = this.droneLoop;
+      this.droneLoop = null;
+      loop.gain.gain.setTargetAtTime(0, t, 0.08);
+      loop.noise.gain.setTargetAtTime(0, t, 0.08);
+      loop.hiss.gain.setTargetAtTime(0, t, 0.08);
+      setTimeout(() => loop.stop(), 600);
+      return;
+    }
+    if (!this.droneLoop) {
+      const out = this.out('combat', 1);
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 1600;
+      filter.Q.value = 0.8;
+      const motor = [1, 1.012, 2.003].map((m, i) => {
+        const o = ctx.createOscillator();
+        o.type = i === 2 ? 'triangle' : 'sawtooth';
+        o.frequency.value = 150 * m;
+        o.connect(filter);
+        o.start();
+        return o;
+      });
+      filter.connect(gain).connect(out);
+      const mk = (type: BiquadFilterType, f: number, q: number) => {
+        const n = this.noiseSource(true);
+        const bf = ctx.createBiquadFilter();
+        bf.type = type;
+        bf.frequency.value = f;
+        bf.Q.value = q;
+        const g = ctx.createGain();
+        g.gain.value = 0;
+        n.connect(bf).connect(g).connect(out);
+        n.start(0, Math.random());
+        return { n, g };
+      };
+      const prop = mk('bandpass', 700, 0.7);
+      const radio = mk('highpass', 3500, 0.5);
+      this.droneLoop = {
+        motor,
+        gain,
+        noise: prop.g,
+        hiss: radio.g,
+        filter,
+        stop: () => {
+          for (const o of motor) o.stop();
+          prop.n.stop();
+          radio.n.stop();
+        },
+      };
+    }
+    const k = Math.max(0, Math.min(1, (speed - 3) / 8));
+    const f = 130 + k * 120;
+    this.droneLoop.motor.forEach((o, i) => o.frequency.setTargetAtTime(f * [1, 1.012, 2.003][i]!, t, 0.15));
+    this.droneLoop.filter.frequency.setTargetAtTime(1300 + k * 1500, t, 0.2);
+    this.droneLoop.gain.gain.setTargetAtTime(0.07 + k * 0.05, t, 0.1);
+    this.droneLoop.noise.gain.setTargetAtTime(0.12 + k * 0.1, t, 0.1);
+    this.droneLoop.hiss.gain.setTargetAtTime(0.025, t, 0.2);
+  }
+
   /** Uma gota: estalo curtíssimo e abafado (folha, telha ou poça), com altura e lado sorteados. */
   private rainDrop(at: number, rain: number): void {
     const ctx = this.ctx!;

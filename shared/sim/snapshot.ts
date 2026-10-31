@@ -5,6 +5,7 @@ import { POWER_USE } from './power.ts';
 import type { BuildingStatus, EntityId, SimEvent, Slot, UnitActivity, Vec2 } from './types.ts';
 import { buildingEffects, type SpecId } from './upgrades.ts';
 import { combineMods, type ModId } from './modernization.ts';
+import { DRONE } from './drones.ts';
 import { AIRCRAFT, IRON_DOME, MISSILE, NUCLEAR, missileSpec, type AircraftState, type AircraftType, type LaunchState, type MissionKind, type MissionResult, type MissionState } from './air.ts';
 import { caravanIncome, type CaravanState } from './caravans.ts';
 import { TRADE_RESOURCES, TRANSPORT_MODES, type ShipmentState, type TradeContract, type TradeOffer, type TradeResource, type TransportMode } from './trade.ts';
@@ -166,6 +167,11 @@ export interface AirView {
    * só se estiver à vista); `tx/ty`: alvo (só nos voos próprios ou que atacam este jogador).
    */
   flights: { id: number; owner: Slot; kind: MissionKind; state: MissionState; x: number; y: number; heading: number; count: number; gen: number; plane: AircraftType; engaged?: boolean; bx?: number; by?: number; tx?: number; ty?: number }[];
+  /**
+   * Drones de ataque em voo: os próprios sempre, os inimigos só quando à vista. `alt`: altura; `climb`: subida (u/s);
+   * `takeover`: segundos que restam para assumir o controle; `battery`: 0..1; `tx/ty`: o ponto escolhido (só os próprios).
+   */
+  drones: { id: number; owner: Slot; x: number; y: number; alt: number; heading: number; speed: number; climb: number; controlled?: boolean; takeover?: number; battery?: number; tx?: number; ty?: number }[];
   /** Missões próprias recentes, com o resultado registrado. */
   missions: { id: number; kind: MissionKind; state: MissionState; baseId: EntityId; targetType: string | null; fuel: number; count: number; result: MissionResult | null }[];
   silos: { id: EntityId; missiles: number; building: number; nuclear?: number; buildingNuclear?: boolean }[];
@@ -526,6 +532,21 @@ export function airView(sim: Simulation, slot: Slot): AirView {
         return { id: b.id, ready: st.ready, max: IRON_DOME.magazine, reload: st.ready < IRON_DOME.magazine ? r2(1 - st.reload / full) : 1, cooldown: r2(st.cooldown / TICK_RATE) };
       }),
     launches,
+    drones: air.drones.drones
+      .filter((d) => d.phase === 'flight' && (d.owner === slot || sim.isVisibleTo(slot, d.pos)))
+      .map((d) => ({
+        id: d.id,
+        owner: d.owner,
+        x: r2(d.pos.x),
+        y: r2(d.pos.y),
+        alt: r2(d.alt),
+        heading: r2(d.heading),
+        speed: r2(d.speed),
+        climb: r2(d.climb),
+        ...(d.owner === slot
+          ? { controlled: d.controlled, takeover: r2(air.drones.takeoverLeft(d)), battery: r2(Math.max(0, d.battery) / (DRONE.batterySeconds * TICK_RATE)), tx: r2(d.target.x), ty: r2(d.target.y) }
+          : {}),
+      })),
     known: sim.buildings.filter((b) => b.owner !== slot && air.isKnown(slot, b.id)).map((b) => b.id),
     reveals: air.reveals.filter((r) => r.owner === slot).map((r) => ({ x: r2(r.pos.x), y: r2(r.pos.y), r: r.radius })),
     transports: air.transports(slot),
@@ -584,6 +605,9 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
       return e.owner === slot || sim.isVisibleTo(slot, e.pos);
     case 'dogfight':
       return e.owner === slot || e.victim === slot || sim.isVisibleTo(slot, e.from) || sim.isVisibleTo(slot, e.to);
+    case 'drone':
+      // o lançamento só o dono vê; a explosão, quem estiver vendo o ponto
+      return e.owner === slot || (e.phase !== 'launched' && sim.isVisibleTo(slot, e.pos));
     case 'missile':
       // o dono acompanha cada etapa; o país-alvo é alertado no lançamento e no impacto
       return (

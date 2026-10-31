@@ -71,7 +71,7 @@ export type PointerMode =
    * Escolha de alvo da força aérea (Fase 7): ponto do reconhecimento, edifício inimigo descoberto
    * do ataque, ou ponto do míssil — este último fica marcado e só segue com "Confirmar alvo".
    */
-  | { kind: 'air_target'; purpose: 'recon' | 'strike' | 'missile'; sourceId: EntityId; aircraftIds: number[]; target: { x: number; y: number } | null; nuclear?: boolean }
+  | { kind: 'air_target'; purpose: 'recon' | 'strike' | 'missile' | 'drone'; sourceId: EntityId; aircraftIds: number[]; target: { x: number; y: number } | null; nuclear?: boolean }
   /** Engenheiros selecionados: o próximo clique no chão marca onde instalar a mina (lote 3). */
   | { kind: 'lay_mine' }
   /**
@@ -172,6 +172,10 @@ export interface HudState {
   closeUp: boolean;
   /** Interface de toque ativa (aparelho de toque ou toque detectado nesta partida). */
   touchUi: boolean;
+  /** Pilotando um drone em primeira pessoa: a interface do mapa some e fica só o OSD do drone. */
+  fpv: boolean;
+  /** Drone próprio no ar que ainda dá para assumir (segundos que restam). */
+  droneTakeover: { id: number; left: number } | null;
   touchTool: TouchTool;
   touchAdditive: boolean;
   set: (patch: Partial<Omit<HudState, 'set' | 'pushEvent' | 'expireEvents'>>) => void;
@@ -211,6 +215,8 @@ export const useHudStore = create<HudState>((set) => ({
   sandbox: null,
   closeUp: false,
   touchUi: false,
+  fpv: false,
+  droneTakeover: null,
   touchTool: 'select',
   touchAdditive: false,
   set: (patch) => set(patch),

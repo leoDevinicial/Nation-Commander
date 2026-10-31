@@ -353,6 +353,68 @@ function reconPlane(b: PartBuilder, a: PartBuilder, g: PartBuilder, at: V3, s = 
   for (const x of [-0.2, 0.35]) b.box(0.03 * s, 0.05 * s, 0.006 * s, dark, P(x, 0.08, 0), [0, 0, -0.4]);
 }
 
+/**
+ * Drone de ataque (nariz para +x), no estilo dos drones armados de longa autonomia: fuselagem fina com a cúpula da
+ * antena de satélite no nariz, asa reta e longa, cauda em Y (duas derivas para cima e uma ventral), câmera esférica
+ * sob o nariz, dois mísseis pequenos sob cada asa e trem de pouso. A hélice propulsora (quatro pás) é desenhada à parte
+ * (`droneProp`) para girar. Cinza; pontas das derivas e uma faixa no dorso na cor da nação.
+ */
+export const DRONE_PROP_X = -1.04;
+export function droneModel(s = 1): ModelLayers {
+  const l = layers();
+  const { body: b, accent: a, glass: g } = l;
+  const P = (x: number, y: number, z: number): V3 => [x * s, y * s, z * s];
+  const S = (pts: [number, number][]) => pts.map(([x, z]) => [x * s, z * s] as [number, number]);
+  const X: V3 = [0, 0, Math.PI / 2];
+  const grey = '#7f878e';
+  const light = '#959ca2';
+  const dark = '#31353a';
+  lathe(b, [[-1.0, 0.03], [-0.9, 0.05], [-0.4, 0.07], [0.2, 0.08], [0.55, 0.085], [0.78, 0.075], [0.9, 0.05], [0.96, 0.02], [0.98, 0]], grey, [0, 0, 0], s, [1, 1], undefined, 12);
+  lathe(b, [[0.28, 0], [0.42, 0.05], [0.6, 0.08], [0.76, 0.07], [0.88, 0.045], [0.95, 0]], light, P(0, 0.035, 0), s, [1.05, 0.95], undefined, 12);
+  // asa reta e longa, um pouco afilada, no alto do corpo
+  mirrored(b, S([[0.14, 0], [0.14, 0.1], [0.08, 1.25], [0.0, 1.27], [-0.05, 1.25], [-0.07, 0.1], [-0.07, 0]]), 0.02 * s, grey, P(0, 0.045, 0));
+  // cauda em Y: duas derivas para cima, abertas, e a ventral para baixo
+  for (const sz of [-1, 1]) {
+    b.side([[-0.98 * s, 0], [-0.76 * s, 0], [-0.9 * s, 0.34 * s], [-1.0 * s, 0.34 * s]], 0.018 * s, grey, P(0, 0.03, sz * 0.02), [sz * 0.72, 0, 0]);
+    a.side([[-0.995 * s, 0.26 * s], [-0.88 * s, 0.26 * s], [-0.9 * s, 0.33 * s], [-0.999 * s, 0.33 * s]], 0.022 * s, '#ffffff', P(0, 0.03, sz * 0.02), [sz * 0.72, 0, 0]);
+  }
+  b.side([[-0.98 * s, 0], [-0.8 * s, 0], [-0.9 * s, -0.24 * s], [-0.99 * s, -0.24 * s]], 0.018 * s, grey, P(0, -0.02, 0));
+  // cubo da hélice (as pás giram em `droneProp`)
+  b.cyl(0.0, 0.035 * s, 0.07 * s, dark, P(DRONE_PROP_X - 0.03, 0, 0), [0, 0, Math.PI / 2], 8);
+  // câmera esférica sob o nariz, com a janela escura
+  b.sphere(0.05 * s, light, P(0.66, -0.09, 0), [1, 1, 1], 10);
+  g.box(0.012 * s, 0.035 * s, 0.035 * s, '#ffffff', P(0.71, -0.095, 0));
+  // dois mísseis pequenos sob cada asa, nos cabides
+  for (const sz of [-1, 1])
+    for (const zz of [0.42, 0.7]) {
+      b.box(0.12 * s, 0.03 * s, 0.015 * s, dark, P(0.04, 0.015, sz * zz));
+      b.cyl(0.018 * s, 0.018 * s, 0.3 * s, '#5d6267', P(0.06, -0.02, sz * zz), X, 8);
+      b.cyl(0, 0.018 * s, 0.05 * s, '#3c4044', P(0.235, -0.02, sz * zz), [0, 0, -Math.PI / 2], 8);
+      for (const r of [0, Math.PI / 2]) b.box(0.04 * s, 0.003 * s, 0.06 * s, '#5d6267', P(-0.07, -0.02, sz * zz), [r, 0, 0]);
+    }
+  // trem de pouso: o do nariz e os principais, inclinados
+  strut(b, P(0.74, -0.06, 0), P(0.74, -0.2, 0), 0.01 * s, dark, true);
+  b.cyl(0.03 * s, 0.03 * s, 0.022 * s, '#1b1c1e', P(0.74, -0.21, 0), [Math.PI / 2, 0, 0], 10);
+  for (const sz of [-1, 1]) {
+    strut(b, P(0.02, -0.04, sz * 0.06), P(-0.04, -0.2, sz * 0.24), 0.012 * s, dark, true);
+    b.cyl(0.04 * s, 0.04 * s, 0.026 * s, '#1b1c1e', P(-0.04, -0.21, sz * 0.25), [Math.PI / 2, 0, 0], 10);
+  }
+  // faixa da nação no dorso e antenas pequenas
+  a.box(0.3 * s, 0.006 * s, 0.03 * s, '#ffffff', P(-0.35, 0.074, 0));
+  for (const x of [-0.15, 0.3]) b.box(0.03 * s, 0.05 * s, 0.006 * s, dark, P(x, 0.1, 0), [0, 0, -0.4]);
+  return l.build();
+}
+
+/** Hélice propulsora do drone: quatro pás em volta do eixo x (girar o grupo em x). */
+export function droneProp(s = 1): ModelLayers {
+  const l = layers();
+  for (let k = 0; k < 4; k++) {
+    const ang = (k / 4) * Math.PI * 2;
+    l.body.box(0.012 * s, 0.26 * s, 0.04 * s, '#24272a', [0, Math.cos(ang) * 0.13 * s, Math.sin(ang) * 0.13 * s], [ang, 0, 0.18]);
+  }
+  return l.build();
+}
+
 const CARGO = { white: '#eceff1', belly: '#cfd4d8', dark: '#2b2e31', metal: '#9aa0a6', prop: '#1d1f22' };
 
 /** Hélice de seis pás com o cubo (cone) na frente da nacele. */

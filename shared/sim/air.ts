@@ -5,6 +5,7 @@ import { AIRCRAFT_ERA, eraPhrase } from './eras.ts';
 import { buildingEffects, missingText } from './upgrades.ts';
 import type { Simulation } from './Simulation.ts';
 import type { Building, EntityId, Slot, Vec2 } from './types.ts';
+import { DRONE, DroneSystem, type Drone } from './drones.ts';
 
 /**
  * Força aérea, defesa antiaérea e mísseis (Fase 7).
@@ -24,8 +25,8 @@ import type { Building, EntityId, Slot, Vec2 } from './types.ts';
  * Toda aleatoriedade usa um gerador determinístico guardado no estado (salvar/carregar idêntico).
  */
 
-export type AircraftType = 'fighter' | 'bomber' | 'recon' | 'transport';
-export const AIRCRAFT_TYPES: AircraftType[] = ['fighter', 'bomber', 'recon', 'transport'];
+export type AircraftType = 'fighter' | 'bomber' | 'recon' | 'transport' | 'drone';
+export const AIRCRAFT_TYPES: AircraftType[] = ['fighter', 'bomber', 'recon', 'transport', 'drone'];
 
 export interface AircraftDef {
   label: string;
@@ -102,10 +103,23 @@ export const AIRCRAFT: Record<AircraftType, AircraftDef> = {
     maintenanceSeconds: 0,
     strikeDamage: 0,
   },
+  drone: {
+    label: 'Drone de ataque',
+    role: 'Munição vagante: voa até o ponto escolhido e mergulha no alvo; nos primeiros segundos você pode assumir o controle em primeira pessoa. É consumido no ataque.',
+    cost: { iron: 40, oil: 15, supplies: 35 },
+    usd: 1_800_000,
+    buildSeconds: 22,
+    range: DRONE.range,
+    speed: DRONE.cruiseSpeed,
+    fuelPerWorld: 0,
+    upkeep: 0.02,
+    maintenanceSeconds: 0,
+    strikeDamage: 0,
+  },
 };
 
 /** Visão das aeronaves em voo (área revelada embaixo delas, como a das tropas). */
-export const FLIGHT_SIGHT: Record<AircraftType, number> = { fighter: 9, bomber: 8, recon: 14, transport: 7 };
+export const FLIGHT_SIGHT: Record<AircraftType, number> = { fighter: 9, bomber: 8, recon: 14, transport: 7, drone: DRONE.sight };
 
 export const AIR = {
   hangarPerBase: 4,
@@ -327,6 +341,8 @@ export interface AirSave {
   known: Record<number, number[]>;
   dogfights?: Dogfight[];
   domes?: Record<number, DomeState>;
+  /** Drones de ataque em voo (e os que acabaram de cair). */
+  drones?: Drone[];
 }
 
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -345,7 +361,16 @@ export class AirSystem {
   /** Edifícios inimigos já descobertos por cada jogador (visão ou reconhecimento). */
   known: Record<number, Set<number>> = {};
 
-  constructor(private readonly sim: Simulation) {}
+  /** Drones de ataque (munição vagante com controle em primeira pessoa). */
+  readonly drones: DroneSystem;
+
+  constructor(private readonly sim: Simulation) {
+    this.drones = new DroneSystem(
+      sim,
+      () => this.rand(),
+      () => sim.opaqueId('air', this.nextId++),
+    );
+  }
 
   private rand(): number {
     this.seed = (this.seed + 0x6d2b79f5) >>> 0;
@@ -359,7 +384,7 @@ export class AirSystem {
     const known: Record<number, number[]> = {};
     for (const [k, v] of Object.entries(this.known)) known[Number(k)] = [...v].sort((a, b) => a - b);
     return JSON.parse(
-      JSON.stringify({ nextId: this.nextId, seed: this.seed, aircraft: this.aircraft, missions: this.missions, launches: this.launches, silos: this.silos, reveals: this.reveals, known, dogfights: this.dogfights, domes: this.domes }),
+      JSON.stringify({ nextId: this.nextId, seed: this.seed, aircraft: this.aircraft, missions: this.missions, launches: this.launches, silos: this.silos, reveals: this.reveals, known, dogfights: this.dogfights, domes: this.domes, ...(this.drones.drones.length ? { drones: this.drones.toSave() } : {}) }),
     ) as AirSave;
   }
 
@@ -375,6 +400,7 @@ export class AirSystem {
     this.reveals = c.reveals;
     this.dogfights = c.dogfights ?? [];
     this.domes = c.domes ?? {};
+    this.drones.load(c.drones);
     this.known = Object.fromEntries(Object.entries(c.known).map(([k, v]) => [Number(k), new Set(v)]));
   }
 
@@ -445,6 +471,28 @@ export class AirSystem {
     if (def.goods) this.sim.spendGoods(this.sim.players[slot]!, def.goods);
     this.sim.players[slot]!.recruits--;
     this.aircraft.push({ id: this.sim.opaqueId('air', this.nextId++), type, owner: slot, baseId, home: { ...this.building(baseId)!.pos }, state: 'building', timer: this.sim.duration(slot, def.buildSeconds * TICK_RATE), missionId: null });
+    return null;
+  }
+
+  // -------------------------------------------------------------- drones de ataque
+
+  /** Motivo de um drone não poder sair (mesma regra no painel). */
+  droneBlocker(slot: Slot, baseId: EntityId, x: number, y: number): string | null {
+    const base = this.building(baseId);
+    if (!this.operational(base, 'airbase', slot)) return 'Base aérea inválida ou inoperante';
+    if (!this.aircraft.some((a) => a.baseId === baseId && a.owner === slot && a.type === 'drone' && a.state === 'ready')) return 'Nenhum drone pronto nesta base';
+    const d = dist(base.pos, this.sim.clampToMap({ x, y }));
+    if (d > DRONE.range) return `Fora do alcance: ${Math.round(d)} de ${DRONE.range}`;
+    return null;
+  }
+
+  /** Lança um drone pronto da base contra o ponto (o drone é consumido no ataque). */
+  launchDrone(slot: Slot, baseId: EntityId, x: number, y: number): string | null {
+    const err = this.droneBlocker(slot, baseId, x, y);
+    if (err) return err;
+    const a = this.aircraft.find((p) => p.baseId === baseId && p.owner === slot && p.type === 'drone' && p.state === 'ready')!;
+    this.aircraft = this.aircraft.filter((p) => p.id !== a.id);
+    this.drones.launch(slot, this.building(baseId)!, this.sim.clampToMap({ x, y }));
     return null;
   }
 
@@ -897,6 +945,7 @@ export class AirSystem {
       }
     }
     if (tick % (TICK_RATE * 30) === 0) this.missions = this.missions.filter((m) => m.state !== 'done' || tick - m.launchTick < TICK_RATE * 120);
+    this.drones.step();
     this.stepDomes();
     // silos: produção de mísseis
     for (const [id, s] of Object.entries(this.silos)) {
@@ -983,6 +1032,7 @@ export class AirSystem {
       }
       if (sight > 0) out.push({ owner: m.owner, pos: this.missionPos(m), sight });
     }
+    out.push(...this.drones.sights());
     return out;
   }
 
@@ -1111,7 +1161,7 @@ export class AirSystem {
 }
 
 /** Combustível (cadeia produtiva) usado na montagem de cada aeronave, no lugar de parte do petróleo. */
-export const AIRCRAFT_FUEL: Record<AircraftType, number> = { fighter: 10, recon: 6, transport: 8, bomber: 20 };
+export const AIRCRAFT_FUEL: Record<AircraftType, number> = { fighter: 10, recon: 6, transport: 8, bomber: 20, drone: 3 };
 
 /**
  * Ficha da aeronave com o bônus do país aplicado ao custo e, com combustível em estoque, a troca de

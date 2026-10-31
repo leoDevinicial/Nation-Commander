@@ -128,6 +128,16 @@ export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone
         : null;
     case 'air_mission':
       return e.owner === mySlot ? { text: e.phase === 'launched' ? e.text : `Missão aérea: ${e.text}`, tone: e.phase === 'launched' ? 'info' : 'good' } : null;
+    case 'drone': {
+      if (e.owner !== mySlot) return e.phase === 'impact' || e.phase === 'detonated' ? { text: 'Drone inimigo explodiu perto das nossas posições', tone: 'warn' } : null;
+      if (e.phase === 'launched') return { text: 'Drone lançado: clique nele ou aperte T nos próximos segundos para pilotar em primeira pessoa', tone: 'info' };
+      if (e.phase === 'shot_down') return { text: 'Drone derrubado pela antiaérea inimiga', tone: 'bad' };
+      if (e.phase === 'battery') return { text: 'Drone caiu sem bateria', tone: 'warn' };
+      const hit = (e.damage ?? 0) > 0;
+      return hit
+        ? { text: `Drone atingiu o alvo: ${e.damage} de dano${e.kills ? `, ${e.kills} destruído(s)` : ''}`, tone: 'good' }
+        : { text: 'Drone explodiu sem atingir inimigos', tone: 'warn' };
+    }
     case 'aircraft_lost':
       return e.owner === mySlot ? { text: `Aeronave perdida: ${AIRCRAFT[e.aircraftType as AircraftType]?.label ?? e.aircraftType}`, tone: 'bad' } : null;
     case 'city_captured':

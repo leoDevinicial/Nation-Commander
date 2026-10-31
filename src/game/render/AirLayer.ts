@@ -3,12 +3,13 @@ import type { AirView } from '../../../shared/sim/snapshot.ts';
 import type { Effects } from './Effects.ts';
 import { factionColor } from './palette.ts';
 import type { ModelLayers } from './models/kit.ts';
-import { AIRBASE_RUNWAY, AIRBASE_SLOTS, FIGHTER_SCALE, aircraftModel, bomberStoresModel, missileModel } from './models/military.ts';
+import { AIRBASE_RUNWAY, AIRBASE_SLOTS, DRONE_PROP_X, FIGHTER_SCALE, aircraftModel, bomberStoresModel, droneModel, droneProp, missileModel } from './models/military.ts';
 import { glowTexture, volumetricSmokeTexture } from './textures.ts';
 
 type Flight = AirView['flights'][number];
 type Launch = AirView['launches'][number];
-type Kind = 'fighter' | 'gripen' | 'bomber' | 'recon' | 'transport' | 'transport2' | 'missile' | 'missile2' | 'stores';
+type Kind = 'fighter' | 'gripen' | 'bomber' | 'recon' | 'transport' | 'transport2' | 'missile' | 'missile2' | 'stores' | 'drone' | 'droneProp';
+type DroneView = AirView['drones'][number];
 
 const ALTITUDE = 7;
 /** Altitude no fundo do mergulho de ataque. */
@@ -315,6 +316,24 @@ function shotMesh(): THREE.Group {
   return g;
 }
 
+/** Drone de ataque em voo: posições do servidor interpoladas, atitude suavizada e a hélice girando. */
+interface TrackedDrone {
+  snap: DroneView;
+  prev: THREE.Vector3;
+  curr: THREE.Vector3;
+  prevHeading: number;
+  currHeading: number;
+  group: THREE.Group;
+  prop: THREE.Group;
+  shadow: THREE.Mesh;
+  /** Anel pulsando no chão enquanto dá para assumir o controle. */
+  hint: THREE.Mesh;
+  bank: number;
+  pitch: number;
+  pos: THREE.Vector3;
+  heading: number;
+}
+
 /** Bomba em queda (visual): parte do bombardeiro e explode no chão. */
 interface Bomb {
   mesh: THREE.Mesh;
@@ -395,7 +414,7 @@ const models = new Map<Kind, ModelLayers>();
 function model(kind: Kind): ModelLayers {
   let m = models.get(kind);
   if (!m) {
-    m = kind === 'missile' ? missileModel(1) : kind === 'missile2' ? missileModel(2) : kind === 'stores' ? bomberStoresModel() : aircraftModel(kind);
+    m = kind === 'missile' ? missileModel(1) : kind === 'missile2' ? missileModel(2) : kind === 'stores' ? bomberStoresModel() : kind === 'drone' ? droneModel(1) : kind === 'droneProp' ? droneProp(1) : aircraftModel(kind);
     models.set(kind, m);
   }
   return m;
@@ -501,6 +520,9 @@ export class AirLayer {
   private readonly shots: AirMissile[] = [];
   /** Era do jogador (modelo do cargueiro no pátio). */
   era = 1;
+  private readonly drones = new Map<number, TrackedDrone>();
+  /** Drone pilotado em primeira pessoa: não é desenhado (a câmera está dentro dele). */
+  hiddenDrone: number | null = null;
   private ground: (x: number, z: number) => number = () => 0;
 
   constructor(
@@ -577,6 +599,7 @@ export class AirLayer {
   }
 
   update(air: AirView): void {
+    this.updateDrones(air.drones ?? []);
     const seen = new Set<number>();
     for (const f of air.flights) {
       seen.add(f.id);
@@ -717,6 +740,7 @@ export class AirLayer {
         // os cargueiros voam grandes; no pátio encolhem para caber na vaga sem encostar na vizinha
         else if (kind === 'transport') p.group.scale.setScalar(0.44);
         else if (kind === 'transport2') p.group.scale.setScalar(0.34);
+        else if (kind === 'drone') p.group.scale.setScalar(0.82);
         // no voo os caças são maiores; no pátio voltam ao tamanho da vaga
         else if (kind === 'fighter' || kind === 'gripen') p.group.scale.setScalar(1 / FIGHTER_SCALE);
         p.group.rotation.y = slot.heading;
@@ -1140,6 +1164,7 @@ export class AirLayer {
 
   frame(alpha: number, dt: number): void {
     this.time += dt;
+    this.frameDrones(alpha, dt);
     for (const t of this.flights.values()) this.frameSquadron(t, alpha, dt);
     for (const m of this.missiles.values()) {
       const l = m.snap;
@@ -1403,6 +1428,88 @@ export class AirLayer {
       if (hit) this.effects.flash(to, 0.5, '#ffd38a', 0.12);
       if (b.left <= 0) this.bursts.splice(i, 1);
     }
+  }
+
+  // ------------------------------------------------------------------ drones de ataque
+
+  private updateDrones(list: DroneView[]): void {
+    const seen = new Set<number>();
+    for (const d of list) {
+      seen.add(d.id);
+      const p = new THREE.Vector3(d.x, d.alt, d.y);
+      let t = this.drones.get(d.id);
+      if (!t) {
+        const group = meshes(model('drone'), d.owner, false);
+        const prop = meshes(model('droneProp'), d.owner, false);
+        prop.position.set(DRONE_PROP_X - 0.04, 0, 0);
+        group.add(prop);
+        this.group.add(group);
+        const shadow = new THREE.Mesh(shadowGeometry(), shadowMaterial());
+        shadow.renderOrder = 1;
+        this.group.add(shadow);
+        const hint = ring('#7fd4ff', 0.85, 0.12);
+        this.group.add(hint);
+        t = { snap: d, prev: p.clone(), curr: p.clone(), prevHeading: d.heading, currHeading: d.heading, group, prop, shadow, hint, bank: 0, pitch: 0, pos: p.clone(), heading: d.heading };
+        this.drones.set(d.id, t);
+      } else {
+        t.prev.copy(t.curr);
+        t.curr.copy(p);
+        t.prevHeading = t.currHeading;
+        t.currHeading = d.heading;
+        t.snap = d;
+      }
+    }
+    for (const [id, t] of this.drones)
+      if (!seen.has(id)) {
+        t.group.removeFromParent();
+        t.shadow.removeFromParent();
+        t.hint.removeFromParent();
+        this.drones.delete(id);
+      }
+  }
+
+  private frameDrones(alpha: number, dt: number): void {
+    for (const [id, t] of this.drones) {
+      const d = t.snap;
+      t.pos.lerpVectors(t.prev, t.curr, alpha);
+      const dh = Math.atan2(Math.sin(t.currHeading - t.prevHeading), Math.cos(t.currHeading - t.prevHeading));
+      const prevHeading = t.heading;
+      t.heading = t.prevHeading + dh * alpha;
+      // curva: inclina para dentro (taxa de curva); subida e mergulho levantam ou baixam o nariz
+      const rate = dt > 0 ? Math.atan2(Math.sin(t.heading - prevHeading), Math.cos(t.heading - prevHeading)) / dt : 0;
+      t.bank += (Math.max(-0.75, Math.min(0.75, rate * 0.55)) - t.bank) * Math.min(1, dt * 4);
+      t.pitch += (Math.atan2(d.climb, Math.max(1, d.speed)) - t.pitch) * Math.min(1, dt * 4);
+      const g = t.group;
+      g.visible = this.hiddenDrone !== id;
+      g.position.copy(t.pos);
+      g.rotation.set(t.bank, -t.heading, t.pitch, 'YZX');
+      t.prop.rotation.x += dt * (40 + d.speed * 6);
+      const gy = this.ground(t.pos.x, t.pos.z);
+      t.shadow.visible = g.visible;
+      t.shadow.position.set(t.pos.x, gy + 0.06, t.pos.z);
+      t.shadow.rotation.y = -t.heading;
+      t.shadow.scale.set(1.8, 1, 2.4);
+      // dá para assumir: anel pulsando no chão, embaixo do drone
+      const open = (d.takeover ?? 0) > 0 && !d.controlled;
+      t.hint.visible = open;
+      if (open) {
+        t.hint.position.set(t.pos.x, gy + 0.15, t.pos.z);
+        t.hint.scale.setScalar(1.6 + 0.35 * Math.sin(this.time * 6));
+      }
+    }
+  }
+
+  /** Posição e atitude interpoladas do drone (câmera em primeira pessoa e marcadores). */
+  droneView(id: number): { pos: THREE.Vector3; heading: number; pitch: number; bank: number; snap: DroneView } | null {
+    const t = this.drones.get(id);
+    return t ? { pos: t.pos, heading: t.heading, pitch: t.pitch, bank: t.bank, snap: t.snap } : null;
+  }
+
+  /** Drones próprios ainda na janela de controle, com a posição atual (para o clique em cima deles). */
+  takeoverCandidates(): { id: number; pos: THREE.Vector3; left: number }[] {
+    const out: { id: number; pos: THREE.Vector3; left: number }[] = [];
+    for (const [id, t] of this.drones) if ((t.snap.takeover ?? 0) > 0 && !t.snap.controlled) out.push({ id, pos: t.pos, left: t.snap.takeover ?? 0 });
+    return out;
   }
 
   /** Caças da esquadrilha de `owner` mais perto de `at` (os que fazem o ataque ao solo). */

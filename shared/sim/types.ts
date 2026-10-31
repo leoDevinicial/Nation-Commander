@@ -303,6 +303,11 @@ export type SimEvent =
   | { type: 'aircraft_lost'; tick: number; owner: Slot; aircraftType: string; pos: Vec2; air?: boolean }
   /** `bombers`/`dir`: bombardeio em tapete (quantos bombardeiros e o rumo da passagem, em radianos). */
   | { type: 'air_strike'; tick: number; owner: Slot; victim: Slot; buildingType: BuildingType; damage: number; oilLost: number; destroyed: boolean; pos: Vec2; bombers?: number; dir?: number }
+  /**
+   * Drone de ataque: lançado, ou o fim do voo (impacto no alvo ou no chão, derrubado pela antiaérea, bateria acabou,
+   * detonado pelo piloto). `damage`/`kills`: o efeito da ogiva; `controlled`: estava sob controle do jogador.
+   */
+  | { type: 'drone'; tick: number; owner: Slot; droneId: number; phase: 'launched' | 'impact' | 'shot_down' | 'battery' | 'detonated'; pos: Vec2; alt?: number; damage?: number; kills?: number; controlled?: boolean }
   /** Um disparo num combate aéreo entre esquadrilhas (`kill`: derrubou uma aeronave). */
   | { type: 'dogfight'; tick: number; owner: Slot; victim: Slot; missionId: number; targetMissionId: number; from: Vec2; to: Vec2; kill: boolean }
   /** Prefeitura destruída por um inimigo: ele toma a cidade e os edifícios vinculados a ela. */

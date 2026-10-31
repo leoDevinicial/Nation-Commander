@@ -54,6 +54,11 @@ export type Command =
   | { type: 'missile_prepare'; buildingId: EntityId; x: number; y: number; nuclear?: boolean }
   | { type: 'missile_authorize'; launchId: number }
   | { type: 'missile_abort'; launchId: number }
+  /** Drone de ataque: lançar contra um ponto, assumir/devolver o controle, pilotar (−1..1) e detonar. */
+  | { type: 'launch_drone'; buildingId: EntityId; x: number; y: number }
+  | { type: 'drone_control'; droneId: number; take: boolean }
+  | { type: 'drone_steer'; droneId: number; turn: number; climb: number; throttle: number }
+  | { type: 'drone_detonate'; droneId: number }
   /** Operações expedicionárias (Fase 8): lançar contra um setor de um país em guerra e recuar. */
   | { type: 'launch_operation'; target: number; sectorId: string; unitIds: EntityId[] }
   | { type: 'operation_retreat'; opId: number }
@@ -208,6 +213,21 @@ export function parseCommand(raw: unknown): Command | null {
     case 'missile_abort':
       if (!isId(raw.launchId)) return null;
       return { type: raw.type, launchId: raw.launchId };
+    case 'launch_drone':
+      if (!isId(raw.buildingId) || !isFiniteNum(raw.x) || !isFiniteNum(raw.y)) return null;
+      return { type: 'launch_drone', buildingId: raw.buildingId, x: raw.x, y: raw.y };
+    case 'drone_control':
+      if (!isId(raw.droneId) || typeof raw.take !== 'boolean') return null;
+      return { type: 'drone_control', droneId: raw.droneId, take: raw.take };
+    case 'drone_steer': {
+      // só números finitos; os limites (−1..1) também são impostos na simulação
+      if (!isId(raw.droneId) || !isFiniteNum(raw.turn) || !isFiniteNum(raw.climb) || !isFiniteNum(raw.throttle)) return null;
+      const c = (v: number) => Math.max(-1, Math.min(1, v));
+      return { type: 'drone_steer', droneId: raw.droneId, turn: c(raw.turn), climb: c(raw.climb), throttle: c(raw.throttle) };
+    }
+    case 'drone_detonate':
+      if (!isId(raw.droneId)) return null;
+      return { type: 'drone_detonate', droneId: raw.droneId };
     case 'launch_operation':
       if (!Number.isInteger(raw.target) || (raw.target as number) < 0 || (raw.target as number) > 1000) return null;
       if (typeof raw.sectorId !== 'string' || raw.sectorId.length > 40 || !isIdList(raw.unitIds)) return null;
