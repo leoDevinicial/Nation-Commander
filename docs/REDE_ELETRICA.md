@@ -17,14 +17,14 @@ Onde está:
 ## Carvão
 
 - Recurso novo (`coal`), guardado no QG (300) e nos Armazéns (800).
-- A Mina tira 0,6 de carvão por unidade de ferro, sem gastar mais do depósito.
+- A Mina tira 0,3 de carvão por unidade de ferro, sem gastar mais do depósito (era 0,6: o carvão sobrava aos milhares).
 - Começo: 160 de carvão, o bastante para a termelétrica inicial por bastante tempo até a primeira mina.
 
 ## Fontes
 
 | Usina | Era | Geração | Custo de operação |
 |---|---|---|---|
-| Termelétrica a Carvão (2×2) | Guerra Fria | 30 | carvão: até 0,35/s, proporcional à carga |
+| Termelétrica a Carvão (2×2) | Guerra Fria | 30 | carvão: até 0,6/s, proporcional à carga |
 | Parque Eólico (2×2) | Pós-Guerra Fria | 12 × vento (35% a 130%, varia devagar) | nenhum |
 | Usina Solar (2×2) | Era Digital | 18 × luz do dia (0 à noite), +40% na Era Digital | nenhum |
 | Hidrelétrica (Grande Projeto) | Futuro Próximo | 90 | nenhum |
@@ -89,7 +89,7 @@ QG.
 
 ## IA
 
-- **Usinas:** constrói outra quando a geração fica abaixo da demanda, somando o que está em obra mais uma folga de 4.
+- **Usinas:** constrói outra quando a capacidade instalada (solar e eólica contam 60%) fica abaixo da demanda, somando o que está em obra mais uma folga de 4.
   - Termelétrica por padrão.
   - Eólica quando o carvão está acabando (até 4).
   - Solar alternada com a termelétrica a partir da Era Digital.

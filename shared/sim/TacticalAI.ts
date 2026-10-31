@@ -479,7 +479,10 @@ export class TacticalAI {
     const power = sim.power ? sim.powerInfo[this.slot] : undefined;
     const plantInProgress = mine.some((b) => POWER_GEN[b.type] && b.progress < 1);
     const pendingUse = mine.reduce((a, b) => a + (b.progress < 1 ? (POWER_USE[b.type]?.use ?? 0) : 0), 0);
-    const powerShort = !!power && !plantInProgress && power.supply < power.demand + pendingUse + 4;
+    // capacidade instalada (nominal), não a geração do momento: a solar zera à noite e o vento oscila, e a IA
+    // erguia uma usina nova a cada noite
+    const installed = mine.reduce((a, b) => a + (b.progress >= 1 && b.hp > 0 ? (POWER_GEN[b.type]?.gen ?? 0) * (POWER_GEN[b.type]?.source === 'solar' || POWER_GEN[b.type]?.source === 'wind' ? 0.6 : 1) : 0), 0);
+    const powerShort = !!power && !plantInProgress && installed < power.demand + pendingUse + 4;
     const coalLow = sim.power && res.coal < 60;
     const plantType: BuildingType =
       era >= 3 && count('solar_farm') < count('coal_plant') ? 'solar_farm' : coalLow && era >= 2 && count('wind_farm') < 4 ? 'wind_farm' : 'coal_plant';

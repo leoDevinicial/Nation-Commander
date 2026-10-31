@@ -1063,7 +1063,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     upkeep: { supplies: 0.02 },
     buildable: true,
     description:
-      'Gera 30 de energia queimando carvão (até 0,35 por segundo, conforme a carga). Barata e forte, mas depende das minas. A energia anda pelas estradas: construções a até 4 células da estrada, de uma usina ou do Centro de Comando recebem luz.',
+      'Gera 30 de energia queimando carvão (até 0,6 por segundo, conforme a carga). Barata e forte, mas depende das minas. A energia anda pelas estradas: construções a até 4 células da estrada, de uma usina ou do Centro de Comando recebem luz.',
   },
   wind_farm: {
     ...NONE,
