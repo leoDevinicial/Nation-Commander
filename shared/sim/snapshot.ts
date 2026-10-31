@@ -162,10 +162,10 @@ export interface AirView {
   aircraft: { id: number; type: AircraftType; baseId: EntityId; state: AircraftState; progress: number; gen: number }[];
   /** Voos no mapa: os próprios e os inimigos visíveis. */
   /**
-   * Voos em andamento. `gen`: modelo dos caças (1 = F-5EM, 2 = F-39 Gripen); `bx/by`: base de
-   * origem; `tx/ty`: alvo (só nos voos próprios ou que atacam este jogador).
+   * Voos em andamento. `gen`: modelo dos caças (1 = F-5EM, 2 = F-39 Gripen); `bx/by`: base de origem (nos voos alheios,
+   * só se estiver à vista); `tx/ty`: alvo (só nos voos próprios ou que atacam este jogador).
    */
-  flights: { id: number; owner: Slot; kind: MissionKind; state: MissionState; x: number; y: number; heading: number; count: number; gen: number; plane: AircraftType; engaged?: boolean; bx: number; by: number; tx?: number; ty?: number }[];
+  flights: { id: number; owner: Slot; kind: MissionKind; state: MissionState; x: number; y: number; heading: number; count: number; gen: number; plane: AircraftType; engaged?: boolean; bx?: number; by?: number; tx?: number; ty?: number }[];
   /** Missões próprias recentes, com o resultado registrado. */
   missions: { id: number; kind: MissionKind; state: MissionState; baseId: EntityId; targetType: string | null; fuel: number; count: number; result: MissionResult | null }[];
   silos: { id: EntityId; missiles: number; building: number; nuclear?: number; buildingNuclear?: boolean }[];
@@ -217,6 +217,13 @@ export interface Viewer {
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const roundStock = (s: Stockpile): Stockpile => Object.fromEntries(RESOURCE_TYPES.map((r) => [r, r2(s[r])])) as Stockpile;
 
+/** Alvo que pode ir no snapshot: o das próprias unidades sempre; o de unidades alheias só se estiver à vista. */
+function visibleTarget(sim: Simulation, viewer: Viewer | undefined, owner: Slot, id: EntityId | null): EntityId | null {
+  if (id === null || !viewer || owner === viewer.slot) return id;
+  const t = sim.entities.get(id);
+  return t && sim.canSee(viewer.slot, t) ? id : null;
+}
+
 /**
  * Estado serializável. Sem `viewer`, inclui tudo (testes, depuração). Com `viewer`, aplica a névoa
  * de guerra: unidades inimigas só se visíveis; edifícios inimigos se visíveis ou lembrados;
@@ -243,7 +250,8 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         maxHp: e.maxHp,
         activity: e.activity,
         order: e.order.kind,
-        targetId: e.order.kind === 'attack' ? e.order.targetId : e.engageId,
+        // KAC-07: o alvo de uma unidade alheia só vai se o observador também enxerga esse alvo
+        targetId: visibleTarget(sim, viewer, e.owner, e.order.kind === 'attack' ? e.order.targetId : e.engageId),
         ...(e.attrition ? { attrition: true as const } : {}),
         ...(e.mods.length ? { mods: [...e.mods] } : {}),
         ...(e.rank ? { rank: e.rank } : {}),
@@ -448,8 +456,8 @@ export function airView(sim: Simulation, slot: Slot): AirView {
       gen: m.gen ?? 1,
       plane: air.aircraft.find((a) => a.id === m.aircraft[0])?.type ?? (m.kind === 'recon' ? 'recon' : 'fighter'),
       ...(air.engaged(m.id) ? { engaged: true } : {}),
-      bx: r2(m.from.x),
-      by: r2(m.from.y),
+      // KAC-12: a base de um voo alheio só vai se o jogador a enxerga (senão o voo revelaria a base aérea na névoa)
+      ...(m.owner === slot || sim.isVisibleTo(slot, m.from) ? { bx: r2(m.from.x), by: r2(m.from.y) } : {}),
       ...(m.owner === slot || (m.targetId !== null && sim.entities.get(m.targetId)?.owner === slot) ? { tx: r2(m.target.x), ty: r2(m.target.y) } : {}),
     });
   }

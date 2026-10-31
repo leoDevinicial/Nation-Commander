@@ -50,7 +50,8 @@ O Nation Commander é **low poly estilizado**, por decisão do responsável pelo
   `POWER_LOG=1 npx tsx scripts/sim-economia.ts 2,5,6 25`.
 - KAC — Kaiser Anti Cheat (`server/kac/`, `docs/kac/`): o cliente só pede, o servidor decide. Qualquer comando ou
   mensagem nova passa por validação no servidor e confere o dono pela conexão, nunca pelo payload. Riscos abertos em
-  `docs/kac/KAC_THREAT_MODEL.md`; ataques reproduzidos em `server/kac.test.ts`.
+  `docs/kac/KAC_THREAT_MODEL.md`; ataques reproduzidos em `server/kac.test.ts`. O snapshot nunca cita o que o jogador
+  não vê (nem id de alvo, nem base de voo). Nenhuma punição automática: ver `docs/kac/KAC_ENFORCEMENT_POLICY.md`.
 - Clima e dia/noite (`shared/sim/climate.ts`, `docs/CLIMA_DIA_NOITE.md`) são só visuais, exceto a usina solar.
 - Minas terrestres (`shared/sim/mines.ts`) não são entidades: o snapshot envia só as do dono e as já detectadas
   (`MineSystem.visibleTo`). O satélite do Programa Espacial revela o resto do mapa, mas nunca as minas.

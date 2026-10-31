@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomUUID } from 'node:crypto';
 
 /**
  * KAC — identidade dos convidados (achado KAC-01 da auditoria).
@@ -13,5 +13,17 @@ import { createHash, randomUUID } from "node:crypto";
  */
 export function guestIdentity(secret: string | undefined): string {
   const s = secret ?? randomUUID();
-  return `guest:${createHash("sha256").update(`nc-guest-v1:${s}`).digest("hex").slice(0, 32)}`;
+  return `guest:${createHash('sha256').update(`nc-guest-v1:${s}`).digest('hex').slice(0, 32)}`;
+}
+
+/**
+ * KAC-05 — id público de qualquer conta (contas do Supabase e convidados), usado em tudo o que vai para outros
+ * jogadores (`RoomInfo`, fim de partida) e no `welcome` (o cliente compara "sou eu?" com ele). O id real da conta só
+ * existe no servidor: não é credencial, mas é dado pessoal e não precisa sair dali.
+ */
+export function publicId(userId: string): string;
+export function publicId(userId: string | null): string | null;
+export function publicId(userId: string | null): string | null {
+  if (userId === null) return null;
+  return `p:${createHash('sha256').update(`nc-public-v1:${userId}`).digest('hex').slice(0, 24)}`;
 }

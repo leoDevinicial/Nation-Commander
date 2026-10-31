@@ -34,7 +34,10 @@ import { OperationsSystem, operationsView, type Operation, type OperationsSave }
 import { sectorById } from '../shared/data/sectors.ts';
 import type { Connection } from './Connection.ts';
 import { log } from './logger.ts';
-import { kacJournal } from './kac/journal.ts';
+import { kacJournal, type KacEvent } from './kac/journal.ts';
+import { publicId } from './kac/identity.ts';
+import { BehaviorMonitor } from './kac/behavior.ts';
+import { buildIntegrity, type IntegrityCounters, type MatchIntegrity } from './kac/integrity.ts';
 import { PAUSE_POLICY } from './kac/policy.ts';
 import type { MatchRecord } from './supabase.ts';
 
@@ -148,6 +151,11 @@ export class Room {
   private readonly pausesUsed = new Map<Slot, number>();
   private pausedSlot: Slot | null = null;
   private pausedAt = 0;
+  /** KAC: ordens aceitas e recusadas e alertas por jogador (relatório de integridade) e o monitor de automação. */
+  private readonly kacCounters = new Map<Slot, IntegrityCounters>();
+  private readonly behavior = new BehaviorMonitor();
+  /** Eventos de segurança relevantes (média ou maior) desta sala durante a partida. */
+  private kacEvents = 0;
 
   /** `host` nulo: sala retomada de um salvamento (ver `Room.restore`). */
   private readonly rand: () => number;
@@ -186,7 +194,8 @@ export class Room {
     return {
       code: this.code,
       mode: this.mode,
-      hostUserId: this.hostUserId,
+      // KAC-05: os outros jogadores recebem só ids públicos
+      hostUserId: publicId(this.hostUserId),
       status: this.status,
       players: this.players.map(publicPlayer),
       maxPlayers: this.maxPlayers,
@@ -705,9 +714,13 @@ export class Room {
               : 'Indisponível'
             : sim.applyCommand(slot, cmd);
       if (err) {
+        this.counter(slot).rejected++;
         conn?.send({ t: 'cmd_rejected', reason: err });
-        kacJournal.record({ category: 'command.rejected', severity: 'info', room: this.code, user: this.players.find((x) => x.slot === slot)?.userId ?? undefined, detail: `${cmd.type}: ${err}` });
-      } else if (cmd.type === 'launch_operation' || cmd.type === 'operation_retreat') this.opsDirty.add(slot);
+        this.kac({ category: 'command.rejected', severity: 'info', user: this.players.find((x) => x.slot === slot)?.userId ?? undefined, detail: `${cmd.type}: ${err}` });
+      } else {
+        this.counter(slot).accepted++;
+      }
+      if (!err && (cmd.type === 'launch_operation' || cmd.type === 'operation_retreat')) this.opsDirty.add(slot);
     }
     for (const { slot, cmd, conn } of this.pendingBattle.splice(0, this.pendingBattle.length)) {
       const err = this.ops ? this.ops.battleCommand(slot, cmd) : 'Indisponível';
@@ -923,6 +936,12 @@ export class Room {
   nationalCommand(conn: Connection, cmd: NationalCommand): void {
     const p = this.playerOf(conn);
     if (!p || this.status !== 'playing' || !this.national) return;
+    // KAC-11: a mesma regra da pausa vale para as decisões nacionais (orçamento, pesquisa, diplomacia, decretos)
+    if (this.paused && this.competitive) {
+      conn.send({ t: 'cmd_rejected', reason: 'A partida está pausada.' });
+      this.kac({ category: 'match.command_while_paused', severity: 'info', user: p.userId ?? undefined, detail: `national:${cmd.type}` });
+      return;
+    }
     if (this.pendingNational.filter((x) => x.slot === p.slot).length >= 10) return;
     this.pendingNational.push({ slot: p.slot, cmd, conn });
   }
@@ -933,7 +952,7 @@ export class Room {
     // KAC-02: ordens com o jogo pausado não entram na fila nas partidas entre humanos (sem planejar com o tempo parado)
     if (this.paused && this.competitive) {
       conn.send({ t: 'cmd_rejected', reason: 'A partida está pausada.' });
-      kacJournal.record({ category: 'match.command_while_paused', severity: 'info', room: this.code, user: p.userId ?? undefined, detail: cmd.type });
+      this.kac({ category: 'match.command_while_paused', severity: 'info', user: p.userId ?? undefined, detail: cmd.type });
       return;
     }
     if (scope === 'battle') {
@@ -946,6 +965,12 @@ export class Room {
       return;
     }
     this.pending.push({ slot: p.slot, cmd, conn });
+    // KAC-09: ritmo das ordens no relógio do servidor (só alerta; nunca bloqueia nem pune)
+    const signal = this.behavior.record(String(p.slot), this.now());
+    if (signal) {
+      this.counter(p.slot).automationAlerts++;
+      this.kac({ category: 'behavior.automation_suspected', severity: 'medium', user: p.userId ?? undefined, detail: JSON.stringify(signal) });
+    }
   }
 
   /** Partida entre dois ou mais humanos: vale a política de pausa e de ordens do KAC. */
@@ -962,7 +987,7 @@ export class Room {
         const used = this.pausesUsed.get(p.slot) ?? 0;
         if (used >= PAUSE_POLICY.perPlayer) {
           conn.send({ t: 'cmd_rejected', reason: `Você já usou as ${PAUSE_POLICY.perPlayer} pausas desta partida.` });
-          kacJournal.record({ category: 'match.pause_denied', severity: 'low', room: this.code, user: p.userId ?? undefined, detail: 'sem pausas' });
+          this.kac({ category: 'match.pause_denied', severity: 'low', user: p.userId ?? undefined, detail: 'sem pausas' });
           return;
         }
         this.pausesUsed.set(p.slot, used + 1);
@@ -970,7 +995,7 @@ export class Room {
         this.pausedAt = now;
       } else if (this.pausedSlot !== null && this.pausedSlot !== p.slot && now - this.pausedAt < PAUSE_POLICY.ownerOnlyMs) {
         conn.send({ t: 'cmd_rejected', reason: `Só quem pausou pode retomar nos primeiros ${PAUSE_POLICY.ownerOnlyMs / 1000} s.` });
-        kacJournal.record({ category: 'match.pause_denied', severity: 'info', room: this.code, user: p.userId ?? undefined, detail: 'pausa de outro jogador' });
+        this.kac({ category: 'match.pause_denied', severity: 'info', user: p.userId ?? undefined, detail: 'pausa de outro jogador' });
         return;
       } else this.pausedSlot = null;
     }
@@ -1093,6 +1118,31 @@ export class Room {
 
   private finishing = false;
 
+  /** Registra no diário do KAC com o código da sala; os de gravidade média ou maior contam no relatório de integridade. */
+  private kac(e: Omit<KacEvent, 'at' | 'room'>): void {
+    if (e.severity === 'medium' || e.severity === 'high') this.kacEvents++;
+    kacJournal.record({ ...e, room: this.code });
+  }
+
+  private counter(slot: Slot): IntegrityCounters {
+    let c = this.kacCounters.get(slot);
+    if (!c) this.kacCounters.set(slot, (c = { accepted: 0, rejected: 0, automationAlerts: 0 }));
+    return c;
+  }
+
+  /** Relatório de integridade do KAC (hash do estado final e sinais por jogador). */
+  integrityReport(sim: Simulation): MatchIntegrity {
+    return buildIntegrity({
+      serialized: sim.serialize(),
+      ticks: sim.tick,
+      competitive: this.competitive,
+      slots: this.players.filter((p) => !p.isAI).map((p) => p.slot),
+      counters: (slot) => this.kacCounters.get(slot),
+      pausesUsed: (slot) => this.pausesUsed.get(slot) ?? 0,
+      securityEvents: this.kacEvents,
+    });
+  }
+
   private async finish(reason: EndReason): Promise<void> {
     if (this.finishing || !this.sim) return;
     this.finishing = true;
@@ -1154,7 +1204,8 @@ export class Room {
               national: this.nationalSummary(p.slot),
             })),
             balance_mode: this.balanceMode,
-            report,
+            // KAC: integridade da partida vai junto no histórico (não vai para a tela dos jogadores)
+            report: { ...report, integrity: this.integrityReport(sim) },
           }),
           RECORD_TIMEOUT_MS,
           false,
@@ -1277,7 +1328,7 @@ export class Room {
 }
 
 function publicPlayer(p: RoomPlayer): RoomPlayerInfo {
-  return { slot: p.slot, userId: p.userId, name: p.name, countryId: p.countryId, ready: p.ready, isAI: p.isAI, connected: p.connected, ...(p.team ? { team: p.team } : {}) };
+  return { slot: p.slot, userId: publicId(p.userId), name: p.name, countryId: p.countryId, ready: p.ready, isAI: p.isAI, connected: p.connected, ...(p.team ? { team: p.team } : {}) };
 }
 
 /** País sorteado entre os que ninguém da sala usa (bots variam de partida para partida). */

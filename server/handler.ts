@@ -5,7 +5,7 @@ import type { RoomManager } from './RoomManager.ts';
 import { sanitizeName } from './messages.ts';
 import { saveCommunityReport, saveFeedback, type FeedbackRecord } from './supabase.ts';
 import { config } from './config.ts';
-import { guestIdentity } from './kac/identity.ts';
+import { guestIdentity, publicId } from './kac/identity.ts';
 import { kacJournal } from './kac/journal.ts';
 import { networkGuard, type NetworkGuard } from './kac/network.ts';
 import { CommunityChat } from './communityChat.ts';
@@ -29,6 +29,18 @@ export interface HandlerDeps {
 /** Chat da Comunidade (criado na primeira vez, com os moderadores e a gravação de denúncias do servidor). */
 function community(deps: HandlerDeps): CommunityChat {
   return (deps.community ??= new CommunityChat({ moderators: config.communityModerators, saveReport: saveCommunityReport }));
+}
+
+/**
+ * O segredo de convidado enviado é o id (interno ou público) de alguém conectado: tentativa de assumir a vaga dessa
+ * pessoa com o que apareceu na sala. Não funciona (o id resultante é outro), mas fica registrada no diário do KAC.
+ */
+function impersonates(guestId: string, sessions: Map<string, Connection>): boolean {
+  for (const id of sessions.keys()) {
+    const pub = publicId(id);
+    if (id === `guest:${guestId}` || pub === guestId || pub === `p:${guestId}`) return true;
+  }
+  return false;
 }
 
 /** Intervalo mínimo entre dois feedbacks do mesmo jogador. */
@@ -61,7 +73,7 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
       // KAC-01: o id público é um hash do segredo do convidado (o segredo nunca sai desta conexão)
       conn.user = { id: guestIdentity(msg.guestId), name: sanitizeName(msg.guestName ?? 'Convidado'), guest: true };
       // quem manda como segredo o id público de alguém conectado está tentando assumir a vaga dessa pessoa
-      if (msg.guestId && deps.sessions.has(`guest:${msg.guestId}`))
+      if (msg.guestId && impersonates(msg.guestId, deps.sessions))
         kacJournal.record({ category: 'identity.guest_impersonation', severity: 'high', user: conn.user.id, detail: 'hello com o id público de outro convidado' });
     } else {
       conn.send({ t: 'error', code: 'auth', message: 'É necessário entrar com uma conta.' });
@@ -74,7 +86,8 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
       previous.close(4001, 'replaced');
     }
     deps.sessions.set(conn.user.id, conn);
-    conn.send({ t: 'welcome', user: conn.user, serverVersion: GAME_VERSION });
+    // KAC-05: o cliente conhece só o próprio id público (o mesmo que aparece para os outros na sala)
+    conn.send({ t: 'welcome', user: { ...conn.user, id: publicId(conn.user.id) }, serverVersion: GAME_VERSION });
     // em memória ou, depois de um reinício do servidor, retomada do salvamento
     const room = await deps.rooms.findOrRestore(conn.user.id);
     if (room && conn.user && deps.sessions.get(conn.user.id) === conn) room.reattach(conn);

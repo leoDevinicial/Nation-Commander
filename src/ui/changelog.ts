@@ -1,6 +1,15 @@
 /** Novidades de cada versão, mostradas na área Comunidade e Feedback do menu (mais recente primeiro). */
 export const CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
+    version: '1.2',
+    date: '31/10/2026',
+    items: [
+      'KAC — Kaiser Anti Cheat: o servidor decide tudo e confere cada ordem; pausa justa entre jogadores (3 por partida, até 60 s), limites contra abuso, contas protegidas e névoa de guerra mais estrita.',
+      'Comunidade: chat entre os jogadores no menu, com filtro de ofensas, denúncia e silenciamento.',
+      'Feedback: envie sugestões e problemas direto do menu.',
+    ],
+  },
+  {
     version: '1.1',
     date: '31/10/2026',
     items: [

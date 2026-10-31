@@ -1,4 +1,4 @@
-import type { IncomingMessage } from "node:http";
+import type { IncomingMessage } from 'node:http';
 
 /**
  * KAC — proteção de rede por IP (achado KAC-03 da auditoria).
@@ -20,17 +20,15 @@ export const NETWORK_POLICY = {
  * IP do cliente. Atrás do proxy do Render, o IP real é o último de `X-Forwarded-For` (o proxy acrescenta o
  * endereço que viu; os anteriores podem ter sido escritos pelo próprio cliente). Sem o cabeçalho, o endereço do socket.
  */
-export function clientIp(
-  req: Pick<IncomingMessage, "headers" | "socket">,
-): string {
-  const fwd = req.headers["x-forwarded-for"];
-  const raw = Array.isArray(fwd) ? fwd.join(",") : fwd;
+export function clientIp(req: Pick<IncomingMessage, 'headers' | 'socket'>): string {
+  const fwd = req.headers['x-forwarded-for'];
+  const raw = Array.isArray(fwd) ? fwd.join(',') : fwd;
   const last = raw
-    ?.split(",")
+    ?.split(',')
     .map((s) => s.trim())
     .filter(Boolean)
     .at(-1);
-  return last || req.socket.remoteAddress || "desconhecido";
+  return last || req.socket.remoteAddress || 'desconhecido';
 }
 
 export class NetworkGuard {
@@ -56,9 +54,7 @@ export class NetworkGuard {
   /** Tenta registrar uma sala nova do IP; false = acima do teto na janela. */
   createRoom(ip: string): boolean {
     const now = this.now();
-    const list = (this.rooms.get(ip) ?? []).filter(
-      (t) => now - t < NETWORK_POLICY.roomWindowMs,
-    );
+    const list = (this.rooms.get(ip) ?? []).filter((t) => now - t < NETWORK_POLICY.roomWindowMs);
     if (list.length >= NETWORK_POLICY.maxRoomsPerIp) {
       this.rooms.set(ip, list);
       return false;
@@ -66,6 +62,23 @@ export class NetworkGuard {
     list.push(now);
     this.rooms.set(ip, list);
     return true;
+  }
+
+  /** Esquece IPs sem salas recentes (senão o mapa cresce com cada IP que já criou sala). */
+  sweep(): void {
+    const now = this.now();
+    for (const [ip, list] of this.rooms) if (!list.some((t) => now - t < NETWORK_POLICY.roomWindowMs)) this.rooms.delete(ip);
+  }
+
+  /** Números agregados para o painel do KAC (sem expor IPs). */
+  stats(): { ips: number; connections: number; busiestIp: number; ipsWithRecentRooms: number } {
+    let connections = 0;
+    let busiestIp = 0;
+    for (const n of this.open.values()) {
+      connections += n;
+      busiestIp = Math.max(busiestIp, n);
+    }
+    return { ips: this.open.size, connections, busiestIp, ipsWithRecentRooms: this.rooms.size };
   }
 }
 

@@ -4,7 +4,7 @@ import { parseCommand } from '../sim/commands.ts';
 import { Simulation, type NationalLink } from '../sim/Simulation.ts';
 import { AIR, AIRCRAFT, IRON_DOME, MISSILE, NUCLEAR, type AirMission } from '../sim/air.ts';
 import { BUILDINGS } from '../sim/config.ts';
-import { airView } from '../sim/snapshot.ts';
+import { airView, type AirView } from '../sim/snapshot.ts';
 import type { Building, SimEvent } from '../sim/types.ts';
 import { flatMap } from './helpers.ts';
 import { NationalSimulation } from '../strategic/NationalSimulation.ts';
@@ -761,5 +761,25 @@ describe('Visão das aeronaves em voo', () => {
     }
     expect(seen).toBe(true);
     expect(sim.air.flightSights().some((f) => f.owner === 0)).toBe(true);
+  });
+});
+
+describe('KAC-12 — voo inimigo não revela a base aérea na névoa', () => {
+  it('ataque: quem vê um voo alheio não recebe a posição da base de onde ele saiu, se a base estiver fora da visão', () => {
+    const { sim, base, tank } = withBase({ fighters: 0, recon: 1 });
+    expect(sim.applyCommand(0, { type: 'air_mission', buildingId: base.id, aircraftIds: recons(sim), mission: 'recon', x: tank.pos.x, y: tank.pos.y })).toBeNull();
+    const m = sim.air.missions.at(-1)!;
+    let seen: AirView['flights'][number] | undefined;
+    for (let i = 0; i < 60 * TICK_RATE && !seen; i++) {
+      sim.step();
+      seen = airView(sim, 1).flights.find((f) => f.id === m.id);
+    }
+    expect(seen).toBeDefined();
+    expect(sim.isVisibleTo(1, m.from)).toBe(false);
+    expect(seen!.bx).toBeUndefined();
+    expect(seen!.by).toBeUndefined();
+    // o dono continua com a base (animação de pouso e decolagem)
+    const own = airView(sim, 0).flights.find((f) => f.id === m.id)!;
+    expect(own.bx).toBe(Math.round(m.from.x * 100) / 100);
   });
 });

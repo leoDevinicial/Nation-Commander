@@ -19,7 +19,7 @@ Legenda de certeza:
 | Servidor de jogo | Node + `ws` 8.22 (WebSocket), TypeScript rodado com `tsx`; hospedado no Render | Confirmado (código); hospedagem: Provável |
 | Simulação | `shared/sim/` (tática, 20 ticks/s) e `shared/strategic/` (nacional), determinísticas, rodando no servidor | Confirmado |
 | Autenticação | Supabase Auth: o servidor valida o access token com a chave de serviço (`verifyAccessToken`); convidados opcionais (`ALLOW_GUESTS`) | Confirmado |
-| Banco | Supabase Postgres: `profiles`, `matches` (histórico e relatório), `subscriptions`, `feedback`, `community_reports` | Confirmado (migrações) |
+| Banco | Supabase Postgres: `profiles`, `matches` (histórico e relatório), `subscriptions`, `feedback`, `community_reports`, `kac_events` | Confirmado (migrações) |
 | Salvamento de partidas | `MatchStore`: Supabase ou pasta local (`MATCH_STORE_DIR`) para retomar depois de reinício | Confirmado |
 | Protocolo | JSON sobre WebSocket; mensagens do cliente em `shared/protocol.ts`, validadas por `server/messages.ts` | Confirmado |
 | Instâncias do servidor | Uma instância (salas, chat e limites na memória do processo) | Provável; Desconhecido no Render |
@@ -67,10 +67,11 @@ Legenda de certeza:
   - Limites: 16 KB por mensagem, 30 mensagens/s com rajada de 60 por conexão, até 20 comandos por tick por jogador,
     listas de unidades limitadas (`MAX_UNITS_PER_COMMAND`).
 - **Servidor → cliente:**
-  - `room` (ids de conta, nomes, países);
+  - `room` (ids públicos derivados por hash, nomes, países; KAC-05);
   - `snapshot` (só o visível ao jogador, mais as lembranças de prédios já vistos);
   - eventos filtrados (`eventVisible`), camada nacional, chat.
-- **Servidor → Supabase:** histórico de partidas, salvamentos, feedback, denúncias.
+- **Servidor → Supabase:** histórico de partidas (com o relatório de integridade), salvamentos, feedback, denúncias e
+  o diário do KAC (`kac_events`).
 
 ## 5. Controles que já existiam antes do KAC
 
@@ -80,7 +81,7 @@ Legenda de certeza:
 | Dono verificado em todo comando (unidades, prédios, lançamentos, ofertas, contratos) | `Simulation.applyCommand`, `ownUnits`, `air.ts`, `trade.ts` | Confirmado (lido comando a comando) |
 | Ferramentas do Sandbox só no Sandbox | `applyCommand`, casos `sandbox_*` | Confirmado |
 | Velocidade fixa no multijogador | `Room.setSpeed` | Confirmado |
-| Névoa no servidor: entidades inimigas só quando visíveis; fila, reunião, pesquisa e trabalhadores inimigos ocultos | `makeSnapshot` | Confirmado |
+| Névoa no servidor: entidades inimigas só quando visíveis; fila, reunião, pesquisa e trabalhadores inimigos ocultos | `makeSnapshot` | Confirmado. Dois resíduos achados depois e corrigidos: KAC-07 (alvo) e KAC-12 (base aérea do voo) |
 | Eventos filtrados por jogador, com falha segura (tipo não listado não é enviado) | `eventVisible` | Confirmado |
 | Minas inimigas não enviadas | `MineSystem.visibleTo` | Confirmado |
 | Limite de ritmo e de tamanho, fechamento após 50 violações | `Connection`, `server/index.ts` | Confirmado |
@@ -94,4 +95,5 @@ Legenda de certeza:
 O núcleo competitivo já segue o princípio "o cliente pede, o servidor decide".
 - Editar memória ou o JavaScript não dá recursos, tropas, velocidade, dano nem visão do mapa.
 - Os riscos reais estavam nas bordas: identidade de convidado, regras da sala e da pausa, e falta de limites por IP.
-- Foram achadas e corrigidas três falhas; veja `KAC_THREAT_MODEL.md`.
+- Na fase P0 foram achadas e corrigidas três falhas (KAC-01 a 03). Na fase seguinte, mais quatro (KAC-05, 07, 11 e
+  12), além do diário persistente, dos sinais de automação e do relatório de integridade. Veja `KAC_THREAT_MODEL.md`.

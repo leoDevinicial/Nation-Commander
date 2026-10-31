@@ -520,11 +520,12 @@ export class AirLayer {
         t = { snap: f, planes: [], prev: p.clone(), curr: p.clone(), lastC: null, pos: p.clone(), heading: f.heading, turn: 0, speed: 0, alt: 0, t: 0, phase: (f.id * 2.399) % 6.283, bank: 0, takeoff: -1, flareArmed: false, nextFlare: 3 };
         // decolando: a esquadrilha começa na cabeceira da pista e corre um avião de cada vez, se ainda estiver perto da
         // base na saída
-        const fresh = f.state === 'outbound' && Math.hypot(f.x - f.bx, f.y - f.by) < AIRFIELD_RADIUS * 0.6;
+        // (a base de um voo inimigo só vem quando o jogador a enxerga: sem ela, o voo já aparece no ar)
+        const fresh = f.bx !== undefined && f.by !== undefined && f.state === 'outbound' && Math.hypot(f.x - f.bx, f.y - f.by) < AIRFIELD_RADIUS * 0.6;
         t.alt = fresh ? 0.3 : ALTITUDE;
         if (fresh) {
           t.takeoff = 0;
-          t.pos.set(f.bx + RUNWAY_X1, f.by + RUNWAY_Z);
+          t.pos.set((f.bx ?? f.x) + RUNWAY_X1, (f.by ?? f.y) + RUNWAY_Z);
           t.heading = 0;
         }
         this.flights.set(f.id, t);
@@ -740,6 +741,11 @@ export class AirLayer {
     if (t.lastC && dt > 0) t.speed += (Math.hypot(cx - t.lastC.x, cy - t.lastC.y) / dt - t.speed) * Math.min(1, dt * 3);
     t.lastC = (t.lastC ?? new THREE.Vector2()).set(cx, cy);
     const bomber = f.plane === 'bomber';
+    // base do voo: a de um voo inimigo só vem quando está à vista do jogador (névoa no servidor)
+    const hasBase = f.bx !== undefined && f.by !== undefined;
+    const bx = f.bx ?? 0;
+    const by = f.by ?? 0;
+    if (!hasBase) t.takeoff = -1;
     // decolagem: o líder ainda corre na pista; o centro da esquadrilha espera na cabeceira oposta
     const n = t.planes.length;
     if (t.takeoff >= 0) {
@@ -761,7 +767,7 @@ export class AirLayer {
     const dist = Math.hypot(dx, dy);
     let v = 0;
     if (rolling) {
-      t.pos.set(f.bx + RUNWAY_X1, f.by + RUNWAY_Z);
+      t.pos.set(bx + RUNWAY_X1, by + RUNWAY_Z);
       t.heading = 0;
       t.turn = 0;
       v = 5.9;
@@ -786,7 +792,7 @@ export class AirLayer {
       t.pos.y += Math.sin(t.heading) * v * dt;
     }
     // altitude: decolagem/pouso perto da base e mergulho perto do alvo
-    const nearBase = smooth(1.5, AIRFIELD_RADIUS, Math.hypot(t.pos.x - f.bx, t.pos.y - f.by));
+    const nearBase = hasBase ? smooth(1.5, AIRFIELD_RADIUS, Math.hypot(t.pos.x - bx, t.pos.y - by)) : 1;
     let dive = 0;
     if (f.kind === 'strike' && !bomber && f.tx !== undefined && f.ty !== undefined) {
       const dt2 = Math.hypot(t.pos.x - f.tx, t.pos.y - f.ty);
@@ -854,7 +860,7 @@ export class AirLayer {
       if (t.takeoff >= 0) {
         // corrida na pista, um avião de cada vez: acelera, levanta o nariz e sai do chão; depois se junta à formação
         const tr = t.takeoff - i * TAKEOFF_GAP;
-        const g = this.ground(f.bx, f.by);
+        const g = this.ground(bx, by);
         const acc = (2 * (RUNWAY_X1 - RUNWAY_X0)) / (TAKEOFF_ROLL * TAKEOFF_ROLL);
         let rx: number;
         let ralt: number;
@@ -879,8 +885,8 @@ export class AirLayer {
         }
         const rz = RUNWAY_Z + (i % 2 ? 0.35 : -0.35) * (tr < TAKEOFF_ROLL ? 1 : 0);
         const w = smooth(TAKEOFF_ROLL, TAKEOFF_ROLL + 2.4, tr);
-        x = f.bx + rx + (x - (f.bx + rx)) * w;
-        y = f.by + rz + (y - (f.by + rz)) * w;
+        x = bx + rx + (x - (bx + rx)) * w;
+        y = by + rz + (y - (by + rz)) * w;
         alt = ralt + (alt - ralt) * w;
         yaw = angDiff(t.heading, 0) * w;
         pitchI = rp + (pitch - rp) * w;

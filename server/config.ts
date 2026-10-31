@@ -24,6 +24,8 @@ export const config = {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean),
+  /** KAC: token do painel de leitura `/kac` (mínimo 24 caracteres; vazio = painel desligado). */
+  kacAdminToken: process.env.KAC_ADMIN_TOKEN ?? '',
 };
 
 export type ServerConfig = typeof config;

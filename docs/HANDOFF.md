@@ -4,7 +4,8 @@ Este arquivo é o ponto de partida para quem pega o projeto numa conversa nova (
 antes de mexer em qualquer coisa. Depois leia `CLAUDE.md` (regras curtas) e
 `docs/BALANCEAMENTO_E_PROGRESSAO.md` (direção de design + tabela "Estado da implementação").
 
-Última atualização: 31/10/2026 (versão 1.1.0 publicada: rede elétrica, clima, salas públicas; próximo passo na seção 7).
+Última atualização: 31/10/2026 (versão 1.1.0 publicada: rede elétrica, clima, salas públicas. A 1.2.0, com Comunidade,
+Feedback e o KAC, está pronta na branch de trabalho e ainda não foi publicada; próximo passo na seção 7).
 
 ## 0.1 Conta atual (assumiu em 30/10/2026)
 
@@ -179,6 +180,20 @@ npm test && npm run lint && npm run typecheck
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
+- **KAC — Kaiser Anti Cheat, fases P1 e P2** (31/10, `docs/kac/`):
+  - novas correções com teste adversarial:
+    - KAC-05: ids de conta viram ids públicos (hash) na sala e no `welcome`;
+    - KAC-07: o snapshot não cita alvo fora da visão;
+    - KAC-11: decisões nacionais também esperam a pausa;
+    - KAC-12: voo inimigo não revela a base aérea na névoa (`AirLayer` anima sem a base);
+  - KAC-08: diário persistente em lotes (`server/kac/store.ts`, tabela `kac_events`, migração
+    `20261101020000_kac_events.sql`, **ainda não rodada no banco**);
+  - KAC-09: sinais de automação, só alerta (`server/kac/behavior.ts`);
+  - relatório de integridade de cada partida em `matches.report.integrity` (`server/kac/integrity.ts`);
+  - painel de leitura `GET /kac`, ligado só com `KAC_ADMIN_TOKEN` (`server/kac/admin.ts`);
+  - política de sanções sem punição automática: `docs/kac/KAC_ENFORCEMENT_POLICY.md`;
+  - aberto: KAC-04 (confirmar o IP no Render pelo "KAC resumo"), KAC-06 (ids opacos), KAC-10 (uma instância).
+
 - **KAC — Kaiser Anti Cheat, fase 0 e P0** (31/10, `docs/kac/`):
   - a auditoria confirmou servidor autoritativo (modelo A);
   - três falhas achadas e corrigidas, com testes adversariais em `server/kac.test.ts`:
@@ -331,6 +346,11 @@ mensagens em português descrevendo o que mudou).
    - generais, espiões e Centros Regionais (direções em `docs/BALANCEAMENTO_E_PROGRESSAO.md`).
 
 Migração `supabase/migrations/20261031000000_match_report.sql` aplicada no banco pelo usuário em 31/10 (relatório pós-partida gravado em `matches.report`).
+
+**KAC (31/10):** falta o usuário rodar `supabase/migrations/20261101020000_kac_events.sql` no Supabase (sem ela, o
+servidor só registra no log a falha ao gravar `kac_events`; o jogo segue normal) e, se quiser o painel `/kac`, criar
+`KAC_ADMIN_TOKEN` no Render. Depois de publicar a 1.2.0, ler o "KAC resumo" no log do Render para fechar o KAC-04
+(próximas etapas em `docs/kac/KAC_IMPLEMENTATION_ROADMAP.md`).
 
 
 Não há pedido em andamento. A rede elétrica foi feita em 31/10 (`docs/REDE_ELETRICA.md`); ainda sem partida humana de teste. Pontos abertos com o usuário: (1) um áudio antigo dele não pôde ser transcrito; pergunte

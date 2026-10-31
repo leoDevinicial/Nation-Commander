@@ -5,6 +5,8 @@ import type { MatchReport } from '../shared/sim/report.ts';
 import { config } from './config.ts';
 import { log } from './logger.ts';
 import type { CommunityReport } from './communityChat.ts';
+import type { MatchIntegrity } from './kac/integrity.ts';
+import type { KacStoreBackend } from './kac/store.ts';
 
 let client: SupabaseClient | null = null;
 
@@ -73,6 +75,23 @@ export async function saveCommunityReport(rec: CommunityReport): Promise<boolean
   return !error;
 }
 
+/** KAC-08: destino do diário de segurança no Supabase (tabela `kac_events`). */
+export const kacSupabaseBackend: KacStoreBackend = {
+  async insert(rows) {
+    const sb = getSupabase();
+    if (!sb) return true;
+    const { error } = await sb.from('kac_events').insert(rows);
+    if (error) log.error('KAC: falha ao gravar eventos', { err: error.message });
+    return !error;
+  },
+  async purgeBefore(iso) {
+    const sb = getSupabase();
+    if (!sb) return;
+    const { error } = await sb.from('kac_events').delete().lt('occurred_at', iso);
+    if (error) log.error('KAC: falha na retenção', { err: error.message });
+  },
+};
+
 export interface MatchRecord {
   room_code: string;
   mode: RoomMode;
@@ -95,7 +114,7 @@ export interface MatchRecord {
     national: NationalSummary | null;
   }[];
   /** Relatório pós-partida (amostras ao longo do tempo e medalhas), gravado em `matches.report`. */
-  report: MatchReport;
+  report: MatchReport & { integrity?: MatchIntegrity };
 }
 
 /** Grava a partida via RPC atômica. Retorna true se gravada. */

@@ -7,6 +7,7 @@ import { handleClose, handleMessage, type HandlerDeps } from './handler.ts';
 import { parseClientMessage } from './messages.ts';
 import { RoomManager } from './RoomManager.ts';
 import { CommunityChat } from './communityChat.ts';
+import { publicId } from './kac/identity.ts';
 import type { MatchRecord } from './supabase.ts';
 import { PROTOCOL_VERSION } from '../shared/version.ts';
 import { COUNTRIES } from '../shared/data/countries.ts';
@@ -199,7 +200,8 @@ describe('servidor de partidas', () => {
     expect(a.last('room')!.room!.balanceMode).toBe('parity');
     await send(a.conn, { t: 'set_balance', mode: 'realistic' });
     expect(a.last('room')!.room!.balanceMode).toBe('realistic');
-    expect(a.last('room')!.room!.players.find((p) => p.userId === 'guest')!.ready).toBe(false);
+    // KAC-05: a sala só mostra ids públicos
+    expect(a.last('room')!.room!.players.find((p) => p.userId === publicId('guest'))!.ready).toBe(false);
     await send(b.conn, { t: 'set_ready', ready: true });
     await send(a.conn, { t: 'start' });
 
