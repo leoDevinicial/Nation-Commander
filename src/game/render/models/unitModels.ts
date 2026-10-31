@@ -835,88 +835,137 @@ function t90Future(): BuiltUnit {
   };
 }
 
+/**
+ * Veículo blindado 8×8 (referência: os blindados de rodas modernos de casco alto e lados retos): casco em caixa com a
+ * frente em cunha, placas de blindagem adicional aparafusadas nos lados, oito rodas grandes em dois pares de eixos
+ * (dianteiro e traseiro), para-lamas, faróis em grupo, retrovisores altos nas quinas, rampa traseira com porta, e a
+ * torre remota baixa com o canhão automático de 30 mm, metralhadora coaxial, mira óptica e dois lançadores de fumaça.
+ */
 function buildApc(): BuiltUnit {
   const hull = layers();
   const b = hull.body;
+  const olive = C.olive;
+  const dark = C.oliveDark;
+  const light = C.oliveLight;
+  // casco: perfil lateral com a frente em cunha (glacis baixo e teto) e a traseira reta
   b.side(
     [
-      [-1.15, 0.36],
-      [0.82, 0.36],
-      [1.2, 0.62],
-      [0.98, 0.96],
-      [-1.08, 0.96],
-      [-1.15, 0.8],
+      [-1.18, 0.4],
+      [0.86, 0.4],
+      [1.22, 0.6],
+      [1.22, 0.7],
+      [0.98, 0.98],
+      [-1.14, 0.98],
+      [-1.18, 0.92],
     ],
-    1.1,
-    C.olive,
+    1.06,
+    olive,
   );
-  for (const x of [-0.8, -0.28, 0.28, 0.8]) for (const z of [0.5, -0.5]) rollingWheel([x, 0.25, z], 0.24, 0.2);
-  b.box(2.2, 0.06, 0.08, C.oliveDark, [0, 0.52, 0.58]); // saia lateral
-  b.box(2.2, 0.06, 0.08, C.oliveDark, [0, 0.52, -0.58]);
-  b.box(0.5, 0.16, 0.08, C.oliveDark, [-0.45, 0.72, 0.58]);
-  b.box(0.5, 0.16, 0.08, C.oliveDark, [-0.45, 0.72, -0.58]);
-  b.box(0.36, 0.06, 0.4, C.oliveDark, [-0.65, 0.99, 0]); // escotilha traseira
-  b.box(0.06, 0.06, 0.1, C.steel, [1.08, 0.72, 0.38]);
-  b.box(0.06, 0.06, 0.1, C.steel, [1.08, 0.72, -0.38]);
-  b.box(0.04, 0.16, 0.36, '#2a3a44', [0.98, 0.84, 0.2], [0, 0, 0.5]); // visor do motorista
-  b.box(0.6, 0.012, 0.4, C.oliveLight, [-0.2, 0.966, 0.2], [0, 0.5, 0]);
-  // cubos com porcas, para-lamas sobre as rodas
-  for (const x of [-0.8, -0.28, 0.28, 0.8]) {
-    for (const z of [0.61, -0.61]) {
-      for (let k = 0; k < 6; k++) {
-        const a = (k / 6) * Math.PI * 2;
-        b.box(0.025, 0.025, 0.02, C.steel, [x + Math.cos(a) * 0.07, 0.25 + Math.sin(a) * 0.07, z]);
-      }
+  // lados de cima levemente inclinados para dentro (o teto é mais estreito que o casco)
+  for (const sz of [-1, 1]) b.box(2.1, 0.05, 0.08, light, [-0.1, 0.99, sz * 0.5], [sz * 0.5, 0, 0]);
+  // placas de blindagem adicional aparafusadas: três fileiras de painéis com frestas
+  for (const sz of [-1, 1]) {
+    for (let k = 0; k < 6; k++) {
+      const x = -1.0 + k * 0.33;
+      b.box(0.31, 0.3, 0.035, k % 2 ? olive : light, [x, 0.79, sz * 0.545]);
+      for (const dy of [-0.11, 0.11]) b.box(0.02, 0.02, 0.012, C.metalDark, [x - 0.12, 0.79 + dy, sz * 0.565]);
     }
-    b.box(0.5, 0.03, 0.26, C.oliveDark, [x, 0.5, 0.5]);
-    b.box(0.5, 0.03, 0.26, C.oliveDark, [x, 0.5, -0.5]);
+    // saia sobre as rodas e degraus
+    b.box(2.25, 0.08, 0.05, dark, [-0.02, 0.6, sz * 0.555]);
+    b.box(0.16, 0.03, 0.08, C.metalDark, [0.06, 0.45, sz * 0.57]);
   }
-  // periscópios do motorista e da tropa, trilhos no teto, retrovisores e grade do motor
-  for (const x of [-0.9, -0.35, 0.3]) for (const z of [0.45, -0.45]) hull.glass.box(0.08, 0.03, 0.03, '#ffffff', [x, 0.97, z]);
-  for (const z of [0.42, -0.42]) b.box(1.2, 0.04, 0.03, C.metalDark, [-0.45, 1.0, z]);
-  for (const z of [0.56, -0.56]) {
-    b.cyl(0.01, 0.01, 0.18, C.metalDark, [1.0, 0.95, z], undefined, 4);
-    b.box(0.02, 0.08, 0.06, C.metalDark, [1.0, 1.05, z]);
+  // oito rodas grandes: dois eixos na frente e dois atrás, com para-lamas
+  const axles = [0.86, 0.36, -0.38, -0.88];
+  for (const x of axles) for (const z of [0.47, -0.47]) rollingWheel([x, 0.24, z], 0.24, 0.2);
+  for (const x of axles)
+    for (const z of [0.6, -0.6]) {
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2;
+        b.box(0.02, 0.02, 0.02, C.steel, [x + Math.cos(a) * 0.07, 0.24 + Math.sin(a) * 0.07, z]);
+      }
+      b.cyl(0.045, 0.045, 0.02, C.metalDark, [x, 0.24, z], [Math.PI / 2, 0, 0], 8);
+    }
+  for (const [x0, x1] of [
+    [0.56, 1.16],
+    [-1.16, -0.1],
+  ] as const) {
+    for (const sz of [-1, 1]) b.box(x1 - x0, 0.035, 0.3, dark, [(x0 + x1) / 2, 0.6, sz * 0.47]);
   }
-  for (let i = 0; i < 4; i++) b.box(0.03, 0.012, 0.4, C.metalDark, [0.55 + i * 0.07, 0.97, -0.2], [0, 0, 0]);
-  b.box(0.1, 0.24, 0.24, C.oliveDark, [-1.17, 0.62, 0.3]); // porta traseira
-  b.box(0.02, 0.06, 0.12, '#8a3f30', [-1.22, 0.5, 0.38]); // lanternas
-  b.box(0.02, 0.06, 0.12, '#8a3f30', [-1.22, 0.5, -0.38]);
-  hull.accent.box(0.36, 0.16, 0.02, '#ffffff', [0.2, 0.72, 0.553]);
-  hull.accent.box(0.36, 0.16, 0.02, '#ffffff', [0.2, 0.72, -0.553]);
+  // frente: placa da cunha, faróis em grupo, ganchos, lanterna amarela e a escotilha do motorista com periscópios
+  b.box(0.04, 0.12, 0.9, dark, [1.215, 0.65, 0]);
+  for (const sz of [-1, 1]) {
+    for (let k = 0; k < 3; k++) hull.glass.box(0.02, 0.04, 0.045, '#ffffff', [1.225, 0.72, sz * (0.3 + k * 0.055)]);
+    b.box(0.06, 0.05, 0.08, C.metalDark, [1.23, 0.48, sz * 0.32]);
+    // retrovisores altos nas quinas da frente: haste presa no casco, braço para fora e o espelho
+    b.box(0.025, 0.36, 0.025, C.metalDark, [1.0, 1.15, sz * 0.56]);
+    b.box(0.025, 0.025, 0.14, C.metalDark, [1.0, 1.32, sz * 0.62]);
+    b.box(0.03, 0.14, 0.08, '#1d2124', [1.01, 1.27, sz * 0.7]);
+  }
+  b.box(0.02, 0.03, 0.06, '#c79a2e', [1.225, 0.66, 0.45]);
+  b.cyl(0.11, 0.11, 0.04, dark, [0.82, 1.0, 0.27], undefined, 10);
+  for (const dz of [-0.06, 0.06]) hull.glass.box(0.06, 0.03, 0.03, '#ffffff', [0.92, 1.02, 0.27 + dz], [0, 0, -0.3]);
+  // teto: escotilhas da tropa, grade do motor, trilhos, caixas e as antenas
+  for (const z of [0.22, -0.22]) b.box(0.32, 0.03, 0.26, dark, [-0.62, 1.0, z]);
+  for (let i = 0; i < 5; i++) b.box(0.035, 0.012, 0.38, C.metalDark, [0.42 + i * 0.07, 0.99, -0.25]);
+  for (const z of [0.44, -0.44]) b.box(1.5, 0.035, 0.03, C.metalDark, [-0.3, 1.0, z]);
+  b.box(0.22, 0.1, 0.16, light, [-0.95, 1.04, -0.3]);
+  for (const x of [-1.05, 0.68]) b.cyl(0.006, 0.006, 0.65, C.metalDark, [x, 1.3, x > 0 ? -0.42 : 0.42], undefined, 4);
+  // traseira: rampa com a porta, lanternas, galões e o engate
+  b.box(0.04, 0.5, 0.6, dark, [-1.2, 0.68, 0]);
+  b.box(0.05, 0.36, 0.22, olive, [-1.215, 0.7, 0.12]);
+  for (const sz of [-1, 1]) {
+    b.box(0.02, 0.05, 0.1, '#8a3f30', [-1.215, 0.5, sz * 0.4]);
+    b.box(0.08, 0.22, 0.12, '#4f5a3c', [-1.22, 0.75, sz * 0.4]);
+  }
+  b.box(0.08, 0.05, 0.1, C.metalDark, [-1.24, 0.46, 0]);
+  // faixa da nação nos lados
+  hull.accent.box(0.4, 0.12, 0.02, '#ffffff', [0.55, 0.86, 0.566]);
+  hull.accent.box(0.4, 0.12, 0.02, '#ffffff', [0.55, 0.86, -0.566]);
 
+  // torre remota: caixa baixa com as faces chanfradas, mira óptica à direita e lançadores de fumaça
   const turret = layers();
   const t = turret.body;
   t.plan(
     [
-      [0.3, 0],
-      [0.18, 0.24],
-      [-0.26, 0.26],
-      [-0.32, 0.12],
-      [-0.32, -0.12],
-      [-0.26, -0.26],
-      [0.18, -0.24],
+      [0.34, 0.16],
+      [0.26, 0.3],
+      [-0.3, 0.3],
+      [-0.36, 0.2],
+      [-0.36, -0.2],
+      [-0.3, -0.3],
+      [0.26, -0.3],
+      [0.34, -0.16],
     ],
-    0.24,
-    C.olive,
+    0.26,
+    olive,
   );
-  // canhão automático (peça própria) com a boca aberta
+  t.box(0.62, 0.03, 0.56, light, [-0.02, 0.27, 0]);
+  // mira óptica (caixa com as janelas) e a câmera térmica do comandante
+  t.box(0.2, 0.18, 0.16, dark, [0.1, 0.36, -0.22]);
+  turret.glass.box(0.02, 0.07, 0.11, '#ffffff', [0.205, 0.37, -0.22]);
+  t.cyl(0.035, 0.04, 0.14, C.metalDark, [-0.18, 0.34, 0.2], undefined, 8);
+  t.box(0.09, 0.08, 0.09, dark, [-0.18, 0.44, 0.2]);
+  turret.glass.box(0.012, 0.035, 0.05, '#ffffff', [-0.13, 0.45, 0.2]);
+  // lançadores de fumaça: dois bancos de quatro tubos
+  for (const sz of [-1, 1]) for (let k = 0; k < 4; k++) t.cyl(0.028, 0.028, 0.13, C.metalDark, [0.18, 0.12 + (k % 2) * 0.07, sz * (0.24 + Math.floor(k / 2) * 0.06)], [0, 0, 1.15], 6);
+  // caixa de munição da metralhadora e antena
+  t.box(0.16, 0.12, 0.12, dark, [-0.12, 0.33, -0.05]);
+  t.cyl(0.006, 0.006, 0.5, C.metalDark, [-0.3, 0.5, -0.22], [0, 0, -0.2], 4);
+  turret.accent.box(0.28, 0.06, 0.02, '#ffffff', [-0.05, 0.14, 0.305]);
+  // canhão automático de 30 mm (peça própria, recua no tiro): luva, cano com freio de boca e a metralhadora coaxial
   const gunL = layers();
-  gunL.body.cyl(0.032, 0.04, 0.82, C.metalDark, [0.41, 0, 0], [0, 0, Math.PI / 2], 10);
-  openMuzzle(gunL.body, 0.9, 0.08, 0.04, 0.022, C.metalDark);
-  t.box(0.1, 0.1, 0.12, C.metalDark, [0.18, 0.31, 0.12]);
-  t.cyl(0.01, 0.01, 0.6, C.metalDark, [-0.2, 0.5, -0.15], [0, 0, -0.2], 4);
-  // lançadores de fumaça e caixa de munição do canhão
-  for (const z of [0.2, -0.2]) for (const dy of [0, 0.06]) t.cyl(0.025, 0.025, 0.12, C.metalDark, [0.1, 0.14 + dy, z], [0, 0, 1.2], 6);
-  t.box(0.16, 0.14, 0.12, C.oliveDark, [0.05, 0.12, -0.3]);
-  turret.glass.box(0.02, 0.05, 0.08, '#ffffff', [0.24, 0.21, 0.12]);
-  turret.accent.box(0.26, 0.05, 0.02, '#ffffff', [-0.05, 0.13, 0.255]);
+  gunL.body.box(0.22, 0.11, 0.13, dark, [0.05, 0, 0]);
+  gunL.body.cyl(0.03, 0.036, 0.86, C.metalDark, [0.55, 0, 0], [0, 0, Math.PI / 2], 10);
+  gunL.body.cyl(0.042, 0.042, 0.1, C.metalDark, [0.94, 0, 0], [0, 0, Math.PI / 2], 10);
+  openMuzzle(gunL.body, 1.0, 0.07, 0.04, 0.02, C.metalDark);
+  gunL.body.cyl(0.012, 0.012, 0.35, '#2a2d30', [0.32, -0.06, 0.08], [0, 0, Math.PI / 2], 6);
   return {
     hull: hull.build(),
     turret: turret.build(),
-    turretPivot: [0.1, 0.96, 0],
-    muzzle: [1.11, 0.13, 0],
-    guns: [{ layers: gunL.build(), pivot: [0.26, 0.13, 0], elev: 0, muzzle: [0.92, 0, 0], recoil: 0.1 }],
+    turretPivot: [0.15, 1.0, 0],
+    muzzle: [1.2, 0.14, 0],
+    guns: [{ layers: gunL.build(), pivot: [0.2, 0.14, 0], elev: 0.04, muzzle: [1.02, 0, 0], recoil: 0.09 }],
+    turretSlew: 3.2,
     shot: 'autocannon',
   };
 }

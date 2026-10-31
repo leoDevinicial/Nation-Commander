@@ -877,6 +877,15 @@ export class GameRuntime {
       attacker.visual.onFire();
       this.closeUpRecoilShake(attacker.visual.renderPos, attacker.visual.type);
       this.projectiles.fire(kind, { x: tp.x, y: ty, z: tp.y }, (pos, dir) => attacker.visual.fireGun(pos, dir));
+      // blindado: rajada de três tiros do canhão de 30 mm (o som tem os mesmos três), um a cada 0,3 s
+      if (attacker.visual.type === 'apc')
+        for (const delay of [300, 600])
+          setTimeout(() => {
+            if (this.disposed || !this.units.has(e.attackerId)) return;
+            const jitter = () => (Math.random() - 0.5) * 0.5;
+            attacker.visual.onFire();
+            this.projectiles.fire(kind, { x: tp.x + jitter(), y: ty, z: tp.y + jitter() }, (pos, dir) => attacker.visual.fireGun(pos, dir));
+          }, delay);
     } else if (e.type === 'shot') {
       const attacker = this.units.get(e.attackerId);
       const heavy = attacker ? attacker.visual.type === 'tank' : true;
@@ -2935,7 +2944,9 @@ export class GameRuntime {
                     ? 'tank_gun'
                     : attacker.visual.type === 'rocket_artillery'
                       ? 'cannon'
-                      : 'rifle'
+                      : attacker.visual.type === 'apc'
+                        ? 'apc_gun'
+                        : 'rifle'
           : 'tower';
         audio.playAt(sound, e.from.x, e.from.y);
         break;

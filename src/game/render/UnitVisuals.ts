@@ -191,6 +191,8 @@ export class UnitVisual {
   private lastFacing = NaN;
   private roll = 0;
   private pitchTilt = 0;
+  /** Coice do disparo na suspensão (1 no tiro, decai). */
+  private fireKick = 0;
   /** Canos: o recuo de cada um (1 no disparo, volta a 0) e o próximo a atirar (antiaérea alterna). */
   private readonly guns: { barrel: THREE.Group; recoil: number; spin: number; def: NonNullable<ReturnType<typeof unitModel>['guns']>[number] }[] = [];
   /** Mira forçada por um instante (o CIWS vira para os foguetes que derruba): ângulo no plano e segundos restantes. */
@@ -428,6 +430,8 @@ export class UnitVisual {
 
   onFire(): void {
     this.recoil = 1;
+    // veículo de rodas: o tiro empurra o chassi para trás na suspensão (a traseira afunda e volta)
+    if (!this.model.motion.treads) this.fireKick = 1;
   }
 
   /** Cada foguete que sai sacode o casulo um pouco (sem mexer no chassi). */
@@ -674,8 +678,11 @@ export class UnitVisual {
       this.pitchTilt += (wantPitch - this.pitchTilt) * k;
       if (moving) this.bob += dt * 9;
       const rumble = moving ? Math.sin(this.bob) * 0.012 + Math.sin(this.bob * 2.3) * 0.006 : 0;
+      this.fireKick *= Math.exp(-dt * 6);
+      // mola amortecida: afunda a traseira no tiro e volta passando um pouco do ponto
+      const kick = this.fireKick * Math.sin((1 - this.fireKick) * Math.PI * 1.6) * 0.035;
       this.body.rotation.x = this.roll;
-      this.body.rotation.z = this.pitchTilt + rumble;
+      this.body.rotation.z = this.pitchTilt + rumble + kick;
     }
     this.hp.set(hpFraction);
     this.hp.group.visible = showHp;
