@@ -897,9 +897,12 @@ export function aircraftModel(type: 'fighter' | 'gripen' | 'bomber' | 'recon' | 
   else if (type === 'bomber') bomberPlane(b, a, g, [0, 0, 0], 1.3);
   else if (type === 'recon') reconPlane(b, a, g, [0, 0, 0], 1.0);
   // cargueiro: turboélice nas eras 1 e 2; o pesado de quatro motores nas eras 3 e 4
-  else if (type === 'transport') cargoTurboprop(b, a, g, 1.15);
-  else cargoHeavy(b, a, g, 1.05);
-  return l.build();
+  else if (type === 'transport') cargoTurboprop(b, a, g, 1.7);
+  else cargoHeavy(b, a, g, 2.0);
+  const built = l.build();
+  // o cargueiro pesado é longo: estica a fuselagem (e tudo junto) no comprimento
+  if (type === 'transport2') for (const geo of [built.body, built.accent, built.glass]) if (geo.getAttribute('position')) geo.scale(1.22, 1, 1);
+  return built;
 }
 
 /**

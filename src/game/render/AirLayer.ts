@@ -713,8 +713,10 @@ export class AirLayer {
         // bombardeiro no pátio já armado, com as bombas sob as asas
         if (kind === 'bomber') p.group.add(meshes(model('stores'), this.mySlot, true));
         // o bombardeiro e o cargueiro são maiores que a vaga de caça
-        if (kind === 'bomber' || kind === 'transport') p.group.scale.setScalar(0.65);
-        else if (kind === 'transport2') p.group.scale.setScalar(0.56);
+        if (kind === 'bomber') p.group.scale.setScalar(0.65);
+        // os cargueiros voam grandes; no pátio encolhem para caber na vaga sem encostar na vizinha
+        else if (kind === 'transport') p.group.scale.setScalar(0.44);
+        else if (kind === 'transport2') p.group.scale.setScalar(0.34);
         // no voo os caças são maiores; no pátio voltam ao tamanho da vaga
         else if (kind === 'fighter' || kind === 'gripen') p.group.scale.setScalar(1 / FIGHTER_SCALE);
         p.group.rotation.y = slot.heading;
