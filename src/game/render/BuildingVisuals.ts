@@ -172,6 +172,7 @@ export class BuildingVisual {
   /** Cavalo-mecânico: manivela, bielas e haste animadas com o balancim. */
   private pump: { crank: THREE.Group; pitman: THREE.Group; rod: THREE.Group; pivot: [number, number, number]; crankPivot: [number, number, number]; rodY: number } | null = null;
   private fields: THREE.Mesh | null = null;
+  private claimKey = '';
   /** Partes animadas genéricas (serras, toras, guindaste, polias...). */
   private anims: { group: THREE.Group; anim: ModelAnim }[] = [];
   /** Folhas da tampa do silo, abertura atual (0 fechada, 1 aberta) e o alvo. */
@@ -253,6 +254,7 @@ export class BuildingVisual {
       this.model.add(group);
       this.hatch.push({ group, side: h.side });
     }
+    this.claimKey = (opts.claims ?? []).join(',');
     if (opts.claims?.length) this.fields = buildClaimMarkers(type, opts, this.group.position);
     if (this.fields) this.group.add(this.fields);
     this.scaffold = buildScaffold(this.size, def.height);
@@ -379,6 +381,22 @@ export class BuildingVisual {
   private powerT = 0;
 
   /** Sem energia: raio vermelho piscando acima da construção (só o dono vê; some quando a luz volta). */
+  /** A lista de células da coleta mudou (um edifício novo ocupou parte da lavoura): refaz o desenho dos campos. */
+  setClaims(claims: number[] | undefined): void {
+    const key = (claims ?? []).join(',');
+    if (key === this.claimKey) return;
+    this.claimKey = key;
+    if (this.fields) {
+      this.fields.removeFromParent();
+      this.fields.geometry.dispose();
+      this.fields = null;
+    }
+    if (claims?.length) {
+      this.fields = buildClaimMarkers(this.type, { ...this.opts, claims }, this.group.position);
+      if (this.fields) this.group.add(this.fields);
+    }
+  }
+
   setUnpowered(on: boolean): void {
     if (on === !!this.powerIcon) return;
     if (!on) {

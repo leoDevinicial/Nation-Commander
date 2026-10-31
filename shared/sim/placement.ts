@@ -101,7 +101,14 @@ export function placementError(w: PlacementWorld, slot: Slot, type: BuildingType
     if (water < 2) return `${def.label}: precisa ficar na margem da água`;
   }
   if (def.gather) {
-    const choice = chooseClaims(w, w.deposits, type, cell, claimedBy(buildings, type), sitesByDeposit(buildings), (i) => w.territory[i] === slot);
+    // mesma regra do servidor: a coleta não conta células embaixo de edifícios (nem embaixo do próprio)
+    const under = new Set<number>();
+    for (const b of [...buildings, { type, cell }]) {
+      const s = BUILDINGS[b.type].size;
+      for (let y = b.cell.cy; y < b.cell.cy + s; y++) for (let x = b.cell.cx; x < b.cell.cx + s; x++) under.add(y * w.width + x);
+    }
+    const oil = def.gather?.terrain === null;
+    const choice = chooseClaims(w, w.deposits, type, cell, claimedBy(buildings, type), sitesByDeposit(buildings), (i) => w.territory[i] === slot && (oil || !under.has(i)));
     if (choice.error) return choice.error;
   }
   const blocked = exitBlocked(w, buildings, slot, type, cell);

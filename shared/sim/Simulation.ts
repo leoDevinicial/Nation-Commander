@@ -54,7 +54,7 @@ import {
   type Goods,
   type UnitType,
 } from './config.ts';
-import { chooseClaims, claimedBy, gatherRate, sitesByDeposit } from './gathering.ts';
+import { chooseClaims, claimableCells, claimedBy, gatherRate, sitesByDeposit } from './gathering.ts';
 import { UPGRADE_CANCEL_REFUND, UPGRADE_WORK_EFFICIENCY, buildingEffects, maxLevelOf, missingText, planUpgrade, upgradeTrack, type BuildingEffects, type UpgradePlan, type UpgradeWorld } from './upgrades.ts';
 import { findDeposits, type DepositIndex } from './deposits.ts';
 import { computeTerritory, NO_OWNER, type TerritorySource } from './territory.ts';
@@ -576,6 +576,14 @@ export class Simulation {
       }
       sim.entities.set(e.id, e);
       if (e.kind === 'building') sim.grid.setOccupied(e.cell, BUILDINGS[e.type].size, e.id);
+    }
+    // salvamentos antigos: lavouras que ficaram embaixo de edifícios construídos depois
+    for (const b of sim.buildings) {
+      if (!b.claims.length || BUILDINGS[b.type].gather?.terrain === null) continue;
+      b.claims = b.claims.filter((i) => {
+        const x = i % sim.map.width;
+        return sim.grid.occupant(x, (i - x) / sim.map.width) === 0;
+      });
     }
     sim.winner = data.winner;
     sim.ended = data.ended;
@@ -3232,14 +3240,53 @@ export class Simulation {
       unpaid: false,
     };
     if (def.gather) {
-      const choice = chooseClaims(this.map, this.deposits, type, cell, claimedBy(this.buildings, type), sitesByDeposit(this.buildings), (i) => this.territory[i] === owner);
+      // a plantação (ou o corte, ou a lavra) nunca fica embaixo de um edifício, nem embaixo do próprio
+      const own = (i: number) => {
+        const x = i % this.map.width;
+        const y = (i - x) / this.map.width;
+        return x >= cell.cx && x < cell.cx + def.size && y >= cell.cy && y < cell.cy + def.size;
+      };
+      const free = (i: number) => {
+        const x = i % this.map.width;
+        return this.grid.occupant(x, (i - x) / this.map.width) === 0 && !own(i);
+      };
+      const choice = chooseClaims(this.map, this.deposits, type, cell, claimedBy(this.buildings, type), sitesByDeposit(this.buildings), (i) => this.territory[i] === owner && (def.gather?.terrain === null || free(i)));
       b.claims = choice.claims;
       b.depositId = choice.depositId;
     }
     this.entities.set(b.id, b);
     this.grid.setOccupied(cell, def.size, b.id);
+    this.releaseClaimsUnder(cell, def.size, b);
     if (progress >= 1 && def.territoryRadius > 0) this.territoryDirty = true;
     return b;
+  }
+
+  /** Um edifício novo ocupa células que outra coleta explorava (lavoura, mata): elas saem da lista daquela coleta. */
+  private releaseClaimsUnder(cell: Cell, size: number, except: Building): void {
+    const w = this.map.width;
+    for (const o of this.buildings) {
+      const g = BUILDINGS[o.type].gather;
+      if (o === except || !o.claims.length || !g || g.terrain === null) continue;
+      const before = o.claims.length;
+      o.claims = o.claims.filter((i) => {
+        const x = i % w;
+        const y = (i - x) / w;
+        return !(x >= cell.cx && x < cell.cx + size && y >= cell.cy && y < cell.cy + size);
+      });
+      if (o.claims.length === before) continue;
+      // repõe com células livres ao alcance (mesmo depósito), como se a lavoura andasse um pouco para o lado
+      const os = BUILDINGS[o.type].size;
+      const mine = (i: number) => {
+        const x = i % w;
+        const y = (i - x) / w;
+        const inside = x >= o.cell.cx && x < o.cell.cx + os && y >= o.cell.cy && y < o.cell.cy + os;
+        return !inside && this.grid.occupant(x, y) === 0 && this.territory[i] === o.owner && (o.depositId === null || this.deposits.cellDeposit[i] === o.depositId);
+      };
+      for (const i of claimableCells(this.map, o.type, o.cell, claimedBy(this.buildings, o.type), mine)) {
+        if (o.claims.length >= g.maxCells) break;
+        o.claims.push(i);
+      }
+    }
   }
 
   /** Cria uma unidade numa célula livre ao redor do edifício. */

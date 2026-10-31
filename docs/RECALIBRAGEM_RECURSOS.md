@@ -231,7 +231,7 @@ cidadãos e 1 Explorador), que veio antes desta recalibragem.
 
 | Parâmetro              | Antes                              | Agora                     | Observação                                        |
 | ---------------------- | ---------------------------------- | ------------------------- | ------------------------------------------------- |
-| Fazenda `ratePerCell`  | 0,5 (×0,8)                         | 0,5                       | com **6** trabalhadores (eram 3)                  |
+| Fazenda `ratePerCell`  | 0,5 (×0,8)                         | 0,53 (1.2)                | com **6** trabalhadores (eram 3); 0,53 compensa a lavoura que não fica mais embaixo de edifícios |
 | Serraria `ratePerCell` | 0,4 (×0,8)                         | 0,44                      | 6 trabalhadores                                   |
 | Pedreira `ratePerCell` | 0,35 (×0,8)                        | 0,5                       | 6 trabalhadores                                   |
 | Mina `ratePerCell`     | 0,45 (×0,8)                        | 0,6                       | 6 trabalhadores                                   |

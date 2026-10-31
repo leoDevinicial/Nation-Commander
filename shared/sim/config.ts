@@ -834,7 +834,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     maxHp: 300,
     size: 2,
     income: {},
-    gather: { resource: 'food', terrain: Terrain.Fertile, radius: 3, maxCells: 8, minCells: 3, ratePerCell: 0.5 },
+    gather: { resource: 'food', terrain: Terrain.Fertile, radius: 3, maxCells: 8, minCells: 3, ratePerCell: 0.53 },
     sight: 7,
     workers: 6,
     buildable: true,

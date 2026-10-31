@@ -1346,6 +1346,14 @@ export class TacticalAI {
     const claimed = gather ? claimedBy(sim.buildings, type) : null;
     // rede elétrica: consumidoras e usinas ficam ao alcance da malha (estradas, usinas e QG)
     const wired = sim.power && (POWER_USE[type]?.use || POWER_GEN[type]) ? this.meshNear(sim) : null;
+    // lavoura, mata e lavra já exploradas: um edifício em cima delas tira célula da coleta
+    const worked = new Set<number>();
+    for (const o of sim.buildings) if (o.owner === this.slot && BUILDINGS[o.type].gather?.terrain !== null) for (const i of o.claims) worked.add(i);
+    const W = sim.map.width;
+    const freeCell = (i: number) => {
+      const x = i % W;
+      return sim.grid.occupant(x, (i - x) / W) === 0;
+    };
     const scan = (center: Cell, reach: number): Cell | null => {
       const candidates: { cell: Cell; score: number }[] = [];
       for (let dy = -reach; dy <= reach; dy++) {
@@ -1355,7 +1363,17 @@ export class TacticalAI {
           const cell = { cx: center.cx + dx, cy: center.cy + dy };
           const c = sim.grid.cellCenter(cell);
           let score = r * 4 + dist(c, mid) * 0.2;
-          if (gather && claimed) score -= claimableCells(sim.map, type, cell, claimed).length * 12;
+          const n = BUILDINGS[type].size;
+          // conta só o que a coleta vai explorar de fato: células livres, fora do próprio terreno do edifício
+          const outside = (i: number) => {
+            const x = i % W;
+            const y = (i - x) / W;
+            return freeCell(i) && !(x >= cell.cx && x < cell.cx + n && y >= cell.cy && y < cell.cy + n);
+          };
+          if (gather && claimed) score -= claimableCells(sim.map, type, cell, claimed, outside).length * 12;
+          let covers = 0;
+          for (let y = cell.cy; y < cell.cy + n; y++) for (let x = cell.cx; x < cell.cx + n; x++) if (worked.has(y * W + x)) covers++;
+          score += covers * 30;
           if (wired && !wired(cell, BUILDINGS[type].size)) score += 400;
           candidates.push({ cell, score });
         }

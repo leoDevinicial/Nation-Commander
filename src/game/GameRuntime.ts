@@ -684,6 +684,7 @@ export class GameRuntime {
       t.visual.remembered = b.remembered === true;
       t.visual.setCity(b.city);
       t.visual.setUnpowered(b.owner === this.mySlot && b.unpowered === true);
+      t.visual.setClaims(b.claims);
       // o modelo acompanha o nível e a especialização registrados na simulação
       t.visual.setVariant(b.level, b.spec);
       // e a era da nação dona (pública: aparece nas construções)

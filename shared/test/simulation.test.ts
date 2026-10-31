@@ -423,3 +423,27 @@ describe('obras que travam o caminho', () => {
     expect(inside).toBe(false);
   });
 });
+
+describe('lavoura e edifícios', () => {
+  const fertile = () => ({
+    ...flatMap(32, (set) => {
+      for (let y = 0; y < 2; y++) for (let x = 12; x < 16; x++) set(x, y, Terrain.Fertile);
+    }),
+    resourceNodes: [],
+  });
+
+  it('a fazenda não planta embaixo de edifício, e um edifício novo tira da lavoura as células que ocupa', () => {
+    const sim = emptySim(fertile());
+    // torre já existente em cima de uma célula fértil
+    sim.addBuilding('tower', 0, { cx: 12, cy: 0 }, 1);
+    expect(sim.applyCommand(0, { type: 'build', buildingType: 'farm', cx: 13, cy: 2 })).toBeNull();
+    const farm = sim.buildings.find((b) => b.type === 'farm')!;
+    expect(farm.claims).not.toContain(0 * 32 + 12);
+    expect(farm.claims.length).toBe(7);
+    // obra nova em cima da lavoura
+    const crop = farm.claims[0]!;
+    sim.addBuilding('tower', 0, { cx: crop % 32, cy: Math.floor(crop / 32) }, 1);
+    expect(farm.claims).not.toContain(crop);
+    expect(farm.claims.length).toBe(6);
+  });
+});
