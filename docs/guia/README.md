@@ -4,7 +4,7 @@ O PDF final é `docs/GUIA_DO_JOGADOR.pdf`. Ele sai destas fontes:
 
 | Arquivo | O que é |
 |---|---|
-| `guia.html` | O corpo do guia (capítulos 1 a 20), com o CSS de impressão A4 |
+| `guia.html` | O corpo do guia (capítulos 1 a 21), com o CSS de impressão A4 |
 | `cover.html` | A capa |
 | `img/` | Capturas do jogo usadas no guia |
 | `pdf.cjs` | Gera `out_cover.pdf` e `out_body.pdf` com o Chromium do Playwright (rodapé com número de página) |
