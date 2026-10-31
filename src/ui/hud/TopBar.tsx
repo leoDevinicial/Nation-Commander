@@ -24,6 +24,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
   const paused = useHudStore((s) => s.paused);
   const pausedBy = useHudStore((s) => s.pausedBy);
   const speed = useHudStore((s) => s.speed);
+  const sky = useHudStore((s) => s.sky);
   const showFps = useSettingsStore((s) => s.showFps);
   const closeUp = useHudStore((s) => s.closeUp);
   const roster = useAppStore((s) => s.match?.players ?? []);
@@ -184,6 +185,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
           </span>
         )}
         {showFps && <PerfChip open={pop === 'perf'} onToggle={() => toggle('perf')} />}
+        {sky && <SkyChip sky={sky} />}
         {paused && <span className="hidden text-xs font-semibold text-brass-400 md:inline">PAUSADO{pausedBy ? ` por ${pausedBy}` : ''}</span>}
         <button className="btn min-h-8 px-2 py-1 text-xs whitespace-nowrap" onClick={() => runtime.togglePause()} title="Pausar/retomar (Espaço)" aria-label={paused ? 'Retomar' : 'Pausar'}>
           <PlayPauseIcon playing={!paused} />
@@ -274,5 +276,20 @@ function PlayPauseIcon({ playing }: { playing: boolean }) {
         <path d="M3 1.5v9l7.5-4.5z" />
       )}
     </svg>
+  );
+}
+
+/** Hora do dia e clima (visual): ícone e hora; o título explica o clima da partida. */
+function SkyChip({ sky }: { sky: { hour: number; weather: 'clear' | 'rain' | 'storm' | 'snow'; climate: string } }) {
+  const night = sky.hour >= 19.5 || sky.hour < 5.5;
+  const icon = sky.weather === 'snow' ? '❄' : sky.weather === 'storm' ? '⛈' : sky.weather === 'rain' ? '🌧' : night ? '🌙' : '☀';
+  const label = sky.weather === 'snow' ? 'Nevando' : sky.weather === 'storm' ? 'Tempestade' : sky.weather === 'rain' ? 'Chovendo' : night ? 'Noite' : 'Tempo bom';
+  const hh = String(Math.floor(sky.hour)).padStart(2, '0');
+  const mm = String(Math.floor((sky.hour % 1) * 4) * 15).padStart(2, '0');
+  return (
+    <span className="hidden items-center gap-1 font-mono text-xs text-ink-100 lg:inline-flex" title={`${label} · clima ${sky.climate} (só visual)`} aria-label={`${label}, ${hh}:${mm}`}>
+      <span aria-hidden>{icon}</span>
+      {hh}:{mm}
+    </span>
   );
 }

@@ -179,6 +179,9 @@ npm test && npm run lint && npm run typecheck
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
+- **Clima, dia e noite** (31/10, `docs/CLIMA_DIA_NOITE.md`): neve se todas as nações forem da Europa, chuva e
+  tempestades conforme a região, ciclo de dia e noite de 16 min com janelas acesas. Só visual e determinístico.
+
 - **Vida ambiente** (31/10, `docs/VIDA_AMBIENTE.md`): bandos de pássaros e gaivotas e manadas de cervos que pastam e
   fogem de tropas e explosões. Só visual.
 

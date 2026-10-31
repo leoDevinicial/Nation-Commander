@@ -145,6 +145,8 @@ export interface HudState {
   paused: boolean;
   pausedBy: string | null;
   speed: GameSpeed;
+  /** Hora do dia e clima da partida (só visual), para o indicador da barra de cima. */
+  sky: { hour: number; weather: 'clear' | 'rain' | 'storm' | 'snow'; climate: string } | null;
   selectedUnits: SelectedUnitInfo[];
   selectedBuilding: SelectedBuildingInfo | null;
   /** Tipos de construção próprios no mapa (Grandes Projetos: um por nação). */
@@ -193,6 +195,7 @@ export const useHudStore = create<HudState>((set) => ({
   paused: false,
   pausedBy: null,
   speed: 1,
+  sky: null,
   selectedUnits: [],
   selectedBuilding: null,
   ownBuildingTypes: new Set(),

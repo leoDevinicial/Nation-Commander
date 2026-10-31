@@ -2058,8 +2058,102 @@ export class AudioService {
     this.music = { stop: () => window.clearInterval(this.musicTimer) };
   }
 
+  private weatherLoop: { rain: GainNode; drops: GainNode; snow: GainNode; stop: () => void } | null = null;
+
+  /**
+   * Clima (canal ambiente): chuva (chiado largo do aguaceiro e o tamborilar agudo das gotas por cima) e o vento frio da
+   * nevasca (sopro grave que sobe e desce). `rain` e `snow` de 0 a 1; as mudanças entram devagar.
+   */
+  setWeather(rain: number, snow: number): void {
+    if (!this.ready) return;
+    const ctx = this.ctx!;
+    if (!this.weatherLoop) {
+      if (rain < 0.01 && snow < 0.01) return;
+      const out = this.out('ambient', 1);
+      const stops: (() => void)[] = [];
+      const layer = (type: BiquadFilterType, freq: number, q: number, hp?: number, lfo?: { rate: number; depth: number }) => {
+        const n = this.noiseSource(true);
+        const f = ctx.createBiquadFilter();
+        f.type = type;
+        f.frequency.value = freq;
+        f.Q.value = q;
+        let node: AudioNode = n.connect(f);
+        if (hp) {
+          const h = ctx.createBiquadFilter();
+          h.type = 'highpass';
+          h.frequency.value = hp;
+          node = node.connect(h);
+        }
+        const g = ctx.createGain();
+        g.gain.value = 0;
+        node.connect(g).connect(out);
+        if (lfo) {
+          const l = ctx.createOscillator();
+          l.frequency.value = lfo.rate;
+          const d = ctx.createGain();
+          d.gain.value = lfo.depth;
+          l.connect(d).connect(f.frequency);
+          l.start();
+          stops.push(() => l.stop());
+        }
+        n.start(0, Math.random());
+        stops.push(() => n.stop());
+        return g;
+      };
+      const rainG = layer('lowpass', 2800, 0.5, 350);
+      const dropsG = layer('bandpass', 5200, 0.9, undefined, { rate: 7.3, depth: 900 });
+      const snowG = layer('lowpass', 420, 0.8, 60, { rate: 0.09, depth: 240 });
+      this.weatherLoop = { rain: rainG, drops: dropsG, snow: snowG, stop: () => stops.forEach((f) => f()) };
+    }
+    const t = ctx.currentTime;
+    this.weatherLoop.rain.gain.setTargetAtTime(0.5 * rain, t, 1.5);
+    this.weatherLoop.drops.gain.setTargetAtTime(0.12 * rain, t, 1.5);
+    this.weatherLoop.snow.gain.setTargetAtTime(0.45 * snow, t, 2);
+  }
+
+  /**
+   * Trovão (canal ambiente) depois de `delay` s (a luz chega antes do som): perto, um estalo seco que rasga e o estrondo;
+   * longe, só o ronco grave que rola e se repete pelas nuvens. `near` de 0 (longe) a 1 (em cima).
+   */
+  thunder(delay: number, near: number): void {
+    if (!this.ready) return;
+    const ctx = this.ctx!;
+    const t = ctx.currentTime + delay;
+    const out = this.out('ambient', 0.6 + near * 0.6);
+    const wet = ctx.createGain();
+    wet.gain.value = 0.5;
+    out.connect(wet).connect(this.outdoorReverb());
+    const noise = (type: BiquadFilterType, freq: number, q: number, at: number, attack: number, peak: number, decay: number) => {
+      const n = this.noiseSource(true);
+      const f = ctx.createBiquadFilter();
+      f.type = type;
+      f.frequency.value = freq;
+      f.Q.value = q;
+      const g = ctx.createGain();
+      n.connect(f).connect(g).connect(out);
+      const end = this.env(g, at, attack, peak, decay);
+      n.start(at, Math.random());
+      n.stop(end + 0.1);
+    };
+    if (near > 0.5) {
+      // estalo do raio: rasgos curtos em sequência
+      for (let i = 0; i < 5; i++) noise('highpass', 1800 + Math.random() * 1500, 0.6, t + i * 0.035 + Math.random() * 0.02, 0.002, 0.5 * near, 0.08);
+      noise('lowpass', 700, 0.7, t + 0.05, 0.01, 0.9 * near, 0.6);
+    }
+    // ronco: três ou quatro ondas graves, cada uma mais longe
+    const rolls = 3 + Math.floor(Math.random() * 2);
+    let at = t + (near > 0.5 ? 0.15 : 0);
+    for (let i = 0; i < rolls; i++) {
+      noise('lowpass', 260 - i * 40, 0.6, at, 0.25 + Math.random() * 0.3, (0.7 - i * 0.12) * (0.5 + near * 0.5), 1.4 + Math.random());
+      at += 0.6 + Math.random() * 0.9;
+    }
+    noise('lowpass', 90, 0.5, t + 0.2, 0.6, 0.5, 4.5);
+  }
+
   /** Fim da partida: silencia laços (ambiente, música, produção e alarme). */
   stopAll(): void {
+    this.weatherLoop?.stop();
+    this.weatherLoop = null;
     this.ambient?.stop();
     this.ambient = null;
     this.music?.stop();

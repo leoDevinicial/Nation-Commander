@@ -33,6 +33,19 @@ export const cloudUniforms = {
   uCloudStrength: { value: 0 },
 };
 
+/**
+ * Clima e hora do dia (`WeatherSystem`), em todos os materiais do mapa:
+ * - `uSnow`: neve acumulada nas faces voltadas para cima (0 = nada, 1 = tudo branco);
+ * - `uWet`: chão e telhados molhados na chuva (mais escuros e mais brilhantes);
+ * - `uNight`: janelas acesas à noite (só nos vidros com caixilhos).
+ * Com os três em 0 o custo é um ramo uniforme.
+ */
+export const climateUniforms = {
+  uSnow: { value: 0 },
+  uWet: { value: 0 },
+  uNight: { value: 0 },
+};
+
 let cloudShadows = false;
 /** Liga as sombras de nuvens nos materiais criados a partir de agora (definido no início da partida). */
 export function setCloudShadows(on: boolean): void {
@@ -103,6 +116,9 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
     shader.uniforms.uFogMap = fogUniforms.uFogMap;
     if (sway) shader.uniforms.uWindTime = windUniforms.uWindTime;
     shader.uniforms.uFogSize = fogUniforms.uFogSize;
+    shader.uniforms.uSnow = climateUniforms.uSnow;
+    shader.uniforms.uWet = climateUniforms.uWet;
+    shader.uniforms.uNight = climateUniforms.uNight;
     if (clouds) {
       shader.uniforms.uCloudMap = cloudUniforms.uCloudMap;
       shader.uniforms.uCloudOffset = cloudUniforms.uCloudOffset;
@@ -142,7 +158,7 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
     shader.vertexShader = vs;
     let fs = shader.fragmentShader.replace(
       '#include <common>',
-      '#include <common>\nuniform sampler2D uFogMap;\nuniform vec2 uFogSize;\nvarying vec2 vFogXZ;' +
+      '#include <common>\nuniform sampler2D uFogMap;\nuniform vec2 uFogSize;\nvarying vec2 vFogXZ;\nuniform float uSnow;\nuniform float uWet;\nuniform float uNight;' +
         (weather ? '\nuniform sampler2D uGrime;\nuniform float uGrimeScale;\nuniform vec3 uRimColor;\nvarying vec3 vObjPos;\nvarying vec3 vObjNormal;\nfloat vGrimeV = 1.0;' : '') +
         (panes ? '\nuniform sampler2D uPanes;\nvarying vec3 vObjPos;\nvarying vec3 vObjNormal;' : '') +
         (clouds ? '\nuniform sampler2D uCloudMap;\nuniform vec2 uCloudOffset;\nuniform float uCloudStrength;' : ''),
@@ -169,6 +185,16 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
         vec3 pp = vObjPos * 1.6;
         vec3 pane = texture2D(uPanes, pp.zy).rgb * pw.x + texture2D(uPanes, pp.xz).rgb * pw.y + texture2D(uPanes, pp.xy).rgb * pw.z;
         diffuseColor.rgb *= pane * 1.4;`,
+      ).replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        if (uNight > 0.0) {
+          // à noite, parte das janelas acende (luz quente), escolhidas por vidraça
+          vec3 cellP = floor(vObjPos * 1.6 * 4.0);
+          float lit = step(0.45, fract(sin(dot(cellP, vec3(12.99, 78.23, 37.71))) * 43758.55));
+          float paneL = dot(pane, vec3(0.333));
+          totalEmissiveRadiance += vec3(1.0, 0.72, 0.38) * uNight * lit * smoothstep(0.45, 0.8, paneL) * 1.6;
+        }`,
       );
     }
     if (weather) {
@@ -202,6 +228,30 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
           roughnessFactor = clamp(roughnessFactor + (1.0 - vGrimeV) * 0.45, 0.05, 1.0);`,
         );
     }
+    // chuva: tudo um pouco mais escuro e liso (brilho de molhado); neve: faces para cima ficam brancas, com falhas
+    fs = fs
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        if (uWet > 0.0) diffuseColor.rgb *= 1.0 - 0.22 * uWet;`,
+      )
+      .replace(
+        '#include <roughnessmap_fragment>',
+        `#include <roughnessmap_fragment>
+        roughnessFactor *= 1.0 - 0.45 * uWet;`,
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        if (uSnow > 0.0) {
+          vec3 upV = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+          // manchas suaves (a neve falha em placas, não em pontos)
+          vec2 sxz = vFogXZ;
+          float snowN = 0.5 + 0.2 * sin(sxz.x * 0.37 + sin(sxz.y * 0.23) * 2.3) + 0.17 * sin(sxz.y * 0.53 + sin(sxz.x * 0.31) * 1.9) + 0.13 * sin((sxz.x + sxz.y) * 1.7 + sin(sxz.x * 0.9));
+          float snowK = smoothstep(0.45, 0.8, dot(normal, upV)) * smoothstep(snowN * 0.55, snowN * 0.55 + 0.3, uSnow);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.95, 0.98), snowK * 0.92);
+        }`,
+      );
     shader.fragmentShader = fs.replace(
       '#include <dithering_fragment>',
       `#include <dithering_fragment>
@@ -209,7 +259,7 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
         ${FOG_GLSL}`,
     );
   };
-  material.customProgramCacheKey = () => `nc-fog-v6-w${weather}-p${panes ? 1 : 0}-${ch}-c${clouds ? 1 : 0}-s${sway}`;
+  material.customProgramCacheKey = () => `nc-fog-v7-w${weather}-p${panes ? 1 : 0}-${ch}-c${clouds ? 1 : 0}-s${sway}`;
   return material;
 }
 

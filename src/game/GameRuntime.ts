@@ -40,6 +40,8 @@ import { PostFx } from './render/PostFx.ts';
 import { CitizenLayer } from './render/CitizenLayer.ts';
 import { CargoLayer, disposeCargoModels } from './render/CargoLayer.ts';
 import { AmbientLife } from './render/AmbientLife.ts';
+import { WeatherSystem } from './render/Weather.ts';
+import { CLIMATE_LABELS, dayLight, matchClimate } from '../../shared/sim/climate.ts';
 import { AirLayer, disposeAirModels, missilePoint } from './render/AirLayer.ts';
 import { DomeLayer } from './render/DomeLayer.ts';
 import { AIRCRAFT, FLIGHT_SIGHT, NUCLEAR, missileSpec } from '../../shared/sim/air.ts';
@@ -202,6 +204,14 @@ export class GameRuntime {
   /** Pássaros e cervos (vida ambiente, só visual). */
   private readonly ambient: AmbientLife;
   private ambientKey = '';
+  /** Clima e hora do dia (só visual), no relógio da partida. */
+  private weather: WeatherSystem | null = null;
+  private readonly climate: ReturnType<typeof matchClimate>;
+  private hemi: THREE.HemisphereLight | null = null;
+  /** Segundos da partida: o último snapshot e o relógio local que anda entre eles. */
+  private simSeconds = 0;
+  private clockSeconds = 0;
+  private weatherAudioAcc = 0;
   private mineLayer!: MineLayer;
   private roadPreview!: RoadPreview;
   private roadLayer!: RoadLayer;
@@ -288,6 +298,10 @@ export class GameRuntime {
       ...(match.mapKind ? { kind: match.mapKind } : {}),
     };
     this.mySlot = match.yourSlot;
+    this.climate = matchClimate(
+      match.players.map((p) => p.countryId),
+      match.mapKind,
+    );
     this.canControlSpeed = match.canControlSpeed;
     this.snapshotInterval = (1000 / match.tickRate) * match.snapshotEvery;
 
@@ -469,7 +483,8 @@ export class GameRuntime {
     this.scene.environment = this.skyEnv;
     weatherUniforms.uGrime.value = grimeTexture(this.opts.profile.terrain === 'high' ? 512 : 256);
     weatherUniforms.uPanes.value = windowTexture();
-    this.scene.add(new THREE.HemisphereLight('#c9dcec', '#5b5340', 0.85));
+    this.hemi = new THREE.HemisphereLight('#c9dcec', '#5b5340', 0.85);
+    this.scene.add(this.hemi);
     const sun = new THREE.DirectionalLight(SKY.sunColor, 2.6);
     this.sun = sun;
     sun.position.set(W / 2 + SKY.sunDir.x * 120, SKY.sunDir.y * 120, H / 2 + SKY.sunDir.z * 120);
@@ -496,6 +511,15 @@ export class GameRuntime {
       sun.shadow.normalBias = 0.02;
     }
     this.scene.add(sun, sun.target);
+    // clima pelos países da partida (neve se todos forem da Europa), chuva e dia e noite
+    this.weather = new WeatherSystem(this.scene, sun, this.hemi!, this.climate, this.map.seed, this.opts.profile.terrain === 'low', {
+      lightning: (x, z) => {
+        this.effects.light(new THREE.Vector3(x, 30, z), '#d6e4ff', 900, 160, 0.22);
+        const d = Math.hypot(x - this.cameraCtl.target.x, z - this.cameraCtl.target.z);
+        audio.thunder(Math.min(4, d / 22), THREE.MathUtils.clamp(1 - d / 60, 0, 1));
+      },
+    });
+    this.scene.add(this.weather.group);
     // mapa do tipo Deserto: tons áridos no teatro (as batalhas locais usam o bioma da região)
     const tint = this.opts.battle?.biome ? BIOME_TINT[this.opts.battle.biome] : this.map.kind === 'desert' ? BIOME_TINT.arid : undefined;
     this.terrain = buildTerrain(this.map, this.opts.profile.terrain, this.opts.profile.reflections, this.opts.profile.ultra, this.opts.profile.cinematic, tint);
@@ -556,6 +580,8 @@ export class GameRuntime {
       if (this.heardFlights.size > 64) for (const id of this.heardFlights.keys()) if (!s.air.flights.some((f) => f.id === id)) this.heardFlights.delete(id);
     }
     this.snapshot = s;
+    this.simSeconds = s.tick / TICK_RATE;
+    if (Math.abs(this.clockSeconds - this.simSeconds) > 3) this.clockSeconds = this.simSeconds;
     this.mineLayer.update(s.mines ?? []);
     if (this.hudActive) {
       const v = s.victory ?? [];
@@ -1137,6 +1163,24 @@ export class GameRuntime {
       }
     this.citizens.update(this.paused ? 0 : dt * this.speed);
     if (!this.suspended) {
+      // clima e hora: o relógio anda com a velocidade do jogo entre um snapshot e outro
+      if (!this.paused) this.clockSeconds += dt * this.speed;
+      this.clockSeconds += (this.simSeconds - this.clockSeconds) * Math.min(1, dt * 0.5);
+      if (this.weather) {
+        this.weather.update(this.clockSeconds, dt, this.cameraCtl.target, this.cameraCtl.distance, this.renderer.domElement.height);
+        this.weatherAudioAcc += dt;
+        if (this.weatherAudioAcc > 0.5) {
+          this.weatherAudioAcc = 0;
+          const w = this.weather.state;
+          audio.setWeather(w.rain, w.snow);
+          if (this.hudActive) {
+            const hour = Math.floor(dayLight(this.clockSeconds).hour * 4) / 4;
+            const weather = w.snow > 0.15 ? 'snow' : w.storm > 0.3 ? 'storm' : w.rain > 0.15 ? 'rain' : 'clear';
+            const cur = useHudStore.getState().sky;
+            if (!cur || cur.hour !== hour || cur.weather !== weather) useHudStore.getState().set({ sky: { hour, weather, climate: CLIMATE_LABELS[this.climate] } });
+          }
+        }
+      }
       this.sky.position.copy(this.camera.position);
       (this.sky.material as THREE.ShaderMaterial).uniforms.uTime!.value = now / 1000;
       this.terrain.update(now / 1000);
@@ -3485,6 +3529,7 @@ export class GameRuntime {
       this.cargo.dispose();
       this.airLayer.dispose();
       this.ambient.dispose();
+      this.weather?.dispose();
       this.rocketLayer.dispose();
       this.domeLayer.dispose();
       this.trackMarks.dispose();
@@ -3527,6 +3572,7 @@ export class GameRuntime {
     disposeTextures();
     weatherUniforms.uGrime.value = null;
     weatherUniforms.uPanes.value = null;
+    this.weather?.dispose();
     this.skyEnv?.dispose();
     this.terrain.dispose();
     this.territoryLayer.dispose();
