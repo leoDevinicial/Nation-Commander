@@ -36,8 +36,9 @@ const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
  * as marcações dos alvos inimigos à vista e um pouco de chiado analógico. O OSD é um canvas 2D por cima do jogo,
  * redesenhado a cada quadro (os marcadores acompanham os alvos sem tremer).
  *
- * Controles: A/D ou ←/→ viram; W/↑ desce (nariz para baixo) e S/↓ sobe; Shift acelera e Ctrl freia; arrastar com o
- * botão esquerdo (ou o dedo) funciona como manche. Espaço detona; Esc devolve ao piloto automático.
+ * Controles: o mouse (cursor travado na tela) dá a direção; W acelera e S freia; A/D viram de leve; Espaço sobe e
+ * Ctrl (ou C) desce; clique esquerdo explode; Esc devolve ao piloto automático. No toque, arrastar o dedo é o manche e
+ * um toque rápido explode.
  */
 export class DroneFpv {
   readonly canvas: HTMLCanvasElement;
@@ -46,6 +47,20 @@ export class DroneFpv {
   private keys = new Set<string>();
   private stick: { x: number; y: number } | null = null;
   private dragFrom: { x: number; y: number } | null = null;
+  /** Mira do mouse com o cursor travado: o movimento empurra o manche, que volta sozinho ao centro. */
+  private aim = { x: 0, y: 0 };
+  /** O jogador soltou o cursor (Esc do navegador, troca de janela): devolve o drone ao piloto automático. */
+  onLockLost: (() => void) | null = null;
+  private readonly onMouse = (e: MouseEvent) => {
+    if (!this.locked()) return;
+    this.aim.x = clamp(this.aim.x + e.movementX * 0.006, -1, 1);
+    this.aim.y = clamp(this.aim.y + e.movementY * 0.006, -1, 1);
+  };
+  private readonly onLockChange = () => {
+    if (!this.locked() && this.active && !this.lostAt && this.wasLocked) this.onLockLost?.();
+    this.wasLocked = this.locked();
+  };
+  private wasLocked = false;
   private lastSent: FpvSteer = { turn: 0, climb: 0, throttle: 0 };
   private sentAt = 0;
   private startedAt = 0;
@@ -58,6 +73,12 @@ export class DroneFpv {
     Object.assign(this.canvas.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', pointerEvents: 'none', zIndex: '40', display: 'none' });
     host.appendChild(this.canvas);
     this.ctx = this.canvas.getContext('2d')!;
+    document.addEventListener('mousemove', this.onMouse);
+    document.addEventListener('pointerlockchange', this.onLockChange);
+  }
+
+  private locked(): boolean {
+    return document.pointerLockElement === this.host;
   }
 
   get active(): boolean {
@@ -80,6 +101,14 @@ export class DroneFpv {
     camera.near = 0.04;
     camera.updateProjectionMatrix();
     this.canvas.style.display = 'block';
+    this.aim = { x: 0, y: 0 };
+    // o mouse vira a direção: trava o cursor no centro (no celular não existe; lá o dedo é o manche)
+    try {
+      const req = this.host.requestPointerLock() as unknown as Promise<void> | undefined;
+      req?.catch?.(() => undefined);
+    } catch {
+      // navegador sem suporte: segue com o teclado e o arrasto
+    }
   }
 
   exit(camera: THREE.PerspectiveCamera): void {
@@ -94,6 +123,8 @@ export class DroneFpv {
       this.savedCam = null;
     }
     this.canvas.style.display = 'none';
+    this.wasLocked = false;
+    if (this.locked()) document.exitPointerLock();
   }
 
   signalLost(): void {
@@ -127,19 +158,28 @@ export class DroneFpv {
     this.stick = null;
   }
 
-  /** Manche atual (teclado + arrasto). */
+  /**
+   * Manche atual: mouse (com o cursor travado) dá a direção e inclina o nariz; W acelera e S freia; A/D viram de leve;
+   * Espaço sobe e Ctrl (ou C) desce; no toque, arrastar o dedo é o manche.
+   */
   private input(): FpvSteer {
     const k = this.keys;
-    let turn = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
-    let climb = (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0) - (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0);
-    const throttle = (k.has('ShiftLeft') || k.has('ShiftRight') ? 1 : 0) - (k.has('ControlLeft') || k.has('ControlRight') ? 1 : 0);
+    const q = (v: number) => Math.round(v * 20) / 20;
+    let turn = ((k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0)) * 0.6;
+    let climb = (k.has('Space') ? 1 : 0) - (k.has('ControlLeft') || k.has('ControlRight') || k.has('KeyC') ? 1 : 0);
+    const throttle = (k.has('KeyW') || k.has('ArrowUp') || k.has('ShiftLeft') || k.has('ShiftRight') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
+    if (this.locked()) {
+      turn = clamp(turn + this.aim.x * 1.3, -1, 1);
+      // mouse para cima levanta o nariz (sobe), para baixo mergulha
+      climb = clamp(climb - this.aim.y * 1.3, -1, 1);
+    }
     if (this.stick) {
       const dz = (v: number) => (Math.abs(v) < 0.08 ? 0 : v);
       turn = clamp(turn + dz(this.stick.x) * 1.2, -1, 1);
       // arrastar para cima sobe
       climb = clamp(climb - dz(this.stick.y) * 1.2, -1, 1);
     }
-    return { turn, climb, throttle };
+    return { turn: q(turn), climb: q(climb), throttle };
   }
 
   /**
@@ -148,6 +188,10 @@ export class DroneFpv {
    */
   frame(dt: number, view: FpvDroneView | null, camera: THREE.PerspectiveCamera, targets: FpvTarget[], flightSeconds: number): FpvSteer | null {
     this.time += dt;
+    // a mira do mouse volta devagar ao centro: mexer o mouse vira, parar endireita
+    const back = Math.exp(-dt * 2.2);
+    this.aim.x *= back;
+    this.aim.y *= back;
     this.resize();
     if (view && !this.lostAt) this.placeCamera(view, camera);
     this.draw(view, camera, targets, flightSeconds);
@@ -349,7 +393,7 @@ export class DroneFpv {
     if (low && Math.floor(this.time * 3) % 2 === 0) this.text('BATERIA BAIXA', cx, cy - 70 * u, 20 * u, 'center', '#ff4d3d');
     // dica dos controles nos primeiros segundos
     if (this.time - this.startedAt < 6)
-      this.text('A/D virar · W/S descer/subir · SHIFT acelera · arraste para pilotar · ESPAÇO detona · ESC sai', cx, H - bar - 46 * u, 14 * u, 'center');
+      this.text('MOUSE direção · W acelera · S freia · ESPAÇO sobe · CTRL/C desce · CLIQUE explode · ESC sai', cx, H - bar - 46 * u, 14 * u, 'center');
     // alcance da bateria em segundos (referência para o piloto)
     this.text(`${Math.round(view.battery * DRONE.batterySeconds)}s`, W - pad, bottom - 66 * u, 15 * u, 'right');
   }
@@ -387,6 +431,9 @@ export class DroneFpv {
   }
 
   dispose(): void {
+    document.removeEventListener('mousemove', this.onMouse);
+    document.removeEventListener('pointerlockchange', this.onLockChange);
+    if (this.locked()) document.exitPointerLock();
     this.canvas.remove();
   }
 }

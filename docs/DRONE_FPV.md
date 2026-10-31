@@ -19,8 +19,11 @@ ataque.
   chiado analógico (mais forte com bateria baixa).
 - Alvos inimigos à vista (tropas em vermelho, edifícios em laranja) com nome e distância; o mais perto da mira fica
   "ALVO TRAVADO"; fora da tela, uma seta aponta para o mais próximo.
-- Controles: A/D ou ←/→ viram; W/↑ desce, S/↓ sobe; Shift acelera, Ctrl freia; arrastar com o mouse ou o dedo é o
-  manche; Espaço detona; Esc devolve ao piloto automático.
+- Pilotar é opcional: sem assumir, o drone vai sozinho até o ponto, como os aviões.
+- Controles: mouse dá a direção (o cursor fica travado na tela; mexer vira e inclina o nariz, parar endireita);
+  W acelera, S freia, A/D viram de leve; Espaço sobe, Ctrl ou C desce; clique esquerdo explode; Esc devolve ao piloto
+  automático (soltar o cursor também). No celular, arrastar o dedo é o manche e um toque rápido explode.
+- Cuidado: Ctrl + W fecha a aba em alguns navegadores (o jogo não consegue bloquear); por isso C também desce.
 - Ao cair o sinal (impacto, derrubado, bateria), a tela vira chiado com "SINAL PERDIDO" e volta ao mapa no ponto.
 - Som: zumbido do motor que sobe com a velocidade, sopro da hélice e chiado de rádio.
 

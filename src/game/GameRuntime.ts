@@ -209,6 +209,7 @@ export class GameRuntime {
   private fpvWanted: number | null = null;
   private fpvStartedAt = 0;
   private fpvLastPos: THREE.Vector3 | null = null;
+  private fpvTap: { x: number; y: number; at: number } | null = null;
   /** Pássaros e cervos (vida ambiente, só visual). */
   private readonly ambient: AmbientLife;
   private ambientKey = '';
@@ -392,6 +393,8 @@ export class GameRuntime {
     this.effects = new Effects(this.scene, opts.profile.maxEffects, opts.profile.dynamicLights, opts.profile.cinematic ? 'cinematic' : opts.profile.ultra ? 'volumetric' : 'basic');
     this.airLayer = new AirLayer(this.effects, this.mySlot, (id) => this.positionOf(id), opts.profile.maxEffects > 60 ? 140 : 60);
     this.fpv = new DroneFpv(container);
+    // Esc do navegador solta o cursor travado: o drone volta ao piloto automático
+    this.fpv.onLockLost = () => this.releaseDrone();
     this.airLayer.setGround((x, z) => this.groundHeight(x, z));
     this.ambient = new AmbientLife(this.map, (x, z) => this.groundHeight(x, z), () => this.unitPositions(), opts.profile.terrain === 'low');
     this.scene.add(this.ambient.group);
@@ -3098,11 +3101,10 @@ export class GameRuntime {
     if (this.isTyping(e) || this.suspended) return;
     if (this.fpv.active) {
       // drone em primeira pessoa: as teclas são do piloto
-      const id = this.fpv.droneId!;
       if (e.code === 'Escape') this.releaseDrone();
-      else if (e.code === 'Space') this.send({ type: 'drone_detonate', droneId: id });
       else this.fpv.key(e.code, true);
-      if (e.code === 'Space' || e.code.startsWith('Arrow') || e.code === 'Tab') e.preventDefault();
+      // Espaço sobe e Ctrl desce: nada disso pode rolar a página nem virar atalho do navegador
+      if (e.code === 'Space' || e.code.startsWith('Arrow') || e.code === 'Tab' || e.ctrlKey) e.preventDefault();
       e.stopPropagation();
       return;
     }
@@ -3189,7 +3191,12 @@ export class GameRuntime {
 
   private onPointerDown(e: PointerEvent): void {
     if (this.fpv.active) {
-      this.fpv.pointerDown(e.clientX, e.clientY);
+      // clique esquerdo do mouse explode o drone; no toque, o dedo é o manche (toque rápido explode, ver onPointerUp)
+      if (e.pointerType === 'mouse' && e.button === 0) this.send({ type: 'drone_detonate', droneId: this.fpv.droneId! });
+      else if (e.pointerType !== 'mouse') {
+        this.fpvTap = { x: e.clientX, y: e.clientY, at: performance.now() };
+        this.fpv.pointerDown(e.clientX, e.clientY);
+      }
       return;
     }
     // clique (ou toque) em cima de um drone próprio que ainda dá para assumir: entra na primeira pessoa
@@ -3287,6 +3294,9 @@ export class GameRuntime {
   private onPointerUp(e: PointerEvent): void {
     if (this.suspended) return;
     if (this.fpv.active) {
+      const tap = this.fpvTap;
+      this.fpvTap = null;
+      if (tap && performance.now() - tap.at < 220 && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 12) this.send({ type: 'drone_detonate', droneId: this.fpv.droneId! });
       this.fpv.pointerUp();
       return;
     }

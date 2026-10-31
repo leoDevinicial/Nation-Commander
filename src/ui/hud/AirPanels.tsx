@@ -169,7 +169,7 @@ export function AirbaseButtons({ b, runtime }: { b: SelectedBuildingInfo; runtim
           blocked={drones.length === 0}
           short={drones.length === 0 ? 'nenhum pronto' : null}
           onClick={() => (drones.length ? runtime.startAirTarget('drone', b.id, drones.slice(0, 1)) : warn('Drone: nenhum drone pronto nesta base'))}
-          title={`Drone de ataque: escolha um ponto no alcance (${DRONE.range}). Ele voa sozinho e mergulha no alvo. Nos primeiros ${DRONE.takeoverSeconds}s de voo, clique no drone (ou aperte T) para pilotar em primeira pessoa: A/D ou ←/→ viram, W/S descem e sobem, Shift acelera, Espaço detona, Esc devolve ao piloto automático. Só fere quem está em guerra com você; a antiaérea pode derrubá-lo.`}
+          title={`Drone de ataque: escolha um ponto no alcance (${DRONE.range}). Ele voa sozinho e mergulha no alvo. Nos primeiros ${DRONE.takeoverSeconds}s de voo, você pode (se quiser) clicar no drone ou apertar T para pilotar em primeira pessoa: mouse dá a direção, W acelera, S freia, Espaço sobe, Ctrl ou C desce, clique explode, Esc devolve ao piloto automático. Só fere quem está em guerra com você; a antiaérea pode derrubá-lo.`}
         />
       )}
       {hasBombers && (
@@ -424,7 +424,7 @@ export function HoldToConfirm({ label, onConfirm, ms = 1500 }: { label: string; 
 /** Dica do modo de escolha de alvo (e confirmação do alvo do míssil). */
 export function airTargetText(purpose: 'recon' | 'strike' | 'missile' | 'drone', touch: boolean, hasTarget: boolean, missileGen = 1): { title: string; text: string } {
   const act = touch ? 'Toque' : 'Clique';
-  if (purpose === 'drone') return { title: 'Drone de ataque', text: `${act} no ponto do ataque, dentro do anel de alcance. Depois, ${touch ? 'toque no drone' : 'clique no drone ou aperte T'} nos primeiros ${DRONE.takeoverSeconds}s para pilotar.` };
+  if (purpose === 'drone') return { title: 'Drone de ataque', text: `${act} no ponto do ataque, dentro do anel de alcance. Depois, ${touch ? 'toque no drone' : 'clique no drone ou aperte T'} nos primeiros ${DRONE.takeoverSeconds}s para pilotar (opcional).` };
   if (purpose === 'recon') return { title: 'Reconhecimento aéreo', text: `${act} no ponto a reconhecer, dentro do anel de alcance. Botão direito ou Cancelar desiste.` };
   if (purpose === 'strike') return { title: 'Ataque aéreo', text: `${act} num edifício inimigo já descoberto, dentro do anel de alcance.` };
   return hasTarget
