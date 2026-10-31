@@ -580,6 +580,8 @@ select {
 }
 .intro-root.intro-out {
   opacity: 0;
+  /* no fade de saída a tela de login já está por baixo: o toque passa para ela (antes ficava 1 s sem responder) */
+  pointer-events: none;
 }
 .intro-root.intro-out .intro-title {
   transform: scale(1.06);

@@ -31,6 +31,9 @@ const TOOLS: { tool: TouchTool; icon: string; label: string; hint: string }[] = 
  * painel de comando mostra algo (seleção, inspeção ou escolha de local de obra), a lista se recolhe
  * sozinha para não cobrir o painel no celular; tocar no botão a abre mesmo assim. Quando o painel
  * se fecha, volta a abrir.
+ *
+ * Em pé, num celular (altura até 900 px), a lista vai em duas colunas: numa só, os nove botões desciam até cobrir o painel de
+ * baixo (o botão Ajuda e o texto da seleção).
  */
 export function TouchToolbar({ runtime }: { runtime: GameRuntime }) {
   const tool = useHudStore((s) => s.touchTool);
@@ -44,7 +47,7 @@ export function TouchToolbar({ runtime }: { runtime: GameRuntime }) {
 
   return (
     <div
-      className="pointer-events-auto absolute top-[6.5rem] right-2 z-10 grid gap-1.5 sm:top-28 sm:right-3 [@media(max-height:520px)]:top-[5.75rem] [@media(max-height:520px)]:grid-cols-3"
+      className="pointer-events-auto absolute top-[6.5rem] right-2 z-10 grid gap-1.5 sm:top-28 sm:right-3 [@media(max-height:520px)]:top-[5.75rem] [@media(max-height:520px)]:grid-cols-3 [@media(min-height:521px)_and_(max-height:900px)]:grid-cols-2"
       onPointerDown={(e) => e.stopPropagation()}
       role="toolbar"
       aria-label="Controles de toque"

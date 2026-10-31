@@ -12,7 +12,7 @@ export function EventLog() {
     return () => clearInterval(id);
   }, [expire]);
   return (
-    <div className="pointer-events-none absolute top-15 left-2 w-[min(20rem,calc(100vw-5.5rem))] space-y-1 sm:top-16 sm:left-3 max-sm:[&>*:nth-last-child(n+4)]:hidden [@media(max-height:520px)]:[&>*:nth-last-child(n+3)]:hidden" aria-live="polite" aria-label="Eventos da operação">
+    <div className="pointer-events-none absolute top-15 left-2 w-[min(20rem,calc(100vw-5.5rem))] space-y-1 [@media(min-height:521px)_and_(max-height:900px)]:w-[min(20rem,calc(100vw-9.25rem))] sm:top-16 sm:left-3 max-sm:[&>*:nth-last-child(n+4)]:hidden [@media(max-height:520px)]:[&>*:nth-last-child(n+3)]:hidden" aria-live="polite" aria-label="Eventos da operação">
       {events.map((e) => (
         <div key={e.id} className={`rounded bg-ink-950/80 px-2 py-1 text-xs ${TONE[e.tone]}`}>
           <span className="mr-1.5 font-mono" aria-hidden>
