@@ -194,7 +194,8 @@ export class GameRuntime {
   /** Veículos de carga do comércio (Fase 6) e a rota inspecionada. */
   private readonly cargo = new CargoLayer();
   private focusedShipment: number | null = null;
-  private readonly heardFlights = new Set<number>();
+  /** Último sobrevoo ouvido de cada formação (s, relógio do navegador): o som volta quando ela passa perto da câmera. */
+  private readonly heardFlights = new Map<number, number>();
   /** Aeronaves, mísseis, faróis dos silos e alvos (Fase 7). */
   private readonly airLayer: AirLayer;
   private mineLayer!: MineLayer;
@@ -364,6 +365,7 @@ export class GameRuntime {
     this.scene.add(this.cargo.group);
     this.effects = new Effects(this.scene, opts.profile.maxEffects, opts.profile.dynamicLights, opts.profile.cinematic ? 'cinematic' : opts.profile.ultra ? 'volumetric' : 'basic');
     this.airLayer = new AirLayer(this.effects, this.mySlot, (id) => this.positionOf(id), opts.profile.maxEffects > 60 ? 140 : 60);
+    this.airLayer.setGround((x, z) => this.groundHeight(x, z));
     this.scene.add(this.airLayer.group);
     this.rocketLayer = new RocketLayer(this.effects, (at, k) => this.shakeNear(at, k), (x, z) => audio.playAt('explosion', x, z), 72, opts.profile.maxEffects > 60 ? 220 : 110);
     this.scene.add(this.rocketLayer.group);
@@ -533,12 +535,19 @@ export class GameRuntime {
     if (s.air) {
       if (this.hudActive) useHudStore.getState().set({ air: s.air });
       this.airLayer.update(s.air);
-      // passagem de jato quando uma formação entra no mapa (própria ou inimiga à vista)
-      for (const f of s.air.flights)
-        if (!this.heardFlights.has(f.id)) {
-          this.heardFlights.add(f.id);
-          audio.playAt('jet', f.x, f.y);
+      // sobrevoo: quando a formação entra no mapa (própria ou inimiga à vista) e de novo sempre que passa perto da
+      // câmera; o bombardeiro tem o próprio ronco
+      const now = performance.now() / 1000;
+      const cam = this.cameraCtl.target;
+      for (const f of s.air.flights) {
+        const last = this.heardFlights.get(f.id);
+        const near = Math.hypot(f.x - cam.x, f.y - cam.z) < 16;
+        if (last === undefined || (near && now - last > (f.plane === 'bomber' ? 9 : 6))) {
+          this.heardFlights.set(f.id, now);
+          audio.playAt(f.plane === 'bomber' ? 'bomber' : 'jet', f.x, f.y);
         }
+      }
+      if (this.heardFlights.size > 64) for (const id of this.heardFlights.keys()) if (!s.air.flights.some((f) => f.id === id)) this.heardFlights.delete(id);
     }
     this.snapshot = s;
     this.mineLayer.update(s.mines ?? []);
@@ -815,6 +824,7 @@ export class GameRuntime {
     } else if (e.type === 'air_strike') {
       if (e.bombers) {
         // bombardeio em tapete: as fileiras de bombas caem e explodem em sequência pelo rumo da passagem
+        audio.playAt('bomb_whistle', e.pos.x, e.pos.y);
         this.airLayer.dropBombs(e.pos, e.dir ?? 0, e.bombers, (at, i) => {
           this.effects.explosion(at, i % 3 === 0);
           if (i % 4 === 0) this.effects.plume(at.clone().setY(0.3), { count: 3, size: 1.1, rise: 3.5, life: 4, spread: 0.5, tone: 0.3 });
@@ -2710,7 +2720,7 @@ export class GameRuntime {
         if (!e.bombers) audio.playAt('bomb', e.pos.x, e.pos.y);
         break;
       case 'dogfight':
-        audio.playAt('rifle', e.from.x, e.from.y);
+        audio.playAt('jet_cannon', e.from.x, e.from.y);
         break;
       case 'caravan_lost':
         audio.playAt('explosion', e.pos.x, e.pos.y);

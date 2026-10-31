@@ -20,7 +20,7 @@ export type Volumes = Record<Channel | 'master', number>;
 export const DEFAULT_VOLUMES: Volumes = { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 };
 
 export type UiSound = 'click' | 'confirm' | 'error' | 'alert' | 'success' | 'hold';
-export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'mbt_gun' | 'tank_gun' | 'vehicle_explosion' | 'vehicle_explosion_heavy' | 'nuclear_blast' | 'space_prelaunch' | 'space_liftoff' | 'dome_launch' | 'dome_intercept' | 'gatling';
+export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'mbt_gun' | 'tank_gun' | 'vehicle_explosion' | 'vehicle_explosion_heavy' | 'nuclear_blast' | 'space_prelaunch' | 'space_liftoff' | 'dome_launch' | 'dome_intercept' | 'gatling' | 'bomber' | 'jet_cannon' | 'bomb_whistle';
 export type MissileCue = 'prepare' | 'armed' | 'authorize';
 
 /** Som de trabalho de cada edifício (os demais usam o zumbido genérico). */
@@ -74,6 +74,9 @@ const PRIORITY: Record<CombatSound, number> = {
   howitzer: 4,
   rocket: 2,
   jet: 2,
+  bomber: 3,
+  jet_cannon: 3,
+  bomb_whistle: 3,
   explosion: 3,
   bomb: 4,
   explosion_big: 4,
@@ -83,7 +86,7 @@ const PRIORITY: Record<CombatSound, number> = {
 };
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
-const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, vehicle_explosion: 0.1, vehicle_explosion_heavy: 0.15, nuclear_blast: 1, space_prelaunch: 2, space_liftoff: 2, dome_launch: 0.2, dome_intercept: 0.3, tank_gun: 0.18 };
+const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, bomber: 1.2, jet_cannon: 0.12, bomb_whistle: 0.4, bomb: 0.07, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, vehicle_explosion: 0.1, vehicle_explosion_heavy: 0.15, nuclear_blast: 1, space_prelaunch: 2, space_liftoff: 2, dome_launch: 0.2, dome_intercept: 0.3, tank_gun: 0.18 };
 
 /**
  * Atenuação e panorâmica de um ponto do mapa para quem olha `L` (ponto da câmera, distância e giro).
@@ -329,6 +332,45 @@ export class AudioService {
       this.gatlingBursts.push({ buffer, firing, lead });
     }
     return this.gatlingBursts[Math.floor(Math.random() * this.gatlingBursts.length)]!;
+  }
+
+  private readonly cannonBursts: { buffer: AudioBuffer; firing: number }[] = [];
+
+  /**
+   * Rajada do canhão rotativo de um caça (tipo M61 de 20 mm), desenhada amostra a amostra (três variantes sorteadas).
+   * São ~100 tiros por segundo, rápidos demais para o ouvido separar: a rajada vira o "BRRRT" grave e rasgado típico.
+   * Cada tiro tem um estalo de ~1 ms, um corpo grave em duas senoides (~140 e ~300 Hz) e um sopro curto. Os primeiros
+   * tiros saem um pouco mais espaçados (os canos ainda acelerando) e a força oscila de leve.
+   */
+  private cannonBurst(): { buffer: AudioBuffer; firing: number } {
+    if (this.cannonBursts.length < 3) {
+      const ctx = this.ctx!;
+      const rate = ctx.sampleRate;
+      const firing = 0.62 + Math.random() * 0.2;
+      const rof = 96 + Math.random() * 10;
+      const len = Math.round((firing + 0.06) * rate);
+      const buffer = ctx.createBuffer(1, len, rate);
+      const d = buffer.getChannelData(0);
+      let time = 0.01;
+      let shot = 0;
+      while (time < firing) {
+        const at = Math.round((time + (Math.random() - 0.5) * 0.001) * rate);
+        const amp = (0.85 + Math.random() * 0.15) * Math.min(1, 0.6 + shot * 0.12) * (1 + 0.08 * Math.sin(time * 37));
+        const f1 = 135 + Math.random() * 20;
+        let blast = 0;
+        for (let i = 0; i < Math.round(0.011 * rate) && at + i < len; i++) {
+          const t = i / rate;
+          const crack = t < 0.0015 ? (Math.random() * 2 - 1) * Math.exp(-t / 0.0004) * 1.1 : 0;
+          const body = Math.sin(2 * Math.PI * f1 * t) * Math.exp(-t / 0.0055) * 0.75 + Math.sin(2 * Math.PI * f1 * 2.2 * t) * Math.exp(-t / 0.0025) * 0.3;
+          blast += ((Math.random() * 2 - 1) - blast) * 0.06;
+          d[at + i]! += amp * (crack + body + blast * Math.exp(-t / 0.004) * 2.4);
+        }
+        time += (1 / rof) * (shot < 3 ? 1.5 - shot * 0.15 : 1);
+        shot++;
+      }
+      this.cannonBursts.push({ buffer, firing });
+    }
+    return this.cannonBursts[Math.floor(Math.random() * this.cannonBursts.length)]!;
   }
 
   private noiseSource(loop = false): AudioBufferSourceNode {
@@ -798,29 +840,250 @@ export class AudioService {
         thump(80, 30, 0.01, 0.8, 0.6);
         break;
       case 'explosion_big':
-      case 'bomb':
         end = burst('lowpass', 520, 0.6, 0.01, 1.2, 1.8);
         thump(60, 22, 0.02, 1.1, 1.3);
         burst('bandpass', 2400, 0.9, 0.002, 0.4, 0.2);
         break;
-      case 'jet': {
-        // passagem: ruído de turbina que sobe e desce com leve efeito de aproximação
+      case 'bomb': {
+        // bomba de aviação de 500 lb: detonação seca, o soco grave saturado que se sente no peito, um subgrave longo,
+        // terra e entulho caindo de volta e o estrondo rolando pelo terreno (reverberação de campo aberto)
+        const mix = ctx.createGain();
+        mix.connect(out);
+        const wet = ctx.createGain();
+        wet.gain.value = gain * 0.6;
+        mix.connect(wet).connect(this.outdoorReverb());
+        const drive = ctx.createWaveShaper();
+        drive.curve = this.driveCurve(4);
+        drive.oversample = '4x';
+        const driveLow = ctx.createBiquadFilter();
+        driveLow.type = 'lowpass';
+        driveLow.frequency.value = 600;
+        drive.connect(driveLow).connect(mix);
+        burst('highpass', 2200, 0.5, 0.0005, 1.3, 0.04, t, mix);
+        burst('bandpass', 900, 0.7, 0.001, 1.2, 0.12, t, mix);
+        thump(115, 28, 0.004, 2.4, 0.9, t, 'sine', drive);
+        burst('lowpass', 420, 0.7, 0.006, 1.8, 0.9, t, drive);
+        thump(46, 16, 0.02, 1.5, 1.8, t, 'sine', mix);
+        for (let i = 0; i < 6; i++) burst('lowpass', 800 + Math.random() * 700, 0.6, 0.01, 0.12 + Math.random() * 0.12, 0.14, t + 0.3 + Math.random() * 0.8, mix);
+        burst('lowpass', 320, 0.6, 0.05, 0.5, 1.0, t + 0.3, mix);
+        end = burst('lowpass', 180, 0.5, 0.15, 0.4, 1.8, t + 0.6, mix);
+        break;
+      }
+      case 'bomb_whistle': {
+        // assobio das bombas caindo: três tons que descem juntos (cada bomba um pouco desafinada) e um sopro de ar
+        // estreito acompanhando, crescendo até o impacto
+        const dur = 1.05;
+        for (let k = 0; k < 3; k++) {
+          const o = ctx.createOscillator();
+          o.type = 'sine';
+          const f0 = (1480 + k * 85) * vary;
+          o.frequency.setValueAtTime(f0, t + k * 0.08);
+          o.frequency.exponentialRampToValueAtTime(f0 * 0.38, t + k * 0.08 + dur);
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(0.0001, t + k * 0.08);
+          g.gain.exponentialRampToValueAtTime(0.09, t + k * 0.08 + dur * 0.75);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + k * 0.08 + dur);
+          o.connect(g).connect(out);
+          o.start(t + k * 0.08);
+          o.stop(t + k * 0.08 + dur + 0.05);
+          nodes.push(o);
+        }
         const n = this.noiseSource();
         const f = ctx.createBiquadFilter();
         f.type = 'bandpass';
-        f.Q.value = 0.8;
-        f.frequency.setValueAtTime(700, t);
-        f.frequency.linearRampToValueAtTime(1800, t + 1.1);
-        f.frequency.linearRampToValueAtTime(500, t + 2.6);
+        f.Q.value = 9;
+        f.frequency.setValueAtTime(1500, t);
+        f.frequency.exponentialRampToValueAtTime(560, t + dur);
         const g = ctx.createGain();
         g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(0.7, t + 1.1);
-        g.gain.exponentialRampToValueAtTime(0.0001, t + 2.8);
+        g.gain.exponentialRampToValueAtTime(0.5, t + dur * 0.8);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.1);
         n.connect(f).connect(g).connect(out);
-        n.start(t);
-        n.stop(t + 2.9);
+        n.start(t, Math.random());
+        n.stop(t + dur + 0.15);
         nodes.push(n);
-        end = t + 2.9;
+        end = t + dur + 0.2;
+        break;
+      }
+      case 'jet_cannon': {
+        // canhão rotativo do caça: a rajada desenhada na amostra (o "BRRRT"), saturada, com o ronco grave da pressão dos
+        // tiros somada por baixo e o eco longo no céu aberto depois do último tiro
+        const { buffer, firing } = this.cannonBurst();
+        const mix = ctx.createGain();
+        mix.connect(out);
+        const wet = ctx.createGain();
+        wet.gain.value = gain * 0.5;
+        mix.connect(wet).connect(this.outdoorReverb());
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        src.playbackRate.value = vary;
+        const hp = ctx.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.value = 45;
+        const drive = ctx.createWaveShaper();
+        drive.curve = this.driveCurve(3);
+        drive.oversample = '4x';
+        const level = ctx.createGain();
+        level.gain.value = 0.9;
+        // o estalo de cada tiro chega abafado pelo ar: sem o chiado agudo
+        const air = ctx.createBiquadFilter();
+        air.type = 'lowpass';
+        air.frequency.value = 5000;
+        src.connect(hp).connect(drive).connect(air).connect(level).connect(mix);
+        src.start(t);
+        nodes.push(src);
+        const stop = t + firing / vary;
+        const n = this.noiseSource();
+        const lp = ctx.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = 200;
+        const ng = ctx.createGain();
+        ng.gain.setValueAtTime(0.0001, t);
+        ng.gain.exponentialRampToValueAtTime(0.6, t + 0.06);
+        ng.gain.setValueAtTime(0.6, stop - 0.04);
+        ng.gain.exponentialRampToValueAtTime(0.0001, stop + 0.2);
+        n.connect(lp).connect(ng).connect(mix);
+        n.start(t, Math.random());
+        n.stop(stop + 0.25);
+        nodes.push(n);
+        end = burst('lowpass', 280, 0.6, 0.06, 0.35, 1.3, stop - 0.05, mix);
+        break;
+      }
+      case 'jet':
+      case 'bomber': {
+        // passagem de avião, com a física de um sobrevoo de verdade:
+        // - aproximação: o assobio agudo da turbina chega antes, mais alto em tom (Doppler);
+        // - passagem: o rugido de banda larga abre de vez e o reflexo no chão cria o "chiado varrido" (filtro pente com
+        //   atraso que encolhe até a passagem e volta a crescer);
+        // - afastamento: o tom cai, e fica o trovão grave do escape, com o crepitar do jato no caça, que demora a sumir;
+        // - o bombardeiro é mais lento e mais grave: quatro motores batendo entre si (um pulsar grave) e um trovão longo.
+        const big = sound === 'bomber';
+        const dur = big ? 7.5 : 4.8;
+        const tp = t + (big ? 3.2 : 1.8);
+        const mix = ctx.createGain();
+        mix.connect(out);
+        const wet = ctx.createGain();
+        wet.gain.value = gain * 0.45;
+        mix.connect(wet).connect(this.outdoorReverb());
+        // distância: chega devagar, pico na passagem, e o escape demora a sumir
+        const env = ctx.createGain();
+        env.gain.setValueAtTime(0.005, t);
+        env.gain.exponentialRampToValueAtTime(0.25, tp - (big ? 1.5 : 0.7));
+        env.gain.exponentialRampToValueAtTime(1, tp);
+        env.gain.exponentialRampToValueAtTime(0.4, tp + (big ? 1.8 : 1));
+        env.gain.exponentialRampToValueAtTime(0.1, t + dur - 0.8);
+        env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        env.connect(mix);
+        const comb = ctx.createDelay(0.05);
+        comb.delayTime.setValueAtTime(0.012, t);
+        comb.delayTime.linearRampToValueAtTime(0.0011, tp);
+        comb.delayTime.linearRampToValueAtTime(0.014, t + dur);
+        const combG = ctx.createGain();
+        combG.gain.value = 0.7;
+        const pre = ctx.createGain();
+        pre.connect(env);
+        pre.connect(comb).connect(combG).connect(env);
+        const stopAt = t + dur + 0.1;
+        // 1. rugido de banda larga: o filtro abre na passagem e fecha no afastamento
+        {
+          const n = this.noiseSource(true);
+          const f = ctx.createBiquadFilter();
+          f.type = 'lowpass';
+          f.Q.value = 0.6;
+          f.frequency.setValueAtTime(big ? 500 : 900, t);
+          f.frequency.exponentialRampToValueAtTime(big ? 1900 : 5200, tp);
+          f.frequency.exponentialRampToValueAtTime(big ? 320 : 650, t + dur);
+          const g = ctx.createGain();
+          g.gain.value = big ? 0.9 : 0.75;
+          n.connect(f).connect(g).connect(pre);
+          n.start(t, Math.random());
+          n.stop(stopAt);
+          nodes.push(n);
+        }
+        // 2. trovão grave do escape, mais forte logo depois da passagem
+        {
+          const n = this.noiseSource(true);
+          const f = ctx.createBiquadFilter();
+          f.type = 'lowpass';
+          f.frequency.value = big ? 130 : 170;
+          const sat = ctx.createWaveShaper();
+          sat.curve = this.driveCurve(2);
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.5, tp);
+          g.gain.exponentialRampToValueAtTime(big ? 1.5 : 1.2, tp + (big ? 0.8 : 0.4));
+          g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+          n.connect(f).connect(sat).connect(g).connect(mix);
+          n.start(t, Math.random());
+          n.stop(stopAt);
+          nodes.push(n);
+        }
+        // 3. assobio da turbina (vem da entrada de ar: forte na aproximação, some logo depois), com Doppler
+        for (const [f0, k] of (big
+          ? [
+              [1150, 0.035],
+              [1730, 0.02],
+            ]
+          : [
+              [2900, 0.045],
+              [4350, 0.025],
+            ]) as [number, number][]) {
+          const o = ctx.createOscillator();
+          o.type = 'sawtooth';
+          o.frequency.setValueAtTime(f0 * 1.16 * vary, t);
+          o.frequency.setValueAtTime(f0 * 1.12 * vary, tp - 0.25);
+          o.frequency.exponentialRampToValueAtTime(f0 * 0.84 * vary, tp + 0.35);
+          o.frequency.linearRampToValueAtTime(f0 * 0.8 * vary, t + dur);
+          const bp = ctx.createBiquadFilter();
+          bp.type = 'bandpass';
+          bp.Q.value = 5;
+          bp.frequency.value = f0;
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(k, tp - 0.15);
+          g.gain.exponentialRampToValueAtTime(0.0001, tp + (big ? 2 : 1.2));
+          o.connect(bp).connect(g).connect(pre);
+          o.start(t);
+          o.stop(stopAt);
+          nodes.push(o);
+        }
+        // 4. crepitar do jato (ondas de choque do escape), mais forte no caça, depois da passagem
+        {
+          const src = ctx.createBufferSource();
+          src.buffer = this.rocketCrackleBuffer();
+          src.playbackRate.value = big ? 0.45 : 0.8;
+          const f = ctx.createBiquadFilter();
+          f.type = 'lowpass';
+          f.frequency.value = big ? 900 : 2600;
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.2, tp - 0.3);
+          g.gain.exponentialRampToValueAtTime(big ? 0.5 : 0.85, tp + 0.3);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+          src.connect(f).connect(g).connect(pre);
+          src.start(t, Math.random() * 4);
+          src.stop(stopAt);
+          nodes.push(src);
+        }
+        // 5. bombardeiro: quatro motores levemente desafinados batendo entre si (o pulsar grave de um quadrimotor)
+        if (big)
+          for (const f0 of [74, 76.5, 79, 82.5]) {
+            const o = ctx.createOscillator();
+            o.type = 'sawtooth';
+            o.frequency.setValueAtTime(f0 * 1.06 * vary, t);
+            o.frequency.setValueAtTime(f0 * 1.05 * vary, tp - 0.4);
+            o.frequency.exponentialRampToValueAtTime(f0 * 0.94 * vary, tp + 0.6);
+            const lp = ctx.createBiquadFilter();
+            lp.type = 'lowpass';
+            lp.frequency.value = 380;
+            const g = ctx.createGain();
+            g.gain.value = 0.09;
+            o.connect(lp).connect(g).connect(pre);
+            o.start(t);
+            o.stop(stopAt);
+            nodes.push(o);
+          }
+        end = t + dur;
         break;
       }
       case 'missile_launch': {

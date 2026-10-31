@@ -229,6 +229,50 @@ arquivo é baixado em tempo de execução e não há material de terceiros a lic
   - sucesso em obra ou melhoria concluída;
   - tom ao começar a segurar a autorização.
 
+### Voo dos aviões e sons aéreos (31/10, versão 1.0.x)
+
+Pedido do usuário: animações dos caças e aviões mais realistas e cinematográficas, e sons do bombardeiro e dos tiros do
+caça menos toscos. Tudo em `src/game/render/AirLayer.ts` e `src/game/audio/AudioService.ts`.
+
+- **Decolagem pela pista:**
+  - a esquadrilha que sai da base nasce na cabeceira da Base Aérea 4×4;
+  - cada avião corre a pista, um a cada 0,6 s, acelerando com o pós-combustor aceso;
+  - levanta o nariz no fim da corrida, sai do chão subindo e então se junta à formação, com curva mais aberta logo
+    depois de decolar.
+- **Voo:**
+  - curva coordenada: a inclinação vem da velocidade e da taxa de curva, com rolagem suavizada;
+  - formação firme com turbulência leve; saíram os tonneaux e as trocas de lado periódicas, que pareciam acrobacia.
+- **Motores e luzes:**
+  - pós-combustor dos caças (cone de chama e brilho) que cresce na decolagem, na subida, no mergulho e no combate;
+  - luzes de navegação: vermelha na ponta da asa esquerda, verde na direita e estroboscópio branco com dois piscos;
+  - sombra difusa no chão, que acompanha o rumo.
+- **Rastros em fita** (`Ribbon`, buffers fixos e reaproveitados):
+  - trilhas de condensação longas dos bombardeiros acima de 5 de altitude;
+  - vapor nas pontas das asas dos caças nas curvas fechadas, na recuperação do mergulho e no combate;
+  - fumaça preta contínua do avião abatido, que cai com o motor em chamas;
+  - as fitas continuam no céu esmaecendo depois que o avião some.
+- **Flares:** os caças soltam flares em leque na recuperação do mergulho de ataque e de vez em quando no combate aéreo.
+  São sprites brancos que caem em arco soltando fumaça, de um conjunto fixo de 24.
+- **Combate aéreo:** cada disparo vira uma rajada de 10 traçantes em 0,6 s.
+  - Os traçantes saem do nariz do atirador e acompanham os dois aviões em movimento.
+  - Clarão de boca a cada três tiros e clarão no alvo quando o tiro derruba o avião.
+- **Sons:**
+  - `jet`, sobrevoo do caça, montado com a física de uma passagem real:
+    - assobio da turbina com Doppler, forte na aproximação;
+    - rugido de banda larga que abre na passagem;
+    - filtro pente do reflexo no chão, o "chiado varrido";
+    - trovão grave do escape e crepitar do jato no afastamento;
+    - eco de campo aberto.
+  - `bomber`, sobrevoo do bombardeiro: mais lento (7,5 s) e mais grave, com o pulsar de quatro motores levemente
+    desafinados.
+  - O sobrevoo toca quando a formação aparece e de novo sempre que passa perto da câmera: a cada 6 s no caça e a cada
+    9 s no bombardeiro.
+  - `jet_cannon`, canhão rotativo do caça (~100 tiros/s, desenhado amostra a amostra): o "BRRRT" grave e rasgado, com
+    o ronco da rajada e o eco no céu. Substitui o som de fuzil no combate aéreo.
+  - `bomb_whistle`: assobio das bombas caindo no bombardeio em tapete.
+  - `bomb`: impacto de bomba de aviação refeito, com estalo, soco grave saturado, subgrave, terra caindo e o estrondo
+    rolando.
+
 ### Cogumelo nuclear
 
 `src/game/render/NuclearBlast.ts`, em low poly (formas facetadas, cores chapadas), com cerca de 30 s:

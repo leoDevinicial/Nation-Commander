@@ -179,6 +179,12 @@ npm test && npm run lint && npm run typecheck
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
+- **Aviões mais realistas** (31/10, depois da 1.0; `docs/FASE7_FORCA_AEREA_MISSEIS_AUDIO.md`, seção "Voo dos aviões e sons
+  aéreos"):
+  - decolagem pela pista, curva coordenada, pós-combustor e luzes de navegação;
+  - trilhas de condensação e vapor nas asas (`Ribbon`), flares e rajadas de traçantes no combate aéreo;
+  - sons novos de sobrevoo do caça e do bombardeiro, do canhão do caça, do assobio e do impacto das bombas.
+
 - **Versão 1.0** (31/10, feedback do gerente):
   - obras com o dobro do tempo (`ECONOMY.buildTime`, Centro de Pesquisa ×1,3);
   - Base Aérea 4×4 com pista de ponta a ponta;
