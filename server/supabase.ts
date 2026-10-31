@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { BalanceMode, EndReason, NationalSummary, RoomMode } from '../shared/protocol.ts';
+import type { BalanceMode, EndReason, FeedbackCategory, NationalSummary, RoomMode } from '../shared/protocol.ts';
 import type { PlayerStats } from '../shared/sim/types.ts';
 import type { MatchReport } from '../shared/sim/report.ts';
 import { config } from './config.ts';
@@ -33,6 +33,31 @@ export async function verifyAccessToken(token: string): Promise<VerifiedUser | n
   // assinatura em tabela própria (só o servidor lê); sem linha ou com erro, versão grátis
   const { data: sub } = await sb.from('subscriptions').select('active').eq('user_id', data.user.id).maybeSingle();
   return { id: data.user.id, name, subscriber: sub?.active === true };
+}
+
+export interface FeedbackRecord {
+  user_id: string | null;
+  guest: boolean;
+  display_name: string;
+  category: FeedbackCategory;
+  rating: number | null;
+  message: string;
+  game_version: string;
+}
+
+/** Grava um feedback da área Comunidade e Feedback. Sem Supabase, fica só no log do servidor. */
+export async function saveFeedback(rec: FeedbackRecord): Promise<boolean> {
+  const sb = getSupabase();
+  if (!sb) {
+    log.info('Feedback recebido (sem Supabase: só no log)', { ...rec });
+    return true;
+  }
+  const { error } = await sb.from('feedback').insert(rec);
+  if (error) {
+    log.error('Falha ao gravar feedback', { err: error.message });
+    return false;
+  }
+  return true;
 }
 
 export interface MatchRecord {

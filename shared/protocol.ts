@@ -12,6 +12,10 @@ import type { DecreeId } from './strategic/policies.ts';
 
 /** `sandbox`: modo livre contra uma IA (recursos ilimitados, tudo liberado, ferramentas de teste). */
 export type RoomMode = 'pvp' | 'vs_ai' | 'sandbox';
+
+/** Tipo de feedback enviado na área Comunidade e Feedback do menu. */
+export type FeedbackCategory = 'bug' | 'suggestion' | 'balance' | 'praise' | 'other';
+export const FEEDBACK_CATEGORIES: readonly FeedbackCategory[] = ['bug', 'suggestion', 'balance', 'praise', 'other'];
 export type { BalanceMode };
 
 export type NationalCommand =
@@ -152,6 +156,7 @@ export type ClientMessage =
   | { t: 'hello'; protocol: number; token: string | null; guestId?: string; guestName?: string }
   | { t: 'create_room'; mode: RoomMode; countryId: string; isPublic?: boolean }
   | { t: 'list_rooms' }
+  | { t: 'feedback'; category: FeedbackCategory; message: string; rating?: number }
   | { t: 'join_room'; code: string; countryId: string }
   | { t: 'leave_room' }
   | { t: 'set_country'; countryId: string }
@@ -181,6 +186,7 @@ export type ServerMessage =
   | { t: 'error'; code: string; message: string }
   | { t: 'room'; room: RoomInfo | null }
   | { t: 'room_list'; rooms: PublicRoomSummary[] }
+  | { t: 'feedback_ok' }
   | { t: 'match_start'; match: MatchStartInfo }
   | { t: 'snapshot'; s: Snapshot; paused: boolean; speed: GameSpeed; pausedBy: string | null; scope?: 'battle'; opId?: number }
   /** Batalha local de uma operação começou: mapa e contexto da região (o jogador é o slot 0). */

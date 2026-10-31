@@ -4,6 +4,7 @@ import { PROTOCOL_VERSION, GAME_VERSION } from '../shared/version.ts';
 import type { Connection } from './Connection.ts';
 import type { RoomManager } from './RoomManager.ts';
 import { sanitizeName } from './messages.ts';
+import { saveFeedback, type FeedbackRecord } from './supabase.ts';
 
 export interface HandlerDeps {
   rooms: RoomManager;
@@ -11,7 +12,14 @@ export interface HandlerDeps {
   verify: (token: string) => Promise<{ id: string; name: string; subscriber?: boolean } | null>;
   /** Conexões ativas por usuário (uma por vez). */
   sessions: Map<string, Connection>;
+  /** Grava um feedback (padrão: Supabase, ou só o log sem Supabase). */
+  saveFeedback?: (rec: FeedbackRecord) => Promise<boolean>;
+  /** Último feedback de cada usuário (ms): no máximo um a cada `FEEDBACK_COOLDOWN_MS`. */
+  feedbackAt?: Map<string, number>;
 }
+
+/** Intervalo mínimo entre dois feedbacks do mesmo jogador. */
+export const FEEDBACK_COOLDOWN_MS = 60_000;
 
 /** Processa uma mensagem já validada de uma conexão. */
 export async function handleMessage(conn: Connection, msg: ClientMessage, deps: HandlerDeps): Promise<void> {
@@ -86,6 +94,32 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
       }
       const err = target.join(conn, msg.countryId);
       if (err) conn.send({ t: 'error', code: 'room', message: err });
+      return;
+    }
+    case 'feedback': {
+      const at = (deps.feedbackAt ??= new Map());
+      const now = Date.now();
+      const last = at.get(conn.user.id) ?? -Infinity;
+      if (now - last < FEEDBACK_COOLDOWN_MS) {
+        conn.send({ t: 'error', code: 'feedback', message: `Aguarde ${Math.ceil((FEEDBACK_COOLDOWN_MS - (now - last)) / 1000)} s para enviar outro feedback.` });
+        return;
+      }
+      at.set(conn.user.id, now);
+      const guest = conn.user.id.startsWith('guest:');
+      const ok = await (deps.saveFeedback ?? saveFeedback)({
+        user_id: guest ? null : conn.user.id,
+        guest,
+        display_name: conn.user.name,
+        category: msg.category,
+        rating: msg.rating ?? null,
+        message: msg.message,
+        game_version: GAME_VERSION,
+      });
+      if (ok) conn.send({ t: 'feedback_ok' });
+      else {
+        at.delete(conn.user.id);
+        conn.send({ t: 'error', code: 'feedback', message: 'Não foi possível enviar agora. Tente de novo em instantes.' });
+      }
       return;
     }
     case 'list_rooms':

@@ -179,6 +179,10 @@ npm test && npm run lint && npm run typecheck
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
+- **Comunidade e Feedback** (31/10, `docs/COMUNIDADE_FEEDBACK.md`): tela no menu com formulário de feedback
+  (gravado pelo servidor na tabela `feedback`, migração `20261101000000_feedback.sql`), novidades das versões
+  (`src/ui/changelog.ts`) e atalhos da comunidade (links por variáveis `VITE_COMMUNITY_*`).
+
 - **Energia mais visível e ajuste fino** (31/10, `docs/REDE_ELETRICA.md`):
   - visibilidade:
     - ícone ⚡ vermelho piscando sobre a construção sem luz (snapshot `unpowered`, só para o dono);

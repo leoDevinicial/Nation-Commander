@@ -503,3 +503,24 @@ describe('salas públicas', () => {
     expect(b.last('room_list')?.rooms).toHaveLength(1);
   });
 });
+
+describe('comunidade e feedback', () => {
+  it('grava o feedback com nome e versão, recusa mensagem vazia e limita a 1 por minuto', async () => {
+    const { send, deps } = setup();
+    const saved: unknown[] = [];
+    deps.saveFeedback = async (r) => {
+      saved.push(r);
+      return true;
+    };
+    const a = fakeConn();
+    await send(a.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-ana' });
+    expect(parseClientMessage(JSON.stringify({ t: 'feedback', category: 'bug', message: 'oi' }))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ t: 'feedback', category: 'hack', message: 'mensagem longa' }))).toBeNull();
+    await send(a.conn, { t: 'feedback', category: 'suggestion', message: 'Mais mapas navais, por favor!', rating: 5 });
+    expect(a.last('feedback_ok')).toBeDefined();
+    expect(saved).toEqual([expect.objectContaining({ user_id: 'ana', category: 'suggestion', rating: 5, display_name: 'ana' })]);
+    await send(a.conn, { t: 'feedback', category: 'bug', message: 'Outro recado logo em seguida' });
+    expect(a.last('error')?.code).toBe('feedback');
+    expect(saved).toHaveLength(1);
+  });
+});

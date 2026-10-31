@@ -3,7 +3,7 @@ import type { MatchEndInfo, MatchStartInfo, PublicUser, RoomInfo } from '../../s
 import type { ConnectionStatus } from '../net/GameClient.ts';
 import type { Profile } from '../lib/supabase.ts';
 
-export type Screen = 'auth' | 'manual' | 'menu' | 'lobby' | 'game' | 'profile' | 'settings' | 'credits' | 'rooms';
+export type Screen = 'auth' | 'manual' | 'menu' | 'lobby' | 'game' | 'profile' | 'settings' | 'credits' | 'rooms' | 'community';
 
 export interface ChatLine {
   id: number;

@@ -2,7 +2,7 @@ import { isDecreeId } from '../shared/strategic/policies.ts';
 import { isMapType } from '../shared/sim/matchMap.ts';
 import { isDifficulty } from '../shared/sim/difficulty.ts';
 import { isCountryId } from '../shared/data/countries.ts';
-import { GAME_SPEEDS, MAX_CHAT_LENGTH, type ClientMessage, type GameSpeed } from '../shared/protocol.ts';
+import { FEEDBACK_CATEGORIES, GAME_SPEEDS, MAX_CHAT_LENGTH, type ClientMessage, type FeedbackCategory, type GameSpeed } from '../shared/protocol.ts';
 import { parseCommand } from '../shared/sim/commands.ts';
 import { BUDGET_KEYS, type Budget } from '../shared/strategic/NationalSimulation.ts';
 import { TECHNOLOGIES, type TechId } from '../shared/strategic/technologies.ts';
@@ -34,6 +34,14 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return { t: 'create_room', mode: data.mode, countryId: data.countryId, ...(data.isPublic === true && data.mode === 'pvp' ? { isPublic: true } : {}) };
     case 'list_rooms':
       return { t: 'list_rooms' };
+    case 'feedback': {
+      if (!FEEDBACK_CATEGORIES.includes(data.category as FeedbackCategory) || typeof data.message !== 'string') return null;
+      // eslint-disable-next-line no-control-regex -- remove caracteres de controle (mantém as quebras de linha)
+      const message = data.message.replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, '').trim().slice(0, 2000);
+      if (message.length < 5) return null;
+      const rating = typeof data.rating === 'number' && Number.isInteger(data.rating) && data.rating >= 1 && data.rating <= 5 ? data.rating : undefined;
+      return { t: 'feedback', category: data.category as FeedbackCategory, message, ...(rating !== undefined ? { rating } : {}) };
+    }
     case 'join_room': {
       const code = typeof data.code === 'string' ? data.code.trim().toUpperCase() : '';
       if (!ROOM_CODE.test(code) || !isCountryId(data.countryId)) return null;
