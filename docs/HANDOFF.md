@@ -179,6 +179,9 @@ npm test && npm run lint && npm run typecheck
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
+- **Lobby** (31/10): nome da sala escolhido pelo anfitrião; "Vagas na sala" (4 grátis, 6 assinante); vaga aberta
+  para jogador ou bot. Publicado com a tela de Salas Públicas.
+
 - **Salas públicas no menu** (31/10, `docs/SALAS_PUBLICAS.md`): lista de salas multijogador abertas com vaga, botão de
   criar sala pública e a opção "Sala pública" no lobby.
 
@@ -274,6 +277,37 @@ Histórico completo de cada entrega: `git log --oneline` na branch de trabalho (
 mensagens em português descrevendo o que mudou).
 
 ## 7. De onde continuar
+
+### Próximo passo recomendado (31/10, depois da 1.1.0)
+
+1. **Teste humano da rede elétrica e das salas públicas** (prioridade 1).
+   - Ninguém jogou a 1.1 de verdade. Jogar 2 partidas (contra a IA e multijogador por sala pública) e anotar:
+     - o alcance de 4 células da estrada fica claro?
+     - o aviso de apagão aparece na hora certa?
+     - a tela de salas atualiza?
+     - o nome da sala aparece para quem entra?
+   - Corrigir o que aparecer antes de qualquer conteúdo novo.
+2. **Clareza visual da energia.**
+   - Construção sem luz: ícone ⚡ vermelho piscando sobre ela e janelas apagadas.
+   - Ao escolher onde construir: mostrar a área energizada (4 células em volta da malha) no chão, como o raio de
+     território.
+   - Estrada cortada destruída por bombardeio (hoje a estrada não é destruída: avaliar).
+3. **Balanceamento fino da energia** com `POWER_LOG=1 npx tsx scripts/sim-economia.ts 2,5,6 25`.
+   - A IA quase não constrói solar: considerar prioridade da solar logo ao chegar na Era Digital.
+   - O carvão ainda sobra no fim (~500–700 aos 24 min): apertar se o teste humano confirmar.
+4. **Guia do jogador (PDF):** atualizar `docs/guia/` com:
+   - carvão, usinas, energia pelas estradas e apagão;
+   - salas públicas e nome da sala;
+   - clima, dia e noite.
+5. **Monetização preparada:**
+   - o limite 4/6 nações já depende de `user.subscriber` no servidor;
+   - falta a tela de assinatura e a gravação do status no Supabase.
+6. **Depois:**
+   - conteúdo naval (transporte, fragata, submarino) e os mapas Oceano Central e Arquipélago;
+   - generais, espiões e Centros Regionais (direções em `docs/BALANCEAMENTO_E_PROGRESSAO.md`).
+
+Pendência de infraestrutura: aplicar a migração `supabase/migrations/20261031000000_match_report.sql` no banco.
+
 
 Não há pedido em andamento. A rede elétrica foi feita em 31/10 (`docs/REDE_ELETRICA.md`); ainda sem partida humana de teste. Pontos abertos com o usuário: (1) um áudio antigo dele não pôde ser transcrito; pergunte
 se ainda importa; (2) os bonecos que pareciam estar no teto do QG (ver o item 2 da lista numerada da seção 6); (3) a IA
