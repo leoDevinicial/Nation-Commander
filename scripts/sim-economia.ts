@@ -160,7 +160,7 @@ function run(seed: number, difficulty: Difficulty): Result {
     if (process.env.POWER_LOG && t % MIN === 0)
       for (const s of [0, 1]) {
         const p = sim.powerInfo[s];
-        const plants = sim.buildings.filter((b) => b.owner === s && ['coal_plant', 'wind_farm', 'solar_farm'].includes(b.type)).length;
+        const plants = sim.buildings.filter((b) => b.owner === s && ['coal_plant', 'wind_farm', 'solar_farm'].includes(b.type)).map((b) => b.type.split('_')[0]).join('+');
         const dark = sim.buildings.filter((b) => b.owner === s && b.progress >= 1 && !sim.isPowered(b)).map((b) => b.type);
         console.log(`${t / MIN}min P${s} oferta ${p?.supply} demanda ${p?.demand} apagados ${dark.join(',') || '-'} isolados ${p?.isolated} usinas ${plants} carvão ${Math.round(sim.players[s]!.resources.coal)}`);
       }

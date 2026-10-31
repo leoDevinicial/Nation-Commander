@@ -15,7 +15,7 @@ import type { BuildingType } from './config.ts';
  */
 export const POWER = {
   /** Carvão por unidade de ferro extraída numa mina. */
-  coalPerIron: 0.3,
+  coalPerIron: 0.2,
   /** Distância (células) da malha até onde a fiação alcança. */
   reach: 4,
   /** Recalcula a rede a cada N ticks. */
@@ -31,7 +31,7 @@ export type PowerSource = 'coal' | 'wind' | 'solar' | 'nuclear' | 'hydro';
 
 /** Geração máxima e combustível (carvão por segundo a plena carga). */
 export const POWER_GEN: Partial<Record<BuildingType, { gen: number; source: PowerSource; coal?: number }>> = {
-  coal_plant: { gen: 30, source: 'coal', coal: 0.6 },
+  coal_plant: { gen: 24, source: 'coal', coal: 0.6 },
   wind_farm: { gen: 12, source: 'wind' },
   solar_farm: { gen: 18, source: 'solar' },
   nuclear_plant: { gen: 150, source: 'nuclear' },

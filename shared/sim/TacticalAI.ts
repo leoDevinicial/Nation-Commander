@@ -484,8 +484,14 @@ export class TacticalAI {
     const installed = mine.reduce((a, b) => a + (b.progress >= 1 && b.hp > 0 ? (POWER_GEN[b.type]?.gen ?? 0) * (POWER_GEN[b.type]?.source === 'solar' || POWER_GEN[b.type]?.source === 'wind' ? 0.6 : 1) : 0), 0);
     const powerShort = !!power && !plantInProgress && installed < power.demand + pendingUse + 4;
     const coalLow = sim.power && res.coal < 60;
+    // matriz variada: o carvão é curto, então a partir da era 2 a eólica alterna com a termelétrica (e antes dela com
+    // pouco carvão); da Era Digital em diante a solar entra quando houver menos solares que térmicas
     const plantType: BuildingType =
-      era >= 3 && count('solar_farm') < count('coal_plant') ? 'solar_farm' : coalLow && era >= 2 && count('wind_farm') < 4 ? 'wind_farm' : 'coal_plant';
+      era >= 3 && count('solar_farm') < count('coal_plant')
+        ? 'solar_farm'
+        : era >= 2 && count('wind_farm') < 4 && (res.coal < 150 || count('wind_farm') < count('coal_plant'))
+          ? 'wind_farm'
+          : 'coal_plant';
     const plan: [BuildingType, boolean][] = [
       [plantType, powerShort],
       ['mine', !!coalLow && active('mine') === 0 && !mine.some((b) => b.type === 'mine' && b.progress < 1)],

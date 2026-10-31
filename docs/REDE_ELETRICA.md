@@ -17,14 +17,14 @@ Onde está:
 ## Carvão
 
 - Recurso novo (`coal`), guardado no QG (300) e nos Armazéns (800).
-- A Mina tira 0,3 de carvão por unidade de ferro, sem gastar mais do depósito (era 0,6: o carvão sobrava aos milhares).
+- A Mina tira 0,2 de carvão por unidade de ferro, sem gastar mais do depósito (começou em 0,6 e depois 0,3: o carvão sobrava).
 - Começo: 160 de carvão, o bastante para a termelétrica inicial por bastante tempo até a primeira mina.
 
 ## Fontes
 
 | Usina | Era | Geração | Custo de operação |
 |---|---|---|---|
-| Termelétrica a Carvão (2×2) | Guerra Fria | 30 | carvão: até 0,6/s, proporcional à carga |
+| Termelétrica a Carvão (2×2) | Guerra Fria | 24 | carvão: até 0,6/s, proporcional à carga |
 | Parque Eólico (2×2) | Pós-Guerra Fria | 12 × vento (35% a 130%, varia devagar) | nenhum |
 | Usina Solar (2×2) | Era Digital | 18 × luz do dia (0 à noite), +40% na Era Digital | nenhum |
 | Hidrelétrica (Grande Projeto) | Futuro Próximo | 90 | nenhum |
@@ -91,13 +91,18 @@ QG.
 
 - **Usinas:** constrói outra quando a capacidade instalada (solar e eólica contam 60%) fica abaixo da demanda, somando o que está em obra mais uma folga de 4.
   - Termelétrica por padrão.
-  - Eólica quando o carvão está acabando (até 4).
+  - Da era 2 em diante, a eólica alterna com a termelétrica e passa na frente com menos de 150 de carvão (até 4).
   - Solar alternada com a termelétrica a partir da Era Digital.
 - **Carvão:** com o carvão abaixo de 60 e sem mina, a mina vira prioridade.
 - **Posição:** posiciona quartéis, fábricas e usinas ao alcance da malha.
 - **Construções isoladas:** traça estrada até o QG para uma construção que ficou longe da rede.
 - **Ataque:** as usinas (termelétrica, nuclear, hidrelétrica) entram logo depois da base aérea e do silo na lista de
   alvos aéreos.
+
+## Mercado interno
+
+O carvão entra no Terminal Comercial para venda e compra (taxa-base 0,35 de suprimento por unidade). A IA vende a
+sobra como faz com os outros recursos.
 
 ## Compatibilidade
 

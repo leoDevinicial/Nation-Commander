@@ -7,12 +7,12 @@ import { TICK_RATE, type ResourceType } from './config.ts';
  * vez, e despejar o estoque inteiro rende cada vez menos.
  */
 export type MarketResource = Exclude<ResourceType, 'supplies'>;
-export const MARKET_RESOURCES: MarketResource[] = ['food', 'wood', 'stone', 'iron', 'oil'];
+export const MARKET_RESOURCES: MarketResource[] = ['food', 'wood', 'stone', 'iron', 'oil', 'coal'];
 export const isMarketResource = (v: unknown): v is MarketResource => typeof v === 'string' && (MARKET_RESOURCES as string[]).includes(v);
 
 export const MARKET = {
   /** Suprimentos por unidade vendida, sem pressão (proporcional ao preço internacional de cada recurso). */
-  rates: { food: 0.3, wood: 0.25, stone: 0.2, iron: 0.5, oil: 0.6 } as Record<MarketResource, number>,
+  rates: { food: 0.3, wood: 0.25, stone: 0.2, iron: 0.5, oil: 0.6, coal: 0.35 } satisfies Record<MarketResource, number>,
   /** Profundidade: com esta pressão acumulada, o preço do recurso cai à metade. */
   depth: 1000,
   /** Pressão que some por segundo, em cada recurso (1.000 unidades vendidas se recuperam em ~8 min). */
