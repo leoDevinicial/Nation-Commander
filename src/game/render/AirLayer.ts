@@ -740,7 +740,7 @@ export class AirLayer {
         // os cargueiros voam grandes; no pátio encolhem para caber na vaga sem encostar na vizinha
         else if (kind === 'transport') p.group.scale.setScalar(0.44);
         else if (kind === 'transport2') p.group.scale.setScalar(0.34);
-        else if (kind === 'drone') p.group.scale.setScalar(0.82);
+        else if (kind === 'drone') p.group.scale.setScalar(0.6);
         // no voo os caças são maiores; no pátio voltam ao tamanho da vaga
         else if (kind === 'fighter' || kind === 'gripen') p.group.scale.setScalar(1 / FIGHTER_SCALE);
         p.group.rotation.y = slot.heading;

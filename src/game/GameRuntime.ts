@@ -592,6 +592,16 @@ export class GameRuntime {
         }
       }
       if (this.heardFlights.size > 64) for (const id of this.heardFlights.keys()) if (!s.air.flights.some((f) => f.id === id)) this.heardFlights.delete(id);
+      // drones passando perto da câmera: o zumbido da hélice com o Doppler (o pilotado já tem o som de bordo)
+      for (const d of s.air.drones ?? []) {
+        if (d.id === this.fpv.droneId) continue;
+        const key = -d.id;
+        const last = this.heardFlights.get(key);
+        if (Math.hypot(d.x - cam.x, d.y - cam.z) < 18 && (last === undefined || now - last > 7)) {
+          this.heardFlights.set(key, now);
+          audio.playAt('drone_pass', d.x, d.y);
+        }
+      }
     }
     this.snapshot = s;
     this.simSeconds = s.tick / TICK_RATE;

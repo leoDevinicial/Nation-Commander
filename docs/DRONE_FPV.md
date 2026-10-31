@@ -25,7 +25,9 @@ ataque.
   automático (soltar o cursor também). No celular, arrastar o dedo é o manche e um toque rápido explode.
 - Cuidado: Ctrl + W fecha a aba em alguns navegadores (o jogo não consegue bloquear); por isso C também desce.
 - Ao cair o sinal (impacto, derrubado, bateria), a tela vira chiado com "SINAL PERDIDO" e volta ao mapa no ponto.
-- Som: zumbido do motor que sobe com a velocidade, sopro da hélice e chiado de rádio.
+- Som (referência: turboélice com hélice propulsora de 4 pás): o zumbido da hélice na frequência de passagem das pás
+  (~110 a 150 Hz) com harmônicos e a pulsação de cada volta, o assobio da turbina, o vento que cresce com a velocidade e
+  um chiado de rádio. Visto do mapa, o drone passando perto tem o zumbido com Doppler (`drone_pass`).
 
 ## Regras (servidor, `shared/sim/drones.ts`)
 

@@ -20,7 +20,7 @@ export type Volumes = Record<Channel | 'master', number>;
 export const DEFAULT_VOLUMES: Volumes = { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 };
 
 export type UiSound = 'click' | 'confirm' | 'error' | 'alert' | 'success' | 'hold';
-export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'mbt_gun' | 'tank_gun' | 'vehicle_explosion' | 'vehicle_explosion_heavy' | 'nuclear_blast' | 'space_prelaunch' | 'space_liftoff' | 'dome_launch' | 'dome_intercept' | 'gatling' | 'bomber' | 'jet_cannon' | 'bomb_whistle' | 'carpet_rumble' | 'aam_launch' | 'agm_launch' | 'air_mg';
+export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'mbt_gun' | 'tank_gun' | 'vehicle_explosion' | 'vehicle_explosion_heavy' | 'nuclear_blast' | 'space_prelaunch' | 'space_liftoff' | 'dome_launch' | 'dome_intercept' | 'gatling' | 'bomber' | 'jet_cannon' | 'bomb_whistle' | 'carpet_rumble' | 'aam_launch' | 'agm_launch' | 'air_mg' | 'drone_pass';
 export type MissileCue = 'prepare' | 'armed' | 'authorize';
 
 /** Som de trabalho de cada edifício (os demais usam o zumbido genérico). */
@@ -77,6 +77,7 @@ const PRIORITY: Record<CombatSound, number> = {
   bomber: 3,
   jet_cannon: 3,
   aam_launch: 4,
+  drone_pass: 2,
   agm_launch: 4,
   air_mg: 2,
   bomb_whistle: 3,
@@ -90,7 +91,7 @@ const PRIORITY: Record<CombatSound, number> = {
 };
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
-const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, bomber: 1.2, jet_cannon: 0.12, aam_launch: 0.25, agm_launch: 0.2, air_mg: 0.18, bomb_whistle: 0.4, carpet_rumble: 1.5, bomb: 0.07, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, vehicle_explosion: 0.1, vehicle_explosion_heavy: 0.15, nuclear_blast: 1, space_prelaunch: 2, space_liftoff: 2, dome_launch: 0.2, dome_intercept: 0.3, tank_gun: 0.18 };
+const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, bomber: 1.2, jet_cannon: 0.12, aam_launch: 0.25, drone_pass: 3, agm_launch: 0.2, air_mg: 0.18, bomb_whistle: 0.4, carpet_rumble: 1.5, bomb: 0.07, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, vehicle_explosion: 0.1, vehicle_explosion_heavy: 0.15, nuclear_blast: 1, space_prelaunch: 2, space_liftoff: 2, dome_launch: 0.2, dome_intercept: 0.3, tank_gun: 0.18 };
 
 /**
  * Atenuação e panorâmica de um ponto do mapa para quem olha `L` (ponto da câmera, distância e giro).
@@ -1154,6 +1155,9 @@ export class AudioService {
         end = t + dur;
         break;
       }
+      case 'drone_pass':
+        end = this.dronePass(t, out, gain, nodes);
+        break;
       case 'aam_launch':
       case 'agm_launch': {
         // míssil do caça: o estalo seco da ignição no trilho, o "fssshhh" rasgado do motor de combustível sólido que
@@ -2212,11 +2216,33 @@ export class AudioService {
     for (let i = 0; i < drops; i++) this.rainDrop(t + Math.random() * 0.5, this.weatherRain);
   }
 
-  private droneLoop: { motor: OscillatorNode[]; gain: GainNode; noise: GainNode; hiss: GainNode; filter: BiquadFilterNode; stop: () => void } | null = null;
+  private droneLoop: { prop: OscillatorNode; am: OscillatorNode; amDepth: GainNode; propGain: GainNode; propFilter: BiquadFilterNode; whine: OscillatorNode[]; whineGain: GainNode; wind: GainNode; windFilter: BiquadFilterNode; hiss: GainNode; stop: () => void } | null = null;
+  private propWave: PeriodicWave | null = null;
 
   /**
-   * Drone em primeira pessoa: o zumbido do motor elétrico (duas dentes-de-serra levemente desafinadas, filtradas) que
-   * sobe de tom com a velocidade, o sopro da hélice e um chiado baixo de rádio analógico. `speed` em unidades/s.
+   * Timbre da hélice: a frequência de passagem das pás (fundamental) com uma escada de harmônicos que cai devagar, o
+   * "zumbido de cortador de grama" das hélices propulsoras; os pares têm um pouco mais de energia (as pás batem em
+   * pares no escoamento da fuselagem).
+   */
+  private propellerWave(): PeriodicWave {
+    if (!this.propWave) {
+      const n = 24;
+      const real = new Float32Array(n);
+      const imag = new Float32Array(n);
+      for (let h = 1; h < n; h++) imag[h] = (h % 2 === 0 ? 1.25 : 1) / Math.pow(h, 1.15);
+      this.propWave = this.ctx!.createPeriodicWave(real, imag);
+    }
+    return this.propWave;
+  }
+
+  /**
+   * Drone em primeira pessoa (som da câmera de bordo), com base no som real de um drone armado turboélice:
+   * - hélice de quatro pás: fundamental na passagem das pás (~110 a 150 Hz, sobe com a rotação) e harmônicos, com a
+   *   pulsação de cada volta (modulação na rotação, 1/4 da fundamental);
+   * - turbina: o assobio agudo e baixo do turboélice (duas linhas próximas, que batem entre si);
+   * - vento: sopro largo que cresce com a velocidade;
+   * - um chiado baixo de rádio.
+   * `speed` em unidades/s.
    */
   setDroneFpv(active: boolean, speed: number): void {
     if (!this.ready) return;
@@ -2226,63 +2252,142 @@ export class AudioService {
       if (!this.droneLoop) return;
       const loop = this.droneLoop;
       this.droneLoop = null;
-      loop.gain.gain.setTargetAtTime(0, t, 0.08);
-      loop.noise.gain.setTargetAtTime(0, t, 0.08);
-      loop.hiss.gain.setTargetAtTime(0, t, 0.08);
+      for (const g of [loop.propGain, loop.whineGain, loop.wind, loop.hiss]) g.gain.setTargetAtTime(0, t, 0.06);
       setTimeout(() => loop.stop(), 600);
       return;
     }
     if (!this.droneLoop) {
       const out = this.out('combat', 1);
-      const gain = ctx.createGain();
-      gain.gain.value = 0;
-      const filter = ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.value = 1600;
-      filter.Q.value = 0.8;
-      const motor = [1, 1.012, 2.003].map((m, i) => {
+      // hélice: forma de onda com os harmônicos, filtro passa-baixa e a pulsação de cada volta
+      const prop = ctx.createOscillator();
+      prop.setPeriodicWave(this.propellerWave());
+      prop.frequency.value = 120;
+      const propFilter = ctx.createBiquadFilter();
+      propFilter.type = 'lowpass';
+      propFilter.frequency.value = 1400;
+      propFilter.Q.value = 0.6;
+      const propGain = ctx.createGain();
+      propGain.gain.value = 0;
+      const pulse = ctx.createGain();
+      pulse.gain.value = 0.8;
+      const am = ctx.createOscillator();
+      am.frequency.value = 30;
+      const amDepth = ctx.createGain();
+      amDepth.gain.value = 0.22;
+      am.connect(amDepth).connect(pulse.gain);
+      prop.connect(propFilter).connect(pulse).connect(propGain).connect(out);
+      prop.start();
+      am.start();
+      // turbina: assobio agudo
+      const whineGain = ctx.createGain();
+      whineGain.gain.value = 0;
+      const whine = [1, 1.006].map((m) => {
         const o = ctx.createOscillator();
-        o.type = i === 2 ? 'triangle' : 'sawtooth';
-        o.frequency.value = 150 * m;
-        o.connect(filter);
+        o.type = 'sine';
+        o.frequency.value = 3600 * m;
+        o.connect(whineGain);
         o.start();
         return o;
       });
-      filter.connect(gain).connect(out);
-      const mk = (type: BiquadFilterType, f: number, q: number) => {
-        const n = this.noiseSource(true);
-        const bf = ctx.createBiquadFilter();
-        bf.type = type;
-        bf.frequency.value = f;
-        bf.Q.value = q;
-        const g = ctx.createGain();
-        g.gain.value = 0;
-        n.connect(bf).connect(g).connect(out);
-        n.start(0, Math.random());
-        return { n, g };
-      };
-      const prop = mk('bandpass', 700, 0.7);
-      const radio = mk('highpass', 3500, 0.5);
+      whineGain.connect(out);
+      // vento e chiado de rádio
+      const windSrc = this.noiseSource(true);
+      const windFilter = ctx.createBiquadFilter();
+      windFilter.type = 'bandpass';
+      windFilter.frequency.value = 600;
+      windFilter.Q.value = 0.5;
+      const wind = ctx.createGain();
+      wind.gain.value = 0;
+      windSrc.connect(windFilter).connect(wind).connect(out);
+      windSrc.start(0, Math.random());
+      const hissSrc = this.noiseSource(true);
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 4000;
+      const hiss = ctx.createGain();
+      hiss.gain.value = 0;
+      hissSrc.connect(hp).connect(hiss).connect(out);
+      hissSrc.start(0, Math.random());
       this.droneLoop = {
-        motor,
-        gain,
-        noise: prop.g,
-        hiss: radio.g,
-        filter,
+        prop,
+        am,
+        amDepth,
+        propGain,
+        propFilter,
+        whine,
+        whineGain,
+        wind,
+        windFilter,
+        hiss,
         stop: () => {
-          for (const o of motor) o.stop();
-          prop.n.stop();
-          radio.n.stop();
+          prop.stop();
+          am.stop();
+          for (const o of whine) o.stop();
+          windSrc.stop();
+          hissSrc.stop();
         },
       };
     }
+    const L = this.droneLoop;
     const k = Math.max(0, Math.min(1, (speed - 3) / 8));
-    const f = 130 + k * 120;
-    this.droneLoop.motor.forEach((o, i) => o.frequency.setTargetAtTime(f * [1, 1.012, 2.003][i]!, t, 0.15));
-    this.droneLoop.filter.frequency.setTargetAtTime(1300 + k * 1500, t, 0.2);
-    this.droneLoop.gain.gain.setTargetAtTime(0.07 + k * 0.05, t, 0.1);
-    this.droneLoop.noise.gain.setTargetAtTime(0.12 + k * 0.1, t, 0.1);
-    this.droneLoop.hiss.gain.setTargetAtTime(0.025, t, 0.2);
+    // rotação da hélice (passagem das pás) e da turbina sobem com o acelerador
+    const bpf = 112 + k * 40;
+    L.prop.frequency.setTargetAtTime(bpf, t, 0.25);
+    L.am.frequency.setTargetAtTime(bpf / 4, t, 0.25);
+    L.propFilter.frequency.setTargetAtTime(1100 + k * 900, t, 0.25);
+    L.propGain.gain.setTargetAtTime(0.16 + k * 0.06, t, 0.15);
+    L.whine.forEach((o, i) => o.frequency.setTargetAtTime((3500 + k * 700) * (i ? 1.006 : 1), t, 0.3));
+    L.whineGain.gain.setTargetAtTime(0.012 + k * 0.008, t, 0.2);
+    L.windFilter.frequency.setTargetAtTime(450 + k * 900, t, 0.3);
+    L.wind.gain.setTargetAtTime(0.05 + k * 0.16, t, 0.2);
+    L.hiss.gain.setTargetAtTime(0.018, t, 0.3);
+  }
+
+  /**
+   * Drone passando perto da câmera (visto do mapa): o zumbido da hélice chegando, passando e indo embora, com o tom
+   * caindo na passagem (Doppler) e o volume pela distância; o assobio da turbina só perto.
+   */
+  private dronePass(t: number, out: AudioNode, gain: number, nodes: AudioScheduledSourceNode[]): number {
+    const ctx = this.ctx!;
+    const dur = 5;
+    const tp = t + 2.2;
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.0001, t);
+    env.gain.exponentialRampToValueAtTime(0.35, tp - 1);
+    env.gain.exponentialRampToValueAtTime(1, tp);
+    env.gain.exponentialRampToValueAtTime(0.3, tp + 1.2);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    env.connect(out);
+    const wet = ctx.createGain();
+    wet.gain.value = gain * 0.35;
+    env.connect(wet).connect(this.outdoorReverb());
+    const prop = ctx.createOscillator();
+    prop.setPeriodicWave(this.propellerWave());
+    prop.frequency.setValueAtTime(140, t);
+    prop.frequency.setValueAtTime(138, tp - 0.4);
+    prop.frequency.exponentialRampToValueAtTime(112, tp + 0.5);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(900, t);
+    lp.frequency.exponentialRampToValueAtTime(2000, tp);
+    lp.frequency.exponentialRampToValueAtTime(700, t + dur);
+    const g = ctx.createGain();
+    g.gain.value = 0.32;
+    prop.connect(lp).connect(g).connect(env);
+    prop.start(t);
+    prop.stop(t + dur + 0.05);
+    nodes.push(prop);
+    const whine = ctx.createOscillator();
+    whine.type = 'sine';
+    whine.frequency.setValueAtTime(3900, t);
+    whine.frequency.exponentialRampToValueAtTime(3300, tp + 0.6);
+    const wg = ctx.createGain();
+    wg.gain.value = 0.02;
+    whine.connect(wg).connect(env);
+    whine.start(t);
+    whine.stop(t + dur + 0.05);
+    nodes.push(whine);
+    return t + dur + 0.1;
   }
 
   /** Uma gota: estalo curtíssimo e abafado (folha, telha ou poça), com altura e lado sorteados. */
