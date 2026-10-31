@@ -321,56 +321,173 @@ function transportPlane(b: PartBuilder, a: PartBuilder, g: PartBuilder, at: V3, 
  */
 export const AIRBASE_SLOTS: { x: number; z: number; heading: number }[] = [-1.15, 0.05, 1.25, 2.45].map((x) => ({ x, z: 0.55, heading: -Math.PI / 2 }));
 
+const BOMBER = { body: '#2f353b', panel: '#3b424a', belly: '#464e56', dark: '#1d2125', nozzle: '#121416', radome: '#262a2e' };
+
+/** Raio da fuselagem do bombardeiro em cada estação x (da cauda ao nariz), antes do achatamento. */
+const BOMBER_BODY: [number, number][] = [
+  [-1.3, 0.015],
+  [-1.2, 0.055],
+  [-0.95, 0.105],
+  [-0.45, 0.145],
+  [0.15, 0.16],
+  [0.65, 0.145],
+  [0.98, 0.115],
+  [1.22, 0.075],
+  [1.4, 0.035],
+  [1.5, 0.004],
+];
+const bomberR = (x: number): number => {
+  for (let i = 1; i < BOMBER_BODY.length; i++) {
+    const [x1, r1] = BOMBER_BODY[i]!;
+    const [x0, r0] = BOMBER_BODY[i - 1]!;
+    if (x <= x1) return r0 + ((r1 - r0) * (x - x0)) / (x1 - x0);
+  }
+  return 0;
+};
+/** Achatamento da fuselagem: mais larga que alta, fundida com a raiz da asa. */
+const BOMBER_SQUASH: [number, number] = [0.78, 1.18];
+/** Asa em flecha média (meio caminho da geometria variável): bordo de ataque da raiz à ponta. */
+const BOMBER_WING = { rootX: 0.08, rootZ: 0.36, tipX: -0.64, tipZ: 1.24, chordRoot: 0.5, chordTip: 0.17 };
+const wingLeadX = (z: number) => BOMBER_WING.rootX + ((BOMBER_WING.tipX - BOMBER_WING.rootX) * (z - BOMBER_WING.rootZ)) / (BOMBER_WING.tipZ - BOMBER_WING.rootZ);
+
+/**
+ * Bombardeiro estratégico de asa em flecha (nariz para +x), em low poly: fuselagem longa e achatada fundida às luvas
+ * da asa, nariz afilado com radome, para-brisa facetado, quatro motores em duas naceles sob a raiz, deriva alta com o
+ * estabilizador embaixo e cauda em ferrão. Cinza-chumbo com painéis em tom mais claro; a cor da nação (camada
+ * `accent`) vai na faixa do dorso, nos painéis das luvas, na ponta da deriva e nas pontas das asas. As bombas sob as
+ * asas ficam num modelo à parte (`bomberStoresModel`), para sumirem depois do ataque.
+ */
 function bomberPlane(b: PartBuilder, a: PartBuilder, g: PartBuilder, at: V3, s = 1): void {
   const [x, y, z] = at;
   const P = (dx: number, dy: number, dz: number): V3 => [x + dx * s, y + dy * s, z + dz * s];
+  const sc = (pts: [number, number][]) => pts.map(([px, pz]) => [x + px * s, z + pz * s] as [number, number]);
   const X: V3 = [0, 0, Math.PI / 2];
-  const tip: V3 = [0, 0, -Math.PI / 2];
-  const col = '#646a70';
-  const dark = '#3f4347';
-  const belly = '#8b9196';
-  // fuselagem: seção central, transição para o nariz, cone do nariz e cauda afilada
-  b.cyl(0.13 * s, 0.13 * s, 1.1 * s, col, P(0, 0, 0), X, 14);
-  b.cyl(0.075 * s, 0.13 * s, 0.55 * s, col, P(0.825, 0, 0), tip, 14);
-  b.cyl(0.006 * s, 0.075 * s, 0.32 * s, dark, P(1.26, -0.005, 0), tip, 14);
-  b.cyl(0.055 * s, 0.13 * s, 0.6 * s, col, P(-0.85, 0.02, 0), X, 14);
-  b.box(1.0 * s, 0.03 * s, 0.2 * s, belly, P(0.05, -0.12, 0));
-  // dorso (espinha) e cabine
-  b.box(1.4 * s, 0.07 * s, 0.11 * s, col, P(-0.15, 0.12, 0));
-  b.box(0.3 * s, 0.07 * s, 0.13 * s, col, P(0.92, 0.07, 0), [0, 0, -0.18]);
-  g.box(0.2 * s, 0.05 * s, 0.13 * s, '#ffffff', P(1.0, 0.08, 0), [0, 0, -0.3]);
-  // portas do compartimento de bombas
-  for (const dz of [-0.04, 0.04]) b.box(0.62 * s, 0.012 * s, 0.07 * s, dark, P(0.1, -0.137, dz));
-  const sweep = 0.62;
-  for (const sz of [-1, 1]) {
-    // luva fixa junto à fuselagem e asa em flecha a partir dela
-    b.box(0.75 * s, 0.045 * s, 0.26 * s, col, P(0.12, 0.0, sz * 0.24), [0, sz * 0.35, 0]);
-    const root: V3 = [0.02, 0, sz * 0.34];
-    const len = 1.15;
-    const cx = root[0] - Math.sin(sweep) * len * 0.5;
-    const cz = root[2] + sz * Math.cos(sweep) * len * 0.5;
-    b.box(0.3 * s, 0.025 * s, len * s, col, P(cx, 0.01, cz), [0, -sz * sweep, 0]);
-    // bordo de ataque claro e ponta da asa
-    const lx = cx + Math.cos(sweep) * 0.15;
-    const lz = cz + sz * Math.sin(sweep) * 0.15;
-    b.box(0.03 * s, 0.028 * s, len * s, belly, P(lx, 0.01, lz), [0, -sz * sweep, 0]);
-    const tx = root[0] - Math.sin(sweep) * len * 0.92;
-    const tz = root[2] + sz * Math.cos(sweep) * len * 0.92;
-    a.box(0.1 * s, 0.03 * s, 0.1 * s, '#ffffff', P(tx, 0.012, tz));
-    // dois motores por lado em nacele dupla sob a raiz da asa
-    b.box(0.5 * s, 0.1 * s, 0.24 * s, dark, P(-0.28, -0.11, sz * 0.27));
-    for (const e of [0.2, 0.34]) {
-      b.cyl(0.055 * s, 0.06 * s, 0.56 * s, dark, P(-0.3, -0.12, sz * e), X, 10);
-      b.cyl(0.05 * s, 0.05 * s, 0.05 * s, '#151617', P(-0.6, -0.12, sz * e), X, 10);
+  const top = (px: number) => bomberR(px) * BOMBER_SQUASH[0];
+  // fuselagem torneada e achatada; barriga em tom mais claro (meia casca de baixo)
+  lathe(b, BOMBER_BODY, BOMBER.body, P(0, 0, 0), s, BOMBER_SQUASH, undefined, 14);
+  lathe(b, BOMBER_BODY.map(([px, r]) => [px, r * 1.01] as [number, number]), BOMBER.belly, P(0, -0.004, 0), s, BOMBER_SQUASH, [Math.PI * 0.15, Math.PI * 0.7], 14);
+  // radome escuro no nariz e tubo de reabastecimento
+  lathe(b, [[1.3, 0.056], [1.4, 0.036], [1.5, 0.006]], BOMBER.radome, P(0.002, 0, 0), s, BOMBER_SQUASH, undefined, 14);
+  b.cyl(0.005 * s, 0.005 * s, 0.14 * s, BOMBER.dark, P(1.56, 0, 0), X, 4);
+  // luvas da asa fundidas ao corpo (planta em diamante achatado) e quilha dorsal até a deriva
+  mirrored(b, sc([[0.95, 0], [0.55, 0.17], [0.0, 0.4], [-0.62, 0.38], [-0.98, 0.15], [-1.05, 0]]), 0.07 * s, BOMBER.body, P(0, -0.045, 0));
+  mirrored(b, sc([[0.62, 0], [0.3, 0.12], [-0.2, 0.26], [-0.7, 0.2], [-0.95, 0]]), 0.012 * s, BOMBER.panel, P(0, 0.026, 0));
+  // asas em flecha: planta trapezoidal, bordo de ataque em tom claro e farol na ponta
+  const W = BOMBER_WING;
+  for (const sz of [1, -1]) {
+    const wing: [number, number][] = [
+      [W.rootX, sz * W.rootZ],
+      [W.tipX, sz * W.tipZ],
+      [W.tipX - W.chordTip, sz * W.tipZ],
+      [W.rootX - W.chordRoot, sz * W.rootZ],
+    ];
+    b.plan(sc(sz > 0 ? wing : [...wing].reverse()), 0.026 * s, BOMBER.body, P(0, -0.012, 0));
+    const lead: [number, number][] = [
+      [W.rootX + 0.005, sz * W.rootZ],
+      [W.tipX + 0.005, sz * W.tipZ],
+      [W.tipX - 0.035, sz * W.tipZ],
+      [W.rootX - 0.04, sz * W.rootZ],
+    ];
+    b.plan(sc(sz > 0 ? lead : [...lead].reverse()), 0.03 * s, BOMBER.belly, P(0, -0.014, 0));
+    // flapes (faixa escura no bordo de fuga)
+    const flap: [number, number][] = [
+      [W.rootX - W.chordRoot + 0.07, sz * (W.rootZ + 0.05)],
+      [W.tipX - W.chordTip + 0.04, sz * (W.tipZ - 0.12)],
+      [W.tipX - W.chordTip - 0.002, sz * (W.tipZ - 0.12)],
+      [W.rootX - W.chordRoot - 0.002, sz * (W.rootZ + 0.05)],
+    ];
+    b.plan(sc(sz > 0 ? flap : [...flap].reverse()), 0.03 * s, BOMBER.panel, P(0, -0.013, 0));
+    // ponta da asa na cor da nação
+    const tip: [number, number][] = [
+      [W.tipX + 0.004, sz * W.tipZ],
+      [W.tipX - W.chordTip - 0.004, sz * W.tipZ],
+      [W.tipX - W.chordTip + 0.012, sz * (W.tipZ - 0.1)],
+      [wingLeadX(W.tipZ - 0.1), sz * (W.tipZ - 0.1)],
+    ];
+    a.plan(sc(sz > 0 ? tip.reverse() : tip), 0.032 * s, '#ffffff', P(0, -0.015, 0));
+    // painel de identificação na luva (o "letreiro" amarelo da referência), em flecha com a asa
+    a.box(0.26 * s, 0.006 * s, 0.07 * s, '#ffffff', P(-0.18, 0.028, sz * 0.27), [0, sz * 0.55, 0]);
+    a.box(0.12 * s, 0.006 * s, 0.04 * s, '#ffffff', P(0.12, 0.028, sz * 0.2), [0, sz * 0.55, 0]);
+    // nacele dupla sob a raiz: tomada de ar escura na frente, dois bocais atrás
+    b.box(0.6 * s, 0.11 * s, 0.27 * s, BOMBER.panel, P(-0.6, -0.1, sz * 0.31));
+    b.box(0.08 * s, 0.09 * s, 0.25 * s, BOMBER.nozzle, P(-0.28, -0.1, sz * 0.31));
+    for (const e of [0.24, 0.38]) {
+      b.cyl(0.05 * s, 0.056 * s, 0.12 * s, BOMBER.dark, P(-0.95, -0.1, sz * e), X, 10);
+      b.cyl(0.04 * s, 0.04 * s, 0.125 * s, BOMBER.nozzle, P(-0.955, -0.1, sz * e), X, 10);
     }
-    b.box(0.06 * s, 0.11 * s, 0.25 * s, '#1f2123', P(0.0, -0.11, sz * 0.27));
-    // estabilizadores horizontais em flecha
-    b.box(0.22 * s, 0.022 * s, 0.5 * s, col, P(-1.02, 0.12, sz * 0.26), [0, -sz * 0.55, 0]);
+    // estabilizador horizontal na base da deriva, em flecha
+    b.plan(sc(sz > 0 ? [[-0.98, 0.04], [-1.16, 0.46], [-1.27, 0.46], [-1.22, 0.04]] : [[-1.22, -0.04], [-1.27, -0.46], [-1.16, -0.46], [-0.98, -0.04]]), 0.022 * s, BOMBER.body, P(0, 0.05, 0));
   }
-  // deriva alta inclinada para trás, com a marca da nação dos dois lados
-  b.box(0.42 * s, 0.46 * s, 0.035 * s, col, P(-1.0, 0.33, 0), [0, 0, 0.42]);
-  for (const sz of [-1, 1]) a.box(0.18 * s, 0.1 * s, 0.006 * s, '#ffffff', P(-1.02, 0.36, sz * 0.02), [0, 0, 0.42]);
-  b.cyl(0.006 * s, 0.006 * s, 0.18 * s, dark, P(1.48, 0, 0), X, 4);
+  // faixa da nação ao longo do dorso, acompanhando a curva da fuselagem (do para-brisa à deriva)
+  for (let px = 0.86; px > -0.98; px -= 0.16) a.box(0.17 * s, 0.01 * s, 0.05 * s, '#ffffff', P(px, top(px) + 0.002, 0), [0, 0, (top(px + 0.08) - top(px - 0.08)) / 0.16]);
+  // cabine: para-brisa facetado em V e janelas laterais
+  for (const sz of [1, -1]) {
+    g.box(0.15 * s, 0.006 * s, 0.075 * s, '#ffffff', P(1.12, top(1.12) - 0.005, sz * 0.035), [sz * 0.32, 0, -0.42]);
+    g.box(0.1 * s, 0.035 * s, 0.006 * s, '#ffffff', P(1.0, top(1.0) - 0.035, sz * bomberR(1.0) * BOMBER_SQUASH[1] * 0.86), [0, sz * 0.2, 0]);
+  }
+  b.box(0.08 * s, 0.03 * s, 0.012 * s, BOMBER.dark, P(1.17, top(1.17) - 0.004, 0), [0, 0, -0.42]);
+  // deriva alta inclinada, com faixa da nação no topo e farol
+  b.side(
+    [
+      [-1.27 * s, 0.03 * s],
+      [-0.78 * s, 0.03 * s],
+      [-1.06 * s, 0.6 * s],
+      [-1.26 * s, 0.6 * s],
+    ],
+    0.03 * s,
+    BOMBER.body,
+    P(0, 0, 0),
+  );
+  a.side(
+    [
+      [-1.255 * s, 0.5 * s],
+      [-0.985 * s, 0.5 * s],
+      [-1.055 * s, 0.6 * s],
+      [-1.255 * s, 0.6 * s],
+    ],
+    0.034 * s,
+    '#ffffff',
+    P(0, 0, 0),
+  );
+  // ferrão da cauda (contramedidas)
+  b.cyl(0.008 * s, 0.03 * s, 0.22 * s, BOMBER.dark, P(-1.38, 0.0, 0), [0, 0, -Math.PI / 2], 8);
+  // portas do compartimento de bombas
+  for (const dz of [-0.045, 0.045]) b.box(0.7 * s, 0.01 * s, 0.075 * s, BOMBER.dark, P(0.1, -bomberR(0.1) * BOMBER_SQUASH[0] + 0.003, dz));
+}
+
+/**
+ * Bombas guiadas sob as asas e sob as luvas do bombardeiro (nariz para +x, mesmo referencial e escala de
+ * `aircraftModel('bomber')`): corpo escuro, anel na cor da nação perto da ogiva, aletas e cabide. Modelo separado:
+ * some na volta, depois que a esquadrilha despejou a carga.
+ */
+export function bomberStoresModel(s = 1.3): ModelLayers {
+  const l = layers();
+  const { body: b, accent: a } = l;
+  const X: V3 = [0, 0, Math.PI / 2];
+  const prof: [number, number][] = [
+    [-0.2, 0.012],
+    [-0.17, 0.034],
+    [-0.08, 0.044],
+    [0.11, 0.044],
+    [0.19, 0.03],
+    [0.24, 0.004],
+  ];
+  const stations: [number, number][] = [
+    [wingLeadX(0.62) - 0.13, 0.62],
+    [wingLeadX(0.86) - 0.1, 0.86],
+    [wingLeadX(1.08) - 0.07, 1.08],
+    [0.2, 0.5],
+  ];
+  for (const sz of [1, -1])
+    for (const [bx, bz] of stations) {
+      const at: V3 = [bx * s, -0.085 * s, sz * bz * s];
+      lathe(b, prof, '#2a2f34', at, s, [1, 1], undefined, 10);
+      a.cyl(0.046 * s, 0.046 * s, 0.03 * s, '#ffffff', [at[0] + 0.14 * s, at[1], at[2]], X, 10);
+      a.cyl(0.046 * s, 0.046 * s, 0.015 * s, '#ffffff', [at[0] - 0.12 * s, at[1], at[2]], X, 10);
+      for (const r of [0, Math.PI / 2]) b.box(0.06 * s, 0.004 * s, 0.1 * s, '#3b424a', [at[0] - 0.17 * s, at[1], at[2]], [r, 0, 0]);
+      b.box(0.14 * s, 0.04 * s, 0.012 * s, '#1d2125', [at[0], at[1] + 0.055 * s, at[2]]);
+    }
+  return l.build();
 }
 
 // ------------------------------------------------------------------ base aérea

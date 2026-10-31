@@ -3,12 +3,12 @@ import type { AirView } from '../../../shared/sim/snapshot.ts';
 import type { Effects } from './Effects.ts';
 import { factionColor } from './palette.ts';
 import type { ModelLayers } from './models/kit.ts';
-import { AIRBASE_SLOTS, aircraftModel, missileModel } from './models/military.ts';
+import { AIRBASE_SLOTS, aircraftModel, bomberStoresModel, missileModel } from './models/military.ts';
 import { glowTexture, volumetricSmokeTexture } from './textures.ts';
 
 type Flight = AirView['flights'][number];
 type Launch = AirView['launches'][number];
-type Kind = 'fighter' | 'gripen' | 'bomber' | 'recon' | 'transport' | 'missile' | 'missile2';
+type Kind = 'fighter' | 'gripen' | 'bomber' | 'recon' | 'transport' | 'missile' | 'missile2' | 'stores';
 
 const ALTITUDE = 7;
 /** Altitude no fundo do mergulho de ataque. */
@@ -54,6 +54,11 @@ interface Plane {
   big: boolean;
   /** Atraso do estroboscópio (cada avião pisca na sua hora). */
   blink: number;
+  /** Bombardeiro: bombas sob as asas (somem na volta) e o brilho dos outros três bocais. */
+  stores: THREE.Group | null;
+  nozzles: THREE.Sprite[];
+  /** Balanço próprio do avião pesado (turbulência lenta). */
+  sway: number;
 }
 
 /** Fitas de rastro: um ponto novo a cada RIB_STEP segundos. */
@@ -215,6 +220,11 @@ interface GunBurst {
 }
 
 /** Corrida de decolagem na pista (s) e o intervalo entre os aviões da esquadrilha. */
+/** Bocais dos quatro motores do bombardeiro (referencial do modelo, escala de `aircraftModel('bomber')`). */
+const BOMBER_NOZZLES = [0.31, -0.31, 0.49, -0.49].map((z) => new THREE.Vector3(-1.33, -0.13, z));
+/** O bombardeiro pesado faz curvas bem mais abertas e inclina menos que o caça. */
+const BOMBER_TURN = 2.1;
+const BOMBER_MAX_BANK = 0.55;
 const TAKEOFF_ROLL = 2.2;
 const TAKEOFF_GAP = 0.6;
 /** Pista da Base Aérea no referencial da base (ao longo de +x, do lado +z): início e fim da corrida. */
@@ -332,7 +342,7 @@ const models = new Map<Kind, ModelLayers>();
 function model(kind: Kind): ModelLayers {
   let m = models.get(kind);
   if (!m) {
-    m = kind === 'missile' ? missileModel(1) : kind === 'missile2' ? missileModel(2) : aircraftModel(kind);
+    m = kind === 'missile' ? missileModel(1) : kind === 'missile2' ? missileModel(2) : kind === 'stores' ? bomberStoresModel() : aircraftModel(kind);
     models.set(kind, m);
   }
   return m;
@@ -643,6 +653,8 @@ export class AirLayer {
       }
       if (!p) {
         p = { group: meshes(model(kind), this.mySlot, true), kind };
+        // bombardeiro no pátio já armado, com as bombas sob as asas
+        if (kind === 'bomber') p.group.add(meshes(model('stores'), this.mySlot, true));
         // o bombardeiro e o cargueiro são maiores que a vaga de caça
         if (kind === 'bomber' || kind === 'transport') p.group.scale.setScalar(0.65);
         p.group.rotation.y = slot.heading;
@@ -673,9 +685,23 @@ export class AirLayer {
       group.add(meshes(m, f.owner, false));
       // brilho do motor atrás de cada avião
       const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: '#ffb46a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-      glow.position.set(tail, big ? -0.16 : 0, 0);
-      glow.scale.setScalar(big ? 0.6 : 0.45);
+      glow.position.set(big ? BOMBER_NOZZLES[0]!.x : tail, big ? BOMBER_NOZZLES[0]!.y : 0, big ? BOMBER_NOZZLES[0]!.z : 0);
+      glow.scale.setScalar(big ? 0.3 : 0.45);
       group.add(glow);
+      // bombardeiro: um brilho por bocal (quatro motores) e a carga de bombas sob as asas
+      const nozzles: THREE.Sprite[] = [];
+      let stores: THREE.Group | null = null;
+      if (big) {
+        for (const at of BOMBER_NOZZLES.slice(1)) {
+          const sp = new THREE.Sprite(glow.material);
+          sp.position.copy(at);
+          sp.scale.setScalar(0.3);
+          group.add(sp);
+          nozzles.push(sp);
+        }
+        stores = meshes(model('stores'), f.owner, false);
+        group.add(stores);
+      }
       // pós-combustor: o cone de chama dos caças (aceso na decolagem, no mergulho e no combate)
       let flame: THREE.Group | null = null;
       if (!big && kind !== 'recon') {
@@ -690,23 +716,25 @@ export class AirLayer {
         [tipZ, 1],
       ] as const) {
         const sp = new THREE.Sprite(navMaterial(k));
-        sp.position.set(bb.min.x * 0.1, 0.02, z);
+        sp.position.set(big ? -0.95 : bb.min.x * 0.1, 0.02, z);
         sp.scale.setScalar(big ? 0.32 : 0.2);
         group.add(sp);
       }
       const strobe = new THREE.Sprite(navMaterial(2));
-      strobe.position.set(bb.min.x * 0.92, bb.max.y * 0.95, 0);
+      if (big) strobe.position.set(-1.62, 0.8, 0);
+      else strobe.position.set(bb.min.x * 0.92, bb.max.y * 0.95, 0);
       strobe.scale.setScalar(big ? 0.55 : 0.38);
       group.add(strobe);
       this.group.add(group);
       // fitas: condensação dos motores internos no bombardeiro; vapor das pontas das asas no caça
-      const ribbonAt = big ? [new THREE.Vector3(tail + 0.1, -0.1, -tipZ * 0.38), new THREE.Vector3(tail + 0.1, -0.1, tipZ * 0.38)] : [new THREE.Vector3(bb.min.x * 0.2, 0, -tipZ), new THREE.Vector3(bb.min.x * 0.2, 0, tipZ)];
-      const ribbons = ribbonAt.map(() => (big ? new Ribbon(5, 0.1, 1.1, [1, 1, 1], 0.55, 0.3) : new Ribbon(0.8, 0.035, 0.16, [1, 1, 1], 0.7)));
+      // bombardeiro: uma trilha de condensação por motor (quatro), que se junta em duas faixas largas mais atrás
+      const ribbonAt = big ? BOMBER_NOZZLES.map((v) => v.clone().setX(v.x - 0.05)) : [new THREE.Vector3(bb.min.x * 0.2, 0, -tipZ), new THREE.Vector3(bb.min.x * 0.2, 0, tipZ)];
+      const ribbons = ribbonAt.map(() => (big ? new Ribbon(6, 0.05, 0.75, [1, 1, 1], 0.42, 0.12) : new Ribbon(0.8, 0.035, 0.16, [1, 1, 1], 0.7)));
       for (const r of ribbons) this.group.add(r.mesh);
       const shadow = new THREE.Mesh(shadowGeometry(), shadowMaterial());
       shadow.renderOrder = 1;
       this.group.add(shadow);
-      t.planes.push({ group, glow, prevLat: 0, prevAlt: 0, trailAcc: Math.random() * 0.1, flame, strobe, ribbons, ribbonAt, shadow, shadowSize: [(bb.max.x - bb.min.x) * 0.85, tipZ * 1.25], big, blink: Math.random() * 1.3 });
+      t.planes.push({ group, glow, prevLat: 0, prevAlt: 0, trailAcc: Math.random() * 0.1, flame, strobe, ribbons, ribbonAt, shadow, shadowSize: [(bb.max.x - bb.min.x) * 0.85, tipZ * 1.25], big, blink: Math.random() * 1.3, stores, nozzles, sway: Math.random() * 10 });
     }
   }
 
@@ -783,7 +811,7 @@ export class AirLayer {
       const want = Math.hypot(ax, ay) > 0.3 ? Math.atan2(ay, ax) : f.heading;
       v = Math.min(t.speed * 2.4 + 3, t.speed + dist * 1.3);
       // logo depois de sair do chão a curva é aberta (o avião ainda ganha velocidade)
-      const maxTurn = Math.max(1.2, v / TURN_RADIUS) * (t.takeoff >= 0 ? 0.45 : 1);
+      const maxTurn = (bomber ? Math.max(0.5, v / (TURN_RADIUS * BOMBER_TURN)) : Math.max(1.2, v / TURN_RADIUS)) * (t.takeoff >= 0 ? 0.45 : 1);
       const d = angDiff(want, t.heading);
       const step = Math.max(-maxTurn * dt, Math.min(maxTurn * dt, d));
       t.heading += step;
@@ -805,10 +833,15 @@ export class AirLayer {
     else t.alt += (Math.max(targetAlt, t.takeoff >= 0 ? 0.3 + (t.takeoff - TAKEOFF_ROLL) * 1.6 : 0) - t.alt) * Math.min(1, dt * 1.6);
     const climb = dt > 0 ? (t.alt - prevAlt) / dt : 0;
     const groundSpeed = Math.max(4, t.speed, v);
-    const pitch = Math.atan2(climb, groundSpeed) * 1.3;
+    const pitch = Math.atan2(climb, groundSpeed) * (bomber ? 0.8 : 1.3);
     // curva coordenada: a inclinação vem da velocidade e da taxa de curva (tan φ = v·ω/g), com a rolagem limitada
-    const bankWant = Math.max(-1.25, Math.min(1.25, Math.atan((t.turn * groundSpeed) / 5)));
-    t.bank += (bankWant - t.bank) * Math.min(1, dt * 3);
+    const maxBank = bomber ? BOMBER_MAX_BANK : 1.25;
+    let bankWant = Math.max(-maxBank, Math.min(maxBank, Math.atan((t.turn * groundSpeed) / 5)));
+    // corrida de bombardeio: asas niveladas e rumo firme sobre o alvo
+    const run = bomber && f.kind === 'strike' && f.state === 'outbound' && f.tx !== undefined && f.ty !== undefined ? smooth(ATTACK_RADIUS * 1.2, ATTACK_RADIUS * 0.5, Math.hypot(t.pos.x - f.tx, t.pos.y - f.ty)) : 0;
+    bankWant *= 1 - run * 0.85;
+    // o pesado rola devagar (inércia); o caça responde rápido
+    t.bank += (bankWant - t.bank) * Math.min(1, dt * (bomber ? 1.1 : 3));
     // flares: na recuperação do mergulho de ataque e de vez em quando no combate aéreo
     if (!bomber) {
       if (dive > 0.85) t.flareArmed = true;
@@ -892,17 +925,28 @@ export class AirLayer {
         pitchI = rp + (pitch - rp) * w;
         rollI *= w;
       }
+      if (pl.big && t.takeoff < 0) {
+        // avião pesado no ar: sobe e desce devagar na turbulência, balança pouco nas asas e o nariz atrasa na curva
+        const sw = this.time * 0.55 + pl.sway;
+        alt += 0.1 * Math.sin(sw) * nearBase + 0.04 * Math.sin(sw * 2.3 + 1.1) * nearBase;
+        rollI += 0.035 * Math.sin(sw * 0.8 + 2) * nearBase;
+        pitchI += 0.015 * Math.cos(sw) * nearBase;
+        yaw -= t.turn * 0.06;
+      }
       const latVel = dt > 0 ? (lat - pl.prevLat) / dt : 0;
       pl.prevLat = lat;
       pl.prevAlt = alt;
       pl.group.position.set(x, alt, y);
       // guinada, depois arfagem, depois rolagem (inclina para dentro das curvas e das trocas de posição)
-      pl.group.rotation.set(rollI + Math.max(-0.35, Math.min(0.35, latVel * 0.25)), -yaw, pitchI, 'YZX');
+      pl.group.rotation.set(rollI + Math.max(-0.35, Math.min(0.35, latVel * (pl.big ? 0.12 : 0.25))), -yaw, pitchI, 'YZX');
+      // bombas sob as asas só na ida; na volta a esquadrilha já despejou a carga
+      if (pl.stores) pl.stores.visible = f.state === 'outbound';
       // motor: brilho e chama do pós-combustor crescem com a potência, com tremulação
       const glowMat = pl.glow.material as THREE.SpriteMaterial;
-      glowMat.opacity = (pl.big ? 0.35 : 0.45 + thr * 0.4) + Math.random() * 0.2;
+      glowMat.opacity = (pl.big ? 0.32 + thr * 0.3 : 0.45 + thr * 0.4) + Math.random() * 0.2;
       glowMat.color.set(thr > 0.6 && !pl.big ? '#ffd2a0' : '#ffb46a');
-      pl.glow.scale.setScalar((pl.big ? 0.55 : 0.38 + thr * 0.35) + Math.random() * 0.06);
+      pl.glow.scale.setScalar((pl.big ? 0.26 + thr * 0.12 : 0.38 + thr * 0.35) + Math.random() * 0.06);
+      for (const nz of pl.nozzles) nz.scale.setScalar(pl.glow.scale.x * (0.92 + Math.random() * 0.16));
       if (pl.flame) {
         pl.flame.visible = thr > 0.2;
         if (pl.flame.visible) pl.flame.scale.set((0.1 + thr * 0.26) * (0.85 + Math.random() * 0.3), 0.36, 0.36);
