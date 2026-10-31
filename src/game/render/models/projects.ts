@@ -175,7 +175,11 @@ export function buildNetwork5g(): Built {
   for (let k = 0; k < 3; k++) fan.body.box(0.34, 0.012, 0.07, '#d4d9dd', [0, 0, 0], [0, (k * Math.PI) / 3, 0]);
   fan.body.cyl(0.04, 0.04, 0.03, '#3a3f45', [0, 0, 0], undefined, 8);
   const fanLayers = fan.build();
-  const anims: ModelAnim[] = [-0.35, 0.35].map((fx) => ({ layers: fanLayers, pivot: [dx + fx, 1.53, dz] as [number, number, number], motion: { kind: 'spin', axis: 'y', speed: 6 } }));
+  const anims: ModelAnim[] = [-0.35, 0.35].map((fx) => ({
+    layers: fanLayers,
+    pivot: [dx + fx, 1.53, dz] as [number, number, number],
+    motion: { kind: 'spin', axis: 'y', speed: 6 },
+  }));
   return { base: l.build(), moving: null, anims, height: h + 1.7 };
 }
 
