@@ -101,7 +101,7 @@ export function MenuScreen() {
       </div>
 
       <button className="btn mt-4 w-full" onClick={() => setScreen('community')} title="Mande sua opinião, veja as novidades e encontre outros comandantes">
-        <span aria-hidden>💬</span> Comunidade e Feedback
+        <span aria-hidden>💬</span> Feedback
       </button>
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <button className="btn" onClick={() => setScreen('manual')} title="O básico do jogo em 7 cartões curtos">

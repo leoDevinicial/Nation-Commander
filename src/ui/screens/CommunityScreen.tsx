@@ -55,7 +55,7 @@ export function CommunityScreen() {
   const hint = CATEGORIES.find((c) => c.id === category)!.hint;
 
   return (
-    <Shell title="Comunidade e Feedback" back={() => setScreen('menu')} wide="xl">
+    <Shell title="Feedback" back={() => setScreen('menu')} wide="xl">
       <div className="grid gap-5 md:grid-cols-[1.25fr_1fr]">
         <section aria-label="Enviar feedback">
           <h2 className="label">Envie seu feedback</h2>
