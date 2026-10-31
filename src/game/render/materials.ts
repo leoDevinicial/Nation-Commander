@@ -142,17 +142,20 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
         '#include <begin_vertex>',
         `#include <begin_vertex>
         {
-          // vento: rajadas lentas + tremor fino; mais forte no alto, nada na base
+          // vento: a árvore inteira (tronco e copa juntos) dobra devagar, mais no alto e nada na base (curva, não
+          // inclinação reta), em ondas lentas e suaves que mudam de fase de uma árvore para outra; um sopro ainda mais
+          // lento varia a força. Sem tremor rápido: o balanço é macio e só levemente perceptível.
           vec3 wBase = vec3(0.0);
           #ifdef USE_INSTANCING
             wBase = instanceMatrix[3].xyz;
           #endif
-          float wH = max(position.y, 0.0) * ${sway.toFixed(4)};
+          float wY = max(position.y, 0.0);
+          float wH = wY * sqrt(wY) * ${(sway * 0.75).toFixed(4)};
           float wPh = dot(wBase.xz, vec2(0.37, 0.53));
           float wT = uWindTime;
-          float gust = 0.65 + 0.35 * sin(wT * 0.45 + wPh * 0.2);
-          transformed.x += (sin(wT * 1.6 + wPh) * 0.7 + sin(wT * 3.3 + wPh * 1.7 + position.z * 2.0) * 0.3) * wH * gust;
-          transformed.z += (sin(wT * 1.2 + wPh * 1.3 + 1.7) * 0.5 + sin(wT * 2.9 + position.x * 2.0) * 0.25) * wH * gust;
+          float gust = 0.7 + 0.3 * sin(wT * 0.23 + wPh * 0.15);
+          transformed.x += (sin(wT * 0.9 + wPh) * 0.75 + sin(wT * 1.45 + wPh * 1.3) * 0.25) * wH * gust;
+          transformed.z += (sin(wT * 0.7 + wPh * 1.3 + 1.7) * 0.45 + sin(wT * 1.2 + wPh * 0.7) * 0.15) * wH * gust;
         }`,
       );
     shader.vertexShader = vs;

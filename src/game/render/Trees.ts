@@ -253,8 +253,8 @@ export function detailedTrees(
   const variants = [broadleaf(101, opts.lite), broadleaf(202, opts.lite), broadleaf(303, opts.lite), conifer(404, opts.lite), conifer(505, opts.lite)];
   const broadTex = leafTexture('broad');
   const needleTex = leafTexture('needle');
-  const solidMat = withFog(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }));
-  // folhas balançam levemente ao vento (o tronco fica parado)
+  // a árvore inteira balança ao vento (tronco e copa com a mesma onda, então a copa não "escorrega" do tronco)
+  const solidMat = withFog(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }), { sway: 0.022 });
   const leafMat = (map: THREE.Texture) => withFog(new THREE.MeshStandardMaterial({ map, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.85, metalness: 0 }), { sway: 0.022 });
   const broadMat = leafMat(broadTex);
   const needleMat = leafMat(needleTex);
