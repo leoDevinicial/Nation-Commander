@@ -11,11 +11,13 @@ import { withFog } from './materials.ts';
  *   térmica; com tiros e explosões por perto, fogem subindo e acelerando;
  * - manadas de cervos nas bordas das matas: pastam (cabeça baixa), andam devagar, levantam a cabeça e fogem correndo
  *   quando uma tropa chega perto ou algo explode; mudam de pasto quando uma construção ocupa o lugar.
- * Tudo em low poly e desenhado por instâncias (sete chamadas de desenho no total), com a névoa de guerra dos materiais
+ * Tudo em low poly e desenhado por instâncias (nove chamadas de desenho no total), com a névoa de guerra dos materiais
  * do mapa: o que está em área inexplorada fica escondido como o resto.
  */
 
 const BIRD_ALT = 6;
+/** Distância da raiz da asa ao cotovelo (onde a mão dobra). */
+const WING_ELBOW = 0.14;
 /** Ciclo das asas (rad/s) e quanto tempo um bando bate asas antes de planar. */
 const FLAP = 13;
 
@@ -71,6 +73,8 @@ export class AmbientLife {
   private readonly birdBody: THREE.InstancedMesh;
   private readonly wingL: THREE.InstancedMesh;
   private readonly wingR: THREE.InstancedMesh;
+  private readonly handL: THREE.InstancedMesh;
+  private readonly handR: THREE.InstancedMesh;
   private readonly deerBody: THREE.InstancedMesh;
   private readonly deerHead: THREE.InstancedMesh;
   private readonly deerLegs: THREE.InstancedMesh;
@@ -115,17 +119,75 @@ export class AmbientLife {
     }
 
     // ---------------------------------------------------------------- pássaros
-    const bodyGeo = this.geo(new PartBuilder().box(0.26, 0.06, 0.07, '#ffffff', [0, 0, 0]).box(0.07, 0.05, 0.05, '#ffffff', [0.15, 0.015, 0]).box(0.08, 0.015, 0.1, '#ffffff', [-0.15, 0, 0]).build());
-    // asa: perfil em flecha, raiz no corpo (origem) e ponta para +z; a esquerda é a mesma espelhada
-    const wing = (side: 1 | -1) => {
+    // corpo facetado (cabeça, peito, dorso afilando até a cauda), bico e cauda em leque; frente para +x
+    const bodyB = new PartBuilder()
+      .convex(
+        [
+          [0.17, 0.02, 0],
+          [0.14, 0.045, 0],
+          [0.13, 0.02, 0.03],
+          [0.13, 0.02, -0.03],
+          [0.14, -0.005, 0],
+          [0.06, 0.04, 0.045],
+          [0.06, 0.04, -0.045],
+          [0.07, -0.04, 0.035],
+          [0.07, -0.04, -0.035],
+          [-0.05, 0.03, 0.04],
+          [-0.05, 0.03, -0.04],
+          [-0.04, -0.03, 0.03],
+          [-0.04, -0.03, -0.03],
+          [-0.12, 0.012, 0.02],
+          [-0.12, 0.012, -0.02],
+          [-0.12, -0.006, 0],
+        ],
+        '#ffffff',
+      )
+      .convex(
+        [
+          [0.165, 0.026, 0],
+          [0.165, 0.004, 0],
+          [0.16, 0.015, 0.013],
+          [0.16, 0.015, -0.013],
+          [0.235, 0.012, 0],
+        ],
+        '#e8b84a',
+      );
+    const tail = new THREE.BufferGeometry();
+    tail.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute([-0.11, 0.008, 0.022, -0.11, 0.008, -0.022, -0.21, 0, 0.05, -0.11, 0.008, -0.022, -0.21, 0, -0.05, -0.21, 0, 0.05, -0.21, 0, 0.05, -0.21, 0, -0.05, -0.225, 0, 0], 3),
+    );
+    bodyB.add(tail, '#d9d9d9');
+    const bodyGeo = this.geo(bodyB.build());
+    // asas em duas partes, no plano xz e com a raiz na origem (ponta para +z; a esquerda é espelhada):
+    // braço (até o cotovelo, a 0,14) e mão (do cotovelo até a ponta), com a ponta mais escura
+    const flat = (v: number[], shade: number[]) => {
       const g = new THREE.BufferGeometry();
-      const s = side;
-      const v = [0.07, 0, 0, -0.07, 0, 0, -0.06, 0, 0.17 * s, 0.07, 0, 0, -0.06, 0, 0.17 * s, 0.02, 0, 0.17 * s, 0.02, 0, 0.17 * s, -0.06, 0, 0.17 * s, -0.1, 0, 0.3 * s];
       g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+      const c: number[] = [];
+      for (const k of shade) c.push(k, k, k);
+      g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
       g.computeVertexNormals();
       return this.geo(g);
     };
-    const birdMat = this.mat(withFog(new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true, side: THREE.DoubleSide })));
+    const wing = (side: 1 | -1) => {
+      const s = side;
+      const rf = [0.06, 0, 0];
+      const rb = [-0.07, 0, 0];
+      const ef = [0.065, 0, WING_ELBOW * s];
+      const eb = [-0.075, 0, WING_ELBOW * s];
+      return flat([...rf, ...rb, ...eb, ...rf, ...eb, ...ef], [1, 1, 1, 1, 1, 1]);
+    };
+    const hand = (side: 1 | -1) => {
+      const s = side;
+      const bf = [0.065, 0, 0];
+      const bb = [-0.075, 0, 0];
+      const fm = [0.045, 0, 0.12 * s];
+      const mt = [-0.11, 0, 0.11 * s];
+      const tip = [-0.07, 0, 0.21 * s];
+      return flat([...bf, ...bb, ...mt, ...bf, ...mt, ...fm, ...fm, ...mt, ...tip], [1, 1, 0.65, 1, 0.65, 0.8, 0.8, 0.65, 0.3]);
+    };
+    const birdMat = this.mat(withFog(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true, side: THREE.DoubleSide })));
     const flockCount = lite ? 3 : 5;
     const gullFlocks = this.water.length > w * h * 0.03 ? (lite ? 1 : 2) : 0;
     let birds = 0;
@@ -159,8 +221,10 @@ export class AmbientLife {
     this.birdBody = new THREE.InstancedMesh(bodyGeo, birdMat, birds);
     this.wingL = new THREE.InstancedMesh(wing(-1), birdMat, birds);
     this.wingR = new THREE.InstancedMesh(wing(1), birdMat, birds);
+    this.handL = new THREE.InstancedMesh(hand(-1), birdMat, birds);
+    this.handR = new THREE.InstancedMesh(hand(1), birdMat, birds);
     let k = 0;
-    const dark = new THREE.Color('#2e2b28');
+    const dark = new THREE.Color('#3a3632');
     const gullC = new THREE.Color('#eef0ee');
     const gullWing = new THREE.Color('#b9bfc4');
     for (const f of this.flocks)
@@ -168,6 +232,8 @@ export class AmbientLife {
         this.birdBody.setColorAt(k, f.gull ? gullC : dark);
         this.wingL.setColorAt(k, f.gull ? gullWing : dark);
         this.wingR.setColorAt(k, f.gull ? gullWing : dark);
+        this.handL.setColorAt(k, f.gull ? gullWing : dark);
+        this.handR.setColorAt(k, f.gull ? gullWing : dark);
       }
 
     // ---------------------------------------------------------------- cervos
@@ -226,7 +292,7 @@ export class AmbientLife {
     this.deerHead.count = deer;
     this.deerLegs.count = deer * 4;
 
-    for (const m of [this.birdBody, this.wingL, this.wingR, this.deerBody, this.deerHead, this.antlers, this.deerLegs]) {
+    for (const m of [this.birdBody, this.wingL, this.wingR, this.handL, this.handR, this.deerBody, this.deerHead, this.antlers, this.deerLegs]) {
       m.frustumCulled = false;
       m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       this.group.add(m);
@@ -400,16 +466,34 @@ export class AmbientLife {
         this.s.setScalar(sc);
         this.m4.compose(this.v, this.q, this.s);
         this.birdBody.setMatrixAt(k, this.m4);
+        // batida em duas partes: o braço sobe e desce e a mão acompanha com atraso (chicote); no planeio as asas
+        // ficam quase retas, e as gaivotas planam em "M" (braço para cima, mão para baixo)
         const rate = f.gull ? FLAP * 0.7 : FLAP * (scared ? 1.3 : 1);
-        const flap = flapping ? Math.sin(this.time * rate + b.phase) * 0.75 : 0.12 + Math.sin(this.time * 2 + b.phase) * 0.05;
-        this.local.makeRotationX(-flap);
-        this.wingR.setMatrixAt(k, this.local.premultiply(this.m4));
-        this.local.makeRotationX(flap);
-        this.wingL.setMatrixAt(k, this.local.premultiply(this.m4));
+        const ph = this.time * rate + b.phase;
+        let arm: number;
+        let tip: number;
+        if (flapping) {
+          arm = Math.sin(ph) * 0.62;
+          tip = Math.sin(ph - 0.75) * 0.5;
+        } else if (f.gull) {
+          arm = 0.24 + Math.sin(this.time * 1.5 + b.phase) * 0.03;
+          tip = -0.32;
+        } else {
+          arm = 0.1 + Math.sin(this.time * 2 + b.phase) * 0.04;
+          tip = -0.04;
+        }
+        for (const side of [1, -1] as const) {
+          const w = side > 0 ? this.wingR : this.wingL;
+          const hnd = side > 0 ? this.handR : this.handL;
+          this.local.makeRotationX(-arm * side).premultiply(this.m4);
+          w.setMatrixAt(k, this.local);
+          this.tmp.makeRotationX(-tip * side).setPosition(0, 0, WING_ELBOW * side);
+          hnd.setMatrixAt(k, this.tmp.premultiply(this.local));
+        }
         k++;
       }
     }
-    for (const m of [this.birdBody, this.wingL, this.wingR]) m.instanceMatrix.needsUpdate = true;
+    for (const m of [this.birdBody, this.wingL, this.wingR, this.handL, this.handR]) m.instanceMatrix.needsUpdate = true;
   }
 
   private updateDeer(dt: number, check: boolean): void {
@@ -515,7 +599,7 @@ export class AmbientLife {
 
   dispose(): void {
     this.group.removeFromParent();
-    for (const m of [this.birdBody, this.wingL, this.wingR, this.deerBody, this.deerHead, this.antlers, this.deerLegs]) m.dispose();
+    for (const m of [this.birdBody, this.wingL, this.wingR, this.handL, this.handR, this.deerBody, this.deerHead, this.antlers, this.deerLegs]) m.dispose();
     for (const g of this.geos) g.dispose();
     for (const m of this.materials) m.dispose();
   }
