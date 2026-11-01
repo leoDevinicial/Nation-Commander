@@ -9,6 +9,7 @@ import { asphaltTexture, dirtTexture, grassTexture, rockTexture } from './textur
 import { C, PartBuilder } from './models/kit.ts';
 import { decorKept } from './decorThinning.ts';
 import { detailedTrees } from './Trees.ts';
+import { proceduralRocks, type RockInstance } from './Rocks.ts';
 
 /** Tom aplicado sobre a textura de cada terreno (1 = textura pura). */
 const TERRAIN_COLORS: Record<Terrain, THREE.Color> = {
@@ -162,7 +163,6 @@ export const MINIMAP_COLORS: Record<Terrain, string> = {
 };
 
 const NATURE_URL = '/assets/models/nature/';
-const ROCK_MODELS = ['Rock001', 'Rock002', 'Rock003', 'Cliff001', 'Cliff002', 'Cliff003'];
 const BUSH_MODELS = ['Bush001', 'Bush002'];
 
 export interface TerrainHandle {
@@ -299,7 +299,7 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
 
   // posições da vegetação e das rochas (sementes determinísticas)
   const trees: { x: number; z: number; s: number; r: number; v: number }[] = [];
-  const rocks: { x: number; z: number; s: number; r: number; v: number }[] = [];
+  const rocks: RockInstance[] = [];
   const bushes: { x: number; z: number; s: number; r: number; v: number }[] = [];
   const ores: { x: number; z: number; s: number; r: number; v: number }[] = [];
   for (let cy = 0; cy < map.height; cy++) {
@@ -311,7 +311,7 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
         const n = quality === 'high' ? 2 : 1;
         for (let k = 0; k < n; k++) trees.push({ x: bx + 0.3 + rng.next() * 1.4, z: bz + 0.3 + rng.next() * 1.4, s: 0.8 + rng.next() * 0.5, r: rng.next() * 6.28, v: rng.next() });
       } else if (t === Terrain.Rock || t === Terrain.Ore) {
-        rocks.push({ x: bx + 1, z: bz + 1, s: 0.9 + rng.next() * 0.5, r: rng.next() * 6.28, v: rng.next() });
+        rocks.push({ x: bx + 1, z: bz + 1, s: 0.9 + rng.next() * 0.5, r: rng.next() * 6.28, v: rng.next(), ore: t === Terrain.Ore });
         if (t === Terrain.Ore) ores.push({ x: bx + 0.4 + rng.next() * 1.2, z: bz + 0.4 + rng.next() * 1.2, s: 0.5 + rng.next() * 0.3, r: rng.next() * 6.28, v: rng.next() });
       } else if (t === Terrain.Plains && quality === 'high' && rng.next() < 0.025) {
         bushes.push({ x: bx + rng.next() * 2, z: bz + rng.next() * 2, s: 0.5 + rng.next() * 0.4, r: rng.next() * 6.28, v: rng.next() });
@@ -321,7 +321,7 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
 
   // decoração que some sob construções e que o KGPS pode rarear (as malhas são registradas ao
   // serem criadas)
-  let tracks: DecorTrack[] = [];
+  const tracks: DecorTrack[] = [];
   let density = 1;
   let decorShadows = true;
   const track = (mesh: THREE.InstancedMesh, items: readonly { x: number; z: number }[]): void => {
@@ -490,20 +490,16 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
         return null;
       }
     };
-    const rockKit = (await Promise.all(ROCK_MODELS.map((n) => load(n, 0.85)))).filter((x) => x !== null);
+    // as rochas ficam nas formações procedurais (low poly da casa); do kit vêm só os arbustos
     const bushKit = (await Promise.all(BUSH_MODELS.map((n) => load(n, 0.4, 0.04)))).filter((x) => x !== null);
-    if (rockKit.length === 0) return; // mantém o procedural
-    // as malhas antigas de rochas saem do registro; as novas entram já respeitando as construções
-    tracks = tracks.filter((t) => t.mesh.parent?.parent !== decor);
-    decor.clear();
-    decor.add(instanced(rockKit, rocks, 1.5, -0.1, true, ROCK_TINT, track));
-    if (bushKit.length) decor.add(instanced(bushKit, bushes, 0.7, 0, true, FOLIAGE_TINT, track));
+    if (bushKit.length === 0) return;
+    decor.add(instanced(bushKit, bushes, 0.7, 0, true, FOLIAGE_TINT, track));
     for (const t of tracks) {
       t.hidden.fill(0);
       t.mesh.castShadow = decorShadows && t.shadow;
     }
     refresh(true);
-    for (const k of [...rockKit, ...bushKit]) disposables.push(k.geo, k.mat);
+    for (const k of bushKit) disposables.push(k.geo, k.mat);
   };
 
   return {
@@ -581,10 +577,6 @@ const FOLIAGE_TINT = (h: number, out: THREE.Color): THREE.Color => {
   const dry = Math.max(0, h - 0.75) * 1.2;
   return out.setRGB(b * (0.82 + dry), b * 0.9, b * (0.7 - dry * 0.3));
 };
-const ROCK_TINT = (h: number, out: THREE.Color): THREE.Color => {
-  const b = 0.72 + h * 0.3;
-  return out.setRGB(b, b * 0.98, b * 0.93);
-};
 
 /** Distribui instâncias de uma família de modelos entre variantes, normalizadas pela altura. */
 function instanced(
@@ -620,24 +612,3 @@ function instanced(
   return g;
 }
 
-function proceduralRocks(points: { x: number; z: number; s: number; r: number }[], track?: (mesh: THREE.InstancedMesh, items: readonly { x: number; z: number }[]) => void): THREE.Group {
-  const g = new THREE.Group();
-  if (points.length === 0) return g;
-  const rocks = new THREE.InstancedMesh(
-    new THREE.DodecahedronGeometry(1.1, 0),
-    withFog(new THREE.MeshStandardMaterial({ color: '#7a766c', roughness: 0.95, flatShading: true }), { weather: 0.85 }),
-    points.length,
-  );
-  const m = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  points.forEach((p, i) => {
-    q.setFromEuler(new THREE.Euler(0.3, p.r, 0.2));
-    m.compose(new THREE.Vector3(p.x, 0.4, p.z), q, new THREE.Vector3(p.s, p.s * 0.8, p.s));
-    rocks.setMatrixAt(i, m);
-  });
-  rocks.castShadow = true;
-  rocks.receiveShadow = true;
-  g.add(rocks);
-  track?.(rocks, points);
-  return g;
-}
