@@ -504,21 +504,12 @@ function buildOilWell(): Omit<BuildingModel, 'detail'> {
   const { body: b, accent: a } = l;
   b.box(3.9, 0.06, 3.9, '#5a554c', [0, 0.03, 0]);
   b.box(3.6, 0.012, 3.6, '#7a7468', [0, 0.066, 0]); // locação de cascalho compactado
-  for (const dz of [-0.12, 0.12]) b.box(1.9, 0.01, 0.08, '#625d53', [1.0, 0.074, -0.75 + dz], [0, 0.08, 0]); // marcas de pneu
   // cavalo-mecânico real ao longo de x, cabeça de cavalo sobre a cabeça de poço (x ≈ 0,95)
   const rig = pumpjack({ b }, [0, 0, 0.3]);
-  // porão de concreto em volta da cabeça de poço, mancha de óleo e frades amarelos de proteção
+  // porão de concreto em volta da cabeça de poço e a mancha de óleo
   b.box(0.56, 0.05, 0.56, C.concrete, [0.95, 0.07, 0.3]);
   b.box(0.42, 0.012, 0.42, '#2b2d30', [0.95, 0.1, 0.3]);
-  b.add(new THREE.CylinderGeometry(0.34, 0.34, 0.006, 9), '#17191b', { pos: [0.98, 0.075, 0.62], scale: [1.2, 1, 0.8] });
-  for (const [x, z] of [
-    [1.38, 0.0],
-    [1.38, 0.6],
-    [1.3, 0.85],
-  ] as const) {
-    b.cyl(0.03, 0.03, 0.26, C.yellow, [x, 0.2, z], undefined, 6);
-    b.cyl(0.032, 0.032, 0.03, '#1d1e20', [x, 0.28, z], undefined, 6);
-  }
+  b.add(new THREE.CylinderGeometry(0.34, 0.34, 0.006, 7), '#17191b', { pos: [0.98, 0.075, 0.62], scale: [1.2, 1, 0.8] });
   // linha de produção (tubo branco em suportes) da cabeça de poço até o manifold
   const pipeY = 0.42;
   b.cyl(0.035, 0.035, 1.3, '#d8d9d4', [0.95, pipeY, -0.4], [Math.PI / 2, 0, 0], 8);
@@ -526,26 +517,23 @@ function buildOilWell(): Omit<BuildingModel, 'detail'> {
     b.box(0.05, pipeY, 0.05, '#c9372c', [0.95, pipeY / 2 + 0.03, z]);
     b.box(0.14, 0.03, 0.05, '#e6e6e0', [0.95, pipeY - 0.04, z]);
   }
-  // manifold sobre skid: tubos, válvulas com volante, manômetro e a placa do poço com a cor da nação
+  // manifold sobre skid: tubos, válvulas com volante e a placa do poço com a cor da nação
   b.box(0.7, 0.06, 0.45, '#2b2d30', [1.1, 0.1, -1.1]);
-  b.cyl(0.045, 0.045, 0.6, '#d8d9d4', [1.1, 0.32, -1.05], [0, 0, Math.PI / 2], 8);
+  b.cyl(0.045, 0.045, 0.6, '#d8d9d4', [1.1, 0.32, -1.05], [0, 0, Math.PI / 2], 6);
   for (const x of [0.88, 1.1, 1.32]) {
-    b.cyl(0.04, 0.04, 0.2, '#d8d9d4', [x, 0.22, -1.05], undefined, 8);
+    b.cyl(0.04, 0.04, 0.2, '#d8d9d4', [x, 0.22, -1.05], undefined, 6);
     b.box(0.08, 0.08, 0.08, C.red, [x, 0.32, -1.05]);
     b.cyl(0.006, 0.006, 0.1, C.metalDark, [x, 0.4, -1.05], undefined, 4);
-    b.cyl(0.05, 0.05, 0.012, C.red, [x, 0.45, -1.05], undefined, 8);
+    b.cyl(0.05, 0.05, 0.012, C.red, [x, 0.45, -1.05], undefined, 6);
   }
-  b.cyl(0.035, 0.035, 0.012, '#f2f2ee', [1.32, 0.42, -0.99], [Math.PI / 2, 0, 0], 8);
   b.cyl(0.012, 0.012, 0.5, C.steel, [1.48, 0.3, -1.3], undefined, 4);
   a.box(0.26, 0.16, 0.012, '#ffffff', [1.48, 0.52, -1.29]);
-  // tambor de produto químico na gaiola, ao lado do poço
+  // tanque de produto químico, ao lado do poço
   b.box(0.2, 0.22, 0.2, '#e8e8e2', [0.55, 0.18, -0.55]);
-  for (const dx of [-0.1, 0.1]) for (const dz of [-0.1, 0.1]) b.box(0.012, 0.24, 0.012, C.steel, [0.55 + dx, 0.19, -0.55 + dz]);
   // poste da rede com o transformador e o cabo até o painel do motor (com cobertura e eletroduto)
   b.cyl(0.03, 0.04, 1.7, '#7a5a3a', [-1.75, 0.92, -1.25], undefined, 6);
   b.box(0.36, 0.03, 0.03, '#7a5a3a', [-1.75, 1.66, -1.25]);
-  for (const dx of [-0.15, 0, 0.15]) b.cyl(0.012, 0.016, 0.05, '#c9c2b0', [-1.75 + dx, 1.7, -1.25], undefined, 5);
-  b.cyl(0.07, 0.07, 0.18, '#8d939a', [-1.68, 1.35, -1.25], undefined, 8);
+  b.cyl(0.07, 0.07, 0.18, '#8d939a', [-1.68, 1.35, -1.25], undefined, 6);
   strut(b, [-1.7, 1.3, -1.22], [-1.6, 0.55, -0.48], 0.006, '#26282b', true);
   b.box(0.3, 0.42, 0.14, '#9aa0a6', [-1.6, 0.27, -0.45]);
   b.box(0.38, 0.03, 0.26, '#6c7177', [-1.6, 0.55, -0.42]);
@@ -553,7 +541,7 @@ function buildOilWell(): Omit<BuildingModel, 'detail'> {
   b.box(0.04, 0.03, 0.75, '#2b2d30', [-1.6, 0.08, -0.05]);
   // biruta (sinaliza o vento por causa do gás)
   b.cyl(0.012, 0.012, 1.2, C.steel, [1.8, 0.66, -0.6], undefined, 4);
-  for (let k = 0; k < 3; k++) b.cyl(0.05 - k * 0.01, 0.06 - k * 0.01, 0.1, k % 2 ? '#f2f2ee' : '#e86a1c', [1.8 - 0.06 - k * 0.1, 1.2 - k * 0.03, -0.6], [0, 0, Math.PI / 2 - 0.25], 6);
+  for (let k = 0; k < 2; k++) b.cyl(0.05 - k * 0.01, 0.06 - k * 0.01, 0.1, k % 2 ? '#f2f2ee' : '#e86a1c', [1.8 - 0.06 - k * 0.1, 1.2 - k * 0.03, -0.6], [0, 0, Math.PI / 2 - 0.25], 6);
   const beam = { layers: rig.beam, pivot: rig.pivot, kind: 'pump' as const };
   return { base: l.build(), moving: beam, pump: { crank: rig.crank, pitman: rig.pitman, rod: rig.rod, crankPivot: rig.crankPivot, rodPivot: rig.rodPivot }, height: 2.3 };
 }
