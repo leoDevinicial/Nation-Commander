@@ -17,22 +17,32 @@ type SnapshotMsg = Extract<ServerMessage, { t: 'snapshot' }>;
  */
 export const snapshotBuffer: { last: SnapshotMsg | null } = { last: null };
 
-/** Fronteiras chegam só quando mudam: guarda a última grade para quem montar depois. */
+/**
+ * Fronteiras e estradas chegam só quando mudam (juntas, no mesmo snapshot): guarda as últimas para quem montar depois.
+ * Antes só a grade de território era guardada; a tela do jogo, montada depois do primeiro snapshot, recebia o
+ * território sem as estradas e a estrada inicial (QG → termelétrica) nunca aparecia.
+ */
 let lastTerritory: string | undefined;
+let lastRoads: number[] | undefined;
 
 gameClient.on((msg) => {
   // entrou numa sala: lembra o servidor dela (reconexão depois de fechar o navegador)
   if (msg.t === 'room' && msg.room) rememberServer(gameClient.serverUrl);
   // snapshots da batalha local (Fase 8) vão para a cena da batalha, não para o teatro
   if (msg.t === 'snapshot' && !msg.scope) {
-    if (msg.s.territory) lastTerritory = msg.s.territory;
-    // o snapshot guardado sempre carrega a grade de território mais recente
-    snapshotBuffer.last = msg.s.territory || !lastTerritory ? msg : { ...msg, s: { ...msg.s, territory: lastTerritory } };
+    if (msg.s.territory) {
+      lastTerritory = msg.s.territory;
+      lastRoads = msg.s.roads;
+    }
+    // o snapshot guardado sempre carrega a grade de território e as estradas mais recentes
+    snapshotBuffer.last =
+      msg.s.territory || !lastTerritory ? msg : { ...msg, s: { ...msg.s, territory: lastTerritory, ...(lastRoads ? { roads: lastRoads } : {}) } };
   } else if (msg.t === 'match_start') {
     // reconexão à mesma partida: a cena continua, e o último snapshot segue válido
     if (isSameMatch(currentMatch(), msg.match)) return;
     snapshotBuffer.last = null;
     lastTerritory = undefined;
+    lastRoads = undefined;
   }
 });
 

@@ -15,3 +15,19 @@ describe('reconexão', () => {
     expect(isSameMatch(base, { ...base, terrain: '0124' })).toBe(false);
   });
 });
+
+describe('snapshot guardado para a tela que monta depois', () => {
+  it('leva o território e as estradas mais recentes (a estrada inicial aparecia sem asfalto)', async () => {
+    const { gameClient, snapshotBuffer } = await import('../net/client.ts');
+    const emit = (msg: unknown) => (gameClient as unknown as { listeners: Set<(m: unknown) => void> }).listeners.forEach((l) => l(msg));
+    const snap = (tick: number, extra: object) => ({ t: 'snapshot', s: { tick, units: [], buildings: [], players: [], events: [], territoryVersion: 1, ...extra }, paused: false, speed: 1, pausedBy: null });
+    // primeiro snapshot: fronteiras e estradas juntas; os seguintes vêm sem elas (não mudaram)
+    emit(snap(2, { territory: 'AAAA', roads: [10, 11, 12] }));
+    emit(snap(4, {}));
+    emit(snap(5, {}));
+    const last = snapshotBuffer.last!.s;
+    expect(last.tick).toBe(5);
+    expect(last.territory).toBe('AAAA');
+    expect(last.roads).toEqual([10, 11, 12]);
+  });
+});
