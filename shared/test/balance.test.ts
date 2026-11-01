@@ -53,7 +53,7 @@ describe('contra-bateria', () => {
     // o atacante enxerga o mapa inteiro (como com um blindado dando visão)
     sim.sandbox = { slots: [0], instant: false, aiActive: true, reveal: true };
     const hq = sim.hqOf(1)!;
-    const art = sim.addUnit('artillery', 0, { x: hq.pos.x - 17, y: hq.pos.y });
+    const art = sim.addUnit('artillery', 0, { x: hq.pos.x - 19, y: hq.pos.y });
     expect(sim.isVisibleTo(1, art.pos)).toBe(false);
     expect(sim.applyCommand(0, { type: 'attack', unitIds: [art.id], targetId: hq.id })).toBeNull();
     for (let i = 0; i < 8 * TICK_RATE && hq.hp === hq.maxHp; i++) sim.step();

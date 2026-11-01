@@ -62,7 +62,7 @@ describe('população e moradia', () => {
 
   it('recrutas: alistados só no quartel, tripulam as unidades; cidadãos civis só no QG', () => {
     const s = sim();
-    const barracks = build(s, 0, 'barracks', { cx: 8, cy: 3 });
+    const barracks = build(s, 0, 'barracks', { cx: 6, cy: 6 });
     const hq = s.hqOf(0)!;
     // civis no QG, recrutas no quartel — e não o contrário
     expect(s.applyCommand(0, { type: 'produce', buildingId: barracks.id, unitType: 'citizen' })).toMatch(/Centro de Comando/);

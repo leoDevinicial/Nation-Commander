@@ -57,9 +57,10 @@ IA leem o mesmo valor já escalado.
   5.000 por jazida.
 - Capacidade dos depósitos dobrada:
   - QG: 1.500 de suprimentos, 300 de comida, madeira e pedra, 200 de ferro e petróleo.
-  - Armazém: 800 de cada.
-  - Silo: 800.
-  - Tanque de Petróleo: 600.
+  - Armazém: 800 de cada (1.000 desde 01/11, ao passar para 3×3).
+  - Silo: 800 (1.000 desde 01/11, ao passar para 2×2).
+  - Tanque de Petróleo: 600 (800 desde 01/11, ao passar para 2×2). Os três modelos foram ampliados por igual
+    (`MODEL_SCALE` em `src/game/render/models/buildingModels.ts`), com os módulos de melhoria.
   - Prefeitura: 400 de suprimentos e 200 dos demais.
 
   Isso permite juntar recursos para as compras caras.

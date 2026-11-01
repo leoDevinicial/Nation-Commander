@@ -113,7 +113,7 @@ describe('economia, construção e produção', () => {
   it('constrói descontando o custo e conclui após o tempo de obra', () => {
     const sim = emptySim();
     const before = { ...sim.players[0]!.resources };
-    expect(sim.applyCommand(0, { type: 'build', buildingType: 'barracks', cx: 8, cy: 3 })).toBeNull();
+    expect(sim.applyCommand(0, { type: 'build', buildingType: 'barracks', cx: 6, cy: 6 })).toBeNull();
     expect(sim.players[0]!.resources.wood).toBe(before.wood - BUILDINGS.barracks.cost.wood!);
     expect(sim.players[0]!.resources.stone).toBe(before.stone - BUILDINGS.barracks.cost.stone!);
     const b = sim.buildings.find((x) => x.type === 'barracks')!;
@@ -135,14 +135,14 @@ describe('economia, construção e produção', () => {
     expect(sim.placementError(0, 'barracks', { cx: 31, cy: 31 })).toBe('Fora do mapa');
     expect(sim.placementError(0, 'oil_well', { cx: 5, cy: 9 })).toBe('Poços de petróleo precisam ser construídos sobre uma jazida');
     expect(sim.placementError(0, 'oil_well', { cx: 10, cy: 3 })).toBeNull();
-    expect(sim.placementError(0, 'sawmill', { cx: 8, cy: 3 })).toMatch(/Poucos recursos/);
+    expect(sim.placementError(0, 'sawmill', { cx: 6, cy: 6 })).toMatch(/Poucos recursos/);
     sim.players[0]!.resources.wood = 10;
-    expect(sim.placementError(0, 'barracks', { cx: 8, cy: 3 })).toBe('Recursos insuficientes');
+    expect(sim.placementError(0, 'barracks', { cx: 6, cy: 6 })).toBe('Recursos insuficientes');
   });
 
   it('produz unidade gastando recursos e respeita fila; cancelar reembolsa', () => {
     const sim = emptySim();
-    sim.applyCommand(0, { type: 'build', buildingType: 'barracks', cx: 8, cy: 3 });
+    sim.applyCommand(0, { type: 'build', buildingType: 'barracks', cx: 6, cy: 6 });
     run(sim, BUILDINGS.barracks.buildSeconds * TICK_RATE);
     const b = sim.buildings.find((x) => x.type === 'barracks')!;
     sim.players[0]!.recruits = 2; // tripulação já alistada
@@ -161,7 +161,7 @@ describe('economia, construção e produção', () => {
 
   it('destruir o edifício interrompe a fila de produção', () => {
     const sim = emptySim();
-    sim.applyCommand(0, { type: 'build', buildingType: 'barracks', cx: 8, cy: 3 });
+    sim.applyCommand(0, { type: 'build', buildingType: 'barracks', cx: 6, cy: 6 });
     run(sim, BUILDINGS.barracks.buildSeconds * TICK_RATE);
     const b = sim.buildings.find((x) => x.type === 'barracks')!;
     sim.applyCommand(0, { type: 'produce', buildingId: b.id, unitType: 'infantry' });
@@ -169,7 +169,7 @@ describe('economia, construção e produção', () => {
     run(sim, UNITS.infantry.buildSeconds * TICK_RATE + 5);
     expect(sim.units.filter((u) => u.owner === 0).length).toBe(0);
     // células liberadas
-    expect(sim.grid.occupant(8, 3)).toBe(0);
+    expect(sim.grid.occupant(6, 6)).toBe(0);
   });
 
   it('o QG gera renda inteira e contabilizada', () => {
@@ -249,7 +249,7 @@ describe('modificadores da camada nacional', () => {
     expect(tank.maxHp).toBe(Math.round(UNITS.tank.maxHp * 1.25));
     expect(sim.addUnit('tank', 1, { x: 60, y: 60 }).maxHp).toBe(UNITS.tank.maxHp);
 
-    sim.applyCommand(0, { type: 'build', buildingType: 'barracks', cx: 8, cy: 3 });
+    sim.applyCommand(0, { type: 'build', buildingType: 'barracks', cx: 6, cy: 6 });
     const b = sim.buildings.find((x) => x.type === 'barracks')!;
     run(sim, (BUILDINGS.barracks.buildSeconds * TICK_RATE) / 2);
     sim.players[0]!.recruits = 3;

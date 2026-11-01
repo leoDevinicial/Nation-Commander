@@ -99,10 +99,27 @@ const cache = new Map<BuildingType, BuildingModel>();
 /** Variantes por nível e especialização (base + módulos fundidos numa geometria por camada). */
 const variants = new Map<string, BuildingModel>();
 
+/**
+ * Edifícios que ganharam terreno maior depois de modelados (pedido do usuário, 01/11): o modelo inteiro, com os
+ * módulos de melhoria, é ampliado por igual, mantendo as proporções do desenho. Tanque e silo passaram de 1×1 para
+ * 2×2 e o armazém de 2×2 para 3×3.
+ */
+export const MODEL_SCALE: Partial<Record<BuildingType, number>> = { oil_tank: 2, silo: 2, warehouse: 1.5 };
+
+function scaleLayers(l: ModelLayers, k: number): void {
+  for (const g of [l.body, l.accent, l.glass]) if (g.getAttribute('position')) g.scale(k, k, k);
+}
+
 function baseModel(type: BuildingType): BuildingModel {
   let m = cache.get(type);
   if (!m) {
     m = { ...BUILDERS[type](), detail: null };
+    const k = MODEL_SCALE[type];
+    if (k) {
+      scaleLayers(m.base, k);
+      m.height *= k;
+      if (m.smoke) m.smoke = m.smoke.map(([x, y, z]) => [x * k, y * k, z * k]);
+    }
     cache.set(type, m);
   }
   return m;
@@ -148,6 +165,14 @@ export function buildingModel(type: BuildingType, level = 1, spec: SpecId | null
   }
   const extra = main.build();
   const detail = det.build();
+  // módulos desenhados nas coordenadas do modelo original: ampliados junto com a base
+  const k = MODEL_SCALE[type];
+  if (k) {
+    scaleLayers(extra, k);
+    scaleLayers(detail, k);
+    height = Math.max(base.height, ...mods.map((m) => (m.height ?? 0) * k));
+    for (let i = (base.smoke ?? []).length; i < smoke.length; i++) smoke[i] = smoke[i]!.map((v) => v * k) as [number, number, number];
+  }
   const m: BuildingModel = {
     base: {
       body: mergeLayer(base.base.body, extra.body),

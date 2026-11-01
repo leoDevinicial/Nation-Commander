@@ -437,7 +437,7 @@ export class Simulation {
       this.addBuilding('hq', slot, { cx: spawn.cx - 1, cy: spawn.cy - 1 }, 1);
       // o armazém inicial existe uma única vez, criado aqui no estado inicial da partida
       const toCenter = spawn.cx < init.map.width / 2 ? 1 : -1;
-      const wh = { cx: toCenter > 0 ? spawn.cx + 3 : spawn.cx - 4, cy: spawn.cy - 1 };
+      const wh = { cx: toCenter > 0 ? spawn.cx + 3 : spawn.cx - 3 - BUILDINGS.warehouse.size, cy: spawn.cy - 1 };
       if (this.footprintFree(wh, BUILDINGS.warehouse.size)) this.addBuilding('warehouse', slot, wh, 1);
       if (this.power) this.placeStartingPower(slot, spawn);
     }
