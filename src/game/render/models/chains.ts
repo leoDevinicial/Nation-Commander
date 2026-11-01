@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { C, layers } from './kit.ts';
+import { C, layers, type PartBuilder } from './kit.ts';
 import { railing, strut } from './rigging.ts';
 import type { BuildingModel } from './buildingModels.ts';
 
@@ -385,28 +385,92 @@ export function buildSchool(): Built {
 }
 
 /** Delegacia (1×1): prédio compacto com giroflex, antena e viatura na frente. */
+/** Viatura (sedã branco com portas pretas e barra de luz azul e vermelha), comprimento ao longo de z, frente para +z. */
+function patrolCar(b: PartBuilder, a: PartBuilder, g: PartBuilder, x: number, z: number): void {
+  b.box(0.25, 0.09, 0.6, WHITE, [x, 0.15, z]);
+  b.box(0.252, 0.06, 0.26, '#1d1f22', [x, 0.15, z - 0.02]);
+  b.box(0.22, 0.09, 0.3, WHITE, [x, 0.235, z - 0.04]);
+  g.box(0.226, 0.06, 0.28, '#ffffff', [x, 0.24, z - 0.04]);
+  b.box(0.2, 0.012, 0.3, WHITE, [x, 0.285, z - 0.04]);
+  b.box(0.18, 0.025, 0.06, '#2f6bd8', [x - 0.0, 0.305, z + 0.02]);
+  b.box(0.08, 0.026, 0.061, '#d8322a', [x + 0.05, 0.305, z + 0.02]);
+  a.box(0.254, 0.025, 0.2, '#ffffff', [x, 0.17, z + 0.17]);
+  b.box(0.2, 0.03, 0.01, '#f2e6a0', [x, 0.16, z + 0.3]);
+  for (const dx of [-0.12, 0.12]) for (const dz of [-0.19, 0.19]) b.cyl(0.05, 0.05, 0.04, '#1d1f22', [x + dx, 0.1, z + dz], [0, 0, Math.PI / 2], 8);
+}
+
 export function buildPoliceStation(): Built {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
+  const STONE = '#d6d1c4';
+  const STONE_DARK = '#b9b3a5';
   b.box(1.8, 0.08, 1.8, C.concreteDark, [0, 0.04, 0]);
-  b.box(1.3, 0.9, 0.9, C.concreteLight, [0, 0.53, -0.3]);
-  b.box(1.36, 0.08, 0.96, C.roof, [0, 1.02, -0.3]);
-  a.box(1.32, 0.14, 0.92, '#ffffff', [0, 0.85, -0.3]);
-  for (let i = 0; i < 3; i++) g.box(0.24, 0.24, 0.02, '#ffffff', [-0.4 + i * 0.4, 0.55, 0.16]);
-  b.box(0.3, 0.45, 0.02, DARK, [0, 0.3, 0.16]);
-  // antena e luz azul no telhado
-  b.cyl(0.02, 0.02, 0.8, STEEL, [0.45, 1.45, -0.5], undefined, 6);
-  b.box(0.16, 0.08, 0.08, '#2f6bd8', [-0.35, 1.1, -0.3]);
-  // viatura: carroceria branca e preta, giroflex
-  b.box(0.8, 0.2, 0.4, WHITE, [0.1, 0.22, 0.6]);
-  b.box(0.45, 0.16, 0.36, DARK, [0.05, 0.4, 0.6]);
-  b.box(0.12, 0.05, 0.1, '#2f6bd8', [0.05, 0.5, 0.6]);
-  for (const [x, z] of [
-    [-0.18, 0.4],
-    [0.38, 0.4],
-    [-0.18, 0.8],
-    [0.38, 0.8],
+  // calçada na frente e o pátio de asfalto com as vagas
+  b.box(1.76, 0.02, 0.32, C.concrete, [0, 0.09, 0.2]);
+  b.box(1.2, 0.012, 0.5, '#3d4044', [0.28, 0.086, 0.62]);
+  for (const x of [-0.06, 0.28, 0.62]) b.box(0.02, 0.014, 0.42, '#e8eae8', [x, 0.094, 0.62]);
+  // prédio de dois andares: embasamento escuro, faixa entre os andares, platibanda e a faixa da nação
+  b.box(1.3, 1.0, 0.8, STONE, [-0.2, 0.58, -0.45]);
+  b.box(1.32, 0.12, 0.82, STONE_DARK, [-0.2, 0.14, -0.45]);
+  b.box(1.32, 0.04, 0.82, STONE_DARK, [-0.2, 0.6, -0.45]);
+  b.box(1.34, 0.08, 0.84, STONE_DARK, [-0.2, 1.1, -0.45]);
+  a.box(1.335, 0.07, 0.835, '#ffffff', [-0.2, 1.02, -0.45]);
+  b.box(1.24, 0.02, 0.74, C.roof, [-0.2, 1.09, -0.45]);
+  // janelas em faixa nos dois andares (frente) e nas laterais, com peitoril
+  for (const y of [0.4, 0.82])
+    for (const x of [-0.72, -0.5, 0.1, 0.3]) {
+      g.box(0.15, 0.2, 0.02, '#ffffff', [x, y, -0.045]);
+      b.box(0.17, 0.02, 0.04, STONE_DARK, [x, y - 0.11, -0.04]);
+    }
+  for (const y of [0.4, 0.82]) for (const z of [-0.65, -0.3]) g.box(0.02, 0.2, 0.18, '#ffffff', [-0.856, y, z]);
+  // entrada: escada, porta de vidro, marquise com colunas, letreiro com a cor da nação e as lanternas azuis
+  b.box(0.48, 0.03, 0.18, STONE_DARK, [-0.2, 0.115, 0.03]);
+  b.box(0.48, 0.03, 0.12, STONE_DARK, [-0.2, 0.145, 0.0]);
+  g.box(0.26, 0.32, 0.02, '#ffffff', [-0.2, 0.32, -0.04]);
+  b.box(0.012, 0.32, 0.025, DARK, [-0.2, 0.32, -0.035]);
+  b.box(0.56, 0.05, 0.3, STONE_DARK, [-0.2, 0.52, 0.08]);
+  for (const s2 of [-1, 1]) b.cyl(0.025, 0.025, 0.36, WHITE, [-0.2 + s2 * 0.24, 0.32, 0.2], undefined, 8);
+  a.box(0.4, 0.07, 0.01, '#ffffff', [-0.2, 0.585, 0.21]);
+  for (const s2 of [-1, 1]) {
+    b.box(0.06, 0.09, 0.06, '#2f6bd8', [-0.2 + s2 * 0.2, 0.62, 0.14]);
+    b.box(0.07, 0.015, 0.07, DARK, [-0.2 + s2 * 0.2, 0.672, 0.14]);
+  }
+  // garagem anexa com portão de enrolar
+  b.box(0.42, 0.56, 0.7, STONE, [0.66, 0.36, -0.5]);
+  b.box(0.44, 0.05, 0.72, STONE_DARK, [0.66, 0.665, -0.5]);
+  b.box(0.32, 0.36, 0.02, '#8d939a', [0.66, 0.26, -0.145]);
+  for (let k = 0; k < 6; k++) b.box(0.32, 0.008, 0.024, '#737980', [0.66, 0.12 + k * 0.06, -0.14]);
+  // telhado: aparelhos de ar-condicionado, torre de rádio treliçada com antenas e a parabólica
+  for (const x of [-0.65, -0.4]) {
+    b.box(0.18, 0.1, 0.14, '#c9ccc9', [x, 1.15, -0.65]);
+    b.cyl(0.05, 0.05, 0.012, DARK, [x, 1.205, -0.65], undefined, 8);
+  }
+  const mx = 0.2;
+  const mz = -0.55;
+  for (const [dx, dz] of [
+    [-0.06, -0.06],
+    [0.06, -0.06],
+    [0.06, 0.06],
+    [-0.06, 0.06],
   ] as const)
-    b.cyl(0.09, 0.09, 0.06, '#1d1f22', [x, 0.1, z], [Math.PI / 2, 0, 0], 10);
-  return { base: l.build(), moving: null, height: 1.5 };
+    strut(b, [mx + dx * 1.6, 1.1, mz + dz * 1.6], [mx + dx * 0.4, 1.62, mz + dz * 0.4], 0.008, STEEL, true);
+  for (const y of [1.25, 1.42])
+    for (const s2 of [-1, 1]) {
+      strut(b, [mx - 0.08, y, mz + s2 * 0.06], [mx + 0.08, y + 0.1, mz + s2 * 0.06], 0.005, STEEL);
+      strut(b, [mx + s2 * 0.06, y, mz - 0.08], [mx + s2 * 0.06, y + 0.1, mz + 0.08], 0.005, STEEL);
+    }
+  b.cyl(0.006, 0.006, 0.3, STEEL, [mx, 1.75, mz], undefined, 4);
+  b.box(0.02, 0.14, 0.02, '#e8eae8', [mx + 0.04, 1.55, mz + 0.03]);
+  b.sphere(0.018, '#d8322a', [mx, 1.9, mz], undefined, 6);
+  b.cyl(0.08, 0.05, 0.03, '#e8eae8', [-0.05, 1.18, -0.3], [-0.7, 0, 0], 10);
+  // mastro com a bandeira da nação na frente
+  b.cyl(0.012, 0.016, 1.0, STEEL, [-0.78, 0.6, 0.22], undefined, 6);
+  a.box(0.2, 0.12, 0.008, '#ffffff', [-0.67, 1.02, 0.22]);
+  // frades na calçada, cerca viva e as viaturas no pátio
+  for (let k = 0; k < 4; k++) b.cyl(0.02, 0.02, 0.1, '#e8eae8', [0.0 + k * 0.25, 0.15, 0.34], undefined, 6);
+  b.box(0.5, 0.12, 0.1, '#4f7a3c', [-0.6, 0.15, 0.6]);
+  b.box(0.1, 0.12, 0.4, '#4f7a3c', [-0.8, 0.15, 0.4]);
+  patrolCar(b, a, g, 0.12, 0.6);
+  patrolCar(b, a, g, 0.45, 0.6);
+  return { base: l.build(), moving: null, height: 1.6 };
 }
