@@ -9,6 +9,7 @@ import { EventLog } from '../hud/EventLog.tsx';
 import { Minimap } from '../hud/Minimap.tsx';
 import { PauseMenu } from '../hud/PauseMenu.tsx';
 import { ResultsOverlay } from '../hud/ResultsOverlay.tsx';
+import { DefeatedOverlay } from '../hud/DefeatedOverlay.tsx';
 import { TopBar } from '../hud/TopBar.tsx';
 import { TouchToolbar } from '../hud/TouchToolbar.tsx';
 import { RouteInspector } from '../hud/RouteInspector.tsx';
@@ -258,6 +259,7 @@ export function GameScreen() {
           {menuOpen && !matchEnd && <PauseMenu runtime={runtime} onClose={() => setMenuOpen(false)} />}
         </>
       )}
+      {match && <DefeatedOverlay mySlot={match.yourSlot} />}
       {matchEnd && <ResultsOverlay />}
     </div>
   );

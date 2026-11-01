@@ -1061,6 +1061,11 @@ export class Room {
 
   private forfeit(slot: Slot, reason: EndReason): void {
     if (!this.sim || this.status !== 'playing') return;
+    // já derrotado (saiu da partida depois de perder): nada a render; só confere se ainda sobra humano jogando
+    if (this.sim.players[slot]?.defeated) {
+      if (this.humansOut()) void this.finish(reason);
+      return;
+    }
     this.endReason = reason;
     const p = this.players.find((x) => x.slot === slot);
     this.system(reason === 'disconnect' ? `${p?.name} abandonou a partida.` : `${p?.name} se rendeu.`);

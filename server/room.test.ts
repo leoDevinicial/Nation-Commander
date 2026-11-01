@@ -483,6 +483,55 @@ describe('render-se contra vários bots', () => {
   });
 });
 
+describe('nação derrotada com a partida em andamento', () => {
+  it('contra vários bots, perder o Centro de Comando encerra a partida como derrota (antes ficava num mapa vazio)', async () => {
+    const { send, rooms } = setup();
+    const a = fakeConn();
+    await send(a.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-alice' });
+    await send(a.conn, { t: 'create_room', mode: 'vs_ai', countryId: 'BRA' });
+    await send(a.conn, { t: 'add_bot' });
+    await send(a.conn, { t: 'start' });
+    const room = rooms.get(a.last('room')!.room!.code)!;
+    const sim = room.sim!;
+    const hq = sim.buildings.find((b) => b.owner === 0 && b.type === 'hq')!;
+    sim.damageBuilding(hq, 1e9, 1);
+    for (let i = 0; i < 3 && !a.last('match_end'); i++) room.advance();
+    await vi.waitFor(() => expect(a.last('match_end')).toBeDefined());
+    const end = a.last('match_end')!.end;
+    expect(end.players.length).toBeGreaterThanOrEqual(3);
+    expect(end.players.find((p) => !p.isAI)!.result).toBe('loss');
+  });
+
+  it('no multijogador, o derrotado pode sair sem aviso falso de rendição e a partida segue para os outros', async () => {
+    const { send, rooms } = setup();
+    const a = fakeConn();
+    const b = fakeConn();
+    await send(a.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-alice' });
+    await send(b.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-bob' });
+    await send(a.conn, { t: 'create_room', mode: 'pvp', countryId: 'BRA' });
+    const code = a.last('room')!.room!.code;
+    await send(b.conn, { t: 'join_room', code, countryId: 'ARG' });
+    await send(a.conn, { t: 'add_bot' });
+    await send(b.conn, { t: 'set_ready', ready: true });
+    await send(a.conn, { t: 'start' });
+    const room = rooms.get(code)!;
+    const sim = room.sim!;
+    const bobSlot = room.info().players.find((p) => p.name === 'bob')!.slot;
+    sim.damageBuilding(sim.buildings.find((x) => x.owner === bobSlot && x.type === 'hq')!, 1e9, 0);
+    room.advance();
+    expect(sim.players[bobSlot]!.defeated).toBe(true);
+    expect(a.last('match_end')).toBeUndefined();
+    const chatBefore = a.sent.filter((m) => m.t === 'chat').length;
+    await send(b.conn, { t: 'leave_room' });
+    room.advance();
+    // ninguém "se rendeu": ele já tinha perdido; a partida continua para a Alice e o bot
+    expect(a.sent.filter((m) => m.t === 'chat' && /se rendeu/.test(m.text)).length).toBe(0);
+    expect(a.sent.filter((m) => m.t === 'chat').length).toBe(chatBefore);
+    expect(a.last('match_end')).toBeUndefined();
+    expect(room.status).toBe('playing');
+  });
+});
+
 describe('salas públicas', () => {
   it('a sala pública aparece na lista do menu, some quando enche ou fica privada, e dá para entrar pela lista', async () => {
     const { send } = setup();
