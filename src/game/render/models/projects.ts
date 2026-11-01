@@ -15,32 +15,130 @@ const STEEL = '#9aa1a8';
 const DARK = '#3a3f45';
 
 /** Usina Nuclear (3×3): duas torres de resfriamento, reator em cúpula e casa de turbinas. */
+/**
+ * Usina nuclear (3×3), em low poly:
+ * - duas torres de resfriamento com o perfil hiperbólico de verdade (cintura e boca abrindo), facetadas, apoiadas num
+ *   anel de pilares, ocas por cima (vapor sai pela boca) e com a faixa na cor da nação;
+ * - prédio de contenção do reator: cilindro com cúpula, anéis de reforço, escotilha de equipamentos e prédio auxiliar;
+ * - chaminé de ventilação alta e fina (marca das usinas nucleares), com faixas na cor da nação;
+ * - casa de turbinas com telhado de duas águas, claraboia e portão; tubulações até as torres;
+ * - transformadores com aletas, torre de transmissão e cerca.
+ */
 export function buildNuclearPlant(): Built {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
+  const SHELL = '#d3d0c8';
+  const PIPE = '#8d949b';
   b.box(5.6, 0.16, 5.6, C.concreteDark, [0, 0.08, 0]);
-  // torres de resfriamento (hiperboloide aproximado por troncos de cone)
-  for (const [x, z] of [
-    [-1.55, -1.3],
-    [-1.55, 1.3],
-  ] as const) {
-    b.cyl(0.95, 1.25, 1.6, C.concreteLight, [x, 0.95, z], undefined, 18);
-    b.cyl(0.85, 0.95, 1.2, C.concreteLight, [x, 2.35, z], undefined, 18);
-    b.cyl(0.92, 0.85, 0.5, C.concreteLight, [x, 3.2, z], undefined, 18);
-    b.cyl(0.8, 0.8, 0.05, DARK, [x, 3.46, z], undefined, 18);
-    a.cyl(1.0, 1.0, 0.12, '#ffffff', [x, 2.9, z], undefined, 18);
+  b.box(5.3, 0.02, 5.3, '#9a968c', [0, 0.17, 0]);
+  // cerca (com o portão na frente da casa de turbinas)
+  railing(b, [-2.7, -2.7], [2.7, -2.7], 0.17, 0.3, '#aab0b5', 8);
+  railing(b, [-2.7, -2.7], [-2.7, 2.7], 0.17, 0.3, '#aab0b5', 8);
+  railing(b, [2.7, -2.7], [2.7, 2.7], 0.17, 0.3, '#aab0b5', 8);
+  railing(b, [-2.7, 2.7], [0.1, 2.7], 0.17, 0.3, '#aab0b5', 4);
+
+  // --- torres de resfriamento: casca hiperbólica facetada (normais por face)
+  const towerProfile: [number, number][] = [
+    [1.12, 0],
+    [0.98, 0.55],
+    [0.86, 1.15],
+    [0.78, 1.8],
+    [0.76, 2.35],
+    [0.8, 2.85],
+    [0.88, 3.25],
+  ];
+  const shell = (rScale: number) => {
+    const geo = new THREE.LatheGeometry(
+      towerProfile.map(([r, y]) => new THREE.Vector2(r * rScale, y)),
+      14,
+    );
+    geo.deleteAttribute('normal');
+    return geo;
+  };
+  for (const z of [-1.3, 1.3]) {
+    const x = -1.45;
+    const y0 = 0.42;
+    // anel de pilares em V sob a casca (o ar entra por baixo)
+    for (let k = 0; k < 12; k++) {
+      const ang = (k / 12) * Math.PI * 2;
+      const r = 1.08;
+      strut(b, [x + Math.cos(ang) * r, 0.18, z + Math.sin(ang) * r], [x + Math.cos(ang + 0.2) * 1.1, y0 + 0.02, z + Math.sin(ang + 0.2) * 1.1], 0.035, C.concrete);
+    }
+    b.add(shell(1), SHELL, { pos: [x, y0, z] });
+    // parede de dentro (perfil invertido = faces para dentro), mais escura: vista de cima, a torre é oca
+    const inner = new THREE.LatheGeometry(
+      towerProfile
+        .slice(3)
+        .reverse()
+        .map(([r, y]) => new THREE.Vector2(r * 0.94, y)),
+      14,
+    );
+    inner.deleteAttribute('normal');
+    b.add(inner, '#77756f', { pos: [x, y0, z] });
+    b.cyl(0.72, 0.72, 0.03, DARK, [x, y0 + 1.85, z], undefined, 14);
+    // boca: só o aro (anel aberto), sem tampa
+    b.add(new THREE.CylinderGeometry(0.89, 0.89, 0.07, 14, 1, true), C.concreteLight, { pos: [x, y0 + 3.27, z] });
+    // faixa da nação perto do topo e uma faixa de sujeira na base
+    a.add(new THREE.CylinderGeometry(0.825, 0.845, 0.16, 14, 1, true), '#ffffff', { pos: [x, y0 + 2.95, z] });
+    b.add(new THREE.CylinderGeometry(1.06, 1.13, 0.1, 14, 1, true), '#a9a59b', { pos: [x, y0 + 0.05, z] });
   }
-  // reator: cilindro com cúpula
-  b.cyl(0.9, 0.9, 1.4, WHITE, [1.2, 0.86, -1.0], undefined, 16);
-  b.sphere(0.9, WHITE, [1.2, 1.56, -1.0], [1, 0.75, 1], 14);
-  // casa de turbinas e subestação
-  b.box(2.0, 1.1, 1.5, C.concrete, [1.25, 0.71, 1.3]);
-  b.box(2.1, 0.08, 1.6, C.roof, [1.25, 1.3, 1.3]);
-  for (let i = 0; i < 4; i++) g.box(0.32, 0.36, 0.02, '#ffffff', [0.55 + i * 0.47, 0.85, 2.06]);
-  for (const x of [2.3, 2.6]) b.box(0.08, 1.4, 0.08, STEEL, [x, 0.86, -2.2]);
-  b.box(0.7, 0.06, 0.06, STEEL, [2.45, 1.5, -2.2]);
-  a.box(1.2, 0.18, 0.03, '#ffffff', [1.25, 1.05, 2.06]);
-  return { base: l.build(), moving: null, height: 3.5, smoke: [[-1.55, 3.5, -1.3], [-1.55, 3.5, 1.3]] };
+
+  // --- contenção do reator
+  const [rx, rz] = [1.25, -1.15];
+  b.cyl(0.92, 0.95, 1.55, WHITE, [rx, 0.95, rz], undefined, 16);
+  b.sphere(0.92, WHITE, [rx, 1.72, rz], [1, 0.8, 1], 16);
+  for (const y of [0.5, 1.05, 1.6]) b.cyl(0.96, 0.96, 0.05, '#c9cccb', [rx, y, rz], undefined, 16);
+  a.cyl(0.97, 0.97, 0.1, '#ffffff', [rx, 1.35, rz], undefined, 16);
+  b.cyl(0.08, 0.08, 0.14, STEEL, [rx, 2.47, rz], undefined, 8);
+  // escotilha de equipamentos e prédio auxiliar colado
+  b.box(0.42, 0.5, 0.2, '#b9bcbb', [rx - 0.62, 0.45, rz + 0.75], [0, 0.6, 0]);
+  b.box(1.4, 0.75, 0.75, C.concrete, [rx - 0.05, 0.55, rz - 1.25]);
+  b.box(1.45, 0.06, 0.8, C.roof, [rx - 0.05, 0.95, rz - 1.25]);
+  b.box(0.3, 0.16, 0.3, STEEL, [rx - 0.35, 1.06, rz - 1.25]);
+  b.box(0.3, 0.16, 0.3, STEEL, [rx + 0.25, 1.06, rz - 1.25]);
+
+  // --- chaminé de ventilação
+  const [sx, sz] = [-0.1, -2.15];
+  b.cyl(0.11, 0.17, 3.6, '#c8c6bf', [sx, 1.98, sz], undefined, 10);
+  for (const y of [3.1, 3.55]) a.cyl(0.125, 0.13, 0.16, '#ffffff', [sx, y, sz], undefined, 10);
+  b.cyl(0.14, 0.14, 0.05, DARK, [sx, 3.79, sz], undefined, 10);
+  strut(b, [sx, 0.9, sz], [rx - 0.75, 0.9, rz - 1.25], 0.05, PIPE);
+
+  // --- casa de turbinas (telhado de duas águas, claraboia, portão)
+  const [hx, hz] = [0.85, 1.4];
+  b.box(2.3, 1.15, 1.45, C.concrete, [hx, 0.74, hz]);
+  b.gable(2.4, 1.55, 0.38, C.roof, [hx, 1.31, hz]);
+  // claraboia ao longo da cumeeira e respiros no telhado
+  g.box(1.9, 0.05, 0.12, '#ffffff', [hx, 1.7, hz]);
+  for (const dx of [-0.75, 0.75]) b.box(0.18, 0.16, 0.18, STEEL, [hx + dx, 1.62, hz - 0.3]);
+  for (let i = 0; i < 5; i++) g.box(0.26, 0.3, 0.02, '#ffffff', [hx - 0.9 + i * 0.45, 1.0, hz + 0.735]);
+  b.box(0.55, 0.6, 0.03, '#5c6166', [hx + 0.75, 0.47, hz + 0.735]);
+  a.box(1.5, 0.12, 0.03, '#ffffff', [hx - 0.25, 0.62, hz + 0.735]);
+  // tubulações da casa de turbinas até as torres (em suportes)
+  for (const tz of [-1.3, 1.3]) {
+    const y = 0.55;
+    strut(b, [hx - 1.15, y, hz - 0.3], [-0.45, y, tz * 0.55], 0.07, PIPE);
+    strut(b, [-0.45, y, tz * 0.55], [-0.6, y, tz], 0.07, PIPE);
+    b.box(0.08, y, 0.08, STEEL, [-0.45, y / 2 + 0.17, tz * 0.55]);
+  }
+
+  // --- subestação: transformadores com aletas e torre de transmissão
+  for (const tz of [0.55, 1.35]) {
+    const tx = 2.45;
+    b.box(0.42, 0.42, 0.5, '#6f777d', [tx, 0.39, tz]);
+    for (const dz of [-0.17, 0, 0.17]) b.box(0.5, 0.36, 0.03, '#5d656b', [tx, 0.36, tz + dz]);
+    for (const dx of [-0.1, 0.1]) b.cyl(0.03, 0.04, 0.3, '#cfd6d8', [tx + dx, 0.75, tz], undefined, 6);
+  }
+  const [px, pz] = [2.35, -0.2];
+  for (const [ox, oz] of [
+    [-0.2, -0.2],
+    [0.2, -0.2],
+    [0.2, 0.2],
+    [-0.2, 0.2],
+  ] as const) strut(b, [px + ox, 0.17, pz + oz], [px + ox * 0.35, 2.1, pz + oz * 0.35], 0.03, STEEL);
+  b.box(0.9, 0.05, 0.06, STEEL, [px, 1.75, pz]);
+  b.box(0.6, 0.05, 0.06, STEEL, [px, 2.05, pz]);
+  return { base: l.build(), moving: null, height: 3.8, smoke: [[-1.45, 3.75, -1.3], [-1.45, 3.75, 1.3]] };
 }
 
 /**
