@@ -334,60 +334,163 @@ export function buildMineModel(): Built {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
   b.box(3.9, 0.06, 3.9, '#6b625a', [0, 0.03, 0]);
-  // encosta rochosa (perfil trapezoidal) com afloramentos e topo gramado
-  b.side(
+  // encosta rochosa facetada: face da frente íngreme (z ≈ −0.3), platô no alto (y ≈ 1.27) e flancos caindo para trás
+  b.convex(
     [
-      [-1.6, 0],
-      [1.6, 0],
-      [0.9, 1.2],
-      [-0.9, 1.2],
+      [-1.9, 0.06, -1.95],
+      [1.9, 0.06, -1.95],
+      [1.93, 0.06, -0.95],
+      [1.6, 0.06, -0.38],
+      [0.9, 0.06, -0.3],
+      [-0.9, 0.06, -0.3],
+      [-1.62, 0.06, -0.4],
+      [-1.93, 0.06, -1.05],
+      [-1.5, 0.75, -0.48],
+      [1.52, 0.62, -0.55],
+      [-1.72, 0.66, -1.5],
+      [1.74, 0.8, -1.45],
+      [-0.95, 1.24, -0.5],
+      [0.98, 1.26, -0.52],
+      [-1.15, 1.22, -1.55],
+      [1.1, 1.27, -1.62],
+      [0.0, 1.27, -1.78],
+      [-0.2, 1.3, -0.48],
     ],
-    1.6,
     '#8d867b',
-    [0, 0.06, -1.1],
   );
-  b.box(1.8, 0.05, 1.6, '#6c7a46', [0, 1.285, -1.1]);
+  // camada de rocha mais escura no flanco esquerdo e no pé da face (estratos)
+  b.convex(
+    [
+      [-1.95, 0.06, -1.9],
+      [-1.2, 0.06, -1.95],
+      [-1.95, 0.06, -0.6],
+      [-1.4, 0.06, -0.32],
+      [-1.0, 0.06, -0.28],
+      [-1.55, 0.5, -0.45],
+      [-1.8, 0.45, -1.6],
+      [-1.2, 0.62, -1.1],
+    ],
+    '#756e64',
+  );
+  b.convex(
+    [
+      [1.0, 0.06, -0.26],
+      [1.75, 0.06, -0.42],
+      [1.95, 0.06, -1.2],
+      [1.62, 0.38, -0.5],
+      [1.1, 0.35, -0.36],
+      [1.8, 0.32, -1.1],
+    ],
+    '#7b746a',
+  );
+  // capa de grama no platô (um pouco recuada da borda)
+  b.convex(
+    [
+      [-0.85, 1.29, -0.62],
+      [0.88, 1.3, -0.64],
+      [-1.02, 1.27, -1.5],
+      [1.0, 1.3, -1.56],
+      [0.0, 1.3, -1.7],
+      [-0.7, 1.15, -0.75],
+      [0.7, 1.15, -0.75],
+      [0.0, 1.15, -1.5],
+    ],
+    '#6c7a46',
+  );
   for (const [x, y, z, s] of [
-    [-1.25, 0.35, -0.4, 0.28],
-    [1.3, 0.3, -0.45, 0.24],
-    [-1.15, 0.7, -0.45, 0.2],
-    [1.05, 0.95, -1.7, 0.22],
-    [-1.35, 0.5, -1.8, 0.3],
+    [-1.25, 0.32, -0.32, 0.26],
+    [1.38, 0.24, -0.35, 0.22],
+    [-1.55, 0.75, -0.62, 0.18],
+    [1.2, 1.05, -1.6, 0.2],
+    [-1.4, 0.95, -1.5, 0.24],
+    [0.75, 0.12, 0.2, 0.1],
+    [-0.7, 0.1, 0.35, 0.08],
   ] as const)
     b.add(new THREE.IcosahedronGeometry(s, 0), '#7d776c', { pos: [x, y, z], scale: [1.3, 0.8, 1] });
-  // portal de concreto com escoramento de madeira e boca escura
-  b.box(1.25, 0.95, 0.16, C.concrete, [0, 0.53, -0.26]);
-  b.box(0.82, 0.68, 0.18, '#141312', [0, 0.4, -0.25]);
-  for (const s of [-1, 1]) b.box(0.1, 0.72, 0.1, C.woodDark, [s * 0.38, 0.42, -0.16]);
-  b.box(0.9, 0.1, 0.12, C.woodDark, [0, 0.8, -0.16]);
-  b.box(1.32, 0.08, 0.24, C.concreteDark, [0, 1.03, -0.24]);
-  a.box(0.7, 0.12, 0.02, '#ffffff', [0, 0.92, -0.17]);
-  for (const s of [-1, 1]) b.box(0.08, 0.06, 0.06, '#f2e6a0', [s * 0.48, 0.88, -0.15]); // luminárias
+  // portal de concreto com muros de ala, boca em arco e cambotas de aço
+  b.box(1.3, 1.05, 0.16, C.concrete, [0, 0.585, -0.27]);
+  b.box(1.38, 0.08, 0.24, C.concreteDark, [0, 1.1, -0.27]);
+  for (const s of [-1, 1])
+    b.side(
+      [
+        [0, 0],
+        [s * 0.62, 0],
+        [s * 0.62, 0.28],
+        [0, 0.92],
+      ],
+      0.12,
+      C.concrete,
+      [s * 0.63, 0.06, -0.25],
+      [0, s * 0.45, 0],
+    );
+  b.box(0.7, 0.45, 0.04, '#141312', [0, 0.285, -0.17]);
+  b.add(new THREE.CylinderGeometry(0.35, 0.35, 0.04, 10, 1, false, -Math.PI / 2, Math.PI), '#141312', { pos: [0, 0.51, -0.17], rot: [Math.PI / 2, 0, 0] });
+  for (const [z, color] of [
+    [-0.15, '#4d5257'],
+    [-0.21, '#34373a'],
+  ] as const) {
+    b.add(new THREE.TorusGeometry(0.37, 0.03, 4, 10, Math.PI), color, { pos: [0, 0.51, z] });
+    for (const s of [-1, 1]) b.box(0.06, 0.45, 0.06, color, [s * 0.37, 0.285, z]);
+  }
+  a.box(0.62, 0.11, 0.02, '#ffffff', [0, 0.97, -0.185]);
+  for (const s of [-1, 1]) b.box(0.08, 0.06, 0.06, '#f2e6a0', [s * 0.5, 0.86, -0.17]); // luminárias
   // via férrea com dormentes
   for (const s of [-1, 1]) b.box(0.035, 0.04, 2.1, C.metal, [s * 0.17, 0.1, 0.78]);
   for (let z = -0.15; z < 1.8; z += 0.17) b.box(0.5, 0.03, 0.07, C.woodDark, [0, 0.075, z]);
-  // castelete de içamento (estrutura em A) com casa do guincho e colar do poço
+  // silo de carregamento sobre o fim da via: pernas de madeira, moega e a calha até a pilha de minério
+  for (const sx of [-1, 1]) for (const dz of [-0.2, 0.2]) b.box(0.07, 0.7, 0.07, C.woodDark, [sx * 0.3, 0.41, 1.55 + dz]);
+  for (const sx of [-1, 1]) strut(b, [sx * 0.3, 0.15, 1.35], [sx * 0.3, 0.7, 1.75], 0.025, C.woodDark);
+  b.box(0.7, 0.05, 0.5, C.wood, [0, 0.77, 1.55]);
+  b.cyl(0.42, 0.18, 0.32, '#6f5236', [0, 0.95, 1.55], [0, Math.PI / 4, 0], 4);
+  b.box(0.5, 0.03, 0.36, '#7b4630', [0, 1.1, 1.55]);
+  strut(b, [-0.25, 0.75, 1.5], [-0.95, 0.42, 1.3], 0.06, '#5a5f66');
+  // castelete de aço com contraventamento em X, plataforma das polias e a gaiola no poço
   const hx = 1.35;
   const hz = 0.95;
-  b.box(0.5, 0.12, 0.5, C.concrete, [hx, 0.12, hz]);
-  for (const s of [-1, 1]) {
-    strut(b, [hx - 0.2, 0.12, hz + s * 0.2], [hx - 0.05, 2.0, hz + s * 0.08], 0.06, '#7a2b23');
-    strut(b, [hx + 0.2, 0.12, hz + s * 0.2], [hx + 0.05, 2.0, hz + s * 0.08], 0.06, '#7a2b23');
-    strut(b, [hx - 0.55, 0.12, hz + s * 0.18], [hx - 0.05, 1.85, hz + s * 0.08], 0.05, '#7a2b23'); // escoras traseiras
+  const STEEL_RED = '#8a3226';
+  b.box(0.56, 0.14, 0.56, C.concrete, [hx, 0.13, hz]);
+  b.box(0.3, 0.02, 0.3, '#141312', [hx, 0.205, hz]);
+  const lv = [0.2, 0.8, 1.4, 1.95];
+  const half = (y: number): number => 0.22 - (0.13 * (y - 0.2)) / 1.75;
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) strut(b, [hx + sx * 0.22, 0.2, hz + sz * 0.22], [hx + sx * 0.09, 1.95, hz + sz * 0.09], 0.05, STEEL_RED);
+  for (let i = 0; i < lv.length - 1; i++) {
+    const y0 = lv[i]!;
+    const y1 = lv[i + 1]!;
+    const w0 = half(y0);
+    const w1 = half(y1);
+    for (const s of [-1, 1]) {
+      // faces ±z e ±x: um X por lance
+      strut(b, [hx - w0, y0, hz + s * w0], [hx + w1, y1, hz + s * w1], 0.018, STEEL_RED);
+      strut(b, [hx + w0, y0, hz + s * w0], [hx - w1, y1, hz + s * w1], 0.018, STEEL_RED);
+      strut(b, [hx + s * w0, y0, hz - w0], [hx + s * w1, y1, hz + w1], 0.018, STEEL_RED);
+      strut(b, [hx + s * w0, y0, hz + w0], [hx + s * w1, y1, hz - w1], 0.018, STEEL_RED);
+      strut(b, [hx - w1, y1, hz + s * w1], [hx + w1, y1, hz + s * w1], 0.022, STEEL_RED);
+    }
   }
-  for (const y of [0.6, 1.1, 1.55]) {
-    const k = (y - 0.12) / 1.88;
-    const w = 0.2 - 0.12 * k;
-    strut(b, [hx - w, y, hz - w], [hx - w, y, hz + w], 0.03, '#7a2b23');
-    strut(b, [hx + w, y, hz - w], [hx + w, y, hz + w], 0.03, '#7a2b23');
-  }
-  b.box(0.22, 0.06, 0.3, '#4a2019', [hx, 2.02, hz]);
-  // casa do guincho com cabos até as polias
-  b.box(0.45, 0.4, 0.4, '#c3c6c4', [0.5, 0.26, 0.95]);
-  b.gable(0.5, 0.45, 0.16, C.roof, [0.5, 0.46, 0.95], Math.PI / 2);
-  g.box(0.02, 0.1, 0.22, '#ffffff', [0.725, 0.32, 0.95]);
-  for (const s of [-1, 1]) strut(b, [0.72, 0.38, 0.95 + s * 0.06], [hx - 0.1, 2.1, hz + s * 0.06], 0.01, '#26282b', true);
-  // pilha de minério
+  // pernas de escora inclinadas para o lado do guincho
+  for (const s of [-1, 1]) strut(b, [hx - 0.5, 0.12, hz + s * 0.2], [hx - 0.08, 1.85, hz + s * 0.09], 0.045, STEEL_RED);
+  strut(b, [hx - 0.5, 0.12, hz - 0.2], [hx - 0.25, 1.1, hz + 0.15], 0.015, STEEL_RED);
+  strut(b, [hx - 0.5, 0.12, hz + 0.2], [hx - 0.25, 1.1, hz - 0.15], 0.015, STEEL_RED);
+  b.box(0.36, 0.05, 0.36, '#4a2019', [hx, 1.99, hz]);
+  for (const [dx, dz] of [
+    [-0.17, -0.17],
+    [0.17, -0.17],
+    [-0.17, 0.17],
+    [0.17, 0.17],
+  ] as const)
+    b.box(0.015, 0.16, 0.015, C.steel, [hx + dx, 2.09, hz + dz]);
+  for (const s of [-1, 1]) b.box(0.36, 0.015, 0.015, C.steel, [hx, 2.16, hz + s * 0.17]);
+  // gaiola pendurada nos cabos e as guias
+  b.box(0.13, 0.26, 0.13, '#c9a227', [hx, 0.62, hz]);
+  for (const s of [-1, 1]) strut(b, [hx + 0.17, 2.0, hz + s * 0.06], [hx + 0.02, 0.76, hz + s * 0.03], 0.006, '#26282b', true);
+  // casa do guincho de tijolo, com janelas e os cabos saindo pelo oitão até as polias
+  b.box(0.5, 0.48, 0.48, '#9c5a44', [0.5, 0.3, 0.95]);
+  b.gable(0.56, 0.54, 0.2, C.roof, [0.5, 0.54, 0.95], Math.PI / 2);
+  for (const dz of [-0.12, 0.12]) g.box(0.02, 0.14, 0.1, '#ffffff', [0.752, 0.32, 0.95 + dz]);
+  g.box(0.1, 0.14, 0.02, '#ffffff', [0.5, 0.32, 1.192]);
+  b.box(0.14, 0.24, 0.02, C.woodDark, [0.42, 0.18, 0.708]);
+  for (const s of [-1, 1]) strut(b, [0.75, 0.48, 0.95 + s * 0.06], [hx - 0.1, 2.12, hz + s * 0.06], 0.01, '#26282b', true);
+  // pilha de minério sob a calha
   b.cyl(0.0, 0.55, 0.48, '#7b4630', [-1.3, 0.3, 1.2], undefined, 8);
   b.add(new THREE.IcosahedronGeometry(0.14, 0), '#6b3c29', { pos: [-1.05, 0.15, 1.45] });
 
