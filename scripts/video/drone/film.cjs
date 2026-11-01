@@ -29,8 +29,6 @@ const W = Number(process.env.W || 1280), H = Number(process.env.H || 720);
     st.textContent = '*{visibility:hidden!important} canvas.rec-main,canvas.rec-osd{visibility:visible!important}';
     document.head.appendChild(st);
     rt.cameraCtl.closeUp = true;
-    rt.probeLive = false;
-    rt.exposureLive = false;
     const { audio } = await import('/src/game/audio/AudioService.ts');
     window.__audio = audio;
     window.__alog = [];
