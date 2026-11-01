@@ -386,7 +386,7 @@ function ownBuildingDetail(sim: Simulation, b: Parameters<Simulation['buildingRa
     status: b.status,
     ...(def.gather ? { rate: r2(b.status === 'ok' ? sim.buildingRate(b) : 0) } : {}),
     ...((def.gather || def.process) && b.progress >= 1 ? { roadLinked: sim.roadLinked(b) } : {}),
-    ...(sim.power && b.progress >= 1 && b.hp > 0 && POWER_USE[b.type]?.stops && !sim.isPowered(b) ? { unpowered: true } : {}),
+    ...(sim.power && b.progress >= 1 && b.hp > 0 && (POWER_USE[b.type]?.stops || POWER_USE[b.type]?.slows) && !sim.hasLight(b) ? { unpowered: true } : {}),
     ...(b.type === 'oil_tank' ? { stored: r2(b.stored) } : {}),
     ...(d ? { deposit: { remaining: Math.max(0, Math.round(d.remaining)), initial: d.initial, size: d.size, maxSites: d.maxSites } } : {}),
   };

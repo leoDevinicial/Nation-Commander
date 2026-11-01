@@ -3676,7 +3676,7 @@ export class GameRuntime {
     const yieldPreview = this.previewYield(type, cell);
     // rede elétrica: a construção nesta posição alcança a malha?
     let power: 'on' | 'off' | undefined;
-    if (this.powerMask && (POWER_USE[type]?.stops || POWER_GEN[type])) {
+    if (this.powerMask && (POWER_USE[type] || POWER_GEN[type])) {
       let on = false;
       for (let y = cell.cy; y < cell.cy + size && !on; y++) for (let x = cell.cx; x < cell.cx + size && !on; x++) if (this.powerMask[y * this.map.width + x]) on = true;
       power = on ? 'on' : 'off';
@@ -3702,7 +3702,7 @@ export class GameRuntime {
     }
     this.powerMask = null;
     const me = this.snapshot?.players.find((p) => p.slot === this.mySlot);
-    if (!type || !me?.power || !(POWER_USE[type]?.stops || POWER_GEN[type])) return;
+    if (!type || !me?.power || !(POWER_USE[type] || POWER_GEN[type])) return;
     const W = this.map.width;
     const H = this.map.height;
     const mesh = new Uint8Array(W * H);

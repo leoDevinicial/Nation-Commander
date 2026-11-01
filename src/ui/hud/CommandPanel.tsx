@@ -44,7 +44,7 @@ import { useAppStore } from '../../state/useAppStore.ts';
 import { buildingEffects, formatUsd as usdShort, specDef, upgradeTrack } from '../../../shared/sim/upgrades.ts';
 import { effectiveEra, effectiveMilitaryResearch, effectivePopCap, effectiveTechs, isSandboxMatch, timeText } from '../../state/sandbox.ts';
 import { BUILDING_ERA, ERAS, UNIT_ERA, buildingEra, eraPhrase, eraTitle, type Era } from '../../../shared/sim/eras.ts';
-import { POWER_GEN } from '../../../shared/sim/power.ts';
+import { POWER_GEN, POWER_USE, powerUse } from '../../../shared/sim/power.ts';
 import { MARKET, MARKET_RESOURCES, marketPrice, marketQuote, marketBuyPrice, marketBuyQuote } from '../../../shared/sim/market.ts';
 
 const EMPTY_TECHS: readonly string[] = [];
@@ -162,7 +162,11 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
                     ? '⚡ Com energia aqui (área amarela no chão)'
                     : POWER_GEN[mode.buildingType]
                       ? '⚠ Longe da rede: a usina ficará isolada — ligue-a com estrada'
-                      : '⚠ Sem energia aqui: ficará parada. Construa na área amarela ou leve estrada até aqui'}
+                      : POWER_USE[mode.buildingType]?.stops
+                        ? '⚠ Sem energia aqui: ficará parada. Construa na área amarela ou leve estrada até aqui'
+                        : POWER_USE[mode.buildingType]?.slows
+                          ? '⚠ Sem energia aqui: vai render metade. Construa na área amarela ou leve estrada até aqui'
+                          : '⚠ Sem energia aqui: fica no escuro. Construa na área amarela ou leve estrada até aqui'}
                 </div>
               )}
               {mode.yield && BUILDINGS[mode.buildingType].gather && (
@@ -1092,6 +1096,19 @@ function MarketInfo({ b, runtime }: { b: { id: number }; runtime: GameRuntime })
   );
 }
 
+/** Consumo de energia da construção (cresce com a era) e o que acontece no escuro. */
+function PowerUseLine({ b }: { b: { type: BuildingType; owner: number; unpowered?: boolean } }) {
+  const me = useHudStore((s) => s.players.find((p) => p.slot === s.mySlot));
+  if (!me?.power || b.owner !== useHudStore.getState().mySlot) return null;
+  const rule = POWER_USE[b.type]!;
+  const dark = rule.stops ? 'para sem luz' : rule.slows ? 'rende metade sem luz' : 'fica no escuro sem luz';
+  return (
+    <div className={`text-[11px] ${b.unpowered ? 'text-red-300' : 'text-ink-400'}`} title="O consumo cresce a cada era. Ligue a construção à rede (estradas, usinas e QG) e mantenha a geração acima da demanda.">
+      ⚡ Consome {powerUse(b.type, effectiveEra(me))} de energia · {b.unpowered ? 'SEM LUZ agora' : dark}
+    </div>
+  );
+}
+
 function CaravanInfo({ cityId }: { cityId: number }) {
   const c = useHudStore((s) => s.caravans.find((x) => x.cityId === cityId));
   if (!c) return <div className="text-[11px] text-ink-400">🚚 Caravana: saindo do Centro de Comando…</div>;
@@ -1169,6 +1186,7 @@ function BuildingInfo({ b, runtime }: { b: NonNullable<ReturnType<typeof useHudS
             .join(' · ')}
         </div>
       )}
+      {done && POWER_USE[b.type] && <PowerUseLine b={b} />}
       {done && def.gather && (
         <div className="flex flex-wrap items-center gap-1.5 text-xs text-signal-green">
           <ResourceIcon type={def.gather.resource} />+{b.rate.toFixed(2)} {RESOURCE_LABELS[def.gather.resource].toLowerCase()}/s

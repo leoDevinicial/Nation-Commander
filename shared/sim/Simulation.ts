@@ -4,7 +4,7 @@ import { RANKS, rankDamageMul, rankFor, rankHpMul } from './veterancy.ts';
 import { countryBonus, type CountryBonus } from './countryBonus.ts';
 import { ERA_CANCEL_REFUND, ERAS, buildingEra, eraPhrase, type Era } from './eras.ts';
 import { MineSystem, type MineSave } from './mines.ts';
-import { POWER, POWER_GEN, POWER_USE, solvePower, windFactor, type PowerNode } from './power.ts';
+import { POWER, POWER_DARK_RATE, POWER_GEN, POWER_USE, powerUse, solvePower, windFactor, type PowerNode } from './power.ts';
 import { dayLight } from './climate.ts';
 import { CaravanSystem, roadNetwork, roadRing, type CaravanSave } from './caravans.ts';
 import { marketBuyQuote, marketQuote, marketRecover } from './market.ts';
@@ -922,7 +922,7 @@ export class Simulation {
     const hydro = this.hasProject(b.owner, 'hydro_dam') ? PROJECT_FX.hydroGatherMul : 1;
     const school = this.serviceCovers(b.owner, 'education', b.pos) ? SERVICES.educationGatherMul : 1;
     const road = this.roadLinked(b) ? ROAD.productionMul : 1;
-    return gatherRate(b.type, cells) * this.fx(b).rateMul * eff * (p.modifiers.gatherMul ?? 1) * (this.bonusOf(b.owner).gatherMul?.[def.gather.resource] ?? 1) * hydro * school * road;
+    return gatherRate(b.type, cells) * this.fx(b).rateMul * eff * (p.modifiers.gatherMul ?? 1) * (this.bonusOf(b.owner).gatherMul?.[def.gather.resource] ?? 1) * hydro * school * road * this.powerRate(b);
   }
 
   /**
@@ -1929,6 +1929,17 @@ export class Simulation {
     return this.powered.has(b.id);
   }
 
+  /** A construção está ligada à rede e com luz (qualquer consumidora; sem rede ligada na partida, sempre). */
+  hasLight(b: Building): boolean {
+    if (!this.power || !POWER_USE[b.type]) return true;
+    return this.powered.has(b.id);
+  }
+
+  /** Fator de produção pela luz: coletas (`slows`) no escuro rendem `POWER_DARK_RATE`. */
+  powerRate(b: Building): number {
+    return POWER_USE[b.type]?.slows && !this.hasLight(b) ? POWER_DARK_RATE : 1;
+  }
+
   /** Geração disponível agora de uma usina pronta (vento, sol, era e carvão no estoque). */
   powerGen(b: Building): number {
     const g = POWER_GEN[b.type];
@@ -1964,7 +1975,7 @@ export class Simulation {
         let homes = 0;
         for (const b of this.buildings) {
           if (b.owner !== slot || b.progress < 1 || b.hp <= 0) continue;
-          const node: PowerNode = { id: b.id, type: b.type, cx: b.cell.cx, cy: b.cell.cy, size: BUILDINGS[b.type].size, gen: this.powerGen(b), use: POWER_USE[b.type]?.use ?? 0 };
+          const node: PowerNode = { id: b.id, type: b.type, cx: b.cell.cx, cy: b.cell.cy, size: BUILDINGS[b.type].size, gen: this.powerGen(b), use: powerUse(b.type, p.era ?? 1) };
           if (b.type === 'hq' || POWER_GEN[b.type]) hubs.push(node);
           else if (node.use > 0) nodes.push(node);
           if (b.type === 'house' || b.type === 'residential') homes++;
@@ -1978,13 +1989,13 @@ export class Simulation {
         let lit = 0;
         for (const n of nodes) {
           const on = res.powered.has(n.id);
-          if (POWER_USE[n.type]?.stops && !on) dark++;
+          if ((POWER_USE[n.type]?.stops || POWER_USE[n.type]?.slows) && !on) dark++;
           if ((n.type === 'house' || n.type === 'residential') && on) lit++;
         }
         let coalPerSec = 0;
         for (const h of hubs) coalPerSec += (POWER_GEN[h.type]?.coal ?? 0) * (h.gen > 0 ? (res.load.get(h.id) ?? 0) : 0);
         const prev = this.powerInfo[slot];
-        const isolated = nodes.filter((n) => POWER_USE[n.type]?.stops && res.isolated.has(n.id)).length;
+        const isolated = nodes.filter((n) => (POWER_USE[n.type]?.stops || POWER_USE[n.type]?.slows) && res.isolated.has(n.id)).length;
         this.powerInfo[slot] = { supply: Math.round(res.supply), demand: res.demand, served: res.served, dark, isolated, coalPerMin: Math.round(coalPerSec * 60 * 10) / 10 };
         this.litHomes[slot] = { homes, lit };
         // aviso de apagão: quando construções começam a parar por falta de luz

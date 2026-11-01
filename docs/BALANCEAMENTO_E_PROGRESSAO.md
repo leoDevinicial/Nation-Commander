@@ -474,6 +474,7 @@ Proposta registrada a partir do feedback da versão 1.0. **Implementada** em 31/
 | Domo de Ferro: bateria antimíssil (Futuro Próximo) que intercepta o míssil comum com 2 interceptadores (90%), magazine de 4, recarga paga de 40 s e espera de 10 s entre engajamentos; não detém o pesado nem o nuclear | Feito (a IA ainda não constrói) | `docs/DOMO_DE_FERRO.md` |
 | Versão 1.0 — obras com o dobro do tempo (Centro de Pesquisa ×1,3); Base Aérea 4×4 com pista maior e aeronaves reais estacionadas no pátio | Feito | `docs/ECONOMIA.md`, `docs/FASE7_FORCA_AEREA_MISSEIS_AUDIO.md` |
 | Rede elétrica: carvão das minas, termelétrica inicial com estrada e postes, eólica, solar, nuclear e hidrelétrica; energia pelas estradas; construções militares e industriais param sem luz; aprovação; IA constrói e ataca usinas | Feito | `docs/REDE_ELETRICA.md` |
+| Energia como desafio (01/11): todas as construções consomem, coletas rendem 75% sem luz, consumo cresce com a era (×1,3 / ×1,6 / ×2); IA liga coletas à rede com prioridade | Feito | `docs/REDE_ELETRICA.md` |
 | Mercado interno no Terminal Comercial (excedente → suprimentos, preço com pressão que se recupera; IA vende a sobra) | Feito | `docs/MERCADO_INTERNO.md`, `shared/sim/market.ts` |
 | Lote 1, §2.6 — incidentes de fronteira no preparo | Feito | `Simulation.startIncident`, `TacticalAI.planHarass` |
 | Lote 1, §2.7 — curva de defesa (raiz com saturação suave) | Feito | `theaterSupply` em `shared/strategic/params.ts` |

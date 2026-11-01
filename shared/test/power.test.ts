@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TICK_RATE, Terrain, type BuildingType } from '../sim/config.ts';
-import { POWER, POWER_GEN, solvePower, type PowerNode } from '../sim/power.ts';
+import { POWER, POWER_DARK_RATE, POWER_ERA_MUL, POWER_GEN, POWER_USE, powerUse, solvePower, type PowerNode } from '../sim/power.ts';
 import { Simulation } from '../sim/Simulation.ts';
 import type { Building, Cell } from '../sim/types.ts';
 import { TEST_START, flatMap } from './helpers.ts';
@@ -77,7 +77,9 @@ describe('rede elétrica', () => {
     for (let k = 0; k < 6; k++) built.push(force(s, 0, 'factory', { cx: 5 + (k % 2) * 2, cy: 5 + Math.floor(k / 2) * 2 }));
     run(s, TICK_RATE * 6);
     const lit = built.filter((b) => s.isPowered(b));
-    expect(lit.length).toBe(Math.floor(cap / 6));
+    // o que já existia no começo (o armazém inicial) também consome (todas as construções gastam energia)
+    const before = s.buildings.filter((b) => b.owner === 0 && !built.includes(b)).reduce((a, b) => a + powerUse(b.type), 0);
+    expect(lit.length).toBe(Math.floor((cap - before) / 6));
     expect(s.isPowered(built[0]!)).toBe(true);
     expect(s.isPowered(built.at(-1)!)).toBe(false);
   });
@@ -123,5 +125,29 @@ describe('rede elétrica', () => {
     const res = solvePower(40, 4, roads, [plant], [user, bridge]);
     expect(res.powered.has(2)).toBe(true);
     expect(res.powered.has(3)).toBe(true);
+  });
+
+  it('todas as construções consomem; o consumo cresce com a era', () => {
+    for (const t of ['farm', 'sawmill', 'quarry', 'mine', 'oil_well', 'house', 'warehouse', 'silo', 'oil_tank', 'school', 'barracks'] as BuildingType[])
+      expect(powerUse(t), t).toBeGreaterThan(0);
+    expect(powerUse('hq')).toBe(0);
+    expect(powerUse('coal_plant')).toBe(0);
+    expect(powerUse('factory', 4)).toBeCloseTo(POWER_USE.factory!.use * POWER_ERA_MUL[4]);
+    expect(powerUse('factory', 3)).toBeGreaterThan(powerUse('factory', 2));
+  });
+
+  it('coleta longe da rede rende metade; ligada por estrada, rende tudo', () => {
+    const s = sim();
+    const farm = force(s, 0, 'farm', { cx: 20, cy: 6 });
+    farm.workers = 6;
+    farm.claims = [6 * s.map.width + 21, 6 * s.map.width + 22, 7 * s.map.width + 21];
+    run(s, POWER.everyTicks + 2);
+    expect(s.hasLight(farm)).toBe(false);
+    const dark = s.buildingRate(farm);
+    expect(s.powerRate(farm)).toBe(POWER_DARK_RATE);
+    road(s, 0, Array.from({ length: 17 }, (_, k) => ({ cx: 4 + k, cy: 5 })));
+    run(s, POWER.everyTicks + 2);
+    expect(s.hasLight(farm)).toBe(true);
+    expect(s.buildingRate(farm)).toBeCloseTo(dark / POWER_DARK_RATE);
   });
 });

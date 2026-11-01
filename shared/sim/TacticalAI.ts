@@ -13,7 +13,7 @@ import { ERAS, buildingEra, type Era } from './eras.ts';
 import { AIRCRAFT, MISSILE, type AircraftType } from './air.ts';
 import { roadLink } from './caravans.ts';
 import { MARKET, MARKET_RESOURCES, marketPrice, type MarketResource } from './market.ts';
-import { POWER, POWER_GEN, POWER_USE } from './power.ts';
+import { POWER, POWER_GEN, POWER_USE, powerUse } from './power.ts';
 
 /** Com que frequência a IA reavalia a situação. */
 export const AI_THINK_TICKS = TICK_RATE;
@@ -478,12 +478,12 @@ export class TacticalAI {
     // rede elétrica: geração abaixo da demanda (com o que está em obra) pede outra usina; carvão acabando pede mina
     const power = sim.power ? sim.powerInfo[this.slot] : undefined;
     const plantInProgress = mine.some((b) => POWER_GEN[b.type] && b.progress < 1);
-    const pendingUse = mine.reduce((a, b) => a + (b.progress < 1 ? (POWER_USE[b.type]?.use ?? 0) : 0), 0);
+    const pendingUse = mine.reduce((a, b) => a + (b.progress < 1 ? powerUse(b.type, me.era ?? 1) : 0), 0);
     // capacidade instalada (nominal), não a geração do momento: a solar zera à noite e o vento oscila, e a IA
     // erguia uma usina nova a cada noite
     const installed = mine.reduce((a, b) => a + (b.progress >= 1 && b.hp > 0 ? (POWER_GEN[b.type]?.gen ?? 0) * (POWER_GEN[b.type]?.source === 'solar' || POWER_GEN[b.type]?.source === 'wind' ? 0.6 : 1) : 0), 0);
     const powerShort = !!power && !plantInProgress && installed < power.demand + pendingUse + 4;
-    const coalLow = sim.power && res.coal < 60;
+    const coalLow = sim.power && res.coal < 80;
     // matriz variada: o carvão é curto, então a partir da era 2 a eólica alterna com a termelétrica (e antes dela com
     // pouco carvão); da Era Digital em diante a solar entra quando houver menos solares que térmicas
     const plantType: BuildingType =
@@ -497,6 +497,8 @@ export class TacticalAI {
       // a primeira usina solar entra logo na Era Digital (energia limpa, sem depender do carvão)
       ['solar_farm', !!power && era >= 3 && count('solar_farm') === 0 && !plantInProgress && budget.iron > 250 && budget.supplies > 300],
       ['mine', !!coalLow && active('mine') === 0 && !mine.some((b) => b.type === 'mine' && b.progress < 1)],
+      // com todo prédio consumindo (01/11), o carvão das térmicas acaba: outra mina (o carvão sai junto com o ferro)
+      ['mine', !!coalLow && active('mine') < (era >= 2 ? 3 : 2) && !mine.some((b) => b.type === 'mine' && b.progress < 1)],
       ['house', pop.total >= pop.cap - 2 && pop.cap < POP_ABSOLUTE_CAP && !housingInProgress && count('house') + count('residential') < 14],
       ['oil_tank', wellsWithoutTank || (mine.some((b) => b.type === 'oil_well' && b.status === 'storage_full') && count('oil_tank') < 5)],
       ['city_hall', cityWanted],
@@ -551,7 +553,8 @@ export class TacticalAI {
 
     // --- estradas até as prefeituras (as caravanas só andam por estrada): fora das emergências, sem
     // guardar recursos para algo mais urgente e com pedra de folga
-    if (!savingCore && !waitingFor) this.planRoads(sim, hq, mine, budget, take, cmds);
+    // (ligar à rede o que está no escuro vale mesmo guardando recursos: coleta sem luz rende menos)
+    this.planRoads(sim, hq, mine, budget, take, cmds, !!savingCore || !!waitingFor);
 
     // --- pesquisa militar: o centro pesquisa na ordem, antes das melhorias e das tropas; a produção usa o
     // que já foi liberado (com o centro ainda em obra, a primeira pesquisa já entra na reserva)
@@ -1031,12 +1034,32 @@ export class TacticalAI {
    * usinas próximas (+15% de produção), só em trechos curtos e com mais pedra de folga. Espera quando
    * há ameaça perto da base ou quando a estrada deixaria a pedra abaixo da reserva.
    */
-  private planRoads(sim: Simulation, hq: Building, mine: Building[], budget: Stockpile, take: (c: Cost) => boolean, cmds: Command[]): void {
+  private planRoads(sim: Simulation, hq: Building, mine: Building[], budget: Stockpile, take: (c: Cost) => boolean, cmds: Command[], powerOnly = false): void {
     if (sim.tick - this.lastRoadTick < AI_ROAD_COOLDOWN_TICKS) return;
+    if (this.nearestThreat(sim, mine)) return;
+    // rede elétrica: construções paradas longe da malha ganham estrada até o QG (a energia anda por ela)
+    if (sim.power) {
+      const near = this.meshNear(sim);
+      const W2 = sim.map.width;
+      for (const b of mine) {
+        if (!(POWER_USE[b.type]?.stops || POWER_USE[b.type]?.slows) || b.progress < 1 || b.hp <= 0 || sim.hasLight(b) || near(b.cell, BUILDINGS[b.type].size)) continue;
+        const route = this.roadRoute(sim, b, hq);
+        if (!route) continue;
+        const fresh = route.filter((c) => sim.map.terrain[c.cy * W2 + c.cx] !== Terrain.Road).slice(0, ROAD.maxCells);
+        if (!fresh.length) continue;
+        const stone = fresh.length * ROAD.stonePerCell;
+        if (budget.stone - stone < 10) return;
+        if (sim.roadPlan(this.slot, fresh).error) continue;
+        if (!take({ stone })) return;
+        cmds.push({ type: 'build_road', cells: fresh });
+        this.lastRoadTick = sim.tick;
+        return;
+      }
+    }
+    if (powerOnly) return;
     const cities = mine.filter((b) => b.type === 'city_hall' && b.progress >= 1 && b.hp > 0);
     for (const city of cities) {
       if (roadLink(sim, this.slot, hq, city)) continue;
-      if (this.nearestThreat(sim, mine)) return;
       const route = this.roadRoute(sim, hq, city);
       if (!route) continue;
       const W = sim.map.width;
@@ -1051,26 +1074,6 @@ export class TacticalAI {
       return;
     }
     // cidades ligadas: coletas e usinas sem estrada (as que mais produzem primeiro), por trechos curtos
-    if (this.nearestThreat(sim, mine)) return;
-    // rede elétrica: construções paradas longe da malha ganham estrada até o QG (a energia anda por ela)
-    if (sim.power) {
-      const near = this.meshNear(sim);
-      const W2 = sim.map.width;
-      for (const b of mine) {
-        if (!POWER_USE[b.type]?.stops || b.progress < 1 || b.hp <= 0 || sim.isPowered(b) || near(b.cell, BUILDINGS[b.type].size)) continue;
-        const route = this.roadRoute(sim, b, hq);
-        if (!route) continue;
-        const fresh = route.filter((c) => sim.map.terrain[c.cy * W2 + c.cx] !== Terrain.Road).slice(0, ROAD.maxCells);
-        if (!fresh.length) continue;
-        const stone = fresh.length * ROAD.stonePerCell;
-        if (budget.stone - stone < 20) return;
-        if (sim.roadPlan(this.slot, fresh).error) continue;
-        if (!take({ stone })) return;
-        cmds.push({ type: 'build_road', cells: fresh });
-        this.lastRoadTick = sim.tick;
-        return;
-      }
-    }
     const producers = mine
       .filter((b) => (BUILDINGS[b.type].gather || BUILDINGS[b.type].process) && b.progress >= 1 && b.hp > 0 && b.status !== 'depleted' && !sim.roadLinked(b))
       .sort((a, b) => sim.buildingRate(b) - sim.buildingRate(a) || a.id - b.id);
@@ -1375,7 +1378,9 @@ export class TacticalAI {
           let covers = 0;
           for (let y = cell.cy; y < cell.cy + n; y++) for (let x = cell.cx; x < cell.cx + n; x++) if (worked.has(y * W + x)) covers++;
           score += covers * 30;
-          if (wired && !wired(cell, BUILDINGS[type].size)) score += 400;
+          // fora da malha: quem para sem luz pesa muito; coletas (rendem 75% no escuro) pesam menos e ganham estrada
+          // depois; depósitos e serviços só um pouco
+          if (wired && !wired(cell, BUILDINGS[type].size)) score += POWER_USE[type]?.stops || POWER_GEN[type] ? 400 : POWER_USE[type]?.slows ? 60 : 30;
           candidates.push({ cell, score });
         }
       }

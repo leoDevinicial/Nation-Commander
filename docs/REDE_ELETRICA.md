@@ -1,4 +1,4 @@
-# Rede elétrica (versão 1.1)
+# Rede elétrica (versão 1.2)
 
 Proposta do gerente, com as decisões do responsável pelo projeto em 31/10:
 - sem energia, a construção para por completo;
@@ -73,13 +73,44 @@ a usina solar não gera à noite.
 | Centro Financeiro | 6 |
 | Programa Espacial | 16 |
 
-- **Fora da rede:** o QG, as coletas, os armazéns e as torres não usam energia, para a economia nunca travar por
-  completo.
+**Coletas: rendem 75% sem luz (01/11):**
+
+| Construção | Consumo |
+|---|---|
+| Fazenda, Serraria, Pedreira | 1 cada |
+| Mina, Poço de petróleo | 2 cada |
+
+**Depósitos e logística: só pesam na conta:** Armazém, Silo, Tanque de combustível e Torre (1 cada), Porto e
+Estação ferroviária (3 cada).
+
+- **Todas consomem (01/11):** pedido do usuário depois de uma partida real ("energia não foi desafio em momento
+  algum"). Só o QG fica fora da conta. A coleta no escuro não para (a economia nunca trava por completo), mas rende
+  75% (`POWER_DARK_RATE`).
+- **Consumo cresce com a era** (`POWER_ERA_MUL`): ×1 na Guerra Fria, ×1,3 no Pós-Guerra Fria, ×1,6 na Era Digital
+  e ×2 no Futuro Próximo. Os valores das tabelas são da era 1; avançar de era pede usinas novas.
+- **Carvão:** a termelétrica a plena carga queima até 0,5 de carvão por segundo; com a base inteira consumindo, o
+  carvão acaba e a eólica e a solar passam a importar.
 - **Aprovação:** fator "Bairros com/sem energia elétrica", de até +3 com todas as moradias acesas a até −6 com todas
   no escuro (apagão ou estrada cortada).
 - **Status:** a construção parada mostra "Parado: sem energia" no painel.
 - **Aviso:** quando construções começam a parar, o jogador recebe o aviso de apagão, com o motivo (falta geração ou
   longe da rede).
+
+## Efeito no ritmo (01/11)
+
+Medido com `npx tsx scripts/sim-economia.ts 1,2,3,4,5,6,7 25` (14 IAs no Normal):
+
+| | Antes (só indústria consumia) | Agora (todas consomem) |
+|---|---|---|
+| Era 2 | 10:04 a 11:58 | 10:06 a 13:54 |
+| Era 3 até 22:00 | 10 de 14 IAs | 5 de 14 IAs |
+| Tropas formadas até 15:00 (média) | 10,8 | 10,1 |
+| Critérios da seção 5 de `RECALIBRAGEM_RECURSOS.md` | 8 de 9 | 6 de 9 |
+
+O atraso de 1 a 2 minutos nas eras é o custo pedido: usinas a mais, carvão que acaba e coletas longe da rede. Testes
+de compensação (sem a 2ª mina da IA, mina com mais carvão, coleta no escuro a 80% ou 100%, consumo por era mais
+suave) não devolveram o ritmo antigo sozinhos; a IA ficou com a regra igual à do jogador. A IA liga coletas no escuro
+à rede antes das estradas das prefeituras e mesmo guardando recursos, e só ergue eólica quando falta geração.
 
 ## Início da partida
 
@@ -93,9 +124,11 @@ QG.
   - Termelétrica por padrão.
   - Da era 2 em diante, a eólica alterna com a termelétrica e passa na frente com menos de 150 de carvão (até 4).
   - A primeira solar logo ao chegar na Era Digital; depois, alternada com a termelétrica.
-- **Carvão:** com o carvão abaixo de 60 e sem mina, a mina vira prioridade.
+- **Carvão:** com o carvão abaixo de 80 e sem mina, a mina vira prioridade; com o carvão baixo, mais minas (até 2,
+  ou 3 da era 2 em diante).
 - **Posição:** posiciona quartéis, fábricas e usinas ao alcance da malha.
-- **Construções isoladas:** traça estrada até o QG para uma construção que ficou longe da rede.
+- **Construções isoladas:** traça estrada até o QG para uma construção (inclusive coleta) que ficou longe da rede,
+  antes das estradas das prefeituras e mesmo quando está guardando recursos.
 - **Ataque:** as usinas (termelétrica, nuclear, hidrelétrica) entram logo depois da base aérea e do silo na lista de
   alvos aéreos.
 
@@ -104,6 +137,8 @@ QG.
 - Construção sem luz: ícone ⚡ vermelho piscando acima dela (só o dono vê) e "Parado: sem energia" no painel.
 - Ao posicionar uma construção que usa ou gera luz: a área energizada aparece amarela no chão, e o painel diz
   "⚡ Com energia aqui" ou "⚠ Sem energia aqui".
+- Painel da construção: "⚡ Consome X de energia" com o que acontece sem luz (para, rende 75% ou fica no escuro) e
+  "SEM LUZ agora" em vermelho quando está apagada.
 - Barra de cima: ⚡ consumo atendido / geração, vermelho com construções paradas.
 
 ## Mercado interno

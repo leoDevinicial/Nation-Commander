@@ -12,6 +12,9 @@ import type { BuildingType } from './config.ts';
  *   antiaérea, refinaria e siderúrgica). Quando falta energia numa rede, as construções mais antigas ficam com a luz
  *   e as mais novas apagam.
  * - Moradias com luz dão aprovação; bairros no escuro tiram.
+ * - Desde 01/11 (pedido do usuário: "energia não foi desafio em momento algum") todas as construções consomem: as
+ *   coletas rendem 75% no escuro, depósitos e serviços só pesam na conta, e o consumo cresce com a era
+ *   (`POWER_ERA_MUL`): avançar de era pede mais usinas.
  */
 export const POWER = {
   /** Carvão por unidade de ferro extraída numa mina. */
@@ -31,7 +34,7 @@ export type PowerSource = 'coal' | 'wind' | 'solar' | 'nuclear' | 'hydro';
 
 /** Geração máxima e combustível (carvão por segundo a plena carga). */
 export const POWER_GEN: Partial<Record<BuildingType, { gen: number; source: PowerSource; coal?: number }>> = {
-  coal_plant: { gen: 24, source: 'coal', coal: 0.6 },
+  coal_plant: { gen: 24, source: 'coal', coal: 0.5 },
   wind_farm: { gen: 12, source: 'wind' },
   solar_farm: { gen: 18, source: 'solar' },
   nuclear_plant: { gen: 150, source: 'nuclear' },
@@ -39,10 +42,22 @@ export const POWER_GEN: Partial<Record<BuildingType, { gen: number; source: Powe
 };
 
 /**
- * Consumo (unidades de energia) das construções que dependem de luz. `stops`: para por completo sem energia; as
- * moradias e serviços não param, mas a falta de luz pesa na aprovação.
+ * Consumo (unidades de energia, na era 1) das construções. `stops`: para por completo sem energia. `slows`: rende
+ * 75% no escuro (as coletas, `POWER_DARK_RATE`). As demais (moradias, depósitos, serviços) não param, mas entram na conta da rede, e
+ * moradias no escuro pesam na aprovação.
  */
-export const POWER_USE: Partial<Record<BuildingType, { use: number; stops: boolean }>> = {
+export const POWER_USE: Partial<Record<BuildingType, { use: number; stops: boolean; slows?: boolean }>> = {
+  farm: { use: 1, stops: false, slows: true },
+  sawmill: { use: 1, stops: false, slows: true },
+  quarry: { use: 1, stops: false, slows: true },
+  mine: { use: 2, stops: false, slows: true },
+  oil_well: { use: 2, stops: false, slows: true },
+  warehouse: { use: 1, stops: false },
+  silo: { use: 1, stops: false },
+  oil_tank: { use: 1, stops: false },
+  tower: { use: 1, stops: false },
+  port: { use: 3, stops: false },
+  rail_station: { use: 3, stops: false },
   barracks: { use: 3, stops: true },
   factory: { use: 6, stops: true },
   research_center: { use: 5, stops: true },
@@ -63,6 +78,18 @@ export const POWER_USE: Partial<Record<BuildingType, { use: number; stops: boole
   financial_center: { use: 6, stops: false },
   space_center: { use: 16, stops: false },
 };
+
+/** Consumo multiplicado pela era da nação: cada era nova gasta mais energia (máquinas, telas, redes). */
+export const POWER_ERA_MUL = [1, 1, 1.3, 1.6, 2] as const;
+
+/** Rendimento de uma construção `slows` sem energia (as coletas no escuro). */
+export const POWER_DARK_RATE = 0.75;
+
+/** Consumo de uma construção na era dada (0 se não usa energia). */
+export function powerUse(type: BuildingType, era = 1): number {
+  const u = POWER_USE[type]?.use ?? 0;
+  return u ? Math.round(u * (POWER_ERA_MUL[era] ?? 1) * 10) / 10 : 0;
+}
 
 /** Vento (0,35 a 1,3): rajadas lentas e determinísticas, diferentes para cada parque. */
 export function windFactor(seconds: number, id: number): number {
