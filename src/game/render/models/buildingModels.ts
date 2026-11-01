@@ -8,6 +8,7 @@ import type { BuildingType } from '../../../../shared/sim/config.ts';
 import type { SpecId } from '../../../../shared/sim/upgrades.ts';
 import { C, layers, type ModelLayers, type PartBuilder } from './kit.ts';
 import { modulesFor } from './upgradeModules.ts';
+import { strut } from './rigging.ts';
 import { pumpjack, type PumpRig } from './pumpjack.ts';
 import { tractor } from './crops.ts';
 import { barracksDetail, factoryDetail, houseDetail, oilTankDetail, siloDetail } from './details.ts';
@@ -392,10 +393,44 @@ function buildFactory(): Omit<BuildingModel, 'detail'> {
     );
     g.box(0.04, 0.5, 2.7, '#ffffff', [x + 0.56, 2.02, 0]);
   }
-  // portões e janelas
-  b.box(1.2, 1.1, 0.06, C.metalDark, [-0.6, 0.72, 1.48]);
-  for (let i = 0; i < 5; i++) b.box(1.18, 0.02, 0.07, C.metal, [-0.6, 0.3 + i * 0.2, 1.5]);
+  // portão principal aberto: interior iluminado, ponte rolante e um tanque saindo da linha de montagem
+  b.box(1.2, 1.1, 0.4, '#2c2a27', [-0.6, 0.72, 1.28]);
+  b.box(1.2, 0.02, 0.4, '#5a5650', [-0.6, 0.175, 1.28]);
+  for (let i = 0; i < 3; i++) b.box(0.24, 0.06, 0.02, '#e9dfb8', [-0.95 + i * 0.35, 1.2, 1.1]);
+  b.cyl(0.1, 0.1, 1.24, C.metal, [-0.6, 1.33, 1.5], [0, 0, Math.PI / 2], 8);
+  b.box(1.16, 0.08, 0.08, C.yellow, [-0.6, 1.12, 1.3]);
+  b.box(0.16, 0.1, 0.12, C.metalDark, [-0.45, 1.04, 1.3]);
+  strut(b, [-0.45, 1.0, 1.3], [-0.45, 0.62, 1.3], 0.008, C.metalDark);
+  for (const s of [-1, 1]) b.box(0.06, 1.12, 0.08, C.yellow, [-0.6 + s * 0.62, 0.72, 1.49]);
+  // o tanque: casco, lagartas, torre e canhão apontando para fora
+  const [tx, tz] = [-0.6, 1.62];
+  b.box(0.58, 0.2, 0.86, C.oliveDark, [tx, 0.32, tz]);
+  b.box(0.6, 0.06, 0.3, C.olive, [tx, 0.43, tz + 0.3], [0.35, 0, 0]);
+  for (const s of [-1, 1]) {
+    b.box(0.14, 0.17, 0.92, '#2a2b28', [tx + s * 0.32, 0.25, tz]);
+    for (let k = 0; k < 4; k++) b.cyl(0.06, 0.06, 0.03, '#4a4c47', [tx + s * 0.4, 0.24, tz - 0.33 + k * 0.22], [0, 0, Math.PI / 2], 8);
+  }
+  b.box(0.38, 0.14, 0.42, C.olive, [tx, 0.49, tz - 0.05]);
+  b.cyl(0.025, 0.03, 0.62, C.oliveDark, [tx, 0.5, tz + 0.43], [Math.PI / 2, 0, 0], 6);
+  a.box(0.2, 0.03, 0.2, '#ffffff', [tx, 0.57, tz - 0.05]);
+  // escritório: duas fileiras de janelas à direita
   windows(b, g, 'z', 1.47, 0.5, 1.5, 1.2, 3, 0.26, 0.32);
+  windows(b, g, 'z', 1.47, 1.05, 1.5, 0.68, 2, 0.26, 0.28);
+  // chapa nervurada na parte alta das laterais e do fundo, e faixa de janelas alta
+  for (let z = -1.3; z <= 1.3; z += 0.13) for (const s of [-1, 1]) b.box(0.02, 0.5, 0.03, '#5e6368', [s * 1.758, 1.45, z]);
+  for (let x = -1.6; x <= 1.6; x += 0.13) b.box(0.03, 0.5, 0.02, '#5e6368', [x, 1.45, -1.458]);
+  for (const s of [-1, 1]) g.box(0.02, 0.12, 2.2, '#ffffff', [s * 1.762, 1.62, 0]);
+  // exaustores no telhado
+  for (const x of [-1.5, -0.35, 0.8]) for (const z of [-0.8, 0.8]) {
+    b.cyl(0.11, 0.11, 0.12, C.metal, [x, 1.81, z], undefined, 8);
+    b.cyl(0.13, 0.13, 0.03, C.metalDark, [x, 1.88, z], undefined, 8);
+  }
+  // blindado pronto estacionado na frente
+  const [vx, vz] = [1.1, 1.78];
+  b.box(0.72, 0.2, 0.3, C.olive, [vx, 0.38, vz]);
+  b.box(0.3, 0.1, 0.24, C.oliveDark, [vx - 0.05, 0.52, vz]);
+  b.cyl(0.018, 0.02, 0.35, C.oliveDark, [vx + 0.25, 0.53, vz], [0, 0, Math.PI / 2], 6);
+  for (let k = 0; k < 4; k++) for (const s of [-1, 1]) b.cyl(0.07, 0.07, 0.05, C.rubber, [vx - 0.27 + k * 0.18, 0.24, vz + s * 0.15], [Math.PI / 2, 0, 0], 8);
   windows(b, g, 'x', 1.77, -1.0, 1.0, 1.2, 4, 0.28, 0.32);
   // chaminés listradas
   for (const [x, z, h] of [
@@ -403,7 +438,7 @@ function buildFactory(): Omit<BuildingModel, 'detail'> {
     [0.7, -1.15, 2.1],
   ] as const) {
     b.cyl(0.16, 0.2, h, C.concreteLight, [x, h / 2 + 0.2, z], undefined, 10);
-    b.cyl(0.165, 0.165, 0.2, C.red, [x, h - 0.1, z], undefined, 10);
+    a.cyl(0.165, 0.165, 0.2, '#ffffff', [x, h - 0.1, z], undefined, 10);
     b.cyl(0.18, 0.18, 0.18, C.red, [x, h * 0.6, z], undefined, 10);
   }
   // tubulação externa, exaustores e calhas
@@ -415,7 +450,6 @@ function buildFactory(): Omit<BuildingModel, 'detail'> {
   // pátio com contêiner
   container(b, [-1.25, 0.16, -1.72], '#5b6f7e', 1.1);
   container(b, [-1.25, 0.6, -1.72], '#8a4b32', 1.1);
-  jersey(b, 1.15, 1.78, 0, 0.75);
   a.box(3.52, 0.14, 0.02, '#ffffff', [0, 1.6, 1.46]);
   factoryDetail(b, g);
   return {
