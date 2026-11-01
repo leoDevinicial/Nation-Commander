@@ -548,9 +548,13 @@ export class BuildingVisual {
       const m = anim.motion;
       const [px, py, pz] = anim.pivot;
       switch (m.kind) {
-        case 'spin':
-          group.rotation[m.axis] = t * m.speed;
+        case 'spin': {
+          // com rajadas, o ângulo é a integral de speed·(1 + gust·cos(w·t + fase)): acelera e desacelera sem trancos
+          const w = m.gustSpeed ?? 0.4;
+          const gust = m.gust ? ((m.speed * m.gust) / w) * Math.sin(t * w + (m.phase ?? 0)) : 0;
+          group.rotation[m.axis] = t * m.speed + gust;
           break;
+        }
         case 'swing':
           group.rotation[m.axis] = m.amp * Math.sin(t * m.speed + (m.phase ?? 0));
           break;

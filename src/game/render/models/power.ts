@@ -1,4 +1,5 @@
-import { C, layers } from './kit.ts';
+import * as THREE from 'three';
+import { C, layers, type PartBuilder } from './kit.ts';
 import { railing, strut } from './rigging.ts';
 import type { BuildingModel, ModelAnim } from './buildingModels.ts';
 
@@ -8,7 +9,9 @@ type Built = Omit<BuildingModel, 'detail'>;
  * Usinas da rede elétrica (versão 1.1), todas 2×2, em low poly:
  * - termelétrica a carvão: casa de caldeiras de tijolo, chaminé alta listrada com fumaça, pátio de carvão (pilha
  *   escura), esteira inclinada até a caldeira e o transformador com isoladores;
- * - parque eólico: três turbinas brancas de alturas diferentes com o rotor de três pás girando ao vento;
+ * - parque eólico: três turbinas de alturas diferentes, torre cônica com flanges, nacele que acompanha o vento e
+ *   rotor de pás afiladas com ponta vermelha, girando a ~10 rpm com rajadas suaves; estrada de serviço de cascalho,
+ *   pátios dos guindastes e a subestação cercada;
  * - usina solar: mesas de painéis espalhadas em fileiras com corredores de grama, inclinadas para o sol, com a grade
  *   das células, caixas de junção e o inversor com a faixa da nação; os painéis têm material próprio que reflete o sol.
  * A faixa da nação (accent) vai na fachada, na nacele e no inversor.
@@ -40,36 +43,124 @@ export function buildCoalPlant(): Built {
   return { base: l.build(), moving: null, height: 3.6, smoke: [[0.95, 3.55, 1.0]] };
 }
 
+/** Pá de turbina eólica afilada (raiz larga, ponta fina), comprimento `len` ao longo de +y, com a torção do passo. */
+function bladeGeo(profile: [number, number][], depth: number, pitch: number): THREE.BufferGeometry {
+  const g = new THREE.ExtrudeGeometry(new THREE.Shape(profile.map(([x, y]) => new THREE.Vector2(x, y))), { depth, bevelEnabled: false });
+  g.translate(0, 0, -depth / 2);
+  g.rotateY(pitch);
+  return g;
+}
+
+/** Faixa de cascalho reta de (x0, z0) a (x1, z1). */
+function gravel(b: PartBuilder, x0: number, z0: number, x1: number, z1: number, w: number, y = 0.056): void {
+  const dx = x1 - x0;
+  const dz = z1 - z0;
+  b.box(Math.hypot(dx, dz) + w * 0.5, 0.012, w, '#a59d8c', [(x0 + x1) / 2, y, (z0 + z1) / 2], [0, -Math.atan2(dz, dx), 0]);
+}
+
 export function buildWindFarm(): Built {
   const l = layers();
   const { body: b, accent: a } = l;
   b.box(3.8, 0.05, 3.8, '#6f7f58', [0, 0.025, 0]);
-  const anims: ModelAnim[] = [];
   const towers: [number, number, number][] = [
     [-0.95, -0.9, 3.1],
     [1.0, -0.4, 3.5],
     [-0.2, 1.1, 2.8],
   ];
+  // estrada de serviço de cascalho e os pátios dos guindastes ao lado de cada torre
+  gravel(b, 1.95, 0.55, -1.7, -0.02, 0.22);
+  gravel(b, 1.35, 0.42, 1.35, 1.0, 0.18);
+  for (const [x, z, zSpine] of [
+    [-0.95, -0.38, 0.1],
+    [1.0, 0.05, 0.4],
+    [-0.2, 0.68, 0.22],
+  ] as const) {
+    b.box(0.62, 0.012, 0.44, '#a59d8c', [x, 0.058, z]);
+    gravel(b, x, z, x, zSpine, 0.16);
+  }
+  const anims: ModelAnim[] = [];
+  const L = 1.45;
+  const blade: [number, number][] = [
+    [-0.036, 0.06],
+    [0.036, 0.06],
+    [0.072, 0.3],
+    [0.05, 0.7],
+    [0.025, L - 0.05],
+    [0.0, L],
+    [-0.012, L - 0.05],
+    [-0.03, 0.7],
+    [-0.046, 0.3],
+  ];
+  const tip: [number, number][] = [
+    [0.032, L - 0.25],
+    [0.025, L - 0.05],
+    [0.0, L],
+    [-0.012, L - 0.05],
+    [-0.017, L - 0.25],
+  ];
   towers.forEach(([x, z, h], k) => {
-    b.cyl(0.32, 0.36, 0.1, C.concrete, [x, 0.08, z], undefined, 10);
-    b.cyl(0.07, 0.13, h, '#e6e8e6', [x, 0.1 + h / 2, z], undefined, 10);
-    // nacele virada para +z (o vento vem de frente)
-    b.box(0.2, 0.2, 0.46, '#eef0ee', [x, h + 0.18, z - 0.05]);
-    a.box(0.21, 0.05, 0.3, '#ffffff', [x, h + 0.26, z - 0.08]);
+    // fundação, torre cônica com as flanges, porta com escada e a faixa da nação no pé
+    b.cyl(0.3, 0.34, 0.08, C.concrete, [x, 0.09, z], undefined, 10);
+    b.cyl(0.065, 0.14, h, '#e8ebe9', [x, 0.13 + h / 2, z], undefined, 14);
+    for (const f of [0.36, 0.7]) {
+      const r = 0.14 - 0.075 * f + 0.006;
+      b.cyl(r, r, 0.02, '#d2d6d4', [x, 0.13 + h * f, z], undefined, 14);
+    }
+    a.cyl(0.139, 0.14, 0.07, '#ffffff', [x, 0.36, z], undefined, 14);
+    b.box(0.07, 0.15, 0.03, '#9aa0a4', [x, 0.22, z + 0.135]);
+    b.box(0.1, 0.03, 0.08, C.steel, [x, 0.14, z + 0.18]);
+    // transformador junto ao pé da torre
+    b.box(0.16, 0.14, 0.12, '#7f8c80', [x + 0.26, 0.2, z + 0.14]);
+    // nacele: gira devagar para acompanhar o vento (yaw), e o rotor vai junto
+    const nac = layers();
+    nac.body.box(0.2, 0.2, 0.48, '#eef0ee', [0, 0.13, -0.05]);
+    nac.body.box(0.17, 0.17, 0.1, '#e4e7e5', [0, 0.13, -0.33]);
+    nac.body.box(0.14, 0.04, 0.12, '#cfd3d1', [0, 0.25, -0.24]);
+    nac.body.cyl(0.006, 0.006, 0.12, C.steel, [0.05, 0.3, -0.3], undefined, 4);
+    nac.body.box(0.06, 0.008, 0.008, C.steel, [0.05, 0.36, -0.3]);
+    nac.body.sphere(0.028, '#d8322a', [-0.04, 0.27, -0.3], undefined, 6);
+    nac.accent.box(0.205, 0.05, 0.3, '#ffffff', [0, 0.17, -0.08]);
+    const nacIdx = anims.length;
+    anims.push({
+      layers: nac.build(),
+      pivot: [x, 0.13 + h, z],
+      motion: { kind: 'swing', axis: 'y', amp: 0.14, speed: 0.09, phase: k * 0.25 },
+    });
+    // rotor: cubo com o nariz cônico e três pás afiladas com a ponta vermelha de sinalização
     const rotor = layers();
-    rotor.body.cyl(0.08, 0.06, 0.14, '#eef0ee', [0, 0, 0.0], [Math.PI / 2, 0, 0], 8);
+    rotor.body.cyl(0.02, 0.09, 0.17, '#f2f3f1', [0, 0, 0.08], [Math.PI / 2, 0, 0], 10);
+    rotor.body.cyl(0.09, 0.09, 0.07, '#e4e7e5', [0, 0, -0.03], [Math.PI / 2, 0, 0], 10);
     for (let i = 0; i < 3; i++) {
       const ang = (i / 3) * Math.PI * 2;
-      const len = 1.05;
-      rotor.body.box(0.09, len, 0.025, '#f2f3f1', [Math.sin(ang) * (len / 2 + 0.05), Math.cos(ang) * (len / 2 + 0.05), 0.02], [0, 0, -ang]);
-      rotor.accent.box(0.092, 0.1, 0.027, '#ffffff', [Math.sin(ang) * (len - 0.02), Math.cos(ang) * (len - 0.02), 0.02], [0, 0, -ang]);
+      rotor.body.add(bladeGeo(blade, 0.022, 0.2), '#f2f3f1', { rot: [0, 0, -ang] });
+      rotor.body.add(bladeGeo(tip, 0.026, 0.2), '#c8372d', { rot: [0, 0, -ang] });
     }
-    anims.push({ layers: rotor.build(), pivot: [x, h + 0.18, z + 0.24], motion: { kind: 'spin', axis: 'z', speed: 1.3 + k * 0.25 } });
+    anims.push({
+      layers: rotor.build(),
+      pivot: [0, 0.13, 0.27],
+      parent: nacIdx,
+      motion: { kind: 'spin', axis: 'z', speed: 0.95 + k * 0.08, gust: 0.16, gustSpeed: 0.33 + k * 0.07, phase: k * 1.9 },
+    });
   });
-  // subestação pequena
-  b.box(0.5, 0.35, 0.4, '#5c6a5c', [1.35, 0.22, 1.35]);
-  b.box(0.6, 0.04, 0.5, C.concreteDark, [1.35, 0.05, 1.35]);
-  return { base: l.build(), moving: null, anims, height: 4.2 };
+  // subestação cercada: transformador com radiadores e buchas, pórtico de saída da linha e a casa de comando
+  const sx = 1.35;
+  const sz = 1.38;
+  b.box(0.95, 0.03, 0.8, '#9c968a', [sx, 0.065, sz]);
+  b.box(0.32, 0.26, 0.22, '#5c6a5c', [sx - 0.12, 0.21, sz - 0.05]);
+  for (let i = 0; i < 4; i++) b.box(0.012, 0.2, 0.08, '#4d5a4d', [sx - 0.26 + i * 0.09, 0.2, sz + 0.1]);
+  for (let i = 0; i < 3; i++) b.cyl(0.018, 0.026, 0.14, '#c9c2b0', [sx - 0.22 + i * 0.1, 0.41, sz - 0.05], undefined, 6);
+  for (const dx of [-0.34, 0.1]) b.box(0.035, 0.62, 0.035, C.steel, [sx + dx, 0.38, sz - 0.3]);
+  b.box(0.5, 0.035, 0.035, C.steel, [sx - 0.12, 0.68, sz - 0.3]);
+  for (let i = 0; i < 3; i++) b.cyl(0.012, 0.018, 0.08, '#c9c2b0', [sx - 0.28 + i * 0.16, 0.63, sz - 0.3], undefined, 5);
+  b.box(0.26, 0.22, 0.24, '#d7d9d6', [sx + 0.28, 0.19, sz + 0.12]);
+  b.box(0.29, 0.03, 0.27, C.metalDark, [sx + 0.28, 0.315, sz + 0.12]);
+  a.box(0.2, 0.04, 0.01, '#ffffff', [sx + 0.28, 0.25, sz + 0.245]);
+  b.box(0.07, 0.13, 0.01, '#6d6a62', [sx + 0.18, 0.15, sz + 0.245]);
+  railing(b, [sx - 0.45, sz - 0.38], [sx + 0.45, sz - 0.38], 0.07, 0.2, C.steel, 4);
+  railing(b, [sx - 0.45, sz + 0.38], [sx + 0.45, sz + 0.38], 0.07, 0.2, C.steel, 4);
+  railing(b, [sx - 0.45, sz - 0.38], [sx - 0.45, sz + 0.38], 0.07, 0.2, C.steel, 3);
+  railing(b, [sx + 0.45, sz - 0.38], [sx + 0.45, sz + 0.38], 0.07, 0.2, C.steel, 3);
+  return { base: l.build(), moving: null, anims, height: 4.8 };
 }
 
 export function buildSolarFarm(): Built {

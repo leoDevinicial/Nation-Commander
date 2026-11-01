@@ -59,7 +59,15 @@ type V3 = [number, number, number];
  * - bob: sobe e desce amp·sen(speed·t + phase) (gancho de guindaste).
  */
 export type AnimMotion =
-  | { kind: 'spin'; axis: 'x' | 'y' | 'z'; speed: number }
+  | {
+      kind: 'spin';
+      axis: 'x' | 'y' | 'z';
+      speed: number;
+      /** Rajadas: a velocidade varia ±gust (fração) devagar, com frequência `gustSpeed` (rad/s) e fase própria. */
+      gust?: number;
+      gustSpeed?: number;
+      phase?: number;
+    }
   | { kind: 'swing'; axis: 'x' | 'y' | 'z'; amp: number; speed: number; phase?: number }
   | { kind: 'slide'; dir: V3; length: number; speed: number; phase?: number; fade?: number }
   | { kind: 'shuttle'; dir: V3; length: number; speed: number; phase?: number }
