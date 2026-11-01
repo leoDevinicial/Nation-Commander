@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { TICK_RATE } from '../../../shared/sim/config.ts';
 import type { AirView } from '../../../shared/sim/snapshot.ts';
 import type { Effects } from './Effects.ts';
 import { factionColor } from './palette.ts';
@@ -332,10 +333,13 @@ interface TrackedDrone {
   pitch: number;
   pos: THREE.Vector3;
   heading: number;
-  /** Hora (relógio da camada) da última posição recebida e a taxa de curva medida entre as duas últimas. */
-  at: number;
-  turnRate: number;
+  /** Posições recebidas no relógio do servidor (s), para tocar o voo com um pequeno atraso fixo e sem trancos. */
+  buf: { t: number; x: number; y: number; z: number; h: number }[];
 }
+
+/** Atraso de reprodução dos drones (s reais): cobre a oscilação da rede para sempre haver duas posições entre as quais
+ * interpolar. A câmera do piloto não sente esse atraso (ela prevê o voo; ver DroneFpv). */
+const DRONE_DELAY = 0.16;
 
 /** Bomba em queda (visual): parte do bombardeiro e explode no chão. */
 interface Bomb {
@@ -601,7 +605,8 @@ export class AirLayer {
     p.tone = o.tone;
   }
 
-  update(air: AirView): void {
+  update(air: AirView, tick?: number): void {
+    if (tick !== undefined) this.noteServerTick(tick);
     this.updateDrones(air.drones ?? []);
     const seen = new Set<number>();
     for (const f of air.flights) {
@@ -1466,20 +1471,20 @@ export class AirLayer {
           pitch: 0,
           pos: p.clone(),
           heading: d.heading,
-          at: performance.now() / 1000,
-          turnRate: 0,
+          buf: [],
         };
         this.drones.set(d.id, t);
       } else {
-        const gap = Math.max(0.05, Math.min(0.4, performance.now() / 1000 - t.at));
         t.prev.copy(t.curr);
         t.curr.copy(p);
         t.prevHeading = t.currHeading;
         t.currHeading = d.heading;
-        t.turnRate = Math.atan2(Math.sin(t.currHeading - t.prevHeading), Math.cos(t.currHeading - t.prevHeading)) / gap;
-        t.at = performance.now() / 1000;
         t.snap = d;
       }
+      const st = this.droneClock.server;
+      const last = t.buf[t.buf.length - 1];
+      if (!last || st > last.t) t.buf.push({ t: st, x: p.x, y: p.y, z: p.z, h: d.heading });
+      while (t.buf.length > 2 && st - t.buf[0]!.t > 1.5) t.buf.shift();
     }
     for (const [id, t] of this.drones)
       if (!seen.has(id)) {
@@ -1490,27 +1495,81 @@ export class AirLayer {
       }
   }
 
+  /** Relógio do servidor visto daqui: última hora recebida, quando chegou, ritmo (velocidade do jogo; 0 na pausa) e a
+   * hora que está sendo tocada. */
+  private readonly droneClock = { server: 0, arrival: 0, rate: 1, render: -1, realAt: 0 };
+
+  private noteServerTick(tick: number): void {
+    const c = this.droneClock;
+    const now = performance.now() / 1000;
+    const st = tick / TICK_RATE;
+    if (c.arrival > 0 && now > c.arrival) {
+      const r = (st - c.server) / Math.max(0.02, now - c.arrival);
+      c.rate += (Math.max(0, Math.min(8, r)) - c.rate) * 0.08;
+    }
+    c.server = st;
+    c.arrival = now;
+  }
+
+  /** Avança a hora tocada: anda no ritmo do servidor e é puxada devagar para (última hora − atraso), sem saltos. */
+  private advanceDroneClock(): number {
+    const c = this.droneClock;
+    const now = performance.now() / 1000;
+    const real = c.realAt ? Math.min(0.5, now - c.realAt) : 0;
+    c.realAt = now;
+    const latest = c.server + Math.min(0.5, now - c.arrival) * c.rate;
+    const target = latest - DRONE_DELAY * Math.max(0.25, c.rate);
+    if (c.render < 0 || Math.abs(target - c.render) > 1) c.render = target;
+    else c.render += real * c.rate + (target - c.render) * Math.min(1, real * 1.5);
+    return c.render;
+  }
+
+  /** Pose do drone na hora `T` do servidor: interpolada entre as posições recebidas (ou estendida um pouco além). */
+  private sampleDrone(t: TrackedDrone, T: number, out: THREE.Vector3): number {
+    const b = t.buf;
+    if (!b.length) {
+      out.copy(t.curr);
+      return t.currHeading;
+    }
+    if (T <= b[0]!.t) {
+      out.set(b[0]!.x, b[0]!.y, b[0]!.z);
+      return b[0]!.h;
+    }
+    for (let i = 1; i < b.length; i++) {
+      const p = b[i - 1]!;
+      const q = b[i]!;
+      if (T <= q.t) {
+        const k = (T - p.t) / Math.max(1e-6, q.t - p.t);
+        out.set(p.x + (q.x - p.x) * k, p.y + (q.y - p.y) * k, p.z + (q.z - p.z) * k);
+        return p.h + Math.atan2(Math.sin(q.h - p.h), Math.cos(q.h - p.h)) * k;
+      }
+    }
+    // pacote atrasado: segue em frente por até 0,3 s com a velocidade e a curva da última posição
+    const q = b[b.length - 1]!;
+    const p = b.length > 1 ? b[b.length - 2]! : q;
+    const s = Math.min(0.3, T - q.t);
+    const turn = q.t > p.t ? Math.atan2(Math.sin(q.h - p.h), Math.cos(q.h - p.h)) / (q.t - p.t) : 0;
+    const h = q.h + turn * s * 0.5;
+    out.set(q.x + Math.cos(h) * t.snap.speed * s, q.y + t.snap.climb * s, q.z + Math.sin(h) * t.snap.speed * s);
+    return q.h + turn * s;
+  }
+
   private frameDrones(dt: number): void {
+    const T = this.advanceDroneClock();
+    const at = new THREE.Vector3();
     for (const [id, t] of this.drones) {
       const d = t.snap;
-      // estimativa contínua (posição recebida + velocidade e curva desde então) seguida com suavidade: sem congelar
-      // quando um pacote atrasa nem pular quando chega (o drone é rápido, a interpolação simples dava trancos)
-      // relógio real (o passo do quadro é limitado a 0,1 s; com o quadro lento o drone ficaria para trás)
-      const s = Math.min(performance.now() / 1000 - t.at, 0.35);
-      const eh = t.currHeading + t.turnRate * s;
-      const mh = t.currHeading + t.turnRate * s * 0.5;
-      const ex = t.curr.x + Math.cos(mh) * d.speed * s;
-      const ey = t.curr.y + d.climb * s;
-      const ez = t.curr.z + Math.sin(mh) * d.speed * s;
+      // voo tocado no relógio do servidor com um atraso fixo, interpolando entre as posições recebidas: liso mesmo com a
+      // rede oscilando (a interpolação pela hora de chegada dava trancos)
+      const eh = this.sampleDrone(t, T, at);
       const prevHeading = t.heading;
-      if (t.pos.distanceToSquared(t.curr) > 64) {
-        t.pos.set(ex, ey, ez);
+      if (t.pos.distanceToSquared(at) > 64) {
+        t.pos.copy(at);
         t.heading = eh;
       } else {
-        const a = 1 - Math.exp(-dt * 9);
-        t.pos.x += (ex - t.pos.x) * a;
-        t.pos.y += (ey - t.pos.y) * a;
-        t.pos.z += (ez - t.pos.z) * a;
+        // só um filtro leve por cima (tira o degrau quando a extrapolação encontra a posição real)
+        const a = 1 - Math.exp(-dt * 20);
+        t.pos.lerp(at, a);
         t.heading += Math.atan2(Math.sin(eh - t.heading), Math.cos(eh - t.heading)) * a;
       }
       // curva: inclina para dentro (taxa de curva); subida e mergulho levantam ou baixam o nariz

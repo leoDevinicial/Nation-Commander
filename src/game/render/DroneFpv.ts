@@ -74,6 +74,8 @@ export class DroneFpv {
   private aimSmooth = { x: 0, y: 0 };
   private pred: Pred | null = null;
   private realAt = 0;
+  /** Desvio entre a previsão e o servidor, filtrado. */
+  private err = { x: 0, z: 0, alt: 0, heading: 0 };
   private hist: { x: number; z: number; alt: number; heading: number; t: number }[] = [];
   private readonly shown = { pos: new THREE.Vector3() };
   /** O jogador soltou o cursor (Esc do navegador, troca de janela): devolve o drone ao piloto automático. */
@@ -268,6 +270,7 @@ export class DroneFpv {
       p = this.pred = { x: v.pos.x, z: v.pos.z, alt: v.pos.y, heading: v.heading, speed: v.speed, turn: 0, climb: 0, vz: 0, bank: v.bank, pitch: v.pitch };
       this.hist = [];
       this.realAt = 0;
+      this.err = { x: 0, z: 0, alt: 0, heading: 0 };
     }
     // tempo real desde o último quadro: o laço do jogo limita o passo a 0,1 s, e com o quadro lento (celular fraco) a
     // previsão ficaria para trás do servidor e daria pulos; aqui ela anda o tempo todo, em passos de até 50 ms
@@ -293,36 +296,63 @@ export class DroneFpv {
     // puxa a câmera para trás; só o desvio de verdade é corrigido, aos poucos.
     this.hist.push({ x: p.x, z: p.z, alt: p.alt, heading: p.heading, t: now });
     while (this.hist.length > 2 && now - this.hist[0]!.t > 1500) this.hist.shift();
-    let best = this.hist[this.hist.length - 1]!;
+    // ponto do trajeto mais perto do servidor, projetado no segmento entre dois quadros (sem degrau de um quadro)
+    const H = this.hist;
+    let bi = H.length - 1;
     let bestD = Infinity;
-    for (const q of this.hist) {
-      const d = (q.x - v.pos.x) ** 2 + (q.z - v.pos.z) ** 2;
+    for (let i = 0; i < H.length; i++) {
+      const d = (H[i]!.x - v.pos.x) ** 2 + (H[i]!.z - v.pos.z) ** 2;
       if (d < bestD) {
         bestD = d;
-        best = q;
+        bi = i;
       }
+    }
+    const m = { ...H[bi]! };
+    for (const j of [bi - 1, bi + 1]) {
+      const o = H[j];
+      if (!o) continue;
+      const sx = o.x - m.x;
+      const sz = o.z - m.z;
+      const len = sx * sx + sz * sz;
+      if (len < 1e-8) continue;
+      const k = ((v.pos.x - m.x) * sx + (v.pos.z - m.z) * sz) / len;
+      if (k <= 0 || k >= 1) continue;
+      Object.assign(m, { x: m.x + sx * k, z: m.z + sz * k, alt: m.alt + (o.alt - m.alt) * k, heading: m.heading + angDiff(o.heading, m.heading) * k });
+      break;
     }
     if (bestD > 25) {
       // desvio grande (pacote perdido, colisão de borda): vai direto para o servidor
       Object.assign(p, { x: v.pos.x, z: v.pos.z, alt: v.pos.y, heading: v.heading, speed: v.speed });
       this.hist = [];
+      this.err = { x: 0, z: 0, alt: 0, heading: 0 };
     } else {
-      const c = 1 - Math.exp(-h * 1.5);
-      const ex = (v.pos.x - best.x) * c;
-      const ez = (v.pos.z - best.z) * c;
-      const ea = (v.pos.y - best.alt) * c;
-      const eh = angDiff(v.heading, best.heading) * c * 0.6;
+      // o desvio medido passa por um filtro (~0,25 s) e é corrigido devagar: a câmera nunca dá tranco
+      const f = 1 - Math.exp(-h * 4);
+      const e = this.err;
+      e.x += (v.pos.x - m.x - e.x) * f;
+      e.z += (v.pos.z - m.z - e.z) * f;
+      e.alt += (v.pos.y - m.alt - e.alt) * f;
+      e.heading += (angDiff(v.heading, m.heading) - e.heading) * f;
+      const c = 1 - Math.exp(-h * 1.2);
+      const ex = e.x * c;
+      const ez = e.z * c;
+      const ea = e.alt * c;
+      const eh = e.heading * c * 0.6;
       p.x += ex;
       p.z += ez;
       p.alt = clamp(p.alt + ea, 0.3, DRONE.maxAlt);
       p.heading += eh;
-      // o trajeto guardado anda junto com a correção (senão o mesmo erro seria corrigido de novo a cada quadro)
-      for (const q of this.hist) {
+      // o trajeto guardado e o desvio filtrado andam junto com a correção (senão o mesmo erro seria corrigido de novo)
+      for (const q of H) {
         q.x += ex;
         q.z += ez;
         q.alt += ea;
         q.heading += eh;
       }
+      e.x -= ex;
+      e.z -= ez;
+      e.alt -= ea;
+      e.heading -= eh;
       p.speed += (v.speed - p.speed) * c * 0.3;
     }
     // atitude da câmera: inclina na curva e levanta/baixa o nariz, sempre suave

@@ -19,8 +19,12 @@ ataque.
   teclado na hora. Para corrigir sem puxar a câmera para trás, a pose do servidor (que chega atrasada) é comparada com o
   ponto do trajeto previsto do último 1,5 s mais perto dela, e só esse desvio é corrigido aos poucos; acima de 5 a
   câmera vai direto para o servidor.
-- Visto do mapa, o drone é desenhado pela estimativa contínua (última posição + velocidade e curva) seguida com
-  suavidade, e não pela interpolação entre pacotes: sem congelar quando um pacote atrasa nem pular quando chega.
+- Visto do mapa, o drone é tocado no relógio do servidor (tick do snapshot) com atraso fixo de 0,16 s, interpolando
+  entre as posições recebidas (buffer de 1,5 s); se um pacote atrasa, segue em frente por até 0,3 s. A oscilação da
+  rede não vira tranco.
+- Na câmera, o ponto do trajeto é projetado no segmento entre quadros e o desvio passa por um filtro (~0,25 s) antes
+  da correção lenta. Simulação com 80–220 ms de latência (`.audit/fpv_jitter.ts`): variação máxima de 0,11 u/s na
+  velocidade e 0,07 rad/s no giro entre quadros.
 - Trocar de janela solta as teclas do piloto (antes uma tecla podia ficar presa). O OSD usa vinheta pronta e resolução
   até 1,5× para pesar menos. O mouse tem sensibilidade baixa, zona morta pequena e filtro contra o tremido da mão; a
   câmera inclina pouco nas curvas (70% da inclinação).

@@ -577,7 +577,7 @@ export class GameRuntime {
     if (s.air) {
       if (this.hudActive) useHudStore.getState().set({ air: s.air });
       this.airLayer.era = s.players.find((p) => p.slot === this.mySlot)?.era ?? 1;
-      this.airLayer.update(s.air);
+      this.airLayer.update(s.air, s.tick);
       this.syncDrones(s.air.drones ?? []);
       // sobrevoo: quando a formação entra no mapa (própria ou inimiga à vista) e de novo sempre que passa perto da
       // câmera; o bombardeiro tem o próprio ronco
