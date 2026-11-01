@@ -40,6 +40,7 @@ import { PostFx } from './render/PostFx.ts';
 import { CitizenLayer } from './render/CitizenLayer.ts';
 import { CargoLayer, disposeCargoModels } from './render/CargoLayer.ts';
 import { DroneFpv, type FpvTarget } from './render/DroneFpv.ts';
+import { BUILDING_SOLID_HEIGHT } from '../../shared/sim/buildingHeights.ts';
 import { AmbientLife } from './render/AmbientLife.ts';
 import { POWER, POWER_GEN, POWER_USE } from '../../shared/sim/power.ts';
 import { WeatherSystem } from './render/Weather.ts';
@@ -397,6 +398,19 @@ export class GameRuntime {
     this.fpv = new DroneFpv(container);
     // Esc do navegador solta o cursor travado: o drone volta ao piloto automático
     this.fpv.onLockLost = () => this.releaseDrone();
+    this.fpv.solidAt = (x, z) => {
+      const cs = this.map.cellSize;
+      for (const t of this.buildings.values()) {
+        const b = t.snap;
+        // os próprios ficam de fora (o drone sai de dentro da base aérea; a batida neles, se houver, vem do servidor)
+        if (b.remembered || b.owner === this.mySlot) continue;
+        const s = BUILDINGS[b.type].size * cs;
+        const x0 = b.cx * cs;
+        const z0 = b.cy * cs;
+        if (x >= x0 && x <= x0 + s && z >= z0 && z <= z0 + s) return BUILDING_SOLID_HEIGHT[b.type] * Math.max(0.3, Math.min(1, b.progress));
+      }
+      return 0;
+    };
     this.airLayer.setGround((x, z) => this.groundHeight(x, z));
     this.ambient = new AmbientLife(this.map, (x, z) => this.groundHeight(x, z), () => this.unitPositions(), opts.profile.terrain === 'low');
     this.scene.add(this.ambient.group);

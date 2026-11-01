@@ -49,7 +49,12 @@ ataque.
   no servidor), a ~10 por segundo. Só o dono pilota, e só depois de assumir dentro da janela.
 - Velocidade 3,0 a 11,5 (cruzeiro 5,4; W ~7,8; Shift, o turbo, 11,5); curva 1,25 rad/s; subida 1,9 (mergulho ×1,5). O manche chega ao drone aos
   poucos (resposta de 3,2/s, ~0,3 s para a curva toda) e o acelerador em ~0,6 s, sem trancos; bateria de 80 s (acelerar gasta mais); sem comando por 2 s, segue reto.
-- Explode ao tocar o chão, um edifício alheio ou uma tropa de outro país; Espaço detona onde estiver.
+- Explode ao tocar o chão, um edifício ou uma tropa de outro país. A colisão com edifícios usa a altura sólida de
+  cada tipo (`shared/sim/buildingHeights.ts`, igual à do modelo 3D; `src/test/buildingHeights.test.ts` confere): o QG
+  tem 6 de altura (antes a regra via todos os prédios com 1,7 e o drone atravessava o QG). Os prédios do próprio dono
+  só contam depois de 3 s de voo. O dano da ogiva conta a altura a partir do telhado que está embaixo.
+- Piloto automático sobe por cima do prédio alto no caminho (olha ~12 à frente) e só desce no mergulho final.
+- Na câmera, a previsão para na parede de prédio inimigo enquanto o servidor confirma a batida.
 - Ogiva: 360 em tropas e 320 em edifícios no raio de 2,6, só contra quem está em guerra com o dono.
 - Antiaérea (baterias e defesa móvel) a até 12: chance por segundo de derrubar o drone.
 - Visão de 11 em volta do drone para o dono; o inimigo só vê o drone quando ele está à vista.

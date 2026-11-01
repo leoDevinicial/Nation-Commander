@@ -80,6 +80,11 @@ export class DroneFpv {
   private readonly shown = { pos: new THREE.Vector3() };
   /** O jogador soltou o cursor (Esc do navegador, troca de janela): devolve o drone ao piloto automático. */
   onLockLost: (() => void) | null = null;
+  /**
+   * Altura sólida do que há em (x, z) do mundo (0 = chão livre), com a mesma tabela do servidor. A previsão para na
+   * parede em vez de entrar no prédio enquanto o servidor confirma a batida (a câmera não atravessa o modelo).
+   */
+  solidAt: ((x: number, z: number) => number) | null = null;
   private readonly onMouse = (e: MouseEvent) => {
     if (!this.locked()) return;
     this.aim.x = clamp(this.aim.x + e.movementX * 0.0034, -1, 1);
@@ -288,8 +293,11 @@ export class DroneFpv {
       p.heading += p.turn * DRONE.turnRate * st;
       p.vz = p.climb * DRONE.climbRate * (p.climb < 0 ? DRONE.diveMul : 1);
       p.alt = clamp(p.alt + p.vz * st, 0.3, DRONE.maxAlt);
-      p.x += Math.cos(p.heading) * p.speed * st;
-      p.z += Math.sin(p.heading) * p.speed * st;
+      const nx = p.x + Math.cos(p.heading) * p.speed * st;
+      const nz = p.z + Math.sin(p.heading) * p.speed * st;
+      if (this.solidAt && p.alt < this.solidAt(nx, nz) + 0.15) break;
+      p.x = nx;
+      p.z = nz;
     }
     // trajeto previsto do último 1,5 s: a pose do servidor chega atrasada, então é comparada com o ponto do trajeto
     // onde a previsão estava naquela hora (o mais perto dela), e não com a pose de agora. Assim o atraso da rede não

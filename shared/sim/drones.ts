@@ -1,6 +1,7 @@
 import { BUILDINGS, TICK_RATE, UNITS } from './config.ts';
 import type { Simulation } from './Simulation.ts';
 import type { Building, Slot, Vec2 } from './types.ts';
+import { BUILDING_SOLID_HEIGHT } from './buildingHeights.ts';
 
 /**
  * Drone de ataque (munição vagante), a partir da Era Digital.
@@ -186,7 +187,8 @@ export class DroneSystem {
         const want = Math.atan2(d.target.y - d.pos.y, d.target.x - d.pos.x);
         turn = clamp(angDiff(want, d.heading) * 2, -1, 1);
         const flat = Math.hypot(d.target.x - d.pos.x, d.target.y - d.pos.y);
-        const wantAlt = flat < 9 ? flat * 0.45 : DRONE.cruiseAlt;
+        // em cruzeiro, passa por cima do que estiver no caminho (prédio alto à frente); no mergulho final, vai no alvo
+        const wantAlt = flat < 9 ? flat * 0.45 : Math.max(DRONE.cruiseAlt, this.obstacleAhead(d) + 1.2);
         climb = clamp((wantAlt - d.alt) * 0.8, -1, 1);
         throttle = flat < 9 ? 0.3 : 0;
       }
@@ -226,19 +228,45 @@ export class DroneSystem {
     if (tick % (TICK_RATE * 30) === 0) this.drones = this.drones.filter((d) => d.phase === 'flight' || tick - (d.endTick ?? tick) < TICK_RATE * 20);
   }
 
-  /** Bateu no chão, num edifício alheio (abaixo do telhado) ou numa tropa de outro país? */
+  /**
+   * Altura do edifício embaixo do drone (0 = chão livre). Usa a altura sólida de cada tipo (`BUILDING_SOLID_HEIGHT`,
+   * a mesma do modelo 3D): antes valia 1,7 para todos, e o drone atravessava o QG (6 de altura) por cima do telhado
+   * baixo que a regra imaginava. Os do próprio dono só contam depois dos primeiros segundos (o drone decola da base).
+   */
+  private buildingUnder(d: Drone): Building | null {
+    const cs = this.sim.map.cellSize;
+    const own = (this.sim.tick - d.launchTick) / TICK_RATE > 3;
+    for (const b of this.sim.buildings) {
+      if (b.hp <= 0 || (b.owner === d.owner && !own)) continue;
+      const s = BUILDINGS[b.type].size * cs;
+      const x0 = b.cell.cx * cs;
+      const y0 = b.cell.cy * cs;
+      if (d.pos.x >= x0 && d.pos.x <= x0 + s && d.pos.y >= y0 && d.pos.y <= y0 + s) return b;
+    }
+    return null;
+  }
+
+  /** Maior altura sólida nos próximos ~12 de caminho (para o piloto automático subir a tempo). */
+  private obstacleAhead(d: Drone): number {
+    let h = 0;
+    for (const k of [-1.5, 0, 1.5, 3, 4.5, 6, 8, 10, 12]) {
+      const probe = { ...d, pos: { x: d.pos.x + Math.cos(d.heading) * k, y: d.pos.y + Math.sin(d.heading) * k } };
+      const b = this.buildingUnder(probe);
+      if (b) h = Math.max(h, this.solidHeight(b));
+    }
+    return h;
+  }
+
+  /** Altura sólida de um edifício (em obra, cresce com o progresso). */
+  private solidHeight(b: Building): number {
+    return BUILDING_SOLID_HEIGHT[b.type] * Math.max(0.3, Math.min(1, b.progress));
+  }
+
+  /** Bateu no chão, num edifício (abaixo do telhado) ou numa tropa de outro país? */
   private collides(d: Drone): boolean {
     if (d.alt <= 0.3) return true;
-    const cs = this.sim.map.cellSize;
-    if (d.alt < 1.7)
-      for (const b of this.sim.buildings) {
-        // os prédios do próprio dono ficam de fora (o drone decola da base e sobrevoa o próprio território)
-        if (b.hp <= 0 || b.owner === d.owner) continue;
-        const s = BUILDINGS[b.type].size * cs;
-        const x0 = b.cell.cx * cs;
-        const y0 = b.cell.cy * cs;
-        if (d.pos.x >= x0 && d.pos.x <= x0 + s && d.pos.y >= y0 && d.pos.y <= y0 + s) return true;
-      }
+    const b = this.buildingUnder(d);
+    if (b && d.alt < this.solidHeight(b) + 0.15) return true;
     if (d.alt < 1.3)
       for (const u of this.sim.units) if (u.hp > 0 && u.owner !== d.owner && Math.hypot(u.pos.x - d.pos.x, u.pos.y - d.pos.y) < UNITS[u.type].radius + 0.5) return true;
     return false;
@@ -275,8 +303,11 @@ export class DroneSystem {
     d.alt = Math.max(0, d.alt);
     let damage = 0;
     let kills = 0;
-    // derrubado no ar: os destroços caem sem efeito; nos outros casos a ogiva explode onde o drone está
-    if (end !== 'shot_down' && d.alt < 3) {
+    // derrubado no ar: os destroços caem sem efeito; nos outros casos a ogiva explode onde o drone está. A altura conta
+    // a partir do que está embaixo (o telhado do prédio, se houver): detonar logo acima de um QG alto ainda o atinge.
+    const under = this.buildingUnder(d);
+    const clearance = d.alt - (under ? this.solidHeight(under) : 0);
+    if (end !== 'shot_down' && clearance < 3) {
       for (const e of [...this.sim.entities.values()]) {
         if (e.hp <= 0 || !this.sim.hostile(d.owner, e.owner)) continue;
         const dd = Math.hypot(e.pos.x - d.pos.x, e.pos.y - d.pos.y);

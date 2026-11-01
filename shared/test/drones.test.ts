@@ -173,4 +173,66 @@ describe('drone de ataque', () => {
     run(copy, 5);
     expect(copy.serialize()).toBe(sim.serialize());
   });
+
+  it('bate no prédio alto pela altura real do modelo: atravessar o QG por dentro não existe mais', () => {
+    const { sim, base } = setup();
+    const hq = sim.buildings.find((b) => b.owner === 1 && b.type === 'hq');
+    expect(hq).toBeDefined();
+    const cs = sim.map.cellSize;
+    const size = BUILDINGS.hq.size * cs;
+    const center = { x: hq!.cell.cx * cs + size / 2, y: hq!.cell.cy * cs + size / 2 };
+    const fly = (alt: number) => {
+      sim.applyCommand(0, { type: 'launch_drone', buildingId: base.id, x: center.x, y: center.y });
+      const d = sim.air.drones.drones.at(-1)!;
+      sim.applyCommand(0, { type: 'drone_control', droneId: d.id, take: true });
+      // vem de lado, na altura dada, nivelado, direto para o centro do QG
+      d.pos = { x: center.x - size / 2 - 3, y: center.y };
+      d.heading = 0;
+      d.alt = alt;
+      d.climbNow = 0;
+      d.turnNow = 0;
+      sim.applyCommand(0, { type: 'drone_steer', droneId: d.id, turn: 0, climb: 0, throttle: 0 });
+      return d;
+    };
+    // a 4 de altura (antes passava: a regra só via prédios até 1,7) bate na parede e causa dano
+    const hp0 = hq!.hp;
+    const low = fly(4);
+    sim.drainEvents();
+    run(sim, 2);
+    expect(low.phase).toBe('done');
+    expect(low.end).toBe('impact');
+    expect(hq!.hp).toBeLessThan(hp0);
+    // acima do telhado (6) passa por cima (um segundo drone)
+    expect(sim.applyCommand(0, { type: 'build_aircraft', buildingId: base.id, aircraftType: 'drone' })).toBeNull();
+    run(sim, AIRCRAFT.drone.buildSeconds + 1);
+    const high = fly(7.5);
+    run(sim, 1.2);
+    expect(high.phase).toBe('flight');
+    expect(high.pos.x).toBeGreaterThan(center.x);
+  });
+
+  it('o piloto automático sobe por cima do prédio alto que estiver no caminho', () => {
+    const { sim, base } = setup();
+    const hq = sim.buildings.find((b) => b.owner === 1 && b.type === 'hq')!;
+    const cs = sim.map.cellSize;
+    const size = BUILDINGS.hq.size * cs;
+    // o QG fica perto da borda: para o teste, a área dele passa para o meio do mapa (a colisão usa a célula)
+    hq.cell = { cx: Math.floor(sim.map.width / 2) - 1, cy: Math.floor(sim.map.height / 2) - 1 };
+    const c = { x: hq.cell.cx * cs + size / 2, y: hq.cell.cy * cs + size / 2 };
+    // alvo depois do QG, na mesma linha
+    const dir = 1;
+    sim.applyCommand(0, { type: 'launch_drone', buildingId: base.id, x: c.x + dir * 24, y: c.y });
+    const d = sim.air.drones.drones.at(-1)!;
+    expect(Math.abs(d.target.x - c.x)).toBeGreaterThan(size / 2 + 12);
+    d.pos = { x: c.x - dir * (size / 2 + 14), y: c.y };
+    d.heading = dir > 0 ? 0 : Math.PI;
+    d.alt = DRONE.cruiseAlt;
+    let crossed = false;
+    for (let i = 0; i < TICK_RATE * 6 && d.phase === 'flight'; i++) {
+      sim.step();
+      if (dir * (d.pos.x - c.x) > size / 2) crossed = true;
+    }
+    expect(crossed).toBe(true);
+  });
 });
+
