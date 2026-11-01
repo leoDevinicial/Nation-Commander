@@ -27,6 +27,7 @@ import { policyEffects, type TheaterStats } from '../shared/strategic/policies.t
 import type { BuildingSnapshot } from '../shared/sim/snapshot.ts';
 import type { EntityId, SimEvent, Slot } from '../shared/sim/types.ts';
 import { NationalAI } from '../shared/strategic/NationalAI.ts';
+import type { DiplomaticAction } from '../shared/strategic/Diplomacy.ts';
 import { NationalSimulation, type NationalEvent, type NationalSave } from '../shared/strategic/NationalSimulation.ts';
 import { HISTORY_EVERY_DAYS, SCENARIO_START, TICKS_PER_DAY, militaryResearchSpeed } from '../shared/strategic/params.ts';
 import { TECHNOLOGIES, type TechId } from '../shared/strategic/technologies.ts';
@@ -893,11 +894,13 @@ export class Room {
     // (senão poderia propor paz e desligar o combate no meio do teste)
     if (national.day % 30 === 0 && (!sim.sandbox || sim.sandbox.aiActive)) {
       for (const ai of this.nationalAIs) {
+        // governo de nação derrotada não decide mais nada (antes declarava guerra e propunha tratados depois de cair)
+        if (sim.players[ai.slot]?.defeated) continue;
         const r = ai.think(national);
         if (r.budget) national.setBudget(ai.slot, r.budget);
         for (const d of r.decrees) national.setDecree(ai.slot, d.id, d.active);
         if (r.research !== undefined) national.setResearch(ai.slot, r.research);
-        for (const action of r.diplomacy) national.diplomaticAction(ai.slot, action);
+        for (const action of r.diplomacy) if (!this.targetsDefeated(action)) national.diplomaticAction(ai.slot, action);
       }
     }
     national.stepDay();
@@ -908,6 +911,15 @@ export class Room {
     }
     this.applyNationalModifiers();
     this.broadcastNational();
+  }
+
+  /** A ação diplomática mira uma nação que já foi derrotada? */
+  private targetsDefeated(action: DiplomaticAction): boolean {
+    const sim = this.sim;
+    if (!sim) return false;
+    const dead = (slot: unknown) => typeof slot === 'number' && !!sim.players[slot]?.defeated;
+    const a = action as { partner?: unknown; target?: unknown };
+    return dead(a.partner) || dead(a.target);
   }
 
   private applyNationalModifiers(): void {
@@ -968,6 +980,15 @@ export class Room {
     if (this.paused && this.competitive) {
       conn.send({ t: 'cmd_rejected', reason: 'A partida está pausada.' });
       this.kac({ category: 'match.command_while_paused', severity: 'info', user: p.userId ?? undefined, detail: `national:${cmd.type}` });
+      return;
+    }
+    // nação derrotada não governa mais; e não dá para negociar com quem já caiu
+    if (this.sim?.players[p.slot]?.defeated) {
+      conn.send({ t: 'cmd_rejected', reason: 'Sua nação foi derrotada.' });
+      return;
+    }
+    if (cmd.type === 'diplomacy' && this.targetsDefeated(cmd.action)) {
+      conn.send({ t: 'cmd_rejected', reason: 'Essa nação já foi derrotada.' });
       return;
     }
     if (this.pendingNational.filter((x) => x.slot === p.slot).length >= 10) return;

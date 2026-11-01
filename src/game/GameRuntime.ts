@@ -400,6 +400,8 @@ export class GameRuntime {
     this.fpv = new DroneFpv(container);
     // Esc do navegador solta o cursor travado: o drone volta ao piloto automático
     this.fpv.onLockLost = () => this.releaseDrone();
+    // partida nova começa sempre fora do drone (a anterior pode ter fechado no meio da pilotagem)
+    if (!opts.battle) useHudStore.getState().set({ fpv: false, droneTakeover: null });
     this.fpv.solidAt = (x, z) => {
       const cs = this.map.cellSize;
       for (const t of this.buildings.values()) {
@@ -2622,6 +2624,14 @@ export class GameRuntime {
     this.exitFpv();
   }
 
+  /**
+   * Partida encerrada: sai da câmera do drone. Sem isso, o cursor ficava preso (pointer lock) sobre a tela de resultado
+   * e a marca "pilotando" ficava ligada no HUD, escondendo a interface na partida seguinte.
+   */
+  matchOver(): void {
+    if (this.fpv.active) this.exitFpv();
+  }
+
   private exitFpv(): void {
     this.fpvWanted = null;
     this.fpv.exit(this.camera);
@@ -3834,6 +3844,8 @@ export class GameRuntime {
   }
 
   dispose(): void {
+    // saindo no meio da pilotagem: devolve o cursor e desliga a marca do HUD antes de desmontar
+    if (this.fpv.active) this.exitFpv();
     this.disposed = true;
     cancelAnimationFrame(this.raf);
     // fim da partida no teatro: a medição vai para o consultor de preset da próxima (C6)

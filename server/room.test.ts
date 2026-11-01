@@ -12,6 +12,7 @@ import type { MatchRecord } from './supabase.ts';
 import { PROTOCOL_VERSION } from '../shared/version.ts';
 import { COUNTRIES } from '../shared/data/countries.ts';
 import { PREPARATION_TICKS } from '../shared/sim/config.ts';
+import { TICKS_PER_DAY } from '../shared/strategic/params.ts';
 import { UPGRADE_CANCEL_REFUND, upgradeCost } from '../shared/sim/upgrades.ts';
 
 function fakeConn() {
@@ -529,6 +530,45 @@ describe('nação derrotada com a partida em andamento', () => {
     expect(a.sent.filter((m) => m.t === 'chat').length).toBe(chatBefore);
     expect(a.last('match_end')).toBeUndefined();
     expect(room.status).toBe('playing');
+  });
+  it('nação derrotada não governa mais: ordens nacionais recusadas, IA do governo parada e ninguém negocia com ela', async () => {
+    const { send, rooms } = setup();
+    const a = fakeConn();
+    const b = fakeConn();
+    await send(a.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-alice' });
+    await send(b.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-bob' });
+    await send(a.conn, { t: 'create_room', mode: 'pvp', countryId: 'BRA' });
+    const code = a.last('room')!.room!.code;
+    await send(b.conn, { t: 'join_room', code, countryId: 'ARG' });
+    await send(a.conn, { t: 'add_bot' });
+    await send(a.conn, { t: 'add_bot' });
+    await send(b.conn, { t: 'set_ready', ready: true });
+    await send(a.conn, { t: 'start' });
+    const room = rooms.get(code)!;
+    const sim = room.sim!;
+    const slotOf = (name: string) => room.info().players.find((p) => p.name === name)!.slot;
+    const bob = slotOf('bob');
+    const bot = room.info().players.find((p) => p.isAI)!.slot;
+    for (const s of [bob, bot]) sim.damageBuilding(sim.buildings.find((x) => x.owner === s && x.type === 'hq')!, 1e9, 0);
+    room.advance();
+    expect(sim.players[bob]!.defeated && sim.players[bot]!.defeated).toBe(true);
+    // o derrotado tenta governar
+    await send(b.conn, { t: 'national', cmd: { type: 'diplomacy', action: { type: 'declare_war', target: slotOf('alice') } } });
+    expect(room.status).toBe('playing');
+    expect(b.last('cmd_rejected')?.reason).toMatch(/derrotada/);
+    // a viva tenta negociar com quem já caiu
+    await send(a.conn, { t: 'national', cmd: { type: 'diplomacy', action: { type: 'propose', treaty: 'trade', partner: bob } } });
+    expect(a.last('cmd_rejected')?.reason).toMatch(/já foi derrotada/);
+    // o governo da IA derrotada não pensa mais
+    const ai = (room as unknown as { nationalAIs: { slot: number; think: (...a: unknown[]) => unknown }[] }).nationalAIs.find((x) => x.slot === bot)!;
+    let calls = 0;
+    const orig = ai.think.bind(ai);
+    ai.think = (...args: unknown[]) => {
+      calls++;
+      return orig(...args);
+    };
+    for (let i = 0; i < TICKS_PER_DAY * 31; i++) room.advance();
+    expect(calls).toBe(0);
   });
 });
 

@@ -40,6 +40,10 @@ export function GameScreen() {
   const touchUi = useHudStore((s) => s.touchUi);
   const globeOpen = useNationalStore((s) => s.globeOpen);
   const warTarget = useNationalStore((s) => s.warTarget);
+  // partida encerrada no meio da pilotagem do drone: volta para a câmera do mapa (e solta o cursor)
+  useEffect(() => {
+    if (matchEnd && runtime) runtime.matchOver();
+  }, [matchEnd, runtime]);
   // o globo só é montado na primeira abertura e depois fica pausado em segundo plano
   const [globeMounted, setGlobeMounted] = useState(false);
   if (globeOpen && !globeMounted) setGlobeMounted(true);
