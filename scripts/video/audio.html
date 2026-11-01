@@ -1,0 +1,44 @@
+<!doctype html><meta charset="utf-8"><body>
+<script type="module">
+import { audio } from '/src/game/audio/AudioService.ts';
+// Mixagem offline: refaz cada som do jogo no instante e na posição registrados durante a gravação.
+window.renderMix = async (events, duration) => {
+  const SR = 48000;
+  const ctx = new OfflineAudioContext(2, Math.ceil(SR * duration), SR);
+  window.AudioContext = function () { return ctx; };
+  audio.unlock();
+  Object.defineProperty(audio, 'ready', { get: () => true });
+  audio.setVolumes({ master: 1, combat: 1, music: 0, ambient: 0, ui: 0, production: 0 }, false);
+  const q = 128 / SR;
+  const groups = new Map();
+  for (const e of events) {
+    if (e[0] < 0 || e[0] >= duration - 0.05) continue;
+    const k = Math.max(1, Math.round(e[0] / q)) * q;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(e);
+  }
+  for (const [k, list] of [...groups].sort((a, b) => a[0] - b[0])) {
+    ctx.suspend(k).then(() => {
+      for (const [, fn, args, listener] of list) {
+        try { audio.setListener(listener.x, listener.y, listener.dist, listener.yaw); audio[fn](...args); } catch (err) { console.log('ERR', fn, String(err)); }
+      }
+      ctx.resume();
+    });
+  }
+  const buf = await ctx.startRendering();
+  // WAV 16 bits
+  const n = buf.length, ch = 2, out = new DataView(new ArrayBuffer(44 + n * ch * 2));
+  const ws = (o, s) => { for (let i = 0; i < s.length; i++) out.setUint8(o + i, s.charCodeAt(i)); };
+  ws(0, 'RIFF'); out.setUint32(4, 36 + n * ch * 2, true); ws(8, 'WAVE'); ws(12, 'fmt '); out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, ch, true);
+  out.setUint32(24, SR, true); out.setUint32(28, SR * ch * 2, true); out.setUint16(32, ch * 2, true); out.setUint16(34, 16, true); ws(36, 'data'); out.setUint32(40, n * ch * 2, true);
+  const L = buf.getChannelData(0), R = buf.getChannelData(1);
+  let peak = 0;
+  for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(L[i]), Math.abs(R[i]));
+  const g = peak > 0 ? 0.97 / peak : 1;
+  for (let i = 0; i < n; i++) { out.setInt16(44 + i * 4, L[i] * g * 32767, true); out.setInt16(46 + i * 4, R[i] * g * 32767, true); }
+  let bin = ''; const bytes = new Uint8Array(out.buffer);
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return { wav: btoa(bin), peak };
+};
+window.ready = true;
+</script>
