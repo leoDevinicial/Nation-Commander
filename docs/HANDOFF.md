@@ -46,7 +46,9 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 
 ## 0.1 Contas e branches (histórico)
 
-- **01/11/2026 — conta atual (desde 30/10):** branch `claude/youthful-dijkstra-a45emp`, criada de
+- **01/11/2026 — conta de 30/10 volta a assumir:** continua na mesma branch `claude/youthful-dijkstra-a45emp` (pedido
+  do usuário: sem branch nova), a partir do commit `cbd76a1`; `npm ci`, 624 testes, lint e typecheck limpos.
+- **01/11/2026 — conta que fez as entregas de 30/10 a 01/11:** branch `claude/youthful-dijkstra-a45emp`, criada de
   `claude/serene-bell-7cjnhp` no commit `20bdcc5`. Tudo publicado até o commit deste handoff (01/11, noite).
 - **30/10/2026 — conta anterior:** branch `claude/serene-bell-7cjnhp` (hoje é a de publicação).
 - Próxima conta: acrescente uma linha aqui (data, branch, commit de partida, testes).
