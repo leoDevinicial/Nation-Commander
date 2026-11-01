@@ -59,7 +59,7 @@ interface Pred {
  * as marcações dos alvos inimigos à vista e um pouco de chiado analógico. O OSD é um canvas 2D por cima do jogo,
  * redesenhado a cada quadro (os marcadores acompanham os alvos sem tremer).
  *
- * Controles: o mouse (cursor travado na tela) dá a direção; W acelera e S freia; A/D viram de leve; Espaço sobe e
+ * Controles: o mouse (cursor travado na tela) dá a direção; W acelera, Shift é o turbo e S freia; A/D viram de leve; Espaço sobe e
  * Ctrl (ou C) desce; clique esquerdo explode; Esc devolve ao piloto automático. No toque, arrastar o dedo é o manche e
  * um toque rápido explode.
  */
@@ -188,14 +188,17 @@ export class DroneFpv {
   }
 
   /**
-   * Manche atual: mouse (com o cursor travado) dá a direção e inclina o nariz; W acelera e S freia; A/D viram de leve;
+   * Manche atual: mouse (com o cursor travado) dá a direção e inclina o nariz; W acelera, Shift é o turbo e S freia; A/D viram de leve;
    * Espaço sobe e Ctrl (ou C) desce; no toque, arrastar o dedo é o manche.
    */
   private input(): FpvSteer {
     const k = this.keys;
     let turn = ((k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0)) * 0.6;
     let climb = (k.has('Space') ? 1 : 0) - (k.has('ControlLeft') || k.has('ControlRight') || k.has('KeyC') ? 1 : 0);
-    const throttle = (k.has('KeyW') || k.has('ArrowUp') || k.has('ShiftLeft') || k.has('ShiftRight') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
+    // W acelera um pouco; Shift é o turbo (velocidade máxima); S freia
+    const turbo = k.has('ShiftLeft') || k.has('ShiftRight');
+    const fwd = turbo ? 1 : k.has('KeyW') || k.has('ArrowUp') ? 0.4 : 0;
+    const throttle = fwd - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
     if (this.locked()) {
       const dz = (v: number) => (Math.abs(v) < 0.04 ? 0 : v - Math.sign(v) * 0.04);
       turn = clamp(turn + dz(this.aimSmooth.x) * 1.15, -1, 1);
@@ -470,7 +473,7 @@ export class DroneFpv {
     if (low && Math.floor(this.time * 3) % 2 === 0) this.text('BATERIA BAIXA', cx, cy - 70 * u, 20 * u, 'center', '#ff4d3d');
     // dica dos controles nos primeiros segundos
     if (this.time - this.startedAt < 6)
-      this.text('MOUSE direção · W acelera · S freia · ESPAÇO sobe · CTRL/C desce · CLIQUE explode · ESC sai', cx, H - bar - 46 * u, 14 * u, 'center');
+      this.text('MOUSE direção · W acelera · SHIFT turbo · S freia · ESPAÇO sobe · CTRL/C desce · CLIQUE explode · ESC sai', cx, H - bar - 46 * u, 14 * u, 'center');
     // alcance da bateria em segundos (referência para o piloto)
     this.text(`${Math.round(view.battery * DRONE.batterySeconds)}s`, W - pad, bottom - 66 * u, 15 * u, 'right');
   }

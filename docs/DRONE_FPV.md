@@ -26,7 +26,7 @@ ataque.
   "ALVO TRAVADO"; fora da tela, uma seta aponta para o mais próximo.
 - Pilotar é opcional: sem assumir, o drone vai sozinho até o ponto, como os aviões.
 - Controles: mouse dá a direção (o cursor fica travado na tela; mexer vira e inclina o nariz, parar endireita);
-  W acelera, S freia, A/D viram de leve; Espaço sobe, Ctrl ou C desce; clique esquerdo explode; Esc devolve ao piloto
+  W acelera (~7,8), Shift é o turbo (até 11,5), S freia, A/D viram de leve; Espaço sobe, Ctrl ou C desce; clique esquerdo explode; Esc devolve ao piloto
   automático (soltar o cursor também). No celular, arrastar o dedo é o manche e um toque rápido explode.
 - Cuidado: Ctrl + W fecha a aba em alguns navegadores (o jogo não consegue bloquear); por isso C também desce.
 - Ao cair o sinal (impacto, derrubado, bateria), a tela vira chiado com "SINAL PERDIDO" e volta ao mapa no ponto.
@@ -38,7 +38,7 @@ ataque.
 
 - Tudo é calculado na simulação; o cliente só manda a intenção (`drone_steer` com valores de −1 a 1, limitados de novo
   no servidor), a ~10 por segundo. Só o dono pilota, e só depois de assumir dentro da janela.
-- Velocidade 3,0 a 8,6 (cruzeiro 5,4); curva 1,25 rad/s; subida 1,9 (mergulho ×1,5). O manche chega ao drone aos
+- Velocidade 3,0 a 11,5 (cruzeiro 5,4; W ~7,8; Shift, o turbo, 11,5); curva 1,25 rad/s; subida 1,9 (mergulho ×1,5). O manche chega ao drone aos
   poucos (resposta de 3,2/s, ~0,3 s para a curva toda) e o acelerador em ~0,6 s, sem trancos; bateria de 80 s (acelerar gasta mais); sem comando por 2 s, segue reto.
 - Explode ao tocar o chão, um edifício alheio ou uma tropa de outro país; Espaço detona onde estiver.
 - Ogiva: 360 em tropas e 320 em edifícios no raio de 2,6, só contra quem está em guerra com o dono.

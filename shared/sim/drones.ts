@@ -15,10 +15,10 @@ import type { Building, Slot, Vec2 } from './types.ts';
  * dono; se bater em algo amigo ou no chão, explode sem efeito.
  */
 export const DRONE = {
-  /** Velocidades (unidades de mundo por segundo): lenta, de cruzeiro e com o acelerador no máximo. */
+  /** Velocidades (unidades de mundo por segundo): lenta, de cruzeiro e com o acelerador no máximo (Shift, o turbo; W dá 40%). */
   slowSpeed: 3.0,
   cruiseSpeed: 5.4,
-  boostSpeed: 8.6,
+  boostSpeed: 11.5,
   /** Velocidade de curva (rad/s) e de subida/descida (unidades/s); o mergulho é mais rápido que a subida. */
   turnRate: 1.25,
   climbRate: 1.9,
@@ -188,7 +188,7 @@ export class DroneSystem {
         const flat = Math.hypot(d.target.x - d.pos.x, d.target.y - d.pos.y);
         const wantAlt = flat < 9 ? flat * 0.45 : DRONE.cruiseAlt;
         climb = clamp((wantAlt - d.alt) * 0.8, -1, 1);
-        throttle = flat < 9 ? 0.6 : 0;
+        throttle = flat < 9 ? 0.3 : 0;
       }
       // o manche chega aos poucos: curva e subida sem trancos (no piloto automático também)
       const k = Math.min(1, dt * DRONE.stickResponse);
