@@ -11,7 +11,8 @@ estrada**.
 
 **A caravana só anda por estrada (regra rígida).** Ela precisa de uma ligação contínua de células de estrada, pelas
 vizinhas norte, sul, leste e oeste, que encoste no Centro de Comando e na prefeitura (inclusive na diagonal, como no
-bairro pavimentado). Vale tanto a estrada construída pelo jogador quanto a estrada de terra que o mapa gera. Sem
+bairro pavimentado). Vale a estrada construída pelo jogador e as passagens que o mapa gera sobre rios e serras (o mapa não tem mais o
+caminho de cascalho entre as bases, ver `PARTIDAS_MAIORES_E_MAPAS.md`). Sem
 ligação, a caravana fica parada no QG e a prefeitura rende só a renda fixa dela. Território de quem está em guerra com o
 dono, no meio do caminho, também corta a ligação.
 

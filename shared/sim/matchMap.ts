@@ -1,4 +1,4 @@
-import { CELL_SIZE, Terrain } from './config.ts';
+import { CELL_SIZE, TERRAIN, Terrain } from './config.ts';
 import { Random } from './Random.ts';
 import type { Cell, MapData } from './types.ts';
 
@@ -286,10 +286,13 @@ export function generateMatchMap(seed: number, opts: MatchMapOptions): MapData {
     if (desert || regionOf(opts.countries?.[k]) === 'oil') nodeAt(extra, k);
   }
 
-  // --- estradas: de cada base ao centro (garantem a passagem por rios e serras)
+  // --- passagens: de cada base ao centro, só onde o caminho cruza água ou rocha (pontes e cortes na serra). Antes era
+  // uma estrada de cascalho inteira: denunciava onde ficavam as outras nações e impedia o jogador de pavimentar por
+  // cima (pedido do usuário, 01/11). Em terreno transitável o caminho não deixa marca
   const onNode = (x: number, y: number) => resourceNodes.some((nd) => x >= nd.cx && x <= nd.cx + 1 && y >= nd.cy && y <= nd.cy + 1);
   const road = (x: number, y: number) => {
-    if (!onNode(x, y)) setOne(x, y, Terrain.Road);
+    if (!inside(x, y) || onNode(x, y)) return;
+    if (!TERRAIN[terrain[y * size + x]!].passable) setOne(x, y, Terrain.Road);
   };
   if (!circular) {
     const steps = Math.ceil(Math.hypot(c - s0.cx, c - s0.cy) * 2);
@@ -314,7 +317,7 @@ export function generateMatchMap(seed: number, opts: MatchMapOptions): MapData {
       }
     }
   }
-  disc(c, c, 2.2, Terrain.Road);
+  disc(c, c, 2.2, Terrain.Road, (t) => TERRAIN[t].passable);
   // início garantido: os discos de recursos de cada base são repintados por cima das estradas e jazidas
   // (sem cobrir a estrada, que garante a passagem), para nenhuma nação perder células da primeira coleta
   paintKit((x, y, t) => {

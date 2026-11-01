@@ -1364,11 +1364,12 @@ export class TacticalAI {
           const c = sim.grid.cellCenter(cell);
           let score = r * 4 + dist(c, mid) * 0.2;
           const n = BUILDINGS[type].size;
-          // conta só o que a coleta vai explorar de fato: células livres, fora do próprio terreno do edifício
+          // conta só o que a coleta vai explorar de fato: células livres, no próprio território (a coleta não usa as de
+          // fora) e fora do próprio terreno do edifício
           const outside = (i: number) => {
             const x = i % W;
             const y = (i - x) / W;
-            return freeCell(i) && !(x >= cell.cx && x < cell.cx + n && y >= cell.cy && y < cell.cy + n);
+            return freeCell(i) && sim.territory[i] === this.slot && !(x >= cell.cx && x < cell.cx + n && y >= cell.cy && y < cell.cy + n);
           };
           if (gather && claimed) score -= claimableCells(sim.map, type, cell, claimed, outside).length * 12;
           let covers = 0;

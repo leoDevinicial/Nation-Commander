@@ -46,9 +46,11 @@ O gerador é `generateMatchMap` (`shared/sim/matchMap.ts`). O tamanho cresce com
   circular cercado de mar, para nenhuma nação ganhar um canto a mais.
 
 O kit de cada base é desenhado para a nação de referência e copiado pela mesma rotação. O kit tem rocha, uma serra com
-minério, floresta, solo fértil, duas jazidas de petróleo e uma jazida disputada no caminho do vizinho. Estradas ligam
-cada base ao centro, o que garante a passagem por rios e serras. Os testes conferem a conexão entre todas as bases em
-todos os tipos de mapa.
+minério, floresta, solo fértil, duas jazidas de petróleo e uma jazida disputada no caminho do vizinho. O traçado de
+cada base ao centro só deixa marca onde cruza água ou rocha: ali vira passagem (ponte ou corte na serra), o que garante
+a travessia de rios e serras. Em terreno transitável não há mais o caminho de cascalho (01/11, pedido do usuário: ele
+denunciava onde ficavam as outras nações e impedia pavimentar por cima). Os testes conferem a conexão entre todas as
+bases em todos os tipos de mapa.
 
 | Tipo | O que muda |
 |---|---|

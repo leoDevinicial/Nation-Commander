@@ -37,7 +37,7 @@ células não precisam formar uma linha contínua. A regra é `Simulation.roadPl
 | Fim de linha | faixa só até a saída; calçada nos três lados fechados |
 | Cruzamento em T e em cruz | faixas de pedestres em cada saída; calçada nos cantos |
 
-A estrada de terra que o mapa gera conta como vizinha: o asfalto encosta nela sem calçada.
+As passagens que o mapa gera sobre rios e serras contam como vizinhas: o asfalto encosta nelas sem calçada.
 
 | Regra | Valor |
 |---|---|
