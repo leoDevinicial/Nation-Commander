@@ -37,8 +37,6 @@ const angDiff = (a: number, b: number) => Math.atan2(Math.sin(a - b), Math.cos(a
  */
 export const FPV_FOV = 120;
 const FPV_VFOV = (2 * Math.atan(Math.tan(((FPV_FOV / 2) * Math.PI) / 180) / (4 / 3)) * 180) / Math.PI;
-/** Atraso estimado entre o manche e a posição que chega do servidor (envio + rede + interpolação), em segundos. */
-const LEAD = 0.25;
 /** Pose prevista no cliente: a câmera responde na hora e é puxada aos poucos para a posição do servidor. */
 interface Pred {
   x: number;
@@ -75,6 +73,8 @@ export class DroneFpv {
   /** A mira do mouse filtrada (tira o tremido do movimento da mão). */
   private aimSmooth = { x: 0, y: 0 };
   private pred: Pred | null = null;
+  private hist: { x: number; z: number; alt: number; heading: number; t: number }[] = [];
+  private readonly shown = { pos: new THREE.Vector3() };
   /** O jogador soltou o cursor (Esc do navegador, troca de janela): devolve o drone ao piloto automático. */
   onLockLost: (() => void) | null = null;
   private readonly onMouse = (e: MouseEvent) => {
@@ -170,6 +170,12 @@ export class DroneFpv {
     else this.keys.delete(code);
   }
 
+  clearKeys(): void {
+    this.keys.clear();
+    this.stick = null;
+    this.dragFrom = null;
+  }
+
   pointerDown(x: number, y: number): void {
     this.dragFrom = { x, y };
     this.stick = { x: 0, y: 0 };
@@ -257,8 +263,9 @@ export class DroneFpv {
    */
   private predict(dt: number, s: FpvSteer, v: FpvDroneView): FpvDroneView {
     let p = this.pred;
-    if (!p || Math.hypot(p.x - v.pos.x, p.z - v.pos.z) > 6 || Math.abs(p.alt - v.pos.y) > 4) {
-      p = this.pred = { x: v.pos.x, z: v.pos.z, alt: v.pos.y, heading: v.heading, speed: v.speed, turn: p?.turn ?? 0, climb: p?.climb ?? 0, vz: 0, bank: v.bank, pitch: v.pitch };
+    if (!p) {
+      p = this.pred = { x: v.pos.x, z: v.pos.z, alt: v.pos.y, heading: v.heading, speed: v.speed, turn: 0, climb: 0, vz: 0, bank: v.bank, pitch: v.pitch };
+      this.hist = [];
     }
     const h = Math.min(dt, 0.1);
     const k = Math.min(1, h * DRONE.stickResponse);
@@ -271,19 +278,49 @@ export class DroneFpv {
     p.alt = clamp(p.alt + p.vz * h, 0.3, DRONE.maxAlt);
     p.x += Math.cos(p.heading) * p.speed * h;
     p.z += Math.sin(p.heading) * p.speed * h;
-    // correção suave para a pose do servidor, adiantada pelo atraso (senão a câmera ficaria sempre para trás)
-    const c = 1 - Math.exp(-h * 1.6);
-    const sh = v.heading + p.turn * DRONE.turnRate * LEAD;
-    p.heading += angDiff(sh, p.heading) * c;
-    p.x += (v.pos.x + Math.cos(v.heading) * v.speed * LEAD - p.x) * c;
-    p.z += (v.pos.z + Math.sin(v.heading) * v.speed * LEAD - p.z) * c;
-    p.alt += (clamp(v.pos.y + p.vz * LEAD, 0.3, DRONE.maxAlt) - p.alt) * c;
-    p.speed += (v.speed - p.speed) * c * 0.5;
+    // trajeto previsto do último 1,5 s: a pose do servidor chega atrasada, então é comparada com o ponto do trajeto
+    // onde a previsão estava naquela hora (o mais perto dela), e não com a pose de agora. Assim o atraso da rede não
+    // puxa a câmera para trás; só o desvio de verdade é corrigido, aos poucos.
+    this.hist.push({ x: p.x, z: p.z, alt: p.alt, heading: p.heading, t: this.time });
+    while (this.hist.length > 2 && this.time - this.hist[0]!.t > 1.5) this.hist.shift();
+    let best = this.hist[this.hist.length - 1]!;
+    let bestD = Infinity;
+    for (const q of this.hist) {
+      const d = (q.x - v.pos.x) ** 2 + (q.z - v.pos.z) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = q;
+      }
+    }
+    if (bestD > 25) {
+      // desvio grande (pacote perdido, colisão de borda): vai direto para o servidor
+      Object.assign(p, { x: v.pos.x, z: v.pos.z, alt: v.pos.y, heading: v.heading, speed: v.speed });
+      this.hist = [];
+    } else {
+      const c = 1 - Math.exp(-h * 1.5);
+      const ex = (v.pos.x - best.x) * c;
+      const ez = (v.pos.z - best.z) * c;
+      const ea = (v.pos.y - best.alt) * c;
+      const eh = angDiff(v.heading, best.heading) * c * 0.6;
+      p.x += ex;
+      p.z += ez;
+      p.alt = clamp(p.alt + ea, 0.3, DRONE.maxAlt);
+      p.heading += eh;
+      // o trajeto guardado anda junto com a correção (senão o mesmo erro seria corrigido de novo a cada quadro)
+      for (const q of this.hist) {
+        q.x += ex;
+        q.z += ez;
+        q.alt += ea;
+        q.heading += eh;
+      }
+      p.speed += (v.speed - p.speed) * c * 0.3;
+    }
     // atitude da câmera: inclina na curva e levanta/baixa o nariz, sempre suave
     const a = 1 - Math.exp(-h * 5);
     p.bank += (clamp(p.turn * DRONE.turnRate * 0.42, -0.5, 0.5) - p.bank) * a;
     p.pitch += (Math.atan2(p.vz, Math.max(1, p.speed)) * 0.8 - p.pitch) * a;
-    return { pos: new THREE.Vector3(p.x, p.alt, p.z), heading: p.heading, pitch: p.pitch, bank: p.bank, speed: p.speed, alt: p.alt, battery: v.battery };
+    this.shown.pos.set(p.x, p.alt, p.z);
+    return { pos: this.shown.pos, heading: p.heading, pitch: p.pitch, bank: p.bank, speed: p.speed, alt: p.alt, battery: v.battery };
   }
 
   private placeCamera(v: FpvDroneView, camera: THREE.PerspectiveCamera): void {
@@ -301,8 +338,27 @@ export class DroneFpv {
     camera.updateMatrixWorld();
   }
 
+  private vignetteCache: HTMLCanvasElement | null = null;
+
+  /** Vinheta pronta (desenhada uma vez por tamanho de tela; o degradê em tela cheia a cada quadro pesava no celular). */
+  private vignette(W: number, H: number): HTMLCanvasElement {
+    const v = this.vignetteCache;
+    if (v && v.width === W && v.height === H) return v;
+    const cv = document.createElement('canvas');
+    cv.width = W;
+    cv.height = H;
+    const c = cv.getContext('2d')!;
+    const vg = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.72);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.55)');
+    c.fillStyle = vg;
+    c.fillRect(0, 0, W, H);
+    this.vignetteCache = cv;
+    return cv;
+  }
+
   private resize(): void {
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const dpr = Math.min(1.5, window.devicePixelRatio || 1);
     const w = Math.round(this.host.clientWidth * dpr);
     const h = Math.round(this.host.clientHeight * dpr);
     if (this.canvas.width !== w || this.canvas.height !== h) {
@@ -331,11 +387,7 @@ export class DroneFpv {
     }
     const bar = H * 0.055;
     // vinheta e chiado analógico leve
-    const vg = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.72);
-    vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, 'rgba(0,0,0,0.55)');
-    c.fillStyle = vg;
-    c.fillRect(0, 0, W, H);
+    c.drawImage(this.vignette(W, H), 0, 0);
     const low = view.battery < 0.25;
     const noise = 90 + (low ? 200 : 0);
     for (let i = 0; i < noise; i++) {

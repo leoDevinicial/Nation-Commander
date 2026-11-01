@@ -332,6 +332,9 @@ interface TrackedDrone {
   pitch: number;
   pos: THREE.Vector3;
   heading: number;
+  /** Hora (relógio da camada) da última posição recebida e a taxa de curva medida entre as duas últimas. */
+  at: number;
+  turnRate: number;
 }
 
 /** Bomba em queda (visual): parte do bombardeiro e explode no chão. */
@@ -1164,7 +1167,7 @@ export class AirLayer {
 
   frame(alpha: number, dt: number): void {
     this.time += dt;
-    this.frameDrones(alpha, dt);
+    this.frameDrones(dt);
     for (const t of this.flights.values()) this.frameSquadron(t, alpha, dt);
     for (const m of this.missiles.values()) {
       const l = m.snap;
@@ -1449,13 +1452,32 @@ export class AirLayer {
         this.group.add(shadow);
         const hint = ring('#7fd4ff', 0.85, 0.12);
         this.group.add(hint);
-        t = { snap: d, prev: p.clone(), curr: p.clone(), prevHeading: d.heading, currHeading: d.heading, group, prop, shadow, hint, bank: 0, pitch: 0, pos: p.clone(), heading: d.heading };
+        t = {
+          snap: d,
+          prev: p.clone(),
+          curr: p.clone(),
+          prevHeading: d.heading,
+          currHeading: d.heading,
+          group,
+          prop,
+          shadow,
+          hint,
+          bank: 0,
+          pitch: 0,
+          pos: p.clone(),
+          heading: d.heading,
+          at: this.time,
+          turnRate: 0,
+        };
         this.drones.set(d.id, t);
       } else {
+        const gap = Math.max(0.05, Math.min(0.4, this.time - t.at));
         t.prev.copy(t.curr);
         t.curr.copy(p);
         t.prevHeading = t.currHeading;
         t.currHeading = d.heading;
+        t.turnRate = Math.atan2(Math.sin(t.currHeading - t.prevHeading), Math.cos(t.currHeading - t.prevHeading)) / gap;
+        t.at = this.time;
         t.snap = d;
       }
     }
@@ -1468,13 +1490,28 @@ export class AirLayer {
       }
   }
 
-  private frameDrones(alpha: number, dt: number): void {
+  private frameDrones(dt: number): void {
     for (const [id, t] of this.drones) {
       const d = t.snap;
-      t.pos.lerpVectors(t.prev, t.curr, alpha);
-      const dh = Math.atan2(Math.sin(t.currHeading - t.prevHeading), Math.cos(t.currHeading - t.prevHeading));
+      // estimativa contínua (posição recebida + velocidade e curva desde então) seguida com suavidade: sem congelar
+      // quando um pacote atrasa nem pular quando chega (o drone é rápido, a interpolação simples dava trancos)
+      const s = Math.min(this.time - t.at, 0.35);
+      const eh = t.currHeading + t.turnRate * s;
+      const mh = t.currHeading + t.turnRate * s * 0.5;
+      const ex = t.curr.x + Math.cos(mh) * d.speed * s;
+      const ey = t.curr.y + d.climb * s;
+      const ez = t.curr.z + Math.sin(mh) * d.speed * s;
       const prevHeading = t.heading;
-      t.heading = t.prevHeading + dh * alpha;
+      if (t.pos.distanceToSquared(t.curr) > 64) {
+        t.pos.set(ex, ey, ez);
+        t.heading = eh;
+      } else {
+        const a = 1 - Math.exp(-dt * 9);
+        t.pos.x += (ex - t.pos.x) * a;
+        t.pos.y += (ey - t.pos.y) * a;
+        t.pos.z += (ez - t.pos.z) * a;
+        t.heading += Math.atan2(Math.sin(eh - t.heading), Math.cos(eh - t.heading)) * a;
+      }
       // curva: inclina para dentro (taxa de curva); subida e mergulho levantam ou baixam o nariz
       const rate = dt > 0 ? Math.atan2(Math.sin(t.heading - prevHeading), Math.cos(t.heading - prevHeading)) / dt : 0;
       t.bank += (Math.max(-0.75, Math.min(0.75, rate * 0.55)) - t.bank) * Math.min(1, dt * 4);

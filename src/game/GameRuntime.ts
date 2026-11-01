@@ -3102,7 +3102,11 @@ export class GameRuntime {
       this.keys.delete(e.code);
       this.fpv.key(e.code, false);
     });
-    on(window, 'blur', () => this.keys.clear());
+    on(window, 'blur', () => {
+      this.keys.clear();
+      // pilotando o drone: tecla presa ao trocar de janela deixaria o drone subindo ou acelerando sozinho
+      this.fpv.clearKeys();
+    });
     const onResize = () => {
       this.resize();
       this.kgps?.invalidate(performance.now(), 'janela redimensionada');

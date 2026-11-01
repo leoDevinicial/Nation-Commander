@@ -16,8 +16,13 @@ ataque.
 - Câmera no nariz, inclinada para baixo, com campo de visão de **120°** como nos jogos de tiro (medido em 4:3, o padrão
   de Quake/CS/Apex: ~105° na vertical e ~133° na horizontal em tela 16:9); a interface do mapa some.
 - Pilotagem suave: o cliente prevê o voo com as mesmas contas do servidor, então a câmera responde ao mouse e ao
-  teclado na hora; a previsão é puxada aos poucos para a pose do servidor (adiantada ~0,25 s pelo atraso) e pula para
-  ela se o desvio passar de 6. O mouse tem sensibilidade baixa, zona morta pequena e filtro contra o tremido da mão; a
+  teclado na hora. Para corrigir sem puxar a câmera para trás, a pose do servidor (que chega atrasada) é comparada com o
+  ponto do trajeto previsto do último 1,5 s mais perto dela, e só esse desvio é corrigido aos poucos; acima de 5 a
+  câmera vai direto para o servidor.
+- Visto do mapa, o drone é desenhado pela estimativa contínua (última posição + velocidade e curva) seguida com
+  suavidade, e não pela interpolação entre pacotes: sem congelar quando um pacote atrasa nem pular quando chega.
+- Trocar de janela solta as teclas do piloto (antes uma tecla podia ficar presa). O OSD usa vinheta pronta e resolução
+  até 1,5× para pesar menos. O mouse tem sensibilidade baixa, zona morta pequena e filtro contra o tremido da mão; a
   câmera inclina pouco nas curvas (70% da inclinação).
 - OSD no estilo dos óculos de FPV: faixas pretas, modo (ACRO/MAX), bússola, velocidade (km/h), altitude (m), sinal,
   tensão da bateria (por célula e total), porcentagem e segundos de bateria, tempo de voo, horizonte artificial, mira,
