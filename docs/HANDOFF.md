@@ -4,8 +4,10 @@ Este arquivo é o ponto de partida para quem pega o projeto numa conversa nova (
 antes de mexer em qualquer coisa. Depois leia `CLAUDE.md` (regras curtas) e
 `docs/BALANCEAMENTO_E_PROGRESSAO.md` (direção de design + tabela "Estado da implementação").
 
-Última atualização: **01/11/2026**. Tudo publicado até o commit `0e23fd5` (drone FPV sem engasgos); depois disso só
-docs e as ferramentas de vídeo (`scripts/video/`). Não há pedido pela metade.
+Última atualização: **01/11/2026 (noite)**. **Tudo publicado:** a branch de publicação `claude/serene-bell-7cjnhp`
+está igual à de trabalho `claude/youthful-dijkstra-a45emp` (o commit deste handoff é o último; confira com
+`git log -1 origin/claude/serene-bell-7cjnhp`). Não há pedido pela metade. O que mudou desde a versão anterior deste
+arquivo está na seção 0.4 (redesenho de quase todos os edifícios, árvores, pedras, pássaros e a regra do porto).
 
 ## 00. Checklist de chegada (faça nesta ordem, antes de qualquer pedido)
 
@@ -21,7 +23,7 @@ docs e as ferramentas de vídeo (`scripts/video/`). Não há pedido pela metade.
      `git merge-base --is-ancestor origin/claude/serene-bell-7cjnhp origin/claude/youthful-dijkstra-a45emp && echo ok`.
    - Se for a própria `claude/youthful-dijkstra-a45emp`, só `git pull`.
    - **Nunca** reescreva histórico, force push, merge ou PR sem o usuário pedir. Não use branches `ccr-…` nem as antigas.
-2. **Instalar e verificar:** `npm ci && npm test && npm run lint && npm run typecheck`. Em 01/11: **620 testes** (63
+2. **Instalar e verificar:** `npm ci && npm test && npm run lint && npm run typecheck`. Em 01/11 (noite): **624 testes** (64
    arquivos), lint e typecheck limpos. Se algo falhar logo na chegada, investigue antes de mudar qualquer coisa.
 3. **Anote aqui (seção 0.1)** a branch nova, o commit de partida e o resultado dos testes, e atualize o `CLAUDE.md`
    ("Branch de trabalho atual"). Commit pequeno só com isso.
@@ -45,7 +47,7 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 ## 0.1 Contas e branches (histórico)
 
 - **01/11/2026 — conta atual (desde 30/10):** branch `claude/youthful-dijkstra-a45emp`, criada de
-  `claude/serene-bell-7cjnhp` no commit `20bdcc5`. Última entrega publicada: `0e23fd5`.
+  `claude/serene-bell-7cjnhp` no commit `20bdcc5`. Tudo publicado até o commit deste handoff (01/11, noite).
 - **30/10/2026 — conta anterior:** branch `claude/serene-bell-7cjnhp` (hoje é a de publicação).
 - Próxima conta: acrescente uma linha aqui (data, branch, commit de partida, testes).
 
@@ -62,8 +64,9 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 - **Decisão do usuário (01/11):** quando o jogo for monetizado, eles vão pagar servidores em várias regiões. O código
   do KNPS-08 já está pronto para isso; até lá, um servidor só. Recomendação registrada: mover para a Virgínia num
   plano pago (é o maior ganho de ping para o Brasil).
-- **Divulgação (01/11):** o usuário e o irmão começaram a divulgar o jogo e criar perfis. O irmão fez o trailer; foi
-  feito também um vídeo de combate de 36 s sem texto (ver `scripts/video/README.md`; o vídeo não está no git).
+- **Divulgação (01/11):** o usuário e o irmão começaram a divulgar o jogo e criar perfis. O irmão fez o trailer; foram
+  feitos também um vídeo de combate de 36 s sem texto e o vídeo "Drone Update" (terceira pessoa + FPV, sem texto). Passo
+  a passo em `scripts/video/README.md` e `scripts/video/drone/`; os vídeos em si não estão no git.
 
 ## 0.3 Regras que já custaram caro (não repetir)
 
@@ -77,6 +80,16 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 - **Prettier só em arquivo novo** (`npx prettier --write --single-quote --print-width 180`). Nunca no
   `GameRuntime.ts` inteiro. Não "arrume" a formatação de arquivos que você não criou.
 - **Vite recarrega a página** se você editar arquivo do projeto durante um teste longo no navegador.
+- **Orçamento dos modelos:** até ~6 mil triângulos por prédio **no nível 10** (os módulos de melhoria somam ao modelo
+  base). O poço de petróleo é o maior (~6.260 no nível 10); não acrescente nada nele sem tirar outra coisa.
+- **Altura sólida:** ao mudar a altura de um modelo, ajuste `shared/sim/buildingHeights.ts` (colisão do drone); o teste
+  `src/test/buildingHeights.test.ts` exige ±10% da altura do modelo, exceto os tipos em `SPARSE_BUILDINGS`.
+- **Módulos de melhoria** (`render/models/upgradeModules.ts`) usam coordenadas fixas do modelo base. Ao redesenhar um
+  prédio, leia o bloco dele (ex.: `const SILO`, `const MINE`, `const OIL_TANK`) e mantenha livres os lugares que os
+  níveis 2–10 ocupam, ou ajuste o módulo junto. Confira a prévia no nível 10.
+- **Nada de textura fotográfica nem cartão recortado (alpha test)** na vegetação ou nas pedras: foi a causa dos
+  "bugs visuais" das árvores (ponta escura saindo da copa, bordas serrilhadas). Tudo é geometria facetada com cor por
+  vértice; ao deformar um icosaedro, una os vértices antes (`mergeVertices`) para não abrir frestas.
 - `.audit/`, `zz_*` e `video/` são locais (excluídos via `.git/info/exclude` nesta máquina; numa máquina nova, **não
   commite** arquivos de prévia nem vídeos — apague antes do commit).
 
@@ -91,6 +104,40 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 - Última rodada (01/11): 9 partidas longas sem invariante quebrada, fuzz sem exceção, retomada idêntica.
 
 ## 0.4 O que mudou desde 31/10 (mais recente primeiro; detalhes no `git log` e nas docs citadas)
+
+**01/11, tarde e noite — redesenhos a pedido do usuário (um por mensagem, sempre com print do jogo):**
+
+- **Pedras do terreno** (`da296e7`): `src/game/render/Rocks.ts` (matacões com musgo, afloramento em camadas, penhasco,
+  cascalho; tom ferruginoso nas células de minério). As pedras do Nature Kit (`public/assets/models/nature/Rock*`,
+  `Cliff*`) **não são mais usadas**; do kit ficam só os arbustos (`TerrainFactory.upgrade`).
+- **Árvores** (`7ae25a1`): `src/game/render/Trees.ts` refeito sem cartões de folhas: carvalho, bétula, bordo, abeto e
+  pinheiro-silvestre facetados. ~35% mais triângulos por árvore na qualidade normal; mais barato no modo leve.
+- **Pássaros** (`b0f3cfb`, `src/game/render/AmbientLife.ts`): corpo facetado com bico e cauda, asas em duas partes
+  (braço e mão, malhas `wingL/R` e `handL/R`) com batida em chicote; gaivotas planam em "M".
+- **Estação ferroviária** (`f73fd98`): prédio com torre do relógio, passarela sobre as linhas, via com lastro. A função
+  `wagon()` de `logistics.ts` ganhou truques, engates e o tipo `flat`; ela também desenha os **trens de carga do mapa**
+  (`cargoVehicle('rail')`). Altura sólida 1,3 → 1,5.
+- **Hospital** (`3c85254`): a faixa da nação era uma caixa que pintava o telhado inteiro; agora fica só no beiral.
+- **Terminal comercial** (`fee9043`, terminal de cargas com docas), **poço de petróleo** (`ca3a160`, `cb1529c`: só a
+  locação em volta do cavalo-mecânico), **tanque de petróleo** (`c251a15`), **termelétrica** (`747f042`, com torre de
+  resfriamento que também solta vapor).
+- **Porto** (`3ab7de3`): **correção de regra** — o porto não tinha `nearWater: true` em `shared/sim/config.ts`, então
+  podia ser construído longe da água; teste em `shared/test/port.test.ts`. Modelo novo de terminal de contêineres (a água
+  fica em +z; o jogo gira o porto com `GameRuntime.waterFacing`).
+- **Torre de vigilância** (`00a0dfb`), **delegacia** (`7282596`), **parque eólico** (`c32c3f7`: o movimento `spin` de
+  `ModelAnim` aceita `gust`/`gustSpeed`/`phase` para rajadas suaves; nacele faz yaw com `parent`), **mina** (`2ee2a8e`),
+  **silo de comida** (`187c09d`: helpers `siloBin`/`siloRoof` em `details.ts` usados também pelos módulos), **Domo de
+  Ferro** (`8e44a3e`: `DOME_TUBES` não mudou, os interceptadores saem dos mesmos tubos).
+- **Fábrica, escola, siderúrgica, refinaria, armazém, centro de pesquisa, usina nuclear** (`d26824e` … `24118fd`).
+- **Estrada inicial QG → termelétrica volta a aparecer** (`63da4f9`): o buffer de snapshots do cliente
+  (`src/net/client.ts`) não guardava `roads` entre snapshots; teste em `src/test/reconnect.test.ts`.
+
+**01/11, manhã:**
+
+- **Caça a bugs** (`9fbac16`, `dacdb0a`): nação derrotada não governa nem pensa (IA nacional pula derrotados);
+  fim de partida tira o jogador do FPV (o ponteiro ficava preso e o HUD sumia na partida seguinte); barra superior do
+  celular não estoura (o número do ping some em tela estreita).
+- **Vídeo "Drone Update"** (`795af50` … `356b9ef`): roteiro e gravação em `scripts/video/drone/`.
 
 - **Vídeo de combate** (01/11): gravação quadro a quadro com relógio controlado + trilha com os sons do jogo.
   Ferramentas em `scripts/video/` (README com o passo a passo e as armadilhas).
@@ -199,6 +246,15 @@ npm test && npm run lint && npm run typecheck
   `localPlacementError`, `publishHud`). Lançar o Chromium com
   `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader`; o SwiftShader é lento e às vezes reconecta —
   tire screenshots rápido.
+- **Prévia de edifício pronta (usada em todos os redesenhos de 01/11):** `.audit/prev.html` + `.audit/nuclear.cjs`
+  (locais, recrie se não existirem). A página lê `?t=<tipo>&d=<distância>&lv=<nível>`, cria
+  `new BuildingVisual(1, t, 0, true, { center, cellSize: 2, mapWidth: 64, era, level })`, chama
+  `v.update(0.1, 1, 1, false, cam, null, false)` (progresso 1 = obra pronta) e desenha 4 vistas (eras 1, 1, 1 e 4 no
+  nível pedido). **Além do `fogUniforms`, defina `weatherUniforms.uGrime.value = grimeTexture(256)` e
+  `weatherUniforms.uPanes.value = <textura branca>`**, senão tudo com clima (prédios, pedras) sai escuro. Com o vite na
+  5173: `node .audit/nuclear.cjs saida.png <tipo> 6 1`. Use o mesmo bias de sombra do jogo (`bias -0.0006`,
+  `normalBias 0.02`) para não ver "acne" que não existe no jogo. Para contar triângulos, um `zz_tri.ts` na raiz com
+  `buildingModel(tipo, nível)` somando `base`, `detail`, `panels`, `moving` e `anims` (apague depois; o lint reclama dele).
 - **Prévia de modelo 3D isolado** (o jeito mais rápido de iterar design): criar um `.html` temporário na raiz que importa o
   builder (`/src/game/render/models/...`), monta cena com luz e chão e renderiza; servir com `npx vite --port 5174` e
   tirar screenshot com Playwright. Apagar o `.html` antes do commit.
@@ -274,6 +330,11 @@ npm test && npm run lint && npm run typecheck
 - Altura dos cidadãos/recrutas (`render/CitizenLayer.ts`) e das peças no chão: `GameRuntime.groundHeight` (só o
   terreno; água −0,7, rocha/minério 0,9, lama −0,08).
 - Thumbnails do menu (`render/Thumbnails.ts`) ainda usam o modelo da era 1.
+- Onde fica cada prédio redesenhado em 01/11: `power.ts` (termelétrica, eólica, solar), `projects.ts` (nuclear e outros
+  projetos), `military.ts` (centro de pesquisa), `ironDome.ts`, `chains.ts` (refinaria, siderúrgica, escola, hospital,
+  delegacia), `industry.ts` (mina), `logistics.ts` (terminal comercial, porto, estação, vagões e veículos de carga),
+  `buildingModels.ts` (armazém, fábrica, silo, poço, tanque, torre de vigilância), `details.ts` (detalhes de perto e os
+  helpers do silo). Vegetação e vida: `render/Trees.ts`, `render/Rocks.ts`, `render/AmbientLife.ts`.
 
 ## 6. O que foi feito nesta sessão (mais recente primeiro)
 
@@ -420,9 +481,21 @@ mensagens em português descrevendo o que mudou).
 
 ## 7. De onde continuar
 
-### Estado em 01/11/2026 (leia isto primeiro)
+### Estado em 01/11/2026, noite (leia isto primeiro)
 
-Não há pedido em andamento. Tudo foi publicado. Pontos abertos, em ordem:
+Não há pedido em andamento. Tudo foi publicado (inclusive os redesenhos da seção 0.4). O usuário está no ritmo de
+mandar um print por vez pedindo "melhorar o design" de um prédio ou elemento do mapa; siga o mesmo processo (ler o
+modelo e os módulos de melhoria, prévia antes/depois, contar triângulos, testes, commit, mandar a imagem). Ainda **não**
+redesenhados nesse ciclo: QG, quartel, casa, prefeitura, base aérea, silo de mísseis, bateria antiaérea, serraria,
+pedreira, fazenda, usina solar, rede 5G, hidrelétrica, centro financeiro, centro espacial, armadilha antitanque e as
+tropas.
+
+Verificar no jogo de verdade (aqui só houve prévia isolada):
+- árvores (custo ~35% maior por árvore na qualidade normal; se o KGPS acusar queda em florestas grandes, reduzir os
+  cachos do carvalho ou usar `detail 0` no médio), pedras (escala `p.s * 1.3` em `Rocks.ts`) e pássaros;
+- os arquivos `Rock*`/`Cliff*` do Nature Kit ficaram sem uso; foi oferecido apagá-los, sem resposta.
+
+Pontos abertos anteriores, em ordem:
 
 1. **Confirmar em produção o que só foi testado aqui** (o ambiente de nuvem não tem GPU nem a latência real):
    - drone FPV: suavidade e ausência de trancos (o usuário reclamou de trancos três vezes; a última correção não pôde

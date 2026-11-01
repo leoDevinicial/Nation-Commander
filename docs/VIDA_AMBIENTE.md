@@ -12,6 +12,9 @@ disso existe na simulação, não afeta regras nem multijogador. Código em `src
   - V solto, com cada pássaro oscilando um pouco em volta do seu lugar;
   - batem asas em rajadas e planam (as gaivotas planam mais);
   - inclinam nas curvas e às vezes circulam numa térmica.
+- **Forma (01/11):** corpo facetado com cabeça, bico (amarelo nas gaivotas) e cauda em leque; asas em duas partes,
+  braço e mão (malhas `wingL/R` e `handL/R`), com a ponta mais escura. A mão bate com atraso em relação ao braço
+  (chicote); no planeio as asas ficam quase retas e as gaivotas planam em "M".
 - **Susto:** tiros por perto, explosões, bombas, minas e caravanas atacadas fazem o bando fugir subindo e acelerando,
   batendo asas sem parar.
 
