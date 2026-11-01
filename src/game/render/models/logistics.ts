@@ -35,37 +35,85 @@ function containerStack(b: PartBuilder, x: number, z: number, rows: number, cols
 
 // ------------------------------------------------------------------ terminal comercial
 
+/** Carreta (cavalo + semirreboque baú) ao longo de z, cabine para +z. */
+function dockTruck(b: PartBuilder, g: PartBuilder, x: number, z: number, color: string, accent?: PartBuilder): void {
+  b.box(0.08, 0.04, 0.95, '#2b2d30', [x, 0.13, z]);
+  b.box(0.23, 0.25, 0.66, color, [x, 0.3, z - 0.13]);
+  for (let k = 1; k < 5; k++) b.box(0.235, 0.24, 0.012, '#8d9094', [x, 0.3, z - 0.46 + k * 0.132]);
+  accent?.box(0.236, 0.06, 0.5, '#ffffff', [x, 0.36, z - 0.13]);
+  b.box(0.22, 0.2, 0.19, '#d9d8d0', [x, 0.25, z + 0.34]);
+  b.box(0.2, 0.06, 0.12, '#d9d8d0', [x, 0.38, z + 0.3]);
+  g.box(0.2, 0.08, 0.012, '#ffffff', [x, 0.29, z + 0.436]);
+  for (const dz of [-0.4, -0.3, 0.2, 0.36]) for (const s of [-1, 1]) b.cyl(0.045, 0.045, 0.04, '#1d1d1d', [x + s * 0.1, 0.08, z + dz], [0, 0, Math.PI / 2], 8);
+}
+
 export function buildMarketModel(): Built {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
   b.box(3.9, 0.06, 3.9, C.asphalt, [0, 0.03, 0]);
-  for (let i = 0; i < 5; i++) b.box(0.05, 0.012, 0.7, '#d9d8d0', [-1.6 + i * 0.4, 0.065, 1.45]); // vagas de caminhão
-  // escritório de despacho com fachada de vidro e marquise
-  b.box(1.4, 0.75, 0.9, '#cfd2d0', [-1.1, 0.43, -1.3]);
-  g.box(1.2, 0.3, 0.02, '#ffffff', [-1.1, 0.55, -0.845]);
-  b.box(1.5, 0.05, 1.0, C.roof, [-1.1, 0.83, -1.3]);
-  b.box(0.7, 0.04, 0.35, C.metal, [-1.1, 0.42, -0.7]);
-  a.box(1.0, 0.12, 0.02, '#ffffff', [-1.1, 0.7, -0.843]);
-  b.box(0.36, 0.2, 0.28, C.steel, [-0.7, 0.96, -1.4]);
-  // balança rodoviária e cancela
-  b.box(0.9, 0.04, 0.42, '#7d8288', [-0.95, 0.08, 0.15]);
-  b.box(0.18, 0.3, 0.18, '#d9d8d0', [-1.55, 0.2, 0.15]);
-  g.box(0.02, 0.1, 0.12, '#ffffff', [-1.455, 0.25, 0.15]);
-  b.box(0.8, 0.03, 0.03, C.red, [-1.1, 0.32, 0.45]);
-  // pátio de contêineres
-  containerStack(b, 0.35, -1.55, 3, 3, 3, 5);
-  containerStack(b, 0.35, -0.3, 2, 3, 2, 11);
-  // empilhadeira de contêiner (reach stacker)
-  b.box(0.55, 0.22, 0.3, C.yellow, [1.2, 0.25, 0.75]);
-  for (const s of [-1, 1]) for (const dx of [-0.18, 0.18]) b.cyl(0.09, 0.09, 0.06, C.rubber, [1.2 + dx, 0.15, 0.75 + s * 0.16], [Math.PI / 2, 0, 0], 8);
-  b.box(0.18, 0.2, 0.2, '#2a3a44', [1.05, 0.46, 0.75]);
-  strut(b, [1.3, 0.4, 0.75], [0.75, 0.9, 0.75], 0.07, C.yellow);
-  b.box(0.08, 0.06, 0.34, '#2b2d30', [0.72, 0.86, 0.75]);
-  box20(b, [0.72, 0.56, 0.75], CONTAINER_COLORS[1]!, 0.56);
-  // poste de iluminação e faixa da nação no portão
-  strut(b, [1.75, 0.06, 1.75], [1.75, 1.4, 1.75], 0.05, C.steel, true);
-  b.box(0.3, 0.05, 0.1, '#f2e6a0', [1.62, 1.4, 1.75]);
-  a.box(0.6, 0.18, 0.02, '#ffffff', [-1.1, 0.95, -0.82]);
+  // armazém de transbordo (cross-dock): docas na face +z com abrigos, para-choques amarelos e numeração
+  b.box(2.2, 0.62, 0.86, '#cfd2d0', [-0.75, 0.37, -1.42]);
+  for (let i = 0; i < 12; i++) b.box(0.012, 0.6, 0.87, '#b9bdbf', [-1.8 + i * 0.19, 0.37, -1.42]);
+  b.box(2.26, 0.05, 0.92, C.roof, [-0.75, 0.7, -1.42]);
+  for (const x of [-1.5, -0.75, 0.0]) g.box(0.36, 0.03, 0.2, '#ffffff', [x, 0.735, -1.42]);
+  b.box(2.2, 0.16, 0.12, C.concrete, [-0.75, 0.14, -0.94]); // plataforma das docas
+  for (let i = 0; i < 6; i++) {
+    const x = -1.65 + i * 0.36;
+    b.box(0.26, 0.3, 0.02, '#6c7177', [x, 0.3, -0.985]);
+    for (let k = 0; k < 4; k++) b.box(0.26, 0.006, 0.024, '#5a5f66', [x, 0.2 + k * 0.07, -0.98]);
+    b.box(0.32, 0.36, 0.04, '#26282b', [x, 0.31, -0.975]);
+    for (const s of [-1, 1]) b.box(0.03, 0.06, 0.03, C.yellow, [x + s * 0.11, 0.16, -0.87]);
+  }
+  a.box(1.2, 0.1, 0.02, '#ffffff', [-0.75, 0.58, -0.985]);
+  // carretas encostadas nas docas (de ré) e o pátio de manobra
+  dockTruck(b, g, -1.65, -0.38, '#e8eae8', a);
+  dockTruck(b, g, -0.93, -0.38, '#2f5f8a');
+  dockTruck(b, g, -0.21, -0.38, '#e8eae8');
+  for (let i = 0; i < 6; i++) b.box(0.025, 0.012, 0.5, '#d9d8d0', [-1.83 + i * 0.36, 0.065, -0.5]);
+  // prédio administrativo de dois andares com fachada de vidro e o letreiro da nação no telhado
+  b.box(0.7, 0.85, 0.55, '#d9dcd9', [-1.48, 0.49, 0.7]);
+  g.box(0.02, 0.62, 0.42, '#ffffff', [-1.12, 0.5, 0.7]);
+  for (const y of [0.4, 0.68]) b.box(0.025, 0.03, 0.44, '#9aa0a6', [-1.115, y, 0.7]);
+  g.box(0.5, 0.24, 0.02, '#ffffff', [-1.48, 0.62, 0.98]);
+  b.box(0.76, 0.05, 0.61, C.roof, [-1.48, 0.94, 0.7]);
+  b.box(0.24, 0.14, 0.18, C.steel, [-1.65, 1.03, 0.6]);
+  for (const s of [-1, 1]) b.box(0.03, 0.22, 0.03, C.metalDark, [-1.48 + s * 0.25, 1.06, 0.82]);
+  a.box(0.6, 0.18, 0.03, '#ffffff', [-1.48, 1.2, 0.82]);
+  // portaria com cobertura, cancelas de entrada e saída e a balança rodoviária
+  b.box(0.22, 0.28, 0.22, '#d9d8d0', [-0.55, 0.2, 1.55]);
+  g.box(0.23, 0.1, 0.18, '#ffffff', [-0.55, 0.26, 1.55]);
+  b.box(1.0, 0.04, 0.6, C.roof, [-0.55, 0.62, 1.55]);
+  for (const [x, z] of [
+    [-1.0, 1.3],
+    [-1.0, 1.8],
+    [-0.1, 1.3],
+    [-0.1, 1.8],
+  ] as const)
+    b.box(0.04, 0.58, 0.04, C.metalDark, [x, 0.34, z]);
+  for (const s of [-1, 1]) {
+    b.box(0.06, 0.12, 0.06, '#d9d8d0', [-0.55 + s * 0.15, 0.12, 1.32 + (s > 0 ? 0.45 : 0)]);
+    b.box(0.32, 0.025, 0.025, C.red, [-0.55 + s * 0.3, 0.17, 1.32 + (s > 0 ? 0.45 : 0)]);
+  }
+  b.box(0.3, 0.025, 0.8, '#7d8288', [-0.22, 0.07, 1.2]);
+  // pátio de contêineres com a empilhadeira de contêiner (reach stacker)
+  containerStack(b, 0.75, -1.75, 3, 2, 3, 5);
+  containerStack(b, 0.75, -0.6, 2, 2, 2, 11);
+  b.box(0.55, 0.22, 0.3, C.yellow, [1.25, 0.25, 0.55]);
+  for (const s of [-1, 1]) for (const dx of [-0.18, 0.18]) b.cyl(0.09, 0.09, 0.06, C.rubber, [1.25 + dx, 0.15, 0.55 + s * 0.16], [Math.PI / 2, 0, 0], 8);
+  b.box(0.18, 0.2, 0.2, '#2a3a44', [1.1, 0.46, 0.55]);
+  strut(b, [1.35, 0.4, 0.55], [0.8, 0.9, 0.55], 0.07, C.yellow);
+  b.box(0.08, 0.06, 0.34, '#2b2d30', [0.77, 0.86, 0.55]);
+  box20(b, [0.77, 0.56, 0.55], CONTAINER_COLORS[1]!, 0.56);
+  // vagas de carretas na frente, uma carreta estacionada, e os postes altos de iluminação
+  for (let i = 0; i < 5; i++) b.box(0.025, 0.012, 0.8, '#d9d8d0', [0.25 + i * 0.36, 0.065, 1.45]);
+  dockTruck(b, g, 0.79, 1.4, '#a8432f');
+  for (const [x, z] of [
+    [1.82, 1.82],
+    [0.2, -0.05],
+  ] as const) {
+    strut(b, [x, 0.06, z], [x, 1.45, z], 0.035, C.steel, true);
+    b.box(0.3, 0.05, 0.1, '#f2e6a0', [x - 0.12, 1.45, z]);
+  }
   return { base: l.build(), moving: null, height: 1.5 };
 }
 
