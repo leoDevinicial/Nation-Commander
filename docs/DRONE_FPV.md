@@ -55,6 +55,10 @@ ataque.
   só contam depois de 3 s de voo. O dano da ogiva conta a altura a partir do telhado que está embaixo.
 - Piloto automático sobe por cima do prédio alto no caminho (olha ~12 à frente) e só desce no mergulho final.
 - Na câmera, a previsão para na parede de prédio inimigo enquanto o servidor confirma a batida.
+- Desempenho no voo: a sonda de reflexos (`EnvironmentProbe`: 6 renderizações da cena + filtro, a cada 2,5 s quando a
+  câmera anda) e a medição de exposição (`AdaptiveExposure`: a cena inteira de novo a cada 0,6 s) ficam congeladas
+  enquanto o jogador pilota, porque a câmera anda o tempo todo e elas davam engasgos periódicos; as fronteiras do
+  território só são redesenhadas na volta ao mapa; os alvos do OSD são refeitos a cada 150 ms.
 - Ogiva: 360 em tropas e 320 em edifícios no raio de 2,6, só contra quem está em guerra com o dono.
 - Antiaérea (baterias e defesa móvel) a até 12: chance por segundo de derrubar o drone.
 - Visão de 11 em volta do drone para o dono; o inimigo só vê o drone quando ele está à vista.

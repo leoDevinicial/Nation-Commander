@@ -211,6 +211,8 @@ export class GameRuntime {
   private fpvStartedAt = 0;
   private fpvLastPos: THREE.Vector3 | null = null;
   private fpvTap: { x: number; y: number; at: number } | null = null;
+  private fpvTargets: FpvTarget[] = [];
+  private fpvTargetsAt = 0;
   /** Pássaros e cervos (vida ambiente, só visual). */
   private readonly ambient: AmbientLife;
   private ambientKey = '';
@@ -1155,7 +1157,8 @@ export class GameRuntime {
     this.fogTexture.needsUpdate = true;
     // fronteiras só em terra já explorada (como no minimapa), redesenhadas no máximo 2× por segundo
     const now = performance.now();
-    if (this.bordersDirty && now - this.bordersAt > 500) {
+    // no voo do drone a névoa se abre o tempo todo; as fronteiras esperam a volta ao mapa (reconstruir 2×/s engasgava)
+    if (this.bordersDirty && !this.fpv.active && now - this.bordersAt > 500) {
       this.bordersDirty = false;
       this.bordersAt = now;
       this.territoryLayer.update(this.territory, this.fogState);
@@ -1293,8 +1296,10 @@ export class GameRuntime {
       if (this.postFx && this.postFxOn) this.postFx.render();
       else this.renderer.render(this.scene, this.camera);
       // medições extras depois do quadro principal (o mapa de sombra já existe e está atualizado)
-      if (this.probeLive) this.probe?.update(this.cameraCtl.target, now, [this.terrain.water]);
-      if (this.exposureLive) this.exposure?.update(this.scene, this.camera, now, dt, [this.terrain.water]);
+      // pilotando o drone: a câmera anda o tempo todo, e a sonda de reflexos (6 renderizações + filtro a cada 2,5 s) e a
+      // medição de exposição (cena inteira de novo a cada 0,6 s) davam engasgos periódicos; ficam congeladas no voo
+      if (this.probeLive && !this.fpv.active) this.probe?.update(this.cameraCtl.target, now, [this.terrain.water]);
+      if (this.exposureLive && !this.fpv.active) this.exposure?.update(this.scene, this.camera, now, dt, [this.terrain.water]);
       this.gpuTimer?.end();
     }
     if (this.gpuTimer) for (const gpuMs of this.gpuTimer.poll()) this.kgps.gpuSample(now, gpuMs);
@@ -2674,10 +2679,14 @@ export class GameRuntime {
       return;
     }
     const v = this.airLayer.droneView(id);
-    if (v) this.fpvLastPos = v.pos.clone();
+    if (v) (this.fpvLastPos ??= new THREE.Vector3()).copy(v.pos);
     const view = v && !this.fpv.lost ? { pos: v.pos, heading: v.heading, pitch: v.pitch, bank: v.bank, speed: v.snap.speed, alt: v.snap.alt, battery: v.snap.battery ?? 0 } : null;
-    const targets: FpvTarget[] = [];
-    if (view) {
+    // alvos do OSD: refeitos a cada 150 ms (montar e ordenar a lista a cada quadro gerava lixo de memória e pausas)
+    const nowMs = performance.now();
+    const refresh = nowMs - this.fpvTargetsAt > 150;
+    if (refresh) this.fpvTargetsAt = nowMs;
+    const targets: FpvTarget[] = refresh ? [] : this.fpvTargets;
+    if (view && refresh) {
       const near = (x: number, z: number) => Math.hypot(x - view.pos.x, z - view.pos.z) < 80;
       for (const t of this.units.values()) {
         if (t.snap.owner === this.mySlot || t.snap.hp <= 0) continue;
@@ -2693,6 +2702,9 @@ export class GameRuntime {
       }
       targets.sort((a, b) => a.pos.distanceTo(view.pos) - b.pos.distanceTo(view.pos));
       targets.length = Math.min(targets.length, 14);
+      this.fpvTargets = targets;
+    }
+    if (view) {
       this.cameraCtl.target.set(view.pos.x, 0, view.pos.z);
       audio.setDroneFpv(true, view.speed);
     }
