@@ -18,6 +18,13 @@ export function PauseMenu({ runtime, onClose }: { runtime: GameRuntime; onClose:
     return () => clearTimeout(t);
   }, [surrender]);
   const sendSurrender = () => setSurrender(gameClient.send({ t: 'surrender' }) ? 'sent' : 'offline');
+  // pediu para se render e a conexão caiu: assim que ela voltar, o pedido vai de novo sozinho
+  useEffect(() => {
+    if (surrender === 'idle') return;
+    return gameClient.onStatus((st) => {
+      if (st === 'connected') setSurrender(gameClient.send({ t: 'surrender' }) ? 'sent' : 'offline');
+    });
+  }, [surrender]);
   if (options)
     return (
       <div className="absolute inset-0 z-40 flex items-center justify-center bg-ink-950/70 p-2" onPointerDown={(e) => e.stopPropagation()}>
@@ -65,7 +72,7 @@ export function PauseMenu({ runtime, onClose }: { runtime: GameRuntime; onClose:
                 Não
               </button>
             </div>
-            {surrender === 'offline' && <p className="mt-2 text-xs text-brass-400">Sem conexão com o servidor agora. Aguarde reconectar e tente de novo.</p>}
+            {surrender === 'offline' && <p className="mt-2 text-xs text-brass-400">Sem conexão com o servidor agora. Assim que reconectar, a rendição é enviada sozinha.</p>}
             {surrender === 'slow' && <p className="mt-2 text-xs text-brass-400">O servidor ainda não respondeu. Verifique a conexão e tente de novo.</p>}
           </div>
         )}

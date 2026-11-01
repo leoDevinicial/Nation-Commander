@@ -747,6 +747,7 @@ export class Room {
     this.advanceNational(tickEvents);
     if (sim.tick % SNAPSHOT_EVERY === 0 || sim.ended) this.broadcastSnapshot();
     if (sim.ended) void this.finish(this.endReason ?? sim.victory ?? (sim.winner === null ? 'draw' : 'hq_destroyed'));
+    else if (this.humansOut()) void this.finish(this.endReason ?? 'hq_destroyed');
   }
 
   /** Operações: viagem, batalhas locais (snapshots só para o dono), reconciliação e volta. */
@@ -1051,7 +1052,18 @@ export class Room {
     this.sim.surrender(slot);
     this.events.push(...this.sim.drainEvents());
     this.broadcastSnapshot();
-    if (this.sim.ended) void this.finish(reason);
+    if (this.sim.ended || this.humansOut()) void this.finish(reason);
+  }
+
+  /**
+   * Todos os humanos já perderam (rendição, abandono ou derrota) e só sobraram bots: a partida acaba aqui. Antes ela
+   * seguia com os bots lutando entre si e quem se rendeu ficava sem a tela de resultado ("Encerrando…" parado).
+   */
+  private humansOut(): boolean {
+    const sim = this.sim;
+    if (!sim || sim.ended) return false;
+    const humans = this.players.filter((p) => !p.isAI);
+    return humans.length > 0 && humans.every((p) => sim.players[p.slot]?.defeated);
   }
 
   // ------------------------------------------------------------ conexões
@@ -1167,7 +1179,9 @@ export class Room {
     const winnerSlot = sim.winner;
     const endedAt = this.now();
     const durationSeconds = Math.round(sim.tick / TICK_RATE);
-    const result = (slot: Slot): 'win' | 'loss' | 'draw' => (winnerSlot === null ? 'draw' : winnerSlot === slot ? 'win' : 'loss');
+    // partida encerrada porque todos os humanos perderam (sobraram só bots): quem já caiu perdeu, não empatou
+    const result = (slot: Slot): 'win' | 'loss' | 'draw' =>
+      !sim.ended && sim.players[slot]?.defeated ? 'loss' : winnerSlot === null ? 'draw' : winnerSlot === slot ? 'win' : 'loss';
     const winner = this.players.find((p) => p.slot === winnerSlot);
 
     // relatório pós-partida: vai na tela de resultado e também no histórico do Supabase

@@ -465,6 +465,24 @@ describe('operações expedicionárias pela rede (Fase 8)', () => {
   });
 });
 
+describe('render-se contra vários bots', () => {
+  it('com só bots sobrando, render-se encerra a partida como derrota (antes ficava em "Encerrando…")', async () => {
+    const { send } = setup();
+    const a = fakeConn();
+    await send(a.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-alice' });
+    await send(a.conn, { t: 'create_room', mode: 'vs_ai', countryId: 'BRA' });
+    await send(a.conn, { t: 'add_bot' });
+    await send(a.conn, { t: 'start' });
+    expect(a.last('match_start')).toBeDefined();
+    await send(a.conn, { t: 'surrender' });
+    await vi.waitFor(() => expect(a.last('match_end')).toBeDefined());
+    const end = a.last('match_end')!.end;
+    expect(end.reason).toBe('forfeit');
+    expect(end.players.length).toBeGreaterThanOrEqual(3);
+    expect(end.players.find((p) => !p.isAI)!.result).toBe('loss');
+  });
+});
+
 describe('salas públicas', () => {
   it('a sala pública aparece na lista do menu, some quando enche ou fica privada, e dá para entrar pela lista', async () => {
     const { send } = setup();
