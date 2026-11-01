@@ -73,6 +73,7 @@ export class DroneFpv {
   /** A mira do mouse filtrada (tira o tremido do movimento da mão). */
   private aimSmooth = { x: 0, y: 0 };
   private pred: Pred | null = null;
+  private realAt = 0;
   private hist: { x: number; z: number; alt: number; heading: number; t: number }[] = [];
   private readonly shown = { pos: new THREE.Vector3() };
   /** O jogador soltou o cursor (Esc do navegador, troca de janela): devolve o drone ao piloto automático. */
@@ -266,23 +267,32 @@ export class DroneFpv {
     if (!p) {
       p = this.pred = { x: v.pos.x, z: v.pos.z, alt: v.pos.y, heading: v.heading, speed: v.speed, turn: 0, climb: 0, vz: 0, bank: v.bank, pitch: v.pitch };
       this.hist = [];
+      this.realAt = 0;
     }
-    const h = Math.min(dt, 0.1);
-    const k = Math.min(1, h * DRONE.stickResponse);
-    p.turn += (s.turn - p.turn) * k;
-    p.climb += (s.climb - p.climb) * k;
+    // tempo real desde o último quadro: o laço do jogo limita o passo a 0,1 s, e com o quadro lento (celular fraco) a
+    // previsão ficaria para trás do servidor e daria pulos; aqui ela anda o tempo todo, em passos de até 50 ms
+    const now = performance.now();
+    const h = this.realAt ? clamp((now - this.realAt) / 1000, 0, 0.5) : Math.min(dt, 0.1);
+    this.realAt = now;
+    const n = Math.max(1, Math.ceil(h / 0.05));
     const want = s.throttle >= 0 ? DRONE.cruiseSpeed + (DRONE.boostSpeed - DRONE.cruiseSpeed) * s.throttle : DRONE.cruiseSpeed + (DRONE.cruiseSpeed - DRONE.slowSpeed) * s.throttle;
-    p.speed += (want - p.speed) * Math.min(1, h * DRONE.throttleResponse);
-    p.heading += p.turn * DRONE.turnRate * h;
-    p.vz = p.climb * DRONE.climbRate * (p.climb < 0 ? DRONE.diveMul : 1);
-    p.alt = clamp(p.alt + p.vz * h, 0.3, DRONE.maxAlt);
-    p.x += Math.cos(p.heading) * p.speed * h;
-    p.z += Math.sin(p.heading) * p.speed * h;
+    for (let i = 0; i < n; i++) {
+      const st = h / n;
+      const k = Math.min(1, st * DRONE.stickResponse);
+      p.turn += (s.turn - p.turn) * k;
+      p.climb += (s.climb - p.climb) * k;
+      p.speed += (want - p.speed) * Math.min(1, st * DRONE.throttleResponse);
+      p.heading += p.turn * DRONE.turnRate * st;
+      p.vz = p.climb * DRONE.climbRate * (p.climb < 0 ? DRONE.diveMul : 1);
+      p.alt = clamp(p.alt + p.vz * st, 0.3, DRONE.maxAlt);
+      p.x += Math.cos(p.heading) * p.speed * st;
+      p.z += Math.sin(p.heading) * p.speed * st;
+    }
     // trajeto previsto do último 1,5 s: a pose do servidor chega atrasada, então é comparada com o ponto do trajeto
     // onde a previsão estava naquela hora (o mais perto dela), e não com a pose de agora. Assim o atraso da rede não
     // puxa a câmera para trás; só o desvio de verdade é corrigido, aos poucos.
-    this.hist.push({ x: p.x, z: p.z, alt: p.alt, heading: p.heading, t: this.time });
-    while (this.hist.length > 2 && this.time - this.hist[0]!.t > 1.5) this.hist.shift();
+    this.hist.push({ x: p.x, z: p.z, alt: p.alt, heading: p.heading, t: now });
+    while (this.hist.length > 2 && now - this.hist[0]!.t > 1500) this.hist.shift();
     let best = this.hist[this.hist.length - 1]!;
     let bestD = Infinity;
     for (const q of this.hist) {

@@ -1466,18 +1466,18 @@ export class AirLayer {
           pitch: 0,
           pos: p.clone(),
           heading: d.heading,
-          at: this.time,
+          at: performance.now() / 1000,
           turnRate: 0,
         };
         this.drones.set(d.id, t);
       } else {
-        const gap = Math.max(0.05, Math.min(0.4, this.time - t.at));
+        const gap = Math.max(0.05, Math.min(0.4, performance.now() / 1000 - t.at));
         t.prev.copy(t.curr);
         t.curr.copy(p);
         t.prevHeading = t.currHeading;
         t.currHeading = d.heading;
         t.turnRate = Math.atan2(Math.sin(t.currHeading - t.prevHeading), Math.cos(t.currHeading - t.prevHeading)) / gap;
-        t.at = this.time;
+        t.at = performance.now() / 1000;
         t.snap = d;
       }
     }
@@ -1495,7 +1495,8 @@ export class AirLayer {
       const d = t.snap;
       // estimativa contínua (posição recebida + velocidade e curva desde então) seguida com suavidade: sem congelar
       // quando um pacote atrasa nem pular quando chega (o drone é rápido, a interpolação simples dava trancos)
-      const s = Math.min(this.time - t.at, 0.35);
+      // relógio real (o passo do quadro é limitado a 0,1 s; com o quadro lento o drone ficaria para trás)
+      const s = Math.min(performance.now() / 1000 - t.at, 0.35);
       const eh = t.currHeading + t.turnRate * s;
       const mh = t.currHeading + t.turnRate * s * 0.5;
       const ex = t.curr.x + Math.cos(mh) * d.speed * s;
