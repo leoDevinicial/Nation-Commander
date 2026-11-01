@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { C, layers, type ModelLayers, type PartBuilder } from './kit.ts';
 import { railing, strut } from './rigging.ts';
 import type { BuildingModel, ModelAnim } from './buildingModels.ts';
@@ -242,24 +243,51 @@ export function buildPortModel(): Built {
 // ------------------------------------------------------------------ estação ferroviária
 
 function track(b: PartBuilder, z: number, x0: number, x1: number): void {
-  for (let x = x0; x <= x1; x += 0.2) b.box(0.07, 0.03, 0.42, C.woodDark, [x, 0.08, z]);
-  for (const s of [-1, 1]) b.box(x1 - x0 + 0.1, 0.035, 0.03, C.steel, [(x0 + x1) / 2, 0.11, z + s * 0.14]);
+  // lastro com os ombros, dormentes de concreto e trilhos com a base mais escura
+  b.box(x1 - x0 + 0.1, 0.03, 0.56, '#8a8478', [(x0 + x1) / 2, 0.08, z]);
+  for (let x = x0; x <= x1; x += 0.18) b.box(0.07, 0.03, 0.42, '#a9a59c', [x, 0.1, z]);
+  for (const s of [-1, 1]) {
+    b.box(x1 - x0 + 0.1, 0.01, 0.045, '#4a4c4e', [(x0 + x1) / 2, 0.115, z + s * 0.14]);
+    b.box(x1 - x0 + 0.1, 0.03, 0.022, C.steel, [(x0 + x1) / 2, 0.13, z + s * 0.14]);
+  }
+}
+
+/** Truque ferroviário (duas rodas por lado) centrado em (x, z). */
+function bogie(b: PartBuilder, x: number, y: number, z: number): void {
+  b.box(0.24, 0.05, 0.24, '#2b2d30', [x, y + 0.1, z]);
+  for (const dx of [-0.07, 0.07]) for (const s of [-1, 1]) b.cyl(0.055, 0.055, 0.025, '#1d1d1d', [x + dx, y + 0.07, z + s * 0.13], [Math.PI / 2, 0, 0], 6);
 }
 
 /** Vagão (comprimento ao longo de x). */
-export function wagon(b: PartBuilder, x: number, y: number, z: number, kind: 'box' | 'tank' | 'loco', color: string): void {
-  b.box(0.82, 0.06, 0.3, '#2b2d30', [x, y + 0.14, z]);
-  for (const dx of [-0.28, 0.28]) for (const s of [-1, 1]) b.cyl(0.06, 0.06, 0.03, '#1d1d1d', [x + dx, y + 0.08, z + s * 0.13], [Math.PI / 2, 0, 0], 8);
+export function wagon(b: PartBuilder, x: number, y: number, z: number, kind: 'box' | 'tank' | 'loco' | 'flat', color: string): void {
+  b.box(0.82, 0.05, 0.3, '#2b2d30', [x, y + 0.15, z]);
+  for (const dx of [-0.26, 0.26]) bogie(b, x + dx, y, z);
+  for (const s of [-1, 1]) b.box(0.04, 0.03, 0.05, '#1d1d1d', [x + s * 0.43, y + 0.15, z]); // engates
   if (kind === 'tank') {
-    b.cyl(0.14, 0.14, 0.76, color, [x, y + 0.32, z], [0, 0, Math.PI / 2], 10);
-    b.cyl(0.05, 0.05, 0.06, '#2b2d30', [x, y + 0.48, z], undefined, 6);
+    b.cyl(0.14, 0.14, 0.74, color, [x, y + 0.33, z], [0, 0, Math.PI / 2], 10);
+    for (const s of [-1, 1]) b.sphere(0.14, color, [x + s * 0.37, y + 0.33, z], [0.25, 1, 1], 8);
+    b.cyl(0.06, 0.06, 0.06, '#2b2d30', [x, y + 0.49, z], undefined, 8);
+    b.box(0.5, 0.012, 0.1, '#5a5f66', [x, y + 0.475, z]);
   } else if (kind === 'loco') {
-    b.box(0.82, 0.32, 0.3, color, [x, y + 0.33, z]);
-    b.box(0.2, 0.12, 0.31, '#2a3a44', [x + 0.28, y + 0.42, z]);
-    b.box(0.5, 0.04, 0.26, '#3a3d40', [x - 0.1, y + 0.51, z]);
+    // locomotiva diesel de cabine: capô longo com grades, cabine com janelas, faixas na frente e tanque
+    b.box(0.56, 0.26, 0.24, color, [x - 0.12, y + 0.3, z]);
+    for (let k = 0; k < 4; k++) b.box(0.08, 0.14, 0.245, '#3a3d40', [x - 0.34 + k * 0.13, y + 0.32, z]);
+    b.box(0.22, 0.34, 0.3, color, [x + 0.27, y + 0.34, z]);
+    b.box(0.24, 0.03, 0.31, '#3a3d40', [x + 0.27, y + 0.525, z]);
+    b.box(0.012, 0.09, 0.24, '#2a3a44', [x + 0.385, y + 0.43, z]);
+    for (const s of [-1, 1]) b.box(0.12, 0.08, 0.012, '#2a3a44', [x + 0.27, y + 0.43, z + s * 0.152]);
+    b.box(0.012, 0.06, 0.3, C.yellow, [x + 0.385, y + 0.24, z]);
+    b.box(0.3, 0.07, 0.2, '#2b2d30', [x, y + 0.11, z]);
+    b.cyl(0.03, 0.03, 0.05, '#2b2d30', [x - 0.25, y + 0.46, z], undefined, 6);
+    for (const s of [-1, 1]) b.box(0.6, 0.012, 0.012, C.yellow, [x - 0.08, y + 0.4, z + s * 0.14]);
+  } else if (kind === 'flat') {
+    b.box(0.8, 0.04, 0.3, '#5a5f66', [x, y + 0.19, z]);
   } else {
-    b.box(0.8, 0.3, 0.3, color, [x, y + 0.32, z]);
-    b.box(0.2, 0.26, 0.31, '#3a3d40', [x, y + 0.31, z]);
+    b.box(0.8, 0.3, 0.3, color, [x, y + 0.33, z]);
+    const rib = `#${new THREE.Color(color).multiplyScalar(0.72).getHexString()}`;
+    for (let k = 0; k < 6; k++) b.box(0.012, 0.29, 0.305, rib, [x - 0.33 + k * 0.132, y + 0.33, z]);
+    b.box(0.22, 0.26, 0.31, '#3a3d40', [x, y + 0.31, z]);
+    b.box(0.82, 0.03, 0.31, '#5a5f66', [x, y + 0.49, z]);
   }
 }
 
@@ -267,37 +295,91 @@ export function buildRailStationModel(): Built {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
   b.box(3.9, 0.06, 3.9, '#6f6a60', [0, 0.03, 0]);
-  b.box(3.9, 0.04, 1.6, '#8a8478', [0, 0.065, 0.95]); // lastro de brita
-  track(b, 0.55, -1.85, 1.85);
-  track(b, 1.35, -1.85, 1.85);
-  // plataforma com cobertura e pilares
-  b.box(3.4, 0.18, 0.5, C.concrete, [0, 0.12, -0.05]);
-  b.box(3.4, 0.02, 0.06, C.yellow, [0, 0.215, 0.18]);
-  for (let i = 0; i < 5; i++) b.box(0.05, 0.6, 0.05, C.metalDark, [-1.5 + i * 0.75, 0.5, -0.12]);
-  b.box(3.5, 0.04, 0.62, C.roof, [0, 0.82, -0.02], [0.08, 0, 0]);
-  // prédio da estação com relógio e janelas
-  b.box(1.6, 0.8, 0.8, '#c9b89a', [-0.6, 0.46, -1.15]);
-  b.gable(1.7, 0.95, 0.35, C.roofRed, [-0.6, 0.86, -1.15]);
-  for (const x of [-1.15, -0.85, -0.35, -0.05]) g.box(0.18, 0.28, 0.02, '#ffffff', [x, 0.52, -0.745]);
-  b.box(0.26, 0.42, 0.03, C.woodDark, [-0.6, 0.27, -0.745]);
-  b.cyl(0.11, 0.11, 0.03, '#f0eee6', [-0.6, 0.75, -0.73], [Math.PI / 2, 0, 0], 12);
-  a.box(0.8, 0.1, 0.02, '#ffffff', [-0.6, 0.66, -0.742]);
-  // pátio de carga: guindaste de pórtico e carga paletizada
-  for (const x of [0.75, 1.75]) for (const z of [-1.7, -0.6]) strut(b, [x, 0.06, z], [x, 0.95, z], 0.06, C.yellow);
-  for (const z of [-1.7, -0.6]) strut(b, [0.75, 0.95, z], [1.75, 0.95, z], 0.06, C.yellow);
-  b.box(0.25, 0.12, 1.2, C.yellow, [1.25, 0.98, -1.15]);
-  containerStack(b, 0.95, -1.5, 2, 1, 2, 7);
-  // sinal ferroviário
-  strut(b, [1.85, 0.06, 0.15], [1.85, 0.8, 0.15], 0.03, C.metalDark, true);
-  b.box(0.08, 0.2, 0.06, '#1d1d1d', [1.85, 0.8, 0.15]);
-  b.sphere(0.025, C.red, [1.85, 0.85, 0.18]);
-  b.sphere(0.025, '#3fbf5a', [1.85, 0.76, 0.18]);
-  // composição estacionada na linha 2
-  wagon(b, -1.2, 0.06, 1.35, 'loco', '#2f5f8a');
-  wagon(b, -0.3, 0.06, 1.35, 'box', '#8a4b32');
-  wagon(b, 0.6, 0.06, 1.35, 'tank', '#2b2d30');
-  railing(b, [1.95, -1.9], [1.95, -0.3], 0.06, 0.3, '#8d9196', 3);
-  return { base: l.build(), moving: null, height: 1.3 };
+  track(b, 0.55, -1.9, 1.9);
+  track(b, 1.35, -1.9, 1.9);
+  // plataforma com borda de concreto, faixa tátil amarela, bancos, postes e placas
+  b.box(3.6, 0.2, 0.62, C.concrete, [0, 0.13, -0.02]);
+  b.box(3.6, 0.03, 0.08, '#d9d8d0', [0, 0.235, 0.27]);
+  b.box(3.6, 0.012, 0.05, C.yellow, [0, 0.24, 0.19]);
+  for (const x of [-1.2, 0.3]) {
+    b.box(0.26, 0.03, 0.08, C.woodDark, [x, 0.33, -0.2]);
+    for (const s of [-1, 1]) b.box(0.03, 0.09, 0.07, C.metalDark, [x + s * 0.1, 0.28, -0.2]);
+  }
+  // cobertura da plataforma: pilares, vigas em balanço, telhado inclinado com calha
+  for (let i = 0; i < 5; i++) {
+    const x = -1.5 + i * 0.75;
+    b.box(0.05, 0.62, 0.05, C.metalDark, [x, 0.54, -0.18]);
+    strut(b, [x, 0.8, -0.18], [x, 0.86, 0.22], 0.03, C.metalDark);
+  }
+  b.box(3.5, 0.04, 0.66, '#6f7a85', [0, 0.87, 0.0], [-0.08, 0, 0]);
+  b.box(3.5, 0.05, 0.05, C.metalDark, [0, 0.85, 0.32]);
+  a.box(3.5, 0.05, 0.012, '#ffffff', [0, 0.87, 0.34]);
+  for (const x of [-0.75, 1.0]) {
+    b.box(0.3, 0.1, 0.02, '#1f3a5f', [x, 0.72, 0.15]);
+    b.box(0.012, 0.12, 0.012, C.metalDark, [x, 0.8, 0.15]);
+  }
+  // prédio da estação: bloco central de dois andares com torre do relógio e alas térreas
+  const sx = -0.6;
+  const sz = -1.15;
+  const WALL = '#d8c8a8';
+  const TRIM = '#efe6d2';
+  b.box(0.8, 0.95, 0.75, WALL, [sx, 0.53, sz]);
+  b.gable(0.9, 0.85, 0.3, C.roofRed, [sx, 1.0, sz], Math.PI / 2);
+  for (const s of [-1, 1]) {
+    b.box(0.55, 0.55, 0.62, WALL, [sx + s * 0.67, 0.33, sz]);
+    b.gable(0.62, 0.7, 0.22, C.roofRed, [sx + s * 0.67, 0.6, sz]);
+    for (const dx of [-0.13, 0.13]) {
+      g.box(0.13, 0.24, 0.02, '#ffffff', [sx + s * 0.67 + dx, 0.36, sz + 0.315]);
+      b.box(0.17, 0.03, 0.03, TRIM, [sx + s * 0.67 + dx, 0.5, sz + 0.32]);
+    }
+  }
+  b.box(0.82, 0.04, 0.77, TRIM, [sx, 0.62, sz]);
+  for (const dx of [-0.2, 0.2]) g.box(0.14, 0.2, 0.02, '#ffffff', [sx + dx, 0.8, sz + 0.38]);
+  b.box(0.26, 0.4, 0.03, C.woodDark, [sx, 0.28, sz + 0.38]);
+  b.box(0.34, 0.04, 0.18, TRIM, [sx, 0.5, sz + 0.46]);
+  a.box(0.6, 0.09, 0.02, '#ffffff', [sx, 0.56, sz + 0.383]);
+  // torre do relógio sobre o bloco central
+  b.box(0.26, 0.36, 0.26, WALL, [sx, 1.28, sz]);
+  for (const [dx, dz, ry] of [
+    [0, 0.135, 0],
+    [0.135, 0, Math.PI / 2],
+  ] as const) {
+    b.cyl(0.08, 0.08, 0.02, '#f0eee6', [sx + dx, 1.32, sz + dz], [Math.PI / 2, 0, ry], 12);
+    b.box(0.012, 0.06, 0.025, '#1d1d1d', [sx + dx, 1.34, sz + dz + (dz ? 0.012 : 0)], [0, ry, 0]);
+  }
+  b.cyl(0.02, 0.21, 0.18, C.roofRed, [sx, 1.55, sz], [0, Math.PI / 4, 0], 4);
+  // passarela sobre as linhas: escada na plataforma, ponte e escada do outro lado
+  const fx = 1.35;
+  for (const z of [-0.3, 1.82]) {
+    for (const s of [-1, 1]) b.box(0.04, 0.9, 0.04, C.metalDark, [fx + s * 0.12, 0.55, z]);
+  }
+  b.box(0.32, 0.06, 2.2, '#8d939a', [fx, 1.0, 0.76]);
+  for (const s of [-1, 1]) b.box(0.012, 0.14, 2.2, '#c9ccc9', [fx + s * 0.15, 1.1, 0.76]);
+  strut(b, [fx - 0.35, 0.24, -0.25], [fx - 0.06, 0.98, -0.25], 0.09, '#8d939a');
+  for (const s of [-1, 1]) b.box(0.05, 0.86, 0.05, C.metalDark, [fx + s * 0.12, 0.53, 0.95]); // pilar entre as linhas
+  // pátio de carga: pórtico amarelo sobre a pilha de contêineres
+  for (const x of [0.55, 1.75]) {
+    for (const z of [-1.75, -0.75]) strut(b, [x, 0.06, z], [x, 0.95, z], 0.05, C.yellow);
+    strut(b, [x, 0.95, -1.75], [x, 0.95, -0.75], 0.06, C.yellow);
+  }
+  b.box(1.3, 0.1, 0.12, C.yellow, [1.15, 1.0, -1.25]);
+  b.box(0.22, 0.12, 0.2, '#3a3d40', [1.0, 0.92, -1.25]);
+  containerStack(b, 0.85, -1.55, 2, 1, 2, 7);
+  // sinal ferroviário de três focos no fim da plataforma
+  strut(b, [1.85, 0.06, 0.25], [1.85, 0.95, 0.25], 0.03, C.metalDark, true);
+  b.box(0.1, 0.28, 0.07, '#1d1d1d', [1.85, 0.88, 0.25]);
+  b.sphere(0.022, C.red, [1.85, 0.96, 0.29]);
+  b.sphere(0.022, C.yellow, [1.85, 0.88, 0.29]);
+  b.sphere(0.022, '#3fbf5a', [1.85, 0.8, 0.29]);
+  // composição estacionada na linha 2: locomotiva, vagão fechado, tanque e plataforma com contêiner
+  wagon(b, -1.4, 0.06, 1.35, 'loco', '#2f5f8a');
+  a.box(0.02, 0.1, 0.24, '#ffffff', [-0.98, 0.38, 1.35]);
+  wagon(b, -0.52, 0.06, 1.35, 'box', '#8a4b32');
+  wagon(b, 0.36, 0.06, 1.35, 'tank', '#2b2d30');
+  wagon(b, 1.24, 0.06, 1.35, 'flat', '#5a5f66');
+  box20(b, [1.24, 0.27, 1.35], CONTAINER_COLORS[2]!, 0.62);
+  railing(b, [1.95, -1.9], [1.95, -0.4], 0.06, 0.3, '#8d9196', 3);
+  return { base: l.build(), moving: null, height: 1.6 };
 }
 
 // ------------------------------------------------------------------ veículos de carga (mapa)
