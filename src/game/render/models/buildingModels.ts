@@ -528,37 +528,90 @@ function buildTower(): Omit<BuildingModel, 'detail'> {
   const { body: b, accent: a, glass: g } = l;
   b.box(1.8, 0.14, 1.8, C.concreteDark, [0, 0.07, 0]);
   const h = 3.0;
-  for (const [x, z] of [
-    [-0.6, -0.6],
-    [0.6, -0.6],
-    [-0.6, 0.6],
-    [0.6, 0.6],
-  ] as const) {
-    b.box(0.08, h, 0.08, C.woodDark, [x * 0.82, h / 2, z * 0.82], [z * 0.07, 0, -x * 0.07]);
+  // pernas inclinadas (mais abertas no chão) sobre sapatas de concreto
+  const leg = (y: number): number => 0.57 - (0.11 * (y - 0.14)) / (h - 0.14);
+  const corners = [
+    [-1, -1],
+    [1, -1],
+    [1, 1],
+    [-1, 1],
+  ] as const;
+  for (const [sx, sz] of corners) {
+    b.box(0.22, 0.12, 0.22, C.concrete, [sx * 0.57, 0.2, sz * 0.57]);
+    strut(b, [sx * 0.57, 0.26, sz * 0.57], [sx * 0.46, h, sz * 0.46], 0.095, C.woodDark);
   }
-  // travamentos em X
-  for (const y of [0.9, 1.9]) {
-    b.box(1.05, 0.05, 0.05, C.wood, [0, y, 0.5], [0, 0, 0.7]);
-    b.box(1.05, 0.05, 0.05, C.wood, [0, y, -0.5], [0, 0, -0.7]);
-    b.box(0.05, 0.05, 1.05, C.wood, [0.5, y, 0], [0.7, 0, 0]);
-    b.box(0.05, 0.05, 1.05, C.wood, [-0.5, y, 0], [-0.7, 0, 0]);
+  // travessas horizontais e contraventamento em X de perna a perna nas quatro faces
+  const lv = [0.3, 1.2, 2.1, h - 0.05];
+  for (let i = 0; i < lv.length; i++) {
+    const y = lv[i]!;
+    const w = leg(y);
+    for (let k = 0; k < 4; k++) {
+      const [ax, az] = corners[k]!;
+      const [bx, bz] = corners[(k + 1) % 4]!;
+      strut(b, [ax * w, y, az * w], [bx * w, y, bz * w], 0.045, C.wood);
+      if (i < lv.length - 1) {
+        const y2 = lv[i + 1]!;
+        const w2 = leg(y2);
+        strut(b, [ax * w, y, az * w], [bx * w2, y2, bz * w2], 0.035, C.wood);
+        strut(b, [bx * w, y, bz * w], [ax * w2, y2, az * w2], 0.035, C.wood);
+      }
+    }
   }
-  // cabine
-  b.box(1.3, 0.1, 1.3, C.woodDark, [0, h + 0.05, 0]);
-  b.box(1.1, 0.3, 1.1, C.wood, [0, h + 0.25, 0]);
-  for (const [x, z] of [
-    [-0.5, -0.5],
-    [0.5, -0.5],
-    [-0.5, 0.5],
-    [0.5, 0.5],
-  ] as const)
-    b.box(0.06, 0.6, 0.06, C.woodDark, [x, h + 0.6, z]);
-  g.box(1.0, 0.28, 0.02, '#ffffff', [0, h + 0.55, 0.52]);
-  g.box(0.02, 0.28, 1.0, '#ffffff', [0.52, h + 0.55, 0]);
-  b.gable(1.4, 1.4, 0.4, C.roof, [0, h + 0.9, 0]);
-  b.cyl(0.1, 0.14, 0.18, C.metalDark, [0.45, h + 0.5, 0.45], [0.6, 0, -0.6], 8); // holofote
-  b.box(0.4, 0.04, 0.04, C.metalDark, [0.55, h + 0.45, -0.3]); // metralhadora
-  a.box(1.42, 0.08, 0.02, '#ffffff', [0, h + 0.92, 0.7]);
+  // escada de mão na face da frente até o alçapão da plataforma
+  for (const dx of [-0.13, 0.13]) strut(b, [0.2 + dx, 0.14, 0.82], [0.2 + dx, h + 0.05, 0.42], 0.022, C.steel);
+  for (let k = 1; k < 13; k++) {
+    const f = k / 13;
+    b.box(0.26, 0.018, 0.018, C.steel, [0.2, 0.14 + f * (h - 0.09), 0.82 - f * 0.4]);
+  }
+  // plataforma de tábuas com mãos-francesas, passarela e guarda-corpo
+  b.box(1.42, 0.08, 1.42, C.woodDark, [0, h + 0.04, 0]);
+  for (let k = 0; k < 7; k++) b.box(1.4, 0.006, 0.012, '#4a3626', [0, h + 0.083, -0.6 + k * 0.2]);
+  for (const [sx, sz] of corners) {
+    strut(b, [sx * leg(h - 0.5), h - 0.5, sz * leg(h - 0.5)], [sx * 0.66, h, sz * 0.46], 0.03, C.woodDark);
+    strut(b, [sx * leg(h - 0.5), h - 0.5, sz * leg(h - 0.5)], [sx * 0.46, h, sz * 0.66], 0.03, C.woodDark);
+  }
+  for (const [sx, sz] of corners) b.box(0.04, 0.32, 0.04, C.woodDark, [sx * 0.68, h + 0.24, sz * 0.68]);
+  for (const y of [h + 0.22, h + 0.39]) {
+    for (const s of [-1, 1]) {
+      b.box(1.38, 0.025, 0.025, C.wood, [0, y, s * 0.68]);
+      if (s === 1) continue;
+      b.box(0.025, 0.025, 1.38, C.wood, [0.68, y, 0]);
+      b.box(0.025, 0.025, 1.38, C.wood, [-0.68, y, 0]);
+    }
+  }
+  // cabine: parede baixa de tábuas, faixa de janelas com montantes e a verga
+  b.box(1.1, 0.34, 1.1, C.wood, [0, h + 0.25, 0]);
+  for (let k = 0; k < 3; k++) {
+    const y = h + 0.14 + k * 0.1;
+    b.box(1.112, 0.008, 1.112, '#6f5236', [0, y, 0]);
+  }
+  g.box(1.04, 0.3, 1.04, '#ffffff', [0, h + 0.57, 0]);
+  for (const [sx, sz] of corners) b.box(0.07, 0.62, 0.07, C.woodDark, [sx * 0.52, h + 0.45, sz * 0.52]);
+  for (const s of [-1, 1])
+    for (const k of [-0.18, 0.18]) {
+      b.box(0.03, 0.3, 0.03, C.woodDark, [k, h + 0.57, s * 0.525]);
+      b.box(0.03, 0.3, 0.03, C.woodDark, [s * 0.525, h + 0.57, k]);
+    }
+  b.box(1.12, 0.06, 1.12, C.woodDark, [0, h + 0.75, 0]);
+  // telhado de quatro águas com beiral e a faixa da nação na testeira
+  const roof = new THREE.CylinderGeometry(0.03, 1.04, 0.42, 4);
+  roof.deleteAttribute('normal');
+  b.add(roof, C.roof, { pos: [0, h + 0.99, 0], rot: [0, Math.PI / 4, 0] });
+  b.box(1.48, 0.06, 1.48, C.woodDark, [0, h + 0.8, 0]);
+  for (const s of [-1, 1]) {
+    a.box(1.5, 0.08, 0.014, '#ffffff', [0, h + 0.8, s * 0.746]);
+    a.box(0.014, 0.08, 1.5, '#ffffff', [s * 0.746, h + 0.8, 0]);
+  }
+  // holofote com forquilha no canto, metralhadora no pino da janela da frente, antena e bandeira no topo
+  b.box(0.04, 0.12, 0.04, C.metalDark, [0.6, h + 0.5, 0.6]);
+  b.cyl(0.09, 0.12, 0.16, C.metalDark, [0.6, h + 0.6, 0.6], [0.6, 0, -0.6], 8);
+  b.cyl(0.085, 0.085, 0.01, '#f2e6a0', [0.65, h + 0.65, 0.65], [0.6, 0, -0.6], 8);
+  b.box(0.03, 0.1, 0.03, C.metalDark, [-0.25, h + 0.47, 0.58]);
+  b.box(0.06, 0.06, 0.3, '#2b2e31', [-0.25, h + 0.55, 0.66]);
+  b.box(0.012, 0.012, 0.2, '#2b2e31', [-0.25, h + 0.56, 0.9]);
+  b.cyl(0.006, 0.006, 0.5, C.steel, [-0.42, h + 1.05, -0.42], undefined, 4);
+  b.cyl(0.008, 0.008, 0.45, C.steel, [0, h + 1.38, 0], undefined, 4);
+  a.box(0.2, 0.12, 0.008, '#ffffff', [0.1, h + 1.52, 0]);
   return { base: l.build(), moving: null, height: h + 1.3 };
 }
 
