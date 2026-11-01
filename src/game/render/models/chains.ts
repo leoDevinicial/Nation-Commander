@@ -131,36 +131,123 @@ export function buildRefinery(): Built {
   return { base: l.build(), moving: null, height: 3.6, smoke: [[fx, FH + 0.3, fz]] };
 }
 
-/** Siderúrgica (2×2): alto-forno com chaminé, galpão de laminação e pilhas de chapas. */
+/**
+ * Siderúrgica (2×2), em low poly:
+ * - alto-forno dentro da estrutura de aço, com o tubo de descida até o coletor de pó e a ponte inclinada de carga;
+ * - três regeneradores (torres de topo arredondado), a marca mais reconhecível da usina;
+ * - linha férrea com o carro-torpedo do ferro gusa, montes de minério e de carvão;
+ * - galpão de laminação com telhado em dente de serra, pátio de bobinas e placas sob um pórtico rolante;
+ * - chaminé de tijolo com a faixa da nação.
+ */
 export function buildSteelMill(): Built {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
+  const HOT = '#e8792c';
   b.box(3.7, 0.12, 3.7, C.concreteDark, [0, 0.06, 0]);
-  // alto-forno: corpo cônico, cinta e a rampa de carga
-  b.cyl(0.55, 0.75, 2.2, RUST, [-0.9, 1.2, -0.8], undefined, 14);
-  b.cyl(0.62, 0.62, 0.12, DARK, [-0.9, 1.6, -0.8], undefined, 14);
-  b.cyl(0.35, 0.55, 0.5, DARK, [-0.9, 2.55, -0.8], undefined, 12);
-  b.box(0.18, 0.12, 2.0, STEEL, [-0.2, 1.45, -0.8], [0.6, 0, 0]);
-  // chaminé alta
-  b.cyl(0.18, 0.24, 3.6, BRICK, [1.3, 1.9, -1.3], undefined, 10);
-  a.cyl(0.25, 0.25, 0.14, '#ffffff', [1.3, 3.2, -1.3], undefined, 10);
-  // galpão de laminação com telhado em shed
-  b.box(2.6, 0.9, 1.3, C.concrete, [0.2, 0.57, 0.95]);
-  for (let i = 0; i < 4; i++) {
-    b.box(0.65, 0.06, 1.34, C.roof, [-0.78 + i * 0.65, 1.12, 0.95], [0, 0, 0.35]);
-    g.box(0.02, 0.18, 1.2, '#ffffff', [-0.5 + i * 0.65, 1.1, 0.95]);
+  b.box(3.5, 0.012, 3.5, '#7f7a71', [0, 0.126, 0]);
+
+  // --- alto-forno
+  const [fx, fz] = [-1.05, -0.95];
+  b.cyl(0.62, 0.66, 0.35, C.concrete, [fx, 0.3, fz], undefined, 12);
+  b.cyl(0.5, 0.6, 0.9, RUST, [fx, 0.92, fz], undefined, 12);
+  b.cyl(0.6, 0.5, 0.25, RUST, [fx, 1.5, fz], undefined, 12);
+  b.cyl(0.5, 0.38, 1.0, RUST, [fx, 2.12, fz], undefined, 12);
+  b.cyl(0.38, 0.2, 0.35, DARK, [fx, 2.8, fz], undefined, 10);
+  b.cyl(0.66, 0.66, 0.1, DARK, [fx, 1.35, fz], undefined, 12);
+  a.cyl(0.505, 0.505, 0.1, '#ffffff', [fx, 1.9, fz], undefined, 12);
+  // estrutura de aço em volta
+  for (const [ox, oz] of [
+    [-0.72, -0.72],
+    [0.72, -0.72],
+    [0.72, 0.72],
+    [-0.72, 0.72],
+  ] as const) {
+    b.box(0.06, 3.0, 0.06, DARK, [fx + ox, 1.62, fz + oz]);
   }
-  g.box(1.6, 0.22, 0.02, '#ffffff', [0.2, 0.62, 1.61]);
-  // chapas e bobinas de aço no pátio
-  for (let i = 0; i < 3; i++) b.box(0.9, 0.06, 0.5, STEEL, [1.1, 0.16 + i * 0.07, -0.2]);
-  for (const x of [0.3, 0.75]) b.cyl(0.22, 0.22, 0.32, STEEL, [x, 0.34, -0.15], [Math.PI / 2, 0, 0], 12);
+  for (const y of [1.1, 2.0, 2.9]) {
+    b.box(1.5, 0.05, 0.05, DARK, [fx, y, fz - 0.72]);
+    b.box(1.5, 0.05, 0.05, DARK, [fx, y, fz + 0.72]);
+    b.box(0.05, 0.05, 1.5, DARK, [fx - 0.72, y, fz]);
+    b.box(0.05, 0.05, 1.5, DARK, [fx + 0.72, y, fz]);
+  }
+  // tubo de descida (U invertido) até o coletor de pó
+  strut(b, [fx + 0.1, 3.0, fz], [fx + 0.1, 3.35, fz], 0.08, RUST);
+  strut(b, [fx + 0.1, 3.35, fz], [-0.05, 3.35, -1.55], 0.08, RUST);
+  strut(b, [-0.05, 3.35, -1.55], [-0.05, 1.6, -1.55], 0.08, RUST);
+  b.cyl(0.24, 0.24, 0.6, STEEL, [-0.05, 1.3, -1.55], undefined, 10);
+  b.cyl(0.05, 0.24, 0.35, STEEL, [-0.05, 0.82, -1.55], undefined, 10);
+  for (const [ox, oz] of [
+    [-0.2, -0.2],
+    [0.2, 0.2],
+  ] as const) b.box(0.05, 0.75, 0.05, DARK, [-0.05 + ox, 0.5, -1.55 + oz]);
+  // ponte inclinada de carga (do pátio até o topo)
+  strut(b, [0.05, 0.15, -0.15], [fx + 0.45, 2.85, fz + 0.25], 0.11, STEEL);
+  strut(b, [0.12, 0.15, -0.05], [fx + 0.52, 2.85, fz + 0.35], 0.03, DARK);
+  // casa de corrida: o gusa saindo quente
+  b.box(0.7, 0.4, 0.45, C.concrete, [fx + 0.05, 0.32, fz + 0.85]);
+  b.box(0.35, 0.03, 0.12, HOT, [fx + 0.05, 0.14, fz + 1.12]);
+
+  // --- três regeneradores
+  for (const x of [0.45, 0.85, 1.25]) {
+    const z = -1.45;
+    b.cyl(0.18, 0.2, 2.1, '#b0aea8', [x, 1.17, z], undefined, 10);
+    b.sphere(0.18, '#b0aea8', [x, 2.22, z], [1, 0.8, 1], 10);
+    b.cyl(0.21, 0.21, 0.05, DARK, [x, 0.5, z], undefined, 10);
+    b.cyl(0.21, 0.21, 0.05, DARK, [x, 1.5, z], undefined, 10);
+  }
+  strut(b, [0.25, 1.75, -1.45], [fx + 0.6, 1.75, fz - 0.3], 0.06, RUST);
+
+  // --- chaminé
+  b.cyl(0.16, 0.22, 3.4, BRICK, [1.6, 1.82, -0.75], undefined, 10);
+  a.cyl(0.21, 0.21, 0.14, '#ffffff', [1.6, 3.15, -0.75], undefined, 10);
+  b.cyl(0.17, 0.17, 0.06, DARK, [1.6, 3.53, -0.75], undefined, 10);
+
+  // --- linha férrea com o carro-torpedo
+  const rz = -0.12;
+  for (const dz of [-0.09, 0.09]) b.box(3.5, 0.03, 0.03, '#4a4e53', [0, 0.15, rz + dz]);
+  for (let x = -1.65; x <= 1.65; x += 0.25) b.box(0.07, 0.025, 0.3, '#5a4a3a', [x, 0.135, rz]);
+  const tx = 0.75;
+  b.box(1.1, 0.08, 0.22, DARK, [tx, 0.22, rz]);
+  b.cyl(0.17, 0.17, 0.75, '#6c7177', [tx, 0.42, rz], [0, 0, Math.PI / 2], 10);
+  for (const s of [-1, 1]) b.cyl(0.09, 0.17, 0.22, '#6c7177', [tx + s * 0.48, 0.42, rz], [0, 0, (s * Math.PI) / 2], 10);
+  b.box(0.18, 0.06, 0.12, HOT, [tx, 0.59, rz]);
+  for (const x of [-0.4, -0.15, 0.15, 0.4]) b.cyl(0.06, 0.06, 0.24, C.rubber, [tx + x, 0.2, rz], [Math.PI / 2, 0, 0], 8);
+
+  // --- montes de minério e de carvão
+  b.cyl(0.0, 0.5, 0.45, '#8a4a32', [1.3, 0.35, 0.45], undefined, 7);
+  b.cyl(0.0, 0.42, 0.38, '#2b2b2d', [0.55, 0.31, 0.5], undefined, 7);
+
+  // --- galpão de laminação (dente de serra)
+  const [mx, mz] = [-0.75, 1.15];
+  b.box(2.0, 0.85, 1.2, C.concrete, [mx, 0.55, mz]);
+  for (let i = 0; i < 4; i++) {
+    const x = mx - 0.75 + i * 0.5;
+    b.box(0.52, 0.05, 1.24, C.roof, [x, 1.08, mz], [0, 0, 0.42]);
+    g.box(0.02, 0.2, 1.16, '#ffffff', [x + 0.24, 1.07, mz]);
+  }
+  g.box(1.6, 0.2, 0.02, '#ffffff', [mx, 0.66, mz + 0.61]);
+  b.box(0.45, 0.55, 0.03, C.metalDark, [mx + 0.7, 0.42, mz + 0.61]);
+  a.box(2.02, 0.09, 0.02, '#ffffff', [mx, 0.9, mz + 0.61]);
+
+  // --- pátio de bobinas e placas sob o pórtico rolante
+  const [yx, yz] = [1.05, 1.3];
+  for (const x of [0.6, 0.95, 1.3]) b.cyl(0.17, 0.17, 0.26, STEEL, [x, 0.3, yz - 0.25], [Math.PI / 2, 0, 0], 12);
+  for (let i = 0; i < 3; i++) b.box(0.85, 0.06, 0.4, '#7d848b', [yx, 0.16 + i * 0.065, yz + 0.25]);
+  for (const s of [-1, 1]) {
+    b.box(0.06, 1.0, 0.06, C.yellow, [yx + s * 0.62, 0.62, yz - 0.45]);
+    b.box(0.06, 1.0, 0.06, C.yellow, [yx + s * 0.62, 0.62, yz + 0.5]);
+    b.box(0.06, 0.06, 1.0, C.yellow, [yx + s * 0.62, 1.12, yz + 0.02]);
+  }
+  b.box(1.3, 0.08, 0.1, C.yellow, [yx, 1.17, yz + 0.1]);
+  b.box(0.2, 0.12, 0.16, C.metalDark, [yx + 0.2, 1.07, yz + 0.1]);
+  strut(b, [yx + 0.2, 1.0, yz + 0.1], [yx + 0.2, 0.55, yz + 0.1], 0.01, DARK);
   return {
     base: l.build(),
     moving: null,
-    height: 3.7,
+    height: 3.5,
     smoke: [
-      [1.3, 3.75, -1.3],
-      [-0.9, 2.85, -0.8],
+      [1.6, 3.6, -0.75],
+      [fx, 3.0, fz],
     ],
   };
 }
