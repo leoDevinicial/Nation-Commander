@@ -55,7 +55,8 @@ O Nation Commander é **low poly estilizado**, por decisão do responsável pelo
   dizer "mais antigo"; usar a ordem de `Simulation.entities`. Nenhuma punição automática: ver `docs/kac/KAC_ENFORCEMENT_POLICY.md`.
 - KNPS — Kaiser Network Performance System (`server/knps/`, `src/net/netStats.ts`, `docs/knps/`): compressão do
   WebSocket, fila de saída limitada (só snapshot é descartável), snapshot extra no tick da ordem e painel de conexão.
-  Nada do KNPS muda regra ou velocidade para um jogador. Medir com `npx tsx scripts/knps-baseline.ts`.
+  Várias regiões (KNPS-08): `KNPS_REGION*` no servidor e `VITE_GAME_SERVERS` no cliente; a letra da região abre o
+  código da sala. Nada do KNPS muda regra ou velocidade para um jogador. Medir com `npx tsx scripts/knps-baseline.ts`.
 - Clima e dia/noite (`shared/sim/climate.ts`, `docs/CLIMA_DIA_NOITE.md`) são só visuais, exceto a usina solar.
 - Minas terrestres (`shared/sim/mines.ts`) não são entidades: o snapshot envia só as do dono e as já detectadas
   (`MineSystem.visibleTo`). O satélite do Programa Espacial revela o resto do mapa, mas nunca as minas.

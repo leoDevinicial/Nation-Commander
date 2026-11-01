@@ -1,6 +1,7 @@
 import type { WebSocket } from 'ws';
 import type { PublicUser, ServerMessage } from '../shared/protocol.ts';
 import { KNPS_SEND_QUEUE_LIMIT } from './knps/transport.ts';
+import { RttTracker } from './knps/region.ts';
 
 /** Token bucket simples para limitar mensagens por conexão. */
 class RateLimiter {
@@ -30,6 +31,8 @@ export class Connection {
   ip = 'desconhecido';
   private readonly limiter = new RateLimiter(30, 60);
   violations = 0;
+  /** KNPS: ping de rede medido pelo servidor (ping de protocolo do WebSocket). */
+  readonly rtt = new RttTracker();
 
   constructor(readonly ws: WebSocket) {}
 

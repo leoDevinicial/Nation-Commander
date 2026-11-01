@@ -61,6 +61,14 @@ export function LobbyScreen() {
                         <div className="truncate font-semibold">
                           {p.name} {p.userId === room.hostUserId && <span className="text-xs text-brass-400">★ anfitrião</span>}
                           {p.isAI && <span className="ml-1 text-xs text-ink-400">(IA)</span>}
+                          {p.ping !== undefined && (
+                            <span
+                              className={`ml-2 font-mono text-xs ${p.ping > 250 ? 'text-red-300' : p.ping > 150 ? 'text-brass-400' : 'text-ink-400'}`}
+                              title="Ping de rede até o servidor desta sala, medido pelo servidor (KNPS)"
+                            >
+                              {p.ping} ms
+                            </span>
+                          )}
                         </div>
                         {p === mine ? (
                           <div className="mt-1 max-w-xs">

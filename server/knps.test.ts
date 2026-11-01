@@ -163,3 +163,65 @@ describe('KNPS: amostras do servidor', () => {
     expect(s.pct(0.95)).toBe(25);
   });
 });
+
+describe('KNPS-08: região do servidor', () => {
+  it('lê a região do ambiente e recusa letra fora do alfabeto dos códigos', async () => {
+    const { regionFromEnv } = await import('./knps/region.ts');
+    expect(regionFromEnv({ KNPS_REGION: 'us-east', KNPS_REGION_LABEL: 'Virgínia (EUA)', KNPS_REGION_LETTER: 'v' })).toEqual({
+      id: 'us-east',
+      label: 'Virgínia (EUA)',
+      letter: 'V',
+    });
+    // O e o 0 não existem nos códigos (ambíguos): a letra é ignorada
+    expect(regionFromEnv({ KNPS_REGION: 'x', KNPS_REGION_LETTER: 'O' }).letter).toBe('');
+    expect(regionFromEnv({})).toEqual({ id: '', label: '', letter: '' });
+  });
+
+  it('com a letra configurada, todo código de sala começa com ela', async () => {
+    const mgr = new RoomManager({ reconnectGraceMs: 1000, record: async () => true, autoLoop: false, seed: 1, now: () => 0 }, 50);
+    mgr.codePrefix = 'V';
+    for (let i = 0; i < 20; i++) {
+      const ws = { readyState: 1, OPEN: 1, bufferedAmount: 0, send: () => {}, close: () => {} };
+      const c = new Connection(ws as unknown as WebSocket);
+      c.user = { id: `u${i}`, name: `u${i}`, guest: false };
+      const made = mgr.create(c, 'vs_ai', 'BRA');
+      expect(typeof made).not.toBe('string');
+      expect((made as Room).code).toMatch(/^V[A-Z2-9]{4}$/);
+    }
+  });
+
+  it('ping de rede medido pelo servidor: mediana, pings perdidos e o agregado sem identidade', async () => {
+    const { RttTracker, RegionTelemetry } = await import('./knps/region.ts');
+    const t = new RttTracker();
+    for (const [sent, back] of [
+      [0, 80],
+      [5000, 5090],
+      [10000, 10070],
+    ]) {
+      t.sent(sent!);
+      t.pong(back!);
+    }
+    expect(t.median).toBe(80);
+    t.sent(15000);
+    t.sent(20000);
+    expect(t.missed).toBe(1);
+    expect(t.pong(20120)).toBe(120);
+    expect(t.missed).toBe(0);
+    // pong sem ping pendente não vale
+    expect(t.pong(30000)).toBeNull();
+    const agg = new RegionTelemetry();
+    for (const m of [40, 120, 130, 220, 400]) agg.record(m);
+    expect(agg.summary()).toEqual({ '<50ms': 1, '<100ms': 0, '<150ms': 2, '<200ms': 0, '<300ms': 1, '>=300ms': 1 });
+  });
+
+  it('o lobby mostra o ping de rede de cada humano (arredondado), nunca de bot', async () => {
+    const r = room();
+    await r.send({ t: 'hello', protocol: PROTOCOL_VERSION, token: 'ana' });
+    r.conn.rtt.sent(0);
+    r.conn.rtt.pong(123);
+    await r.send({ t: 'create_room', mode: 'vs_ai', countryId: 'BRA' });
+    const info = r.sent.filter((m): m is Extract<ServerMessage, { t: 'room' }> => m.t === 'room').at(-1)!.room!;
+    expect(info.players.find((p) => !p.isAI)!.ping).toBe(125);
+    expect(info.players.filter((p) => p.isAI).every((p) => p.ping === undefined)).toBe(true);
+  });
+});

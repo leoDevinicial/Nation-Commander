@@ -1395,7 +1395,18 @@ export class Room {
 }
 
 function publicPlayer(p: RoomPlayer): RoomPlayerInfo {
-  return { slot: p.slot, userId: publicId(p.userId), name: p.name, countryId: p.countryId, ready: p.ready, isAI: p.isAI, connected: p.connected, ...(p.team ? { team: p.team } : {}) };
+  const ping = p.conn?.rtt.median;
+  return {
+    slot: p.slot,
+    userId: publicId(p.userId),
+    name: p.name,
+    countryId: p.countryId,
+    ready: p.ready,
+    isAI: p.isAI,
+    connected: p.connected,
+    ...(p.team ? { team: p.team } : {}),
+    ...(ping !== null && ping !== undefined && !p.isAI ? { ping: Math.round(ping / 5) * 5 } : {}),
+  };
 }
 
 /** País sorteado entre os que ninguém da sala usa (bots variam de partida para partida). */

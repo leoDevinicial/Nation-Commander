@@ -18,6 +18,14 @@ export class RoomManager {
   private readonly restoring = new Map<string, Promise<Room | undefined>>();
   private readonly roomDeps: RoomDeps;
 
+  /** KNPS-08: letra da região no início dos códigos de sala ('' = sem região). */
+  codePrefix = '';
+
+  /** KNPS: reenvia o lobby das salas que ainda não começaram (o ping de cada jogador muda com o tempo). */
+  refreshLobbies(): void {
+    for (const r of this.rooms.values()) if (r.status === 'lobby') r.broadcastRoom();
+  }
+
   constructor(
     deps: Omit<RoomDeps, 'onEmpty' | 'onEnded'>,
     private readonly maxRooms: number,
@@ -52,7 +60,8 @@ export class RoomManager {
     if (this.rooms.size >= this.maxRooms) return 'Servidor cheio, tente novamente em instantes';
     let code: string;
     do {
-      code = Array.from({ length: 5 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
+      // KNPS-08: com a região configurada, o código começa com a letra dela (o cliente sabe a que servidor ir)
+      code = this.codePrefix + Array.from({ length: 5 - this.codePrefix.length }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
     } while (this.rooms.has(code));
     const room = new Room(code, mode, { conn: host, countryId }, this.roomDeps);
     if (isPublic && mode === 'pvp') room.isPublic = true;

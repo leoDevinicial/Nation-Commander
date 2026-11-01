@@ -89,6 +89,8 @@ export interface RoomPlayerInfo {
   connected: boolean;
   /** Time (1 a 3) nas partidas com mais nações: o mesmo time começa aliado. Ausente = todos contra todos. */
   team?: number | null;
+  /** KNPS: ping de rede até o servidor (ms, medido pelo servidor, arredondado a 5 ms). Ausente para bots e antes da 1ª medida. */
+  ping?: number;
 }
 
 export interface RoomInfo {
@@ -206,6 +208,8 @@ export type ClientMessage =
 
 export type ServerMessage =
   | { t: 'welcome'; user: PublicUser; serverVersion: string }
+  /** KNPS: ping de rede medido pelo servidor (ms) e a região deste servidor (vazia sem configuração). */
+  | { t: 'net'; rtt: number; region: string }
   | { t: 'error'; code: string; message: string }
   | { t: 'room'; room: RoomInfo | null }
   | { t: 'room_list'; rooms: PublicRoomSummary[] }

@@ -14,6 +14,7 @@ import { isOriginAllowed } from './origins.ts';
 import { FileMatchStore, SupabaseMatchStore, type MatchStore } from './matchStore.ts';
 import { RoomManager } from './RoomManager.ts';
 import { KNPS_DEFLATE } from './knps/transport.ts';
+import { RegionTelemetry, regionFromEnv } from './knps/region.ts';
 import { getSupabase, kacSupabaseBackend, recordMatch, verifyAccessToken } from './supabase.ts';
 
 // partidas em andamento sobrevivem a reinícios: Supabase em produção, arquivos no desenvolvimento
@@ -45,8 +46,33 @@ if (kacStore) {
 const kacAdmin = new KacAdmin(config.kacAdminToken || undefined, { journal: kacJournal, store: kacStore, network: networkGuard, startedAt: Date.now() });
 if (config.kacAdminToken && !kacAdmin.enabled) log.warn('KAC_ADMIN_TOKEN curto demais (mínimo 24 caracteres): painel /kac desligado');
 
+// KNPS-08: região deste servidor (letra no início dos códigos de sala) e o agregado do ping de rede dos jogadores
+const region = regionFromEnv(process.env);
+rooms.codePrefix = region.letter;
+const regionTelemetry = new RegionTelemetry();
+if (region.id) log.info('Região do servidor', { region: region.id, letter: region.letter || null });
+
 const http = createServer((req, res) => {
   const path = (req.url ?? '/').split('?')[0];
+  // KNPS: sonda leve de ping por HTTP (o cliente mede cada região antes de criar a sala). Sem dados, sem cache.
+  if (path === '/knps/ping') {
+    res.writeHead(204, { 'access-control-allow-origin': '*', 'cache-control': 'no-store', 'timing-allow-origin': '*' });
+    res.end();
+    return;
+  }
+  // KNPS-08: salas públicas desta região, para a lista que junta todas as regiões (as mesmas que o list_rooms mostra
+  // a qualquer jogador conectado). Só para as origens do jogo.
+  if (path === '/knps/rooms' && req.method === 'GET') {
+    const origin = req.headers.origin;
+    const allowed = isOriginAllowed(origin, config.allowedOrigins);
+    res.writeHead(allowed ? 200 : 403, {
+      'content-type': 'application/json',
+      'cache-control': 'no-store',
+      ...(allowed && origin ? { 'access-control-allow-origin': origin, vary: 'Origin' } : {}),
+    });
+    res.end(allowed ? JSON.stringify({ region: region.id, rooms: rooms.listPublic() }) : '{}');
+    return;
+  }
   if (path === '/kac' && req.method === 'GET') {
     const reply = kacAdmin.handle(new URL(req.url ?? '/kac', 'http://local'), req.headers.authorization, clientIp(req));
     res.writeHead(reply.status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
@@ -55,7 +81,17 @@ const http = createServer((req, res) => {
   }
   if (req.url === '/health' || req.url === '/') {
     res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' });
-    res.end(JSON.stringify({ ok: true, version: GAME_VERSION, ...rooms.stats(), players: deps.sessions.size }));
+    res.end(
+      JSON.stringify({
+        ok: true,
+        version: GAME_VERSION,
+        ...rooms.stats(),
+        players: deps.sessions.size,
+        region: region.id || null,
+        letter: region.letter || null,
+        rttBuckets: regionTelemetry.summary(),
+      }),
+    );
     return;
   }
   res.writeHead(404).end();
@@ -90,13 +126,17 @@ wss.on('connection', (ws, req) => {
     ws.close(4009, 'too many connections');
     return;
   }
-  let alive = true;
-  ws.on('pong', () => (alive = true));
+  // KNPS: ping de protocolo a cada 5 s. O navegador responde sozinho (sem passar pela página): é o ping de rede real.
+  // Três sem resposta (~15 s, como antes) derrubam o socket morto.
+  ws.on('pong', () => {
+    const rtt = conn.rtt.pong(Date.now());
+    if (rtt !== null && conn.user) conn.send({ t: 'net', rtt: Math.round(rtt), region: region.label });
+  });
   const heartbeat = setInterval(() => {
-    if (!alive) return ws.terminate();
-    alive = false;
+    if (conn.rtt.missed >= 2) return ws.terminate();
+    conn.rtt.sent(Date.now());
     ws.ping();
-  }, 15_000);
+  }, 5_000);
 
   // a conexão precisa se identificar rapidamente
   const helloTimeout = setTimeout(() => {
@@ -122,6 +162,7 @@ wss.on('connection', (ws, req) => {
   });
 
   ws.on('close', () => {
+    if (conn.rtt.count >= 3) regionTelemetry.record(conn.rtt.median!);
     networkGuard.disconnect(conn.ip);
     clearInterval(heartbeat);
     clearTimeout(helloTimeout);
@@ -134,6 +175,8 @@ setInterval(() => {
   rooms.sweep();
   networkGuard.sweep();
 }, 30_000).unref();
+// KNPS: o lobby mostra o ping de cada jogador; atualiza a cada 5 s enquanto a partida não começa
+setInterval(() => rooms.refreshLobbies(), 5_000).unref();
 // KAC: resumo do diário de segurança a cada 10 min (quando houve evento ou há jogadores conectados)
 setInterval(() => {
   const summary = kacJournal.summary();

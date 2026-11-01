@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { gameClient } from '../../net/client.ts';
 import type { NetSummary } from '../../net/netStats.ts';
+import { REGIONS } from '../../net/regionState.ts';
+
+/** Nome da região pelo id que o servidor informa (sem a lista, mostra o próprio id). */
+const regionLabel = (id: string) => REGIONS.find((r) => r.label === id || r.letter === id)?.label ?? id;
 
 /** Lê as medições do cliente uma vez por segundo (sem estado global: o painel só existe enquanto está na tela). */
 function useNet(): NetSummary {
@@ -26,7 +30,7 @@ export function NetChip({ open, onToggle }: { open: boolean; onToggle: () => voi
       aria-expanded={open}
     >
       <span className={`h-2 w-2 rounded-full ${DOT[s.quality]}`} aria-hidden />
-      {s.rttP50 === null ? '— ms' : `${Math.round(s.rttP50)} ms`}
+      {s.netP50 !== null ? `${Math.round(s.netP50)} ms` : s.rttP50 === null ? '— ms' : `${Math.round(s.rttP50)} ms`}
     </button>
   );
 }
@@ -37,7 +41,7 @@ export function NetPopover({ onClose }: { onClose: () => void }) {
     <div className="panel w-[min(22rem,calc(100vw-1rem))] bg-ink-900 p-3 text-xs text-ink-200" role="dialog" aria-label="Conexão">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <div className="text-sm font-semibold text-ink-100">Conexão · KNPS</div>
+          <div className="text-sm font-semibold text-ink-100">Conexão · KNPS{s.region ? ` · ${regionLabel(s.region)}` : ''}</div>
           <div className={s.quality === 'ruim' ? 'text-red-300' : s.quality === 'instável' ? 'text-brass-400' : 'text-ink-400'}>
             {s.quality === 'medindo' ? 'medindo…' : `Conexão ${s.quality}`}
             {s.reasons.length ? ` — ${s.reasons.join(', ')}` : ''}
@@ -48,16 +52,19 @@ export function NetPopover({ onClose }: { onClose: () => void }) {
         </button>
       </div>
       <dl className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1">
-        <Stat label="Ping (mediana)" value={ms(s.rttP50)} />
-        <Stat label="Ping p95" value={ms(s.rttP95)} warn={(s.rttP95 ?? 0) > 250} />
-        <Stat label="Oscilação" value={ms(s.jitter)} warn={(s.jitter ?? 0) > 40} />
+        <Stat label="Ping de rede" value={ms(s.netP50)} />
+        <Stat label="Rede p95" value={ms(s.netP95)} warn={(s.netP95 ?? 0) > 250} />
+        <Stat label="Oscilação" value={ms(s.netJitter ?? s.jitter)} warn={(s.netJitter ?? s.jitter ?? 0) > 40} />
+        <Stat label="Ping + página" value={ms(s.rttP50)} />
+        <Stat label="Página p95" value={ms(s.rttP95)} />
         <Stat label="Sem resposta" value={`${Math.round(s.unanswered * 100)}%`} warn={s.unanswered > 0.1} />
         <Stat label="Snapshots/s" value={String(s.snapshotsPerSec)} />
         <Stat label="Intervalo p95" value={ms(s.gapP95)} warn={(s.gapP95 ?? 0) > 300} />
         <Stat label="Dados" value={`${s.kbps} kbit/s`} />
       </dl>
       <p className="mt-2 text-[11px] text-ink-400">
-        Ping é a ida e volta até o servidor do jogo, contando o tempo que a página leva para ler a resposta: com o jogo travando (poucos quadros por segundo), ele sobe junto. Dados contam o conteúdo já descomprimido; na rede ele viaja comprimido (cerca de 1/18 do tamanho).
+        Ping de rede é medido pelo servidor (o navegador responde sem passar pelo jogo). Ping + página inclui o tempo que a página leva para ler a resposta: com o jogo travando,
+        ele sobe junto. Dados contam o conteúdo já descomprimido; na rede ele viaja comprimido (cerca de 1/18 do tamanho).
       </p>
     </div>
   );

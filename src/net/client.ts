@@ -2,8 +2,12 @@ import type { MatchStartInfo, ServerMessage } from '../../shared/protocol.ts';
 import { useAppStore } from '../state/useAppStore.ts';
 import { env } from '../lib/env.ts';
 import { GameClient } from './GameClient.ts';
+import { REGIONS, probeRegions, rememberServer, rememberedServer } from './regionState.ts';
 
-export const gameClient = new GameClient(env.gameServerUrl);
+// KNPS-08: volta direto ao servidor da última sala (partida em andamento é retomada); senão, o primeiro da lista
+export const gameClient = new GameClient(rememberedServer() ?? REGIONS[0]?.url ?? env.gameServerUrl);
+// mede as regiões em segundo plano para a hora de criar uma sala
+void probeRegions();
 
 type SnapshotMsg = Extract<ServerMessage, { t: 'snapshot' }>;
 
@@ -17,6 +21,8 @@ export const snapshotBuffer: { last: SnapshotMsg | null } = { last: null };
 let lastTerritory: string | undefined;
 
 gameClient.on((msg) => {
+  // entrou numa sala: lembra o servidor dela (reconexão depois de fechar o navegador)
+  if (msg.t === 'room' && msg.room) rememberServer(gameClient.serverUrl);
   // snapshots da batalha local (Fase 8) vão para a cena da batalha, não para o teatro
   if (msg.t === 'snapshot' && !msg.scope) {
     if (msg.s.territory) lastTerritory = msg.s.territory;

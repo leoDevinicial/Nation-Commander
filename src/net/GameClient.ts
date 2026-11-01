@@ -58,7 +58,37 @@ export class GameClient {
   /** KNPS: ping, jitter, pings sem resposta e cadência dos snapshots (ver netStats.ts). */
   readonly stats = new NetStats();
 
-  constructor(private readonly url: string) {}
+  constructor(private url: string) {}
+
+  /** Endereço do servidor em uso. */
+  get serverUrl(): string {
+    return this.url;
+  }
+
+  /**
+   * KNPS-08: troca de servidor (outra região) mantendo a mesma conta. Resolve true quando o novo servidor dá o
+   * `welcome`; false se não conectar em 15 s (o cliente continua tentando sozinho, como em qualquer queda).
+   */
+  switchTo(url: string): Promise<boolean> {
+    if (url === this.url && this.status === 'connected') return Promise.resolve(true);
+    if (!this.creds) return Promise.resolve(false);
+    this.url = url;
+    return new Promise((resolve) => {
+      let off: () => void = () => {};
+      const timer = setTimeout(() => {
+        off();
+        resolve(false);
+      }, 15_000);
+      off = this.onStatus((st) => {
+        if (st === 'connected' || st === 'failed') {
+          clearTimeout(timer);
+          off();
+          resolve(st === 'connected');
+        }
+      });
+      this.retry();
+    });
+  }
 
   connect(creds: Credentials): void {
     this.creds = creds;
@@ -205,6 +235,8 @@ export class GameClient {
         this.attempts = 0;
         this.setStatus('connected');
         this.startPing();
+      } else if (msg.t === 'net') {
+        this.stats.network(msg.rtt, msg.region);
       } else if (msg.t === 'pong') {
         this.rtt = Math.round(performance.now() - msg.n);
         this.stats.pong(this.rtt);

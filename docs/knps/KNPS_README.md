@@ -27,10 +27,14 @@ Legenda: **feito** (código + teste + medição), **parcial**, **proposto**, **f
 | KNPS-04 | Laço do servidor mais fino (10 ms em vez de 25 ms) e medição do tick | feito | `Room.startLoop/onLoop`, `server/knps/stats.ts`, `/health` | partida real: tick p95 2 ms, atraso do laço p95 9 ms |
 | KNPS-05 | Medição no cliente (ping, p95, oscilação, pings sem resposta, cadência, dados) e painel | feito | `src/net/netStats.ts`, `src/ui/hud/NetPanel.tsx` | `src/test/netStats.test.ts`; painel visto no jogo |
 | KNPS-06 | Reconexão rápida (pings sem resposta, tentativas curtas, rede de volta) | feito (entrega anterior) | `src/net/GameClient.ts` | `src/test/gameClient.test.ts` |
-| KNPS-07 | Servidor em região mais perto dos jogadores | fora do alcance do código | Render | ver regional |
-| KNPS-08 | Várias regiões com salas marcadas por região e escolha pelo ping | proposto | — | depende do KNPS-07 |
-| KNPS-09 | Snapshot por diferença (delta) | proposto, baixa prioridade | — | a compressão com contexto já tira ~95% no fio |
-| KNPS-10 | WebTransport (UDP/QUIC) | não viável hoje | — | o Render não expõe UDP para serviços web (a confirmar) |
+| KNPS-07 | Servidor numa região mais perto dos jogadores | fora do alcance do código (decisão de infraestrutura) | Render | ver regional |
+| KNPS-08 | Várias regiões: salas marcadas pela letra da região, escolha pelo menor ping, troca de servidor ao entrar por código, lista pública somando todas as regiões | feito (pronto para ligar) | `server/knps/region.ts`, `src/net/regions.ts`, `regionState.ts`, `regionFlow.ts`, `RegionPicker` | `server/knps.test.ts`, `src/test/regions.test.ts`; duas regiões locais (`.audit/knps_regions.cjs`): sala criada na região F, jogador da região V viu na lista, entrou e trocou de servidor sozinho |
+| KNPS-11 | Ping de rede medido pelo servidor (ping de protocolo, sem o tempo da página), enviado ao jogador e usado na classificação | feito | `server/index.ts`, `RttTracker`, `NetStats.network` | testes acima |
+| KNPS-12 | Ping de cada jogador no lobby (justiça: todos veem a conexão de todos antes de começar) | feito | `RoomPlayerInfo.ping`, `LobbyScreen` | `server/knps.test.ts` |
+| KNPS-13 | Agregado do ping real dos jogadores por servidor (faixas, sem identidade nem IP) | feito | `RegionTelemetry`, `/health` → `rttBuckets` | `server/knps.test.ts` |
+| KNPS-09 | Snapshot por diferença (delta) | decidido não fazer agora | — | a compressão com contexto já deixa o snapshot em ~5% no fio; um delta traria risco de estado divergente por pouco ganho. Reavaliar se o tráfego comprimido passar de ~150 kbit/s |
+| KNPS-10 | WebTransport (UDP/QUIC) | não viável na hospedagem atual | — | precisa de HTTP/3 com UDP no servidor; o Render não oferece para serviços web |
+| — | Rollback / lockstep | não se aplica | — | simulação grande com IA, economia e eventos irreversíveis; servidor autoritativo é o modelo certo (auditoria, seção 2) |
 
 ## Qualidade da conexão (painel)
 
@@ -68,6 +72,8 @@ curl -s http://localhost:8787/health
 ```
 
 Inclui `knps`: pior tick p95, atraso do laço p95, snapshots enviados, extras e pulados.
+
+Configuração de várias regiões: [guia regional](KNPS_REGIONAL_INFRASTRUCTURE.md#como-ligar-várias-regiões-knps-08).
 
 Documentos: [auditoria](KNPS_ARCHITECTURE_AUDIT.md) · [linha de base](KNPS_LATENCY_BASELINE.md) ·
 [regiões](KNPS_REGIONAL_INFRASTRUCTURE.md) · [riscos e próximos passos](KNPS_RISKS_AND_ROADMAP.md).

@@ -10,6 +10,12 @@
  * - Dados recebidos: tamanho das mensagens já descomprimidas (o navegador não expõe o tamanho comprimido).
  */
 export interface NetSummary {
+  /** Ping de rede medido pelo servidor (ping de protocolo; sem o tempo da página). */
+  netP50: number | null;
+  netP95: number | null;
+  netJitter: number | null;
+  /** Região do servidor conectado (vazia sem configuração). */
+  region: string;
   rttP50: number | null;
   rttP95: number | null;
   jitter: number | null;
@@ -32,11 +38,21 @@ const pct = (a: number[], p: number): number | null => {
 
 export class NetStats {
   private rtts: number[] = [];
+  private net: number[] = [];
+  private region = '';
   private pings: { at: number; answered: boolean }[] = [];
   private arrivals: number[] = [];
   private bytes: { at: number; n: number }[] = [];
 
   constructor(private readonly now: () => number = () => performance.now()) {}
+
+  /** Ping de rede informado pelo servidor (mensagem `net`, a cada 5 s). */
+  network(rtt: number, region: string): void {
+    if (!(rtt >= 0 && rtt < 60_000)) return;
+    this.net.push(rtt);
+    if (this.net.length > 24) this.net.shift();
+    this.region = region;
+  }
 
   pingSent(): void {
     this.pings.push({ at: this.now(), answered: false });
@@ -65,6 +81,8 @@ export class NetStats {
   /** Esquece tudo (nova conexão): números de uma conexão antiga não descrevem a atual. */
   reset(): void {
     this.rtts = [];
+    this.net = [];
+    this.region = '';
     this.pings = [];
     this.arrivals = [];
     this.bytes = [];
@@ -72,7 +90,9 @@ export class NetStats {
 
   summary(): NetSummary {
     const t = this.now();
-    const jit = this.rtts.length > 1 ? this.rtts.slice(1).reduce((a, r, i) => a + Math.abs(r - this.rtts[i]!), 0) / (this.rtts.length - 1) : null;
+    const jitterOf = (a: number[]) => (a.length > 1 ? a.slice(1).reduce((x, r, i) => x + Math.abs(r - a[i]!), 0) / (a.length - 1) : null);
+    const jit = jitterOf(this.rtts);
+    const netJit = jitterOf(this.net);
     // só conta como sem resposta o ping com mais de 5 s
     const old = this.pings.filter((p) => t - p.at > 5000);
     const unanswered = old.length ? old.filter((p) => !p.answered).length / old.length : 0;
@@ -81,6 +101,10 @@ export class NetStats {
     const span = this.bytes.length ? Math.max(1000, t - this.bytes[0]!.at) : 1000;
     const kbps = Math.round((this.bytes.reduce((a, b) => a + b.n, 0) * 8) / span);
     const s: NetSummary = {
+      netP50: pct(this.net, 0.5),
+      netP95: pct(this.net, 0.95),
+      netJitter: netJit === null ? null : Math.round(netJit),
+      region: this.region,
       rttP50: pct(this.rtts, 0.5),
       rttP95: pct(this.rtts, 0.95),
       jitter: jit === null ? null : Math.round(jit),
@@ -92,15 +116,19 @@ export class NetStats {
       quality: 'medindo',
       reasons: [],
     };
-    if (this.rtts.length < 3) return s;
+    // com 3+ medidas do servidor, a classificação usa o ping de rede (sem o tempo da página); senão, o da página
+    const useNet = this.net.length >= 3;
+    if (!useNet && this.rtts.length < 3) return s;
+    const p95 = (useNet ? s.netP95 : s.rttP95) ?? 0;
+    const jitter = (useNet ? s.netJitter : s.jitter) ?? 0;
     // critérios documentados em docs/knps/KNPS_README.md (não é nota científica; mostra o motivo)
     const bad: string[] = [];
     const shaky: string[] = [];
-    if ((s.rttP95 ?? 0) > 250) bad.push('ping alto');
+    if (p95 > 250) bad.push('ping alto');
     if (unanswered > 0.1) bad.push('pings sem resposta');
-    if ((s.jitter ?? 0) > 40) shaky.push('ping oscilando');
+    if (jitter > 40) shaky.push('ping oscilando');
     if ((s.gapP95 ?? 0) > 300) shaky.push('snapshots chegando em rajadas');
-    if ((s.rttP95 ?? 0) > 150 && !bad.length) shaky.push('ping médio');
+    if (p95 > 150 && !bad.length) shaky.push('ping médio');
     s.quality = bad.length ? 'ruim' : shaky.length ? 'instável' : 'boa';
     s.reasons = [...bad, ...shaky];
     return s;
