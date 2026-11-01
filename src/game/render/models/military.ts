@@ -1092,52 +1092,128 @@ function cylHalf(r: number, len: number): THREE.BufferGeometry {
 // ------------------------------------------------------------------ centro de pesquisa militar
 
 /**
- * Centro de Pesquisa Militar (2×2): bloco de laboratórios em concreto com fachada envidraçada,
- * domo de ensaios, antena parabólica girando, campo de provas com alvos e uma peça em teste.
+ * Centro de Pesquisa Militar (2×2), campus em low poly:
+ * - laboratório de três andares escalonados, fachada de vidro com montantes, átrio envidraçado na esquina e mastro
+ *   com luz na cor da nação; máquinas no telhado;
+ * - radome (esfera de radar) sobre torre treliçada: o ponto mais alto, reconhecível de longe;
+ * - túnel de vento (tubo com bocal de entrada e casa do ventilador) em cavaletes;
+ * - plataforma de testes com míssil inclinado no lançador e muro defletor;
+ * - antena parabólica girando, caminhos, cerca e cancela.
  */
 export function buildResearchCenterModel(): Built {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
   b.box(3.9, 0.06, 3.9, '#8a877e', [0, 0.03, 0]);
-  // bloco principal de laboratórios (dois andares) com faixa de janelas contínua
-  b.box(2.2, 1.2, 1.3, C.concreteLight, [-0.65, 0.66, -1.05]);
-  for (const y of [0.45, 0.95]) g.box(2.0, 0.26, 0.02, '#ffffff', [-0.65, y, -0.39]);
-  for (const y of [0.3, 0.8]) b.box(2.24, 0.04, 0.08, C.concreteDark, [-0.65, y, -0.38]);
-  for (let i = 0; i < 5; i++) b.box(0.04, 1.1, 0.06, C.concreteDark, [-1.65 + i * 0.5, 0.66, -0.38]);
-  b.box(2.3, 0.08, 1.4, C.roof, [-0.65, 1.3, -1.05]);
-  // equipamentos no telhado: chillers e duto
-  for (const x of [-1.3, -0.9]) b.box(0.3, 0.22, 0.4, C.steel, [x, 1.45, -1.15]);
-  b.cyl(0.07, 0.07, 1.0, C.metal, [-0.2, 1.42, -1.3], [0, 0, Math.PI / 2], 8);
-  // entrada com marquise e placa
-  b.box(0.7, 0.05, 0.4, C.metalDark, [-0.65, 0.62, -0.2]);
-  for (const x of [-0.95, -0.35]) b.cyl(0.03, 0.03, 0.6, C.metalDark, [x, 0.3, -0.05], undefined, 6);
-  g.box(0.5, 0.45, 0.02, '#ffffff', [-0.65, 0.3, -0.385]);
-  a.box(1.2, 0.16, 0.02, '#ffffff', [-0.65, 1.17, -0.385]);
-  // domo de ensaios (meia esfera) sobre base cilíndrica
-  b.cyl(0.62, 0.66, 0.5, C.concrete, [1.1, 0.28, -1.0], undefined, 18);
-  b.sphere(0.62, '#d7d9d4', [1.1, 0.52, -1.0], [1, 0.75, 1], 16);
-  b.box(0.08, 0.5, 0.5, '#5f6467', [1.1, 0.75, -0.42], [0.25, 0, 0]);
-  // campo de provas: pista, banquetas de concreto e alvos de chapa
-  b.box(2.6, 0.02, 0.7, '#6f6a5d', [0.15, 0.06, 1.2]);
-  for (let i = 0; i < 6; i++) b.box(0.2, 0.012, 0.04, '#d9d8d0', [-1.0 + i * 0.45, 0.075, 1.2]);
-  for (const x of [1.25, 1.6]) {
-    b.box(0.08, 0.5, 0.36, '#7a7d80', [x, 0.31, 1.2]);
-    a.box(0.02, 0.2, 0.2, '#ffffff', [x - 0.05, 0.36, 1.2]);
+  // caminhos e pátio
+  b.box(3.7, 0.012, 0.42, '#6d6a63', [0, 0.066, 0.42]);
+  b.box(0.42, 0.012, 1.5, '#6d6a63', [0.35, 0.066, 1.2]);
+  // cerca com cancela na frente
+  railing(b, [-1.9, -1.9], [1.9, -1.9], 0.06, 0.26, '#a7adb2', 6);
+  railing(b, [-1.9, -1.9], [-1.9, 1.9], 0.06, 0.26, '#a7adb2', 6);
+  railing(b, [1.9, -1.9], [1.9, 1.9], 0.06, 0.26, '#a7adb2', 6);
+  railing(b, [-1.9, 1.9], [0.1, 1.9], 0.06, 0.26, '#a7adb2', 4);
+  railing(b, [0.6, 1.9], [1.9, 1.9], 0.06, 0.26, '#a7adb2', 3);
+  b.box(0.12, 0.3, 0.12, '#5f6467', [0.12, 0.18, 1.9]);
+  a.box(0.48, 0.04, 0.04, '#ffffff', [0.38, 0.3, 1.9]);
+
+  // --- laboratório: dois andares + terceiro recuado
+  const [lx, lz] = [-0.75, -1.2];
+  b.box(2.3, 1.2, 1.35, C.concreteLight, [lx, 0.66, lz]);
+  for (const y of [0.42, 0.92]) g.box(2.12, 0.3, 0.02, '#ffffff', [lx, y, lz + 0.685]);
+  for (const y of [0.26, 0.76, 1.24]) b.box(2.34, 0.05, 0.09, C.concreteDark, [lx, y, lz + 0.68]);
+  for (let i = 0; i <= 7; i++) b.box(0.035, 1.15, 0.05, '#6b7177', [lx - 1.07 + i * 0.306, 0.68, lz + 0.69]);
+  b.box(2.36, 0.07, 1.41, C.roof, [lx, 1.29, lz]);
+  b.box(1.5, 0.48, 0.85, C.concrete, [lx - 0.25, 1.56, lz - 0.2]);
+  g.box(1.38, 0.24, 0.02, '#ffffff', [lx - 0.25, 1.58, lz + 0.23]);
+  b.box(1.56, 0.06, 0.9, C.roof, [lx - 0.25, 1.83, lz - 0.2]);
+  a.box(1.56, 0.08, 0.02, '#ffffff', [lx - 0.25, 1.75, lz + 0.235]);
+  // máquinas no telhado e mastro com luz
+  for (const x of [0.15, 0.45]) b.box(0.24, 0.18, 0.32, C.steel, [lx + x, 1.42, lz - 0.35]);
+  b.cyl(0.1, 0.1, 0.06, '#40454b', [lx + 0.3, 1.52, lz - 0.35], undefined, 10);
+  strut(b, [lx - 0.8, 1.86, lz - 0.3], [lx - 0.8, 2.45, lz - 0.3], 0.02, C.steel);
+  a.sphere(0.05, '#ffffff', [lx - 0.8, 2.47, lz - 0.3], undefined, 6);
+  // átrio envidraçado na esquina e marquise da entrada
+  g.box(0.5, 0.96, 0.56, '#ffffff', [lx + 1.42, 0.55, lz + 0.35]);
+  for (const [dx, dz] of [
+    [-0.26, 0.29],
+    [0.26, 0.29],
+    [0.26, -0.29],
+  ] as const) b.box(0.06, 1.0, 0.06, C.concreteLight, [lx + 1.42 + dx, 0.56, lz + 0.35 + dz]);
+  b.box(0.62, 0.07, 0.68, C.concreteLight, [lx + 1.42, 1.08, lz + 0.35]);
+  b.box(0.5, 0.03, 0.02, C.concreteDark, [lx + 1.42, 0.56, lz + 0.64]);
+  b.box(0.75, 0.04, 0.38, C.metalDark, [lx + 0.2, 0.55, lz + 0.88]);
+  for (const x of [-0.12, 0.52]) b.cyl(0.025, 0.025, 0.5, C.metalDark, [lx + x, 0.3, lz + 1.03], undefined, 6);
+
+  // --- radome sobre torre treliçada
+  const [rx, rz] = [1.3, -1.3];
+  const H = 1.35;
+  for (const [sx, sz] of [
+    [-1, -1],
+    [1, -1],
+    [1, 1],
+    [-1, 1],
+  ] as const) strut(b, [rx + sx * 0.32, 0.06, rz + sz * 0.32], [rx + sx * 0.16, H, rz + sz * 0.16], 0.03, C.steel);
+  for (const y of [0.45, 0.9]) {
+    const w = 0.32 - (0.16 * y) / H;
+    b.box(w * 2, 0.03, 0.03, C.steel, [rx, y, rz - w]);
+    b.box(w * 2, 0.03, 0.03, C.steel, [rx, y, rz + w]);
+    b.box(0.03, 0.03, w * 2, C.steel, [rx - w, y, rz]);
+    b.box(0.03, 0.03, w * 2, C.steel, [rx + w, y, rz]);
   }
-  for (let i = 0; i < 5; i++) b.box(0.3, 0.18, 0.2, C.concrete, [-1.5 + i * 0.32, 0.12, 0.62]);
-  // peça em teste: lançador sobre reboque, apontando para os alvos
-  b.box(0.7, 0.08, 0.36, C.oliveDark, [-0.6, 0.22, 1.2]);
-  for (const x of [-0.85, -0.4]) for (const z of [1.05, 1.35]) b.cyl(0.1, 0.1, 0.06, C.rubber, [x, 0.12, z], [Math.PI / 2, 0, 0], 10);
-  b.cyl(0.06, 0.06, 0.9, C.olive, [-0.45, 0.42, 1.2], [0, 0, -Math.PI / 2 + 0.25], 8);
-  // biruta e sensores meteorológicos
-  strut(b, [1.6, 0.06, 0.3], [1.6, 1.1, 0.3], 0.025, C.steel);
-  b.cyl(0.02, 0.07, 0.3, '#d9772e', [1.75, 1.05, 0.3], [0, 0, Math.PI / 2], 8);
-  // antena parabólica (gira devagar acompanhando ensaios)
-  b.cyl(0.08, 0.1, 0.3, C.metal, [0.95, 0.2, 0.25], undefined, 8);
+  b.box(0.52, 0.06, 0.52, C.metalDark, [rx, H + 0.03, rz]);
+  b.sphere(0.44, '#e9eae6', [rx, H + 0.44, rz], undefined, 14);
+  a.cyl(0.36, 0.36, 0.05, '#ffffff', [rx, H + 0.14, rz], undefined, 14);
+
+  // --- túnel de vento em cavaletes, na lateral (no sentido da profundidade, sem tapar a fachada)
+  const wx = -1.4;
+  const ty = 0.42;
+  const along: [number, number, number] = [Math.PI / 2, 0, 0];
+  b.cyl(0.24, 0.24, 1.35, '#b9bdbf', [wx, ty, 0.62], along, 12);
+  b.cyl(0.42, 0.24, 0.42, '#b9bdbf', [wx, ty, 1.5], along, 12);
+  b.cyl(0.36, 0.36, 0.03, '#2d3136', [wx, ty, 1.715], along, 12);
+  b.box(0.62, 0.62, 0.55, C.concrete, [wx, 0.37, -0.25]);
+  for (const dy of [-0.15, 0, 0.15]) b.box(0.5, 0.06, 0.02, '#5c6166', [wx, 0.37 + dy, 0.03]);
+  for (const z of [0.2, 0.7, 1.2]) {
+    b.box(0.36, ty - 0.2, 0.06, C.metalDark, [wx, (ty - 0.2) / 2 + 0.06, z]);
+    b.box(0.4, 0.04, 0.26, C.metalDark, [wx, ty - 0.22, z]);
+  }
+  a.cyl(0.25, 0.25, 0.08, '#ffffff', [wx, ty, 0.9], along, 12);
+
+  // --- plataforma de testes (frente à direita): lançador com míssil inclinado e muro defletor
+  const [px, pz] = [1.15, 1.25];
+  b.box(1.1, 0.05, 0.9, '#76726a', [px, 0.08, pz]);
+  b.box(0.08, 0.55, 0.8, C.concrete, [px - 0.5, 0.35, pz]);
+  b.box(0.6, 0.14, 0.36, C.oliveDark, [px, 0.18, pz]);
+  b.box(0.12, 0.25, 0.12, C.olive, [px - 0.12, 0.35, pz]);
+  const tilt = 0.65;
+  b.box(0.95, 0.06, 0.14, C.olive, [px + 0.12, 0.5, pz], [0, 0, tilt]);
+  b.cyl(0.055, 0.055, 0.8, '#e3e4df', [px + 0.14, 0.6, pz], [0, 0, tilt - Math.PI / 2], 10);
+  b.cyl(0.0, 0.055, 0.16, '#e3e4df', [px + 0.14 + Math.cos(tilt) * 0.48, 0.6 + Math.sin(tilt) * 0.48, pz], [0, 0, tilt - Math.PI / 2], 10);
+  a.cyl(0.058, 0.058, 0.06, '#ffffff', [px + 0.14 + Math.cos(tilt) * 0.2, 0.6 + Math.sin(tilt) * 0.2, pz], [0, 0, tilt - Math.PI / 2], 10);
+  // biruta
+  strut(b, [1.75, 0.06, 0.35], [1.75, 0.95, 0.35], 0.02, C.steel);
+  b.cyl(0.02, 0.06, 0.26, '#d9772e', [1.62, 0.9, 0.35], [0, 0, Math.PI / 2], 8);
+
+  // --- antena parabólica (gira devagar acompanhando os ensaios)
+  b.cyl(0.1, 0.13, 0.32, C.metal, [-0.15, 0.22, 0.75], undefined, 8);
   const dish = layers();
-  dish.body.cyl(0.03, 0.03, 0.35, C.metalDark, [0, 0.17, 0], undefined, 6);
-  dish.body.cyl(0.42, 0.32, 0.06, '#e2e3df', [0.05, 0.42, 0], [0, 0, Math.PI / 2 + 0.5], 16);
-  dish.body.cyl(0.015, 0.015, 0.35, C.metalDark, [0.2, 0.5, 0], [0, 0, Math.PI / 2 + 0.5], 4);
-  const anims: ModelAnim[] = [{ layers: dish.build(), pivot: [0.95, 0.35, 0.25], motion: { kind: 'spin', axis: 'y', speed: 0.35 } }];
-  return { base: l.build(), moving: null, anims, height: 1.6 };
+  const bowl = new THREE.LatheGeometry(
+    [
+      [0.02, 0],
+      [0.22, 0.03],
+      [0.4, 0.1],
+      [0.5, 0.18],
+    ].map(([r, y]) => new THREE.Vector2(r, y)),
+    14,
+  );
+  bowl.deleteAttribute('normal');
+  dish.body.cyl(0.035, 0.035, 0.3, C.metalDark, [0, 0.15, 0], undefined, 6);
+  dish.body.add(bowl, '#e2e3df', { pos: [0, 0.35, 0], rot: [0, 0, -0.75] });
+  dish.body.add(new THREE.LatheGeometry([new THREE.Vector2(0.48, 0.18), new THREE.Vector2(0.4, 0.1), new THREE.Vector2(0.22, 0.03), new THREE.Vector2(0.02, 0)], 14), '#c9cbc7', {
+    pos: [0, 0.35, 0],
+    rot: [0, 0, -0.75],
+  });
+  dish.body.cyl(0.012, 0.012, 0.45, C.metalDark, [0.17, 0.52, 0], [0, 0, -0.75], 4);
+  const anims: ModelAnim[] = [{ layers: dish.build(), pivot: [-0.15, 0.38, 0.75], motion: { kind: 'spin', axis: 'y', speed: 0.35 } }];
+  return { base: l.build(), moving: null, anims, height: 1.85 };
 }
