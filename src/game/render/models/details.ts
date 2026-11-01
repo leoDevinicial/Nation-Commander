@@ -117,29 +117,42 @@ export function siloRoof(b: PartBuilder, y: number): void {
 // ------------------------------------------------------------------ tanque de petróleo
 
 export function oilTankDetail(b: PartBuilder): void {
-  // escada helicoidal no lado oeste (os módulos usam os quadrantes leste)
+  // escada helicoidal no lado oeste (os módulos usam os quadrantes leste), com o patamar no topo
   const r = 0.72;
-  const steps = 11;
+  const steps = 13;
   for (let i = 0; i < steps; i++) {
     const k = i / (steps - 1);
     const a = THREE.MathUtils.degToRad(100 + k * 150);
-    const y = 0.18 + k * 0.9;
+    const y = 0.18 + k * 0.92;
     b.box(0.12, 0.02, 0.07, C.metalDark, [Math.cos(a) * r, y, Math.sin(a) * r], [0, -a, 0]);
     if (i % 2 === 0) b.box(0.012, 0.22, 0.012, C.steel, [Math.cos(a) * (r + 0.05), y + 0.11, Math.sin(a) * (r + 0.05)]);
+    if (i % 3 === 0) strut(b, [Math.cos(a) * (r - 0.05), y - 0.01, Math.sin(a) * (r - 0.05)], [Math.cos(a) * (r - 0.06), y - 0.12, Math.sin(a) * (r - 0.06)], 0.01, C.metalDark);
   }
   for (let i = 0; i < steps - 1; i++) {
     const a0 = THREE.MathUtils.degToRad(100 + (i / (steps - 1)) * 150);
     const a1 = THREE.MathUtils.degToRad(100 + ((i + 1) / (steps - 1)) * 150);
-    const y0 = 0.18 + (i / (steps - 1)) * 0.9 + 0.22;
-    const y1 = 0.18 + ((i + 1) / (steps - 1)) * 0.9 + 0.22;
+    const y0 = 0.18 + (i / (steps - 1)) * 0.92 + 0.22;
+    const y1 = 0.18 + ((i + 1) / (steps - 1)) * 0.92 + 0.22;
     strut(b, [Math.cos(a0) * (r + 0.05), y0, Math.sin(a0) * (r + 0.05)], [Math.cos(a1) * (r + 0.05), y1, Math.sin(a1) * (r + 0.05)], 0.012, C.steel, true);
   }
-  // anéis de reforço e bocal de inspeção com válvula
+  const top = THREE.MathUtils.degToRad(250);
+  b.box(0.2, 0.025, 0.2, C.metalDark, [Math.cos(top) * 0.62, 1.13, Math.sin(top) * 0.62], [0, -top, 0]);
+  // câmaras de espuma (combate a incêndio) no alto do costado e a linha de espuma descendo
+  for (const ang of [0.6, 2.2, 4.3]) {
+    b.box(0.08, 0.1, 0.06, C.red, [Math.cos(ang) * 0.68, 1.0, Math.sin(ang) * 0.68], [0, -ang, 0]);
+  }
+  strut(b, [Math.cos(0.6) * 0.7, 0.95, Math.sin(0.6) * 0.7], [Math.cos(0.6) * 0.7, 0.14, Math.sin(0.6) * 0.7], 0.014, C.red, true);
+  // régua de nível (indicador de boia) no costado
+  b.box(0.04, 0.84, 0.02, '#e8e6dc', [0.14, 0.66, 0.66]);
+  b.box(0.06, 0.04, 0.03, C.metalDark, [0.14, 0.92, 0.67]);
+  // anel de reforço, bocal de inspeção com válvula e o hidrante com canhão monitor
   b.cyl(0.665, 0.665, 0.03, C.metal, [0, 0.35, 0], undefined, 16);
   b.cyl(0.07, 0.07, 0.08, C.metalDark, [-0.66, 0.3, -0.2], [0, 0, Math.PI / 2], 8);
   b.cyl(0.1, 0.1, 0.02, C.red, [-0.72, 0.3, -0.2], [0, 0, Math.PI / 2], 10);
+  b.cyl(0.03, 0.035, 0.22, C.red, [-0.62, 0.2, 0.6], undefined, 8);
+  strut(b, [-0.62, 0.3, 0.6], [-0.5, 0.36, 0.5], 0.015, C.red, true);
   // placa de risco (losango) na parede do tanque
-  b.box(0.16, 0.16, 0.01, '#d23a2a', [0, 0.62, 0.656], [0, 0, Math.PI / 4]);
+  b.box(0.16, 0.16, 0.01, '#d23a2a', [-0.2, 0.62, 0.635], [0, 0, Math.PI / 4]);
 }
 
 // ------------------------------------------------------------------ casa

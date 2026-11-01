@@ -808,7 +808,8 @@ function buildOilTank(): Omit<BuildingModel, 'detail'> {
   const l = layers();
   const { body: b, accent: a } = l;
   b.box(1.8, 0.1, 1.8, C.concreteDark, [0, 0.05, 0]);
-  // dique de contenção e tanque de teto flutuante
+  b.box(1.6, 0.01, 1.6, '#8a8478', [0, 0.105, 0]); // piso de brita dentro do dique
+  // dique de contenção com a escada de transposição e a caixa de drenagem
   for (const [x, z, w, d] of [
     [0, 0.85, 1.8, 0.1],
     [0, -0.85, 1.8, 0.1],
@@ -816,11 +817,34 @@ function buildOilTank(): Omit<BuildingModel, 'detail'> {
     [-0.85, 0, 0.1, 1.8],
   ] as const)
     b.box(w, 0.25, d, C.concrete, [x, 0.2, z]);
-  b.cyl(0.65, 0.65, 1.0, C.white, [0, 0.6, 0], undefined, 16);
-  b.cyl(0.66, 0.66, 0.05, C.metal, [0, 1.12, 0], undefined, 16);
-  b.box(0.05, 1.0, 0.05, C.steel, [0.62, 0.6, 0.2]);
-  b.box(0.5, 0.06, 0.06, C.metal, [0.6, 0.3, -0.55]);
-  a.cyl(0.665, 0.665, 0.14, '#ffffff', [0, 0.85, 0], undefined, 16);
+  for (let k = 0; k < 3; k++) b.box(0.18, 0.025, 0.06, C.metalDark, [-0.55, 0.12 + k * 0.1, 0.72 + k * 0.06]);
+  b.box(0.16, 0.02, 0.16, '#3a3d40', [0.6, 0.11, 0.6]);
+  // base de areia/concreto e o costado com as juntas das chapas (cursos horizontais) e o anel de vento no topo
+  b.cyl(0.7, 0.72, 0.06, C.concreteLight, [0, 0.13, 0], undefined, 18);
+  b.cyl(0.65, 0.65, 0.96, C.white, [0, 0.64, 0], undefined, 18);
+  for (const y of [0.36, 0.56, 0.76, 0.98]) b.add(new THREE.CylinderGeometry(0.654, 0.654, 0.012, 18, 1, true), '#c9ccc9', { pos: [0, y, 0] });
+  b.cyl(0.69, 0.69, 0.03, C.metal, [0, 1.1, 0], undefined, 18);
+  a.cyl(0.656, 0.656, 0.14, '#ffffff', [0, 0.85, 0], undefined, 18);
+  // teto cônico raso com respiros, boca de visita e o bocal de medição
+  const roof = new THREE.CylinderGeometry(0.08, 0.66, 0.14, 18);
+  roof.deleteAttribute('normal');
+  b.add(roof, '#b9bdbf', { pos: [0, 1.19, 0] });
+  b.cyl(0.07, 0.07, 0.06, C.metal, [0, 1.28, 0], undefined, 8);
+  for (const [x, z] of [
+    [0.3, -0.2],
+    [-0.25, 0.28],
+  ] as const) {
+    b.cyl(0.035, 0.035, 0.08, C.metalDark, [x, 1.2, z], undefined, 6);
+    b.cyl(0.06, 0.06, 0.03, C.metal, [x, 1.25, z], undefined, 6);
+  }
+  // tubulação de entrada e saída: bocais no pé do costado, válvulas e a passagem pelo dique até a régua de tubos
+  for (const z of [-0.22, 0.02]) {
+    b.cyl(0.04, 0.04, 0.28, C.metalDark, [0.78, 0.24, z], [0, 0, Math.PI / 2], 8);
+    b.cyl(0.07, 0.07, 0.03, C.red, [0.78, 0.24, z], [0, 0, Math.PI / 2], 8);
+    b.box(0.03, 0.08, 0.03, C.red, [0.78, 0.32, z]);
+    b.cyl(0.04, 0.04, 0.1, C.metalDark, [0.88, 0.24, z], [0, 0, Math.PI / 2], 8);
+  }
+  b.box(0.06, 0.16, 0.5, '#6f6c66', [0.88, 0.18, -0.1]);
   oilTankDetail(b);
   return { base: l.build(), moving: null, height: 1.3 };
 }
