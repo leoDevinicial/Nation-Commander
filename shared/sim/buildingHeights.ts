@@ -20,7 +20,7 @@ export const BUILDING_SOLID_HEIGHT: Record<BuildingType, number> = {
   refinery: 3.6,
   steel_mill: 3.5,
   hospital: 1.8,
-  school: 2.2,
+  school: 2.4,
   police_station: 1.5,
   house: 1.4,
   residential: 3.2,

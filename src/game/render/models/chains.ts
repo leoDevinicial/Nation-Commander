@@ -275,26 +275,113 @@ export function buildHospital(): Built {
   return { base: l.build(), moving: null, height: 1.8 };
 }
 
-/** Escola (2×2): prédio em L de tijolo, pátio com quadra e mastro com bandeira. */
+/**
+ * Escola (2×2), em low poly:
+ * - prédio em L de dois andares, tijolo com janelas de moldura branca e telhado de duas águas;
+ * - torre do relógio na entrada (telhado em pirâmide, sino) e marquise com colunas;
+ * - quadra com linhas e duas tabelas de basquete, parquinho (escorregador e balanço), árvores e bancos;
+ * - ônibus escolar amarelo na frente, mastro com a bandeira da nação e cerca com portão.
+ */
 export function buildSchool(): Built {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
+  const TRIM = '#e9e4d6';
+  const YELLOW = '#e2b12e';
   b.box(3.7, 0.1, 3.7, C.concreteDark, [0, 0.05, 0]);
-  b.box(3.0, 1.0, 1.1, BRICK, [0, 0.6, -1.1]);
-  b.box(1.1, 1.0, 1.6, BRICK, [-1.0, 0.6, 0.25]);
-  b.box(3.1, 0.08, 1.2, C.roof, [0, 1.14, -1.1]);
-  b.box(1.2, 0.08, 1.7, C.roof, [-1.0, 1.14, 0.25]);
-  for (let i = 0; i < 6; i++) g.box(0.32, 0.36, 0.02, '#ffffff', [-1.2 + i * 0.48, 0.7, -0.54]);
-  for (let i = 0; i < 3; i++) g.box(0.02, 0.36, 0.32, '#ffffff', [-0.44, 0.7, -0.2 + i * 0.45]);
-  // quadra no pátio
-  b.box(1.6, 0.03, 1.2, '#4f7d5a', [0.75, 0.12, 0.75]);
-  b.box(1.5, 0.01, 0.03, '#ffffff', [0.75, 0.14, 0.75]);
-  for (const z of [0.2, 1.3]) b.box(0.05, 0.5, 0.05, STEEL, [0.75, 0.35, z]);
-  // relógio e mastro com bandeira da facção
-  b.cyl(0.18, 0.18, 0.04, WHITE, [0, 0.95, -0.53], [Math.PI / 2, 0, 0], 14);
-  b.cyl(0.03, 0.03, 2.2, STEEL, [1.55, 1.1, -0.2], undefined, 6);
-  a.box(0.6, 0.36, 0.02, '#ffffff', [1.86, 1.95, -0.2]);
-  return { base: l.build(), moving: null, height: 2.2 };
+  b.box(3.5, 0.012, 3.5, '#8f8b82', [0, 0.106, 0]);
+  railing(b, [-1.8, -1.8], [1.8, -1.8], 0.1, 0.24, '#e0e0dc', 6);
+  railing(b, [-1.8, -1.8], [-1.8, 1.8], 0.1, 0.24, '#e0e0dc', 6);
+  railing(b, [1.8, -1.8], [1.8, 1.8], 0.1, 0.24, '#e0e0dc', 6);
+  railing(b, [-1.8, 1.8], [-0.5, 1.8], 0.1, 0.24, '#e0e0dc', 3);
+
+  // --- prédio em L (dois andares)
+  const wing = (x: number, z: number, w: number, d: number, alongX: boolean) => {
+    b.box(w, 1.15, d, BRICK, [x, 0.67, z]);
+    b.box(w + 0.04, 0.06, d + 0.04, TRIM, [x, 0.66, z]);
+    b.gable(alongX ? w + 0.1 : d + 0.1, alongX ? d + 0.12 : w + 0.12, 0.42, C.roofRed, [x, 1.25, z], alongX ? 0 : Math.PI / 2);
+  };
+  wing(0.15, -1.15, 3.1, 1.0, true);
+  wing(-1.05, 0.15, 1.0, 1.6, false);
+  // janelas com moldura (dois andares) — fachada principal e a lateral da ala
+  for (const y of [0.42, 0.95])
+    for (let i = 0; i < 6; i++) {
+      const x = -1.05 + i * 0.47;
+      if (Math.abs(x - 0.15) < 0.3) continue;
+      b.box(0.3, 0.32, 0.03, TRIM, [x, y, -0.645]);
+      g.box(0.24, 0.26, 0.02, '#ffffff', [x, y, -0.63]);
+    }
+  for (const y of [0.42, 0.95])
+    for (let i = 0; i < 3; i++) {
+      const z = -0.35 + i * 0.45;
+      b.box(0.03, 0.32, 0.3, TRIM, [-0.545, y, z]);
+      g.box(0.02, 0.26, 0.24, '#ffffff', [-0.53, y, z]);
+    }
+  // --- torre do relógio e entrada
+  const [ex, ez] = [0.15, -0.6];
+  b.box(0.55, 2.0, 0.5, BRICK, [ex, 1.1, ez - 0.1]);
+  b.box(0.6, 0.06, 0.55, TRIM, [ex, 1.55, ez - 0.1]);
+  b.box(0.6, 0.06, 0.55, TRIM, [ex, 2.08, ez - 0.1]);
+  b.cyl(0.0, 0.43, 0.45, C.roofRed, [ex, 2.33, ez - 0.1], [0, Math.PI / 4, 0], 4);
+  b.cyl(0.17, 0.17, 0.03, WHITE, [ex, 1.82, ez + 0.16], [Math.PI / 2, 0, 0], 14);
+  b.box(0.02, 0.12, 0.02, DARK, [ex, 1.86, ez + 0.18]);
+  b.box(0.09, 0.02, 0.02, DARK, [ex + 0.03, 1.82, ez + 0.18]);
+  b.cyl(0.07, 0.09, 0.12, '#b8902e', [ex, 1.67, ez + 0.05], undefined, 8);
+  // marquise com colunas e portas
+  b.box(0.9, 0.05, 0.5, TRIM, [ex, 0.62, ez + 0.3]);
+  for (const dx of [-0.38, 0.38]) b.cyl(0.035, 0.035, 0.52, TRIM, [ex + dx, 0.36, ez + 0.5], undefined, 8);
+  b.box(0.3, 0.42, 0.02, '#4c3a2c', [ex, 0.32, ez + 0.06]);
+  for (let i = 0; i < 2; i++) b.box(0.9 - i * 0.1, 0.05, 0.1, C.concrete, [ex, 0.13 + i * 0.05, ez + 0.6 - i * 0.08]);
+  a.box(0.56, 0.1, 0.02, '#ffffff', [ex, 1.3, ez + 0.155]);
+
+  // --- quadra com tabelas de basquete
+  const [qx, qz] = [0.85, 0.55];
+  b.box(1.55, 0.02, 1.05, '#3f7a5f', [qx, 0.12, qz]);
+  b.box(1.45, 0.012, 0.03, '#ffffff', [qx, 0.135, qz - 0.48]);
+  b.box(1.45, 0.012, 0.03, '#ffffff', [qx, 0.135, qz + 0.48]);
+  b.box(0.03, 0.012, 0.99, '#ffffff', [qx - 0.73, 0.135, qz]);
+  b.box(0.03, 0.012, 0.99, '#ffffff', [qx + 0.73, 0.135, qz]);
+  b.box(0.03, 0.012, 0.99, '#ffffff', [qx, 0.135, qz]);
+  b.cyl(0.15, 0.15, 0.012, '#ffffff', [qx, 0.135, qz], undefined, 12);
+  for (const s of [-1, 1]) {
+    b.box(0.04, 0.6, 0.04, STEEL, [qx + s * 0.8, 0.42, qz]);
+    b.box(0.03, 0.22, 0.32, WHITE, [qx + s * 0.76, 0.68, qz]);
+    b.cyl(0.07, 0.07, 0.015, '#d0602c', [qx + s * 0.69, 0.6, qz], undefined, 10);
+  }
+
+  // --- parquinho: escorregador e balanço
+  const [px, pz] = [-1.0, 1.35];
+  b.box(0.2, 0.32, 0.2, YELLOW, [px - 0.25, 0.26, pz]);
+  b.box(0.12, 0.03, 0.45, '#d0602c', [px - 0.25, 0.26, pz + 0.3], [0.62, 0, 0]);
+  for (const s of [-1, 1]) strut(b, [px + 0.2 + s * 0.22, 0.1, pz - 0.15], [px + 0.2, 0.55, pz - 0.15], 0.02, STEEL);
+  for (const s of [-1, 1]) strut(b, [px + 0.2 + s * 0.22, 0.1, pz + 0.15], [px + 0.2, 0.55, pz + 0.15], 0.02, STEEL);
+  b.box(0.04, 0.03, 0.34, STEEL, [px + 0.2, 0.55, pz]);
+  for (const dz of [-0.08, 0.08]) b.box(0.12, 0.02, 0.06, '#4c3a2c', [px + 0.2, 0.25, pz + dz]);
+
+  // --- árvores e bancos
+  for (const [x, z, r] of [
+    [-0.25, 0.35, 0.28],
+    [-0.15, 1.05, 0.22],
+    [1.6, 1.45, 0.25],
+  ] as const) {
+    b.cyl(0.04, 0.05, 0.35, '#6b5038', [x, 0.27, z], undefined, 6);
+    b.sphere(r, '#4f7f3e', [x, 0.48 + r * 0.7, z], [1, 0.9, 1], 7);
+  }
+  for (const x of [0.4, 1.2]) b.box(0.35, 0.05, 0.1, '#7a5a3c', [x, 0.2, 1.22]);
+
+  // --- ônibus escolar amarelo na frente
+  const [bx, bz] = [0.65, 1.55];
+  b.box(1.1, 0.34, 0.36, YELLOW, [bx, 0.38, bz]);
+  b.box(0.25, 0.22, 0.34, YELLOW, [bx + 0.67, 0.31, bz]);
+  b.box(1.12, 0.03, 0.38, DARK, [bx, 0.24, bz]);
+  for (let i = 0; i < 6; i++) g.box(0.13, 0.12, 0.02, '#ffffff', [bx - 0.45 + i * 0.17, 0.46, bz + 0.18]);
+  g.box(0.02, 0.14, 0.28, '#ffffff', [bx + 0.555, 0.46, bz]);
+  for (const x of [-0.35, 0.4]) for (const s of [-1, 1]) b.cyl(0.08, 0.08, 0.06, C.rubber, [bx + x, 0.19, bz + s * 0.17], [Math.PI / 2, 0, 0], 10);
+
+  // --- mastro com a bandeira da nação
+  b.cyl(0.025, 0.03, 2.2, STEEL, [1.6, 1.2, -0.45], undefined, 6);
+  a.box(0.55, 0.34, 0.02, '#ffffff', [1.88, 2.1, -0.45]);
+  b.cyl(0.12, 0.14, 0.08, C.concrete, [1.6, 0.14, -0.45], undefined, 8);
+  return { base: l.build(), moving: null, height: 2.4 };
 }
 
 /** Delegacia (1×1): prédio compacto com giroflex, antena e viatura na frente. */
