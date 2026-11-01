@@ -24,13 +24,15 @@ export function NetChip({ open, onToggle }: { open: boolean; onToggle: () => voi
   const s = useNet();
   return (
     <button
-      className={`inline-flex min-h-8 items-center gap-1.5 rounded px-1.5 font-mono text-xs text-ink-400 hover:text-ink-100 ${open ? 'bg-ink-800 text-ink-100' : ''}`}
+      aria-label="Conexão com o servidor"
+      className={`inline-flex min-h-8 min-w-8 items-center justify-center gap-1.5 rounded px-1.5 font-mono text-xs text-ink-400 hover:text-ink-100 ${open ? 'bg-ink-800 text-ink-100' : ''}`}
       onClick={onToggle}
       title="Conexão com o servidor (KNPS): ping, oscilação e cadência"
       aria-expanded={open}
     >
       <span className={`h-2 w-2 rounded-full ${DOT[s.quality]}`} aria-hidden />
-      {s.netP50 !== null ? `${Math.round(s.netP50)} ms` : s.rttP50 === null ? '— ms' : `${Math.round(s.rttP50)} ms`}
+      {/* no celular a barra é estreita: só o ponto colorido (o toque abre os detalhes) */}
+      <span className="hidden lg:inline">{s.netP50 !== null ? `${Math.round(s.netP50)} ms` : s.rttP50 === null ? '— ms' : `${Math.round(s.rttP50)} ms`}</span>
     </button>
   );
 }

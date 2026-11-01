@@ -80,6 +80,16 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 - `.audit/`, `zz_*` e `video/` são locais (excluídos via `.git/info/exclude` nesta máquina; numa máquina nova, **não
   commite** arquivos de prévia nem vídeos — apague antes do commit).
 
+## 0.35 Ferramentas de caça a bugs (usar quando o usuário pedir "procure bugs")
+
+- `npx tsx scripts/qa-invariantes.ts 1,2,3 30 4 random brutal` — partidas longas no servidor real (Room) com um
+  "humano" pilotado pela IA mandando ordens pelo caminho real; confere NaN, vida, recursos, posições, salvamento.
+- `npx tsx scripts/qa-fuzz-ordens.ts 30000 1 1` — fuzz estruturado dos 45 tipos de ordem (último argumento 1 = Sandbox).
+- `npx tsx scripts/qa-fuzz.ts 20000 1` — fuzz de mensagens com valores maliciosos.
+- `npx tsx scripts/qa-salvamento.ts 1,2,3 8 4` — salvar e retomar no meio: a retomada tem que ser idêntica.
+- Navegador: `.audit/ui_sweep.cjs` (local, não versionado) foi o padrão; botão do menu é "Nova Partida".
+- Última rodada (01/11): 9 partidas longas sem invariante quebrada, fuzz sem exceção, retomada idêntica.
+
 ## 0.4 O que mudou desde 31/10 (mais recente primeiro; detalhes no `git log` e nas docs citadas)
 
 - **Vídeo de combate** (01/11): gravação quadro a quadro com relógio controlado + trilha com os sons do jogo.
