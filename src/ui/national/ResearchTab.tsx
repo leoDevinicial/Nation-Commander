@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import type { NationView } from '../../../shared/protocol.ts';
 import {
   TECH_CATEGORIES,
@@ -11,6 +12,7 @@ import {
   type TechId,
 } from '../../../shared/strategic/technologies.ts';
 import { formatPct, formatUsd } from '../../lib/format.ts';
+import { treeLayout } from './techTree.ts';
 
 const CATEGORY_ORDER: TechCategory[] = ['military', 'state', 'industry', 'resources'];
 
@@ -45,25 +47,145 @@ export function ResearchTab({ nation, onSelect }: { nation: NationView; onSelect
             Nenhum projeto ativo: a verba de P&amp;D ({formatUsd(yearlyUsd / 365)}/dia) está sendo gasta sem retorno tecnológico. Já foram {formatUsd(r.idleUsd)} assim.
           </p>
         )}
-        <p className="mt-1 text-[11px] text-ink-400">
-          Mais verba (aba Orçamento) acelera até a duração mínima de cada pesquisa e compete com as outras despesas do país. Pausar ou trocar de projeto mantém o progresso e
-          o que foi investido, mas nada é devolvido. Pesquisas militares liberam pacotes de modernização: cada tropa precisa ser modernizada numa base militar ou fábrica.
+        <p
+          className="mt-1 text-[11px] text-ink-400"
+          title="Mais verba (aba Orçamento) acelera até a duração mínima de cada pesquisa e compete com as outras despesas do país. Pausar ou trocar de projeto mantém o progresso e o que foi investido, mas nada é devolvido. Pesquisas militares liberam pacotes de modernização: cada tropa precisa ser modernizada numa base militar ou fábrica."
+        >
+          Mais verba de P&amp;D (aba Orçamento) acelera a pesquisa. Trocar de projeto guarda o progresso.
         </p>
       </section>
 
-      {CATEGORY_ORDER.map((cat) => (
-        <section key={cat}>
-          <h3 className="mb-1.5 text-[11px] font-semibold tracking-wide text-ink-400 uppercase">
-            {TECH_CATEGORIES[cat].icon} {TECH_CATEGORIES[cat].label}
-          </h3>
-          <div className="space-y-2">
-            {TECH_IDS.filter((id) => TECHNOLOGIES[id].category === cat).map((id) => (
-              <TechCard key={id} id={id} nation={nation} onSelect={onSelect} />
-            ))}
-          </div>
-        </section>
-      ))}
+      <AreaTree nation={nation} onSelect={onSelect} />
     </div>
+  );
+}
+
+const NODE_W = 140;
+const NODE_H = 60;
+const GAP_X = 28;
+const GAP_Y = 10;
+
+type NodeState = 'done' | 'active' | 'locked' | 'paused' | 'ready';
+
+function nodeState(id: TechId, nation: NationView): NodeState {
+  const r = nation.research;
+  if (r.done.includes(id)) return 'done';
+  if (r.current === id) return 'active';
+  if (missingPrereqs(id, r.done).length > 0) return 'locked';
+  return (r.progress[id] ?? 0) > 0 ? 'paused' : 'ready';
+}
+
+/**
+ * Pesquisa por área (01/11, pedido do usuário: "o HUD de pesquisas está muito poluído"): um menu com as áreas e, em
+ * cada uma, a árvore de nós ligados pelos pré-requisitos. Tocar num nó abre o detalhe (efeitos, custo, prazo e o
+ * botão de pesquisar) embaixo da árvore.
+ */
+function AreaTree({ nation, onSelect }: { nation: NationView; onSelect: (id: TechId | null) => void }) {
+  const r = nation.research;
+  const [area, setArea] = useState<TechCategory>(() => (r.current ? TECHNOLOGIES[r.current].category : CATEGORY_ORDER[0]!));
+  const [picked, setPicked] = useState<TechId | null>(r.current);
+  const ids = TECH_IDS.filter((id) => TECHNOLOGIES[id].category === area);
+  const tree = useMemo(() => treeLayout(ids, (id) => TECHNOLOGIES[id as TechId].prereqs), [area]); // eslint-disable-line react-hooks/exhaustive-deps
+  const at = new Map(tree.nodes.map((n) => [n.id, n]));
+  const x = (col: number) => col * (NODE_W + GAP_X);
+  const y = (row: number) => row * (NODE_H + GAP_Y);
+  const width = tree.cols * (NODE_W + GAP_X) - GAP_X;
+  const height = tree.rows * (NODE_H + GAP_Y) - GAP_Y;
+  const shown = picked && TECHNOLOGIES[picked].category === area ? picked : null;
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4" role="tablist" aria-label="Áreas de pesquisa">
+        {CATEGORY_ORDER.map((cat) => {
+          const all = TECH_IDS.filter((id) => TECHNOLOGIES[id].category === cat);
+          const done = all.filter((id) => r.done.includes(id)).length;
+          const running = r.current !== null && TECHNOLOGIES[r.current].category === cat;
+          const open = all.filter((id) => nodeState(id, nation) === 'ready' || nodeState(id, nation) === 'paused').length;
+          return (
+            <button
+              key={cat}
+              role="tab"
+              aria-selected={area === cat}
+              className={`rounded border px-2 py-1.5 text-left ${area === cat ? 'border-signal-blue bg-ink-850' : 'border-ink-700 bg-ink-900 hover:border-ink-600'}`}
+              onClick={() => setArea(cat)}
+            >
+              <div className="font-semibold text-ink-100">
+                {TECH_CATEGORIES[cat].icon} {TECH_CATEGORIES[cat].label}
+              </div>
+              <div className="text-[10px] text-ink-400">
+                {done}/{all.length} concluídas{running ? ' · ▶ em andamento' : open ? ` · ${open} disponíve${open > 1 ? 'is' : 'l'}` : ''}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="overflow-x-auto rounded border border-ink-700 bg-ink-950/60 p-2.5">
+        <div className="relative" style={{ width, height }}>
+          <svg className="pointer-events-none absolute inset-0" width={width} height={height} aria-hidden>
+            {tree.edges.map((e) => {
+              const a = at.get(e.from)!;
+              const b = at.get(e.to)!;
+              const x1 = x(a.col) + NODE_W;
+              const y1 = y(a.row) + NODE_H / 2;
+              const x2 = x(b.col);
+              const y2 = y(b.row) + NODE_H / 2;
+              const ok = r.done.includes(e.from as TechId);
+              return (
+                <path
+                  key={`${e.from}-${e.to}`}
+                  d={`M${x1},${y1} C${x1 + GAP_X / 2},${y1} ${x2 - GAP_X / 2},${y2} ${x2},${y2}`}
+                  fill="none"
+                  stroke={ok ? '#4fbf7a' : '#41566b'}
+                  strokeWidth={2}
+                  strokeDasharray={ok ? undefined : '4 3'}
+                />
+              );
+            })}
+          </svg>
+          {tree.nodes.map((n) => {
+            const id = n.id as TechId;
+            const t = TECHNOLOGIES[id];
+            const state = nodeState(id, nation);
+            const progress = r.progress[id] ?? 0;
+            const look = {
+              done: 'border-signal-green/60 bg-[#13261c]',
+              active: 'border-signal-blue bg-ink-850',
+              locked: 'border-ink-700 bg-ink-900 opacity-70',
+              paused: 'border-brass-400/60 bg-ink-900',
+              ready: 'border-ink-600 bg-ink-900',
+            }[state];
+            return (
+              <button
+                key={id}
+                className={`absolute overflow-hidden rounded border px-1.5 py-1 text-left ${look} ${shown === id ? 'ring-2 ring-signal-blue' : ''}`}
+                style={{ left: x(n.col), top: y(n.row), width: NODE_W, height: NODE_H }}
+                onClick={() => setPicked(id)}
+                title={t.description}
+              >
+                <div className="truncate text-[11px] font-semibold text-ink-100">
+                  {{ done: '✔', active: '▶', locked: '🔒', paused: '⏸', ready: '○' }[state]} {t.label}
+                </div>
+                <div className="line-clamp-2 text-[10px] leading-tight text-ink-400">{t.unlocks[0] ?? t.description}</div>
+                {n.external.length > 0 && state === 'locked' && (
+                  <div className="truncate text-[9px] text-brass-400">requer {n.external.map((p) => TECHNOLOGIES[p as TechId].label).join(', ')}</div>
+                )}
+                {progress > 0 && state !== 'done' && (
+                  <div className="absolute right-0 bottom-0 left-0 h-1 bg-[#1b2a3a]">
+                    <div className={`h-full ${state === 'active' ? 'bg-signal-blue' : 'bg-brass-400/70'}`} style={{ width: `${progress * 100}%` }} />
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {shown ? (
+        <TechCard id={shown} nation={nation} onSelect={onSelect} />
+      ) : (
+        <p className="text-[11px] text-ink-400">Toque numa pesquisa da árvore para ver o que ela libera, o custo e o prazo.</p>
+      )}
+    </>
   );
 }
 
