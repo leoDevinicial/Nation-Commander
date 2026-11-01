@@ -10,7 +10,7 @@ import { C, layers, type ModelLayers, type PartBuilder } from './kit.ts';
 import { modulesFor } from './upgradeModules.ts';
 import { pumpjack, type PumpRig } from './pumpjack.ts';
 import { tractor } from './crops.ts';
-import { barracksDetail, factoryDetail, houseDetail, oilTankDetail, siloDetail, warehouseDetail } from './details.ts';
+import { barracksDetail, factoryDetail, houseDetail, oilTankDetail, siloDetail } from './details.ts';
 import { buildMineModel, buildQuarryModel, buildSawmillModel } from './industry.ts';
 import { buildMarketModel, buildPortModel, buildRailStationModel } from './logistics.ts';
 import { buildAaBatteryModel, buildAirbaseModel, buildMissileSiloModel, buildResearchCenterModel } from './military.ts';
@@ -564,25 +564,107 @@ function buildResidential(): Omit<BuildingModel, 'detail'> {
   return { base: l.build(), moving: null, height: 3.2 };
 }
 
+/**
+ * Armazém de recursos (2×2), depósito logístico em low poly. O volume do galpão é o mesmo de antes (os módulos de
+ * melhoria se encaixam nele):
+ * - galpão com base de concreto e chapa ondulada em cima, faixa de janelas alta, claraboias e lanternim no telhado;
+ * - doca elevada com três portões de enrolar, para-choques, niveladores, escada e luminárias;
+ * - escritório no canto da fachada (janelas e porta);
+ * - pátio com o estoque à vista: toras, blocos de pedra, barras de ferro, tambores de petróleo, caixas em paletes,
+ *   contêineres na cor da nação e uma empilhadeira.
+ */
 function buildWarehouse(): Omit<BuildingModel, 'detail'> {
   const l = layers();
-  const { body: b, accent: a } = l;
+  const { body: b, accent: a, glass: g } = l;
   slab(b, 4);
-  b.box(3.3, 1.3, 2.4, C.concreteDark, [0, 0.8, -0.3]);
-  b.gable(3.4, 2.5, 0.45, C.roof, [0, 1.45, -0.3]);
-  // docas e portões
-  for (const x of [-0.9, 0.9]) {
-    b.box(0.9, 0.85, 0.06, C.metalDark, [x, 0.6, 0.92]);
-    for (let i = 0; i < 4; i++) b.box(0.88, 0.02, 0.07, C.metal, [x, 0.3 + i * 0.18, 0.94]);
+  b.box(3.7, 0.012, 1.0, '#6d6a63', [0, 0.166, 1.45]);
+  // --- galpão: base de concreto e chapa ondulada
+  const [W, D, cz] = [3.3, 2.4, -0.3];
+  const front = cz + D / 2;
+  b.box(W, 0.38, D, C.concreteDark, [0, 0.35, cz]);
+  b.box(W - 0.02, 0.95, D - 0.02, '#8d9296', [0, 1.0, cz]);
+  for (let x = -W / 2 + 0.08; x <= W / 2 - 0.05; x += 0.15) b.box(0.03, 0.93, 0.02, '#787d82', [x, 1.0, cz - D / 2 - 0.005]);
+  for (let z = cz - D / 2 + 0.08; z <= front - 0.05; z += 0.15) for (const s of [-1, 1]) b.box(0.02, 0.93, 0.03, '#787d82', [s * (W / 2 + 0.005), 1.0, z]);
+  // faixa de janelas alta nas laterais
+  for (const s of [-1, 1]) g.box(0.02, 0.14, D - 0.4, '#ffffff', [s * (W / 2 + 0.012), 1.32, cz]);
+  b.gable(W + 0.1, D + 0.1, 0.45, C.roof, [0, 1.47, cz]);
+  // lanternim (respiro na cumeeira) e claraboias nas águas
+  b.box(W * 0.7, 0.1, 0.2, '#5c6166', [0, 1.95, cz]);
+  b.gable(W * 0.7, 0.3, 0.08, C.roof, [0, 2.0, cz]);
+  for (const x of [-1.05, 0, 1.05]) for (const s of [-1, 1]) g.box(0.5, 0.02, 0.32, '#ffffff', [x, 1.7, cz + s * 0.55], [s * -0.35, 0, 0]);
+  // --- fachada: três portões de enrolar com moldura, escritório no canto e faixa da nação
+  for (const x of [-1.05, 0, 1.05]) {
+    b.box(0.74, 0.78, 0.04, C.metalDark, [x, 0.73, front + 0.01]);
+    for (let i = 0; i < 6; i++) b.box(0.72, 0.015, 0.05, C.metal, [x, 0.4 + i * 0.13, front + 0.02]);
+    for (const s of [-1, 1]) b.box(0.05, 0.84, 0.06, C.yellow, [x + s * 0.4, 0.73, front + 0.02]);
+    b.box(0.86, 0.05, 0.06, C.yellow, [x, 1.15, front + 0.02]);
+    b.box(0.1, 0.06, 0.08, '#e8e4c8', [x, 1.25, front + 0.05]);
   }
-  b.box(3.3, 0.25, 0.5, C.concrete, [0, 0.2, 1.2]);
-  // estoque visível: toras, blocos de pedra e lingotes
-  for (let i = 0; i < 3; i++) b.cyl(0.11, 0.11, 0.9, C.wood, [-1.3 + i * 0.24, 0.27, 1.65], [0, 0, Math.PI / 2], 8);
-  for (let i = 0; i < 3; i++) b.box(0.28, 0.24, 0.28, C.stone, [0.2 + i * 0.32, 0.22, 1.65]);
-  b.box(0.4, 0.14, 0.25, '#7e858c', [1.45, 0.17, 1.65]);
-  a.box(3.32, 0.12, 0.02, '#ffffff', [0, 1.2, 0.92]);
-  warehouseDetail(b);
-  return { base: l.build(), moving: null, height: 2.0 };
+  a.box(W + 0.02, 0.1, 0.02, '#ffffff', [0, 1.36, front + 0.012]);
+  // escritório: janelas no alto à esquerda
+  g.box(0.5, 0.14, 0.02, '#ffffff', [-1.4, 1.2, front + 0.012]);
+  // --- doca elevada: plataforma, para-choques, niveladores e escada
+  b.box(W, 0.28, 0.45, C.concrete, [0, 0.3, front + 0.22]);
+  b.box(W, 0.03, 0.05, C.yellow, [0, 0.455, front + 0.43]);
+  for (const x of [-1.05, 0, 1.05]) {
+    for (const s of [-1, 1]) b.box(0.08, 0.12, 0.05, '#1b1b1b', [x + s * 0.32, 0.3, front + 0.47]);
+    b.box(0.5, 0.02, 0.3, '#4b5056', [x, 0.452, front + 0.24]);
+  }
+  for (let i = 0; i < 3; i++) b.box(0.3, 0.09, 0.12, C.concreteDark, [W / 2 + 0.17, 0.2 + i * 0.09, front + 0.38 - i * 0.1]);
+  // calhas e tubos de descida
+  for (const s of [-1, 1]) b.cyl(0.025, 0.025, 1.25, C.metalDark, [s * (W / 2 - 0.05), 0.85, front + 0.03], undefined, 6);
+
+  // --- pátio: o estoque à vista
+  const yz = 1.55;
+  // toras em pirâmide
+  for (const [x, y] of [
+    [-1.62, 0.27],
+    [-1.4, 0.27],
+    [-1.18, 0.27],
+    [-1.51, 0.46],
+    [-1.29, 0.46],
+    [-1.4, 0.65],
+  ] as const)
+    b.cyl(0.1, 0.1, 0.75, C.wood, [x, y, yz], [Math.PI / 2, 0, 0], 8);
+  // blocos de pedra
+  for (const [x, y] of [
+    [-0.82, 0.29],
+    [-0.52, 0.29],
+    [-0.67, 0.53],
+  ] as const)
+    b.box(0.27, 0.24, 0.27, C.stone, [x, y, yz]);
+  // barras de ferro em palete
+  b.box(0.42, 0.06, 0.32, C.wood, [-0.12, 0.2, yz]);
+  for (let i = 0; i < 3; i++) for (let k = 0; k < 2; k++) b.box(0.38, 0.07, 0.08, '#7e858c', [-0.12, 0.27 + k * 0.07, yz - 0.1 + i * 0.1]);
+  // caixas em paletes
+  for (const [x, z, y] of [
+    [0.38, yz - 0.15, 0.32],
+    [0.38, yz + 0.15, 0.32],
+    [0.38, yz, 0.56],
+  ] as const) {
+    b.box(0.26, 0.04, 0.26, C.wood, [x, y - 0.13, z]);
+    b.box(0.24, 0.22, 0.24, '#a8875a', [x, y, z]);
+  }
+  // tambores de petróleo
+  for (const [x, z] of [
+    [0.8, yz - 0.14],
+    [0.98, yz - 0.14],
+    [0.89, yz + 0.04],
+  ] as const)
+    b.cyl(0.08, 0.08, 0.26, '#3d4a57', [x, 0.3, z], undefined, 8);
+  // contêineres na cor da nação (dois empilhados)
+  a.box(0.42, 0.42, 0.95, '#ffffff', [1.62, 0.38, yz - 0.05]);
+  b.box(0.42, 0.42, 0.95, '#7b8188', [1.62, 0.8, yz - 0.05]);
+  for (const y of [0.38, 0.8]) for (let i = 0; i < 4; i++) b.box(0.44, 0.38, 0.015, '#5d636a', [1.62, y, yz - 0.45 + i * 0.27]);
+  // empilhadeira
+  const [fx, fz] = [1.05, 0.62 + front - 0.3 + 0.4];
+  b.box(0.3, 0.16, 0.4, C.yellow, [fx, 0.3, fz]);
+  b.box(0.26, 0.04, 0.24, C.metalDark, [fx, 0.58, fz + 0.05]);
+  for (const s of [-1, 1]) b.box(0.025, 0.36, 0.025, C.metalDark, [fx + s * 0.11, 0.4, fz + 0.15]);
+  for (const s of [-1, 1]) b.box(0.025, 0.42, 0.025, C.metalDark, [fx + s * 0.08, 0.4, fz - 0.21]);
+  for (const s of [-1, 1]) b.box(0.04, 0.02, 0.32, C.metalDark, [fx + s * 0.07, 0.22, fz - 0.37]);
+  for (const s of [-1, 1]) for (const dz of [-0.13, 0.13]) b.cyl(0.07, 0.07, 0.05, C.rubber, [fx + s * 0.16, 0.24, fz + dz], [0, 0, Math.PI / 2], 8);
+  return { base: l.build(), moving: null, height: 2.05 };
 }
 
 function buildSilo(): Omit<BuildingModel, 'detail'> {

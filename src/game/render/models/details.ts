@@ -59,20 +59,6 @@ export function factoryDetail(b: PartBuilder, g: PartBuilder): void {
 
 // ------------------------------------------------------------------ armazém
 
-export function warehouseDetail(b: PartBuilder): void {
-  // chapa ondulada: nervuras verticais nas laterais e no fundo
-  for (let z = -1.42; z <= 0.84; z += 0.16) for (const s of [-1, 1]) b.box(0.025, 1.22, 0.035, '#5f6368', [s * 1.663, 0.79, z]);
-  for (let x = -1.58; x <= 1.6; x += 0.16) b.box(0.035, 1.22, 0.025, '#5f6368', [x, 0.79, -1.513]);
-  // para-choques de doca, calços e luminárias sobre os portões
-  for (const x of [-0.9, 0.9]) {
-    for (const s of [-1, 1]) b.box(0.08, 0.12, 0.06, '#1b1b1b', [x + s * 0.38, 0.27, 1.47]);
-    wallLight(b, x, 1.12, 0.93);
-    b.box(0.92, 0.04, 0.05, C.yellow, [x, 0.34, 1.46]);
-  }
-  // calhas e tubos de descida
-  for (const s of [-1, 1]) b.cyl(0.025, 0.025, 1.3, C.metalDark, [s * 1.6, 0.8, 0.94], undefined, 6);
-}
-
 // ------------------------------------------------------------------ silo de grãos
 
 export function siloDetail(b: PartBuilder): void {
