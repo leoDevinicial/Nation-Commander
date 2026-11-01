@@ -1128,6 +1128,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     sight: 8,
     upkeep: { supplies: 0.08 },
     buildable: true,
+    nearWater: true,
     description: 'Construído na margem da água. Navios levam até 320 por viagem com o menor frete, mas são lentos e, em guerra, navegam escoltados (+50% de tempo).',
   },
   rail_station: {

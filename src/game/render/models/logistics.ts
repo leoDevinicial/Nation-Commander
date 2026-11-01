@@ -4,8 +4,8 @@ import type { BuildingModel, ModelAnim } from './buildingModels.ts';
 
 /**
  * Instalações de comércio (Fase 6): terminal comercial (escritório, pátio de contêineres e
- * empilhadeira de contêiner), porto (cais com defensas e cabeços, portêiner com carro que corre
- * pela lança, armazém portuário) e estação ferroviária (plataforma coberta, linhas com dormentes,
+ * empilhadeira de contêiner), porto (cais com defensas e cabeços, portêiner com cavalete em A, estais e carro
+ * que corre pela lança até sobre a água, pórtico de pátio, caminhão-trator, armazém e postes altos) e estação ferroviária (plataforma coberta, linhas com dormentes,
  * prédio da estação, sinal e vagões). Também os veículos de carga desenhados no mapa.
  */
 
@@ -74,49 +74,121 @@ export function buildMarketModel(): Built {
 export function buildPortModel(): Built {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
-  // pátio do cais (a margem da água fica do lado +z do modelo — o porto é girado pelo jogo)
+  const CRANE = '#c8402f';
+  // pátio do terminal (a margem da água fica do lado +z do modelo — o porto é girado pelo jogo para a água)
   b.box(3.9, 0.18, 3.9, '#8d8a82', [0, 0.09, 0]);
-  b.box(3.9, 0.2, 0.25, '#6f6c66', [0, 0.1, 1.83]); // muro do cais
+  b.box(3.9, 0.012, 1.3, '#9a978f', [0, 0.186, 1.25]); // faixa do cais, concreto mais claro
+  // muro do cais com a face escura, defensas cilíndricas de borracha e cabeços de amarração
+  b.box(3.9, 0.34, 0.12, '#5f5c57', [0, 0.02, 1.92]);
+  b.box(3.9, 0.04, 0.16, '#a6a39b', [0, 0.18, 1.9]);
   for (let i = 0; i < 6; i++) {
-    b.box(0.22, 0.16, 0.06, '#1d1d1d', [-1.6 + i * 0.64, 0.12, 1.98]); // defensas
-    b.cyl(0.05, 0.06, 0.1, '#2b2d30', [-1.6 + i * 0.64, 0.23, 1.78], undefined, 8); // cabeços
+    const x = -1.6 + i * 0.64;
+    b.cyl(0.07, 0.07, 0.3, '#1d1d1d', [x, 0.02, 2.02], undefined, 8);
+    b.cyl(0.04, 0.05, 0.08, '#2b2d30', [x + 0.25, 0.22, 1.8], undefined, 8);
+    b.cyl(0.065, 0.065, 0.025, '#2b2d30', [x + 0.25, 0.27, 1.8], undefined, 8);
   }
-  for (let i = 0; i < 10; i++) b.box(0.18, 0.012, 0.04, C.yellow, [-1.75 + i * 0.4, 0.185, 1.6]);
-  // trilhos do portêiner
-  for (const z of [0.9, 1.6]) b.box(3.8, 0.02, 0.04, C.metal, [0, 0.19, z]);
-  // armazém portuário e contêineres
-  b.box(1.5, 0.75, 1.0, '#9ca2a8', [-1.1, 0.55, -1.35]);
-  b.gable(1.6, 1.1, 0.3, C.roof, [-1.1, 0.93, -1.35]);
-  for (let i = 0; i < 8; i++) b.box(0.012, 0.74, 1.01, '#878d93', [-1.8 + i * 0.2, 0.55, -1.35]);
-  b.box(0.5, 0.5, 0.03, C.metalDark, [-1.1, 0.43, -0.84]);
-  a.box(0.8, 0.12, 0.02, '#ffffff', [-1.1, 0.86, -0.84]);
-  containerStack(b, 0.4, -1.6, 2, 3, 2, 3);
-  containerStack(b, 0.55, -0.45, 2, 2, 1, 9);
-  // guarita
-  b.box(0.3, 0.32, 0.3, '#d9d8d0', [-1.65, 0.34, 0.3]);
-  g.box(0.31, 0.1, 0.2, '#ffffff', [-1.65, 0.4, 0.3]);
+  for (let i = 0; i < 10; i++) b.box(0.18, 0.012, 0.04, C.yellow, [-1.75 + i * 0.4, 0.195, 1.66]);
+  // trilhos do portêiner e faixas de pista dos caminhões sob a ponte
+  for (const z of [0.75, 1.55]) {
+    b.box(3.8, 0.02, 0.05, C.metal, [0, 0.2, z]);
+    b.box(3.8, 0.01, 0.1, '#6f6c66', [0, 0.19, z]);
+  }
+  for (const z of [1.0, 1.3]) b.box(3.6, 0.008, 0.02, '#e8e6dc', [0, 0.194, z]);
 
-  // portêiner (estrutura fixa) e carro que corre pela lança até sobre a água
-  const px = 0.6;
-  for (const x of [px - 0.45, px + 0.45]) {
-    for (const z of [0.9, 1.6]) strut(b, [x, 0.2, z], [x, 1.7, z], 0.08, '#c8402f');
-    strut(b, [x, 1.0, 0.9], [x, 1.0, 1.6], 0.06, '#c8402f');
-    strut(b, [x, 0.25, 0.9], [x, 1.55, 1.6], 0.035, '#c8402f');
+  // portêiner (guindaste de cais): pórtico de quatro pernas sobre truques, contraventamento, cavalete em A com os
+  // estais, lança dupla que sai sobre a água e a casa de máquinas na contralança
+  const px = 0.55;
+  const top = 1.55;
+  for (const sx of [-1, 1]) {
+    const x = px + sx * 0.45;
+    for (const z of [0.75, 1.55]) {
+      strut(b, [x, 0.3, z], [x, top, z], 0.075, CRANE);
+      b.box(0.14, 0.1, 0.22, '#3a3d40', [x, 0.25, z]);
+      for (const dz of [-0.07, 0.07]) b.cyl(0.035, 0.035, 0.05, '#1d1d1d', [x, 0.235, z + dz], [0, 0, Math.PI / 2], 6);
+    }
+    strut(b, [x, 0.45, 0.75], [x, 0.45, 1.55], 0.05, CRANE); // viga de soleira
+    strut(b, [x, 0.5, 0.75], [x, 1.45, 1.55], 0.03, CRANE);
+    strut(b, [x, 1.0, 0.75], [x, 1.0, 1.55], 0.04, CRANE);
   }
-  for (const z of [0.9, 1.6]) strut(b, [px - 0.45, 1.7, z], [px + 0.45, 1.7, z], 0.07, '#c8402f');
-  b.box(0.12, 0.1, 2.9, '#c8402f', [px - 0.12, 1.78, 1.25]); // lança (sai sobre a água)
-  b.box(0.12, 0.1, 2.9, '#c8402f', [px + 0.12, 1.78, 1.25]);
-  b.box(0.5, 0.3, 0.4, '#d9d8d0', [px, 1.98, 0.35]); // casa de máquinas
-  g.box(0.51, 0.1, 0.2, '#ffffff', [px, 2.0, 0.35]);
+  for (const z of [0.75, 1.55]) strut(b, [px - 0.45, top, z], [px + 0.45, top, z], 0.07, CRANE);
+  a.box(0.82, 0.08, 0.02, '#ffffff', [px, top, 1.6]);
+  // lança e contralança: duas vigas-caixão da retaguarda (z −0.45) até a ponta sobre a água (z 3.0)
+  for (const sx of [-1, 1]) {
+    b.box(0.08, 0.1, 3.45, CRANE, [px + sx * 0.14, top + 0.1, 1.27]);
+    for (let k = 0; k < 7; k++) b.box(0.3, 0.025, 0.025, CRANE, [px, top + 0.06, -0.3 + k * 0.5]);
+  }
+  // cavalete em A sobre o pórtico e os estais até a ponta da lança e a contralança
+  const apex: V3 = [px, 2.45, 1.05];
+  for (const sx of [-1, 1]) {
+    strut(b, [px + sx * 0.45, top, 0.75], [px + sx * 0.1, apex[1], apex[2]], 0.05, CRANE);
+    strut(b, [px + sx * 0.45, top, 1.55], [px + sx * 0.1, apex[1], apex[2]], 0.05, CRANE);
+    strut(b, [px + sx * 0.1, apex[1], apex[2]], [px + sx * 0.14, top + 0.15, 2.95], 0.016, '#3a3d40', true);
+    strut(b, [px + sx * 0.1, apex[1], apex[2]], [px + sx * 0.14, top + 0.15, 2.05], 0.012, '#3a3d40', true);
+    strut(b, [px + sx * 0.1, apex[1], apex[2]], [px + sx * 0.14, top + 0.15, -0.4], 0.016, '#3a3d40', true);
+  }
+  b.box(0.28, 0.08, 0.1, CRANE, [px, apex[1], apex[2]]);
+  b.sphere(0.03, '#d8322a', [px, apex[1] + 0.07, apex[2]], undefined, 6);
+  // casa de máquinas na contralança, com a faixa da nação
+  b.box(0.5, 0.3, 0.42, '#d9d8d0', [px, top + 0.3, -0.2]);
+  b.box(0.54, 0.03, 0.46, '#8b9198', [px, top + 0.465, -0.2]);
+  a.box(0.502, 0.07, 0.3, '#ffffff', [px, top + 0.36, -0.2]);
+  // caminhão-trator com a carreta sob o portêiner, esperando o contêiner
+  b.box(0.22, 0.18, 0.22, '#e3e5e2', [px - 0.62, 0.32, 1.15]);
+  g.box(0.02, 0.08, 0.18, '#ffffff', [px - 0.735, 0.36, 1.15]);
+  b.box(0.8, 0.04, 0.2, '#2b2d30', [px - 0.1, 0.26, 1.15]);
+  for (const dx of [-0.62, -0.05, 0.22]) for (const s2 of [-1, 1]) b.cyl(0.045, 0.045, 0.04, '#1d1d1d', [px + dx, 0.23, 1.15 + s2 * 0.1], [Math.PI / 2, 0, 0], 8);
+  box20(b, [px - 0.08, 0.28, 1.15], CONTAINER_COLORS[2]!, 0.6);
+
+  // pátio de contêineres em blocos e o pórtico de pátio (RTG) sobre um dos blocos
+  containerStack(b, 0.25, -1.7, 2, 3, 3, 3);
+  containerStack(b, 0.25, -0.75, 2, 3, 2, 9);
+  const rx = 0.89;
+  for (const sx of [-1, 1])
+    for (const z of [-1.95 + 0.12, -1.1]) {
+      strut(b, [rx + sx * 0.98, 0.26, z], [rx + sx * 0.98, 1.15, z], 0.04, C.yellow);
+      b.cyl(0.06, 0.06, 0.06, '#1d1d1d', [rx + sx * 0.98, 0.24, z], [Math.PI / 2, 0, 0], 8);
+    }
+  for (const sx of [-1, 1]) b.box(0.08, 0.08, 0.84, C.yellow, [rx + sx * 0.98, 1.17, -1.47]);
+  for (const z of [-1.83, -1.1]) b.box(2.04, 0.08, 0.08, C.yellow, [rx, 1.17, z]);
+  b.box(0.2, 0.14, 0.24, '#d9d8d0', [rx + 0.3, 1.1, -1.47]);
+  g.box(0.21, 0.06, 0.2, '#ffffff', [rx + 0.3, 1.07, -1.47]);
+
+  // armazém de carga (galpão) com portas de enrolar, nervuras e o letreiro
+  b.box(1.4, 0.7, 1.0, '#9ca2a8', [-1.15, 0.53, -1.35]);
+  b.gable(1.5, 1.1, 0.26, C.roof, [-1.15, 0.88, -1.35]);
+  for (let i = 0; i < 8; i++) b.box(0.012, 0.69, 1.01, '#878d93', [-1.8 + i * 0.185, 0.53, -1.35]);
+  for (const x of [-1.5, -0.85]) {
+    b.box(0.36, 0.42, 0.03, '#6c7177', [x, 0.39, -0.84]);
+    for (let k = 0; k < 5; k++) b.box(0.36, 0.008, 0.035, '#5a5f66', [x, 0.22 + k * 0.08, -0.835]);
+  }
+  a.box(0.9, 0.11, 0.02, '#ffffff', [-1.15, 0.78, -0.84]);
+  // guarita com cancela e os postes altos de iluminação do pátio
+  b.box(0.3, 0.32, 0.3, '#d9d8d0', [-1.65, 0.34, 0.2]);
+  g.box(0.31, 0.1, 0.2, '#ffffff', [-1.65, 0.4, 0.2]);
+  b.box(0.34, 0.03, 0.34, C.roof, [-1.65, 0.515, 0.2]);
+  b.box(0.7, 0.03, 0.03, C.red, [-1.15, 0.36, 0.4]);
+  for (const [x, z] of [
+    [-0.45, 0.25],
+    [1.8, -0.35],
+  ] as const) {
+    strut(b, [x, 0.18, z], [x, 2.1, z], 0.035, C.steel, true);
+    b.cyl(0.14, 0.14, 0.04, C.metalDark, [x, 2.12, z], undefined, 8);
+    for (let k = 0; k < 4; k++) {
+      const ang = (k / 4) * Math.PI * 2 + 0.4;
+      b.box(0.08, 0.03, 0.05, '#f2e6a0', [x + Math.cos(ang) * 0.12, 2.09, z + Math.sin(ang) * 0.12], [0, -ang, 0]);
+    }
+  }
+
+  // carro do portêiner: cabine do operador, cabos, spreader e o contêiner, indo do pátio até sobre a água
   const trolley = layers();
-  trolley.body.box(0.34, 0.12, 0.22, '#3a3d40', [0, 0, 0]);
-  trolley.glass.box(0.12, 0.08, 0.2, '#ffffff', [0.12, -0.06, 0]);
-  strut(trolley.body, [0, -0.05, 0.05], [0, -0.75, 0.05], 0.01, '#26282b', true);
-  strut(trolley.body, [0, -0.05, -0.05], [0, -0.75, -0.05], 0.01, '#26282b', true);
-  trolley.body.box(0.4, 0.05, 0.2, C.yellow, [0, -0.78, 0]);
-  box20(trolley.body, [0, -1.07, 0], CONTAINER_COLORS[0]!, 0.56);
-  const anims: ModelAnim[] = [{ layers: trolley.build(), pivot: [px, 1.7, 0.6], motion: { kind: 'shuttle', dir: [0, 0, 1], length: 1.7, speed: 0.5 } }];
-  return { base: l.build(), moving: null, anims, height: 2.3 };
+  trolley.body.box(0.36, 0.12, 0.26, '#3a3d40', [0, 0, 0]);
+  trolley.body.box(0.16, 0.14, 0.18, '#d9d8d0', [0.12, -0.14, 0.05]);
+  trolley.glass.box(0.165, 0.07, 0.16, '#ffffff', [0.12, -0.15, 0.06]);
+  for (const dx of [-0.08, 0.08]) strut(trolley.body, [dx, -0.05, -0.04], [dx, -0.72, -0.04], 0.008, '#26282b', true);
+  trolley.body.box(0.62, 0.05, 0.22, C.yellow, [0, -0.75, -0.04]);
+  box20(trolley.body, [0, -1.03, -0.04], CONTAINER_COLORS[0]!, 0.56);
+  const anims: ModelAnim[] = [{ layers: trolley.build(), pivot: [px, top + 0.02, 0.4], motion: { kind: 'shuttle', dir: [0, 0, 1], length: 2.2, speed: 0.4 } }];
+  return { base: l.build(), moving: null, anims, height: 2.5 };
 }
 
 // ------------------------------------------------------------------ estação ferroviária
