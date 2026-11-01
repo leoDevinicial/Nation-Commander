@@ -235,4 +235,3 @@ describe('drone de ataque', () => {
     expect(crossed).toBe(true);
   });
 });
-
