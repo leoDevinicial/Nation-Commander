@@ -69,6 +69,13 @@ const W = Number(process.env.W || 1280), H = Number(process.env.H || 720);
       this.target.set(c.look.x, 0, c.look.z);
       this.distance = Math.max(10, Math.hypot(c.pos.x - c.look.x, c.pos.y - c.look.y, c.pos.z - c.look.z));
     };
+    // sem texto nenhum: OSD do drone sem nomes de alvo nem "ALVO TRAVADO" (fica o resto da tela de bordo)
+    const ot = rt.fpv.text.bind(rt.fpv);
+    rt.fpv.text = (str, ...rest) => (/ALVO TRAVADO|\s\d+m$/.test(str) ? undefined : ot(str, ...rest));
+    window.__hideWorldText = () => {
+      rt.territoryLayer.group.visible = false;
+      for (const bv of rt.buildings.values()) if (bv.visual.cityTag) bv.visual.cityTag.visible = false;
+    };
     window.__shotsInit(cfg);
     window.__startFake();
   }, cfg);
@@ -120,7 +127,7 @@ const W = Number(process.env.W || 1280), H = Number(process.env.H || 720);
         await new Promise((r) => setTimeout(r, 5));
       }
     }
-    const shot = await p.evaluate(([t, F]) => { window.__recT = t; window.__camPose = window.__camFor(t, 1 / F); window.__advance(1000 / F); return window.__shotName; }, [t, FPS]);
+    const shot = await p.evaluate(([t, F]) => { window.__recT = t; window.__hideWorldText(); window.__camPose = window.__camFor(t, 1 / F); window.__advance(1000 / F); return window.__shotName; }, [t, FPS]);
     const { data } = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 92 });
     fs.writeFileSync(`${OUT}/${String(f).padStart(5, '0')}.jpg`, Buffer.from(data, 'base64'));
     if (f % 24 === 0) console.log('frame', f, 't', t.toFixed(1), shot, 'fpv', fpv, 'elapsed', ((Date.now() - t0) / 1000).toFixed(0) + 's');
