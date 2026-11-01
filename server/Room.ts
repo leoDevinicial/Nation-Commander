@@ -41,6 +41,7 @@ import { buildIntegrity, type IntegrityCounters, type MatchIntegrity } from './k
 import { PAUSE_POLICY } from './kac/policy.ts';
 import { idCipher, newIdKey } from './kac/entityIds.ts';
 import type { MatchRecord } from './supabase.ts';
+import { KnpsRoomStats } from './knps/stats.ts';
 
 export const SNAPSHOT_EVERY = 2; // 10 snapshots/s
 const MAX_COMMANDS_PER_TICK = 20;
@@ -136,6 +137,10 @@ export class Room {
   private battleFog = new Map<number, FogMemory>();
   private opsDirty = new Set<Slot>();
   private events: SimEvent[] = [];
+  /** KNPS-02: eventos de um jogador cujo snapshot foi pulado por congestionamento (vão no próximo). */
+  private carryEvents = new Map<Slot, SimEvent[]>();
+  /** KNPS: medições de rede e de tick desta partida (sem dados pessoais). */
+  readonly knps = new KnpsRoomStats();
   paused = false;
   pausedBy: string | null = null;
   speed: GameSpeed = 1;
@@ -535,7 +540,8 @@ export class Room {
 
   private startLoop(): void {
     this.lastLoopTime = this.now();
-    if (this.deps.autoLoop !== false) this.loop = setInterval(() => this.onLoop(), 1000 / TICK_RATE / 2);
+    // KNPS-04: o laço acorda a cada 10 ms (antes 25 ms): o tick sai no máximo ~10 ms depois da hora, em vez de ~25 ms
+    if (this.deps.autoLoop !== false) this.loop = setInterval(() => this.onLoop(), 1000 / TICK_RATE / 5);
   }
 
   // ------------------------------------------------------------ salvar e retomar
@@ -678,9 +684,13 @@ export class Room {
     const tickMs = 1000 / TICK_RATE;
     let steps = 0;
     try {
+      // KNPS: atraso do laço = quanto do tempo de tick já tinha passado quando o tick saiu
+      if (this.accumulator >= tickMs) this.knps.loopLag.push((this.accumulator - tickMs) / Math.max(0.25, this.speed));
       while (this.accumulator >= tickMs && steps < 8 && this.status === 'playing') {
         this.accumulator -= tickMs;
+        const t0 = performance.now();
         this.advance();
+        this.knps.tickMs.push(performance.now() - t0);
         steps++;
       }
     } catch (err) {
@@ -714,7 +724,11 @@ export class Room {
       }
     }
     const batch = this.pending.splice(0, this.pending.length);
+    // KNPS-03: quem deu ordem neste tick recebe o resultado já neste tick (sem esperar a cadência de 100 ms)
+    const commanded = new Set<Slot>();
     for (const { slot, cmd, conn } of batch) {
+      // a pilotagem do drone (10 por segundo) não precisa: a câmera do piloto já prevê o voo
+      if (conn && cmd.type !== 'drone_steer') commanded.add(slot);
       const err =
         cmd.type === 'launch_operation'
           ? this.ops
@@ -746,6 +760,7 @@ export class Room {
     if (sim.tick % REPORT_EVERY_TICKS === 0) this.reportSamples = pushSample(this.reportSamples, this.sampleReport());
     this.advanceNational(tickEvents);
     if (sim.tick % SNAPSHOT_EVERY === 0 || sim.ended) this.broadcastSnapshot();
+    else for (const slot of commanded) this.sendQuickSnapshot(slot);
     if (sim.ended) void this.finish(this.endReason ?? sim.victory ?? (sim.winner === null ? 'draw' : 'hq_destroyed'));
     else if (this.humansOut()) void this.finish(this.endReason ?? 'hq_destroyed');
   }
@@ -1311,9 +1326,33 @@ export class Room {
     // gera para todo humano (mesmo desconectado) para manter a memória da névoa atualizada
     for (const p of this.players) {
       if (p.isAI) continue;
-      const json = this.snapshotJson(events, p.slot);
+      const carried = this.carryEvents.get(p.slot);
+      const mine = carried ? carried.concat(events) : events;
+      const json = this.snapshotJson(mine, p.slot);
+      // KNPS-02: conexão com a fila de saída cheia: este snapshot não entra na fila (o próximo traz o estado inteiro);
+      // os eventos dele ficam guardados para o próximo e o território é mandado de novo
+      if (p.conn && !this.sim.ended && p.conn.congested()) {
+        this.carryEvents.set(p.slot, mine.length > 4000 ? mine.slice(-4000) : mine);
+        this.territorySent.delete(p.slot);
+        this.knps.skipped++;
+        continue;
+      }
+      this.carryEvents.delete(p.slot);
+      if (p.conn) this.knps.sent(json.length);
       p.conn?.sendRaw(json);
     }
+  }
+
+  /**
+   * KNPS-03: snapshot extra só para quem deu ordem neste tick, fora da cadência. Sem eventos: eles continuam na fila e
+   * vão no snapshot normal seguinte (nada se perde nem se repete). No máximo um por tick por jogador.
+   */
+  private sendQuickSnapshot(slot: Slot): void {
+    const p = this.players.find((x) => x.slot === slot && !x.isAI);
+    if (!p?.conn || !this.sim || p.conn.congested()) return;
+    const json = this.snapshotJson([], slot);
+    this.knps.sent(json.length, true);
+    p.conn.sendRaw(json);
   }
 
   broadcast(msg: ServerMessage): void {

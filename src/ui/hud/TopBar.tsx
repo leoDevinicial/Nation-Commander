@@ -14,6 +14,7 @@ import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useState } from 'react';
 import { MoneyChip, MoneyPopover, ProductionChip, ProductionPopover, type TopBarPopover } from './TopBarExtras.tsx';
 import { PerfChip, PerfPopover } from './PerfPanel.tsx';
+import { NetChip, NetPopover } from './NetPanel.tsx';
 import { SandboxChip, SandboxPanel } from './SandboxPanel.tsx';
 
 export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRuntime; onMenu: () => void; canControlSpeed: boolean }) {
@@ -185,6 +186,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
             ⚠<span className="hidden sm:inline"> {connDetail ? 'Servidor atualizando… a partida será retomada' : 'Reconectando…'}</span>
           </span>
         )}
+        <NetChip open={pop === 'net'} onToggle={() => toggle('net')} />
         {showFps && <PerfChip open={pop === 'perf'} onToggle={() => toggle('perf')} />}
         {sky && <SkyChip sky={sky} />}
         {paused && <span className="hidden text-xs font-semibold text-brass-400 md:inline">PAUSADO{pausedBy ? ` por ${pausedBy}` : ''}</span>}
@@ -247,13 +249,15 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
       {pop && (
         <>
           <div className="fixed inset-0 z-40" onPointerDown={() => setPop(null)} aria-hidden />
-          <div className={`absolute top-full z-50 mt-1 ${pop === 'perf' ? 'right-0' : 'left-0'}`}>
+          <div className={`absolute top-full z-50 mt-1 ${pop === 'perf' || pop === 'net' ? 'right-0' : 'left-0'}`}>
             {pop === 'money' ? (
               <MoneyPopover onClose={() => setPop(null)} />
             ) : pop === 'sandbox' ? (
               <SandboxPanel runtime={runtime} onClose={() => setPop(null)} />
             ) : pop === 'perf' ? (
               <PerfPopover onClose={() => setPop(null)} />
+            ) : pop === 'net' ? (
+              <NetPopover onClose={() => setPop(null)} />
             ) : (
               <ProductionPopover runtime={runtime} onClose={() => setPop(null)} />
             )}

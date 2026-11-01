@@ -13,6 +13,7 @@ import { parseClientMessage } from './messages.ts';
 import { isOriginAllowed } from './origins.ts';
 import { FileMatchStore, SupabaseMatchStore, type MatchStore } from './matchStore.ts';
 import { RoomManager } from './RoomManager.ts';
+import { KNPS_DEFLATE } from './knps/transport.ts';
 import { getSupabase, kacSupabaseBackend, recordMatch, verifyAccessToken } from './supabase.ts';
 
 // partidas em andamento sobrevivem a reinícios: Supabase em produção, arquivos no desenvolvimento
@@ -65,6 +66,8 @@ const wss = new WebSocketServer({
   // aceita /ws e também a raiz, para tolerar VITE_GAME_SERVER_URL sem o sufixo
   path: undefined,
   maxPayload: 16 * 1024,
+  // KNPS-01: snapshots comprimidos com contexto (~5% do tamanho); ver server/knps/transport.ts
+  perMessageDeflate: KNPS_DEFLATE,
   verifyClient: ({ origin }, done) => {
     if (isOriginAllowed(origin, config.allowedOrigins)) done(true);
     else {

@@ -53,6 +53,9 @@ O Nation Commander é **low poly estilizado**, por decisão do responsável pelo
   `docs/kac/KAC_THREAT_MODEL.md`; ataques reproduzidos em `server/kac.test.ts`. O snapshot nunca cita o que o jogador
   não vê (nem id de alvo, nem base de voo). Os ids são embaralhados por partida (KAC-06): nunca ordenar por id para
   dizer "mais antigo"; usar a ordem de `Simulation.entities`. Nenhuma punição automática: ver `docs/kac/KAC_ENFORCEMENT_POLICY.md`.
+- KNPS — Kaiser Network Performance System (`server/knps/`, `src/net/netStats.ts`, `docs/knps/`): compressão do
+  WebSocket, fila de saída limitada (só snapshot é descartável), snapshot extra no tick da ordem e painel de conexão.
+  Nada do KNPS muda regra ou velocidade para um jogador. Medir com `npx tsx scripts/knps-baseline.ts`.
 - Clima e dia/noite (`shared/sim/climate.ts`, `docs/CLIMA_DIA_NOITE.md`) são só visuais, exceto a usina solar.
 - Minas terrestres (`shared/sim/mines.ts`) não são entidades: o snapshot envia só as do dono e as já detectadas
   (`MineSystem.visibleTo`). O satélite do Programa Espacial revela o resto do mapa, mas nunca as minas.

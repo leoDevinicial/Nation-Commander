@@ -1,5 +1,6 @@
 import type { WebSocket } from 'ws';
 import type { PublicUser, ServerMessage } from '../shared/protocol.ts';
+import { KNPS_SEND_QUEUE_LIMIT } from './knps/transport.ts';
 
 /** Token bucket simples para limitar mensagens por conexão. */
 class RateLimiter {
@@ -38,6 +39,11 @@ export class Connection {
 
   sendRaw(json: string): void {
     if (this.ws.readyState === this.ws.OPEN) this.ws.send(json);
+  }
+
+  /** KNPS-02: a fila de saída desta conexão passou do limite (rede do jogador não está dando conta). */
+  congested(): boolean {
+    return (this.ws.bufferedAmount ?? 0) > KNPS_SEND_QUEUE_LIMIT;
   }
 
   allowMessage(): boolean {

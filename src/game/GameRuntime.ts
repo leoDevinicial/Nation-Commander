@@ -250,6 +250,7 @@ export class GameRuntime {
   private readonly nukes: NuclearBlast[] = [];
   private snapshotAt = 0;
   private snapshotInterval = 100;
+  private tickMs = 50;
   private paused = false;
   private pausedBy: string | null = null;
   private speed: GameSpeed = 1;
@@ -313,6 +314,7 @@ export class GameRuntime {
     );
     this.canControlSpeed = match.canControlSpeed;
     this.snapshotInterval = (1000 / match.tickRate) * match.snapshotEvery;
+    this.tickMs = 1000 / match.tickRate;
 
     this.renderer = new THREE.WebGLRenderer({ antialias: opts.profile.antialias, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.profile.pixelRatioCap));
@@ -603,6 +605,10 @@ export class GameRuntime {
         }
       }
     }
+    // KNPS-03: o servidor manda um snapshot extra no tick em que a ordem do jogador é aplicada; a interpolação usa a
+    // distância real em ticks entre os dois (50 ms ou 100 ms), não um intervalo fixo
+    const prevTick = this.snapshot?.tick;
+    if (prevTick !== undefined && s.tick > prevTick) this.snapshotInterval = Math.min(400, (s.tick - prevTick) * this.tickMs);
     this.snapshot = s;
     this.simSeconds = s.tick / TICK_RATE;
     if (Math.abs(this.clockSeconds - this.simSeconds) > 3) this.clockSeconds = this.simSeconds;

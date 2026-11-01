@@ -160,7 +160,18 @@ export class RoomManager {
 
   stats() {
     let playing = 0;
-    for (const r of this.rooms.values()) if (r.status === 'playing') playing++;
-    return { rooms: this.rooms.size, playing };
+    // KNPS: o pior caso entre as partidas em andamento (custo do tick e atraso do laço) e o tráfego somado
+    const knps = { tickP95Ms: 0, loopLagP95Ms: 0, snapshots: 0, quick: 0, skipped: 0 };
+    for (const r of this.rooms.values()) {
+      if (r.status !== 'playing') continue;
+      playing++;
+      const k = r.knps.summary();
+      knps.tickP95Ms = Math.max(knps.tickP95Ms, k.tickMs.p95);
+      knps.loopLagP95Ms = Math.max(knps.loopLagP95Ms, k.loopLagMs);
+      knps.snapshots += k.snapshots;
+      knps.quick += k.quick;
+      knps.skipped += k.skipped;
+    }
+    return { rooms: this.rooms.size, playing, knps };
   }
 }

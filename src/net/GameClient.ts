@@ -1,5 +1,6 @@
 import type { ClientMessage, ServerMessage } from '../../shared/protocol.ts';
 import { PROTOCOL_VERSION } from '../../shared/version.ts';
+import { NetStats } from './netStats.ts';
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed';
 
@@ -54,6 +55,8 @@ export class GameClient {
   status: ConnectionStatus = 'idle';
   /** Latência medida (ms). */
   rtt = 0;
+  /** KNPS: ping, jitter, pings sem resposta e cadência dos snapshots (ver netStats.ts). */
+  readonly stats = new NetStats();
 
   constructor(private readonly url: string) {}
 
@@ -116,6 +119,7 @@ export class GameClient {
   private sendPing(): void {
     if (this.ws?.readyState !== WebSocket.OPEN) return;
     this.unanswered++;
+    this.stats.pingSent();
     this.ws.send(JSON.stringify({ t: 'ping', n: performance.now() } satisfies ClientMessage));
   }
 
@@ -173,6 +177,7 @@ export class GameClient {
     }
     this.ws = ws;
     this.unanswered = 0;
+    this.stats.reset();
     // conexão que não abre nem responde ao hello (rede presa): desiste desta e tenta outra
     this.clearOpenTimer();
     this.openTimer = setTimeout(() => {
@@ -186,13 +191,15 @@ export class GameClient {
 
     ws.onmessage = (ev) => {
       let msg: ServerMessage;
+      const raw = String(ev.data);
       try {
-        msg = JSON.parse(String(ev.data)) as ServerMessage;
+        msg = JSON.parse(raw) as ServerMessage;
       } catch {
         return;
       }
       if (this.ws !== ws) return;
       this.unanswered = 0;
+      this.stats.message(raw.length, msg.t === 'snapshot');
       if (msg.t === 'welcome') {
         this.clearOpenTimer();
         this.attempts = 0;
@@ -200,6 +207,7 @@ export class GameClient {
         this.startPing();
       } else if (msg.t === 'pong') {
         this.rtt = Math.round(performance.now() - msg.n);
+        this.stats.pong(this.rtt);
         return;
       }
       for (const l of this.listeners) l(msg);
