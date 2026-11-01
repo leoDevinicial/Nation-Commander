@@ -2055,6 +2055,7 @@ export class GameRuntime {
             claims: b.snap.claims?.length ?? 0,
             workers: b.snap.workers ?? 0,
             workerTarget: b.snap.workerTarget ?? 0,
+            ...(b.snap.builderTarget !== undefined ? { builders: b.snap.builders ?? 0, builderTarget: b.snap.builderTarget } : {}),
             status: b.snap.status ?? 'ok',
             rate: b.snap.rate ?? 0,
             roadLinked: b.snap.roadLinked ?? null,

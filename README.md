@@ -308,7 +308,7 @@ com o colapso político do rival. Detalhes em `docs/CADEIAS_SERVICOS_VITORIAS.md
 território, recursos e PIB, e as medalhas de cada comandante (`docs/RELATORIO_POS_PARTIDA.md`).
 
 **Economia:** cada tropa, construção, pesquisa e avanço de era custa caro (1,25× a 3× os valores-base, no bloco
-`ECONOMY` de `shared/sim/config.ts`). A partida começa enxuta: 6 cidadãos, 1 Explorador, nenhuma tropa de combate e
+`ECONOMY` de `shared/sim/config.ts`). A partida começa enxuta: 11 cidadãos, 1 Explorador, nenhuma tropa de combate e
 pouco estoque. Detalhes em `docs/ECONOMIA.md`.
 
 **Partidas maiores:** até 4 nações (6 para assinantes), entre humanos e bots, com times aliados. Os mapas vão de 96 a

@@ -19,6 +19,13 @@ describe('cidadãos visíveis', () => {
     expect(citizenRoster([b(1, 'sawmill', 3, 0.5)], 0)).toHaveLength(0);
   });
 
+  it('obra com construtores: um civil por construtor, com posto de obra', () => {
+    const site = { ...b(1, 'sawmill', 0, 0.5), builders: 3, builderTarget: 4 } as BuildingSnapshot;
+    const roster = citizenRoster([site], 1);
+    expect(roster.filter((j) => j.kind === 'build')).toHaveLength(3);
+    expect(roster.filter((j) => j.kind === 'build').every((j) => j.buildingId === 1)).toBe(true);
+  });
+
   it('chaves estáveis: o mesmo posto mantém o mesmo cidadão entre snapshots', () => {
     const a = citizenRoster([b(7, 'quarry', 2)], 1).map((j) => j.key);
     const c = citizenRoster([b(7, 'quarry', 3)], 1).map((j) => j.key);
@@ -50,6 +57,19 @@ describe('cidadãos visíveis', () => {
       // os 2 da fazenda entraram; o ocioso continua à vista
       expect(l.visible()).toHaveLength(1);
       expect(l.count).toBe(3);
+    });
+
+    it('o construtor caminha até a obra e fica trabalhando do lado de fora', () => {
+      const l = layer();
+      const site = { ...b(2, 'house', 0, 0.3, 20, 20), builders: 2, builderTarget: 4 } as BuildingSnapshot;
+      l.sync([hq, site], [hq, site], 0);
+      step(l, 40);
+      const seen = l.visible();
+      expect(seen).toHaveLength(2);
+      for (const v of seen) expect(Math.hypot(v.x - 21, v.y - 21)).toBeLessThan(4);
+      // obra pronta: viram ociosos e voltam para perto de casa
+      l.sync([hq, b(2, 'house', 0, 1, 20, 20)], [hq, b(2, 'house', 0, 1, 20, 20)], 2);
+      expect(l.visible()).toHaveLength(2);
     });
 
     it('o cidadão selecionado é o mesmo que vai para o posto quando a simulação aceita a ordem', () => {

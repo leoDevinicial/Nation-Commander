@@ -16,12 +16,13 @@ import { citizenModel, recruitModel } from './models/unitModels.ts';
  * - cada civil tem identidade própria: o mesmo boneco que o jogador selecionou é o que caminha
  *   para o trabalho quando a ordem é aceita (ou o ocioso mais próximo, quando a simulação aloca
  *   sozinha);
+ * - construtores (01/11) caminham até a obra e trabalham em volta dela, mudando de ponto de tempos em tempos;
  * - recrutas da reserva treinam junto ao quartel (não são selecionáveis).
  * Ociosos e quem está a caminho podem ser selecionados; a ordem de trabalho vai para a simulação
  * (`assign_workers`), o passeio até um ponto é só visual.
  */
 
-export type CitizenJobKind = 'gather' | 'staff' | 'idle' | 'recruit';
+export type CitizenJobKind = 'gather' | 'staff' | 'build' | 'idle' | 'recruit';
 
 export interface CitizenJob {
   /** Chave estável: o mesmo cidadão continua no mesmo posto entre snapshots. */
@@ -43,6 +44,8 @@ export function citizenRoster(own: readonly BuildingSnapshot[], idle: number, re
     for (let i = 0; i < n; i++) {
       jobs.push({ key: `b${b.id}:${i}`, kind: gather ? 'gather' : 'staff', buildingId: b.id, resource: gather ? gather.resource : null });
     }
+    const builders = b.progress < 1 ? (b.builders ?? 0) : 0;
+    for (let i = 0; i < builders; i++) jobs.push({ key: `bb${b.id}:${i}`, kind: 'build', buildingId: b.id, resource: null });
   }
   for (let i = 0; i < Math.max(0, idle); i++) jobs.push({ key: `idle:${i}`, kind: 'idle', buildingId: null, resource: null });
   const barracks = own.filter((b) => b.type === 'barracks' && b.progress >= 1);
@@ -85,7 +88,9 @@ interface Site {
   done: boolean;
 }
 
-const isWorker = (j: CitizenJob) => j.kind === 'gather' || j.kind === 'staff';
+const isWorker = (j: CitizenJob) => j.kind === 'gather' || j.kind === 'staff' || j.kind === 'build';
+/** Trabalha dentro do edifício (some do mapa); o construtor fica do lado de fora, na obra. */
+const goesInside = (j: CitizenJob) => j.kind === 'gather' || j.kind === 'staff';
 
 export class CitizenLayer {
   readonly group = new THREE.Group();
@@ -306,6 +311,12 @@ export class CitizenLayer {
   /** Decide o próximo destino quando o cidadão termina a espera. */
   private plan(a: CitizenAgent): void {
     const site = a.job.buildingId !== null ? this.sites.get(a.job.buildingId) : undefined;
+    if (a.job.kind === 'build' && site) {
+      // construtor: vai até um ponto em volta da obra, martela um pouco e troca de ponto
+      const spot = this.doorPoint(site, { x: site.x + (Math.random() - 0.5) * 20, y: site.y + (Math.random() - 0.5) * 20 });
+      this.route(a, spot);
+      return;
+    }
     if (isWorker(a.job) && site) {
       // a caminho do trabalho: vai até a porta e entra
       const door = this.doorPoint(site, a.pos);
@@ -361,7 +372,8 @@ export class CitizenLayer {
   orderWork(buildingId: number): number[] {
     const sources: number[] = [];
     for (const a of this.civilians()) {
-      if (!this.selected.has(a.id) || a.job.buildingId === buildingId) continue;
+      // construtores não saem da obra por ordem de trabalho (a simulação os aloca sozinha)
+      if (!this.selected.has(a.id) || a.job.buildingId === buildingId || a.job.kind === 'build') continue;
       sources.push(isWorker(a.job) ? a.job.buildingId! : 0);
       this.handoffs.set(a.id, { buildingId, until: this.time + HANDOFF_SECONDS });
     }
@@ -398,12 +410,12 @@ export class CitizenLayer {
           a.path.shift();
           if (a.path.length === 0) {
             // chegou: o trabalhador entra; os demais ficam um pouco à toa
-            if (isWorker(a.job)) {
+            if (goesInside(a.job)) {
               a.inside = true;
               this.selected.delete(a.id);
               continue;
             }
-            a.wait = a.hold ? 4 + Math.random() * 6 : 2 + Math.random() * 6;
+            a.wait = a.job.kind === 'build' ? 3 + Math.random() * 4 : a.hold ? 4 + Math.random() * 6 : 2 + Math.random() * 6;
           }
         } else {
           a.pos.x += (dx / d) * step;
@@ -428,7 +440,10 @@ export class CitizenLayer {
         continue;
       }
       if (i >= MAX) continue;
-      const bob = moving ? Math.abs(Math.sin((this.time + a.phase) * 9)) * 0.06 : 0;
+      // construtor parado: de frente para a obra, num vaivém curto de martelada
+      const site = !moving && a.job.kind === 'build' && a.job.buildingId !== null ? this.sites.get(a.job.buildingId) : undefined;
+      if (site) a.heading = Math.atan2(-(site.y - a.pos.y), site.x - a.pos.x);
+      const bob = moving ? Math.abs(Math.sin((this.time + a.phase) * 9)) * 0.06 : site ? Math.max(0, Math.sin((this.time + a.phase) * 6)) * 0.07 : 0;
       const ground = this.heightAt(a.pos.x, a.pos.y);
       this.q.setFromEuler(new THREE.Euler(0, a.heading, 0));
       this.m.compose(new THREE.Vector3(a.pos.x, ground + bob, a.pos.y), this.q, new THREE.Vector3(1, 1, 1));

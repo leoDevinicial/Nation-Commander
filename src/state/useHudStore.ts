@@ -44,6 +44,9 @@ export interface SelectedBuildingInfo {
   claims: number;
   workers: number;
   workerTarget: number;
+  /** Construtores da obra e o alvo (só obras próprias com a regra dos construtores). */
+  builders?: number;
+  builderTarget?: number;
   status: BuildingStatus;
   rate: number;
   /** Produção ligada por estrada ao QG ou a uma prefeitura (null: não se aplica). */

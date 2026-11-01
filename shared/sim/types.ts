@@ -121,6 +121,10 @@ export interface Building {
   builtTicks: number;
   /** Total de ticks de obra, fixado no início (pesquisas não alteram obras em andamento). */
   buildTicks: number;
+  /** Cidadãos na obra agora (0..`BUILDERS.max`); só enquanto `progress < 1`. */
+  builders?: number;
+  /** Quantos construtores o dono quer na obra (padrão `BUILDERS.max`). */
+  builderTarget?: number;
   queue: ProductionItem[];
   rally: Vec2 | null;
   cooldown: number;

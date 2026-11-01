@@ -21,9 +21,16 @@ export const CELL_SIZE = 2; // unidades de mundo por célula
 
 /** Teto absoluto de população por nação (cidadãos + efetivo militar), em qualquer situação. */
 export const POP_ABSOLUTE_CAP = 200;
-/** Cidadãos no início da partida (além das unidades iniciais). */
-export const STARTING_CITIZENS = 6;
+/** Cidadãos no início da partida (além das unidades iniciais). 11 desde 01/11: as obras usam até 4 construtores. */
+export const STARTING_CITIZENS = 11;
 /** Formação de um cidadão civil no Centro de Comando: trabalha nas construções (fazendas, poços, serrarias…). */
+/**
+ * Construtores (01/11, pedido do usuário, como no Rise of Nations): cada obra usa até `max` cidadãos. Cada um vale
+ * 1/`max` da velocidade: com 4 a obra anda no tempo de `buildSeconds`, com 1 demora 4 vezes mais, sem nenhum para.
+ * Os construtores saem dos cidadãos antes dos postos de trabalho (quem constrói larga o emprego até a obra acabar).
+ */
+export const BUILDERS = { max: 4 };
+
 export const CITIZEN = { label: 'Cidadão', cost: { food: 40 } as Cost, buildSeconds: 10, hotkey: 'Z' };
 /**
  * Recruta: cidadão alistado na base militar (quartel). Fica na reserva e é a tripulação de toda

@@ -1,4 +1,4 @@
-import { BUILDINGS, MINE, RESOURCE_TYPES, SPACE, TICK_RATE, UNITS, type BuildingType, type DepositSize, type MilitaryResearchId, type ProducibleType, type Stockpile, type UnitType } from './config.ts';
+import { BUILDERS, BUILDINGS, MINE, RESOURCE_TYPES, SPACE, TICK_RATE, UNITS, type BuildingType, type DepositSize, type MilitaryResearchId, type ProducibleType, type Stockpile, type UnitType } from './config.ts';
 import type { PlayerPower, Population, Simulation } from './Simulation.ts';
 import { encodeTerritory } from './territory.ts';
 import { POWER_USE } from './power.ts';
@@ -55,6 +55,9 @@ export interface BuildingSnapshot {
   upgrade?: { toLevel: number; progress: number; spec: SpecId | null } | { visible: true };
   queue: { unitType: ProducibleType; progress: number }[];
   rally: Vec2 | null;
+  /** Cidadãos trabalhando na obra (visíveis no canteiro, logo para todos); o alvo, só para o dono. */
+  builders?: number;
+  builderTarget?: number;
   /** Células de recurso reivindicadas (só para edifícios próprios de coleta). */
   claims?: number[];
   /** Só para edifícios próprios: trabalho, situação, estoque e depósito explorado. */
@@ -285,6 +288,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         level: e.level,
         spec: e.spec,
         ...(sim.cityName(e) ? { city: sim.cityName(e) } : {}),
+        ...(sim.builders && e.progress < 1 ? { builders: e.builders ?? 0, ...(own ? { builderTarget: e.builderTarget ?? BUILDERS.max } : {}) } : {}),
         ...(e.launch ? { launch: { phase: e.launch.phase, progress: r2(1 - e.launch.ticks / ((e.launch.phase === 'countdown' ? SPACE.countdownSeconds : SPACE.ascentSeconds) * TICK_RATE)) } } : {}),
         ...(own && e.research ? { research: { id: e.research.id, progress: r2(1 - e.research.remaining / e.research.total) } } : {}),
         ...(e.upgrade ? { upgrade: own ? { toLevel: e.upgrade.toLevel, progress: r2(e.upgrade.builtTicks / e.upgrade.totalTicks), spec: e.upgrade.spec } : { visible: true as const } } : {}),

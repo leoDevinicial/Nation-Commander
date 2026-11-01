@@ -475,6 +475,7 @@ Proposta registrada a partir do feedback da versão 1.0. **Implementada** em 31/
 | Versão 1.0 — obras com o dobro do tempo (Centro de Pesquisa ×1,3); Base Aérea 4×4 com pista maior e aeronaves reais estacionadas no pátio | Feito | `docs/ECONOMIA.md`, `docs/FASE7_FORCA_AEREA_MISSEIS_AUDIO.md` |
 | Rede elétrica: carvão das minas, termelétrica inicial com estrada e postes, eólica, solar, nuclear e hidrelétrica; energia pelas estradas; construções militares e industriais param sem luz; aprovação; IA constrói e ataca usinas | Feito | `docs/REDE_ELETRICA.md` |
 | Energia como desafio (01/11): todas as construções consomem, coletas rendem 75% sem luz, consumo cresce com a era (×1,3 / ×1,6 / ×2); IA liga coletas à rede com prioridade | Feito | `docs/REDE_ELETRICA.md` |
+| Construção por cidadãos (01/11): até 4 construtores por obra, 25% da velocidade cada; saem dos ociosos e dos empregos; cidadãos visíveis no canteiro; começo com 11 cidadãos | Feito | `docs/CONSTRUTORES.md` |
 | Mercado interno no Terminal Comercial (excedente → suprimentos, preço com pressão que se recupera; IA vende a sobra) | Feito | `docs/MERCADO_INTERNO.md`, `shared/sim/market.ts` |
 | Lote 1, §2.6 — incidentes de fronteira no preparo | Feito | `Simulation.startIncident`, `TacticalAI.planHarass` |
 | Lote 1, §2.7 — curva de defesa (raiz com saturação suave) | Feito | `theaterSupply` em `shared/strategic/params.ts` |

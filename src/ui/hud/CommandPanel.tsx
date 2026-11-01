@@ -17,6 +17,7 @@ import {
   SPACE,
   MINE,
   ROAD,
+  BUILDERS,
   canAfford,
   buildingCost,
   costText,
@@ -1097,6 +1098,31 @@ function MarketInfo({ b, runtime }: { b: { id: number }; runtime: GameRuntime })
 }
 
 /** Consumo de energia da construção (cresce com a era) e o que acontece no escuro. */
+/** Construtores da obra (01/11): até 4 cidadãos, cada um vale 25% da velocidade; sem nenhum, a obra para. */
+function BuildersLine({ b, runtime }: { b: { id: number; builders?: number; builderTarget?: number }; runtime: GameRuntime }) {
+  const n = b.builders ?? 0;
+  const target = b.builderTarget ?? BUILDERS.max;
+  const speed = Math.round((n / BUILDERS.max) * 100);
+  return (
+    <div className="mt-1.5 text-xs">
+      <div className="flex items-center gap-2">
+        <span className="text-ink-400">👷 Construtores</span>
+        <button className="btn min-h-7 px-2 py-0 text-xs" aria-label="Menos construtores" disabled={target <= 1} onClick={() => runtime.send({ type: 'set_builders', buildingId: b.id, count: target - 1 })}>
+          −
+        </button>
+        <span className="font-mono text-ink-100" title="Na obra / alvo">
+          {n}/{target}
+        </span>
+        <button className="btn min-h-7 px-2 py-0 text-xs" aria-label="Mais construtores" disabled={target >= BUILDERS.max} onClick={() => runtime.send({ type: 'set_builders', buildingId: b.id, count: target + 1 })}>
+          +
+        </button>
+        <span className={n ? 'text-ink-400' : 'font-semibold text-red-400'}>{n ? `velocidade ${speed}%` : 'obra parada'}</span>
+      </div>
+      {n < target && <div className="mt-0.5 text-[11px] text-brass-400">Faltam cidadãos: forme mais no Centro de Comando.</div>}
+    </div>
+  );
+}
+
 function PowerUseLine({ b }: { b: { type: BuildingType; owner: number; unpowered?: boolean } }) {
   const me = useHudStore((s) => s.players.find((p) => p.slot === s.mySlot));
   if (!me?.power || b.owner !== useHudStore.getState().mySlot) return null;
@@ -1156,7 +1182,10 @@ function BuildingInfo({ b, runtime }: { b: NonNullable<ReturnType<typeof useHudS
         </div>
       )}
       {!done ? (
-        <div className="mt-2 text-xs text-ink-400">Em construção: {Math.round(b.progress * 100)}%</div>
+        <>
+          <div className="mt-2 text-xs text-ink-400">Em construção: {Math.round(b.progress * 100)}%</div>
+          {b.builderTarget !== undefined && <BuildersLine b={b} runtime={runtime} />}
+        </>
       ) : b.status !== 'ok' ? (
         <div className="mt-1.5 text-xs text-brass-400">{STATUS_TEXT[b.status]}</div>
       ) : (

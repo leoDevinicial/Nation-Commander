@@ -27,6 +27,7 @@ import {
   RESOURCE_TYPES,
   POP_ABSOLUTE_CAP,
   STARTING_CITIZENS,
+  BUILDERS,
   CITIZEN,
   RECRUIT,
   STARTING_RECRUITS,
@@ -95,6 +96,8 @@ export interface SimulationInit {
    * as construções que dependem de luz param sem energia. Padrão: ligada, exceto nas batalhas locais.
    */
   power?: boolean;
+  /** Obras precisam de cidadãos construtores (`BUILDERS`). Padrão: ligado, exceto nas batalhas locais. */
+  builders?: boolean;
   /** KAC-06: permutação secreta dos ids (só o servidor passa; ver `ids.ts`). */
   idCipher?: IdCipher | null;
 }
@@ -157,6 +160,8 @@ export interface SimulationSave {
   incidents?: [string, number][];
   difficulty?: Difficulty;
   eras?: boolean;
+  /** Obras com construtores (ausente nos salvamentos de antes deles: a obra anda sozinha). */
+  builders?: boolean;
   /** Rede elétrica ligada (ausente nos salvamentos de antes dela: tudo fica com luz). */
   power?: boolean;
   powerState?: { powered: number[]; load: [number, number][]; coalDebt: number[]; info: PlayerPower[]; homes: { homes: number; lit: number }[] };
@@ -188,6 +193,8 @@ export interface SimulationSave {
 export interface Population {
   citizens: number;
   employed: number;
+  /** Dos empregados, os que estão construindo obras. */
+  builders?: number;
   idle: number;
   /** Recrutas na reserva (tripulação disponível para unidades militares). */
   recruits: number;
@@ -327,6 +334,10 @@ export class Simulation {
     }
     return this.roadSet;
   }
+  /** Obras com cidadãos construtores (`BUILDERS`); desligado, a obra anda sozinha no tempo de `buildSeconds`. */
+  builders = false;
+  /** Padrão de `SimulationInit.builders` (os testes de regra antigos o desligam em `shared/test/setup.ts`). */
+  static buildersByDefault = true;
   /** Rede elétrica ligada nesta partida (ver `power.ts`). */
   power = false;
   /** Padrão de `SimulationInit.power` (os testes de regra antigos o desligam em `shared/test/setup.ts`). */
@@ -401,6 +412,7 @@ export class Simulation {
     this.grid = new Grid(init.map.width, init.map.height, init.map.cellSize, [...init.map.terrain]);
     this.battle = !!init.battle;
     this.power = init.power ?? (Simulation.powerByDefault && !init.battle);
+    this.builders = init.builders ?? (Simulation.buildersByDefault && !init.battle);
     this.players = [];
     this.lastAlertTick = [];
     this.deposits = findDeposits(init.map);
@@ -523,6 +535,7 @@ export class Simulation {
       ...(this.incidents.size ? { incidents: [...this.incidents] } : {}),
       ...(this.difficulty !== 'normal' ? { difficulty: this.difficulty } : {}),
       ...(this.eras ? { eras: true } : {}),
+      ...(this.builders ? { builders: true } : {}),
       ...(this.power ? { power: true, powerState: { powered: [...this.powered], load: [...this.powerLoad], coalDebt: [...this.coalDebt], info: this.powerInfo.map((p) => ({ ...p })), homes: this.litHomes.map((h) => ({ ...h })) } } : {}),
       ...(this.roads.length ? { roads: this.roads.map((r) => ({ ...r })) } : {}),
       ...(this.victory ? { victory: this.victory } : {}),
@@ -616,6 +629,7 @@ export class Simulation {
     sim.salvos = (data.salvos ?? []).map((v) => ({ ...v, at: { ...v.at } }));
     sim.battle = !!data.battle;
     sim.power = !!data.power;
+    sim.builders = !!data.builders;
     if (data.powerState) {
       sim.powered = new Set(data.powerState.powered);
       sim.powerLoad = new Map(data.powerState.load);
@@ -734,6 +748,7 @@ export class Simulation {
     let military = 0;
     let queuedMilitary = 0;
     let queuedCitizens = 0;
+    let building = 0;
     let queuedRecruits = 0;
     for (const e of this.entities.values()) {
       if (e.owner !== slot) continue;
@@ -741,7 +756,8 @@ export class Simulation {
         military++;
         continue;
       }
-      employed += e.workers;
+      employed += e.workers + (e.builders ?? 0);
+      building += e.builders ?? 0;
       if (e.progress >= 1 && !e.unpaid) housing += this.fx(e).housing;
       for (const q of e.queue)
         if (q.unitType === 'citizen') queuedCitizens++;
@@ -756,6 +772,7 @@ export class Simulation {
     return {
       citizens,
       employed,
+      ...(building ? { builders: building } : {}),
       idle: Math.max(0, citizens - employed),
       recruits,
       queuedRecruits,
@@ -1154,6 +1171,7 @@ export class Simulation {
         this.spend(player, this.buildingCostFor(slot, cmd.buildingType));
         const b = this.addBuilding(cmd.buildingType, slot, cell, 0);
         if (b.type === 'city_hall') b.city = this.nextCity(slot);
+        if (this.builders) this.staff(slot);
         this.emit({ type: 'construction_started', tick: this.tick, id: b.id, owner: slot, buildingType: b.type, pos: { ...b.pos } });
         return null;
       }
@@ -1325,6 +1343,14 @@ export class Simulation {
         const need = this.fx(b).workers;
         if (need === 0) return 'Este edifício não emprega trabalhadores';
         b.workerTarget = Math.max(0, Math.min(need, Math.floor(cmd.count)));
+        this.staff(slot);
+        return null;
+      }
+      case 'set_builders': {
+        const b = this.entities.get(cmd.buildingId);
+        if (!b || b.kind !== 'building' || b.owner !== slot) return 'Edifício inválido';
+        if (b.progress >= 1 || b.hp <= 0) return 'Só obras em andamento têm construtores';
+        b.builderTarget = Math.max(0, Math.min(BUILDERS.max, Math.floor(cmd.count)));
         this.staff(slot);
         return null;
       }
@@ -2161,6 +2187,15 @@ export class Simulation {
     const p = this.players[slot]!;
     // ordem de construção = ordem de inserção (os ids não têm ordem: KAC-06)
     const mine = this.buildings.filter((b) => b.owner === slot);
+    // construtores primeiro (na ordem das obras): quem constrói larga o emprego até a obra acabar
+    let builders = 0;
+    for (const b of mine) {
+      const want = this.builders && b.progress < 1 && b.hp > 0 ? (b.builderTarget ?? BUILDERS.max) : 0;
+      const n = Math.max(0, Math.min(want, p.citizens - builders));
+      if (n || b.builders) b.builders = n;
+      builders += n;
+    }
+    const citizens = p.citizens - builders;
     let employed = 0;
     for (const b of mine) {
       const limit = b.progress >= 1 && b.hp > 0 ? Math.min(b.workerTarget, this.fx(b).workers) : 0;
@@ -2168,15 +2203,15 @@ export class Simulation {
       employed += b.workers;
     }
     // menos cidadãos que empregos (ex.: perdas): libera dos edifícios mais novos
-    for (let i = mine.length - 1; i >= 0 && employed > p.citizens; i--) {
+    for (let i = mine.length - 1; i >= 0 && employed > citizens; i--) {
       const b = mine[i]!;
-      const cut = Math.min(b.workers, employed - p.citizens);
+      const cut = Math.min(b.workers, employed - citizens);
       b.workers -= cut;
       employed -= cut;
     }
     // cidadãos ociosos vão um a um, em rodízio, para os postos vagos (um edifício novo não fica parado
     // enquanto o mais antigo absorve todo mundo)
-    let idle = p.citizens - employed;
+    let idle = citizens - employed;
     const open = mine.filter((b) => b.progress >= 1 && b.hp > 0 && Math.min(b.workerTarget, this.fx(b).workers) > b.workers);
     while (idle > 0 && open.length) {
       for (let i = 0; i < open.length && idle > 0; i++) {
@@ -2417,11 +2452,15 @@ export class Simulation {
       if (b.progress >= 1 || b.hp <= 0) continue;
       const def = BUILDINGS[b.type];
       const ticks = b.buildTicks;
-      b.builtTicks++;
+      // com construtores, cada cidadão vale 1/4 da velocidade (sem nenhum, a obra para)
+      const pace = this.builders ? (b.builders ?? 0) / BUILDERS.max : 1;
+      if (pace <= 0) continue;
+      b.builtTicks += pace;
       b.progress = Math.min(1, b.builtTicks / ticks);
-      b.hp = Math.min(b.maxHp, b.hp + (b.maxHp * 0.9) / ticks);
-      if (b.progress >= 1) {
+      b.hp = Math.min(b.maxHp, b.hp + (b.maxHp * 0.9 * pace) / ticks);
+      if (b.progress >= 1 - 1e-9) {
         b.progress = 1;
+        b.builders = 0;
         this.players[b.owner]!.stats.structuresBuilt++;
         if (def.territoryRadius > 0) this.territoryDirty = true;
         this.staff(b.owner);

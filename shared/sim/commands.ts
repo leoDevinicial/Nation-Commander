@@ -1,4 +1,4 @@
-import { BUILDINGS, UNITS, isMilitaryResearchId, type BuildingType, type MilitaryResearchId, type ProducibleType, type UnitType } from './config.ts';
+import { BUILDERS, BUILDINGS, UNITS, isMilitaryResearchId, type BuildingType, type MilitaryResearchId, type ProducibleType, type UnitType } from './config.ts';
 import type { EntityId } from './types.ts';
 import { isSpecId, type SpecId } from './upgrades.ts';
 import { isModId, type ModId } from './modernization.ts';
@@ -14,6 +14,8 @@ export type Command =
   | { type: 'build'; buildingType: BuildingType; cx: number; cy: number }
   | { type: 'produce'; buildingId: EntityId; unitType: ProducibleType }
   | { type: 'set_workers'; buildingId: EntityId; count: number }
+  /** Quantos cidadãos constroem a obra (0 a `BUILDERS.max`). */
+  | { type: 'set_builders'; buildingId: EntityId; count: number }
   /**
    * Põe cidadãos escolhidos pelo jogador para trabalhar num edifício: cada fonte é 0 (cidadão
    * ocioso) ou o id do edifício onde ele trabalha hoje (realocação).
@@ -107,6 +109,9 @@ export function parseCommand(raw: unknown): Command | null {
     case 'set_workers':
       if (!isId(raw.buildingId) || !Number.isInteger(raw.count) || (raw.count as number) < 0 || (raw.count as number) > 50) return null;
       return { type: 'set_workers', buildingId: raw.buildingId, count: raw.count as number };
+    case 'set_builders':
+      if (!isId(raw.buildingId) || !Number.isInteger(raw.count) || (raw.count as number) < 0 || (raw.count as number) > BUILDERS.max) return null;
+      return { type: 'set_builders', buildingId: raw.buildingId, count: raw.count as number };
     case 'assign_workers':
       if (!isId(raw.buildingId) || !Array.isArray(raw.sources) || raw.sources.length === 0 || raw.sources.length > MAX_UNITS_PER_COMMAND) return null;
       if (!raw.sources.every((v) => v === 0 || isId(v))) return null;
