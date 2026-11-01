@@ -4,25 +4,106 @@ Este arquivo é o ponto de partida para quem pega o projeto numa conversa nova (
 antes de mexer em qualquer coisa. Depois leia `CLAUDE.md` (regras curtas) e
 `docs/BALANCEAMENTO_E_PROGRESSAO.md` (direção de design + tabela "Estado da implementação").
 
-Última atualização: 31/10/2026 (versão 1.2.0 publicada: Comunidade, Feedback e o KAC completo; antes, 1.1.0 com rede
-elétrica, clima e salas públicas; próximo passo na seção 7).
+Última atualização: **01/11/2026**. Tudo publicado até o commit `0e23fd5` (drone FPV sem engasgos); depois disso só
+docs e as ferramentas de vídeo (`scripts/video/`). Não há pedido pela metade.
 
-## 0.1 Conta atual (assumiu em 30/10/2026)
+## 00. Checklist de chegada (faça nesta ordem, antes de qualquer pedido)
 
-- **Branch de trabalho desta conta: `claude/youthful-dijkstra-a45emp`.** Foi criada a partir de
-  `claude/serene-bell-7cjnhp` no commit `20bdcc5` ("Transição de conta…"); as duas apontavam para o mesmo commit, então
-  nada foi perdido nem retrocedido. Desenvolver, commitar e dar push só nela (`git push -u origin
-  claude/youthful-dijkstra-a45emp`), salvo pedido explícito do usuário. A `claude/serene-bell-7cjnhp` fica como estava
-  (é a que publica na Vercel/Render, ver seção 2): levar o trabalho para lá só quando o usuário pedir.
-- **Publicação:** o jogo publicado (Vercel e Render) sai da `claude/serene-bell-7cjnhp`. Em 30/10, a pedido do
-  usuário ("integrem no jogo"), ela foi avançada (fast-forward, sem merge) até a `claude/youthful-dijkstra-a45emp`,
-  com o CIWS, os sons novos e a correção "Era Era". Para publicar de novo: rodar os testes e
-  `git push origin claude/youthful-dijkstra-a45emp:claude/serene-bell-7cjnhp`, só quando o usuário pedir.
-- Conferido na chegada: `npm ci`, `npm test` (51 arquivos, 468 testes), `npm run lint` e `npm run typecheck` passando.
-- Se uma conta futura assumir, repetir o processo: anotar aqui a branch nova, o commit de partida e o resultado dos
-  testes.
+1. **Branch.** Descubra qual branch o ambiente mandou usar (o prompt do sistema diz "Develop on branch …").
+   - Se for uma branch **nova** (outra conta), crie-a a partir da linha principal **sem perder nada**:
+     ```bash
+     git fetch origin claude/youthful-dijkstra-a45emp claude/serene-bell-7cjnhp
+     git checkout -B <branch-nova> origin/claude/youthful-dijkstra-a45emp
+     git push -u origin <branch-nova>
+     ```
+     A `claude/youthful-dijkstra-a45emp` contém tudo (é a linha mais nova; a `claude/serene-bell-7cjnhp` é a publicada e
+     está igual ou atrás dela). Confira com
+     `git merge-base --is-ancestor origin/claude/serene-bell-7cjnhp origin/claude/youthful-dijkstra-a45emp && echo ok`.
+   - Se for a própria `claude/youthful-dijkstra-a45emp`, só `git pull`.
+   - **Nunca** reescreva histórico, force push, merge ou PR sem o usuário pedir. Não use branches `ccr-…` nem as antigas.
+2. **Instalar e verificar:** `npm ci && npm test && npm run lint && npm run typecheck`. Em 01/11: **620 testes** (63
+   arquivos), lint e typecheck limpos. Se algo falhar logo na chegada, investigue antes de mudar qualquer coisa.
+3. **Anote aqui (seção 0.1)** a branch nova, o commit de partida e o resultado dos testes, e atualize o `CLAUDE.md`
+   ("Branch de trabalho atual"). Commit pequeno só com isso.
+4. **Leia:** este arquivo → `CLAUDE.md` → `docs/BALANCEAMENTO_E_PROGRESSAO.md` → a página do sistema que for mexer.
 
-## 0. Comece por aqui (transição de 30/10/2026, conta anterior)
+## 0.0 Como publicar (o usuário fala "publica", "publique", "pode publicar", "pode lançar tudo")
+
+O jogo publicado (Vercel = cliente, Render = servidor) sai da branch **`claude/serene-bell-7cjnhp`**. Publicar é um
+fast-forward dela até a branch de trabalho, **só quando o usuário pede com essas palavras naquela mensagem**:
+
+```bash
+npm test && npm run lint && npm run typecheck && npm run build
+git fetch origin claude/serene-bell-7cjnhp
+git merge-base --is-ancestor origin/claude/serene-bell-7cjnhp HEAD && echo pode
+git push origin <branch-de-trabalho>:claude/serene-bell-7cjnhp
+```
+
+Se o `merge-base` falhar (alguém publicou algo que não está na sua branch), **pare e avise o usuário**; não force.
+Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, sem pedido; publicar, não.
+
+## 0.1 Contas e branches (histórico)
+
+- **01/11/2026 — conta atual (desde 30/10):** branch `claude/youthful-dijkstra-a45emp`, criada de
+  `claude/serene-bell-7cjnhp` no commit `20bdcc5`. Última entrega publicada: `0e23fd5`.
+- **30/10/2026 — conta anterior:** branch `claude/serene-bell-7cjnhp` (hoje é a de publicação).
+- Próxima conta: acrescente uma linha aqui (data, branch, commit de partida, testes).
+
+## 0.2 Infraestrutura e coisas que só o usuário faz
+
+- **Render** (servidor): plano **free**, região padrão (Oregon, sem `region` no `render.yaml`). Dorme após ~15 min sem
+  uso (~1 min para acordar). Variáveis: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (nunca no cliente/commit),
+  `ALLOWED_ORIGINS`, `ALLOW_GUESTS`, opcional `KAC_ADMIN_TOKEN` (painel `/kac`), e para várias regiões
+  `KNPS_REGION`, `KNPS_REGION_LABEL`, `KNPS_REGION_LETTER` (ver `docs/knps/KNPS_REGIONAL_INFRASTRUCTURE.md`).
+- **Vercel** (cliente): `VITE_GAME_SERVER_URL`, `VITE_SUPABASE_*`; para várias regiões, `VITE_GAME_SERVERS`.
+- **Supabase** (`vzzzfseliawtnodsysrn`): você **não tem acesso**. Migrações novas vão em `supabase/migrations/` e o
+  usuário roda o SQL à mão; espere ele dizer "pronto" antes de depender delas. Todas as migrações do repositório já
+  foram aplicadas até 01/11 (inclusive `kac_events`).
+- **Decisão do usuário (01/11):** quando o jogo for monetizado, eles vão pagar servidores em várias regiões. O código
+  do KNPS-08 já está pronto para isso; até lá, um servidor só. Recomendação registrada: mover para a Virgínia num
+  plano pago (é o maior ganho de ping para o Brasil).
+- **Divulgação (01/11):** o usuário e o irmão começaram a divulgar o jogo e criar perfis. O irmão fez o trailer; foi
+  feito também um vídeo de combate de 36 s sem texto (ver `scripts/video/README.md`; o vídeo não está no git).
+
+## 0.3 Regras que já custaram caro (não repetir)
+
+- **Responder em português**, curto, dizendo o que mudou, o que foi verificado e o que **não** foi.
+- **Nunca `pkill -f <padrão>`** quando o padrão aparece no próprio comando (mata o shell, exit 144). Mate por PID.
+- **Busca de bugs profunda é o padrão do projeto:** o usuário pede "procure bugs a fundo" a cada atualização; um
+  feedback dos jogadores elogiou que é difícil achar bug. Reproduza com teste (que falhe sem a correção) antes de corrigir.
+- **Servidor autoritativo (KAC):** toda mensagem/comando novo é validado no servidor e o dono vem da conexão. Nada do
+  KNPS (rede) pode mudar regra, velocidade ou tempo para um jogador.
+- **Ids opacos (KAC-06):** nunca ordenar por id para dizer "mais antigo"; use a ordem de `Simulation.entities`.
+- **Prettier só em arquivo novo** (`npx prettier --write --single-quote --print-width 180`). Nunca no
+  `GameRuntime.ts` inteiro. Não "arrume" a formatação de arquivos que você não criou.
+- **Vite recarrega a página** se você editar arquivo do projeto durante um teste longo no navegador.
+- `.audit/`, `zz_*` e `video/` são locais (excluídos via `.git/info/exclude` nesta máquina; numa máquina nova, **não
+  commite** arquivos de prévia nem vídeos — apague antes do commit).
+
+## 0.4 O que mudou desde 31/10 (mais recente primeiro; detalhes no `git log` e nas docs citadas)
+
+- **Vídeo de combate** (01/11): gravação quadro a quadro com relógio controlado + trilha com os sons do jogo.
+  Ferramentas em `scripts/video/` (README com o passo a passo e as armadilhas).
+- **Drone FPV sem engasgos** (`0e23fd5`): sonda de reflexos, exposição automática e redesenho das fronteiras ficam
+  congelados enquanto o jogador pilota; alvos do OSD a cada 150 ms (`docs/DRONE_FPV.md`).
+- **Colisão do drone pela altura real dos prédios** (`828aea1`): `shared/sim/buildingHeights.ts` (teste compara com os
+  modelos 3D); piloto automático sobe por cima de prédio alto; câmera para na parede.
+- **Derrota com a partida em andamento** (`c19791a`): tela "Derrota" (`DefeatedOverlay`) em vez de mapa vazio; partida
+  contra vários bots acaba quando todos os humanos perdem (`Room.humansOut`); derrotado que sai não gera "se rendeu".
+- **KNPS — Kaiser Network Performance System** (`0ba2e67`, `e9c9709`; `docs/knps/`): permessage-deflate (~5% do
+  tamanho), fila de saída limitada (só snapshot é descartável), snapshot extra no tick da ordem, laço de 10 ms, ping de
+  rede medido pelo servidor (`net`), painel de conexão na barra superior, ping no lobby, várias regiões prontas para
+  ligar (`KNPS-08`), faixas de ping em `/health`. `npx tsx scripts/knps-baseline.ts` mede o tráfego.
+- **Reconexão rápida e render-se que sempre termina** (`60cf4f5`): pings sem resposta derrubam conexão morta (~10 s),
+  tentativas 0,25 s/0,75 s/1,5 s…, reconecta ao voltar a rede ou a aba; rendição reenviada ao reconectar.
+- **Drone de ataque com FPV** (`65e2694` em diante; `docs/DRONE_FPV.md`): Era Digital, Base Aérea; piloto automático
+  ou controle opcional (mouse direção, WASD, Shift turbo, Espaço/Ctrl, clique explode, Esc sai), FOV 120, previsão no
+  cliente com correção filtrada, buffer no relógio do servidor, som de turboélice.
+- **Visual e aviação** (31/10–01/11): APC 8×8 com rajada de 30 mm, árvores balançando, caças +11,5% e rajadas
+  longas, caças com canhão/metralhadora/mísseis, bombardeiro novo, cargueiros por era, drone de reconhecimento, Base
+  Aérea 5×5, usina solar com reflexo, clima ocasional, jazida de petróleo reservada, obras sem bloquear estradas/saídas.
+
+## 0. Transição anterior (30/10/2026) — histórico, o checklist atual é a seção 00
 
 1. **Branch (da conta anterior):** `claude/serene-bell-7cjnhp`. Último commit desta conta: o da entrega "manual, handoff e relatório low
    poly" (ver `git log -3`). A árvore estava limpa e enviada ao GitHub, com `npm test` (468 testes), `npm run lint` e
@@ -155,6 +236,12 @@ npm test && npm run lint && npm run typecheck
 - `shared/sim/market.ts` — mercado interno (excedente → suprimentos) do Terminal Comercial.
 - `shared/sim/difficulty.ts` — tudo o que muda entre Fácil, Normal, Difícil e Brutal (preparo, primeira ofensiva,
   exército mínimo, eras, orçamento de defesa do governo da IA, ondas, aviões, mísseis, minas).
+- `shared/sim/drones.ts` — drone de ataque (voo, colisão pela `buildingHeights.ts`, ogiva, antiaérea);
+  `src/game/render/DroneFpv.ts` — câmera FPV, OSD, previsão no cliente.
+- `server/kac/` — anti-cheat (validação, ids opacos, diário, painel `/kac`); `docs/kac/`.
+- `server/knps/` + `src/net/` (`GameClient.ts`, `netStats.ts`, `regions.ts`, `regionState.ts`, `regionFlow.ts`) — rede:
+  compressão, fila, reconexão, medições, regiões; `docs/knps/`.
+- `scripts/video/` — gravação de vídeo do jogo (ver o README da pasta).
 - `docs/` — uma página por fase/sistema; `docs/AUDITORIA_ADENDO.md` diz o estado de cada fase.
 
 ### Modelos 3D (o usuário pede muito isso)
@@ -323,6 +410,24 @@ mensagens em português descrevendo o que mudou).
 
 ## 7. De onde continuar
 
+### Estado em 01/11/2026 (leia isto primeiro)
+
+Não há pedido em andamento. Tudo foi publicado. Pontos abertos, em ordem:
+
+1. **Confirmar em produção o que só foi testado aqui** (o ambiente de nuvem não tem GPU nem a latência real):
+   - drone FPV: suavidade e ausência de trancos (o usuário reclamou de trancos três vezes; a última correção não pôde
+     ser medida aqui). Se ele disser que ainda trava, pergunte se é a cada poucos segundos (alguma rotina periódica)
+     ou constante (custo por quadro ou rede);
+   - compressão do WebSocket no Render (primeira vez em produção);
+   - colisão do drone com o QG inimigo.
+2. **Infraestrutura (decisão do usuário):** região Virgínia + plano pago quando monetizar; várias regiões já
+   suportadas (`docs/knps/`). Ler `rttBuckets` em `/health` para decidir com dados.
+3. **Nação derrotada:** as exigências das facções ("Sindicatos exigem…") continuam aparecendo para quem já perdeu;
+   foi oferecido desligar, sem resposta do usuário.
+4. **Vídeo:** foi oferecida versão vertical 9:16 (TikTok/Reels), cortes curtos por cena e versão menor para WhatsApp.
+5. A IA não usa o drone de ataque; nomes de cidade aparecem por cima da câmera do drone (pequeno).
+6. Itens antigos ainda válidos: lista abaixo (31/10).
+
 ### Próximo passo recomendado (31/10, depois da 1.1.0)
 
 1. **Teste humano da rede elétrica e das salas públicas** (prioridade 1).
@@ -355,7 +460,7 @@ Migração `supabase/migrations/20261031000000_match_report.sql` aplicada no ban
 (próximas etapas em `docs/kac/KAC_IMPLEMENTATION_ROADMAP.md`).
 
 
-Não há pedido em andamento. A rede elétrica foi feita em 31/10 (`docs/REDE_ELETRICA.md`); ainda sem partida humana de teste. Pontos abertos com o usuário: (1) um áudio antigo dele não pôde ser transcrito; pergunte
+Em 31/10: a rede elétrica foi feita (`docs/REDE_ELETRICA.md`); ainda sem partida humana de teste. Pontos abertos com o usuário: (1) um áudio antigo dele não pôde ser transcrito; pergunte
 se ainda importa; (2) os bonecos que pareciam estar no teto do QG (ver o item 2 da lista numerada da seção 6); (3) a IA
 do Fácil chega à era 3 tão cedo quanto a do Normal (gasta pouco com exército); foi oferecido atrasar a era dela, e o
 usuário ainda não respondeu. Ideias pendentes e coisas conhecidas:
