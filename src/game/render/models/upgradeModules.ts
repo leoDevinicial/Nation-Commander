@@ -5,6 +5,7 @@ import { C, type PartBuilder } from './kit.ts';
 import { tractor } from './crops.ts';
 import { staticPumpjack } from './pumpjack.ts';
 import { strut } from './rigging.ts';
+import { SILO_LEG, SILO_WALL_TOP, SILO_X, SILO_Z, siloBin, siloRoof } from './details.ts';
 
 /**
  * Evolução visual das melhorias (Fase 4): módulos procedurais que se somam ao modelo base
@@ -1184,35 +1185,77 @@ const WAREHOUSE: UpgradeModule[] = [
 ];
 
 const SILO: UpgradeModule[] = [
-  { level: 2, detail: true, build: (t) => lamp(t, 0.82, -0.82, 1.1, Math.PI / 2) },
+  {
+    level: 2,
+    detail: true,
+    build: (t) => lamp(t, 0.82, -0.82, 1.1, Math.PI / 2),
+  },
   {
     level: 3,
     build: (t) => {
-      // passarela no topo
-      t.b.cyl(0.66, 0.66, 0.03, C.metalDark, [-0.15, 2.0, -0.1], undefined, 14);
-      for (let k = 0; k < 8; k++) {
-        const a = (k / 8) * Math.PI * 2;
-        t.b.box(0.02, 0.25, 0.02, C.steel, [-0.15 + Math.cos(a) * 0.64, 2.13, -0.1 + Math.sin(a) * 0.64]);
+      // passarela com guarda-corpo em volta do beiral
+      t.b.cyl(
+        0.68,
+        0.68,
+        0.03,
+        C.metalDark,
+        [SILO_X, SILO_WALL_TOP - 0.06, SILO_Z],
+        undefined,
+        18,
+      );
+      for (let k = 0; k < 10; k++) {
+        const a = (k / 10) * Math.PI * 2;
+        t.b.box(0.02, 0.25, 0.02, C.steel, [
+          SILO_X + Math.cos(a) * 0.66,
+          SILO_WALL_TOP + 0.07,
+          SILO_Z + Math.sin(a) * 0.66,
+        ]);
       }
+      t.b.add(
+        new THREE.CylinderGeometry(0.66, 0.66, 0.02, 18, 1, true),
+        C.steel,
+        { pos: [SILO_X, SILO_WALL_TOP + 0.19, SILO_Z] },
+      );
     },
   },
-  { level: 4, build: (t) => tank(t, 0.6, -0.62, 0.24, 1.3, C.concreteLight, 0.1, false) },
+  {
+    level: 4,
+    build: (t) => tank(t, 0.6, -0.62, 0.24, 1.3, "#bcc3c9", 0.1, false),
+  },
   {
     level: 5,
     height: 3.1,
     build: (t) => {
-      // corpo prolongado
-      t.b.cyl(0.55, 0.55, 0.7, C.concreteLight, [-0.15, 2.45, -0.1], undefined, 14);
-      t.b.sphere(0.56, C.metal, [-0.15, 2.8, -0.1], [1, 0.55, 1], 14);
-      t.b.box(0.06, 0.8, 0.06, C.steel, [0.45, 2.5, 0.35]);
+      // mais anéis de chapa no costado e o telhado sobe junto (o antigo fica escondido dentro)
+      siloBin(t.b, SILO_WALL_TOP, SILO_WALL_TOP + 0.7);
+      siloRoof(t.b, SILO_WALL_TOP + 0.7);
+      for (const dz of [-0.08, 0.08])
+        t.b.box(0.012, 0.7, 0.012, C.steel, [
+          SILO_X + 0.6,
+          SILO_WALL_TOP + 0.35,
+          SILO_Z + dz,
+        ]);
     },
   },
-  { level: 6, spec: 'capacity', height: 3.1, build: (t) => tank(t, -0.62, 0.62, 0.26, 1.7, C.concreteLight, 0.1, false) },
   {
     level: 6,
-    spec: 'hardened',
+    spec: "capacity",
+    height: 3.1,
+    build: (t) => tank(t, -0.62, 0.62, 0.26, 1.7, "#bcc3c9", 0.1, false),
+  },
+  {
+    level: 6,
+    spec: "hardened",
     build: (t) => {
-      t.b.cyl(0.62, 0.66, 0.9, C.concreteDark, [-0.15, 0.55, -0.1], undefined, 14);
+      t.b.cyl(
+        0.62,
+        0.66,
+        0.9,
+        C.concreteDark,
+        [-0.15, 0.55, -0.1],
+        undefined,
+        14,
+      );
       sandbags(t, -0.9, 0.85, 0.2, 0.85);
     },
   },
@@ -1220,24 +1263,44 @@ const SILO: UpgradeModule[] = [
     level: 7,
     height: 3.5,
     build: (t) => {
-      t.b.box(0.18, 3.2, 0.18, C.metal, [0.75, 1.7, 0.75]);
-      pipe(t, [0.75, 3.2, 0.7], [0.0, 2.7, 0.0], 0.04, C.metal);
+      // elevador mais alto: a torre sobe e a calha nova desce até o topo do silo ampliado
+      const [ex, ez] = SILO_LEG;
+      t.b.box(0.13, 0.75, 0.13, "#a7aeb4", [ex, 2.9, ez]);
+      t.b.box(0.22, 0.16, 0.2, "#8d959c", [ex, 3.32, ez - 0.02]);
+      pipe(
+        t,
+        [ex - 0.06, 3.28, ez - 0.06],
+        [SILO_X + 0.05, SILO_WALL_TOP + 1.17, SILO_Z + 0.04],
+        0.03,
+        "#9ea2a6",
+      );
     },
   },
-  { level: 8, detail: true, build: (t) => pad(t, 0, 0.75, 1.7, 0.35, false, C.concreteDark) },
+  {
+    level: 8,
+    detail: true,
+    build: (t) => pad(t, 0, 0.75, 1.7, 0.35, false, C.concreteDark),
+  },
   {
     level: 9,
     build: (t) => {
       // ventiladores de aeração ao pé do silo, longe da moega e do silo extra
-      for (const a of [1.5, 3.1, 4.3]) acUnit(t, -0.15 + Math.cos(a) * 0.74, 0.1, -0.1 + Math.sin(a) * 0.74, 0.45);
+      for (const a of [1.5, 3.1, 4.3])
+        acUnit(
+          t,
+          -0.15 + Math.cos(a) * 0.74,
+          0.1,
+          -0.1 + Math.sin(a) * 0.74,
+          0.45,
+        );
     },
   },
   {
     level: 10,
     height: 3.6,
     build: (t) => {
-      t.b.cyl(0.015, 0.015, 0.6, C.steel, [-0.15, 3.25, -0.1], undefined, 4);
-      t.b.sphere(0.05, C.red, [-0.15, 3.56, -0.1], undefined, 6);
+      t.b.cyl(0.015, 0.015, 0.7, C.steel, [SILO_X, 3.25, SILO_Z], undefined, 4);
+      t.b.sphere(0.05, C.red, [SILO_X, 3.61, SILO_Z], undefined, 6);
     },
   },
 ];

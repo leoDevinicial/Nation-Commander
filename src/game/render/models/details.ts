@@ -57,24 +57,61 @@ export function factoryDetail(b: PartBuilder, g: PartBuilder): void {
   wallLight(b, 0.25, 1.3, 1.48);
 }
 
-// ------------------------------------------------------------------ armazém
+// ------------------------------------------------------------------ silo de comida
 
-// ------------------------------------------------------------------ silo de grãos
+/** Eixo do silo de comida (os módulos de melhoria usam o mesmo), topo do costado e o pé do elevador. */
+export const SILO_X = -0.15;
+export const SILO_Z = -0.1;
+export const SILO_WALL_TOP = 1.7;
+export const SILO_LEG: [number, number] = [0.55, 0.55];
 
-export function siloDetail(b: PartBuilder): void {
-  // escada marinheiro com degraus e gaiola de proteção
-  const x = 0.45;
-  const z = 0.35;
-  for (let y = 0.3; y < 2.15; y += 0.12) b.box(0.16, 0.012, 0.012, C.steel, [x, y, z]);
-  b.box(0.012, 2.1, 0.012, C.steel, [x - 0.08, 1.15, z]);
-  b.box(0.012, 2.1, 0.012, C.steel, [x + 0.08, 1.15, z]);
-  for (let y = 0.9; y < 2.2; y += 0.3) b.add(new THREE.TorusGeometry(0.13, 0.008, 3, 10, Math.PI), C.steel, { pos: [x, y, z + 0.02], rot: [Math.PI / 2, 0, 0] });
-  // rosca transportadora da moega até o topo
-  strut(b, [0.45, 0.42, 0.55], [0.12, 2.15, 0.1], 0.06, '#9ea2a6', true);
-  b.box(0.12, 0.1, 0.12, C.metalDark, [0.12, 2.18, 0.1]);
-  // respiro no domo
-  b.cyl(0.05, 0.05, 0.12, C.metalDark, [-0.15, 2.42, -0.1], undefined, 8);
-  b.cyl(0.08, 0.08, 0.02, C.metal, [-0.15, 2.49, -0.1], undefined, 8);
+/** Costado de chapa galvanizada corrugada (de `y0` a `y1`): anéis de onda e os montantes verticais. */
+export function siloBin(b: PartBuilder, y0: number, y1: number): void {
+  const h = y1 - y0;
+  if (y0 < 0.2)
+    b.cyl(0.62, 0.64, 0.08, C.concrete, [SILO_X, 0.12, SILO_Z], undefined, 18);
+  b.cyl(0.56, 0.56, h, "#bcc3c9", [SILO_X, y0 + h / 2, SILO_Z], undefined, 18);
+  for (let y = y0 + 0.12; y < y1 - 0.05; y += 0.16)
+    b.add(
+      new THREE.CylinderGeometry(0.566, 0.566, 0.035, 18, 1, true),
+      "#99a1a8",
+      { pos: [SILO_X, y, SILO_Z] },
+    );
+  for (let k = 0; k < 9; k++) {
+    const ang = (k / 9) * Math.PI * 2 + 0.2;
+    b.box(
+      0.025,
+      h,
+      0.02,
+      "#a3abb1",
+      [
+        SILO_X + Math.cos(ang) * 0.568,
+        y0 + h / 2,
+        SILO_Z + Math.sin(ang) * 0.568,
+      ],
+      [0, -ang, 0],
+    );
+  }
+}
+
+/** Telhado cônico com nervuras, beiral e o respiro no topo (beiral em `y`). */
+export function siloRoof(b: PartBuilder, y: number): void {
+  b.cyl(0.6, 0.6, 0.04, "#8b939a", [SILO_X, y + 0.01, SILO_Z], undefined, 18);
+  const roof = new THREE.CylinderGeometry(0.08, 0.6, 0.42, 18);
+  roof.deleteAttribute("normal");
+  b.add(roof, "#aab1b7", { pos: [SILO_X, y + 0.24, SILO_Z] });
+  for (let k = 0; k < 9; k++) {
+    const ang = (k / 9) * Math.PI * 2 + 0.2;
+    strut(
+      b,
+      [SILO_X + Math.cos(ang) * 0.58, y + 0.04, SILO_Z + Math.sin(ang) * 0.58],
+      [SILO_X + Math.cos(ang) * 0.1, y + 0.44, SILO_Z + Math.sin(ang) * 0.1],
+      0.012,
+      "#939ba2",
+    );
+  }
+  b.cyl(0.12, 0.12, 0.06, "#8b939a", [SILO_X, y + 0.47, SILO_Z], undefined, 10);
+  b.cyl(0.02, 0.15, 0.08, "#7c848b", [SILO_X, y + 0.54, SILO_Z], undefined, 10);
 }
 
 // ------------------------------------------------------------------ tanque de petróleo

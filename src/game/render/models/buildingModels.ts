@@ -11,7 +11,7 @@ import { modulesFor } from './upgradeModules.ts';
 import { strut } from './rigging.ts';
 import { pumpjack, type PumpRig } from './pumpjack.ts';
 import { tractor } from './crops.ts';
-import { barracksDetail, factoryDetail, houseDetail, oilTankDetail, siloDetail } from './details.ts';
+import { barracksDetail, factoryDetail, houseDetail, oilTankDetail, SILO_LEG, SILO_WALL_TOP, SILO_X, SILO_Z, siloBin, siloRoof } from './details.ts';
 import { buildMineModel, buildQuarryModel, buildSawmillModel } from './industry.ts';
 import { buildMarketModel, buildPortModel, buildRailStationModel } from './logistics.ts';
 import { buildAaBatteryModel, buildAirbaseModel, buildMissileSiloModel, buildResearchCenterModel } from './military.ts';
@@ -705,14 +705,42 @@ function buildSilo(): Omit<BuildingModel, 'detail'> {
   const l = layers();
   const { body: b, accent: a } = l;
   b.box(1.8, 0.1, 1.8, C.concreteDark, [0, 0.05, 0]);
-  b.cyl(0.55, 0.55, 2.0, C.concreteLight, [-0.15, 1.1, -0.1], undefined, 14);
-  b.sphere(0.56, C.metal, [-0.15, 2.1, -0.1], [1, 0.55, 1], 14);
-  for (const y of [0.6, 1.2, 1.8]) b.cyl(0.57, 0.57, 0.05, C.metal, [-0.15, y, -0.1], undefined, 14);
-  b.box(0.06, 2.2, 0.06, C.steel, [0.45, 1.1, 0.35]); // escada
-  b.box(0.5, 0.35, 0.4, C.metalDark, [0.45, 0.25, 0.55]); // moega
-  a.cyl(0.565, 0.565, 0.12, '#ffffff', [-0.15, 1.5, -0.1], undefined, 14);
-  siloDetail(b);
-  return { base: l.build(), moving: null, height: 2.4 };
+  siloBin(b, 0.1, SILO_WALL_TOP);
+  siloRoof(b, SILO_WALL_TOP);
+  // faixa da nação no alto do costado
+  a.cyl(0.572, 0.572, 0.12, '#ffffff', [SILO_X, 1.45, SILO_Z], undefined, 18);
+  // porta de acesso e ventilador de aeração ao pé do costado
+  const door = 1.6;
+  b.box(0.26, 0.4, 0.04, '#7c848b', [SILO_X + Math.cos(door) * 0.565, 0.33, SILO_Z + Math.sin(door) * 0.565], [0, Math.PI / 2 - door, 0]);
+  const fan = 5.0;
+  const fx = (r: number): V3 => [SILO_X + Math.cos(fan) * r, 0.24, SILO_Z + Math.sin(fan) * r];
+  b.box(0.18, 0.18, 0.14, '#8d959c', fx(0.6), [0, Math.PI / 2 - fan, 0]);
+  b.cyl(0.1, 0.1, 0.12, '#6c747b', fx(0.72), [0, -fan, -Math.PI / 2], 8);
+  b.cyl(0.075, 0.075, 0.125, '#2b2e31', fx(0.72), [0, -fan, -Math.PI / 2], 8);
+  // escada marinheiro com gaiola no lado +x
+  const lx = SILO_X + 0.6;
+  for (let y = 0.25; y < SILO_WALL_TOP; y += 0.12) b.box(0.012, 0.012, 0.16, C.steel, [lx, y, SILO_Z]);
+  for (const dz of [-0.08, 0.08]) b.box(0.012, SILO_WALL_TOP - 0.1, 0.012, C.steel, [lx, (SILO_WALL_TOP + 0.1) / 2 + 0.05, SILO_Z + dz]);
+  for (let y = 0.8; y < SILO_WALL_TOP + 0.05; y += 0.3)
+    b.add(new THREE.TorusGeometry(0.13, 0.008, 3, 10, Math.PI), C.steel, { pos: [lx - 0.02, y, SILO_Z], rot: [Math.PI / 2, 0, -Math.PI / 2] });
+  // escada do telhado até o respiro
+  strut(b, [SILO_X + 0.56, SILO_WALL_TOP + 0.03, SILO_Z + 0.05], [SILO_X + 0.1, SILO_WALL_TOP + 0.43, SILO_Z + 0.05], 0.01, C.steel, true);
+  strut(b, [SILO_X + 0.56, SILO_WALL_TOP + 0.03, SILO_Z - 0.05], [SILO_X + 0.1, SILO_WALL_TOP + 0.43, SILO_Z - 0.05], 0.01, C.steel, true);
+  // elevador de canecas: pé com a moega de descarga, torre, cabeça e a calha até o topo do silo
+  const [ex, ez] = SILO_LEG;
+  b.box(0.26, 0.22, 0.26, '#8d959c', [ex, 0.21, ez]);
+  b.box(0.13, 2.3, 0.13, '#a7aeb4', [ex, 1.3, ez]);
+  for (let y = 0.6; y < 2.4; y += 0.45) b.box(0.15, 0.03, 0.15, '#7c848b', [ex, y, ez]);
+  b.box(0.22, 0.16, 0.2, '#8d959c', [ex, 2.46, ez - 0.02]);
+  a.box(0.225, 0.05, 0.205, '#ffffff', [ex, 2.43, ez - 0.02]);
+  strut(b, [ex - 0.06, 2.42, ez - 0.06], [SILO_X + 0.05, SILO_WALL_TOP + 0.47, SILO_Z + 0.04], 0.028, '#9ea2a6', true);
+  strut(b, [ex - 0.06, 1.3, ez - 0.06], [SILO_X + 0.4, 1.3, SILO_Z + 0.4], 0.015, C.steel);
+  strut(b, [ex + 0.06, 1.1, ez + 0.06], [ex + 0.3, 0.1, ez + 0.3], 0.012, C.steel);
+  // moega de descarga dos caminhões: grade no piso e a guia de concreto
+  b.box(0.42, 0.04, 0.3, C.concrete, [ex - 0.05, 0.11, 0.78]);
+  b.box(0.34, 0.012, 0.22, '#2b2e31', [ex - 0.05, 0.135, 0.78]);
+  for (let k = 0; k < 4; k++) b.box(0.012, 0.014, 0.22, C.steel, [ex - 0.17 + k * 0.08, 0.142, 0.78]);
+  return { base: l.build(), moving: null, height: 2.5 };
 }
 
 function buildOilTank(): Omit<BuildingModel, 'detail'> {
