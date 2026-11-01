@@ -290,6 +290,11 @@ Exemplo: fazendas a 95, 110, 130 e 155 de madeira; Base Militar a 200, 235 e 280
 - **Depósitos esgotados.** A IA procura sítios também em volta das torres e prefeituras. Se o gargalo não tem sítio no
   território, ergue uma torre perto do depósito livre mais próximo (até 30 células, no máximo 3 torres). O custo
   crescente entra em todas as decisões.
+- **Depósito esgotado à vista (01/11).** O snapshot manda os depósitos esgotados que o jogador conhece (no território
+  dele ou à vista agora, `Snapshot.depleted`). O cliente marca o depósito como vazio: a prévia de construção já recusa
+  coleta nova ali ("Depósito esgotado") e as pedras da formação ficam escurecidas e mais baixas
+  (`TerrainHandle.markDepleted`). Antes, as pedras continuavam iguais e a prévia mostrava produção normal, e o jogador
+  achava que a pedreira parada era falta de armazém.
 - **Guarnição mínima.** Com o quartel pronto, a partir dos 4 min ou em guerra, a IA mantém 2 tropas além do explorador.
   Enquanto não as tem, as tropas vêm antes das reservas.
 - **Explorador.** Faz uma ronda em volta da base, a 18 células, e passa pelo centro do mapa.

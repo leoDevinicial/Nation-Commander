@@ -582,6 +582,31 @@ export class GameRuntime {
     return (at(x - o, z - o) + at(x + o, z - o) + at(x - o, z + o) + at(x + o, z + o)) / 4;
   }
 
+  /** Depósitos esgotados já conhecidos (as pedras ficam gastas e a prévia recusa coleta nova ali). */
+  private readonly depletedSeen = new Set<number>();
+
+  private markDepleted(ids: readonly number[] | undefined): void {
+    if (!ids?.length) return;
+    let fresh = false;
+    for (const id of ids) {
+      if (this.depletedSeen.has(id)) continue;
+      this.depletedSeen.add(id);
+      const d = this.deposits.deposits[id];
+      if (d) d.remaining = 0;
+      fresh = true;
+    }
+    if (!fresh) return;
+    const cs = this.map.cellSize;
+    const w = this.map.width;
+    const depleted = (x: number, z: number): boolean => {
+      const cx = Math.floor(x / cs);
+      const cy = Math.floor(z / cs);
+      if (cx < 0 || cy < 0 || cx >= w || cy >= this.map.height) return false;
+      return this.depletedSeen.has(this.deposits.cellDeposit[cy * w + cx] ?? -1);
+    };
+    if (this.terrain.markDepleted(depleted)) this.shadowDirty = true;
+  }
+
   private onSnapshot(msg: SnapshotMsg): void {
     const s = msg.s;
     if ((s.trade || s.caravans) && this.hudActive) {
@@ -628,6 +653,7 @@ export class GameRuntime {
     const prevTick = this.snapshot?.tick;
     if (prevTick !== undefined && s.tick > prevTick) this.snapshotInterval = Math.min(400, (s.tick - prevTick) * this.tickMs);
     this.snapshot = s;
+    this.markDepleted(s.depleted);
     this.simSeconds = s.tick / TICK_RATE;
     if (Math.abs(this.clockSeconds - this.simSeconds) > 3) this.clockSeconds = this.simSeconds;
     this.mineLayer.update(s.mines ?? []);

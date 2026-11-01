@@ -190,6 +190,11 @@ export interface TerrainHandle {
    * começo do buffer, então as escondidas não custam nem vértices. Devolve true se algo mudou.
    */
   setDecorDensity: (density: number) => boolean;
+  /**
+   * Pedras de depósitos esgotados ficam escuras e menores (a coleta acabou ali). `depleted` diz, pela posição em
+   * coordenadas de mundo, se a pedra pertence a um depósito esgotado. Retorna true se algo mudou.
+   */
+  markDepleted: (depleted: (x: number, z: number) => boolean) => boolean;
   readonly decorDensity: number;
   /** Sombra projetada pela decoração (só afeta o passe de sombra; não recompila shaders). */
   setDecorShadows: (on: boolean) => void;
@@ -392,7 +397,32 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
   // trocar pelos modelos do Nature Kit em seguida
   group.add(detailedTrees(trees, { lite: quality === 'low', tint: FOLIAGE_TINT, hash: hash2, track }, disposables));
   const decor = new THREE.Group();
-  decor.add(proceduralRocks(rocks, track));
+  const rockTracks: DecorTrack[] = [];
+  decor.add(
+    proceduralRocks(rocks, (mesh, items) => {
+      track(mesh, items);
+      rockTracks.push(tracks[tracks.length - 1]!);
+    }),
+  );
+  // pedras já marcadas como esgotadas (cor e matriz originais guardadas para não escurecer duas vezes)
+  const spent = new Map<DecorTrack, Uint8Array>();
+  const markDepleted = (depleted: (x: number, z: number) => boolean): boolean => {
+    let changed = false;
+    const sc = new THREE.Matrix4().makeScale(0.72, 0.55, 0.72);
+    for (const t of rockTracks) {
+      let flags = spent.get(t);
+      if (!flags) spent.set(t, (flags = new Uint8Array(t.items.length)));
+      t.items.forEach((it, i) => {
+        if (flags![i] || !depleted(it.x, it.z)) return;
+        flags![i] = 1;
+        t.base[i]!.multiply(sc);
+        if (t.colors) t.colors[i]!.multiplyScalar(0.55);
+        changed = true;
+      });
+    }
+    if (changed) refresh(true);
+    return changed;
+  };
   group.add(decor);
 
   // veios de minério: blocos ferruginosos entre as rochas da montanha
@@ -510,6 +540,7 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
     reflection: water.reflection,
     waves: water.waves,
     clearUnder,
+    markDepleted,
     repaint,
     setDecorDensity,
     get decorDensity() {

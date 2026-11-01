@@ -208,6 +208,11 @@ export interface Snapshot {
   /** Território (um caractere por célula), enviado só quando muda (ver `territoryVersion`). */
   territory?: string;
   territoryVersion: number;
+  /**
+   * Depósitos de recurso esgotados que o jogador conhece (no território dele ou à vista agora): a prévia de construção
+   * já recusa coleta nova neles e as pedras aparecem gastas.
+   */
+  depleted?: number[];
 }
 
 /** Memória de um jogador sobre edifícios inimigos já avistados (névoa de guerra). */
@@ -337,6 +342,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
     events: viewer ? events.filter((ev) => eventVisible(sim, ev, viewer.slot)) : events,
     ...(viewer ? { trade: tradeView(sim, viewer.slot), air: airView(sim, viewer.slot) } : {}),
     territoryVersion: sim.territoryVersion,
+    ...(viewer ? depletedFor(sim, viewer.slot) : {}),
     // fronteiras são conhecidas por todos (como no mapa político de Rise of Nations)
     ...(includeTerritory ? { territory: encodeTerritory(sim.territory) } : {}),
     ...(includeTerritory && sim.roads.length ? { roads: sim.roads.map((r) => r.i) } : {}),
@@ -635,4 +641,16 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
     case 'player_defeated':
       return true;
   }
+}
+
+/** Depósitos esgotados que o jogador conhece: alguma célula no território dele ou à vista agora. */
+function depletedFor(sim: Simulation, slot: Slot): { depleted?: number[] } {
+  const out: number[] = [];
+  const w = sim.map.width;
+  const cs = sim.map.cellSize;
+  for (const d of sim.deposits.deposits) {
+    if (d.remaining > 0) continue;
+    if (d.cells.some((i) => sim.territory[i] === slot || sim.isVisibleTo(slot, { x: ((i % w) + 0.5) * cs, y: (Math.floor(i / w) + 0.5) * cs }))) out.push(d.id);
+  }
+  return out.length ? { depleted: out } : {};
 }
