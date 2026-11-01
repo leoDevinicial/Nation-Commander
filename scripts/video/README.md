@@ -40,3 +40,17 @@ ffmpeg -framerate 24 -i /tmp/frames/%05d.jpg -i /tmp/mix.wav -filter_complex "[0
   quadro vê um salto de tempo e a exposição automática estoura (imagem toda branca).
 - Use `QUALITY=high` (Ultra+ com sombra 8192 fica lento demais sem GPU).
 - Vídeos gerados não vão para o git (grandes demais).
+
+## Vídeo do drone ("Drone Update", 01/11/2026)
+
+`scripts/video/drone/` (mesmo servidor e mesma página): drones estacionados → decolagem → rasante → FPV até a fábrica
+inimiga (piloto automático do roteiro no `fpv.input`) → enxame de 3 → impactos na base.
+
+```bash
+QUALITY=high FPS=24 DUR=40 OUT=/tmp/drone_frames node scripts/video/drone/film.cjs   # ~2 h; grava cuts.json e audio.json
+```
+
+Edição feita à mão depois (27 s): cortar a tela "SINAL PERDIDO" (é texto) e o último quadro do FPV (a câmera entra no
+prédio); remapear os tempos do `audio.json` para a linha nova, somar a explosão no corte do impacto e pancadas graves
+(`howitzer`, `carpet_rumble`) nas trocas de cena; clarões brancos com `drawbox ... enable='between(t,a,b)'`.
+Não congelar a exposição automática (`exposureLive = false` deixava a imagem estourada).
