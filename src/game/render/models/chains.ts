@@ -253,25 +253,107 @@ export function buildSteelMill(): Built {
 }
 
 /** Hospital (2×2): bloco branco com cruz vermelha, heliponto no telhado e entrada coberta. */
+/** Ambulância (furgão branco com faixa vermelha e giroflex), comprimento ao longo de x, frente para +x. */
+function ambulance(b: PartBuilder, g: PartBuilder, x: number, z: number): void {
+  b.box(0.42, 0.2, 0.2, WHITE, [x, 0.24, z]);
+  b.box(0.12, 0.12, 0.2, WHITE, [x + 0.26, 0.2, z]);
+  g.box(0.012, 0.07, 0.17, '#ffffff', [x + 0.215, 0.28, z]);
+  b.box(0.43, 0.04, 0.205, '#d23a30', [x, 0.22, z]);
+  b.box(0.12, 0.025, 0.06, '#d23a30', [x + 0.12, 0.35, z]);
+  b.box(0.06, 0.026, 0.061, '#2f6bd8', [x + 0.12, 0.351, z]);
+  for (const dx of [-0.13, 0.22]) for (const s2 of [-1, 1]) b.cyl(0.045, 0.045, 0.03, '#1d1f22', [x + dx, 0.1, z + s2 * 0.1], [Math.PI / 2, 0, 0], 8);
+}
+
+/** Cruz vermelha (no plano xy, voltada para +z). */
+function redCross(b: PartBuilder, x: number, y: number, z: number, s2: number): void {
+  b.box(0.5 * s2, 0.16 * s2, 0.03, '#d23a30', [x, y, z]);
+  b.box(0.16 * s2, 0.5 * s2, 0.03, '#d23a30', [x, y, z]);
+}
+
 export function buildHospital(): Built {
   const l = layers();
   const { body: b, accent: a, glass: g } = l;
+  const SPANDREL = '#eef0ee';
   b.box(3.7, 0.1, 3.7, C.concreteDark, [0, 0.05, 0]);
-  b.box(2.9, 1.5, 2.2, WHITE, [0, 0.85, -0.3]);
-  b.box(1.4, 0.9, 1.0, WHITE, [-0.6, 0.55, 1.2]);
-  for (const y of [0.55, 1.05, 1.45]) for (let i = 0; i < 6; i++) g.box(0.3, 0.22, 0.02, '#ffffff', [-1.15 + i * 0.46, y, 0.81]);
-  // cruz vermelha na fachada e no telhado
-  b.box(0.5, 0.14, 0.03, '#d23a30', [0.95, 1.25, 0.82]);
-  b.box(0.14, 0.5, 0.03, '#d23a30', [0.95, 1.25, 0.82]);
-  // heliponto
-  b.cyl(0.85, 0.85, 0.06, DARK, [0, 1.63, -0.3], undefined, 20);
-  b.box(0.08, 0.02, 0.5, '#ffffff', [-0.15, 1.67, -0.3]);
-  b.box(0.08, 0.02, 0.5, '#ffffff', [0.15, 1.67, -0.3]);
-  b.box(0.3, 0.02, 0.08, '#ffffff', [0, 1.67, -0.3]);
-  // marquise da emergência e faixa na cor da facção
-  b.box(1.2, 0.06, 0.6, C.roof, [0.95, 0.62, 1.15]);
-  for (const x of [0.45, 1.45]) b.box(0.06, 0.6, 0.06, STEEL, [x, 0.32, 1.4]);
-  a.box(2.92, 0.12, 2.22, '#ffffff', [0, 1.55, -0.3]);
+  // torre de internação de três andares: faixas de janelas contínuas, peitoris brancos e aletas verticais
+  const tx = -0.2;
+  const tz = -1.0;
+  b.box(2.4, 1.45, 1.2, WHITE, [tx, 0.825, tz]);
+  for (const y of [0.42, 0.88, 1.32]) {
+    g.box(2.3, 0.22, 0.02, '#ffffff', [tx, y, tz + 0.605]);
+    g.box(0.02, 0.22, 1.1, '#ffffff', [tx - 1.205, y, tz]);
+    g.box(0.02, 0.22, 1.1, '#ffffff', [tx + 1.205, y, tz]);
+    b.box(2.42, 0.05, 1.22, SPANDREL, [tx, y - 0.14, tz]);
+  }
+  for (let i = 0; i < 9; i++) b.box(0.03, 1.3, 0.05, SPANDREL, [tx - 1.12 + i * 0.28, 0.82, tz + 0.62]);
+  // platibanda com a faixa da nação só nas laterais (o telhado continua claro)
+  b.box(2.44, 0.08, 1.24, '#d9dbd9', [tx, 1.58, tz]);
+  a.box(2.445, 0.06, 0.02, '#ffffff', [tx, 1.5, tz + 0.615]);
+  a.box(2.445, 0.06, 0.02, '#ffffff', [tx, 1.5, tz - 0.615]);
+  a.box(0.02, 0.06, 1.245, '#ffffff', [tx - 1.215, 1.5, tz]);
+  a.box(0.02, 0.06, 1.245, '#ffffff', [tx + 1.215, 1.5, tz]);
+  b.box(2.36, 0.012, 1.16, '#a7aaa9', [tx, 1.6, tz]);
+  redCross(b, tx + 0.85, 1.12, tz + 0.63, 0.75);
+  // heliponto elevado sobre colunas, com o círculo, o H e as luzes de borda
+  const hx = tx - 0.45;
+  for (const [dx, dz] of [
+    [-0.4, -0.4],
+    [0.4, -0.4],
+    [-0.4, 0.4],
+    [0.4, 0.4],
+  ] as const)
+    b.box(0.05, 0.14, 0.05, C.steel, [hx + dx, 1.67, tz + dz]);
+  b.box(1.0, 0.04, 1.0, '#4a4f55', [hx, 1.76, tz]);
+  b.add(new THREE.RingGeometry(0.36, 0.41, 20), '#e2b12e', { pos: [hx, 1.783, tz], rot: [-Math.PI / 2, 0, 0] });
+  b.box(0.06, 0.012, 0.32, '#ffffff', [hx - 0.1, 1.785, tz]);
+  b.box(0.06, 0.012, 0.32, '#ffffff', [hx + 0.1, 1.785, tz]);
+  b.box(0.2, 0.012, 0.06, '#ffffff', [hx, 1.785, tz]);
+  for (let k = 0; k < 8; k++) {
+    const ang = (k / 8) * Math.PI * 2;
+    b.box(0.03, 0.025, 0.03, '#4fbf6a', [hx + Math.cos(ang) * 0.47, 1.79, tz + Math.sin(ang) * 0.47]);
+  }
+  // casa de máquinas e ar-condicionado no outro lado do telhado
+  b.box(0.5, 0.18, 0.5, '#d9dbd9', [tx + 0.65, 1.7, tz - 0.15]);
+  for (const dz of [-0.2, 0.2]) {
+    b.box(0.2, 0.08, 0.16, '#c9ccc9', [tx + 0.65, 1.65, tz + 0.35 + dz * 0.4]);
+  }
+  // saguão térreo na frente: entrada de vidro, marquise de desembarque e letreiro com a cruz
+  b.box(1.9, 0.55, 0.9, WHITE, [-0.55, 0.375, 0.05]);
+  g.box(1.5, 0.32, 0.02, '#ffffff', [-0.55, 0.3, 0.505]);
+  b.box(1.94, 0.05, 0.94, '#d9dbd9', [-0.55, 0.675, 0.05]);
+  a.box(1.92, 0.07, 0.012, '#ffffff', [-0.55, 0.6, 0.51]);
+  b.box(0.9, 0.04, 0.5, '#d9dbd9', [-0.75, 0.48, 0.78]);
+  for (const x of [-1.15, -0.35]) b.cyl(0.025, 0.025, 0.36, STEEL, [x, 0.28, 1.0], undefined, 6);
+  redCross(b, -0.05, 0.43, 0.512, 0.35);
+  // ala de emergência com a cobertura vermelha da entrada das ambulâncias
+  b.box(1.2, 0.5, 0.95, WHITE, [1.1, 0.35, 0.05]);
+  g.box(0.02, 0.18, 0.7, '#ffffff', [1.705, 0.38, 0.05]);
+  b.box(0.36, 0.3, 0.02, '#8d939a', [1.0, 0.25, 0.53]);
+  b.box(1.0, 0.05, 0.62, '#d9dbd9', [1.1, 0.48, 0.86]);
+  b.box(1.02, 0.07, 0.02, '#d23a30', [1.1, 0.46, 1.17]);
+  for (const x of [0.65, 1.55]) b.box(0.05, 0.38, 0.05, STEEL, [x, 0.29, 1.12]);
+  ambulance(b, g, 0.85, 0.85);
+  ambulance(b, g, 1.25, 1.45);
+  // desembarque, estacionamento com carros, árvores e calçada
+  b.box(3.5, 0.012, 0.75, '#3d4044', [0, 0.106, 1.42]);
+  for (let i = 0; i < 6; i++) b.box(0.02, 0.014, 0.32, '#e8eae8', [-1.6 + i * 0.3, 0.114, 1.6]);
+  for (const [x, c] of [
+    [-1.45, '#2f5f8a'],
+    [-0.85, '#a8432f'],
+    [-0.25, '#d9d8d0'],
+  ] as const) {
+    b.box(0.22, 0.09, 0.4, c, [x, 0.17, 1.62]);
+    b.box(0.19, 0.07, 0.2, c, [x, 0.24, 1.6]);
+    g.box(0.195, 0.05, 0.21, '#ffffff', [x, 0.245, 1.6]);
+  }
+  for (const [x, z] of [
+    [-1.65, 0.75],
+    [1.65, -1.55],
+    [-1.65, -1.75],
+  ] as const) {
+    b.cyl(0.03, 0.04, 0.22, '#5a4632', [x, 0.21, z], undefined, 5);
+    b.add(new THREE.IcosahedronGeometry(0.2, 0), '#4f7a3c', { pos: [x, 0.42, z] });
+  }
   return { base: l.build(), moving: null, height: 1.8 };
 }
 
