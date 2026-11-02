@@ -91,7 +91,7 @@ describe('Estradas do jogador', () => {
   it('verba de obras insuficiente bloqueia; manutenção em suprimentos', () => {
     const { sim, run } = setup({ fund: 0 });
     const plain = setup();
-    expect(sim.applyCommand(0, { type: 'build_road', cells: line(12, 4, 8) })).toMatch(/Verba/);
+    expect(sim.applyCommand(0, { type: 'build_road', cells: line(12, 4, 8) })).toMatch(/Caixa do país/);
     sim.national = {
       ...sim.national!,
       worksFundUsd: () => 1e9,

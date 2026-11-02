@@ -63,6 +63,8 @@ O Nation Commander é **low poly estilizado**, por decisão do responsável pelo
   código da sala. Nada do KNPS muda regra ou velocidade para um jogador. Medir com `npx tsx scripts/knps-baseline.ts`.
 - Construtores (`BUILDERS`, `docs/CONSTRUTORES.md`): toda obra usa até 4 cidadãos (25% da velocidade cada; sem nenhum,
   para). Testes de regra antigos rodam sem eles (`shared/test/setup.ts`), como a rede elétrica.
+- Caixa do país (`shared/strategic/treasury.ts`, `docs/CAIXA_DO_PAIS.md`): o antigo "verba de obras" (`works.fundUsd`)
+  recebe repasse, produção e comércio e paga exército, energia, prédios, estradas e serviços todo dia; sem teto.
 - Clima e dia/noite (`shared/sim/climate.ts`, `docs/CLIMA_DIA_NOITE.md`) são só visuais, exceto a usina solar.
 - Minas terrestres (`shared/sim/mines.ts`) não são entidades: o snapshot envia só as do dono e as já detectadas
   (`MineSystem.visibleTo`). O satélite do Programa Espacial revela o resto do mapa, mas nunca as minas.

@@ -1,4 +1,3 @@
-import { WORKS_SHARE_OF_INFRA } from '../../../shared/strategic/params.ts';
 import { BUILDINGS } from '../../../shared/sim/config.ts';
 import { formatUsd } from '../../../shared/sim/upgrades.ts';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
@@ -9,81 +8,110 @@ import { producibleIcon, producibleLabel } from './CommandPanel.tsx';
 export type TopBarPopover = 'money' | 'production' | 'perf' | 'net' | 'sandbox' | null;
 
 /**
- * Dinheiro do teatro na barra superior (também no celular): a verba de obras que paga as
- * melhorias de construções, com quanto entra por segundo. Um toque abre a explicação.
+ * Caixa do país na barra superior (01/11; também no celular): o saldo disponível e quanto entra ou sai por dia
+ * (receitas − despesas), verde ou vermelho. Um toque abre o extrato.
  */
+/** Valores do dia: abaixo de US$ 1 mi em mil (o caixa e as obras seguem em mi). */
+function perDay(usd: number): string {
+  const a = Math.abs(usd);
+  return a < 1e6 ? `${Math.round(a / 1e3)} mil` : formatUsd(a).replace('US$ ', '');
+}
+
 export function MoneyChip({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   const mySlot = useHudStore((s) => s.mySlot);
-  const speed = useHudStore((s) => s.speed);
   const works = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot)?.works);
   if (!works) return null;
-  // 1 dia de jogo por segundo a 1×; a recarga diária é 1/365 do teto anual
-  const perSec = (works.capUsd / 365) * speed;
-  const full = works.fundUsd >= works.capUsd - 1;
+  const net = works.today?.net ?? works.capUsd / 365;
+  const negative = works.fundUsd < 0;
   return (
     <button
       className={`flex shrink-0 items-center gap-1 rounded px-1 py-0.5 ${open ? 'bg-ink-700' : 'hover:bg-ink-800'}`}
       onClick={onToggle}
       aria-expanded={open}
-      aria-label={`Verba de obras: ${formatUsd(works.fundUsd)}`}
-      title="Verba de obras (dinheiro das melhorias) — toque para entender"
+      aria-label={`Caixa do país: ${formatUsd(works.fundUsd)}, ${net >= 0 ? 'ganhando' : 'perdendo'} US$ ${perDay(net)} por dia`}
+      title="Caixa do país — toque para ver de onde vem e para onde vai o dinheiro"
     >
       <span className="font-bold text-emerald-300" aria-hidden>
         US$
       </span>
-      <span className="font-mono font-bold">{formatUsd(works.fundUsd).replace('US$ ', '')}</span>
-      <span className={`hidden text-[11px] min-[1800px]:inline ${full ? 'text-ink-400' : 'text-signal-green'}`}>{full ? 'cheio' : `+${formatUsd(perSec).replace('US$ ', '')}/s`}</span>
+      <span className={`font-mono font-bold ${negative ? 'text-red-400' : ''}`}>{formatUsd(works.fundUsd).replace('US$ ', '')}</span>
+      <span className={`font-mono text-[11px] ${net >= 0 ? 'text-signal-green' : 'text-red-400'}`}>
+        {net >= 0 ? '+' : '−'}
+        {perDay(net)}/dia
+      </span>
     </button>
   );
 }
 
 export function MoneyPopover({ onClose }: { onClose: () => void }) {
   const mySlot = useHudStore((s) => s.mySlot);
-  const speed = useHudStore((s) => s.speed);
   const nation = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot));
   const openPanelAt = useNationalStore((s) => s.openPanelAt);
   if (!nation) return null;
   const w = nation.works;
-  const perDay = w.capUsd / 365;
+  const day = w.today;
+  const totalIn = day ? day.income.reduce((a, l) => a + l.usd, 0) : 0;
+  const totalOut = day ? day.expense.reduce((a, l) => a + l.usd, 0) : 0;
   const last = w.ledger.at(-1);
+  const line = (l: { key: string; label: string; usd: number }, sign: '+' | '−') => (
+    <div key={l.key} className="flex justify-between gap-2">
+      <span className="text-ink-300">{l.label}</span>
+      <span className={`font-mono ${sign === '+' ? 'text-signal-green' : 'text-red-300'}`}>
+        {l.usd === 0 ? '—' : `${sign}${perDay(l.usd)}`}
+      </span>
+    </div>
+  );
   return (
-    <div className="panel scroll-thin max-h-[calc(100dvh-4.5rem)] w-[min(22rem,calc(100vw-1rem))] overflow-y-auto bg-ink-900 p-3 text-xs text-ink-200" role="dialog" aria-label="Verba de obras">
+    <div className="panel scroll-thin max-h-[calc(100dvh-4.5rem)] w-[min(24rem,calc(100vw-1rem))] overflow-y-auto bg-ink-900 p-3 text-xs text-ink-200" role="dialog" aria-label="Caixa do país">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <div className="text-sm font-semibold text-ink-100">Verba de obras: {formatUsd(w.fundUsd)}</div>
-          <div className="text-ink-400">teto {formatUsd(w.capUsd)} por ano</div>
+          <div className={`text-sm font-semibold ${w.fundUsd < 0 ? 'text-red-400' : 'text-ink-100'}`}>Caixa do país: {formatUsd(w.fundUsd)}</div>
+          {day && (
+            <div className={day.net >= 0 ? 'text-signal-green' : 'text-red-400'}>
+              {day.net >= 0 ? 'Ganhando' : 'Perdendo'} US$ {perDay(day.net)} por dia de jogo (1 s a 1×)
+            </div>
+          )}
         </div>
         <button className="btn min-h-8 px-2" onClick={onClose} aria-label="Fechar">
           ✕
         </button>
       </div>
-      <dl className="mt-2 space-y-1.5">
+      {day ? (
+        <div className="mt-2 space-y-2">
+          <section>
+            <div className="mb-0.5 flex justify-between font-semibold text-ink-100">
+              <span>Receitas do dia</span>
+              <span className="font-mono text-signal-green">+{perDay(totalIn)}</span>
+            </div>
+            {day.income.map((l) => line(l, '+'))}
+          </section>
+          <section>
+            <div className="mb-0.5 flex justify-between font-semibold text-ink-100">
+              <span>Despesas do dia</span>
+              <span className="font-mono text-red-300">−{perDay(totalOut)}</span>
+            </div>
+            {day.expense.map((l) => line(l, '−'))}
+          </section>
+        </div>
+      ) : (
+        <p className="mt-2 text-ink-400">O primeiro extrato sai no fim do primeiro dia de jogo.</p>
+      )}
+      <dl className="mt-2 space-y-1.5 border-t border-ink-700 pt-2">
         <div>
           <dt className="font-semibold text-ink-100">Para que serve</dt>
-          <dd>Paga as melhorias de construções (o botão ⬆ Melhorar de cada prédio). Recursos do mapa pagam o resto da obra.</dd>
+          <dd>Paga as melhorias de construções, as estradas, os avanços de era e os Grandes Projetos. Sem saldo, essas obras esperam.</dd>
         </div>
         <div>
-          <dt className="font-semibold text-ink-100">De onde vem</dt>
+          <dt className="font-semibold text-ink-100">Como ganhar mais</dt>
           <dd>
-            Do orçamento do seu país: {(WORKS_SHARE_OF_INFRA * 100).toFixed(1).replace('.', ',')}% do gasto anual com infraestrutura ({nation.budget.infrastructurePct.toFixed(1).replace('.', ',')}% do
-            PIB). Já está contado nas contas públicas — não cria dívida.
+            Mais produção (coletas ligadas à rede e com trabalhadores), exportações e acordos comerciais, e mais infraestrutura e educação no Orçamento. Cada tropa, prédio, estrada e
+            unidade de energia custa manutenção todo dia.
           </dd>
-        </div>
-        <div>
-          <dt className="font-semibold text-ink-100">Quanto entra</dt>
-          <dd>
-            {formatUsd(perDay)} por dia de jogo — {formatUsd(perDay * speed)}/s na velocidade atual ({speed}×), até encher o teto
-            {w.fundUsd >= w.capUsd - 1 ? ' (cheio agora: gaste em melhorias)' : ''}.
-          </dd>
-        </div>
-        <div>
-          <dt className="font-semibold text-ink-100">Como ter mais</dt>
-          <dd>Aumente a fatia de infraestrutura no Orçamento (eleva o teto e a recarga). Cancelar uma obra devolve 80%.</dd>
         </div>
         {last && (
           <div className="text-ink-400">
-            Último lançamento: {last.description} ({last.usd > 0 ? '−' : '+'}
-            {formatUsd(Math.abs(last.usd))}) · gasto na partida {formatUsd(w.spentUsd)}
+            Último gasto: {last.description} ({last.usd > 0 ? '−' : '+'}
+            {formatUsd(Math.abs(last.usd))}) · gasto em obras na partida {formatUsd(w.spentUsd)}
           </div>
         )}
       </dl>

@@ -1,3 +1,4 @@
+import { treasuryDay, type TreasuryDay } from './treasury.ts';
 import { Random } from '../sim/Random.ts';
 import { POWER } from '../sim/power.ts';
 import { decodeNonFinite, encodeNonFinite } from '../sim/json.ts';
@@ -132,6 +133,13 @@ export interface WorksFund {
   spentUsd: number;
   /** Lançamentos mais recentes (dia, valor; negativo = devolução). */
   ledger: { day: number; usd: number; description: string }[];
+  /**
+   * Caixa do país (01/11): receitas e despesas do último dia (`treasury.ts`). Com ele, o fundo não tem mais teto e
+   * pode ficar negativo; `capUsd` segue como o repasse anual do orçamento (base dos preços de projetos e eras).
+   */
+  today?: TreasuryDay;
+  /** Exportações acumuladas no fim do último dia (para medir as do dia). */
+  exportsSeenUsd?: number;
 }
 
 /**
@@ -463,7 +471,7 @@ export class NationalSimulation {
   refundWorks(slot: Slot, usd: number, description: string): void {
     const n = this.nations.find((x) => x.slot === slot);
     if (!n || usd <= 0) return;
-    n.works.fundUsd = Math.min(n.works.capUsd, n.works.fundUsd + usd);
+    n.works.fundUsd = this.isNpc(n.slot) ? Math.min(n.works.capUsd, n.works.fundUsd + usd) : n.works.fundUsd + usd;
     n.works.spentUsd = Math.max(0, n.works.spentUsd - usd);
     this.ledger(n, -usd, description);
   }
@@ -739,8 +747,22 @@ export class NationalSimulation {
     // --- PIB nominal, contas públicas e dívida
     n.gdpUsd *= 1 + ((n.realGrowthPct + COEF.usdInflation) / 100) * dt;
     this.recompute(n, dt);
-    // --- verba de obras do teatro: repõe 1/365 do teto anual por dia, até o teto
-    n.works.fundUsd = Math.min(n.works.capUsd, n.works.fundUsd + n.works.capUsd / DAYS_PER_YEAR);
+    // --- caixa do país: receitas menos despesas do dia (NPCs: só o repasse, até o teto, como antes)
+    if (this.isNpc(n.slot)) n.works.fundUsd = Math.min(n.works.capUsd, n.works.fundUsd + n.works.capUsd / DAYS_PER_YEAR);
+    else {
+      const exportsToday = Math.max(0, n.trade.exportsUsd - (n.works.exportsSeenUsd ?? n.trade.exportsUsd));
+      n.works.exportsSeenUsd = n.trade.exportsUsd;
+      const gdpRef = this.mode === 'parity' ? COEF.parityGdpUsd : n.gdpUsd;
+      const day = treasuryDay(this.theater?.stats?.(n.slot)?.economy ?? null, {
+        transferUsd: n.works.capUsd / DAYS_PER_YEAR,
+        scale: gdpRef / COEF.parityGdpUsd,
+        productivity: clamp(n.infrastructureIndex * n.humanCapitalIndex - 1, -0.4, 0.6),
+        exportsUsd: exportsToday,
+        tradeGrowthPct: diplo.trade,
+      });
+      n.works.today = day;
+      n.works.fundUsd += day.net;
+    }
     n.debtUsd = Math.max(0, n.debtUsd + (n.spendingUsd + n.interestUsd - n.revenueUsd) * dt);
 
     // --- opinião pública
@@ -999,7 +1021,7 @@ export class NationalSimulation {
     const defenseBn = ((b.defensePct / 100) * gdpFor(n)) / 1e9;
     // teto anual da verba de obras: segue o orçamento de infraestrutura (e o PIB) atuais
     n.works.capUsd = Math.round((b.infrastructurePct / 100) * gdpFor(n) * WORKS_SHARE_OF_INFRA * (n.projects?.includes('financial_center') ? PROJECT_FX.financialWorksMul : 1));
-    if (n.works.fundUsd > n.works.capUsd) n.works.fundUsd = n.works.capUsd;
+    if (this.isNpc(n.slot) && n.works.fundUsd > n.works.capUsd) n.works.fundUsd = n.works.capUsd;
     n.allianceAidPerSec = this.diplomacy.allianceAid(n.slot, gdpFor);
     n.theaterSupplyPerSec = theaterSupply(defenseBn) * fx.theaterSupplyMul + n.allianceAidPerSec;
   }

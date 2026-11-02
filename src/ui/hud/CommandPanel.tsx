@@ -366,7 +366,7 @@ function RoadHint({ mode, touch, worksCap, stone }: { mode: Extract<ReturnType<t
       {mode.marked > 0 && (
         <div className="mt-1.5 text-xs text-ink-400">
           {mode.cells} célula(s) a pavimentar · <span className={stone < cost ? 'text-signal-red' : 'text-ink-200'}>{cost} de pedra</span>
-          {usd > 0 && <span className="text-signal-green"> · {usdShort(usd)} da verba de obras</span>}
+          {usd > 0 && <span className="text-signal-green"> · {usdShort(usd)} do caixa do país</span>}
           {mode.bad > 0 && mode.reason && (
             <div className="text-signal-red">
               {mode.bad} célula(s) em vermelho ficam de fora: {mode.reason}

@@ -1167,7 +1167,7 @@ export class Simulation {
         if (reason) return reason;
         const def = BUILDINGS[cmd.buildingType];
         if (def.project && !this.isSandbox(slot) && this.national && !this.national.chargeWorks(slot, this.projectUsd(slot, cmd.buildingType), def.label))
-          return 'Verba de obras insuficiente para o Grande Projeto';
+          return 'Caixa do país sem saldo para o Grande Projeto';
         this.spend(player, this.buildingCostFor(slot, cmd.buildingType));
         const b = this.addBuilding(cmd.buildingType, slot, cell, 0);
         if (b.type === 'city_hall') b.city = this.nextCity(slot);
@@ -1247,7 +1247,7 @@ export class Simulation {
         const plan = this.roadPlan(slot, cmd.cells);
         if (plan.error) return plan.error;
         const free = this.isSandbox(slot);
-        if (!free && this.national && plan.usd > 0 && !this.national.chargeWorks(slot, plan.usd, `Estrada (${plan.cells.length} células)`)) return 'Verba de obras insuficiente para a estrada';
+        if (!free && this.national && plan.usd > 0 && !this.national.chargeWorks(slot, plan.usd, `Estrada (${plan.cells.length} células)`)) return 'Caixa do país sem saldo para a estrada';
         if (!free) this.spend(player, { stone: plan.stone });
         for (const i of plan.cells) {
           this.map.terrain[i] = Terrain.Road;
@@ -1308,7 +1308,7 @@ export class Simulation {
         const hq = this.hqOf(slot);
         if (!hq) return 'Sem Centro de Comando';
         const free = this.isSandbox(slot);
-        if (!free && this.national && !this.national.chargeWorks(slot, this.eraUsd(slot, to), `Avanço para ${eraPhrase(to)}`)) return 'Verba de obras insuficiente para o avanço de era';
+        if (!free && this.national && !this.national.chargeWorks(slot, this.eraUsd(slot, to), `Avanço para ${eraPhrase(to)}`)) return 'Caixa do país sem saldo para o avanço de era';
         if (!free) this.spend(player, def.cost);
         const ticks = free && this.sandbox?.instant ? 1 : this.duration(slot, def.seconds * TICK_RATE);
         player.eraAdvance = { to, remainingTicks: ticks, totalTicks: ticks, paid: free ? {} : { ...def.cost }, usd: free ? 0 : this.eraUsd(slot, to) };
@@ -1391,7 +1391,7 @@ export class Simulation {
         const spec = plan.specChoice ? (cmd.spec ?? null) : null;
         // verba nacional primeiro: se o orçamento recusar, nada é debitado do teatro
         if (this.national && plan.usd > 0 && !this.national.chargeWorks(slot, plan.usd, `${BUILDINGS[b.type].label} → nível ${plan.toLevel}`)) {
-          return 'Verba de obras insuficiente no orçamento nacional';
+          return 'Caixa do país sem saldo';
         }
         this.spend(player, plan.cost);
         const total = this.duration(slot, plan.seconds * TICK_RATE);
@@ -1433,7 +1433,7 @@ export class Simulation {
           }
           const def = MODS[cmd.mod];
           if (this.national && check.usd > 0 && !this.national.chargeWorks(slot, check.usd, `${UNITS[u.type].label}: ${def.label}`)) {
-            firstError ??= 'Verba de obras insuficiente no orçamento nacional';
+            firstError ??= 'Caixa do país sem saldo';
             continue;
           }
           this.spend(player, check.cost);
@@ -1716,7 +1716,7 @@ export class Simulation {
     const usd = Math.round((this.national?.worksCapUsd?.(slot) ?? 0) * ROAD.usdSharePerCell * out.length);
     if (!this.isSandbox(slot)) {
       if ((this.players[slot]?.resources.stone ?? 0) < stone) return { cells: out, stone, usd, error: `Pedra insuficiente: a estrada custa ${stone}` };
-      if (this.national && this.national.worksFundUsd(slot) + 1e-6 < usd) return { cells: out, stone, usd, error: 'Verba de obras insuficiente para a estrada' };
+      if (this.national && this.national.worksFundUsd(slot) + 1e-6 < usd) return { cells: out, stone, usd, error: 'Caixa do país sem saldo para a estrada' };
     }
     return { cells: out, stone, usd, error: null };
   }
@@ -1789,7 +1789,7 @@ export class Simulation {
     if (this.isSandbox(slot)) return null;
     if (this.hqLevel(slot) < def.hqLevel) return `Requer o Centro de Comando no nível ${def.hqLevel}`;
     if (!canAfford(p.resources, def.cost)) return `Recursos insuficientes: faltam ${missingText(p.resources, def.cost)}`;
-    if (this.national && this.national.worksFundUsd(slot) + 1e-6 < this.eraUsd(slot, to)) return 'Verba de obras insuficiente para o avanço de era';
+    if (this.national && this.national.worksFundUsd(slot) + 1e-6 < this.eraUsd(slot, to)) return 'Caixa do país sem saldo para o avanço de era';
     return null;
   }
 
@@ -1882,7 +1882,7 @@ export class Simulation {
     if (bdef.project && this.buildings.some((b) => b.owner === slot && b.type === type)) return `${bdef.label}: só um por nação`;
     if (!this.isSandbox(slot)) {
       if (bdef.minHqLevel && this.hqLevel(slot) < bdef.minHqLevel) return `Requer o Centro de Comando no nível ${bdef.minHqLevel}`;
-      if (bdef.project && this.national && this.national.worksFundUsd(slot) + 1e-6 < this.projectUsd(slot, type)) return 'Verba de obras insuficiente para o Grande Projeto';
+      if (bdef.project && this.national && this.national.worksFundUsd(slot) + 1e-6 < this.projectUsd(slot, type)) return 'Caixa do país sem saldo para o Grande Projeto';
     }
     return placementError(
       {

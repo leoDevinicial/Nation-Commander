@@ -891,7 +891,7 @@ export function planUpgrade(b: UpgradeSubject, world: UpgradeWorld, chosenSpec: 
     }
     const affordable = canAfford(world.resources, lc.cost);
     req.push({ key: 'resources', label: 'Recursos no teatro', met: affordable });
-    if (world.fundsUsd !== null) req.push({ key: 'funds', label: `Verba de obras do orçamento nacional (${formatUsd(lc.usd)})`, met: world.fundsUsd >= lc.usd });
+    if (world.fundsUsd !== null) req.push({ key: 'funds', label: `Caixa do país (${formatUsd(lc.usd)})`, met: world.fundsUsd >= lc.usd });
   }
 
   // ganhos esperados: valores do próximo nível contra os atuais
@@ -921,7 +921,7 @@ export function planUpgrade(b: UpgradeSubject, world: UpgradeWorld, chosenSpec: 
         missing.key === 'resources'
           ? `Recursos insuficientes: faltam ${missingText(world.resources, lc.cost)}`
           : missing.key === 'funds'
-            ? `Verba de obras insuficiente: disponível ${formatUsd(world.fundsUsd ?? 0)} de ${formatUsd(lc.usd)}`
+            ? `Caixa do país sem saldo: disponível ${formatUsd(world.fundsUsd ?? 0)} de ${formatUsd(lc.usd)}`
             : `Requisito: ${missing.label}`;
     } else if (specChoice && !nextSpec) blocker = 'Escolha uma especialização para este nível';
   }

@@ -1,3 +1,4 @@
+import type { TreasuryInputs } from './treasury.ts';
 /**
  * Política interna e externa no estilo Tropico (docs/BALANCEAMENTO_E_PROGRESSAO.md, lote 1, §4):
  *
@@ -117,6 +118,8 @@ export interface TheaterStats {
   leftoverMines?: number;
   /** Fração das moradias cobertas por Hospital, Escola e Delegacia (0 a 1). */
   services?: { health: number; education: number; security: number };
+  /** O que entra e sai do caixa do país (ver `treasury.ts`). */
+  economy?: TreasuryInputs;
 }
 
 export type Demand =

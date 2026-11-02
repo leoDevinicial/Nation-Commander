@@ -321,6 +321,6 @@ export function checkModernize(mod: ModId, c: ModernizeContext): ModernizeCheck 
   if (!c.facility.ok) return no(c.facility.reason, c.facility.short);
   if (!canAfford(c.resources, def.retrofit.cost)) return no(`Recursos insuficientes: faltam ${missingText(c.resources, def.retrofit.cost)}`, 'recursos');
   if (c.fundsUsd !== null && c.fundsUsd + 1e-6 < def.retrofit.usd)
-    return no(`Verba de obras insuficiente: disponível ${formatUsd(c.fundsUsd)} de ${formatUsd(def.retrofit.usd)}`, 'sem verba');
+    return no(`Caixa do país sem saldo: disponível ${formatUsd(c.fundsUsd)} de ${formatUsd(def.retrofit.usd)}`, 'sem verba');
   return { ...base, blocker: null, short: null };
 }

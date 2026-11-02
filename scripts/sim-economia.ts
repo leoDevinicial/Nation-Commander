@@ -164,6 +164,14 @@ function run(seed: number, difficulty: Difficulty): Result {
         const dark = sim.buildings.filter((b) => b.owner === s && b.progress >= 1 && !sim.hasLight(b)).map((b) => b.type);
         console.log(`${t / MIN}min P${s} oferta ${p?.supply} demanda ${p?.demand} apagados ${dark.join(',') || '-'} isolados ${p?.isolated} usinas ${plants} carvão ${Math.round(sim.players[s]!.resources.coal)}`);
       }
+    // TREASURY_LOG=1: caixa do país de cada IA a cada 2 minutos (diagnóstico)
+    if (process.env.TREASURY_LOG && t % (2 * MIN) === 0)
+      for (const s of [0, 1]) {
+        const w = national.nation(s)?.works;
+        const d = w?.today;
+        const k = (v: number) => (v / 1e3).toFixed(0) + 'k';
+        if (d) console.log(`${t / MIN}min P${s} caixa ${(w!.fundUsd / 1e6).toFixed(1)}mi líquido ${k(d.net)}/dia | ${d.income.map((l) => `${l.key} ${k(l.usd)}`).join(' ')} | ${d.expense.map((l) => `${l.key} ${k(l.usd)}`).join(' ')}`);
+      }
     const events = sim.drainEvents();
     if (t < 15 * MIN) for (const e of events) if (e.type === 'unit_produced') trained[e.owner]!++;
     if (t < 15 * MIN) for (const e of events) if (e.type === 'destroyed' && e.entity === 'unit') lost[e.owner]!++;

@@ -45,7 +45,7 @@ describe('manual de entrada', () => {
 
   it('cobre o básico: objetivo, economia, população, guerra, nação/melhorias e controles', () => {
     const all = MANUAL.map((c) => [c.title, c.lead, ...c.points, c.tip ?? ''].join(' ')).join(' ');
-    for (const word of ['Centro de Comando', 'recruta', 'moradia', 'guerra', 'Melhorar', 'verba', 'pinça', 'preparo']) expect(all).toContain(word);
+    for (const word of ['Centro de Comando', 'recruta', 'moradia', 'guerra', 'Melhorar', 'caixa do país', 'pinça', 'preparo']) expect(all).toContain(word);
   });
 
   it('a abertura começa tocando sempre que o jogo é aberto (inclusive com login salvo)', () => {

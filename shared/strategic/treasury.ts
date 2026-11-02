@@ -1,0 +1,87 @@
+import type { ResourceType } from '../sim/config.ts';
+
+/**
+ * Caixa do país no teatro (01/11, pedido do usuário: "não sei quanto estou ganhando ou perdendo de dinheiro e de onde
+ * vem esse 75"). O antigo "verba de obras" vira o caixa: todo dia entram as receitas e saem as despesas, e o saldo
+ * paga as melhorias, estradas, Grandes Projetos e avanços de era.
+ *
+ * Receitas: repasse do orçamento federal (a fatia de infraestrutura, como antes), a produção do teatro vendida no
+ * mercado interno (fazendas, coletas e indústrias), a produtividade (infraestrutura e educação), exportações e acordos
+ * comerciais. Despesas: manutenção do exército (cresce com cada tropa; veículos e aviões custam mais), energia
+ * consumida, manutenção das construções e das estradas e os serviços públicos.
+ *
+ * Os preços são em US$ por dia de jogo para um PIB de referência de US$ 1 tri (`scale` ajusta ao PIB do país).
+ */
+export const TREASURY = {
+  /** US$ por unidade produzida (1 dia de jogo = 1 s; a coleta é medida por segundo). */
+  price: { food: 4_500, wood: 4_500, stone: 4_500, iron: 8_000, oil: 10_000, coal: 6_000, supplies: 6_000 } as Record<ResourceType, number>,
+  /** Fatia das exportações do dia que fica no caixa do teatro (o resto abate a dívida do país). */
+  exportShare: 0.2,
+  /** Acordos comerciais: % do repasse por ponto percentual de crescimento vindo dos acordos. */
+  tradePactShare: 0.25,
+  /** Manutenção do exército por dia: infantaria, veículo e aeronave. */
+  infantry: 6_000,
+  vehicle: 20_000,
+  aircraft: 40_000,
+  /** Energia: por unidade de consumo atendida por dia. */
+  energy: 1_500,
+  /** Manutenção por construção pronta (por célula de área) e por célula de estrada. */
+  buildingPerCell: 400,
+  road: 600,
+  /** Serviços públicos: por Hospital, Escola, Delegacia e Prefeitura. */
+  service: 20_000,
+} as const;
+
+export interface TreasuryInputs {
+  /** Produção por segundo de cada recurso no teatro. */
+  production: Partial<Record<ResourceType, number>>;
+  infantry: number;
+  vehicles: number;
+  aircraft: number;
+  /** Consumo de energia atendido agora. */
+  energy: number;
+  /** Soma da área (células) das construções prontas, sem o Centro de Comando. */
+  buildingCells: number;
+  roads: number;
+  services: number;
+}
+
+export interface TreasuryLine {
+  key: string;
+  label: string;
+  usd: number;
+}
+
+export interface TreasuryDay {
+  income: TreasuryLine[];
+  expense: TreasuryLine[];
+  net: number;
+}
+
+export function treasuryDay(
+  inputs: TreasuryInputs | null,
+  ctx: { transferUsd: number; scale: number; productivity: number; exportsUsd: number; tradeGrowthPct: number },
+): TreasuryDay {
+  const k = ctx.scale;
+  const sumProd = inputs ? Object.entries(inputs.production).reduce((a, [r, v]) => a + (v ?? 0) * TREASURY.price[r as ResourceType], 0) : 0;
+  const production = sumProd * k;
+  const income: TreasuryLine[] = [
+    { key: 'transfer', label: 'Repasse do orçamento (infraestrutura)', usd: ctx.transferUsd },
+    { key: 'production', label: 'Produção (fazendas, coletas e indústrias)', usd: production },
+    { key: 'productivity', label: 'Produtividade (infraestrutura e educação)', usd: production * ctx.productivity },
+    { key: 'trade', label: 'Exportações e acordos comerciais', usd: ctx.exportsUsd * TREASURY.exportShare + ctx.transferUsd * TREASURY.tradePactShare * Math.max(0, ctx.tradeGrowthPct) },
+  ];
+  const expense: TreasuryLine[] = inputs
+    ? [
+        { key: 'army', label: 'Manutenção do exército', usd: (inputs.infantry * TREASURY.infantry + inputs.vehicles * TREASURY.vehicle + inputs.aircraft * TREASURY.aircraft) * k },
+        { key: 'energy', label: 'Energia consumida', usd: inputs.energy * TREASURY.energy * k },
+        { key: 'buildings', label: 'Manutenção das construções', usd: inputs.buildingCells * TREASURY.buildingPerCell * k },
+        { key: 'roads', label: 'Manutenção das estradas', usd: inputs.roads * TREASURY.road * k },
+        { key: 'services', label: 'Serviços públicos', usd: inputs.services * TREASURY.service * k },
+      ]
+    : [];
+  const round = (l: TreasuryLine) => ({ ...l, usd: Math.round(l.usd) });
+  const inc = income.map(round);
+  const exp = expense.map(round);
+  return { income: inc, expense: exp, net: inc.reduce((a, l) => a + l.usd, 0) - exp.reduce((a, l) => a + l.usd, 0) };
+}

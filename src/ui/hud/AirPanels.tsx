@@ -105,7 +105,7 @@ function aircraftBlocker(type: AircraftType, ctx: ReturnType<typeof useMe>, inHa
   if (inHangar >= AIR.hangarPerBase) return 'hangar cheio';
   if (ctx.recruits < 1) return 'sem piloto (recruta)';
   if (!canAfford(ctx.resources, def.cost)) return 'recursos insuficientes';
-  if (ctx.fund !== null && ctx.fund < def.usd) return 'verba de obras insuficiente';
+  if (ctx.fund !== null && ctx.fund < def.usd) return 'caixa do país sem saldo';
   return null;
 }
 
@@ -138,7 +138,7 @@ export function AirbaseButtons({ b, runtime }: { b: SelectedBuildingInfo; runtim
             short={blocker}
             count={planes.filter((a) => a.type === t && a.state === 'building').length}
             onClick={() => (blocker ? warn(`${def.label}: ${blocker}`) : runtime.send({ type: 'build_aircraft', buildingId: b.id, aircraftType: t }))}
-            title={`${def.label} — ${def.role}\nCusto: ${formatUsd(def.usd)} da verba de obras + materiais + 1 piloto · ${timeText(def.buildSeconds)}${def.range ? `\nAlcance ${def.range} · manutenção ${def.maintenanceSeconds}s após cada missão` : ''}`}
+            title={`${def.label} — ${def.role}\nCusto: ${formatUsd(def.usd)} do caixa do país + materiais + 1 piloto · ${timeText(def.buildSeconds)}${def.range ? `\nAlcance ${def.range} · manutenção ${def.maintenanceSeconds}s após cada missão` : ''}`}
           >
             <CostLabel cost={def.cost} have={ctx.resources} compact />
             {def.goods?.fuel && <span className="text-[9px] text-signal-blue">⛽{def.goods.fuel}</span>}

@@ -124,7 +124,7 @@
     <div class="card"><div class="ic">🗺</div><h4>O teatro de operações</h4><p>O mapa 3D onde tudo acontece na prática: você coleta recursos, constrói a base, forma a população e treina o exército. É a parte "jogo de estratégia em tempo real".</p></div>
     <div class="card"><div class="ic">🏛</div><h4>O governo</h4><p>O painel da sua nação: impostos, gastos, dívida, pesquisa, aprovação do povo e diplomacia com outros países. Um dia de jogo passa a cada segundo.</p></div>
   </div>
-  <p style="margin-top:4mm">As duas partes estão ligadas. O orçamento de defesa manda suprimentos para a base; a verba de obras paga as melhorias; as baixas na guerra derrubam a aprovação; e um povo revoltado pode derrubar o seu governo.</p>
+  <p style="margin-top:4mm">As duas partes estão ligadas. O orçamento de defesa manda suprimentos para a base; o caixa do país paga as melhorias; as baixas na guerra derrubam a aprovação; e um povo revoltado pode derrubar o seu governo.</p>
   <h2>Como vencer</h2>
   <table>
     <tr><th style="width:30%">Vitória</th><th>Como conseguir</th></tr>
@@ -212,7 +212,7 @@
     <span class="mk" style="left:9%">1</span><span class="mk" style="left:20.5%">2</span><span class="mk" style="left:29%">3</span><span class="mk" style="left:42%">4</span><span class="mk" style="left:55%">5</span><span class="mk" style="left:68%">6</span><span class="mk" style="left:80.5%">7</span><span class="mk" style="left:92%">8</span><span class="mk" style="left:97.4%">9</span>
   </div>
   <div class="legend">
-    <div><b>1</b><strong>US$</strong> — a verba de obras do governo (paga melhorias, eras e aviões).</div>
+    <div><b>1</b><strong>US$</strong> — o caixa do país e quanto ele ganha ou perde por dia (verde ou vermelho). Toque para ver o extrato.</div>
     <div><b>2</b><strong>🏭</strong> — quantas coisas estão sendo produzidas agora.</div>
     <div><b>3</b><strong>Suprimentos</strong></div>
     <div><b>4</b><strong>Comida</strong></div>
@@ -474,7 +474,7 @@
     <div class="era" style="background:#1b1f2c"><div class="q">Era 4 · QG nível 7</div><h4>Futuro Próximo</h4><p>Compósito escuro, faixas de LED e drones. Tanque Moderno, bombardeiros, Silo de Mísseis e os Grandes Projetos. Melhorias até o nível 10.</p></div>
   </div>
   <h2>Como avançar</h2>
-  <p>Selecione o Centro de Comando e clique em <b>Era …</b>. É uma obra que custa recursos e US$ da verba de obras e exige o QG no nível mínimo. Durante a obra, o topo da tela mostra o progresso. Cancelar devolve 75%. Quando você avança, todos os jogadores são avisados.</p>
+  <p>Selecione o Centro de Comando e clique em <b>Era …</b>. É uma obra que custa recursos e US$ do caixa do país e exige o QG no nível mínimo. Durante a obra, o topo da tela mostra o progresso. Cancelar devolve 75%. Quando você avança, todos os jogadores são avisados.</p>
   <table>
     <tr><th>Para a era</th><th>Requisito</th><th>Custo aproximado</th><th>Tempo</th></tr>
     <tr><td>2 · Pós-Guerra Fria</td><td>QG nível 3</td><td>375 suprimentos, 250 madeira, 190 pedra, 100 ferro + US$</td><td>60 s</td></tr>
@@ -536,7 +536,7 @@
     <tr><td><b>Defesa</b></td><td>Mais suprimentos por segundo na sua base (logística do teatro).</td></tr>
     <tr><td><b>Educação</b></td><td>A economia cresce mais — mas só depois de alguns anos.</td></tr>
     <tr><td><b>Saúde e previdência</b></td><td>Aprovação maior.</td></tr>
-    <tr><td><b>Infraestrutura</b></td><td>Crescimento e mais <b>verba de obras</b> (o US$ da barra, que paga melhorias e eras).</td></tr>
+    <tr><td><b>Infraestrutura</b></td><td>Crescimento e mais <b>repasse</b> para o caixa do país (o US$ da barra, que paga melhorias e eras).</td></tr>
     <tr><td><b>Pesquisa</b></td><td>Pesquisas nacionais e militares mais rápidas.</td></tr>
   </table>
   <p>Gastar mais do que arrecada cria <b>déficit</b>, que vira <b>dívida</b>; dívida alta gera juros e freia a economia.</p>
@@ -580,6 +580,16 @@
     <li>Os botões ficam apagados quando falta estoque ou quando o armazém de suprimentos não tem espaço para o pagamento.</li>
   </ul>
   <div class="box tip"><span class="t">💡 Venda vários recursos um pouco</span>Mil unidades de comida, madeira, pedra e ferro vendidas juntas pagam quase o avanço para a era 3. Vender um pouco de cada rende mais do que despejar um recurso só.</div>
+  <h2>O caixa do país</h2>
+  <p>O US$ da barra é o <b>caixa do país</b>. Todo dia de jogo (1 segundo) entram as receitas e saem as despesas; ao lado do saldo aparece quanto você está <b style="color:var(--green)">ganhando</b> ou <b style="color:var(--red)">perdendo</b> por dia. Toque nele para ver o extrato:</p>
+  <table>
+    <tr><th style="width:50%">Receitas</th><th>Despesas</th></tr>
+    <tr><td>Repasse do orçamento (infraestrutura)</td><td>Manutenção do exército (cada tropa; veículos e aviões custam mais)</td></tr>
+    <tr><td>Produção das fazendas, coletas e indústrias</td><td>Energia consumida</td></tr>
+    <tr><td>Produtividade (infraestrutura e educação)</td><td>Manutenção das construções e das estradas</td></tr>
+    <tr><td>Exportações e acordos comerciais</td><td>Serviços públicos (hospital, escola, delegacia, prefeitura)</td></tr>
+  </table>
+  <p>O caixa não tem teto e pode ficar negativo: um exército grande demais faz o país perder dinheiro, e sem saldo as melhorias, estradas e eras esperam.</p>
 </section>
 
 <!-- ============================== 14 -->
@@ -709,11 +719,11 @@
     <tr><td><b>Usina Nuclear</b></td><td>+4 suprimentos/s, obras 10% mais rápidas, economia cresce mais</td></tr>
     <tr><td><b>Rede 5G Nacional</b></td><td>Pesquisa militar 30% mais rápida, +2 de visão para todas as tropas</td></tr>
     <tr><td><b>Hidrelétrica</b></td><td>+15% na coleta de todos os recursos, +2 suprimentos/s (na margem da água)</td></tr>
-    <tr><td><b>Centro Financeiro</b></td><td>Verba de obras 50% maior, +3 suprimentos/s</td></tr>
+    <tr><td><b>Centro Financeiro</b></td><td>Repasse para o caixa 50% maior, +3 suprimentos/s</td></tr>
     <tr><td><b>Programa Espacial 🛰</b></td><td>Lança um satélite: você vê <b>o mapa inteiro em tempo real</b></td></tr>
   </table>
   <h2>🚀 O Programa Espacial</h2>
-  <p>É a construção <b>mais cara do jogo</b>: cerca de 1.950 suprimentos, 1.560 de ferro, 1.040 de pedra, 780 de madeira, 780 de petróleo, quase toda a verba de obras do ano e 6 minutos de obra. Exige o QG no nível 9 e a pesquisa <b>Tecnologia espacial</b>.</p>
+  <p>É a construção <b>mais cara do jogo</b>: cerca de 1.950 suprimentos, 1.560 de ferro, 1.040 de pedra, 780 de madeira, 780 de petróleo, quase todo o repasse do ano e 6 minutos de obra. Exige o QG no nível 9 e a pesquisa <b>Tecnologia espacial</b>.</p>
   <ol class="steps">
     <li>Com a obra pronta, selecione o centro espacial e <b>segure o botão de autorizar</b>.</li>
     <li>Contagem regressiva de 10 segundos, com vapor saindo da plataforma.</li>
@@ -813,7 +823,7 @@
     <tr><td><b>Período de preparo</b></td><td>Os primeiros minutos, em que a IA não declara guerra.</td></tr>
     <tr><td><b>Recruta</b></td><td>Pessoa na reserva militar; tripula cada tropa ou avião.</td></tr>
     <tr><td><b>Teatro de operações</b></td><td>O mapa 3D da partida.</td></tr>
-    <tr><td><b>Verba de obras (US$)</b></td><td>Dinheiro do orçamento de infraestrutura que paga melhorias, eras e projetos.</td></tr>
+    <tr><td><b>Caixa do país (US$)</b></td><td>Dinheiro que paga melhorias, estradas, eras e projetos. Recebe repasse, produção e comércio; paga a manutenção.</td></tr>
     <tr><td><b>Veterania</b></td><td>Patente ganha com abates: Veterano, Elite e Herói.</td></tr>
   </table>
   <div class="box tip" style="margin-top:8mm"><span class="t">Boa sorte, Comandante!</span>O melhor jeito de aprender é jogar. Comece no Fácil, teste tropas no Modo Sandbox e volte a este guia sempre que tiver dúvida.</div>

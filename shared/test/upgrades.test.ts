@@ -162,7 +162,7 @@ describe('regras do comando de melhoria', () => {
     const s = sim(link);
     rich(s);
     const hq = s.hqOf(0)!;
-    expect(s.applyCommand(0, { type: 'upgrade', buildingId: hq.id })).toMatch(/Verba de obras insuficiente/);
+    expect(s.applyCommand(0, { type: 'upgrade', buildingId: hq.id })).toMatch(/Caixa do país sem saldo/);
     expect(s.players[0]!.resources).toEqual(RICH);
     expect(st.fund).toBe(1e6);
   });
@@ -380,7 +380,7 @@ describe('persistência', () => {
 });
 
 describe('verba de obras no orçamento nacional', () => {
-  it('teto segue o orçamento de infraestrutura; começa pela metade e repõe 1/365 por dia', async () => {
+  it('repasse segue o orçamento de infraestrutura; o caixa começa pela metade e recebe o saldo do dia', async () => {
     const { NationalSimulation } = await import('../strategic/NationalSimulation.ts');
     const { WORKS_SHARE_OF_INFRA, WORKS_START_FRACTION, COEF, DAYS_PER_YEAR } = await import('../strategic/params.ts');
     const nat = new NationalSimulation([{ slot: 0, countryId: 'BRA' }, { slot: 1, countryId: 'ARG' }], 1, 'parity');
@@ -390,15 +390,17 @@ describe('verba de obras no orçamento nacional', () => {
     expect(n.works.fundUsd).toBe(Math.round(cap * WORKS_START_FRACTION));
     const start = n.works.fundUsd;
     nat.stepDay();
-    expect(n.works.fundUsd).toBeCloseTo(start + n.works.capUsd / DAYS_PER_YEAR, 0);
+    // caixa do país (01/11): entra o saldo do dia, cujo repasse do orçamento é 1/365 do teto anual
+    expect(n.works.today!.income.find((l) => l.key === 'transfer')!.usd).toBe(Math.round(cap / DAYS_PER_YEAR));
+    expect(n.works.fundUsd).toBeCloseTo(start + n.works.today!.net, 0);
     // mais orçamento de infraestrutura → teto maior (com efeitos normais sobre gasto e déficit)
     const deficit = n.deficitPctGdp;
     nat.setBudget(0, { ...n.budget, infrastructurePct: n.budget.infrastructurePct + 1 });
     expect(n.works.capUsd).toBeGreaterThan(cap);
     expect(n.deficitPctGdp).toBeGreaterThan(deficit);
-    // nunca acumula além do teto anual
+    // o caixa não tem mais teto: sem despesas no teatro, acumula além do repasse anual
     for (let d = 0; d < DAYS_PER_YEAR * 2; d++) nat.stepDay();
-    expect(n.works.fundUsd).toBeLessThanOrEqual(n.works.capUsd);
+    expect(n.works.fundUsd).toBeGreaterThan(n.works.capUsd);
   });
 
   it('débito sem saldo é recusado sem cobrar; débito e devolução ficam no extrato', async () => {

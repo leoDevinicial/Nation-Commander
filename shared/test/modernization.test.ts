@@ -252,7 +252,7 @@ describe('Fase 5 — modernização de tropas', () => {
     const { sim, factory, p } = base(['composite_armor'], 1000);
     const tank = beside(sim, factory, 'tank');
     const iron = p.resources.iron;
-    expect(sim.applyCommand(0, { type: 'modernize', unitIds: [tank.id], mod: 'composite_armor' })).toMatch(/Verba de obras insuficiente/);
+    expect(sim.applyCommand(0, { type: 'modernize', unitIds: [tank.id], mod: 'composite_armor' })).toMatch(/Caixa do país sem saldo/);
     expect(p.resources.iron).toBe(iron);
     expect(tank.refit).toBeNull();
   });

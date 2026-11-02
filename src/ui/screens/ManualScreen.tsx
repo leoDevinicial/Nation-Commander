@@ -145,7 +145,7 @@ function SkipWarning({ card, onRead, onSkip }: { card: number; onRead: () => voi
           <ul className="list-disc space-y-0.5 pl-5 text-xs text-ink-300">
             <li>cada tropa precisa de um <b>recruta</b> da Base Militar (sem ele, o botão fica bloqueado);</li>
             <li>atacar exige <b>guerra declarada</b> pelo Globo;</li>
-            <li>as melhorias são pagas com a <b>verba de obras</b> (US$) do orçamento do país;</li>
+            <li>as melhorias são pagas com o <b>caixa do país</b> (US$), que recebe a produção e paga a manutenção;</li>
             <li>sem <b>moradia</b> e <b>comida</b>, a população não cresce.</li>
           </ul>
           <p className="text-xs text-ink-400">

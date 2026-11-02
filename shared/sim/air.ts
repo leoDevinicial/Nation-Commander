@@ -454,7 +454,7 @@ export class AirSystem {
     if (p.recruits < 1) return 'Nenhum recruta para piloto: aliste recrutas na base militar';
     if (!canAfford(p.resources, def.cost)) return `Recursos insuficientes: faltam ${missingText(p.resources, def.cost)}`;
     const f = this.funds(slot);
-    if (f !== null && f + 1e-6 < def.usd) return 'Verba de obras insuficiente para a aeronave';
+    if (f !== null && f + 1e-6 < def.usd) return 'Caixa do país sem saldo para a aeronave';
     return null;
   }
 
@@ -467,7 +467,7 @@ export class AirSystem {
     const err = this.buildBlocker(slot, baseId, type);
     if (err) return err;
     const def = this.aircraftCost(slot, type);
-    if (this.sim.national && !this.sim.national.chargeWorks(slot, def.usd, `${def.label}`)) return 'Verba de obras insuficiente para a aeronave';
+    if (this.sim.national && !this.sim.national.chargeWorks(slot, def.usd, `${def.label}`)) return 'Caixa do país sem saldo para a aeronave';
     this.sim.spendResources(slot, def.cost);
     if (def.goods) this.sim.spendGoods(this.sim.players[slot]!, def.goods);
     this.sim.players[slot]!.recruits--;
@@ -696,7 +696,7 @@ export class AirSystem {
     const p = this.sim.players[slot]!;
     if (!canAfford(p.resources, price.cost)) return `Recursos insuficientes: faltam ${missingText(p.resources, price.cost)}`;
     const f = this.funds(slot);
-    if (f !== null && f + 1e-6 < price.usd) return 'Verba de obras insuficiente para o míssil';
+    if (f !== null && f + 1e-6 < price.usd) return 'Caixa do país sem saldo para o míssil';
     return null;
   }
 
@@ -704,7 +704,7 @@ export class AirSystem {
     const err = this.missileBuildBlocker(slot, siloId, nuclear);
     if (err) return err;
     const price = nuclear ? NUCLEAR : MISSILE;
-    if (this.sim.national && !this.sim.national.chargeWorks(slot, price.usd, nuclear ? 'Míssil com ogiva nuclear' : 'Míssil balístico')) return 'Verba de obras insuficiente para o míssil';
+    if (this.sim.national && !this.sim.national.chargeWorks(slot, price.usd, nuclear ? 'Míssil com ogiva nuclear' : 'Míssil balístico')) return 'Caixa do país sem saldo para o míssil';
     this.sim.spendResources(slot, price.cost);
     const s = this.silo(siloId);
     s.building = this.sim.duration(slot, price.buildSeconds * TICK_RATE);

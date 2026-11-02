@@ -134,16 +134,17 @@ function WorksFundBox({ nation, draftCap }: { nation: NationView; draftCap: numb
   return (
     <div className="rounded border border-ink-700 bg-ink-900 p-2.5">
       <div className="flex items-baseline justify-between">
-        <span className="font-semibold text-ink-200">Verba de obras do teatro</span>
+        <span className="font-semibold text-ink-200">Caixa do país no teatro</span>
         <span className="font-mono text-ink-100">
-          {formatUsd(w.fundUsd)} <span className="text-ink-400">de {formatUsd(w.capUsd)}/ano</span>
+          {formatUsd(w.fundUsd)} <span className="text-ink-400">· repasse {formatUsd(w.capUsd)}/ano</span>
         </span>
       </div>
       <p className="mt-1 text-[10px] text-ink-400">
-        Paga as melhorias de construções no teatro. É uma parcela de {formatPct(WORKS_SHARE_OF_INFRA * 100, 1)} do orçamento de infraestrutura
-        (já contada no gasto público) e repõe 1/365 do teto por dia. Para ter mais verba, aumente a infraestrutura.
+        Paga melhorias, estradas, eras e Grandes Projetos. Recebe todo dia o repasse ({formatPct(WORKS_SHARE_OF_INFRA * 100, 1)} do orçamento de
+        infraestrutura, já contado no gasto público), a produção do teatro e o comércio, e paga a manutenção do exército, da energia, dos prédios,
+        das estradas e dos serviços. Extrato no US$ da barra superior.
         {changed && (
-          <span className="text-brass-400"> Com o rascunho, o teto passa a {formatUsd(draftCap)}/ano.</span>
+          <span className="text-brass-400"> Com o rascunho, o repasse passa a {formatUsd(draftCap)}/ano.</span>
         )}
       </p>
       <div className="mt-1 flex justify-between text-[11px]">

@@ -16,7 +16,7 @@ import type {
 } from '../shared/protocol.ts';
 import { GAME_VERSION } from '../shared/version.ts';
 import type { Command } from '../shared/sim/commands.ts';
-import { TICK_RATE } from '../shared/sim/config.ts';
+import { BUILDINGS, TICK_RATE, UNITS } from '../shared/sim/config.ts';
 import { MAP_TYPE_INFO, MAP_TYPES, MAX_NATIONS_FREE, MAX_NATIONS_SUBSCRIBER, generateMatchMap, type MapType } from '../shared/sim/matchMap.ts';
 import { Simulation } from '../shared/sim/Simulation.ts';
 import { FogMemory, makeSnapshot } from '../shared/sim/snapshot.ts';
@@ -24,6 +24,7 @@ import { REPORT_EVERY_TICKS, medalsFor, pushSample, reportSample, type MatchRepo
 import { AI_THINK_TICKS, AI_HARASS_SECONDS, TacticalAI, type TacticalAISave } from '../shared/sim/TacticalAI.ts';
 import { DIFFICULTY, type Difficulty } from '../shared/sim/difficulty.ts';
 import { policyEffects, type TheaterStats } from '../shared/strategic/policies.ts';
+import type { TreasuryInputs } from '../shared/strategic/treasury.ts';
 import type { BuildingSnapshot } from '../shared/sim/snapshot.ts';
 import type { EntityId, SimEvent, Slot } from '../shared/sim/types.ts';
 import { NationalAI } from '../shared/strategic/NationalAI.ts';
@@ -1473,5 +1474,38 @@ export function theaterStats(sim: Simulation, slot: Slot): TheaterStats {
     ...(sim.power ? { litHomes: sim.litHomesOf(slot).lit } : {}),
     leftoverMines,
     services: sim.serviceCoverage(slot),
+    economy: treasuryInputs(sim, slot),
+  };
+}
+
+/** Entradas do caixa do país (`treasury.ts`): produção, tropas, energia, construções, estradas e serviços. */
+export function treasuryInputs(sim: Simulation, slot: Slot): TreasuryInputs {
+  const production: TreasuryInputs['production'] = {};
+  let buildingCells = 0;
+  let services = 0;
+  for (const b of sim.buildings) {
+    if (b.owner !== slot || b.progress < 1 || b.hp <= 0) continue;
+    const def = BUILDINGS[b.type];
+    if (b.type !== 'hq') buildingCells += def.size * def.size;
+    if (b.type === 'hospital' || b.type === 'school' || b.type === 'police_station' || b.type === 'city_hall') services++;
+    if (def.gather && b.status === 'ok') production[def.gather.resource] = (production[def.gather.resource] ?? 0) + sim.buildingRate(b);
+  }
+  let infantry = 0;
+  let vehicles = 0;
+  for (const u of sim.units) {
+    if (u.owner !== slot) continue;
+    if (UNITS[u.type].producedBy === 'factory') vehicles++;
+    else infantry++;
+  }
+  const power = sim.power ? sim.powerInfo[slot] : undefined;
+  return {
+    production,
+    infantry,
+    vehicles,
+    aircraft: sim.air.aircraft.filter((a) => a.owner === slot).length,
+    energy: power ? Math.min(power.supply, power.demand) : 0,
+    buildingCells,
+    roads: sim.roads.filter((r) => r.owner === slot).length,
+    services,
   };
 }
