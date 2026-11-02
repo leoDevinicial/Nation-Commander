@@ -35,22 +35,25 @@ moradores (metade da capacidade das moradias do governo + os cidadãos das casas
 escola ou universidade; hospital), construções do governo e lotes com luz.
 
 ## Atratividade (−1 a 1, `ZoneSystem.evaluate`)
-- **Desenvolvimento da cidade (0 a 1):** serviços (até 0,35), empregos (até 0,3 com 90), construções do governo (até 0,2
-  com 25) e era (+0,08 por era depois da primeira). Aparece no painel ao passar o dedo/mouse no nome da cidade.
+A curva segue a fase da partida: **negativa no começo** (0 a ~8 min), os **primeiros lotes entre 8 e 12 min**,
+**florescendo entre 17 e 23 min** e **fácil no fim** para as nações bem desenvolvidas (com serviços, empregos e era).
+- **Desenvolvimento da cidade (0 a 1,1):** serviços (delegacia, escola, hospital: até 0,3), empregos (até 0,25 com 100),
+  construções do governo (até 0,15 com 30) e era (+0,14 por era depois da primeira; é o relógio natural da partida).
+  Aparece no painel ao passar o dedo/mouse no nome da cidade.
 - **Economia do país:** aprovação acima de 45 e crescimento real somam; abaixo, tiram.
-- **Industrial:** −0,3 + 0,6 × desenvolvimento + economia − imposto industrial − ataques − autoritarismo.
-- **Residencial:** −0,3 + 0,5 × desenvolvimento + empregos sobrando na cidade + economia − imposto residencial −
-  ataques − autoritarismo − casas sem luz.
-- **Comercial:** −0,35 + 0,4 × desenvolvimento + moradores + indústrias + economia − imposto comercial − ataques −
-  autoritarismo.
+- **Industrial:** −0,29 + 0,7 × desenvolvimento + economia − imposto industrial − 0,3 × ataques − autoritarismo.
+- **Residencial:** −0,26 + 0,65 × desenvolvimento + empregos sobrando na cidade + economia − imposto residencial −
+  0,25 × ataques − autoritarismo − 0,35 × casas sem luz.
+- **Comercial:** −0,32 + 0,55 × desenvolvimento + moradores + indústrias + economia − imposto comercial −
+  0,25 × ataques − autoritarismo.
 - **Imposto:** cada ponto acima de 10% tira 0,05; abaixo de 10%, soma.
 - **Governo autoritário:** lei marcial 0,7; recrutamento obrigatório 0,2; racionamento e economia de guerra 0,15 cada.
 - **Ataques:** cada alerta de "sob ataque" a uma construção soma; o medo cai pela metade a cada 90 s.
 
 ## Crescimento
-Não há cadência fixa: cada cidade acumula procura em cada setor, proporcional ao **quadrado** da atratividade
-(`growthPerSecond` 0,08 lote/s com atratividade 1), com uma variação aleatória. O lote surge quando a procura enche.
-- Atratividade 0,2 → um lote a cada ~5 min; 0,35 → ~1,5 min; 0,6 → ~35 s; atratividade zero ou negativa → nada (e a
+Não há cadência fixa: cada cidade acumula procura em cada setor, proporcional à atratividade elevada a **1,5**
+(`growthPerSecond` 0,1 lote/s com atratividade 1), com uma variação aleatória. O lote surge quando a procura enche.
+- Atratividade 0,2 → um lote a cada ~2 min; 0,35 → ~50 s; 0,5 → ~30 s; 0,6 → ~20 s; zero ou negativa → nada (e a
   procura acumulada esvazia aos poucos).
 
 ## Abandono
@@ -93,12 +96,14 @@ enrolar). Sem textura; cores chapadas por camada.
 - Salvar/carregar: `SimulationSave.zoning`.
 
 ## IA
-A partir dos 8 min, com folga de energia, pinta até 4 células por minuto junto às próprias estradas (metade
-residencial; para com 6 zonas vazias) e demole os lotes abandonados.
+A partir dos 6 min, com folga de energia, pinta até 4 células por minuto junto às próprias estradas (metade
+residencial; para com 6 zonas vazias) e demole os lotes abandonados. Também ergue os **serviços** da capital: escola
+depois do Centro de Pesquisa (com 3 casas), delegacia e hospital na era 2 (o hospital depois da escola).
 
 ## Efeito no ritmo da IA
-`sim-economia` 1–7: 5 de 9 critérios, como antes do zoneamento; tropas até 15:00 em 10,6 de média. A cidade da IA
-(sem delegacia, hospital e escola no começo) quase não cresce: 1 a 2 lotes até os 25 min.
+`sim-economia` 1–7 (`ZONE_LOG=1` mostra zonas, lotes, atratividade e serviços a cada 3 min): 5 a 7 de 9 critérios
+por seed. Primeiro lote entre 10 e 12 min na maioria das IAs; aos 18 min, 3 a 15 lotes; aos 24 min, 8 a 22 nas
+nações com delegacia, escola e hospital. Quem perde a guerra (medo dos ataques) ou fica sem luz cresce bem menos.
 
 ## Testes
 `shared/test/zoning.test.ts`.

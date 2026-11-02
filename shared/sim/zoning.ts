@@ -34,7 +34,7 @@ export const ZONING = {
    * Crescimento: lotes por segundo de um setor com atratividade 1 (cresce com o quadrado da atratividade: 0,5 dá um
    * quarto disso; 0,2, 4%).
    */
-  growthPerSecond: 0.08,
+  growthPerSecond: 0.1,
   /** Chance de o lote residencial novo já nascer prédio (com muita procura e cidade grande). */
   apartmentChance: 0.12,
   /** Cidadãos que cada casa e cada prédio privados trazem (e levam ao serem abandonados ou demolidos). */
@@ -416,7 +416,8 @@ export class ZoneSystem {
     const heat = clamp((this.heat[slot] ?? 0) / 4, 0, 1);
     const auth = clamp(h.authoritarian(slot), 0, 1);
     const econ = clamp((h.approval(slot) - 45) / 40, -1, 1) * 0.15 + clamp(h.growth(slot) / 6, -0.5, 0.5) * 0.2;
-    const eraBonus = (clamp(h.era(slot), 1, 4) - 1) * 0.08;
+    // a era pesa forte: é o relógio natural da partida (era 2 ~10 min, era 3 ~20 min, era 4 no fim)
+    const eraBonus = (clamp(h.era(slot), 1, 4) - 1) * 0.14;
     // números de cada cidade
     type CityAcc = { seat: Building; free: Record<ZoneKind, number[]>; lots: [number, Lot][]; jobs: number; gov: number; housing: number; services: CityZoneStats['services'] };
     const by = new Map<number, CityAcc>();
@@ -471,14 +472,14 @@ export class ZoneSystem {
       }
       const services = (c.services.police ? 1 : 0) + (c.services.school ? 1 : 0) + (c.services.hospital ? 1 : 0);
       // desenvolvimento da cidade (0..1): serviços, empregos, construções do governo e era
-      const dev = clamp((services / 3) * 0.35 + clamp(jobs / 90, 0, 1) * 0.3 + clamp(c.gov / 25, 0, 1) * 0.2 + eraBonus, 0, 1);
+      const dev = clamp((services / 3) * 0.3 + clamp(jobs / 100, 0, 1) * 0.25 + clamp(c.gov / 30, 0, 1) * 0.15 + eraBonus, 0, 1.1);
       const darkRatio = resLots ? dark / resLots : 0;
       const taxPen = (k: ZoneKind) => (tax[k] - 10) / 20;
       const unemployed = residents > 0 ? clamp((residents - jobs) / residents, 0, 1) : 0;
       const demand: Record<ZoneKind, number> = {
-        ind: clamp(-0.3 + 0.6 * dev + econ - taxPen('ind') - 0.5 * heat - 0.4 * auth, -1, 1),
-        res: clamp(-0.3 + 0.5 * dev + 0.3 * clamp((jobs - residents) / Math.max(10, residents), -1, 1) + econ - taxPen('res') - 0.4 * heat - 0.3 * auth - 0.5 * darkRatio, -1, 1),
-        com: clamp(-0.35 + 0.4 * dev + 0.3 * clamp(residents / 50, 0, 1) + 0.2 * clamp(count.ind / 6, 0, 1) + econ - taxPen('com') - 0.4 * heat - 0.3 * auth, -1, 1),
+        ind: clamp(-0.29 + 0.7 * dev + econ - taxPen('ind') - 0.3 * heat - 0.4 * auth, -1, 1),
+        res: clamp(-0.26 + 0.65 * dev + 0.25 * clamp((jobs - residents) / Math.max(10, residents), -1, 1) + econ - taxPen('res') - 0.25 * heat - 0.3 * auth - 0.35 * darkRatio, -1, 1),
+        com: clamp(-0.32 + 0.55 * dev + 0.2 * clamp(residents / 50, 0, 1) + 0.15 * clamp(count.ind / 6, 0, 1) + econ - taxPen('com') - 0.25 * heat - 0.3 * auth, -1, 1),
       };
       const zoned = { res: 0, com: 0, ind: 0 };
       for (const k of ZONE_KINDS) zoned[k] = c.free[k].length;
@@ -509,7 +510,7 @@ export class ZoneSystem {
           g[k] = Math.max(0, g[k] - 0.02);
           continue;
         }
-        g[k] += d * d * ZONING.growthPerSecond * (ZONING.everyTicks / TICK_RATE) * (0.6 + 0.8 * lotRandom(h.tick, c.seat.id & 0xffff, 30 + ZONE_KINDS.indexOf(k)));
+        g[k] += d ** 1.5 * ZONING.growthPerSecond * (ZONING.everyTicks / TICK_RATE) * (0.6 + 0.8 * lotRandom(h.tick, c.seat.id & 0xffff, 30 + ZONE_KINDS.indexOf(k)));
         if (g[k] < 1) continue;
         // o lote nasce encostado na rua: só células da zona coladas a uma estrada própria
         const fronts = c.free[k].filter((x) => this.roadSide(x, ownRoads) >= 0);

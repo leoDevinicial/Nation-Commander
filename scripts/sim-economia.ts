@@ -175,7 +175,7 @@ function run(seed: number, difficulty: Difficulty): Result {
       for (const s of [0, 1]) {
         const c = sim.zones.cityStats(s);
         const lots = [...sim.zones.lots.values()].filter((l) => l.owner === s);
-        console.log(`${t / MIN}min P${s} zonas ${[...sim.zones.zones.values()].filter((z) => z.owner === s).length} lotes ${lots.length} (abandonados ${lots.filter((l) => l.abandoned).length}) | ${c.map((x) => `${x.name}: R ${x.demand.res.toFixed(2)} C ${x.demand.com.toFixed(2)} I ${x.demand.ind.toFixed(2)} mor ${x.residents} emp ${x.jobs}`).join(' · ')}`);
+        console.log(`${t / MIN}min P${s} zonas ${[...sim.zones.zones.values()].filter((z) => z.owner === s).length} lotes ${lots.length} (abandonados ${lots.filter((l) => l.abandoned).length}) | ${c.map((x) => `${x.name}: R ${x.demand.res.toFixed(2)} C ${x.demand.com.toFixed(2)} I ${x.demand.ind.toFixed(2)} mor ${x.residents} emp ${x.jobs} serv ${[x.services.police ? "D" : "", x.services.school ? "E" : "", x.services.hospital ? "H" : ""].join("")}`).join(' · ')}`);
       }
     // TREASURY_LOG=1: caixa do país de cada IA a cada 2 minutos (diagnóstico)
     if (process.env.TREASURY_LOG && t % (2 * MIN) === 0)

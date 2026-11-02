@@ -73,6 +73,7 @@ describe('zoneamento', () => {
 
   it('cidade sem atrativos quase não cresce; desenvolvida, os lotes aparecem aos poucos e ocupam a célula', () => {
     const bare = setup();
+    bare.s.eras = true; // começo da partida (era 1): sem a força da era
     bare.s.applyCommand(0, { type: 'zone_paint', cells: bare.below, kind: 'ind' });
     run(bare.s, ZONING.everyTicks * 40);
     expect(bare.s.zones.lots.size).toBe(0);

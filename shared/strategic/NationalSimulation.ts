@@ -22,7 +22,7 @@ import {
   theaterSupply,
 } from './params.ts';
 import { countryReference, type ReferenceKey } from './reference.ts';
-import { techKnowledge, combineEffects, researchBlocker, researchDailyProgress, TECH_IDS, type TechEffects, type TechId } from './technologies.ts';
+import { TECHNOLOGIES, techKnowledge, techDailyUsd, techDays, combineEffects, researchBlocker, TECH_IDS, type TechEffects, type TechId } from './technologies.ts';
 import { COUNTRIES } from '../data/countries.ts';
 import { DIPLO, Diplomacy, warPreview, type DiplomacySave, type DiplomaticAction, type DiplomaticEvent, type NationId, type RelationView, type Treaty, type WarPreview } from './Diplomacy.ts';
 import { BUILDINGS, PROJECT_FX, SERVICES, type BuildingType, type Cost, type Stockpile } from '../sim/config.ts';
@@ -165,6 +165,10 @@ export interface ResearchState {
   doneDay: Partial<Record<TechId, number>>;
   /** Pesquisas cujo conhecimento já foi pago (02/11). */
   kpPaid?: TechId[];
+  /** A pesquisa atual parou hoje: o caixa não tinha saldo para o dia (02/11). */
+  stalled?: boolean;
+  /** Escala dos preços em US$ do país (PIB / PIB de referência), para o painel mostrar o custo por dia. */
+  usdScale?: number;
 }
 
 export interface NationState {
@@ -776,6 +780,8 @@ export class NationalSimulation {
     n.gdpUsd *= 1 + ((n.realGrowthPct + COEF.usdInflation) / 100) * dt;
     this.recompute(n, dt);
     // --- caixa do país: receitas menos despesas do dia (NPCs: só o repasse, até o teto, como antes)
+    // a pesquisa nacional do jogador sai do caixa, por dia, enquanto corre; sem saldo, ela espera (NPCs: sempre anda)
+    let researchPaid = this.isNpc(n.slot);
     if (this.isNpc(n.slot)) n.works.fundUsd = Math.min(n.works.capUsd, n.works.fundUsd + n.works.capUsd / DAYS_PER_YEAR);
     else {
       const exportsToday = Math.max(0, n.trade.exportsUsd - (n.works.exportsSeenUsd ?? n.trade.exportsUsd));
@@ -788,6 +794,18 @@ export class NationalSimulation {
         exportsUsd: exportsToday,
         tradeGrowthPct: diplo.trade,
       });
+      const cur = n.research.current;
+      n.research.usdScale = gdpRef / COEF.parityGdpUsd;
+      if (cur) {
+        const cost = Math.round(techDailyUsd(cur) * n.research.usdScale);
+        if (n.works.fundUsd + day.net >= cost) {
+          day.expense.push({ key: 'research', label: `Pesquisa: ${TECHNOLOGIES[cur].label}`, usd: cost });
+          day.net -= cost;
+          n.research.invested[cur] = (n.research.invested[cur] ?? 0) + cost;
+          researchPaid = true;
+        }
+      }
+      n.research.stalled = !!cur && !researchPaid;
       n.works.today = day;
       n.works.fundUsd += day.net;
     }
@@ -814,13 +832,10 @@ export class NationalSimulation {
       }
     }
 
-    // --- pesquisa
+    // --- pesquisa: com o dia pago pelo caixa, avança 1/prazo
     const cur = n.research.current;
-    const rdUsd = (b.researchPct / 100) * n.gdpUsd * dt;
-    if (cur) {
-      // a verba do dia vira investimento no projeto; o avanço respeita a duração mínima
-      n.research.invested[cur] = (n.research.invested[cur] ?? 0) + rdUsd;
-      n.research.progress[cur] = Math.min(1, n.research.progress[cur] + researchDailyProgress(cur, b.researchPct, DAYS_PER_YEAR).perDay);
+    if (cur && researchPaid) {
+      n.research.progress[cur] = Math.min(1, n.research.progress[cur] + 1 / techDays(cur));
       if (n.research.progress[cur] >= 1 - 1e-9) {
         n.research.progress[cur] = 1;
         n.research.done.push(cur);
@@ -828,8 +843,6 @@ export class NationalSimulation {
         n.research.current = null;
         this.events.push({ type: 'research_completed', day: this.day, slot: n.slot, techId: cur });
       }
-    } else {
-      n.research.idleUsd += rdUsd;
     }
 
     // --- janelas de 30 dias de baixas/vitórias

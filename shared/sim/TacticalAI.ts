@@ -15,8 +15,8 @@ import { roadLink } from './caravans.ts';
 import { MARKET, MARKET_RESOURCES, marketPrice, type MarketResource } from './market.ts';
 import { POWER, POWER_GEN, POWER_USE, powerUse } from './power.ts';
 
-/** A IA começa a zonear depois da arrancada da economia (8 min). */
-export const AI_ZONING_FROM_TICK = 8 * 60 * TICK_RATE;
+/** A IA começa a zonear depois da arrancada da economia (6 min): os primeiros lotes vêm entre 8 e 12. */
+export const AI_ZONING_FROM_TICK = 6 * 60 * TICK_RATE;
 
 /** Com que frequência a IA reavalia a situação. */
 export const AI_THINK_TICKS = TICK_RATE;
@@ -553,7 +553,9 @@ export class TacticalAI {
       ['underground_mine', era >= 3 && natTechs.includes('underground_mining') && count('underground_mine') === 0],
       ['eucalyptus_forest', era >= 3 && natTechs.includes('silviculture') && count('eucalyptus_forest') === 0],
       ['charcoal_kiln', !!coalLow && done('eucalyptus_forest') && count('charcoal_kiln') === 0],
-      ['hospital', count('hospital') === 0 && done('steel_mill') && army.length >= 10],
+      // serviços (02/11): deixam a cidade atraente para o zoneamento no meio da partida
+      ['police_station', count('police_station') === 0 && era >= 2 && done('research_center')],
+      ['hospital', count('hospital') === 0 && era >= 2 && done('research_center') && done('school')],
       // força aérea (Normal ou mais): base aérea depois da economia militar; silo quando houver a pesquisa
       ['airbase', level.airPower && count('airbase') === 0 && done('factory') && done('research_center') && sim.tick >= AI_AIR_TICK],
       ['missile_silo', level.missiles && count('missile_silo') === 0 && done('airbase') && natTechs.includes(MISSILE.tech)],

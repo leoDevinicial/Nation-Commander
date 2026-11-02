@@ -6,7 +6,7 @@ import { Simulation, type NationalLink } from '../sim/Simulation.ts';
 import type { Building, Unit } from '../sim/types.ts';
 import { NationalAI } from '../strategic/NationalAI.ts';
 import { NationalSimulation } from '../strategic/NationalSimulation.ts';
-import { TECHNOLOGIES, TECH_IDS, researchBlocker, researchDailyProgress, researchEtaDays, type TechId } from '../strategic/technologies.ts';
+import { TECHNOLOGIES, TECH_IDS, researchBlocker, researchEtaDays, techDailyUsd, techDays, type TechId } from '../strategic/technologies.ts';
 import { flatMap } from './helpers.ts';
 
 const run = (sim: Simulation, ticks: number) => {
@@ -92,26 +92,28 @@ describe('Fase 5 — árvore de pesquisa', () => {
     expect(sim.setResearch(0, 'digital_comms')).toBeNull();
   });
 
-  it('o orçamento de P&D vira investimento no projeto; sem projeto é gasto sem retorno', () => {
+  it('a pesquisa custa US$ por dia do caixa do país enquanto corre; sem projeto, nada sai', () => {
     const sim = new NationalSimulation([{ slot: 0, countryId: 'BRA' }], 1, 'realistic');
     const n = sim.nation(0)!;
     runDays(sim, 10);
-    expect(n.research.idleUsd).toBeGreaterThan(0);
-    const idle = n.research.idleUsd;
+    expect(n.works.today!.expense.some((l) => l.key === 'research')).toBe(false);
     sim.setResearch(0, 'logistics');
     runDays(sim, 10);
-    expect(n.research.idleUsd).toBe(idle);
-    const dailyRd = (n.budget.researchPct / 100) * n.gdpUsd / 365;
-    // o PIB varia dia a dia: o investido acompanha a verba diária de P&D (margem de 1%)
-    expect(n.research.invested.logistics / 10 / dailyRd).toBeCloseTo(1, 2);
-    expect(n.research.progress.logistics).toBeCloseTo(10 * researchDailyProgress('logistics', n.budget.researchPct).perDay, 6);
+    const daily = Math.round(techDailyUsd('logistics') * n.research.usdScale!);
+    expect(n.works.today!.expense.find((l) => l.key === 'research')!.usd).toBe(daily);
+    expect(n.research.invested.logistics).toBeCloseTo(10 * daily, -3);
+    expect(n.research.progress.logistics).toBeCloseTo(10 / techDays('logistics'), 6);
+    // sem saldo no caixa, a pesquisa para (não avança nem cobra)
+    n.works.fundUsd = -1e12;
+    const p = n.research.progress.logistics;
+    runDays(sim, 3);
+    expect(n.research.progress.logistics).toBe(p);
+    expect(n.research.stalled).toBe(true);
   });
 
-  it('pausar e trocar de projeto mantém progresso e investido; a duração mínima limita o ritmo', () => {
+  it('pausar e trocar de projeto mantém progresso e investido; o prazo é fixo', () => {
     const sim = new NationalSimulation([{ slot: 0, countryId: 'JPN' }], 1, 'realistic');
     const n = sim.nation(0)!;
-    sim.setBudget(0, { ...n.budget, researchPct: 2 });
-    expect(researchDailyProgress('automation', 2).capped).toBe(true);
     sim.setResearch(0, 'modular_construction');
     const half = Math.floor(TECHNOLOGIES.modular_construction.minDays / 2);
     runDays(sim, half);
@@ -126,7 +128,7 @@ describe('Fase 5 — árvore de pesquisa', () => {
     sim.setResearch(0, 'modular_construction');
     expect(n.research.progress.modular_construction).toBe(p);
     expect(n.research.invested.modular_construction).toBe(inv);
-    const eta = researchEtaDays('modular_construction', p, 2);
+    const eta = researchEtaDays('modular_construction', p);
     runDays(sim, eta);
     expect(n.research.done).toContain('modular_construction');
     expect(n.research.doneDay.modular_construction).toBe(sim.day);

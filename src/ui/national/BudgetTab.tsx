@@ -10,7 +10,6 @@ const ROWS: { key: keyof Budget; label: string; limits: readonly [number, number
   { key: 'educationPct', label: 'Educação', limits: LIMITS.categoryPct, hint: 'Melhora a aprovação; eleva o crescimento só após anos (capital humano).' },
   { key: 'healthPct', label: 'Saúde', limits: LIMITS.categoryPct, hint: 'Serviço público: pesa na aprovação.' },
   { key: 'infrastructurePct', label: 'Infraestrutura', limits: LIMITS.categoryPct, hint: 'Acumula estoque de infraestrutura que eleva o crescimento gradualmente.' },
-  { key: 'researchPct', label: 'Pesquisa (pública)', limits: LIMITS.researchPct, hint: 'Velocidade das pesquisas: custo em % do PIB × ano.' },
   { key: 'socialPct', label: 'Previdência, assistência e administração', limits: LIMITS.categoryPct, hint: 'Serviço público: pesa na aprovação. Cortes aliviam o déficit.' },
 ];
 

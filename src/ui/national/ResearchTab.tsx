@@ -7,12 +7,13 @@ import {
   missingPrereqs,
   researchBlocker,
   techKnowledge,
-  researchDailyProgress,
   researchEtaDays,
+  techDailyUsd,
+  techDays,
   type TechCategory,
   type TechId,
 } from '../../../shared/strategic/technologies.ts';
-import { formatPct, formatUsd } from '../../lib/format.ts';
+import { formatUsd } from '../../lib/format.ts';
 import { treeLayout } from './techTree.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
 import { isSandboxMatch } from '../../state/sandbox.ts';
@@ -21,40 +22,33 @@ const CATEGORY_ORDER: TechCategory[] = ['military', 'state', 'industry', 'resour
 
 /**
  * Pesquisa nacional (Fase 5): árvore por categoria de investimento, com pré-requisitos, custo em
- * US$ (no PIB atual), investido até agora, prazo estimado com a verba de P&D atual e o que cada
+ * US$ por dia (sai do caixa do país enquanto a pesquisa corre, desde 02/11), investido até agora, prazo e o que cada
  * pesquisa libera. Pesquisas militares liberam pacotes de modernização: as tropas só ganham o
  * benefício depois de modernizadas numa instalação (painel de comando das unidades).
  */
 export function ResearchTab({ nation, onSelect }: { nation: NationView; onSelect: (id: TechId | null) => void }) {
   const r = nation.research;
-  const pct = nation.budget.researchPct;
-  const yearlyUsd = (pct / 100) * nation.gdpUsd;
+  const scale = r.usdScale ?? 1;
   const current = r.current ? TECHNOLOGIES[r.current] : null;
-  const capped = r.current ? researchDailyProgress(r.current, pct).capped : false;
+  const daily = r.current ? techDailyUsd(r.current) * scale : 0;
   return (
     <div className="space-y-3 text-xs">
       <section className="rounded border border-ink-700 bg-ink-900 p-2.5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <span className="font-semibold text-ink-100">Orçamento de P&amp;D</span>
-          <span className="font-mono text-ink-200">
-            {formatPct(pct, 2)} do PIB · {formatUsd(yearlyUsd)}/ano
-          </span>
+          <span className="font-semibold text-ink-100">Pesquisa nacional</span>
+          {current && <span className="font-mono text-ink-200">−{formatUsd(daily)}/dia do caixa</span>}
         </div>
         {current ? (
           <p className="mt-1 text-ink-300">
-            Projeto atual: <b className="text-ink-100">{current.label}</b>. Toda a verba de P&amp;D vai para ele.
-            {capped && <span className="text-brass-400"> Ritmo máximo atingido: a duração mínima é de {current.minDays} dias e verba extra não acelera mais.</span>}
+            Projeto atual: <b className="text-ink-100">{current.label}</b>, {researchEtaDays(r.current!, r.progress[r.current!] ?? 0)} dias para terminar.
+            {r.stalled && <span className="text-signal-red"> Parada: o caixa do país não tem saldo para o dia.</span>}
           </p>
         ) : (
-          <p className="mt-1 text-brass-400">
-            Nenhum projeto ativo: a verba de P&amp;D ({formatUsd(yearlyUsd / 365)}/dia) está sendo gasta sem retorno tecnológico. Já foram {formatUsd(r.idleUsd)} assim.
-          </p>
+          <p className="mt-1 text-ink-400">Nenhum projeto ativo: nada sai do caixa para pesquisa.</p>
         )}
-        <p
-          className="mt-1 text-[11px] text-ink-400"
-          title="Mais verba (aba Orçamento) acelera até a duração mínima de cada pesquisa e compete com as outras despesas do país. Pausar ou trocar de projeto mantém o progresso e o que foi investido, mas nada é devolvido. Pesquisas militares liberam pacotes de modernização: cada tropa precisa ser modernizada numa base militar ou fábrica."
-        >
-          Mais verba de P&amp;D (aba Orçamento) acelera a pesquisa. Trocar de projeto guarda o progresso.
+        <p className="mt-1 text-[11px] text-ink-400">
+          Cada pesquisa custa US$ por dia, descontado do caixa enquanto corre (aparece no extrato), mais o conhecimento ao começar. Pausar ou trocar de
+          projeto guarda o progresso.
         </p>
       </section>
 
@@ -213,8 +207,9 @@ function TechCard({ id, nation, onSelect }: { id: TechId; nation: NationView; on
   const kpPaid = (r.kpPaid ?? []).includes(id);
   const blocker = done ? null : researchBlocker(id, r.done, sandbox ? {} : { era: me?.era ?? 1, knowledge: me?.knowledge ?? 0, kpPaid });
   const locked = !done && missingPrereqs(id, r.done).length > 0;
-  const totalUsd = (t.cost / 100) * nation.gdpUsd;
-  const eta = researchEtaDays(id, progress, nation.budget.researchPct);
+  const dailyUsd = techDailyUsd(id) * (r.usdScale ?? 1);
+  const totalUsd = dailyUsd * techDays(id);
+  const eta = researchEtaDays(id, progress);
   const state = done ? 'done' : active ? 'active' : locked ? 'locked' : progress > 0 ? 'paused' : 'ready';
   const border = { done: 'border-signal-green/40', active: 'border-signal-blue bg-ink-850', locked: 'border-ink-700 opacity-75', paused: 'border-brass-400/50', ready: 'border-ink-700' }[state];
   return (
@@ -272,15 +267,15 @@ function TechCard({ id, nation, onSelect }: { id: TechId; nation: NationView; on
               <div className={`h-full rounded ${active ? 'bg-signal-blue' : 'bg-brass-400/70'}`} style={{ width: `${progress * 100}%` }} />
             </div>
             <span className="w-28 text-right font-mono text-[10px] text-ink-400">
-              {Math.round(progress * 100)}% · {Number.isFinite(eta) ? `~${eta} dias` : 'sem verba'}
+              {Math.round(progress * 100)}% · {eta} dias
             </span>
           </div>
           <div className="mt-1 grid grid-cols-2 gap-x-3 text-[10px] text-ink-400 sm:grid-cols-4">
-            <span>Custo: {formatUsd(totalUsd)} do P&amp;D</span>
+            <span>Custo: {formatUsd(dailyUsd)}/dia do caixa</span>
             <span>Conhecimento: 🧠 {techKnowledge(id)}{kpPaid ? ' (pago)' : ''}</span>
             <span>Investido: {formatUsd(invested)}</span>
             <span>Falta: {formatUsd(totalUsd * (1 - progress))}</span>
-            <span>Mínimo: {t.minDays} dias</span>
+            <span>Prazo: {t.minDays} dias (total {formatUsd(totalUsd)})</span>
           </div>
         </>
       )}

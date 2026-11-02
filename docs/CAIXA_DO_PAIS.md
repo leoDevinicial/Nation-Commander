@@ -37,6 +37,12 @@ Onde está:
 | Construções | US$ 400 por célula de área das construções prontas (sem o QG) |
 | Estradas | US$ 600 por célula de estrada do jogador |
 | Serviços públicos | US$ 20 mil por Hospital, Escola, Delegacia e Prefeitura |
+| Pesquisa nacional | enquanto uma pesquisa corre: `techDailyUsd` = 15 mil + 12 mil por nível na árvore (+15 mil nas de era mínima); prazo = `minDays` da tecnologia |
+
+**Pesquisa paga por dia.** A pesquisa nacional não usa mais o % de P&D do orçamento (a linha saiu da aba Orçamento):
+o custo diário entra como despesa do dia. Quem ganha 300 mil por dia e pesquisa algo de 40 mil fica com 260 mil até a
+pesquisa terminar. Se o caixa não cobre o dia, a pesquisa não anda nesse dia (`research.stalled`, aviso na aba
+Pesquisa). Nações da IA não têm caixa e avançam como antes, um dia por dia.
 
 Os preços valem para o PIB de referência (US$ 1 tri, modo paridade); no modo realista, escalam com o PIB do país.
 

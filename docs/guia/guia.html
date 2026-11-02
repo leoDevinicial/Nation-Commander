@@ -501,11 +501,11 @@
   <p>Toda pesquisa custa <b>US$</b> e <b>pontos de conhecimento</b> (🧠 na barra de cima). Os pontos vêm das <b>Escolas</b> (0,1 por segundo) e das <b>Universidades</b> (0,3 por segundo, a partir da era 2), com trabalhadores e luz. Você começa com 60.</p>
   <ul>
     <li><b>Cada QG ou prefeitura é uma cidade</b>, e cada construção pertence à mais próxima. Cada cidade aceita 1 Escola, 1 Universidade e 1 de cada produção da era 3. Para ter mais, funde cidades.</li>
-    <li><b>Pesquisa militar</b> (Centro de Pesquisa): recursos + 🧠 15, 30 ou 50 + US$ do caixa. <b>Pesquisa nacional</b>: o P&amp;D do orçamento + 🧠, pago uma vez ao começar.</li>
+    <li><b>Pesquisa militar</b> (Centro de Pesquisa): recursos + 🧠 15, 30 ou 50 + US$ do caixa. <b>Pesquisa nacional</b>: US$ por dia do caixa enquanto corre + 🧠, pago uma vez ao começar.</li>
     <li><b>Era 3, área Recursos:</b> <i>Silvicultura de eucalipto</i> libera a <b>Floresta de Eucalipto</b> (planta eucalipto na planície em volta, como a fazenda; madeira devagar, mas que nunca acaba) e o <b>Forno de Carvão Vegetal</b> ao lado dela (2 de madeira viram 1 de carvão). <i>Mineração subterrânea</i> libera a <b>Mina Subterrânea</b>, que vai em qualquer lugar do território e tira um pouco de pedra, ferro e carvão sem acabar. Todas gastam energia.</li>
   </ul>
   <h2>Pesquisa nacional</h2>
-  <p>No painel <b>Nação → Pesquisa</b> você escolhe uma tecnologia por vez. As pesquisas ficam separadas em <b>quatro áreas</b> (Defesa, Estado e logística, Indústria e construção, Recursos naturais): toque numa área e aparece a <b>árvore</b> dela, com as pesquisas ligadas por linhas (✔ concluída, ▶ em andamento, ○ disponível, 🔒 falta um pré-requisito). Toque numa pesquisa para ver o que ela libera, o custo, o prazo e o botão <b>Pesquisar</b>. A velocidade depende do quanto o país investe em pesquisa (% do PIB). Algumas tecnologias e o que fazem:</p>
+  <p>No painel <b>Nação → Pesquisa</b> você escolhe uma tecnologia por vez. As pesquisas ficam separadas em <b>quatro áreas</b> (Defesa, Estado e logística, Indústria e construção, Recursos naturais): toque numa área e aparece a <b>árvore</b> dela, com as pesquisas ligadas por linhas (✔ concluída, ▶ em andamento, ○ disponível, 🔒 falta um pré-requisito). Toque numa pesquisa para ver o que ela libera, o custo, o prazo e o botão <b>Pesquisar</b>. Cada pesquisa tem um <b>custo por dia</b> e um <b>prazo em dias</b>: enquanto ela corre, o custo sai do caixa todo dia (quem ganha 300 mil por dia e pesquisa algo de 40 mil passa a ganhar 260 mil). Sem dinheiro no caixa para o dia, a pesquisa para e espera. Algumas tecnologias e o que fazem:</p>
   <table>
     <tr><th style="width:32%">Área</th><th>Exemplos</th></tr>
     <tr><td>Estado e logística</td><td>Logística integrada (mais suprimentos), Administração territorial (mais território), Comunicações digitais</td></tr>
@@ -513,7 +513,7 @@
     <tr><td>Indústria e construção</td><td>Treinamento acelerado, Construção modular, Automação industrial</td></tr>
     <tr><td>Defesa</td><td>Blindagem composta, Munição guiada, Sensores e óptica térmica, Propulsão eficiente, Mísseis balísticos, Armas nucleares, Tecnologia espacial</td></tr>
   </table>
-  <div class="box info"><span class="t">ℹ Duas pesquisas diferentes</span>A <b>pesquisa nacional</b> (painel Nação) melhora o país e libera modernizações e mísseis. A <b>pesquisa militar</b> (Centro de Pesquisa no mapa) libera tropas novas. O orçamento de pesquisa do país acelera as duas.</div>
+  <div class="box info"><span class="t">ℹ Duas pesquisas diferentes</span>A <b>pesquisa nacional</b> (painel Nação) melhora o país e libera modernizações e mísseis. A <b>pesquisa militar</b> (Centro de Pesquisa no mapa) libera tropas novas. A nacional é paga por dia do caixa; a militar, de uma vez ao começar.</div>
 </section>
 
 <!-- ============================== 13 -->
@@ -544,7 +544,6 @@
     <tr><td><b>Educação</b></td><td>A economia cresce mais — mas só depois de alguns anos.</td></tr>
     <tr><td><b>Saúde e previdência</b></td><td>Aprovação maior.</td></tr>
     <tr><td><b>Infraestrutura</b></td><td>Crescimento e mais <b>repasse</b> para o caixa do país (o US$ da barra, que paga melhorias e eras).</td></tr>
-    <tr><td><b>Pesquisa</b></td><td>Pesquisas nacionais e militares mais rápidas.</td></tr>
   </table>
   <p>Gastar mais do que arrecada cria <b>déficit</b>, que vira <b>dívida</b>; dívida alta gera juros e freia a economia.</p>
   <h2>Aprovação e estabilidade</h2>
@@ -676,7 +675,7 @@
   <h2>Zoneamento</h2>
   <p>Com o QG selecionado, aba <b>Cívicas → Zoneamento</b>: pinte células perto das suas estradas (até 2 células) como <b style="color:#3c9a48">residenciais</b>, <b style="color:#3f78c2">comerciais</b> ou <b style="color:#b8901f">industriais</b>. Arraste para pintar um retângulo.</p>
   <ul>
-    <li><b>Nada aparece na hora.</b> Casas, prédios, lojas e indústrias particulares vão surgindo aos poucos, conforme a <b>atratividade de cada cidade</b> (barras R, C e I no painel). No começo, uma cidade sem atrativos não cresce: construa casas e prédios do governo, serviços e empregos; conforme o país cresce, as zonas povoam cada vez mais rápido.</li>
+    <li><b>Nada aparece na hora.</b> Casas, prédios, lojas e indústrias particulares vão surgindo aos poucos, conforme a <b>atratividade de cada cidade</b> (barras R, C e I no painel). No começo, uma cidade sem atrativos não cresce: construa casas e prédios do governo, serviços e empregos; conforme o país cresce, as zonas povoam cada vez mais rápido. Em geral os primeiros lotes surgem entre 8 e 12 minutos, a cidade floresce lá pelos 17 a 23 minutos e, no fim da partida, uma nação bem desenvolvida (delegacia, escola, hospital, empregos, era avançada) enche as zonas depressa.</li>
     <li><b>Toda construção encosta na rua.</b> Com duas fileiras pintadas, a de trás vira o fundo do mesmo lote: a casa, a loja ou a indústria fica mais comprida.</li>
     <li><b>Casa particular</b> traz 1 cidadão (e 1 vaga); <b>prédio particular</b>, mais raro, traz 5. O teto da nação é 300 habitantes. Casa e prédio do governo só abrem vagas: os cidadãos vêm do Centro de Comando.</li>
     <li><b>Indústrias</b> vêm com economia boa, aprovação alta e imposto industrial baixo. <b>Casas</b> vêm quando há emprego por perto, serviços (delegacia, escola, hospital), luz e imposto baixo. <b>Lojas</b> vêm com moradores e indústrias na cidade.</li>

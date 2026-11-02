@@ -330,19 +330,22 @@ export function researchBlocker(id: TechId, done: readonly TechId[], ctx: { era?
 }
 
 /**
- * Avanço diário (fração 0..1) de uma pesquisa com o orçamento de P&D atual (% do PIB), limitado
- * pela duração mínima. `capped` diz se a verba excede o que a pesquisa consegue absorver.
+ * Custo da pesquisa em US$ por dia de jogo (02/11, pedido do usuário: "pode tirar do orçamento diário"): enquanto a
+ * pesquisa corre, esse valor sai do caixa do país todo dia, como uma linha de despesa no extrato. Mais fundo na árvore,
+ * mais caro; as de era mínima custam mais. Valores para o PIB de referência (o caixa escala com o PIB do país).
  */
-export function researchDailyProgress(id: TechId, researchPct: number, daysPerYear = 365): { perDay: number; capped: boolean } {
-  const t = TECHNOLOGIES[id];
-  const funded = Math.max(0, researchPct) / t.cost / daysPerYear;
-  const max = 1 / t.minDays;
-  return { perDay: Math.min(funded, max), capped: funded > max };
+export function techDailyUsd(id: TechId): number {
+  const depth = (t: TechId): number => Math.max(0, ...TECHNOLOGIES[t].prereqs.map((p) => depth(p) + 1));
+  return 15_000 + 12_000 * depth(id) + (TECHNOLOGIES[id].minEra ? 15_000 : 0);
 }
 
-/** Dias restantes estimados (Infinity sem verba). */
-export function researchEtaDays(id: TechId, progress: number, researchPct: number, daysPerYear = 365): number {
-  const { perDay } = researchDailyProgress(id, researchPct, daysPerYear);
-  if (perDay <= 0) return Infinity;
-  return Math.ceil((1 - progress) / perDay - 1e-9);
+/** Dias de jogo para concluir a pesquisa (prazo fixo: `minDays`). */
+export const techDays = (id: TechId): number => TECHNOLOGIES[id].minDays;
+
+/** Custo total em US$ (dias × custo do dia). */
+export const techTotalUsd = (id: TechId): number => techDailyUsd(id) * techDays(id);
+
+/** Dias que faltam (com o caixa pagando todo dia). */
+export function researchEtaDays(id: TechId, progress: number): number {
+  return Math.ceil((1 - progress) * techDays(id) - 1e-9);
 }

@@ -26,7 +26,7 @@ Pedido do usuário:
 - Começo com 60 pontos. Sem luz, escola e universidade formam metade. Contador 🧠 na barra de cima.
 - **Pesquisa militar** (Centro de Pesquisa): recursos (como antes) + conhecimento (15, 30 ou 50 pelo nível do centro) +
   US$ do caixa do país (3%, 6% ou 10% do repasse anual). Cancelar devolve 75% de tudo.
-- **Pesquisa nacional** (árvore): o US$ continua vindo do orçamento de P&D (% do PIB por dia) e agora custa também
+- **Pesquisa nacional** (árvore): o US$ sai do caixa do país por dia enquanto ela corre (ver `docs/CAIXA_DO_PAIS.md`) e custa também
   conhecimento: 15 + 15 por nível na árvore (+20 nas de era mínima), pago uma vez ao começar (pausar e retomar não
   cobra de novo). `researchBlocker` confere era e conhecimento; o nó mostra o custo 🧠.
 - **IA:** escola junto com o Centro de Pesquisa, universidade depois da era 3; a pesquisa nacional da IA guarda 20
