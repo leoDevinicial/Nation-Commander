@@ -29,6 +29,7 @@ import {
   STARTING_CITIZENS,
   BUILDERS,
   CITIZEN,
+  KNOWLEDGE,
   RECRUIT,
   STARTING_RECRUITS,
   FOOD_UPKEEP_PER_POP,
@@ -45,10 +46,13 @@ import {
   VICTORY,
   type ServiceKind,
   MILITARY_RESEARCH,
+  MILITARY_RESEARCH_USD_SHARE,
+  militaryResearchKnowledge,
   MILITARY_RESEARCH_IDS,
   militaryResearchBlocker,
   type WeaponDef,
   type BuildingType,
+  type MilitaryResearchId,
   type Cost,
   type ResourceType,
   type Stockpile,
@@ -424,6 +428,7 @@ export class Simulation {
         resources: start,
         oilReserve: start.oil,
         citizens: STARTING_CITIZENS,
+        knowledge: KNOWLEDGE.start,
         recruits: STARTING_RECRUITS,
         hungry: false,
         upkeepAcc: { food: 0, supplies: 0, oil: 0 },
@@ -1227,9 +1232,16 @@ export class Simulation {
         const blocker = militaryResearchBlocker(cmd.researchId, done, b.level, this.eraOf(slot));
         if (blocker) return blocker;
         if (!canAfford(player.resources, def.cost)) return `Recursos insuficientes: faltam ${missingText(player.resources, def.cost)}`;
+        // 02/11: a pesquisa também custa conhecimento (escolas e universidades) e US$ do caixa do país
+        const free = this.isSandbox(slot);
+        const kp = free ? 0 : militaryResearchKnowledge(cmd.researchId);
+        if ((player.knowledge ?? 0) + 1e-9 < kp) return `Conhecimento insuficiente: ${Math.floor(player.knowledge ?? 0)} de ${kp} (forme mais em escolas e universidades)`;
+        const usd = free ? 0 : this.militaryResearchUsd(slot, cmd.researchId);
+        if (usd > 0 && this.national && !this.national.chargeWorks(slot, usd, `Pesquisa: ${def.label}`)) return 'Caixa do país sem saldo para a pesquisa';
         this.spend(player, def.cost);
+        player.knowledge = (player.knowledge ?? 0) - kp;
         const ticks = this.duration(slot, def.seconds * TICK_RATE);
-        b.research = { id: cmd.researchId, remaining: ticks, total: ticks, paid: { ...def.cost } };
+        b.research = { id: cmd.researchId, remaining: ticks, total: ticks, paid: { ...def.cost }, kp, usd };
         return null;
       }
       case 'cancel_military_research': {
@@ -1238,6 +1250,8 @@ export class Simulation {
         const back: Cost = {};
         for (const r of RESOURCE_TYPES) if (b.research.paid[r]) back[r] = Math.floor((b.research.paid[r] ?? 0) * RESEARCH_CANCEL_REFUND);
         this.refund(slot, back);
+        player.knowledge = (player.knowledge ?? 0) + Math.floor((b.research.kp ?? 0) * RESEARCH_CANCEL_REFUND);
+        if (b.research.usd && this.national) this.national.refundWorks(slot, Math.round(b.research.usd * RESEARCH_CANCEL_REFUND), `Pesquisa cancelada: ${MILITARY_RESEARCH[b.research.id].label}`);
         b.research = null;
         return null;
       }
@@ -1757,6 +1771,21 @@ export class Simulation {
     return this.units.some((u) => u.owner === slot && u.type === 'engineer' && u.hp > 0 && dist(u.pos, c) <= ROAD.engineerRange * this.map.cellSize);
   }
 
+  /** Debita pontos de conhecimento (pesquisa nacional); false sem saldo. No Sandbox, de graça. */
+  spendKnowledge(slot: Slot, kp: number): boolean {
+    const p = this.players[slot];
+    if (!p) return false;
+    if (this.isSandbox(slot)) return true;
+    if ((p.knowledge ?? 0) + 1e-9 < kp) return false;
+    p.knowledge = (p.knowledge ?? 0) - kp;
+    return true;
+  }
+
+  /** Custo em US$ de uma pesquisa militar (02/11): fração do repasse anual, maior nos níveis mais altos. */
+  militaryResearchUsd(slot: Slot, id: MilitaryResearchId): number {
+    return Math.round((this.national?.worksCapUsd?.(slot) ?? 0) * MILITARY_RESEARCH_USD_SHARE[MILITARY_RESEARCH[id].tier - 1]!);
+  }
+
   /** Custo em US$ de um Grande Projeto: fração do teto anual da verba de obras do país. */
   projectUsd(slot: Slot, type: BuildingType): number {
     return Math.round((this.national?.worksCapUsd?.(slot) ?? 0) * (BUILDINGS[type].project?.usdShare ?? 0));
@@ -1899,6 +1928,7 @@ export class Simulation {
         ...(BUILDINGS[type].engineerOutside && this.engineerNear(slot, cell) ? { outsideOk: (owner: number) => this.hostile(slot, owner) } : {}),
         deposits: this.deposits,
         builtRoads: this.builtRoads,
+        cityName: (seat) => this.cityName(seat as Building) ?? null,
       },
       slot,
       type,
@@ -1916,6 +1946,7 @@ export class Simulation {
     if (this.tick % TICK_RATE === 0) for (const p of this.players) if (!p.defeated) this.staff(p.slot);
     this.updateEconomy();
     this.updateProcessing();
+    this.updateWorkshops();
     this.updateServices();
     this.updateUpkeep();
     this.updateConstruction();
@@ -2331,6 +2362,75 @@ export class Simulation {
           b.coalAcc -= coal;
           p.stats.resourcesGathered += this.store(b.owner, 'coal', coal);
         }
+      }
+    }
+  }
+
+  /**
+   * Produção própria sem depósito (02/11): conhecimento de Escolas e Universidades, a Mina Subterrânea (pedra, ferro e
+   * carvão) e o Forno de Carvão Vegetal (madeira → carvão). No ritmo dos trabalhadores, com luz (sem ela, a mina e o
+   * forno param; escola e universidade formam metade).
+   */
+  private updateWorkshops(): void {
+    for (const b of this.buildings) {
+      const def = BUILDINGS[b.type];
+      if ((!def.knowledge && !def.output && !def.convert) || b.progress < 1 || b.hp <= 0) continue;
+      const p = this.players[b.owner]!;
+      if (p.defeated) continue;
+      if (b.unpaid) {
+        this.setStatus(b, 'unpaid');
+        continue;
+      }
+      const need = this.fx(b).workers;
+      if (need > 0 && b.workers === 0) {
+        this.setStatus(b, 'no_workers');
+        continue;
+      }
+      if (!this.isPowered(b)) {
+        this.setStatus(b, 'no_power');
+        continue;
+      }
+      const eff = (need > 0 ? b.workers / need : 1) * (p.hungry ? HUNGER_EFFICIENCY : 1) * (b.upgrade ? UPGRADE_WORK_EFFICIENCY : 1);
+      if (def.knowledge) {
+        const lit = this.hasLight(b) ? 1 : KNOWLEDGE.darkMul;
+        p.knowledge = (p.knowledge ?? 0) + def.knowledge * eff * lit * TICK_SECONDS;
+        if (!def.output && !def.convert) this.setStatus(b, 'ok');
+      }
+      if (def.output) {
+        const acc = (b.outAcc ??= {});
+        let stored = false;
+        for (const [r, rate] of Object.entries(def.output) as [ResourceType, number][]) {
+          acc[r] = (acc[r] ?? 0) + rate * eff * TICK_SECONDS;
+          const whole = Math.floor(acc[r]! + 1e-9);
+          if (whole <= 0) continue;
+          const got = this.store(b.owner, r, whole);
+          acc[r] = got < whole ? Math.min(1, acc[r]! - got) : acc[r]! - whole;
+          p.stats.resourcesGathered += got;
+          if (got > 0) stored = true;
+        }
+        const full = (Object.keys(def.output) as ResourceType[]).every((r) => p.resources[r] >= this.capacity(b.owner)[r]);
+        this.setStatus(b, full && !stored ? 'storage_full' : 'ok');
+      }
+      if (def.convert) {
+        const c = def.convert;
+        if (p.resources[c.to] >= this.capacity(b.owner)[c.to]) {
+          this.setStatus(b, 'storage_full');
+          b.acc = Math.min(b.acc, 1);
+          continue;
+        }
+        if (p.resources[c.from] < c.ratio) {
+          this.setStatus(b, 'no_input');
+          continue;
+        }
+        this.setStatus(b, 'ok');
+        b.acc += c.rate * eff * TICK_SECONDS;
+        const whole = Math.floor(b.acc + 1e-9);
+        if (whole <= 0) continue;
+        const n = Math.min(whole, Math.floor(p.resources[c.from] / c.ratio));
+        b.acc -= whole;
+        if (n <= 0) continue;
+        p.resources[c.from] -= n * c.ratio;
+        p.stats.resourcesGathered += this.store(b.owner, c.to, n);
       }
     }
   }

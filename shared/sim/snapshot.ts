@@ -95,6 +95,8 @@ export interface PlayerSnapshot {
   defeated: boolean;
   /** Pesquisas militares concluídas (só para o próprio jogador). */
   militaryResearch?: MilitaryResearchId[];
+  /** Pontos de conhecimento (só o próprio jogador). */
+  knowledge?: number;
   /** Era (pública: aparece nas construções) e avanço em andamento (só para o próprio jogador). */
   era?: number;
   eraAdvance?: { to: number; progress: number };
@@ -333,7 +335,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         ...(mine && sim.power && sim.powerInfo[p.slot] ? { power: sim.powerInfo[p.slot] } : {}),
         hungry: mine ? p.hungry : null,
         defeated: p.defeated,
-        ...(mine ? { militaryResearch: [...(p.militaryResearch ?? [])] } : {}),
+        ...(mine ? { militaryResearch: [...(p.militaryResearch ?? [])], knowledge: Math.floor(p.knowledge ?? 0) } : {}),
         ...(p.era && p.era > 1 ? { era: p.era } : {}),
         ...(mine && p.eraAdvance ? { eraAdvance: { to: p.eraAdvance.to, progress: r2(1 - p.eraAdvance.remainingTicks / Math.max(1, p.eraAdvance.totalTicks)) } } : {}),
         ...(mine && sim.eras ? { eras: true } : {}),

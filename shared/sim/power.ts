@@ -77,6 +77,11 @@ export const POWER_USE: Partial<Record<BuildingType, { use: number; stops: boole
   network_5g: { use: 10, stops: false },
   financial_center: { use: 6, stops: false },
   space_center: { use: 16, stops: false },
+  // 02/11: universidade, silvicultura e mineração subterrânea
+  university: { use: 4, stops: false },
+  eucalyptus_forest: { use: 1, stops: false, slows: true },
+  charcoal_kiln: { use: 2, stops: true },
+  underground_mine: { use: 5, stops: true },
 };
 
 /** Consumo multiplicado pela era da nação: cada era nova gasta mais energia (máquinas, telas, redes). */

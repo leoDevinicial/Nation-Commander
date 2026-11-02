@@ -1,6 +1,7 @@
 import { BUILDINGS, buildingCost, canAfford, CITY, TERRAIN, ownedOfType, UNITS, type BuildingType, type Stockpile, type Terrain, type UnitType } from './config.ts';
 import type { DepositIndex } from './deposits.ts';
 import { chooseClaims, claimedBy, sitesByDeposit } from './gathering.ts';
+import { cityCount } from './cities.ts';
 import type { Cell, Slot } from './types.ts';
 
 const WATER = 4 as Terrain;
@@ -19,7 +20,9 @@ export interface PlacementWorld {
   cellSize: number;
   terrain: ArrayLike<Terrain>;
   resourceNodes: Cell[];
-  buildings: Iterable<{ type: BuildingType; owner: Slot; cell: Cell; progress: number; claims?: number[]; depositId?: number | null }>;
+  buildings: Iterable<{ type: BuildingType; owner: Slot; cell: Cell; progress: number; hp?: number; claims?: number[]; depositId?: number | null }>;
+  /** Nome da cidade de uma sede (QG ou prefeitura), para as mensagens do limite por cidade. */
+  cityName?: (seat: { type: BuildingType; cell: Cell }) => string | null;
   units: Iterable<{ type: UnitType; pos: { x: number; y: number } }>;
   resources: Stockpile;
   /** Dono de cada célula (-1 = neutro). */
@@ -79,6 +82,27 @@ export function placementError(w: PlacementWorld, slot: Slot, type: BuildingType
       if (Math.hypot(b.cell.cx + s / 2 - c.x, b.cell.cy + s / 2 - c.y) < CITY.spacingCells)
         return `Muito perto de ${b.type === 'hq' ? 'um Centro de Comando' : 'outra cidade'}: prefeituras ficam a pelo menos ${CITY.spacingCells} células de outra prefeitura ou do QG`;
     }
+  }
+  // limite por cidade (a construção pertence ao QG ou à prefeitura mais próxima)
+  if (def.perCity) {
+    const { seat, count } = cityCount(buildings, slot, type, cell);
+    if (!seat) return `${def.label}: precisa de um Centro de Comando ou de uma prefeitura`;
+    if (count >= def.perCity) {
+      const name = w.cityName?.(seat);
+      return `${name ?? (seat.type === 'hq' ? 'A capital' : 'Esta cidade')} já tem ${def.perCity === 1 ? 'um(a)' : def.perCity} ${def.label} (máximo ${def.perCity} por cidade): funde outra cidade ou construa perto de outra prefeitura`;
+    }
+  }
+  // junto de outra construção própria (o forno ao lado da floresta de eucalipto)
+  if (def.nearType) {
+    const near = def.nearType;
+    const ok = buildings.some((b) => {
+      if (b.owner !== slot || b.type !== near.type || (b.hp !== undefined && b.hp <= 0)) return false;
+      const s = BUILDINGS[b.type].size;
+      const gapX = Math.max(0, b.cell.cx - (cell.cx + def.size), cell.cx - (b.cell.cx + s));
+      const gapY = Math.max(0, b.cell.cy - (cell.cy + def.size), cell.cy - (b.cell.cy + s));
+      return Math.max(gapX, gapY) <= near.cells;
+    });
+    if (!ok) return `${def.label}: fica a até ${near.cells} células de uma ${BUILDINGS[near.type].label} sua`;
   }
   const cs = w.cellSize;
   const minX = cell.cx * cs;

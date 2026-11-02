@@ -1,3 +1,4 @@
+import { eucalyptusCell } from './models/production.ts';
 import * as THREE from 'three';
 import { BUILDINGS, type BuildingType } from '../../../shared/sim/config.ts';
 import { HealthBar, selectionRing } from './HealthBar.ts';
@@ -684,6 +685,8 @@ function buildClaimMarkers(type: BuildingType, opts: BuildingVisualOptions, orig
       b.box(0.5, 0.3, 0.4, C.stone, [x, 0.15, z]);
     } else if (type === 'mine') {
       b.box(0.4, 0.25, 0.35, '#7b4630', [x, 0.55, z]);
+    } else if (type === 'eucalyptus_forest') {
+      eucalyptusCell(b, x, z, cs, i);
     }
   }
   if (b.isEmpty) return null;

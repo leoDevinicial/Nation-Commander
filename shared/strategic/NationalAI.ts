@@ -1,6 +1,9 @@
 import type { Slot } from '../sim/types.ts';
 import { spendPct, type Budget, type NationalSimulation } from './NationalSimulation.ts';
-import { researchBlocker, TECH_IDS, type TechId } from './technologies.ts';
+import { researchBlocker, techKnowledge, TECH_IDS, type TechId } from './technologies.ts';
+
+/** Conhecimento que a IA não gasta na pesquisa nacional (fica para as pesquisas militares do teatro). */
+const AI_KNOWLEDGE_RESERVE = 20;
 import type { DiplomaticAction } from './Diplomacy.ts';
 import type { DecreeId } from './policies.ts';
 import { BASE_INFRASTRUCTURE_PCT } from './params.ts';
@@ -100,7 +103,12 @@ export class NationalAI {
     let research: TechId | null | undefined;
     if (!n.research.current) {
       // a primeira da lista cujos pré-requisitos já estão prontos (mesma regra do jogador)
-      const ready = (t: TechId) => researchBlocker(t, n.research.done) === null;
+      // 02/11: a pesquisa nacional custa conhecimento; a IA guarda uma reserva para as pesquisas militares do teatro
+      const kp = sim.theaterKnowledge(n.slot);
+      const era = sim.theaterEra(n.slot);
+      const ready = (t: TechId) =>
+        researchBlocker(t, n.research.done, era !== null ? { era } : {}) === null &&
+        (kp === null || (n.research.kpPaid ?? []).includes(t) || kp >= techKnowledge(t) + AI_KNOWLEDGE_RESERVE);
       research = (this.militaryFirst ? AI_MILITARY_FIRST.find(ready) : undefined) ?? AI_RESEARCH_ORDER.find(ready) ?? TECH_IDS.find(ready) ?? null;
     }
     return { budget: changed ? b : null, research, diplomacy: this.diplomacy(sim), decrees: this.decrees(sim, n) };

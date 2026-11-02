@@ -142,6 +142,8 @@ export interface Building {
   acc: number;
   /** Fração de carvão acumulada (minas: o carvão sai junto com o ferro). */
   coalAcc?: number;
+  /** Acumuladores da produção própria (`BuildingDef.output`) e do conhecimento. */
+  outAcc?: Partial<Record<ResourceType, number>>;
   status: BuildingStatus;
   /** Manutenção não paga: o edifício não fornece seus benefícios. */
   unpaid: boolean;
@@ -165,6 +167,9 @@ export interface MilitaryResearchWork {
   remaining: number;
   total: number;
   paid: Cost;
+  /** Conhecimento e US$ pagos (02/11), devolvidos em parte ao cancelar. */
+  kp?: number;
+  usd?: number;
 }
 
 /** Por que um edifício não está produzindo (ou 'ok'). */
@@ -222,6 +227,8 @@ export interface PlayerState {
   stats: PlayerStats;
   /** Pesquisas militares concluídas (liberam tropas). */
   militaryResearch?: MilitaryResearchId[];
+  /** Pontos de conhecimento (02/11): formados em escolas e universidades, pagam as pesquisas. */
+  knowledge?: number;
   /**
    * Último disparo contra um edifício deste jogador vindo de um atacante que ele não via
    * (artilharia de longe): de onde veio e quando. A IA usa para a contra-bateria.

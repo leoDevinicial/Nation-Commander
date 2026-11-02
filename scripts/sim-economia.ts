@@ -82,6 +82,9 @@ function run(seed: number, difficulty: Difficulty): Result {
     setWar: (a, b) => sim.setWar(a, b, true),
     stats: (s) => theaterStats(sim, s),
     grant: (s, c) => sim.grantResources(s, c),
+    era: (s) => sim.eraOf(s),
+    knowledge: (s) => sim.players[s]?.knowledge ?? 0,
+    spendKnowledge: (s, kp) => sim.spendKnowledge(s, kp),
   });
   sim.national = {
     techs: (s) => national.nation(s)?.research.done ?? [],

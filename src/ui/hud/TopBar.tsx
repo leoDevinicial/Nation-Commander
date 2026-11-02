@@ -56,6 +56,16 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
         {sandbox && <SandboxChip open={pop === 'sandbox'} onToggle={() => toggle('sandbox')} />}
         {/* Sandbox: sem economia na tela (recursos ilimitados) */}
         {!sandbox && <MoneyChip open={pop === 'money'} onToggle={() => toggle('money')} />}
+        {!sandbox && me?.knowledge !== undefined && (
+          <span
+            className="flex shrink-0 items-center gap-1 font-mono font-bold"
+            title={`Pontos de conhecimento: ${me.knowledge}. Formados por Escolas e Universidades (uma de cada por cidade, com trabalhadores e luz); pagam as pesquisas militares e nacionais junto com o US$ do caixa.`}
+            aria-label={`Conhecimento: ${me.knowledge} pontos`}
+          >
+            <span aria-hidden>🧠</span>
+            {me.knowledge}
+          </span>
+        )}
         <ProductionChip open={pop === 'production'} onToggle={() => toggle('production')} />
         {!sandbox &&
           RESOURCE_TYPES.map((r) => {

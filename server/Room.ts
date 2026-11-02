@@ -494,6 +494,9 @@ export class Room {
       setWar: (a, b) => sim.setWar(a, b, true),
       stats: (slot) => theaterStats(sim, slot),
       grant: (slot, cost) => sim.grantResources(slot, cost),
+      era: (slot) => (sim.isSandbox(slot) ? 4 : sim.eraOf(slot)),
+      knowledge: (slot) => (sim.isSandbox(slot) ? Infinity : (sim.players[slot]?.knowledge ?? 0)),
+      spendKnowledge: (slot, kp) => sim.spendKnowledge(slot, kp),
     });
     // melhorias de construções consultam pesquisas, condições nacionais e a verba de obras
     // Sandbox: tudo pesquisado, estabilidade máxima e verba de obras ilimitada (sem mexer no orçamento)

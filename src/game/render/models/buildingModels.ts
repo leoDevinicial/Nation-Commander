@@ -2,6 +2,7 @@ import { buildCoalPlant, buildSolarFarm, buildWindFarm } from './power.ts';
 import { buildIronDome } from './ironDome.ts';
 import * as THREE from 'three';
 import { buildHospital, buildPoliceStation, buildRefinery, buildSchool, buildSteelMill } from './chains.ts';
+import { buildCharcoalKiln, buildEucalyptusForest, buildUndergroundMine, buildUniversity } from './production.ts';
 import { buildFinancialCenter, buildHydroDam, buildNetwork5g, buildNuclearPlant, buildSpaceCenter, buildTankTrap } from './projects.ts';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { BuildingType } from '../../../../shared/sim/config.ts';
@@ -242,6 +243,10 @@ const BUILDERS: Record<BuildingType, () => Omit<BuildingModel, 'detail'>> = {
   hospital: buildHospital,
   school: buildSchool,
   police_station: buildPoliceStation,
+  university: buildUniversity,
+  eucalyptus_forest: buildEucalyptusForest,
+  charcoal_kiln: buildCharcoalKiln,
+  underground_mine: buildUndergroundMine,
 };
 
 /** Fileira de janelas numa fachada (normal ±x ou ±z). */

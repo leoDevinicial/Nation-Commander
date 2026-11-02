@@ -6,6 +6,7 @@ import {
   TECHNOLOGIES,
   missingPrereqs,
   researchBlocker,
+  techKnowledge,
   researchDailyProgress,
   researchEtaDays,
   type TechCategory,
@@ -13,6 +14,8 @@ import {
 } from '../../../shared/strategic/technologies.ts';
 import { formatPct, formatUsd } from '../../lib/format.ts';
 import { treeLayout } from './techTree.ts';
+import { useHudStore } from '../../state/useHudStore.ts';
+import { isSandboxMatch } from '../../state/sandbox.ts';
 
 const CATEGORY_ORDER: TechCategory[] = ['military', 'state', 'industry', 'resources'];
 
@@ -61,17 +64,19 @@ export function ResearchTab({ nation, onSelect }: { nation: NationView; onSelect
 }
 
 const NODE_W = 140;
-const NODE_H = 60;
+const NODE_H = 72;
 const GAP_X = 28;
 const GAP_Y = 10;
 
 type NodeState = 'done' | 'active' | 'locked' | 'paused' | 'ready';
 
-function nodeState(id: TechId, nation: NationView): NodeState {
+function nodeState(id: TechId, nation: NationView, era = 4): NodeState {
   const r = nation.research;
   if (r.done.includes(id)) return 'done';
   if (r.current === id) return 'active';
   if (missingPrereqs(id, r.done).length > 0) return 'locked';
+  const minEra = TECHNOLOGIES[id].minEra;
+  if (minEra && era < minEra) return 'locked';
   return (r.progress[id] ?? 0) > 0 ? 'paused' : 'ready';
 }
 
@@ -82,6 +87,7 @@ function nodeState(id: TechId, nation: NationView): NodeState {
  */
 function AreaTree({ nation, onSelect }: { nation: NationView; onSelect: (id: TechId | null) => void }) {
   const r = nation.research;
+  const era = useHudStore((s) => s.players.find((p) => p.slot === s.mySlot)?.era ?? 1);
   const [area, setArea] = useState<TechCategory>(() => (r.current ? TECHNOLOGIES[r.current].category : CATEGORY_ORDER[0]!));
   const [picked, setPicked] = useState<TechId | null>(r.current);
   const ids = TECH_IDS.filter((id) => TECHNOLOGIES[id].category === area);
@@ -99,7 +105,7 @@ function AreaTree({ nation, onSelect }: { nation: NationView; onSelect: (id: Tec
           const all = TECH_IDS.filter((id) => TECHNOLOGIES[id].category === cat);
           const done = all.filter((id) => r.done.includes(id)).length;
           const running = r.current !== null && TECHNOLOGIES[r.current].category === cat;
-          const open = all.filter((id) => nodeState(id, nation) === 'ready' || nodeState(id, nation) === 'paused').length;
+          const open = all.filter((id) => nodeState(id, nation, era) === 'ready' || nodeState(id, nation, era) === 'paused').length;
           return (
             <button
               key={cat}
@@ -145,7 +151,7 @@ function AreaTree({ nation, onSelect }: { nation: NationView; onSelect: (id: Tec
           {tree.nodes.map((n) => {
             const id = n.id as TechId;
             const t = TECHNOLOGIES[id];
-            const state = nodeState(id, nation);
+            const state = nodeState(id, nation, era);
             const progress = r.progress[id] ?? 0;
             const look = {
               done: 'border-signal-green/60 bg-[#13261c]',
@@ -166,6 +172,12 @@ function AreaTree({ nation, onSelect }: { nation: NationView; onSelect: (id: Tec
                   {{ done: '✔', active: '▶', locked: '🔒', paused: '⏸', ready: '○' }[state]} {t.label}
                 </div>
                 <div className="line-clamp-2 text-[10px] leading-tight text-ink-400">{t.unlocks[0] ?? t.description}</div>
+                {state !== 'done' && (
+                  <div className="truncate text-[9px] text-ink-300">
+                    🧠 {techKnowledge(id)}
+                    {t.minEra ? ` · era ${t.minEra}` : ''}
+                  </div>
+                )}
                 {n.external.length > 0 && state === 'locked' && (
                   <div className="truncate text-[9px] text-brass-400">requer {n.external.map((p) => TECHNOLOGIES[p as TechId].label).join(', ')}</div>
                 )}
@@ -196,7 +208,10 @@ function TechCard({ id, nation, onSelect }: { id: TechId; nation: NationView; on
   const active = r.current === id;
   const progress = r.progress[id] ?? 0;
   const invested = r.invested?.[id] ?? 0;
-  const blocker = done ? null : researchBlocker(id, r.done);
+  const me = useHudStore((s) => s.players.find((p) => p.slot === s.mySlot));
+  const sandbox = isSandboxMatch();
+  const kpPaid = (r.kpPaid ?? []).includes(id);
+  const blocker = done ? null : researchBlocker(id, r.done, sandbox ? {} : { era: me?.era ?? 1, knowledge: me?.knowledge ?? 0, kpPaid });
   const locked = !done && missingPrereqs(id, r.done).length > 0;
   const totalUsd = (t.cost / 100) * nation.gdpUsd;
   const eta = researchEtaDays(id, progress, nation.budget.researchPct);
@@ -261,7 +276,8 @@ function TechCard({ id, nation, onSelect }: { id: TechId; nation: NationView; on
             </span>
           </div>
           <div className="mt-1 grid grid-cols-2 gap-x-3 text-[10px] text-ink-400 sm:grid-cols-4">
-            <span>Custo: {formatUsd(totalUsd)}</span>
+            <span>Custo: {formatUsd(totalUsd)} do P&amp;D</span>
+            <span>Conhecimento: 🧠 {techKnowledge(id)}{kpPaid ? ' (pago)' : ''}</span>
             <span>Investido: {formatUsd(invested)}</span>
             <span>Falta: {formatUsd(totalUsd * (1 - progress))}</span>
             <span>Mínimo: {t.minDays} dias</span>

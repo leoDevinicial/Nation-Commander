@@ -3757,6 +3757,7 @@ export class GameRuntime {
         ...(BUILDINGS[type].engineerOutside && this.engineerNearCell(cell) ? { outsideOk: () => true } : {}),
         deposits: this.deposits,
         builtRoads: this.roadCells,
+        cityName: (seat) => s.buildings.find((b) => b.type === seat.type && b.cx === seat.cell.cx && b.cy === seat.cell.cy)?.city ?? null,
       },
       this.mySlot,
       type,
@@ -3779,7 +3780,7 @@ export class GameRuntime {
     return (this.snapshot?.buildings ?? []).map((b) => {
       const first = b.claims?.[0];
       const depositId = first !== undefined ? this.deposits.cellDeposit[first]! : -1;
-      return { type: b.type, owner: b.owner, cell: { cx: b.cx, cy: b.cy }, progress: b.progress, claims: b.claims, depositId: depositId >= 0 ? depositId : null };
+      return { type: b.type, owner: b.owner, cell: { cx: b.cx, cy: b.cy }, progress: b.progress, hp: b.hp, claims: b.claims, depositId: depositId >= 0 ? depositId : null };
     });
   }
 

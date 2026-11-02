@@ -101,6 +101,10 @@ export const BUILDING_ERA: Partial<Record<BuildingType, Era>> = {
   hospital: 2,
   wind_farm: 2,
   solar_farm: 3,
+  university: 2,
+  eucalyptus_forest: 3,
+  charcoal_kiln: 3,
+  underground_mine: 3,
 };
 
 /** Aeronaves: caças, reconhecimento e cargueiros na Era Digital; bombardeiros no Futuro Próximo. */

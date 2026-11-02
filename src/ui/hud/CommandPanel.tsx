@@ -18,6 +18,8 @@ import {
   MINE,
   ROAD,
   BUILDERS,
+  MILITARY_RESEARCH_USD_SHARE,
+  militaryResearchKnowledge,
   canAfford,
   buildingCost,
   costText,
@@ -57,10 +59,10 @@ const EMPTY_TECHS: readonly string[] = [];
  */
 type BuildTab = 'production' | 'energy' | 'civic' | 'military' | 'projects';
 const BUILD_TABS: { id: BuildTab; label: string; icon: string; types: BuildingType[] }[] = [
-  { id: 'production', label: 'Produção', icon: '⚒', types: ['farm', 'sawmill', 'quarry', 'mine', 'oil_well', 'oil_tank', 'warehouse', 'silo', 'refinery', 'steel_mill'] },
+  { id: 'production', label: 'Produção', icon: '⚒', types: ['farm', 'sawmill', 'quarry', 'mine', 'oil_well', 'oil_tank', 'warehouse', 'silo', 'refinery', 'steel_mill', 'eucalyptus_forest', 'charcoal_kiln', 'underground_mine'] },
   // rede elétrica: as usinas (a nuclear e a hidrelétrica continuam nos Grandes Projetos)
   { id: 'energy', label: 'Energia', icon: '⚡', types: ['coal_plant', 'wind_farm', 'solar_farm'] },
-  { id: 'civic', label: 'Cívicas', icon: '🏛', types: ['house', 'residential', 'city_hall', 'school', 'hospital', 'police_station', 'market', 'rail_station', 'port'] },
+  { id: 'civic', label: 'Cívicas', icon: '🏛', types: ['house', 'residential', 'city_hall', 'school', 'university', 'hospital', 'police_station', 'market', 'rail_station', 'port'] },
   { id: 'military', label: 'Militares', icon: '⚔', types: ['barracks', 'factory', 'research_center', 'tower', 'tank_trap', 'aa_battery', 'airbase', 'missile_silo', 'iron_dome'] },
   // Grandes Projetos Nacionais (Futuro Próximo)
   { id: 'projects', label: 'Projetos', icon: '★', types: ['nuclear_plant', 'network_5g', 'hydro_dam', 'financial_center', 'space_center'] },
@@ -332,11 +334,11 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
                     ? runtime.startPlacement(type)
                     : useHudStore.getState().pushEvent({
                         tick: useHudStore.getState().tick,
-                        text: `${def.label}: ${eraMissing ? `requer ${eraPhrase(eraMissing)} (avance de era no Centro de Comando)` : techMissing ? `exige a pesquisa ${TECHNOLOGIES[techMissing as keyof typeof TECHNOLOGIES]?.label ?? techMissing}` : hqMissing ? `requer o Centro de Comando no nível ${hqMissing}` : hasOne ? 'Grande Projeto: só um por nação' : fundShort ? `verba de obras insuficiente (${usdShort(projectUsd)})` : 'recursos insuficientes'}`,
+                        text: `${def.label}: ${eraMissing ? `requer ${eraPhrase(eraMissing)} (avance de era no Centro de Comando)` : techMissing ? `exige a pesquisa ${TECHNOLOGIES[techMissing as keyof typeof TECHNOLOGIES]?.label ?? techMissing}` : hqMissing ? `requer o Centro de Comando no nível ${hqMissing}` : hasOne ? 'Grande Projeto: só um por nação' : fundShort ? `caixa do país sem saldo (${usdShort(projectUsd)})` : 'recursos insuficientes'}`,
                         tone: 'warn',
                       })
                 }
-                title={`${def.label} — ${def.description}\nTempo: ${timeText(def.buildSeconds)} · Vida: ${def.maxHp}${def.workers ? ` · Trabalhadores: ${def.workers}` : ''}${def.territoryRadius ? ` · Fronteira: ${def.territoryRadius} células` : ''}${def.project ? `\nGrande Projeto: ${def.project.effect} · ${usdShort(projectUsd)} da verba de obras` : ''}${next ? `\nCusto crescente (+${Math.round(ESCALATING_COST_STEP * 100)}% por edifício do tipo): você tem ${owned}; depois deste, o próximo custará ${costText(next)}` : ''}`}
+                title={`${def.label} — ${def.description}\nTempo: ${timeText(def.buildSeconds)} · Vida: ${def.maxHp}${def.workers ? ` · Trabalhadores: ${def.workers}` : ''}${def.territoryRadius ? ` · Fronteira: ${def.territoryRadius} células` : ''}${def.project ? `\nGrande Projeto: ${def.project.effect} · ${usdShort(projectUsd)} do caixa do país` : ''}${next ? `\nCusto crescente (+${Math.round(ESCALATING_COST_STEP * 100)}% por edifício do tipo): você tem ${owned}; depois deste, o próximo custará ${costText(next)}` : ''}`}
               >
                 <CostLabel cost={cost} have={resources} compact />
               </CardButton>
@@ -694,6 +696,11 @@ function ResearchButtons({ runtime, b }: { runtime: GameRuntime; b: SelectedBuil
   const done = effectiveMilitaryResearch(me?.militaryResearch ?? []);
   const resources = me?.resources ?? emptyStockpile();
   const unlockOf = (id: MilitaryResearchId) => (Object.keys(UNITS) as UnitType[]).find((u) => UNITS[u].requires === id)!;
+  // 02/11: conhecimento (escolas e universidades) e US$ do caixa do país
+  const mySlot = useHudStore((s) => s.mySlot);
+  const works = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot)?.works);
+  const sandbox = isSandboxMatch();
+  const knowledge = me?.knowledge ?? 0;
   return (
     <>
       {MILITARY_RESEARCH_IDS.map((id) => {
@@ -703,7 +710,11 @@ function ResearchButtons({ runtime, b }: { runtime: GameRuntime; b: SelectedBuil
         const isDone = done.includes(id);
         const blocker = isDone ? 'Pesquisa já concluída' : b.research && !current ? 'O centro já está pesquisando outra coisa' : militaryResearchBlocker(id, done, b.level, effectiveEra(me));
         const short = isDone ? 'concluída' : current ? null : blocker ? (blocker.startsWith('Requer o Centro') ? `nível ${def.tier}` : blocker.startsWith('Requer:') ? 'pré-requisito' : 'ocupado') : null;
-        const ok = !blocker && !current && canAfford(resources, def.cost);
+        const kp = militaryResearchKnowledge(id);
+        const usd = Math.round((works?.capUsd ?? 0) * MILITARY_RESEARCH_USD_SHARE[def.tier - 1]!);
+        const kpShort = !sandbox && knowledge < kp;
+        const noUsd = !sandbox && !!works && works.fundUsd < usd;
+        const ok = !blocker && !current && canAfford(resources, def.cost) && !kpShort && !noUsd;
         return (
           <CardButton
             key={id}
@@ -711,16 +722,22 @@ function ResearchButtons({ runtime, b }: { runtime: GameRuntime; b: SelectedBuil
             hotkey={def.hotkey}
             label={def.label}
             blocked={!ok && !current}
-            short={short ?? (!current && !canAfford(resources, def.cost) ? 'recursos' : null)}
+            short={short ?? (current ? null : !canAfford(resources, def.cost) ? 'recursos' : kpShort ? 'conhecimento' : noUsd ? 'caixa' : null)}
             badge={current ? `${Math.round((b.research?.progress ?? 0) * 100)}%` : isDone ? '✔' : undefined}
             onClick={() => {
               if (current) return runtime.cancelMilitaryResearch();
               if (ok) return runtime.startMilitaryResearch(id);
-              useHudStore.getState().pushEvent({ tick: useHudStore.getState().tick, text: `${def.label}: ${blocker ?? 'recursos insuficientes'}`, tone: 'warn' });
+              const why = blocker ?? (!canAfford(resources, def.cost) ? 'recursos insuficientes' : kpShort ? `conhecimento insuficiente (${Math.floor(knowledge)} de ${kp}): forme mais em escolas e universidades` : 'caixa do país sem saldo');
+              useHudStore.getState().pushEvent({ tick: useHudStore.getState().tick, text: `${def.label}: ${why}`, tone: 'warn' });
             }}
             title={`${def.label} — ${def.description}\nLibera: ${UNITS[unit].label} (${UNITS[unit].producedBy === 'barracks' ? 'base militar' : 'fábrica'})\nTempo: ${timeText(def.seconds)} (com 3 pesquisadores; o orçamento nacional de P&D acelera)${def.prereqs.length ? `\nRequer: ${def.prereqs.map((p) => MILITARY_RESEARCH[p].label).join(', ')}` : ''}${def.tier > 1 ? `\nCentro de Pesquisa no nível ${def.tier}` : ''}${current ? '\nEm andamento — clique para cancelar (devolve 75%)' : blocker ? `\nBloqueado: ${blocker}` : ''}`}
           >
             {!isDone && !current && <CostLabel cost={def.cost} have={resources} compact />}
+            {!isDone && !current && !sandbox && (
+              <span className="text-[10px] text-ink-300">
+                <span className={kpShort ? 'text-red-300' : ''}>🧠 {kp}</span> · <span className={noUsd ? 'text-red-300' : ''}>{usdShort(usd)}</span>
+              </span>
+            )}
             {current && <span className="text-[10px] text-brass-400">cancelar</span>}
           </CardButton>
         );

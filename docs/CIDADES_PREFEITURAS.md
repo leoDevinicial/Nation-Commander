@@ -25,6 +25,11 @@ tomada.
   outra prefeitura e de qualquer QG, de qualquer país. O fantasma de construção mostra o motivo quando
   o lugar é perto demais.
 
+## Construções atreladas (02/11)
+Cada construção pertence ao QG ou à prefeitura mais próxima. Escola, Universidade, Floresta de Eucalipto, Forno de
+Carvão Vegetal e Mina Subterrânea são 1 por cidade: fundar cidades libera mais. Ver
+[`CONHECIMENTO_E_CIDADES.md`](CONHECIMENTO_E_CIDADES.md).
+
 ## Captura
 Quando um inimigo destrói uma prefeitura pronta, ela **não some**: a cidade passa para ele.
 

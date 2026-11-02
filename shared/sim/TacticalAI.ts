@@ -1,4 +1,4 @@
-import { BUILDINGS, buildingCost, emptyStockpile, Terrain, ROAD, CITIZEN, GOODS_TYPES, MINE, OIL_TANK_RANGE, emptyGoods, RECRUIT, type ResourceType, POP_ABSOLUTE_CAP, RESOURCE_TYPES, TICK_RATE, UNITS, MILITARY_RESEARCH, militaryResearchBlocker, canAfford, type MilitaryResearchId, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
+import { BUILDINGS, buildingCost, emptyStockpile, Terrain, ROAD, CITIZEN, GOODS_TYPES, MINE, OIL_TANK_RANGE, emptyGoods, RECRUIT, type ResourceType, POP_ABSOLUTE_CAP, RESOURCE_TYPES, TICK_RATE, UNITS, MILITARY_RESEARCH, militaryResearchBlocker, militaryResearchKnowledge, canAfford, type MilitaryResearchId, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
 import { claimableCells, claimedBy } from './gathering.ts';
 import { checkProduce } from './production.ts';
 import type { Command } from './commands.ts';
@@ -481,7 +481,13 @@ export class TacticalAI {
     const pendingUse = mine.reduce((a, b) => a + (b.progress < 1 ? powerUse(b.type, me.era ?? 1) : 0), 0);
     // capacidade instalada (nominal), não a geração do momento: a solar zera à noite e o vento oscila, e a IA
     // erguia uma usina nova a cada noite
-    const installed = mine.reduce((a, b) => a + (b.progress >= 1 && b.hp > 0 ? (POWER_GEN[b.type]?.gen ?? 0) * (POWER_GEN[b.type]?.source === 'solar' || POWER_GEN[b.type]?.source === 'wind' ? 0.6 : 1) : 0), 0);
+    // (com o carvão acabando, as térmicas não contam: vão parar, e a usina nova precisa ser eólica ou solar)
+    const coalOut = sim.power && res.coal < 40;
+    const installed = mine.reduce(
+      (a, b) =>
+        a + (b.progress >= 1 && b.hp > 0 && !(coalOut && POWER_GEN[b.type]?.source === 'coal') ? (POWER_GEN[b.type]?.gen ?? 0) * (POWER_GEN[b.type]?.source === 'solar' || POWER_GEN[b.type]?.source === 'wind' ? 0.6 : 1) : 0),
+      0,
+    );
     const powerShort = !!power && !plantInProgress && installed < power.demand + pendingUse + 4;
     const coalLow = sim.power && res.coal < 80;
     // matriz variada: o carvão é curto, então a partir da era 2 a eólica alterna com a termelétrica (e antes dela com
@@ -535,7 +541,15 @@ export class TacticalAI {
       // cadeias produtivas e serviços (lote 1, §4): depois da economia militar montada
       ['steel_mill', count('steel_mill') === 0 && done('research_center') && active('mine') >= 1 && army.length >= 8 && budget.iron > 150],
       ['refinery', count('refinery') === 0 && done('research_center') && count('oil_well') >= 2 && army.length >= 8 && budget.oil > 120],
-      ['school', count('school') === 0 && done('research_center') && count('house') >= 3 && army.length >= 6],
+      // conhecimento (02/11): a escola com o Centro de Pesquisa (antes dele, tirava gente das minas e faltava carvão) e a
+      // universidade depois da era 3 (antes, ela disputava
+      // os recursos do avanço de era)
+      ['school', count('school') === 0 && done('research_center') && count('house') >= 3],
+      ['university', count('university') === 0 && era >= 3 && done('research_center') && done('school')],
+      // produção sem limite da era 3 (pesquisas nacionais de silvicultura e mineração subterrânea)
+      ['underground_mine', era >= 3 && natTechs.includes('underground_mining') && count('underground_mine') === 0],
+      ['eucalyptus_forest', era >= 3 && natTechs.includes('silviculture') && count('eucalyptus_forest') === 0],
+      ['charcoal_kiln', !!coalLow && done('eucalyptus_forest') && count('charcoal_kiln') === 0],
       ['hospital', count('hospital') === 0 && done('steel_mill') && army.length >= 10],
       // força aérea (Normal ou mais): base aérea depois da economia militar; silo quando houver a pesquisa
       ['airbase', level.airPower && count('airbase') === 0 && done('factory') && done('research_center') && sim.tick >= AI_AIR_TICK],
@@ -940,6 +954,9 @@ export class TacticalAI {
     for (const id of order) {
       if (done.includes(id) || mine.some((b) => b.research?.id === id)) continue;
       if (militaryResearchBlocker(id, done, center.level, sim.eraOf(this.slot))) continue;
+      // 02/11: conhecimento e US$ do caixa (sem eles, espera a escola formar mais, sem prender recursos)
+      if ((sim.players[this.slot]!.knowledge ?? 0) < militaryResearchKnowledge(id)) return null;
+      if (sim.national && sim.national.worksFundUsd(this.slot) < sim.militaryResearchUsd(this.slot, id)) return null;
       if (!take(MILITARY_RESEARCH[id].cost)) return MILITARY_RESEARCH[id].cost;
       cmds.push({ type: 'military_research', buildingId: center.id, researchId: id });
       return null;

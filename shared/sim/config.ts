@@ -31,6 +31,12 @@ export const STARTING_CITIZENS = 11;
  */
 export const BUILDERS = { max: 4 };
 
+/**
+ * Pontos de conhecimento (02/11): formados por Escolas e Universidades (uma de cada por cidade), pagam as pesquisas
+ * junto com o US$ do caixa do país. Sem luz, a formação cai pela metade.
+ */
+export const KNOWLEDGE = { start: 60, school: 0.1, university: 0.3, darkMul: 0.5 };
+
 export const CITIZEN = { label: 'Cidadão', cost: { food: 40 } as Cost, buildSeconds: 10, hotkey: 'Z' };
 /**
  * Recruta: cidadão alistado na base militar (quartel). Fica na reserva e é a tripulação de toda
@@ -263,6 +269,11 @@ export type BuildingType =
   | 'hospital'
   | 'school'
   | 'police_station'
+  // conhecimento e produção sem limite (02/11): universidade; silvicultura e mineração subterrânea (era 3)
+  | 'university'
+  | 'eucalyptus_forest'
+  | 'charcoal_kiln'
+  | 'underground_mine'
   // rede elétrica (versão 1.1)
   | 'coal_plant'
   | 'wind_farm'
@@ -608,6 +619,12 @@ export const MILITARY_RESEARCH_IDS = Object.keys(MILITARY_RESEARCH) as MilitaryR
 export const isMilitaryResearchId = (v: unknown): v is MilitaryResearchId => typeof v === 'string' && Object.hasOwn(MILITARY_RESEARCH, v);
 
 /** Motivo para não poder pesquisar (mesma regra no servidor e no painel), ou null. */
+/** Pontos de conhecimento de uma pesquisa militar (02/11), pelo nível exigido do Centro de Pesquisa. */
+export const MILITARY_RESEARCH_KNOWLEDGE = [15, 30, 50] as const;
+/** US$ de uma pesquisa militar como fração do repasse anual do caixa, pelo nível do centro. */
+export const MILITARY_RESEARCH_USD_SHARE = [0.03, 0.06, 0.1] as const;
+export const militaryResearchKnowledge = (id: MilitaryResearchId): number => MILITARY_RESEARCH_KNOWLEDGE[MILITARY_RESEARCH[id].tier - 1]!;
+
 export function militaryResearchBlocker(id: MilitaryResearchId, done: readonly string[], centerLevel: number, era = 4): string | null {
   const def = MILITARY_RESEARCH[id];
   if (done.includes(id)) return 'Pesquisa já concluída';
@@ -684,6 +701,16 @@ export interface BuildingDef {
   process?: { from: ResourceType; to: GoodsType; rate: number };
   /** Serviço com raio de cobertura (`SERVICES.radius` células). */
   service?: ServiceKind;
+  /** Produção própria por segundo com todos os trabalhadores, sem depósito (Mina Subterrânea). */
+  output?: Partial<Record<ResourceType, number>>;
+  /** Transforma um recurso em outro (Forno de Carvão Vegetal): `ratio` do recurso de origem por unidade, `rate` por segundo. */
+  convert?: { from: ResourceType; to: ResourceType; ratio: number; rate: number };
+  /** Pontos de conhecimento por segundo com todos os trabalhadores (Escola e Universidade). */
+  knowledge?: number;
+  /** Precisa ficar a até `cells` células de uma construção própria do tipo (o forno junto da floresta). */
+  nearType?: { type: BuildingType; cells: number };
+  /** Máximo por cidade (cada construção pertence ao QG ou à prefeitura mais próxima). */
+  perCity?: number;
 }
 
 /**
@@ -988,7 +1015,75 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     upkeep: { supplies: 0.05 },
     buildable: true,
     service: 'education',
-    description: `Serviço com raio de ${SERVICES_RADIUS} células: coletas cobertas rendem 10% a mais, tropas formadas em quartéis e fábricas cobertos saem como Veteranas e moradias cobertas dão aprovação.`,
+    knowledge: KNOWLEDGE.school,
+    perCity: 1,
+    description: `Forma ${KNOWLEDGE.school.toString().replace('.', ',')} ponto de conhecimento por segundo (com os 2 professores e luz), que paga as pesquisas. Uma por cidade. Serviço com raio de ${SERVICES_RADIUS} células: coletas cobertas rendem 10% a mais, tropas formadas em quartéis e fábricas cobertos saem como Veteranas e moradias cobertas dão aprovação.`,
+  },
+  university: {
+    ...NONE,
+    label: 'Universidade',
+    cost: { wood: 150, stone: 160, supplies: 120 },
+    buildSeconds: 30,
+    maxHp: 650,
+    size: 3,
+    income: {},
+    sight: 6,
+    workers: 4,
+    upkeep: { supplies: 0.08 },
+    buildable: true,
+    knowledge: KNOWLEDGE.university,
+    perCity: 1,
+    description: `Campus de pesquisa e ensino superior: ${KNOWLEDGE.university.toString().replace('.', ',')} ponto de conhecimento por segundo (com os 4 pesquisadores e luz). Uma por cidade.`,
+  },
+  eucalyptus_forest: {
+    ...NONE,
+    label: 'Floresta de Eucalipto',
+    cost: { supplies: 90, wood: 40, stone: 30 },
+    buildSeconds: 20,
+    maxHp: 300,
+    size: 2,
+    income: {},
+    gather: { resource: 'wood', terrain: Terrain.Plains, radius: 3, maxCells: 10, minCells: 4, ratePerCell: 0.12 },
+    sight: 6,
+    workers: 4,
+    buildable: true,
+    requiresTech: 'silviculture',
+    perCity: 1,
+    description: 'Planta eucalipto na planície ao redor, como a fazenda planta trigo, e tem serraria própria: madeira devagar, mas sem acabar. Uma por cidade. Ao lado dela cabe um Forno de Carvão Vegetal.',
+  },
+  charcoal_kiln: {
+    ...NONE,
+    label: 'Forno de Carvão Vegetal',
+    cost: { stone: 70, wood: 30 },
+    buildSeconds: 14,
+    maxHp: 260,
+    size: 1,
+    income: {},
+    sight: 4,
+    workers: 2,
+    buildable: true,
+    requiresTech: 'silviculture',
+    convert: { from: 'wood', to: 'coal', ratio: 2, rate: 0.25 },
+    nearType: { type: 'eucalyptus_forest', cells: 3 },
+    perCity: 1,
+    description: 'Queima 2 de madeira para cada 1 de carvão (0,25 de carvão por segundo com os 2 forneiros e luz). Fica a até 3 células da Floresta de Eucalipto.',
+  },
+  underground_mine: {
+    ...NONE,
+    label: 'Mina Subterrânea',
+    cost: { wood: 80, stone: 60, iron: 70, supplies: 80 },
+    buildSeconds: 26,
+    maxHp: 500,
+    size: 2,
+    income: {},
+    sight: 5,
+    workers: 4,
+    upkeep: { supplies: 0.05 },
+    buildable: true,
+    requiresTech: 'underground_mining',
+    output: { stone: 0.3, iron: 0.15, coal: 0.12 },
+    perCity: 1,
+    description: 'Poço vertical em qualquer lugar do território, sem depósito: tira um pouco de pedra (0,3/s), ferro (0,15/s) e carvão (0,12/s) sem acabar. Precisa de luz (bombas e elevador). Uma por cidade.',
   },
   police_station: {
     ...NONE,

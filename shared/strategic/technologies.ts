@@ -23,7 +23,10 @@ export type TechId =
   | 'efficient_propulsion'
   | 'ballistic_missiles'
   | 'nuclear_weapons'
-  | 'space_technology';
+  | 'space_technology'
+  // 02/11 (era 3): produção sem limite
+  | 'silviculture'
+  | 'underground_mining';
 
 /** Categoria de investimento: em que área do orçamento de P&D a pesquisa compete. */
 export type TechCategory = 'military' | 'industry' | 'resources' | 'state';
@@ -54,6 +57,8 @@ export interface TechDef {
   effect: Partial<TechEffects>;
   /** O que a pesquisa libera, em frases curtas (mostrado no painel de pesquisa). */
   unlocks: string[];
+  /** Era mínima da nação para começar (02/11). */
+  minEra?: number;
 }
 
 export interface TechEffects {
@@ -255,7 +260,40 @@ export const TECHNOLOGIES: Record<TechId, TechDef> = {
     effect: {},
     unlocks: ['Programa Espacial (Futuro Próximo, QG nível 9): satélite que revela o mapa inteiro em tempo real'],
   },
+  silviculture: {
+    id: 'silviculture',
+    label: 'Silvicultura de eucalipto',
+    category: 'resources',
+    description: 'Mudas clonadas, plantio em linha e corte rotativo: madeira plantada em vez de floresta nativa.',
+    cost: 0.035,
+    minDays: 30,
+    prereqs: ['agricultural_mechanization'],
+    effect: {},
+    minEra: 3,
+    unlocks: ['Floresta de Eucalipto: madeira devagar, mas sem acabar (uma por cidade)', 'Forno de Carvão Vegetal ao lado da floresta: madeira vira carvão'],
+  },
+  underground_mining: {
+    id: 'underground_mining',
+    label: 'Mineração subterrânea',
+    category: 'resources',
+    description: 'Poços verticais, galerias escoradas e ventilação: minerar sem afloramento na superfície.',
+    cost: 0.04,
+    minDays: 34,
+    prereqs: ['mechanized_extraction'],
+    effect: {},
+    minEra: 3,
+    unlocks: ['Mina Subterrânea em qualquer lugar do território: pedra, ferro e carvão sem acabar (uma por cidade)'],
+  },
 };
+
+/**
+ * Pontos de conhecimento para começar a pesquisa (02/11): 15 mais 15 por nível na árvore (o maior caminho de
+ * pré-requisitos), mais 20 nas pesquisas de era mínima. Pagos uma vez, ao começar.
+ */
+export function techKnowledge(id: TechId): number {
+  const depth = (t: TechId): number => Math.max(0, ...TECHNOLOGIES[t].prereqs.map((p) => depth(p) + 1));
+  return 15 + 15 * depth(id) + (TECHNOLOGIES[id].minEra ? 20 : 0);
+}
 
 export const TECH_IDS = Object.keys(TECHNOLOGIES) as TechId[];
 
@@ -280,10 +318,14 @@ export function missingPrereqs(id: TechId, done: readonly TechId[]): TechId[] {
 }
 
 /** Motivo para não poder iniciar a pesquisa, ou null. Mesma regra no servidor e no painel. */
-export function researchBlocker(id: TechId, done: readonly TechId[]): string | null {
+export function researchBlocker(id: TechId, done: readonly TechId[], ctx: { era?: number; knowledge?: number; kpPaid?: boolean } = {}): string | null {
   if (done.includes(id)) return 'Pesquisa já concluída';
   const missing = missingPrereqs(id, done);
   if (missing.length) return `Requer: ${missing.map((m) => TECHNOLOGIES[m].label).join(', ')}`;
+  const minEra = TECHNOLOGIES[id].minEra;
+  if (minEra && ctx.era !== undefined && ctx.era < minEra) return `Requer a era ${minEra} (avance de era no Centro de Comando)`;
+  if (!ctx.kpPaid && ctx.knowledge !== undefined && ctx.knowledge + 1e-9 < techKnowledge(id))
+    return `Conhecimento insuficiente: ${Math.floor(ctx.knowledge)} de ${techKnowledge(id)} (forme mais em escolas e universidades)`;
   return null;
 }
 

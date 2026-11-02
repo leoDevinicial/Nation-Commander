@@ -22,7 +22,7 @@ import {
   theaterSupply,
 } from './params.ts';
 import { countryReference, type ReferenceKey } from './reference.ts';
-import { combineEffects, researchBlocker, researchDailyProgress, TECH_IDS, type TechEffects, type TechId } from './technologies.ts';
+import { techKnowledge, combineEffects, researchBlocker, researchDailyProgress, TECH_IDS, type TechEffects, type TechId } from './technologies.ts';
 import { COUNTRIES } from '../data/countries.ts';
 import { DIPLO, Diplomacy, warPreview, type DiplomacySave, type DiplomaticAction, type DiplomaticEvent, type NationId, type RelationView, type Treaty, type WarPreview } from './Diplomacy.ts';
 import { BUILDINGS, PROJECT_FX, SERVICES, type BuildingType, type Cost, type Stockpile } from '../sim/config.ts';
@@ -57,6 +57,11 @@ export interface TheaterLink {
   stats?(slot: Slot): TheaterStats | null;
   /** Recompensa de uma facção entregue no teatro (limitada pela capacidade de armazenamento). */
   grant?(slot: Slot, cost: Cost): void;
+  /** Era da nação no teatro (pesquisas de era mínima). */
+  era?(slot: Slot): number;
+  /** Pontos de conhecimento (02/11): saldo e débito (false sem saldo). */
+  knowledge?(slot: Slot): number;
+  spendKnowledge?(slot: Slot, kp: number): boolean;
 }
 
 /** O que um país sabe de outro. `intel` só existe com missão diplomática ativa (ou para si mesmo). */
@@ -158,6 +163,8 @@ export interface ResearchState {
   idleUsd: number;
   /** Dia em que cada pesquisa foi concluída. */
   doneDay: Partial<Record<TechId, number>>;
+  /** Pesquisas cujo conhecimento já foi pago (02/11). */
+  kpPaid?: TechId[];
 }
 
 export interface NationState {
@@ -549,12 +556,33 @@ export class NationalSimulation {
     return null;
   }
 
+  /** Pontos de conhecimento da nação no teatro (null sem teatro ligado). */
+  theaterKnowledge(slot: Slot): number | null {
+    return this.theater?.knowledge ? this.theater.knowledge(slot) : null;
+  }
+
+  /** Era da nação no teatro (null sem teatro ligado). */
+  theaterEra(slot: Slot): number | null {
+    return this.theater?.era ? this.theater.era(slot) : null;
+  }
+
   setResearch(slot: Slot, techId: TechId | null): string | null {
     const n = this.nation(slot);
     if (!n) return 'Nação inválida';
     if (techId) {
-      const blocker = researchBlocker(techId, n.research.done);
+      const kpPaid = (n.research.kpPaid ?? []).includes(techId);
+      const t = this.theater;
+      const blocker = researchBlocker(techId, n.research.done, {
+        ...(t?.era ? { era: t.era(slot) } : {}),
+        ...(t?.knowledge ? { knowledge: t.knowledge(slot) } : {}),
+        kpPaid,
+      });
       if (blocker) return blocker;
+      // o conhecimento é pago uma vez, ao começar (pausar e retomar não cobra de novo)
+      if (!kpPaid && t?.spendKnowledge) {
+        if (!t.spendKnowledge(slot, techKnowledge(techId))) return 'Conhecimento insuficiente';
+        (n.research.kpPaid ??= []).push(techId);
+      }
     }
     n.research.current = techId;
     return null;
