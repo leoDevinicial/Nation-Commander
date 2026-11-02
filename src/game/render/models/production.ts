@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { C, layers, type PartBuilder } from './kit.ts';
 import { railing, strut } from './rigging.ts';
 import type { BuildingModel } from './buildingModels.ts';
@@ -23,7 +24,6 @@ const LAWN = '#5f8f4a';
 const HEDGE = '#3f6b37';
 const BARK = '#c2ad90';
 const LEAF = '#7f9c6c';
-const LEAF_DARK = '#66855a';
 const COPPER = '#5f8f86';
 const SOOT = '#24211f';
 
@@ -262,10 +262,65 @@ export function buildUniversity(): Built {
 
 // ------------------------------------------------------------------ Floresta de Eucalipto
 
+/** Tufo de folhas: icosaedro achatado (20 faces facetadas), barato e com silhueta irregular. */
+const TUFT = new THREE.IcosahedronGeometry(1, 0);
+/** Verdes do eucalipto: folhagem verde-acinzentada, alguns tufos puxando para o azulado. */
+const EUCA_LEAVES = ['#7f9c6c', '#6f8f62', '#8aa67a', '#7a9a88', '#66855a'];
+
 /**
- * Eucalipto low poly para cada célula plantada (como a lavoura da fazenda): três árvores por célula em linha, tronco
- * claro, fino e alto, copa alta, rala e verde-acinzentada; solo com palhada e, às vezes, uma muda nova no lugar de uma
- * árvore cortada. Altura e posição variam pelo índice da célula.
+ * Um eucalipto low poly: tronco reto e alto em duas partes (casca rugosa e escura na base, lisa e clara em cima, com
+ * tiras soltando), dois galhos subindo em leque e a copa alta e aberta em vários tufos achatados de verdes
+ * diferentes, concentrada no terço de cima. `age` (0..1) muda a altura e quantos tufos a árvore tem.
+ */
+function eucalyptus(b: PartBuilder, px: number, pz: number, age: number, rnd: () => number): void {
+  const h = 0.9 + age * 1.5 + rnd() * 0.3;
+  const r = 0.03 + age * 0.03;
+  // inclinação leve: o topo sai um pouco do eixo
+  const lx = (rnd() - 0.5) * 0.12 * h;
+  const lz = (rnd() - 0.5) * 0.12 * h;
+  const low = h * 0.26;
+  b.cyl(r * 0.95, r * 1.25, low, '#8f7a5e', [px, low / 2, pz], undefined, 5);
+  strut(b, [px, low, pz], [px + lx, h, pz + lz], r * 0.8, '#e2d5bd', true);
+  // tira de casca soltando no meio do tronco
+  b.box(r * 0.25, h * 0.1, r * 1.1, '#b49a77', [px + lx * 0.3 + r * 0.45, low + h * 0.05, pz + lz * 0.3]);
+  const top: [number, number, number] = [px + lx, h, pz + lz];
+  const tufts = age < 0.35 ? 2 : 4;
+  // galhos: saem do tronco a 60–75% da altura, em direções opostas
+  const a0 = rnd() * Math.PI * 2;
+  const ends: [number, number, number][] = [];
+  for (let k = 0; k < (age < 0.35 ? 1 : 2); k++) {
+    const ang = a0 + k * Math.PI + (rnd() - 0.5) * 0.6;
+    const y0 = h * (0.6 + rnd() * 0.15);
+    const t = y0 / h;
+    const from: [number, number, number] = [px + lx * t, y0, pz + lz * t];
+    const reach = 0.1 + age * 0.08;
+    const end: [number, number, number] = [from[0] + Math.cos(ang) * reach, y0 + 0.2 + age * 0.12, from[2] + Math.sin(ang) * reach];
+    strut(b, from, end, r * 0.45, '#d6c7ab');
+    ends.push(end);
+  }
+  // copa: um tufo no topo, os dos galhos e outros soltos em volta do terço de cima
+  const spots: [number, number, number][] = [[top[0], top[1] + 0.02, top[2]], ...ends];
+  while (spots.length < tufts + 1) {
+    const ang = rnd() * Math.PI * 2;
+    const y = h * (0.78 + rnd() * 0.16);
+    const t = y / h;
+    spots.push([px + lx * t + Math.cos(ang) * 0.07, y, pz + lz * t + Math.sin(ang) * 0.07]);
+  }
+  for (const [x, y, z] of spots) {
+    // tufos estreitos e mais altos que largos (a copa do eucalipto é alta e rala, não redonda)
+    const size = (0.075 + age * 0.06) * (0.8 + rnd() * 0.4);
+    b.add(TUFT, EUCA_LEAVES[Math.floor(rnd() * EUCA_LEAVES.length)]!, {
+      pos: [x, y, z],
+      scale: [size * (0.9 + rnd() * 0.3), size * (1.5 + rnd() * 0.5), size * (0.9 + rnd() * 0.3)],
+      rot: [rnd() * 0.6, rnd() * Math.PI, rnd() * 0.6],
+    });
+  }
+}
+
+/**
+ * Eucaliptal para cada célula plantada (como a lavoura da fazenda): três árvores em linha por célula, de idades
+ * diferentes (o corte é rotativo), solo com camalhões de palhada e folhas caídas; às vezes uma muda nova ao lado do
+ * toco de uma árvore cortada. Tudo varia pelo índice da célula (sempre igual para a mesma célula).
  */
 export function eucalyptusCell(b: PartBuilder, x: number, z: number, cs: number, cell: number): void {
   let s = (cell * 2654435761) >>> 0;
@@ -276,22 +331,26 @@ export function eucalyptusCell(b: PartBuilder, x: number, z: number, cs: number,
   b.box(cs * 0.94, 0.02, cs * 0.94, '#7a6247', [x, 0.01, z]);
   b.box(cs * 0.9, 0.012, 0.12, '#8d7a55', [x, 0.025, z - cs * 0.25]);
   b.box(cs * 0.9, 0.012, 0.12, '#8d7a55', [x, 0.025, z + cs * 0.25]);
+  // folhas e cascas caídas
+  for (let k = 0; k < 1; k++) b.box(0.12, 0.008, 0.06, k % 2 ? '#a08c62' : '#9c7f5a', [x + (rnd() - 0.5) * cs * 0.8, 0.024, z + (rnd() - 0.5) * cs * 0.8], [0, rnd() * Math.PI, 0]);
+  // a idade da célula: árvores da mesma célula têm idades parecidas (talhões plantados juntos)
+  const stand = rnd();
   for (const [dx, dz] of [
     [-0.28, -0.25],
     [0.3, -0.05],
     [-0.05, 0.3],
   ] as const) {
-    const h = 1.4 + rnd() * 0.8;
     const px = x + dx * cs + (rnd() - 0.5) * 0.15;
     const pz = z + dz * cs + (rnd() - 0.5) * 0.15;
-    if (rnd() < 0.12) {
-      b.cyl(0.0, 0.1, 0.3, LEAF, [px, 0.17, pz], undefined, 4);
-      b.cyl(0.05, 0.06, 0.05, '#c9b38f', [px + 0.12, 0.04, pz], undefined, 5); // toco
+    if (rnd() < 0.1) {
+      // muda recém-plantada ao lado do toco da árvore cortada
+      b.cyl(0.05, 0.06, 0.06, '#c9b38f', [px + 0.12, 0.04, pz], undefined, 6);
+      b.cyl(0.05, 0.05, 0.005, '#e2cfa8', [px + 0.12, 0.072, pz], undefined, 6);
+      b.cyl(0.008, 0.01, 0.22, '#7a6a4a', [px, 0.13, pz], undefined, 4);
+      b.add(TUFT, EUCA_LEAVES[0]!, { pos: [px, 0.26, pz], scale: [0.07, 0.06, 0.07] });
       continue;
     }
-    b.cyl(0.035, 0.05, h, BARK, [px, h / 2, pz], undefined, 4);
-    b.sphere(0.2, rnd() > 0.5 ? LEAF : LEAF_DARK, [px, h * 0.86, pz], [1, 2.1, 1], 5);
-    b.sphere(0.13, LEAF, [px + 0.08, h * 0.7, pz - 0.05], [1, 1.5, 1], 4);
+    eucalyptus(b, px, pz, Math.min(1, Math.max(0.15, stand * 0.7 + rnd() * 0.45)), rnd);
   }
 }
 
