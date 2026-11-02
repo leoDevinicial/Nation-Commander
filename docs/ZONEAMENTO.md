@@ -68,11 +68,19 @@ escuro, sem imposto e sem gastar luz, até o jogador **demolir**; aí a zona vol
   prefeitura (eram 20 mil).
 - Lotes privados não produzem nem gastam recursos do mapa.
 
-## Modelos (`src/game/render/models/zoneLots.ts`, ~200 a ~900 triângulos)
-- Residencial: sobrado, bangalô com garagem, casa moderna com piscina, casas geminadas; prédio lâmina com varandas e
-  torre envidraçada.
-- Comercial: mercadinho com toldo, posto de gasolina, lanchonete com mesas, prédio de escritórios com outdoor.
-- Industrial: galpão em dente de serra, química com tanques, centro logístico com contêineres, fábrica de cimento.
+## Modelos (`src/game/render/models/zoneLots.ts`, ~700 a ~1.600 triângulos; prédio lâmina ~3.000)
+Redesenho de 02/11 inspirado no que os kits low poly de cidade fazem para ler bem de cima: telhado com beiral,
+testeira e cumeeira (a silhueta), janelas com moldura, divisória em cruz, peitoril e venezianas, paredes com rodapé
+escuro e cantoneiras claras, portas com batente, degrau e marquise, e objetos de uso (caixa de correio, floreiras,
+ar-condicionado, antena, freezer, bicicletário, paletes, empilhadeira, chaminé listrada, chapa ondulada, portão de
+enrolar). Sem textura; cores chapadas por camada.
+- Residencial: sobrado com varanda coberta e cerca, bangalô de quatro águas com garagem, casa moderna em balanço com
+  ripado e piscina, casas geminadas com águas-furtadas e escadinhas; prédio lâmina com varandas e torre envidraçada
+  com coroamento.
+- Comercial: mercadinho com platibanda, vitrine e toldo listrado; posto com cobertura iluminada, bombas e totem;
+  lanchonete americana de cantos arredondados com mesas; prédio de escritórios com lojas e outdoor.
+- Industrial: galpão em dente de serra com chapa ondulada e portões; química com tanques, escadas, passarela e rack de
+  tubos; centro logístico com docas e contêineres; fábrica de cimento com silos, torre de pré-aquecimento e forno.
 - Desenhados em lote (`LotLayer`, InstancedMesh por modelo e dono), virados para a rua em que encostam; o lote fundo
   desenha também a parte de trás (`lotBackModel`). Zonas vazias
   aparecem em verde, azul e amarelo (`ZoneOverlay`).
