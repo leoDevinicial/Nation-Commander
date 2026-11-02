@@ -10,6 +10,10 @@ const PAINT = '#efeee8';
 
 /** Largura da calçada (com meio-fio) nas bordas sem estrada vizinha, em fração da célula. */
 const SIDEWALK_FRAC = 0.15;
+/** Quanto o asfalto fica acima do chão (cobre o pequeno ruído de altura do terreno). */
+const LIFT = 0.05;
+/** Subdivisões da placa de asfalto por lado de célula. */
+const PLATE_SEG = 4;
 
 /**
  * Estradas construídas pelos jogadores (lote 3, seção 1), desenhadas como peças de asfalto por
@@ -20,6 +24,12 @@ const SIDEWALK_FRAC = 0.15;
  * - cruzamento em T ou em cruz: faixas de pedestres em cada saída e calçada nos cantos.
  * A estrada de terra que o mapa gera conta como vizinha (o asfalto encosta nela sem calçada).
  * A malha inteira é refeita quando o conjunto de estradas muda (acontece pouco).
+ *
+ * Relevo (02/11, bug das estradas em degraus no morro): as peças são montadas sem altura e, no fim, cada vértice é
+ * posto sobre o chão (`drape`), na mesma malha do terreno (`sub` subdivisões por célula, com interpolação bilinear
+ * entre os vértices dela). Células vizinhas compartilham a altura das bordas, então a estrada sobe e desce o morro
+ * contínua, sem placas flutuando nem enterradas. O asfalto é uma placa subdividida para acompanhar a curva dentro
+ * da célula.
  */
 export class RoadLayer {
   readonly mesh: THREE.Mesh;
@@ -29,6 +39,8 @@ export class RoadLayer {
     private readonly width: number,
     private readonly height: number,
     private readonly heightAt: (x: number, z: number) => number,
+    /** Subdivisões por célula da malha do terreno (1, 2 ou 4, conforme a qualidade). */
+    private readonly sub = 1,
   ) {
     // material próprio: asfalto fosco com pouco desgaste (o dos edifícios suja demais e puxa para o marrom)
     this.mesh = new THREE.Mesh(new THREE.BufferGeometry(), withFog(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0, envMapIntensity: 0.4 }), { weather: 0.25 }));
@@ -57,8 +69,42 @@ export class RoadLayer {
     }
     this.poles(b, paved, road);
     const geo = l.build().body;
+    this.drape(geo);
     this.mesh.geometry.dispose();
     this.mesh.geometry = geo;
+  }
+
+  /** Altura da malha do terreno em (x, z): interpolação bilinear dos vértices da grade (passo célula / `sub`). */
+  private meshHeight(x: number, z: number): number {
+    const step = this.cellSize / this.sub;
+    const gx = x / step;
+    const gz = z / step;
+    const x0 = Math.floor(gx);
+    const z0 = Math.floor(gz);
+    const fx = gx - x0;
+    const fz = gz - z0;
+    const h = (i: number, j: number) => this.heightAt(i * step, j * step);
+    const a = h(x0, z0) * (1 - fx) + h(x0 + 1, z0) * fx;
+    const c = h(x0, z0 + 1) * (1 - fx) + h(x0 + 1, z0 + 1) * fx;
+    return a * (1 - fz) + c * fz;
+  }
+
+  /** Põe cada vértice (montado com o chão em y = 0) sobre o relevo. */
+  private drape(geo: THREE.BufferGeometry): void {
+    const pos = geo.attributes.position as THREE.BufferAttribute | undefined;
+    if (!pos) return;
+    const cache = new Map<string, number>();
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const z = pos.getZ(i);
+      const k = `${Math.round(x * 100)},${Math.round(z * 100)}`;
+      let g = cache.get(k);
+      if (g === undefined) cache.set(k, (g = this.meshHeight(x, z) + LIFT));
+      pos.setY(i, pos.getY(i) + g);
+    }
+    pos.needsUpdate = true;
+    geo.computeBoundingSphere();
+    geo.computeBoundingBox();
   }
 
   /**
@@ -78,7 +124,7 @@ export class RoadLayer {
       const side = horizontal ? (road(cx, cy - 1) ? 1 : -1) : road(cx - 1, cy) ? 1 : -1;
       const x = (cx + 0.5) * cs + (horizontal ? 0 : side * cs * 0.42);
       const z = (cy + 0.5) * cs + (horizontal ? side * cs * 0.42 : 0);
-      const g = this.heightAt(x, z);
+      const g = 0; // posto sobre o relevo no `drape`
       const H = 1.55;
       b.cyl(0.035, 0.05, H, '#6b5038', [x, g + H / 2, z], undefined, 6);
       // cruzeta perpendicular à rua, com três isoladores
@@ -115,10 +161,9 @@ export class RoadLayer {
     const half = cs / 2;
     const x = (cx + 0.5) * cs;
     const z = (cy + 0.5) * cs;
-    // a placa fica um pouco acima do ponto mais alto do chão na célula e desce como saia
-    const inset = half * 0.85;
-    const h = Math.max(this.heightAt(x, z), this.heightAt(x - inset, z - inset), this.heightAt(x + inset, z - inset), this.heightAt(x - inset, z + inset), this.heightAt(x + inset, z + inset)) + 0.03;
-    b.box(cs, 0.16, cs, ASPHALT, [x, h - 0.07, z]);
+    // placa de asfalto subdividida, montada no chão (y = 0); o `drape` a deita sobre o relevo
+    const h = 0;
+    b.add(new THREE.PlaneGeometry(cs, cs, PLATE_SEG, PLATE_SEG).rotateX(-Math.PI / 2), ASPHALT, { pos: [x, 0, z] });
 
     const sw = cs * SIDEWALK_FRAC;
     const top = h + 0.012;

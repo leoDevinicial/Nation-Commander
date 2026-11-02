@@ -390,7 +390,9 @@ export class GameRuntime {
     this.scene.add(this.mineLayer.group);
     this.roadPreview = new RoadPreview(this.map.cellSize, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.roadPreview.mesh);
-    this.roadLayer = new RoadLayer(this.map.cellSize, this.map.width, this.map.height, (x, z) => this.groundHeight(x, z));
+    // a estrada deita sobre a mesma malha do chão (subdivisões por célula da qualidade do terreno, ver buildTerrain)
+    const terrainSub = this.opts.profile.cinematic ? 4 : this.opts.profile.terrain === 'high' ? 2 : 1;
+    this.roadLayer = new RoadLayer(this.map.cellSize, this.map.width, this.map.height, (x, z) => this.groundHeight(x, z), terrainSub);
     this.scene.add(this.roadLayer.mesh);
     this.citizens = new CitizenLayer(this.map, this.mySlot, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.citizens.group);
