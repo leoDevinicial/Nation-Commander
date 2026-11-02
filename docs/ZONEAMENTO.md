@@ -7,7 +7,11 @@ zoneamento fecha o ciclo de recursos: depois dele, só melhorias nas mecânicas 
 - **Ferramenta:** QG selecionado → aba Cívicas → **Zoneamento**. Pincéis: 🏠 Residencial, 🏪 Comercial, 🏭 Industrial,
   ⌫ Apagar (zona sem lote) e 🧨 Demolir (lote). Clique numa célula ou arraste um retângulo (no celular, toque ou
   arraste um dedo). A prévia mostra em verde o que vale e em vermelho o que não vale, com o motivo.
-- **Onde:** no próprio território, em planície ou solo fértil livre, a até **3 células** de uma estrada construída sua.
+- **Onde:** no próprio território, em planície ou solo fértil livre, a até **2 células** de uma estrada construída sua.
+- **Todo lote encosta na rua (02/11):** o lote nasce numa célula colada à estrada, virado para ela. Se a célula de
+  trás também for da mesma zona, livre, o lote vira **fundo**: a mesma construção, com a mesma frente e o dobro do
+  comprimento (a casa se estende com quintal; a loja ganha depósito e estacionamento; a indústria, galpão maior e
+  pátio; o prédio, ala de fundos). Célula de trás sozinha, sem rua, nunca vira lote.
 - **Pintar não constrói:** casas, prédios, lojas e indústrias **privadas** aparecem aos poucos, no ritmo da
   atratividade de cada cidade (sem cadência fixa; ver "Crescimento"). O lote ocupa a célula: nada se constrói em cima
   até demolir.
@@ -69,7 +73,8 @@ escuro, sem imposto e sem gastar luz, até o jogador **demolir**; aí a zona vol
   torre envidraçada.
 - Comercial: mercadinho com toldo, posto de gasolina, lanchonete com mesas, prédio de escritórios com outdoor.
 - Industrial: galpão em dente de serra, química com tanques, centro logístico com contêineres, fábrica de cimento.
-- Desenhados em lote (`LotLayer`, InstancedMesh por modelo e dono), virados para a estrada mais próxima. Zonas vazias
+- Desenhados em lote (`LotLayer`, InstancedMesh por modelo e dono), virados para a rua em que encostam; o lote fundo
+  desenha também a parte de trás (`lotBackModel`). Zonas vazias
   aparecem em verde, azul e amarelo (`ZoneOverlay`).
 
 ## Servidor e KAC

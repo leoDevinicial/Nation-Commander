@@ -121,6 +121,8 @@ export class RoadLayer {
       if ((cx + cy) % 3 !== 0) continue;
       // o poste fica do lado em que não há estrada vizinha (na calçada); rua cercada dos dois lados: no canto
       const horizontal = road(cx - 1, cy) || road(cx + 1, cy);
+      // cruzamentos e curvas: sem poste (cairia dentro da pista); a linha segue nas retas
+      if (horizontal && (road(cx, cy - 1) || road(cx, cy + 1))) continue;
       const side = horizontal ? (road(cx, cy - 1) ? 1 : -1) : road(cx - 1, cy) ? 1 : -1;
       const x = (cx + 0.5) * cs + (horizontal ? 0 : side * cs * 0.42);
       const z = (cy + 0.5) * cs + (horizontal ? side * cs * 0.42 : 0);

@@ -27,7 +27,7 @@ export const ZONE_LABEL: Record<ZoneKind, string> = { res: 'Residencial', com: '
 
 export const ZONING = {
   /** Distância máxima (células, em xadrez) de uma estrada construída do jogador. */
-  reach: 3,
+  reach: 2,
   /** A cidade é avaliada a cada N ticks. */
   everyTicks: TICK_RATE * 4,
   /**
@@ -70,6 +70,13 @@ export interface Lot {
   level: 1 | 2;
   abandoned: boolean;
   since: number;
+  /**
+   * Lado da estrada visto da célula da frente (02/11: todo lote encosta na rua): 0 = sul (+y), 1 = norte, 2 = leste
+   * (+x), 3 = oeste. Ausente em salvamentos antigos (0).
+   */
+  face?: number;
+  /** Célula de trás (lote fundo: a construção é mais comprida e ocupa as duas células), ou ausente. */
+  back?: number;
 }
 
 export type ZoneTax = Record<ZoneKind, number>;
@@ -143,8 +150,10 @@ export function lotRandom(tick: number, i: number, salt: number): number {
 export class ZoneSystem {
   /** Zonas pintadas: célula → dono e setor. */
   zones = new Map<number, { owner: Slot; kind: ZoneKind }>();
-  /** Lotes privados: célula → lote. */
+  /** Lotes privados: célula da frente (a que encosta na rua) → lote. */
   lots = new Map<number, Lot>();
+  /** Toda célula ocupada por lote (frente e fundo) → célula da frente. */
+  readonly cover = new Map<number, number>();
   tax: ZoneTax[] = [];
   /** Ataques recentes (decai com o tempo). */
   heat: number[] = [];
@@ -203,14 +212,14 @@ export class ZoneSystem {
     for (const i of new Set(cells)) {
       const z = this.zones.get(i);
       if (kind === null) {
-        if (z && z.owner === slot && !this.lots.has(i)) {
+        if (z && z.owner === slot && !this.cover.has(i)) {
           this.zones.delete(i);
           changed++;
         }
         continue;
       }
       if (z && z.owner === slot && z.kind === kind) continue;
-      if (this.lots.has(i)) {
+      if (this.cover.has(i)) {
         first ??= 'Há um lote no lugar: demolir antes de mudar a zona';
         continue;
       }
@@ -230,9 +239,10 @@ export class ZoneSystem {
   /** Demole lotes próprios (abandonados ou não); a zona continua pintada. */
   demolish(slot: Slot, cells: readonly number[]): string | null {
     let n = 0;
-    for (const i of new Set(cells)) {
-      const lot = this.lots.get(i);
-      if (!lot || lot.owner !== slot) continue;
+    for (const c of new Set(cells)) {
+      const i = this.cover.get(c);
+      const lot = i !== undefined ? this.lots.get(i) : undefined;
+      if (i === undefined || !lot || lot.owner !== slot) continue;
       if (lot.kind === 'res' && !lot.abandoned) this.host.moveCitizens(slot, -ZONING.citizens[lot.level - 1]!);
       this.removeLot(i);
       n++;
@@ -261,11 +271,58 @@ export class ZoneSystem {
     if (this.zones.delete(i)) this.version++;
   }
 
+  /** Células de um lote: a da frente e, no lote fundo, a de trás. */
+  lotCells(i: number, l: Lot): number[] {
+    return l.back !== undefined ? [i, l.back] : [i];
+  }
+
+  private placeLot(i: number, l: Lot): void {
+    const W = this.host.map.width;
+    this.lots.set(i, l);
+    for (const c of this.lotCells(i, l)) {
+      this.cover.set(c, i);
+      this.host.grid.setOccupied({ cx: c % W, cy: Math.floor(c / W) }, 1, LOT_OCCUPANT);
+    }
+  }
+
   private removeLot(i: number): void {
     const W = this.host.map.width;
+    const l = this.lots.get(i);
     this.lots.delete(i);
     this.litLots.delete(i);
-    if (this.host.grid.occupant(i % W, Math.floor(i / W)) === LOT_OCCUPANT) this.host.grid.setOccupied({ cx: i % W, cy: Math.floor(i / W) }, 1, 0);
+    for (const c of l ? this.lotCells(i, l) : [i]) {
+      this.cover.delete(c);
+      if (this.host.grid.occupant(c % W, Math.floor(c / W)) === LOT_OCCUPANT) this.host.grid.setOccupied({ cx: c % W, cy: Math.floor(c / W) }, 1, 0);
+    }
+  }
+
+  /** Lado da estrada própria encostada na célula (0 sul, 1 norte, 2 leste, 3 oeste), ou −1 se nenhuma. */
+  private roadSide(i: number, roads: Set<number>): number {
+    const W = this.host.map.width;
+    const cx = i % W;
+    const cy = Math.floor(i / W);
+    const sides: [number, number][] = [
+      [0, 1],
+      [0, -1],
+      [1, 0],
+      [-1, 0],
+    ];
+    for (let f = 0; f < 4; f++) {
+      const [dx, dy] = sides[f]!;
+      const x = cx + dx;
+      const y = cy + dy;
+      if (x >= 0 && y >= 0 && x < W && y < this.host.map.height && roads.has(y * W + x)) return f;
+    }
+    return -1;
+  }
+
+  /** Célula atrás da frente (do lado oposto à estrada), ou −1 fora do mapa. */
+  private behind(i: number, face: number): number {
+    const W = this.host.map.width;
+    const [dx, dy] = ([[0, -1], [0, 1], [-1, 0], [1, 0]] as const)[face]!;
+    const x = (i % W) + dx;
+    const y = Math.floor(i / W) + dy;
+    return x >= 0 && y >= 0 && x < W && y < this.host.map.height ? y * W + x : -1;
   }
 
   // ------------------------------------------------------------ energia
@@ -322,7 +379,7 @@ export class ZoneSystem {
     // zonas e lotes fora do território do dono somem (fronteira perdida)
     if (h.tick % TICK_RATE === 0) {
       for (const [i, z] of this.zones)
-        if (h.territory[i] !== z.owner && !this.lots.has(i)) {
+        if (h.territory[i] !== z.owner && !this.cover.has(i)) {
           this.zones.delete(i);
           this.version++;
         }
@@ -381,11 +438,14 @@ export class ZoneSystem {
       const seat = this.seatOf(slot, i);
       const c = seat && by.get(seat.id);
       if (!c) continue;
-      const lot = this.lots.get(i);
-      if (lot) c.lots.push([i, lot]);
-      else if (h.grid.occupant(i % W, Math.floor(i / W)) === 0) c.free[z.kind].push(i);
+      const front = this.cover.get(i);
+      if (front !== undefined) {
+        const lot = this.lots.get(front);
+        if (front === i && lot) c.lots.push([i, lot]);
+      } else if (h.grid.occupant(i % W, Math.floor(i / W)) === 0) c.free[z.kind].push(i);
     }
     let popRoom = h.popRoom(slot);
+    const ownRoads = new Set(h.roads.filter((r) => r.owner === slot).map((r) => r.i));
     const stats: CityZoneStats[] = [];
     const acc = (this.growth[slot] ??= {});
     for (const c of by.values()) {
@@ -451,17 +511,25 @@ export class ZoneSystem {
         }
         g[k] += d * d * ZONING.growthPerSecond * (ZONING.everyTicks / TICK_RATE) * (0.6 + 0.8 * lotRandom(h.tick, c.seat.id & 0xffff, 30 + ZONE_KINDS.indexOf(k)));
         if (g[k] < 1) continue;
-        const pick = Math.floor(lotRandom(h.tick, c.free[k].length, 20) * c.free[k].length);
-        const i = c.free[k][pick]!;
+        // o lote nasce encostado na rua: só células da zona coladas a uma estrada própria
+        const fronts = c.free[k].filter((x) => this.roadSide(x, ownRoads) >= 0);
+        if (!fronts.length) continue;
+        const i = fronts[Math.floor(lotRandom(h.tick, fronts.length, 20) * fronts.length)]!;
+        const pick = c.free[k].indexOf(i);
         if (h.unitOn(i)) continue;
+        const face = this.roadSide(i, ownRoads);
+        // lote fundo: a célula de trás da mesma zona, livre, vira parte do mesmo lote (construção mais comprida)
+        const b = this.behind(i, face);
+        const bz = b >= 0 ? this.zones.get(b) : undefined;
+        const deep = b >= 0 && bz?.owner === slot && bz.kind === k && !this.cover.has(b) && h.grid.occupant(b % W, Math.floor(b / W)) === 0 && !h.unitOn(b) && this.roadSide(b, ownRoads) < 0;
         // prédio privado: raro, só com muita procura e cidade grande
         const level: 1 | 2 = k === 'res' && d > 0.65 && residents >= 30 && lotRandom(h.tick, i, 3) < ZONING.apartmentChance ? 2 : 1;
         const people = k === 'res' ? ZONING.citizens[level - 1]! : 0;
         if (people > popRoom) continue; // teto nacional de população
         c.free[k].splice(pick, 1);
+        if (deep) c.free[k].splice(c.free[k].indexOf(b), 1);
         g[k] -= 1;
-        this.lots.set(i, { owner: slot, kind: k, variant: Math.floor(lotRandom(h.tick, i, 4) * ZONING.variants), level, abandoned: false, since: h.tick });
-        h.grid.setOccupied({ cx: i % W, cy: Math.floor(i / W) }, 1, LOT_OCCUPANT);
+        this.placeLot(i, { owner: slot, kind: k, variant: Math.floor(lotRandom(h.tick, i, 4) * ZONING.variants), level, abandoned: false, since: h.tick, face, ...(deep ? { back: b } : {}) });
         if (people) {
           h.moveCitizens(slot, people);
           popRoom -= people;
@@ -512,13 +580,10 @@ export class ZoneSystem {
   load(s: ZoneSave | undefined): void {
     this.zones.clear();
     this.lots.clear();
+    this.cover.clear();
     if (!s) return;
-    const W = this.host.map.width;
     for (const [i, owner, kind] of s.zones) this.zones.set(i, { owner, kind });
-    for (const [i, l] of s.lots) {
-      this.lots.set(i, { ...l });
-      this.host.grid.setOccupied({ cx: i % W, cy: Math.floor(i / W) }, 1, LOT_OCCUPANT);
-    }
+    for (const [i, l] of s.lots) this.placeLot(i, { ...l });
     this.tax = s.tax.map((t) => ({ ...t }));
     this.heat = [...s.heat];
     this.growth = (s.growth ?? []).map((g) => JSON.parse(JSON.stringify(g ?? {})) as Record<number, Record<ZoneKind, number>>);

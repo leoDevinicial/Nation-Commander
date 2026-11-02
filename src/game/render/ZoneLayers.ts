@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { accentMaterial, bodyMaterial, glassMaterial } from './materials.ts';
-import { lotModel, type LotKind } from './models/zoneLots.ts';
+import { lotBackModel, lotModel, type LotKind } from './models/zoneLots.ts';
+
+/** Giro do lote (frente +z) para o lado da rua: sul, norte, leste, oeste. */
+const FACE_ROT = [0, Math.PI, Math.PI / 2, -Math.PI / 2];
 
 const KINDS: LotKind[] = ['res', 'com', 'ind'];
 /** Cores das zonas pintadas (como no Cities: verde, azul, amarelo). */
@@ -65,7 +68,7 @@ export class ZoneOverlay {
 
 /**
  * Lotes privados (casas, prédios, lojas e indústrias): desenhados em lote (InstancedMesh por modelo, dono e camada),
- * virados para a estrada mais próxima. Abandonados ficam escuros, sem luz nas janelas e sem a cor da nação.
+ * virados para a rua em que encostam; o lote fundo ganha a parte de trás (construção mais comprida). Abandonados ficam escuros, sem luz nas janelas e sem a cor da nação.
  */
 export class LotLayer {
   readonly group = new THREE.Group();
@@ -78,33 +81,14 @@ export class LotLayer {
   constructor(
     private readonly cellSize: number,
     private readonly width: number,
-    private readonly height: number,
+    _height: number,
     private readonly heightAt: (x: number, z: number) => number,
-    private readonly isRoad: (i: number) => boolean,
   ) {
+    void _height;
     this.group.name = 'zone-lots';
   }
 
-  /** Giro que vira a frente (+z) do lote para a estrada mais próxima (sul, norte, leste ou oeste). */
-  private facing(i: number): number {
-    const W = this.width;
-    const cx = i % W;
-    const cy = Math.floor(i / W);
-    for (let d = 1; d <= 3; d++)
-      for (const [dx, dy, rot] of [
-        [0, d, 0],
-        [0, -d, Math.PI],
-        [d, 0, Math.PI / 2],
-        [-d, 0, -Math.PI / 2],
-      ] as const) {
-        const x = cx + dx;
-        const y = cy + dy;
-        if (x >= 0 && y >= 0 && x < W && y < this.height && this.isRoad(y * W + x)) return rot;
-      }
-    return 0;
-  }
-
-  /** `lots` em grupos de 7: célula, dono, setor, modelo, nível, abandonado, com luz. */
+  /** `lots` em grupos de 9: célula da frente, dono, setor, modelo, nível, abandonado, com luz, lado da rua, fundo. */
   set(lots: readonly number[]): void {
     const key = lots.join(',');
     if (key === this.key) return;
@@ -115,19 +99,22 @@ export class LotLayer {
     }
     this.meshes = [];
     // agrupa por modelo e dono; abandonado vira um grupo próprio (sem vidro aceso nem cor da nação)
-    const groups = new Map<string, { kind: LotKind; variant: number; level: number; owner: number; abandoned: boolean; cells: number[] }>();
-    for (let k = 0; k + 6 < lots.length; k += 7) {
-      const [i, owner, kind, variant, level, abandoned] = [lots[k]!, lots[k + 1]!, lots[k + 2]!, lots[k + 3]!, lots[k + 4]!, lots[k + 5]!];
-      const g = `${kind}:${variant}:${level}:${owner}:${abandoned}`;
-      let e = groups.get(g);
-      if (!e) groups.set(g, (e = { kind: KINDS[kind]!, variant, level, owner, abandoned: abandoned === 1, cells: [] }));
-      e.cells.push(i);
+    // (o lote fundo desenha também a parte de trás, no mesmo lugar e giro da frente)
+    const groups = new Map<string, { kind: LotKind; variant: number; level: number; owner: number; abandoned: boolean; back: boolean; cells: [number, number][] }>();
+    for (let k = 0; k + 8 < lots.length; k += 9) {
+      const [i, owner, kind, variant, level, abandoned, , face, back] = lots.slice(k, k + 9) as number[];
+      for (const part of back! >= 0 ? [false, true] : [false]) {
+        const g = `${kind}:${variant}:${level}:${owner}:${abandoned}:${part}`;
+        let e = groups.get(g);
+        if (!e) groups.set(g, (e = { kind: KINDS[kind!]!, variant: variant!, level: level!, owner: owner!, abandoned: abandoned === 1, back: part, cells: [] }));
+        e.cells.push([i!, face!]);
+      }
     }
     const cs = this.cellSize;
     const scale = new THREE.Vector3(cs / 2, cs / 2, cs / 2);
     const pos = new THREE.Vector3();
     for (const e of groups.values()) {
-      const model = lotModel(e.kind, e.variant, e.level);
+      const model = e.back ? lotBackModel(e.kind, e.variant, e.level) : lotModel(e.kind, e.variant, e.level);
       const parts: [THREE.BufferGeometry, THREE.Material][] = [[model.body, bodyMaterial()]];
       if (!e.abandoned) parts.push([model.accent, accentMaterial(e.owner)], [model.glass, glassMaterial()]);
       for (const [geo, mat] of parts) {
@@ -135,11 +122,11 @@ export class LotLayer {
         const im = new THREE.InstancedMesh(geo, mat, e.cells.length);
         im.castShadow = true;
         im.receiveShadow = true;
-        e.cells.forEach((i, n) => {
+        e.cells.forEach(([i, face], n) => {
           const x = ((i % this.width) + 0.5) * cs;
           const z = (Math.floor(i / this.width) + 0.5) * cs;
           pos.set(x, this.heightAt(x, z), z);
-          this.q.setFromAxisAngle(this.up, this.facing(i));
+          this.q.setFromAxisAngle(this.up, FACE_ROT[face] ?? 0);
           this.m.compose(pos, this.q, scale);
           im.setMatrixAt(n, this.m);
           if (e.abandoned) im.setColorAt(n, new THREE.Color(0.42, 0.4, 0.38));

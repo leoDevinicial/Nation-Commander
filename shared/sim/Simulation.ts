@@ -1949,7 +1949,7 @@ export class Simulation {
         deposits: this.deposits,
         builtRoads: this.builtRoads,
         cityName: (seat) => this.cityName(seat as Building) ?? null,
-        lots: this.zones.lots,
+        lots: this.zones.cover,
       },
       slot,
       type,

@@ -404,7 +404,7 @@ export class GameRuntime {
     this.scene.add(this.roadLayer.mesh);
     this.zoneOverlay = new ZoneOverlay(this.map.cellSize, this.map.width, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.zoneOverlay.mesh);
-    this.lotLayer = new LotLayer(this.map.cellSize, this.map.width, this.map.height, (x, z) => this.groundHeight(x, z) + 0.04, (i) => this.map.terrain[i] === T.Road);
+    this.lotLayer = new LotLayer(this.map.cellSize, this.map.width, this.map.height, (x, z) => this.groundHeight(x, z) + 0.04);
     this.scene.add(this.lotLayer.group);
     this.citizens = new CitizenLayer(this.map, this.mySlot, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.citizens.group);
@@ -828,9 +828,12 @@ export class GameRuntime {
     if (!z) return;
     this.lotCells.clear();
     this.myLotCells.clear();
-    for (let k = 0; k + 6 < z.lots.length; k += 7) {
-      this.lotCells.add(z.lots[k]!);
-      if (z.lots[k + 1] === this.mySlot) this.myLotCells.add(z.lots[k]!);
+    for (let k = 0; k + 8 < z.lots.length; k += 9) {
+      const cells = z.lots[k + 8]! >= 0 ? [z.lots[k]!, z.lots[k + 8]!] : [z.lots[k]!];
+      for (const c of cells) {
+        this.lotCells.add(c);
+        if (z.lots[k + 1] === this.mySlot) this.myLotCells.add(c);
+      }
     }
     this.myZones.clear();
     for (let k = 0; k + 1 < z.zones.length; k += 2) this.myZones.set(z.zones[k]!, z.zones[k + 1]!);

@@ -95,6 +95,34 @@ describe('zoneamento', () => {
     }
   });
 
+  it('todo lote encosta na rua; com duas fileiras zoneadas, vira lote fundo (frente e trás, mesma construção)', () => {
+    const { s, W, road, below } = setup({ approval: 90, growth: 6 });
+    develop(s);
+    const roads = new Set(road);
+    const second = below.map((i) => i + W).filter((i) => s.grid.occupant(i % W, Math.floor(i / W)) === 0);
+    s.applyCommand(0, { type: 'zone_tax', kind: 'com', pct: 0 });
+    s.applyCommand(0, { type: 'zone_paint', cells: [...below, ...second], kind: 'com' });
+    run(s, ZONING.everyTicks * 150);
+    const lots = [...s.zones.lots];
+    expect(lots.length).toBeGreaterThan(0);
+    for (const [i, l] of lots) {
+      // a frente encosta numa estrada (norte, já que a rua fica acima)
+      expect([i - W, i + W, i - 1, i + 1].some((j) => roads.has(j))).toBe(true);
+      if (l.back !== undefined) {
+        expect(l.back).toBe(i + W);
+        expect(s.grid.occupant(l.back % W, Math.floor(l.back / W))).toBe(LOT_OCCUPANT);
+      }
+    }
+    expect(lots.some(([, l]) => l.back !== undefined)).toBe(true);
+    // nenhum lote só na fileira de trás
+    for (const i of second) if (s.zones.cover.has(i)) expect(s.zones.cover.get(i)).toBe(i - W);
+    // demolir pela célula de trás derruba o lote inteiro
+    const deep = lots.find(([, l]) => l.back !== undefined)!;
+    expect(s.applyCommand(0, { type: 'zone_demolish', cells: [deep[1].back!] })).toBeNull();
+    expect(s.zones.cover.has(deep[0])).toBe(false);
+    expect(s.zones.cover.has(deep[1].back!)).toBe(false);
+  });
+
   it('casa privada traz 1 cidadão e 1 vaga; prédio, 5; demolir leva embora', () => {
     const { s, W, below } = setup({ approval: 90, growth: 6 });
     develop(s);
@@ -137,7 +165,7 @@ describe('zoneamento', () => {
     s.applyCommand(0, { type: 'zone_paint', cells: below, kind: 'com' });
     // força alguns lotes já existentes
     for (const i of below.slice(0, 5)) {
-      s.zones.lots.set(i, { owner: 0, kind: 'com', variant: 0, level: 1, abandoned: false, since: 0 });
+      (s.zones as unknown as { placeLot: (i: number, l: object) => void }).placeLot(i, { owner: 0, kind: 'com', variant: 0, level: 1, abandoned: false, since: 0 });
       s.grid.setOccupied({ cx: i % W, cy: Math.floor(i / W) }, 1, LOT_OCCUPANT);
     }
     s.applyCommand(0, { type: 'zone_tax', kind: 'com', pct: 30 });
@@ -175,12 +203,12 @@ describe('zoneamento', () => {
     const { s, W, below } = setup();
     s.applyCommand(0, { type: 'zone_paint', cells: below, kind: 'res' });
     const i = below[2]!;
-    s.zones.lots.set(i, { owner: 0, kind: 'res', variant: 1, level: 1, abandoned: false, since: 0 });
+    (s.zones as unknown as { placeLot: (i: number, l: object) => void }).placeLot(i, { owner: 0, kind: 'res', variant: 1, level: 1, abandoned: false, since: 0 });
     s.grid.setOccupied({ cx: i % W, cy: Math.floor(i / W) }, 1, LOT_OCCUPANT);
     run(s, 2);
     const mine = makeSnapshot(s, [], { slot: 0, memory: new FogMemory() }).zoning!;
     expect(mine.zones.length).toBe(below.length * 2);
-    expect(mine.lots.length).toBe(7);
+    expect(mine.lots.length).toBe(9);
     const theirs = makeSnapshot(s, [], { slot: 1, memory: new FogMemory() }).zoning!;
     expect(theirs.zones.length).toBe(0);
     expect(theirs.lots.length).toBe(0); // o rival não enxerga a base do jogador 0
@@ -199,7 +227,7 @@ describe('zoneamento', () => {
     const { s, W, below } = setup();
     s.applyCommand(0, { type: 'zone_paint', cells: below, kind: 'res' });
     for (const i of below.slice(0, 4)) {
-      s.zones.lots.set(i, { owner: 0, kind: 'res', variant: 0, level: 1, abandoned: false, since: 0 });
+      (s.zones as unknown as { placeLot: (i: number, l: object) => void }).placeLot(i, { owner: 0, kind: 'res', variant: 0, level: 1, abandoned: false, since: 0 });
       s.grid.setOccupied({ cx: i % W, cy: Math.floor(i / W) }, 1, LOT_OCCUPANT);
     }
     expect(s.zones.powerNodes(0).reduce((a, n) => a + n.use, 0)).toBeCloseTo(4 * ZONING.lotPower);
