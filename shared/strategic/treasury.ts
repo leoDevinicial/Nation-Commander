@@ -1,4 +1,5 @@
 import type { ResourceType } from '../sim/config.ts';
+import type { ZoneKind } from '../sim/zoning.ts';
 
 /**
  * Caixa do país no teatro (01/11, pedido do usuário: "não sei quanto estou ganhando ou perdendo de dinheiro e de onde
@@ -28,8 +29,10 @@ export const TREASURY = {
   /** Manutenção por construção pronta (por célula de área) e por célula de estrada. */
   buildingPerCell: 400,
   road: 600,
-  /** Serviços públicos: por Hospital, Escola, Delegacia e Prefeitura. */
-  service: 20_000,
+  /** Serviços públicos: por Hospital, Escola, Universidade, Delegacia e Prefeitura (02/11: mais caros). */
+  service: 30_000,
+  /** Zoneamento (02/11): imposto por lote ativo e por dia com a alíquota de 10% (escala com a alíquota). */
+  lotTax: { res: 1_800, com: 4_500, ind: 7_500 } as Record<ZoneKind, number>,
 } as const;
 
 export interface TreasuryInputs {
@@ -44,6 +47,8 @@ export interface TreasuryInputs {
   buildingCells: number;
   roads: number;
   services: number;
+  /** Zoneamento: lotes ativos por setor (prédio conta 3) e alíquotas (%). */
+  zoning?: { base: Record<ZoneKind, number>; tax: Record<ZoneKind, number> };
 }
 
 export interface TreasuryLine {
@@ -71,6 +76,15 @@ export function treasuryDay(
     { key: 'productivity', label: 'Produtividade (infraestrutura e educação)', usd: production * ctx.productivity },
     { key: 'trade', label: 'Exportações e acordos comerciais', usd: ctx.exportsUsd * TREASURY.exportShare + ctx.transferUsd * TREASURY.tradePactShare * Math.max(0, ctx.tradeGrowthPct) },
   ];
+  // impostos do zoneamento: um por setor, só quando há lotes
+  const z = inputs?.zoning;
+  if (z)
+    for (const [kind, label] of [
+      ['res', 'Imposto residencial'],
+      ['com', 'Imposto comercial'],
+      ['ind', 'Imposto industrial'],
+    ] as const)
+      if (z.base[kind] > 0) income.push({ key: `tax_${kind}`, label: `${label} (${z.tax[kind]}%)`, usd: z.base[kind] * TREASURY.lotTax[kind] * (z.tax[kind] / 10) * k });
   const expense: TreasuryLine[] = inputs
     ? [
         { key: 'army', label: 'Manutenção do exército', usd: (inputs.infantry * TREASURY.infantry + inputs.vehicles * TREASURY.vehicle + inputs.aircraft * TREASURY.aircraft) * k },

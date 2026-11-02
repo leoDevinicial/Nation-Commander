@@ -480,6 +480,7 @@ Proposta registrada a partir do feedback da versão 1.0. **Implementada** em 31/
 | Caixa do país (01/11): a verba de obras vira caixa sem teto com receitas (repasse, produção, produtividade, comércio) e despesas (exército, energia, construções, estradas, serviços) por dia; extrato na barra | Feito | `docs/CAIXA_DO_PAIS.md` |
 | Depósitos 3× maiores e no máximo 2 extrações por lugar (floresta; montanha = rocha + minério ligados) (02/11) | Feito | `docs/RECALIBRAGEM_RECURSOS.md` §7 |
 | Conhecimento e cidades (02/11): escola e universidade (1 por cidade) formam conhecimento; pesquisas custam US$ + conhecimento; era 3 libera Floresta de Eucalipto, Forno de Carvão Vegetal e Mina Subterrânea (1 por cidade) | Feito | `docs/CONHECIMENTO_E_CIDADES.md` |
+| Zoneamento (02/11): zonas residencial, comercial e industrial junto às estradas; lotes privados crescem pela demanda de cada cidade, pagam imposto por setor e gastam energia; abandono e demolição; 14 modelos | Feito | `docs/ZONEAMENTO.md` |
 | Mercado interno no Terminal Comercial (excedente → suprimentos, preço com pressão que se recupera; IA vende a sobra) | Feito | `docs/MERCADO_INTERNO.md`, `shared/sim/market.ts` |
 | Lote 1, §2.6 — incidentes de fronteira no preparo | Feito | `Simulation.startIncident`, `TacticalAI.planHarass` |
 | Lote 1, §2.7 — curva de defesa (raiz com saturação suave) | Feito | `theaterSupply` em `shared/strategic/params.ts` |

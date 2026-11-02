@@ -32,6 +32,8 @@ import { Terrain as T } from '../../shared/sim/config.ts';
 import { MineLayer } from './render/MineLayer.ts';
 import { RoadPreview } from './render/RoadPreview.ts';
 import { RoadLayer } from './render/RoadLayer.ts';
+import { LotLayer, ZoneOverlay } from './render/ZoneLayers.ts';
+import { ZONING, type ZoneKind } from '../../shared/sim/zoning.ts';
 import { TerritoryLayer } from './render/TerritoryLayer.ts';
 import { createSky, environmentFromSky, SKY } from './render/Sky.ts';
 import { cloudShadowTexture, disposeTextures, grimeTexture, windowTexture } from './render/textures.ts';
@@ -65,7 +67,7 @@ import { buildReport } from './perf/report.ts';
 import { GpuTimer } from './perf/gpuTimer.ts';
 import { isPreset, localAdvisorStore, recordSession } from './perf/advisor.ts';
 import type { ExplosionSmoke } from './render/Effects.ts';
-import type { PerfHud, TouchTool } from '../state/useHudStore.ts';
+import type { PerfHud, TouchTool, ZoneBrush } from '../state/useHudStore.ts';
 import { effectiveFund, effectiveStability, effectiveTechs, effectiveEra } from '../state/sandbox.ts';
 
 type SnapshotMsg = Extract<ServerMessage, { t: 'snapshot' }>;
@@ -227,6 +229,12 @@ export class GameRuntime {
   private mineLayer!: MineLayer;
   private roadPreview!: RoadPreview;
   private roadLayer!: RoadLayer;
+  /** Zoneamento (02/11): zonas pintadas (só as próprias) e lotes privados à vista. */
+  private zoneOverlay!: ZoneOverlay;
+  private lotLayer!: LotLayer;
+  private readonly lotCells = new Set<number>();
+  private readonly myLotCells = new Set<number>();
+  private readonly myZones = new Map<number, number>();
   private readonly rocketLayer: RocketLayer;
   /** Interceptadores do Domo de Ferro. */
   private readonly domeLayer: DomeLayer;
@@ -394,6 +402,10 @@ export class GameRuntime {
     const terrainSub = this.opts.profile.cinematic ? 4 : this.opts.profile.terrain === 'high' ? 2 : 1;
     this.roadLayer = new RoadLayer(this.map.cellSize, this.map.width, this.map.height, (x, z) => this.groundHeight(x, z), terrainSub);
     this.scene.add(this.roadLayer.mesh);
+    this.zoneOverlay = new ZoneOverlay(this.map.cellSize, this.map.width, (x, z) => this.groundHeight(x, z));
+    this.scene.add(this.zoneOverlay.mesh);
+    this.lotLayer = new LotLayer(this.map.cellSize, this.map.width, this.map.height, (x, z) => this.groundHeight(x, z) + 0.04, (i) => this.map.terrain[i] === T.Road);
+    this.scene.add(this.lotLayer.group);
     this.citizens = new CitizenLayer(this.map, this.mySlot, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.citizens.group);
     this.scene.add(this.cargo.group);
@@ -656,6 +668,7 @@ export class GameRuntime {
     if (prevTick !== undefined && s.tick > prevTick) this.snapshotInterval = Math.min(400, (s.tick - prevTick) * this.tickMs);
     this.snapshot = s;
     this.markDepleted(s.depleted);
+    this.applyZoning(s.zoning);
     this.simSeconds = s.tick / TICK_RATE;
     if (Math.abs(this.clockSeconds - this.simSeconds) > 3) this.clockSeconds = this.simSeconds;
     this.mineLayer.update(s.mines ?? []);
@@ -810,6 +823,142 @@ export class GameRuntime {
   /** Estradas construídas pelos jogadores já pintadas no solo. */
   private readonly roadCells = new Set<number>();
 
+  /** Zoneamento do snapshot: lotes à vista, zonas próprias e o que o painel mostra (impostos e cidades). */
+  private applyZoning(z: Snapshot['zoning']): void {
+    if (!z) return;
+    this.lotCells.clear();
+    this.myLotCells.clear();
+    for (let k = 0; k + 6 < z.lots.length; k += 7) {
+      this.lotCells.add(z.lots[k]!);
+      if (z.lots[k + 1] === this.mySlot) this.myLotCells.add(z.lots[k]!);
+    }
+    this.myZones.clear();
+    for (let k = 0; k + 1 < z.zones.length; k += 2) this.myZones.set(z.zones[k]!, z.zones[k + 1]!);
+    this.lotLayer.set(z.lots);
+    this.zoneOverlay.set(z.zones, (i) => this.lotCells.has(i));
+    if (this.hudActive) {
+      const prev = useHudStore.getState().zoning;
+      const next = { tax: z.tax, cities: z.cities };
+      if (JSON.stringify(prev) !== JSON.stringify(next)) useHudStore.getState().set({ zoning: next });
+    }
+  }
+
+  // ------------------------------------------------------------ ferramenta de zoneamento
+
+  /** Arrasto em andamento da ferramenta de zoneamento (retângulo de células). */
+  private zoneStroke: { start: { cx: number; cy: number }; end: { cx: number; cy: number } } | null = null;
+
+  /** Abre a ferramenta de zoneamento com o pincel escolhido (setor, apagar ou demolir lote). */
+  startZone(brush: ZoneBrush): void {
+    this.zoneStroke = null;
+    this.roadPreview.set([]);
+    this.zoneOverlay.setStrong(true);
+    this.setMode({ kind: 'zone', brush, cells: 0, bad: 0, reason: null });
+    if (matchMedia('(pointer: coarse)').matches) this.setTouchTool('box');
+  }
+
+  /** Por que a célula não aceita o pincel (o que o cliente consegue conferir), ou null. */
+  private zoneCellProblem(i: number, brush: ZoneBrush, occupied: Set<number>): string | null {
+    if (brush === 'demolish') return this.myLotCells.has(i) ? null : 'Nenhum lote seu aqui';
+    if (brush === 'erase') return this.myZones.has(i) && !this.lotCells.has(i) ? null : 'Nenhuma zona sua (sem lote) aqui';
+    const kind = ['res', 'com', 'ind'].indexOf(brush);
+    if (this.myZones.get(i) === kind && !this.lotCells.has(i)) return 'Já é dessa zona';
+    if (this.lotCells.has(i)) return 'Há um lote no lugar: demolir antes de mudar a zona';
+    if (this.territory[i] !== this.mySlot) return 'Fora do seu território';
+    const t = this.map.terrain[i];
+    if (t !== T.Plains && t !== T.Fertile) return 'Zonas só em planície ou solo fértil';
+    if (occupied.has(i)) return 'Há uma construção no lugar';
+    const W = this.map.width;
+    const cx = i % W;
+    const cy = Math.floor(i / W);
+    const R = ZONING.reach;
+    for (let dy = -R; dy <= R; dy++)
+      for (let dx = -R; dx <= R; dx++) {
+        const j = (cy + dy) * W + cx + dx;
+        if (cx + dx >= 0 && cx + dx < W && this.roadCells.has(j) && this.territory[j] === this.mySlot) return null;
+      }
+    return `Zonas ficam a até ${R} células de uma estrada sua`;
+  }
+
+  /** Células do retângulo do arrasto (ou só a célula sob o ponteiro), avaliadas para o pincel atual. */
+  private evaluateZone(): { ok: number[]; bad: number; reason: string | null } {
+    if (this.mode.kind !== 'zone' || !this.zoneStroke) {
+      this.roadPreview.set([]);
+      return { ok: [], bad: 0, reason: null };
+    }
+    const brush = this.mode.brush;
+    const W = this.map.width;
+    const occupied = new Set<number>();
+    for (const { snap: b } of this.buildings.values()) {
+      const size = BUILDINGS[b.type].size;
+      for (let dy = 0; dy < size; dy++) for (let dx = 0; dx < size; dx++) occupied.add((b.cy + dy) * W + b.cx + dx);
+    }
+    for (const i of this.roadCells) occupied.add(i);
+    const { start: a, end: b } = this.zoneStroke;
+    const preview: { cx: number; cy: number; state: 'ok' | 'road' | 'bad' | 'hover' }[] = [];
+    const ok: number[] = [];
+    let bad = 0;
+    let reason: string | null = null;
+    for (let cy = Math.min(a.cy, b.cy); cy <= Math.max(a.cy, b.cy); cy++)
+      for (let cx = Math.min(a.cx, b.cx); cx <= Math.max(a.cx, b.cx); cx++) {
+        const i = cy * W + cx;
+        const problem = ok.length >= ZONING.maxCellsPerCommand ? `Até ${ZONING.maxCellsPerCommand} células por vez` : this.zoneCellProblem(i, brush, occupied);
+        if (problem) {
+          bad++;
+          reason ??= problem;
+          preview.push({ cx, cy, state: 'bad' });
+        } else {
+          ok.push(i);
+          preview.push({ cx, cy, state: 'ok' });
+        }
+      }
+    this.roadPreview.set(preview);
+    return { ok, bad, reason };
+  }
+
+  private refreshZone(): { ok: number[] } {
+    const { ok, bad, reason } = this.evaluateZone();
+    if (this.mode.kind === 'zone') {
+      const m = this.mode;
+      if (m.cells !== ok.length || m.bad !== bad || m.reason !== reason) this.setMode({ ...m, cells: ok.length, bad, reason });
+    }
+    return { ok };
+  }
+
+  private zoneDown(c: { cx: number; cy: number } | null): void {
+    if (!c) return;
+    this.zoneStroke = { start: c, end: c };
+    this.refreshZone();
+  }
+
+  private zoneMove(c: { cx: number; cy: number } | null): void {
+    if (!this.zoneStroke || !c) return;
+    this.zoneStroke.end = c;
+    this.refreshZone();
+  }
+
+  /** Solta o arrasto: manda a pintura (ou demolição) das células válidas. */
+  private zoneUp(): void {
+    if (this.mode.kind !== 'zone') return;
+    const brush = this.mode.brush;
+    const { ok } = this.refreshZone();
+    const reason = this.mode.reason;
+    this.zoneStroke = null;
+    this.roadPreview.set([]);
+    if (!ok.length) {
+      if (reason) useHudStore.getState().pushEvent({ tick: this.snapshot?.tick ?? 0, text: `Zoneamento: ${reason}`, tone: 'warn' });
+      return;
+    }
+    if (brush === 'demolish') this.send({ type: 'zone_demolish', cells: ok });
+    else this.send({ type: 'zone_paint', cells: ok, kind: brush === 'erase' ? null : (brush as ZoneKind) });
+    this.setMode({ ...this.mode, cells: 0, bad: 0, reason: null });
+  }
+
+  /** Imposto do setor (0 a 30%). */
+  setZoneTax(kind: ZoneKind, pct: number): void {
+    this.send({ type: 'zone_tax', kind, pct: Math.max(0, Math.min(ZONING.taxMax, Math.round(pct))) });
+  }
+
   /** Estradas novas (vêm junto com o território): terreno local, solo e vegetação por cima. */
   private applyRoads(cells: readonly number[]): void {
     const fresh = cells.filter((i) => !this.roadCells.has(i));
@@ -826,7 +975,7 @@ export class GameRuntime {
 
   /** Árvores, arbustos e pedras decorativos somem sob as construções (e voltam quando elas caem). */
   private clearDecorUnderBuildings(): void {
-    const key = `${[...this.buildings.keys()].join(',')}|${this.roadCells.size}`;
+    const key = `${[...this.buildings.keys()].join(',')}|${this.roadCells.size}|${this.lotCells.size}`;
     if (key === this.decorKey) return;
     this.decorKey = key;
     const cs = this.map.cellSize;
@@ -834,7 +983,7 @@ export class GameRuntime {
       const size = BUILDINGS[b.type].size;
       return { x0: b.cx * cs, z0: b.cy * cs, x1: (b.cx + size) * cs, z1: (b.cy + size) * cs };
     });
-    for (const i of this.roadCells) {
+    for (const i of [...this.roadCells, ...this.lotCells]) {
       const cx = i % this.map.width;
       const cy = Math.floor(i / this.map.width);
       rects.push({ x0: cx * cs, z0: cy * cs, x1: (cx + 1) * cs, z1: (cy + 1) * cs });
@@ -2770,6 +2919,8 @@ export class GameRuntime {
   }
 
   cancelMode(): void {
+    this.zoneStroke = null;
+    this.zoneOverlay.setStrong(false);
     this.roadPending.clear();
     this.roadStroke = null;
     this.roadHover = null;
@@ -3344,6 +3495,10 @@ export class GameRuntime {
       this.roadDown(this.cellAtScreen(e.clientX, e.clientY));
       return;
     }
+    if (this.mode.kind === 'zone') {
+      this.zoneDown(this.cellAtScreen(e.clientX, e.clientY));
+      return;
+    }
     this.drag = { x: e.clientX, y: e.clientY, active: false, button: 0 };
   }
 
@@ -3385,6 +3540,7 @@ export class GameRuntime {
     this.ghostAt = { x: e.clientX, y: e.clientY };
     if (this.mode.kind === 'place') this.updateGhost();
     if (this.mode.kind === 'road') this.roadMove(this.cellAtScreen(e.clientX, e.clientY));
+    if (this.mode.kind === 'zone') this.zoneMove(this.cellAtScreen(e.clientX, e.clientY));
   }
 
   private onPointerUp(e: PointerEvent): void {
@@ -3402,6 +3558,10 @@ export class GameRuntime {
     }
     if (this.mode.kind === 'road' && e.button === 0 && this.roadStroke) {
       this.roadUp();
+      return;
+    }
+    if (this.mode.kind === 'zone' && e.button === 0 && this.zoneStroke) {
+      this.zoneUp();
       return;
     }
     const d = this.drag;
@@ -3454,6 +3614,13 @@ export class GameRuntime {
       this.roadTap(this.cellAtScreen(x, y));
       return;
     }
+    if (this.mode.kind === 'zone') {
+      // toque pinta uma célula; arrastar (um dedo) pinta um retângulo
+      const c = this.cellAtScreen(x, y);
+      this.zoneDown(c);
+      this.zoneUp();
+      return;
+    }
     if (this.touchTool === 'order') {
       this.orderAt(x, y);
       this.setTouchTool('select');
@@ -3468,6 +3635,14 @@ export class GameRuntime {
   }
 
   private onTouchBox(x0: number, y0: number, x1: number, y1: number, done: boolean): void {
+    if (this.mode.kind === 'zone') {
+      const a = this.cellAtScreen(x0, y0);
+      const c = this.cellAtScreen(x1, y1);
+      if (!this.zoneStroke) this.zoneDown(a);
+      this.zoneMove(c);
+      if (done) this.zoneUp();
+      return;
+    }
     const b = this.selectionBox;
     if (done) {
       b.style.display = 'none';
@@ -3760,6 +3935,7 @@ export class GameRuntime {
         deposits: this.deposits,
         builtRoads: this.roadCells,
         cityName: (seat) => s.buildings.find((b) => b.type === seat.type && b.cx === seat.cell.cx && b.cy === seat.cell.cy)?.city ?? null,
+        lots: this.lotCells,
       },
       this.mySlot,
       type,
@@ -3917,6 +4093,8 @@ export class GameRuntime {
       this.mineLayer.dispose();
       this.roadPreview.dispose();
       this.roadLayer.dispose();
+      this.zoneOverlay.dispose();
+      this.lotLayer.dispose();
       this.fogTexture.dispose();
       this.renderer.dispose();
       this.renderer.forceContextLoss();
@@ -3958,6 +4136,8 @@ export class GameRuntime {
     this.mineLayer.dispose();
     this.roadPreview.dispose();
     this.roadLayer.dispose();
+    this.zoneOverlay.dispose();
+    this.lotLayer.dispose();
     this.fogTexture.dispose();
     fogUniforms.uFogMap.value = null;
     cloudUniforms.uCloudMap.value = null;

@@ -39,7 +39,8 @@ import type { BuildingStatus } from '../../../shared/sim/types.ts';
 import { CostLabel, ResourceIcon } from '../components/Resources.tsx';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { factionColor } from '../../game/render/palette.ts';
-import { useHudStore } from '../../state/useHudStore.ts';
+import { useHudStore, type ZoneBrush } from '../../state/useHudStore.ts';
+import { ZONING, type ZoneKind } from '../../../shared/sim/zoning.ts';
 import { CardButton } from './CardButton.tsx';
 import { AirbaseButtons, AirbaseInfo, DomeInfo, HoldToConfirm, SiloButtons, SiloInfo, airTargetText } from './AirPanels.tsx';
 import { useNationalStore } from '../../state/useNationalStore.ts';
@@ -190,6 +191,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             />
           )}
           {mode.kind === 'road' && <RoadHint mode={mode} touch={touch} worksCap={worksCap} stone={resources.stone} />}
+          {mode.kind === 'zone' && <ZoneInfo mode={mode} touch={touch} runtime={runtime} />}
           {mode.kind === 'attack_move' && <ModeHint title="Avançar atacando" text={`${touch ? 'Toque' : 'Clique'} no destino. As unidades atacam o que encontrarem pelo caminho.`} />}
           {mode.kind === 'normal' && units.length > 0 && <UnitsInfo units={units} />}
           {mode.kind === 'normal' && units.length === 0 && building && <BuildingInfo b={building} runtime={runtime} />}
@@ -266,6 +268,17 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             <CardButton icon="⌫" label="Limpar" disabled={mode.marked === 0} onClick={() => runtime.clearRoad()} title="Desmarca todas as células sem sair da ferramenta" />
           </>
         )}
+        {mode.kind === 'zone' &&
+          ZONE_BRUSHES.map((z) => (
+            <CardButton
+              key={z.id}
+              icon={z.icon}
+              label={z.label}
+              badge={mode.brush === z.id ? '●' : undefined}
+              onClick={() => runtime.startZone(z.id)}
+              title={z.title}
+            />
+          ))}
         {mode.kind !== 'normal' && <CardButton icon="✖" hotkey="Esc" label="Cancelar" onClick={() => runtime.cancelMode()} title="Cancelar (Esc)" />}
         {command && mode.kind === 'normal' && runtime.battleOp === null && (
           <div className="flex shrink-0 flex-col gap-1 sm:col-span-4 sm:flex-row [@media(max-height:520px)]:col-span-4 [@media(max-height:520px)]:flex-row" role="tablist" aria-label="Categorias de construção">
@@ -300,6 +313,14 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             label="Estrada"
             onClick={() => runtime.startRoad()}
             title={`Estrada: arraste na grade para pavimentar até ${ROAD.maxCells} células por vez, dentro do território (fora dele, só com um Engenheiro de Combate por perto).\nCusto: ${ROAD.stonePerCell} de pedra por célula e verba de obras; manutenção pequena em suprimentos.\nTropas e comboios andam ${Math.round((ROAD.convoyMul - 1) * 100)}% mais rápido; moradias ligadas à estrada dão aprovação (bairro pavimentado).`}
+          />
+        )}
+        {command && mode.kind === 'normal' && runtime.battleOp === null && buildTab === 'civic' && (
+          <CardButton
+            icon="▦"
+            label="Zoneamento"
+            onClick={() => runtime.startZone('res')}
+            title={`Zoneamento: pinte células a até ${ZONING.reach} das suas estradas como residenciais, comerciais ou industriais. Nada é construído na hora: casas, lojas e indústrias privadas aparecem aos poucos conforme a demanda de cada cidade, pagam imposto ao caixa do país e gastam ${String(ZONING.lotPower).replace('.', ',')} de energia cada.`}
           />
         )}
         {command &&
@@ -351,6 +372,77 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
         {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'missile_silo' && <SiloButtons runtime={runtime} b={building} />}
         {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'space_center' && <SpaceButtons runtime={runtime} b={building} />}
       </div>
+    </div>
+  );
+}
+
+const ZONE_BRUSHES: { id: ZoneBrush; icon: string; label: string; title: string }[] = [
+  { id: 'res', icon: '🏠', label: 'Residencial', title: 'Casas e, com muita procura, prédios. Crescem com emprego por perto, serviços, luz e imposto baixo.' },
+  { id: 'com', icon: '🏪', label: 'Comercial', title: 'Lojas, postos e escritórios. Crescem com moradores, indústrias e imposto baixo.' },
+  { id: 'ind', icon: '🏭', label: 'Industrial', title: 'Indústrias privadas. Vêm com economia boa, aprovação alta e imposto industrial baixo.' },
+  { id: 'erase', icon: '⌫', label: 'Apagar', title: 'Tira a zona das células sem lote.' },
+  { id: 'demolish', icon: '🧨', label: 'Demolir', title: 'Demole lotes seus (os abandonados precisam ser demolidos para a zona voltar a crescer).' },
+];
+
+/** Ferramenta de zoneamento: como usar, impostos por setor e a demanda de cada cidade (barras R, C e I). */
+function ZoneInfo({ mode, touch, runtime }: { mode: Extract<ReturnType<typeof useHudStore.getState>['mode'], { kind: 'zone' }>; touch: boolean; runtime: GameRuntime }) {
+  const zoning = useHudStore((s) => s.zoning);
+  const brush = ZONE_BRUSHES.find((z) => z.id === mode.brush)!;
+  const how = touch ? 'Toque numa célula ou arraste um dedo para pintar um retângulo.' : 'Clique numa célula ou clique e arraste para pintar um retângulo. Esc sai da ferramenta.';
+  const kinds: { k: ZoneKind; label: string; color: string }[] = [
+    { k: 'res', label: 'R', color: '#5fc46a' },
+    { k: 'com', label: 'C', color: '#4f8fe0' },
+    { k: 'ind', label: 'I', color: '#e0b43c' },
+  ];
+  return (
+    <div className="text-xs">
+      <ModeHint title={`Zoneamento · ${brush.icon} ${brush.label}`} text={`${brush.title} ${how}`} bad={false} />
+      {mode.bad > 0 && mode.reason && <div className="mt-1 text-signal-red">{mode.reason}</div>}
+      {zoning && (
+        <>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="text-ink-400">Imposto:</span>
+            {kinds.map(({ k, label, color }) => (
+              <span key={k} className="flex items-center gap-1">
+                <span className="font-semibold" style={{ color }}>
+                  {label}
+                </span>
+                <button className="btn min-h-6 px-1.5 py-0 text-[11px]" aria-label={`Menos imposto ${label}`} disabled={zoning.tax[k] <= 0} onClick={() => runtime.setZoneTax(k, zoning.tax[k] - 1)}>
+                  −
+                </button>
+                <span className="w-7 text-center font-mono text-ink-100">{zoning.tax[k]}%</span>
+                <button className="btn min-h-6 px-1.5 py-0 text-[11px]" aria-label={`Mais imposto ${label}`} disabled={zoning.tax[k] >= ZONING.taxMax} onClick={() => runtime.setZoneTax(k, zoning.tax[k] + 1)}>
+                  +
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="mt-1.5 max-h-28 space-y-1 overflow-y-auto">
+            {zoning.cities.map((c) => (
+              <div key={c.seat} className="flex items-center gap-2">
+                <span className="w-24 truncate text-ink-200" title={`${c.name}: ${c.residents} moradores, ${c.jobs} empregos, ${c.lots.res + c.lots.com + c.lots.ind} lotes${c.abandoned ? `, ${c.abandoned} abandonados` : ''}`}>
+                  {c.name}
+                </span>
+                {kinds.map(({ k, label, color }) => (
+                  <span key={k} className="flex items-center gap-0.5" title={`Demanda ${label}: ${Math.round(c.demand[k] * 100)}% · ${c.lots[k]} lotes de ${c.zoned[k]} células`}>
+                    <span style={{ color }}>{label}</span>
+                    <span className="relative h-2 w-8 overflow-hidden rounded bg-ink-800">
+                      <span className="absolute inset-y-0 left-0" style={{ width: `${Math.max(0, c.demand[k]) * 100}%`, background: color }} />
+                      {c.demand[k] < 0 && <span className="absolute inset-y-0 right-0 bg-signal-red/70" style={{ width: `${-c.demand[k] * 100}%` }} />}
+                    </span>
+                  </span>
+                ))}
+                <span className="text-[10px] text-ink-400" title="Delegacia · escola/universidade · hospital na cidade">
+                  {c.services.police ? '👮' : '·'}
+                  {c.services.school ? '🎓' : '·'}
+                  {c.services.hospital ? '🏥' : '·'}
+                </span>
+                {c.abandoned > 0 && <span className="text-[10px] text-signal-red">{c.abandoned} abandonado(s)</span>}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

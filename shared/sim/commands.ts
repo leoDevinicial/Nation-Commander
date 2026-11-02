@@ -5,6 +5,10 @@ import { isModId, type ModId } from './modernization.ts';
 import { isAircraftType, type AircraftType, type MissionKind } from './air.ts';
 import { TRADE_RESOURCES, TRANSPORT_MODES, type TradeResource, type TransportMode } from './trade.ts';
 import { isMarketResource, type MarketResource } from './market.ts';
+import { isZoneKind, ZONING, type ZoneKind } from './zoning.ts';
+
+/** Lista de células (índices na grade) de um comando de zoneamento. */
+const isCellList = (v: unknown): v is number[] => Array.isArray(v) && v.length > 0 && v.length <= ZONING.maxCellsPerCommand && v.every((x) => Number.isInteger(x) && x >= 0 && x < 1 << 20);
 
 export type Command =
   | { type: 'move'; unitIds: EntityId[]; x: number; y: number }
@@ -31,6 +35,10 @@ export type Command =
   | { type: 'lay_mine'; unitIds: EntityId[]; x: number; y: number }
   /** Estrada: traçado de células adjacentes (horizontal, vertical ou diagonal). */
   | { type: 'build_road'; cells: { cx: number; cy: number }[] }
+  /** Zoneamento (02/11): pinta (ou apaga, com `kind` null) células junto às estradas; demole lotes; imposto do setor. */
+  | { type: 'zone_paint'; cells: number[]; kind: ZoneKind | null }
+  | { type: 'zone_demolish'; cells: number[] }
+  | { type: 'zone_tax'; kind: ZoneKind; pct: number }
   /** Mercado interno do Terminal Comercial: vende o excedente por suprimentos. */
   | { type: 'market_sell'; buildingId: EntityId; resource: MarketResource; quantity: number }
   | { type: 'market_buy'; buildingId: EntityId; resource: MarketResource; quantity: number }
@@ -128,6 +136,15 @@ export function parseCommand(raw: unknown): Command | null {
     case 'lay_mine':
       if (!isIdList(raw.unitIds) || !isFiniteNum(raw.x) || !isFiniteNum(raw.y)) return null;
       return { type: 'lay_mine', unitIds: [...new Set(raw.unitIds)], x: raw.x, y: raw.y };
+    case 'zone_paint':
+      if (!isCellList(raw.cells) || (raw.kind !== null && !isZoneKind(raw.kind))) return null;
+      return { type: 'zone_paint', cells: raw.cells, kind: raw.kind as ZoneKind | null };
+    case 'zone_demolish':
+      if (!isCellList(raw.cells)) return null;
+      return { type: 'zone_demolish', cells: raw.cells };
+    case 'zone_tax':
+      if (!isZoneKind(raw.kind) || !Number.isInteger(raw.pct) || (raw.pct as number) < 0 || (raw.pct as number) > ZONING.taxMax) return null;
+      return { type: 'zone_tax', kind: raw.kind, pct: raw.pct as number };
     case 'build_road': {
       if (!Array.isArray(raw.cells) || raw.cells.length === 0 || raw.cells.length > 60) return null;
       const cells: { cx: number; cy: number }[] = [];

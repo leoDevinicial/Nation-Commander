@@ -3,6 +3,7 @@ import type { IdCipher, IdSpace } from './ids.ts';
 import { RANKS, rankDamageMul, rankFor, rankHpMul } from './veterancy.ts';
 import { countryBonus, type CountryBonus } from './countryBonus.ts';
 import { ERA_CANCEL_REFUND, ERAS, buildingEra, eraPhrase, type Era } from './eras.ts';
+import { ZoneSystem, type ZoneSave, type ZoningHost } from './zoning.ts';
 import { MineSystem, type MineSave } from './mines.ts';
 import { POWER, POWER_DARK_RATE, POWER_GEN, POWER_USE, powerUse, solvePower, windFactor, type PowerNode } from './power.ts';
 import { dayLight } from './climate.ts';
@@ -144,6 +145,10 @@ export interface NationalLink {
   researchSpeed?(slot: Slot): number;
   /** Teto anual da verba de obras (US$): os custos em US$ das eras e dos grandes projetos são frações dele. */
   worksCapUsd?(slot: Slot): number;
+  /** Zoneamento (02/11): aprovação (0..100), crescimento real (% ao ano) e quão autoritário está o governo (0..1). */
+  approval?(slot: Slot): number;
+  growth?(slot: Slot): number;
+  authoritarian?(slot: Slot): number;
 }
 
 /**
@@ -183,6 +188,8 @@ export interface SimulationSave {
   /** Força aérea e mísseis (Fase 7). */
   air?: AirSave;
   mines?: MineSave;
+  /** Zoneamento (02/11). */
+  zoning?: ZoneSave;
   caravans?: CaravanSave;
   /** Militares fora do teatro em operações expedicionárias, por jogador (Fase 8). */
   detached?: number[];
@@ -393,6 +400,8 @@ export class Simulation {
   readonly air: AirSystem = new AirSystem(this);
   /** Minas antitanque e o trabalho dos engenheiros (lote 3). */
   readonly mines: MineSystem = new MineSystem(this);
+  /** Zoneamento e lotes privados (`zoning.ts`). */
+  readonly zones: ZoneSystem = new ZoneSystem(zoningHost(this));
   /** Caravanas internas entre o QG e as prefeituras. */
   readonly caravans: CaravanSystem = new CaravanSystem(this);
   /** Militares fora do teatro em operações expedicionárias (contam na população). */
@@ -553,6 +562,7 @@ export class Simulation {
       trade: this.trade.toSave(),
       air: this.air.toSave(),
       ...(this.mines.mines.length || this.mines.tasks.length ? { mines: this.mines.toSave() } : {}),
+      ...(this.zones.zones.size || this.zones.lots.size || this.zones.tax.length || this.zones.heat.some((h) => h > 0) ? { zoning: this.zones.toSave() } : {}),
       ...(this.caravans.caravans.length ? { caravans: this.caravans.toSave() } : {}),
       detached: [...this.detached],
       ...(this.salvos.length ? { salvos: this.salvos.map((v) => ({ ...v, at: { ...v.at } })) } : {}),
@@ -629,6 +639,7 @@ export class Simulation {
     sim.trade.load(data.trade);
     sim.air.load(data.air);
     sim.mines.load(data.mines);
+    sim.zones.load(data.zoning);
     sim.caravans.load(data.caravans);
     sim.detached = [...(data.detached ?? [])];
     sim.salvos = (data.salvos ?? []).map((v) => ({ ...v, at: { ...v.at } }));
@@ -1176,6 +1187,7 @@ export class Simulation {
         this.spend(player, this.buildingCostFor(slot, cmd.buildingType));
         const b = this.addBuilding(cmd.buildingType, slot, cell, 0);
         if (b.type === 'city_hall') b.city = this.nextCity(slot);
+        for (let dy = 0; dy < def.size; dy++) for (let dx = 0; dx < def.size; dx++) this.zones.clearCell((cell.cy + dy) * this.map.width + cell.cx + dx);
         if (this.builders) this.staff(slot);
         this.emit({ type: 'construction_started', tick: this.tick, id: b.id, owner: slot, buildingType: b.type, pos: { ...b.pos } });
         return null;
@@ -1255,6 +1267,12 @@ export class Simulation {
         b.research = null;
         return null;
       }
+      case 'zone_paint':
+        return this.zones.paint(slot, cmd.cells, cmd.kind);
+      case 'zone_demolish':
+        return this.zones.demolish(slot, cmd.cells);
+      case 'zone_tax':
+        return this.zones.setTax(slot, cmd.kind, cmd.pct);
       case 'lay_mine':
         return this.mines.lay(slot, cmd.unitIds, cmd.x, cmd.y);
       case 'build_road': {
@@ -1264,6 +1282,7 @@ export class Simulation {
         if (!free && this.national && plan.usd > 0 && !this.national.chargeWorks(slot, plan.usd, `Estrada (${plan.cells.length} células)`)) return 'Caixa do país sem saldo para a estrada';
         if (!free) this.spend(player, { stone: plan.stone });
         for (const i of plan.cells) {
+          this.zones.clearCell(i);
           this.map.terrain[i] = Terrain.Road;
           this.grid.terrain[i] = Terrain.Road;
           this.roads.push({ i, owner: slot });
@@ -1676,6 +1695,7 @@ export class Simulation {
     this.players[attacker]!.stats.damageDealt += dealt;
     if (this.tick - (this.lastAlertTick[target.owner] ?? -Infinity) >= UNDER_ATTACK_ALERT_TICKS) {
       this.lastAlertTick[target.owner] = this.tick;
+      if (target.kind === 'building') this.zones.noteAttack(target.owner);
       this.emit({ type: 'under_attack', tick: this.tick, id: target.id, owner: target.owner, pos: { ...target.pos } });
     }
     if (target.hp <= 0) {
@@ -1929,6 +1949,7 @@ export class Simulation {
         deposits: this.deposits,
         builtRoads: this.builtRoads,
         cityName: (seat) => this.cityName(seat as Building) ?? null,
+        lots: this.zones.lots,
       },
       slot,
       type,
@@ -1964,6 +1985,7 @@ export class Simulation {
     this.trade.step();
     this.air.step();
     this.mines.step();
+    this.zones.step();
     this.caravans.step();
     for (const u of this.units) this.updateUnit(u);
     this.updateInterceptions();
@@ -2037,14 +2059,18 @@ export class Simulation {
           else if (node.use > 0) nodes.push(node);
           if (b.type === 'house' || b.type === 'residential') homes++;
         }
+        // lotes privados do zoneamento: 0,5 cada (entram depois das construções do governo)
+        nodes.push(...this.zones.powerNodes(slot));
         // estradas do mapa dentro do território também levam a energia
         for (let i = 0; i < this.territory.length; i++) if (this.territory[i] === slot && this.map.terrain[i] === Terrain.Road) roads.push(i);
         const res = solvePower(w, this.map.height, roads, hubs, nodes);
-        for (const id of res.powered) this.powered.add(id);
+        for (const id of res.powered) if (id >= 0) this.powered.add(id);
+        this.zones.setLit(res.powered, slot);
         for (const [id, l] of res.load) this.powerLoad.set(id, l);
         let dark = 0;
         let lit = 0;
         for (const n of nodes) {
+          if (n.id < 0) continue; // lotes privados: o zoneamento cuida
           const on = res.powered.has(n.id);
           if ((POWER_USE[n.type]?.stops || POWER_USE[n.type]?.slows) && !on) dark++;
           if ((n.type === 'house' || n.type === 'residential') && on) lit++;
@@ -2052,7 +2078,7 @@ export class Simulation {
         let coalPerSec = 0;
         for (const h of hubs) coalPerSec += (POWER_GEN[h.type]?.coal ?? 0) * (h.gen > 0 ? (res.load.get(h.id) ?? 0) : 0);
         const prev = this.powerInfo[slot];
-        const isolated = nodes.filter((n) => (POWER_USE[n.type]?.stops || POWER_USE[n.type]?.slows) && res.isolated.has(n.id)).length;
+        const isolated = nodes.filter((n) => n.id >= 0 && (POWER_USE[n.type]?.stops || POWER_USE[n.type]?.slows) && res.isolated.has(n.id)).length;
         this.powerInfo[slot] = { supply: Math.round(res.supply), demand: res.demand, served: res.served, dark, isolated, coalPerMin: Math.round(coalPerSec * 60 * 10) / 10 };
         this.litHomes[slot] = { homes, lit };
         // aviso de apagão: quando construções começam a parar por falta de luz
@@ -3804,4 +3830,50 @@ function markCircle(grid: Uint8Array, w: number, h: number, cx: number, cy: numb
       if (dx * dx + dy * dy <= r2) grid[y * w + x] = 1;
     }
   }
+}
+
+/** O que o zoneamento lê da simulação (`zoning.ts`). */
+function zoningHost(sim: Simulation): ZoningHost {
+  return {
+    get tick() {
+      return sim.tick;
+    },
+    get map() {
+      return sim.map;
+    },
+    get territory() {
+      return sim.territory;
+    },
+    get buildings() {
+      return sim.buildings;
+    },
+    get roads() {
+      return sim.roads;
+    },
+    get grid() {
+      return sim.grid;
+    },
+    get playerCount() {
+      return sim.players.length;
+    },
+    get cellSize() {
+      return sim.map.cellSize;
+    },
+    get powerOn() {
+      return sim.power;
+    },
+    approval: (s) => sim.national?.approval?.(s) ?? 55,
+    growth: (s) => sim.national?.growth?.(s) ?? 2,
+    authoritarian: (s) => sim.national?.authoritarian?.(s) ?? 0,
+    cityName: (b) => sim.cityName(b),
+    workersIn: (b) => b.workers,
+    isVisibleTo: (s, p) => sim.isVisibleTo(s, p),
+    unitOn: (i) => {
+      const W = sim.map.width;
+      const cs = sim.map.cellSize;
+      const x0 = (i % W) * cs;
+      const y0 = Math.floor(i / W) * cs;
+      return sim.units.some((u) => u.pos.x >= x0 - 0.3 && u.pos.x <= x0 + cs + 0.3 && u.pos.y >= y0 - 0.3 && u.pos.y <= y0 + cs + 0.3);
+    },
+  };
 }

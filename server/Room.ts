@@ -511,6 +511,9 @@ export class Room {
       refundWorks: (slot, usd, description) => (free(slot) ? undefined : national.refundWorks(slot, usd, description)),
       researchSpeed: (slot) => militaryResearchSpeed(national.nation(slot)?.budget.researchPct ?? 0),
       worksCapUsd: (slot) => national.nation(slot)?.works.capUsd ?? 0,
+      approval: (slot) => national.nation(slot)?.approval ?? 50,
+      growth: (slot) => national.nation(slot)?.realGrowthPct ?? 2,
+      authoritarian: (slot) => authoritarianOf(national.nation(slot)?.policies?.decrees ?? []),
     };
     // comércio internacional: diplomacia, países da IA e tesouro nacional
     const d = national.diplomacy;
@@ -1490,7 +1493,7 @@ export function treasuryInputs(sim: Simulation, slot: Slot): TreasuryInputs {
     if (b.owner !== slot || b.progress < 1 || b.hp <= 0) continue;
     const def = BUILDINGS[b.type];
     if (b.type !== 'hq') buildingCells += def.size * def.size;
-    if (b.type === 'hospital' || b.type === 'school' || b.type === 'police_station' || b.type === 'city_hall') services++;
+    if (b.type === 'hospital' || b.type === 'school' || b.type === 'university' || b.type === 'police_station' || b.type === 'city_hall') services++;
     if (def.gather && b.status === 'ok') production[def.gather.resource] = (production[def.gather.resource] ?? 0) + sim.buildingRate(b);
   }
   let infantry = 0;
@@ -1510,5 +1513,15 @@ export function treasuryInputs(sim: Simulation, slot: Slot): TreasuryInputs {
     buildingCells,
     roads: sim.roads.filter((r) => r.owner === slot).length,
     services,
+    zoning: { base: sim.zones.taxBase(slot), tax: { ...sim.zones.taxOf(slot) } },
   };
+}
+
+/**
+ * Quão autoritário está o governo (0..1), para o zoneamento: lei marcial pesa muito; recrutamento obrigatório,
+ * racionamento e economia de guerra, um pouco cada.
+ */
+export function authoritarianOf(decrees: readonly { id: string }[]): number {
+  const w: Record<string, number> = { martial_law: 0.7, conscription: 0.2, rationing: 0.15, war_economy: 0.15 };
+  return Math.min(1, decrees.reduce((a, d) => a + (w[d.id] ?? 0), 0));
 }

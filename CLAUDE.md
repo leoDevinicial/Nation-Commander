@@ -68,6 +68,8 @@ O Nation Commander é **low poly estilizado**, por decisão do responsável pelo
 - Cidades e conhecimento (`shared/sim/cities.ts`, `KNOWLEDGE`, `docs/CONHECIMENTO_E_CIDADES.md`): cada construção pertence
   ao QG ou prefeitura mais próxima; `perCity` limita escola, universidade e as produções da era 3. Pesquisas custam
   US$ + conhecimento.
+- Zoneamento (`shared/sim/zoning.ts`, `docs/ZONEAMENTO.md`): zonas R/C/I junto às estradas; lotes privados não são
+  entidades (ocupam a grade com `LOT_OCCUPANT`), crescem pela demanda de cada cidade, pagam imposto e gastam energia.
 - Clima e dia/noite (`shared/sim/climate.ts`, `docs/CLIMA_DIA_NOITE.md`) são só visuais, exceto a usina solar.
 - Minas terrestres (`shared/sim/mines.ts`) não são entidades: o snapshot envia só as do dono e as já detectadas
   (`MineSystem.visibleTo`). O satélite do Programa Espacial revela o resto do mapa, mas nunca as minas.

@@ -18,7 +18,7 @@ import { NationalSimulation } from '../shared/strategic/NationalSimulation.ts';
 import { NationalAI } from '../shared/strategic/NationalAI.ts';
 import { policyEffects } from '../shared/strategic/policies.ts';
 import { TICKS_PER_DAY, militaryResearchSpeed } from '../shared/strategic/params.ts';
-import { theaterStats } from '../server/Room.ts';
+import { authoritarianOf, theaterStats } from '../server/Room.ts';
 
 const seeds = (process.argv[2] ?? '7').split(',').map(Number);
 const minutes = Number(process.argv[3] ?? 25);
@@ -95,6 +95,9 @@ function run(seed: number, difficulty: Difficulty): Result {
     refundWorks: (s, usd, d) => national.refundWorks(s, usd, d),
     researchSpeed: (s) => militaryResearchSpeed(national.nation(s)?.budget.researchPct ?? 0),
     worksCapUsd: (s) => national.nation(s)?.works.capUsd ?? 0,
+    approval: (s) => national.nation(s)?.approval ?? 50,
+    growth: (s) => national.nation(s)?.realGrowthPct ?? 2,
+    authoritarian: (s) => authoritarianOf(national.nation(s)?.policies?.decrees ?? []),
   };
   const applyModifiers = () => {
     for (const n of national.nations) {
@@ -166,6 +169,13 @@ function run(seed: number, difficulty: Difficulty): Result {
         const plants = sim.buildings.filter((b) => b.owner === s && ['coal_plant', 'wind_farm', 'solar_farm'].includes(b.type)).map((b) => b.type.split('_')[0]).join('+');
         const dark = sim.buildings.filter((b) => b.owner === s && b.progress >= 1 && !sim.hasLight(b)).map((b) => b.type);
         console.log(`${t / MIN}min P${s} oferta ${p?.supply} demanda ${p?.demand} apagados ${dark.join(',') || '-'} isolados ${p?.isolated} usinas ${plants} carvão ${Math.round(sim.players[s]!.resources.coal)}`);
+      }
+    // ZONE_LOG=1: zoneamento de cada IA a cada 3 minutos (diagnóstico)
+    if (process.env.ZONE_LOG && t % (3 * MIN) === 0)
+      for (const s of [0, 1]) {
+        const c = sim.zones.cityStats(s);
+        const lots = [...sim.zones.lots.values()].filter((l) => l.owner === s);
+        console.log(`${t / MIN}min P${s} zonas ${[...sim.zones.zones.values()].filter((z) => z.owner === s).length} lotes ${lots.length} (abandonados ${lots.filter((l) => l.abandoned).length}) | ${c.map((x) => `${x.name}: R ${x.demand.res.toFixed(2)} C ${x.demand.com.toFixed(2)} I ${x.demand.ind.toFixed(2)} mor ${x.residents} emp ${x.jobs}`).join(' · ')}`);
       }
     // TREASURY_LOG=1: caixa do país de cada IA a cada 2 minutos (diagnóstico)
     if (process.env.TREASURY_LOG && t % (2 * MIN) === 0)

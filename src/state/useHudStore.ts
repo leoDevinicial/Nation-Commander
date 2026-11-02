@@ -1,3 +1,4 @@
+import type { CityZoneStats, ZoneTax } from '../../shared/sim/zoning.ts';
 import type { AirView, CaravanView, TradeView } from '../../shared/sim/snapshot.ts';
 import type { ModId } from '../../shared/sim/modernization.ts';
 import { create } from 'zustand';
@@ -82,7 +83,12 @@ export type PointerMode =
    * fim). `cells` são as células novas a pavimentar; `reason`, o que impede o traçado.
    */
   /** Ferramenta de estrada: células que podem ser pavimentadas, inválidas, marcadas no total e o primeiro motivo de recusa. */
-  | { kind: 'road'; cells: number; bad: number; marked: number; reason: string | null };
+  | { kind: 'road'; cells: number; bad: number; marked: number; reason: string | null }
+  /** Ferramenta de zoneamento (02/11): pincel, células válidas e inválidas do arrasto e o primeiro motivo de recusa. */
+  | { kind: 'zone'; brush: ZoneBrush; cells: number; bad: number; reason: string | null };
+
+/** Pincel da ferramenta de zoneamento: um setor, apagar a zona ou demolir o lote. */
+export type ZoneBrush = 'res' | 'com' | 'ind' | 'erase' | 'demolish';
 
 /** Fila de produção de um edifício próprio (para o resumo de produção do HUD). */
 export interface ProductionEntry {
@@ -132,6 +138,8 @@ export interface HudState {
   players: PlayerSnapshot[];
   /** Edifícios próprios com algo na fila (unidades, recrutas, cidadãos). */
   production: ProductionEntry[];
+  /** Zoneamento do próprio jogador: impostos por setor e números de cada cidade. */
+  zoning: { tax: ZoneTax; cities: CityZoneStats[] } | null;
   /** Miniaturas 3D (data URL) dos botões, por tipo de edifício/unidade, 'citizen' e 'recruit'. */
   thumbs: Partial<Record<string, string>>;
   /** Comércio internacional do jogador (Fase 6). */
@@ -192,6 +200,7 @@ export const useHudStore = create<HudState>((set) => ({
   tick: 0,
   players: [],
   production: [],
+  zoning: null,
   thumbs: {},
   trade: null,
   air: null,

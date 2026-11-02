@@ -15,6 +15,9 @@ import { roadLink } from './caravans.ts';
 import { MARKET, MARKET_RESOURCES, marketPrice, type MarketResource } from './market.ts';
 import { POWER, POWER_GEN, POWER_USE, powerUse } from './power.ts';
 
+/** A IA começa a zonear depois da arrancada da economia (8 min). */
+export const AI_ZONING_FROM_TICK = 8 * 60 * TICK_RATE;
+
 /** Com que frequência a IA reavalia a situação. */
 export const AI_THINK_TICKS = TICK_RATE;
 /**
@@ -567,6 +570,8 @@ export class TacticalAI {
 
     // --- estradas até as prefeituras (as caravanas só andam por estrada): fora das emergências, sem
     // guardar recursos para algo mais urgente e com pedra de folga
+    // --- zoneamento (02/11): a cada minuto, pinta algumas células livres junto às próprias estradas
+    this.planZoning(sim, cmds);
     // (ligar à rede o que está no escuro vale mesmo guardando recursos: coleta sem luz rende menos)
     this.planRoads(sim, hq, mine, budget, take, cmds, !!savingCore || !!waitingFor);
 
@@ -962,6 +967,45 @@ export class TacticalAI {
       return null;
     }
     return null;
+  }
+
+  /**
+   * Zoneamento da IA: a cada minuto (a partir dos 8), com folga de energia, escolhe até 4 células livres coladas às
+   * próprias estradas e as pinta, metade residencial e o resto entre comércio e indústria; para com 6 zonas sem lote.
+   * Demole os lotes abandonados no mesmo ciclo.
+   */
+  private planZoning(sim: Simulation, cmds: Command[]): void {
+    if (sim.tick < AI_ZONING_FROM_TICK || Math.floor(sim.tick / TICK_RATE) % 60 !== (this.slot * 7) % 60) return;
+    const z = sim.zones;
+    // lotes abandonados: demole para a zona voltar a crescer
+    const ruins = [...z.lots].filter(([, l]) => l.owner === this.slot && l.abandoned).map(([i]) => i);
+    if (ruins.length) cmds.push({ type: 'zone_demolish', cells: ruins.slice(0, 50) });
+    let free = 0;
+    for (const [i, zone] of z.zones) if (zone.owner === this.slot && !z.lots.has(i)) free++;
+    if (free >= 6) return;
+    // cada lote gasta energia: só zoneia com folga na rede
+    const power = sim.power ? sim.powerInfo[this.slot] : undefined;
+    if (power && power.supply - power.demand < 4) return;
+    const W = sim.map.width;
+    const roads = new Set(sim.roads.filter((r) => r.owner === this.slot).map((r) => r.i));
+    if (!roads.size) return;
+    const picked: number[] = [];
+    for (const r of roads) {
+      for (const d of [-W, W, -1, 1]) {
+        const i = r + d;
+        if (picked.length >= 4) break;
+        if (i < 0 || i >= W * sim.map.height || z.zones.has(i) || picked.includes(i)) continue;
+        if (!z.cellProblem(this.slot, i, roads)) picked.push(i);
+      }
+      if (picked.length >= 4) break;
+    }
+    if (!picked.length) return;
+    const half = Math.ceil(picked.length / 2);
+    cmds.push({ type: 'zone_paint', cells: picked.slice(0, half), kind: 'res' });
+    const rest = picked.slice(half);
+    const mid = Math.ceil(rest.length / 2);
+    if (rest.length) cmds.push({ type: 'zone_paint', cells: rest.slice(0, mid), kind: 'com' });
+    if (rest.length > mid) cmds.push({ type: 'zone_paint', cells: rest.slice(mid), kind: 'ind' });
   }
 
   /** Recurso com a maior sobra acima da reserva (e quanto sobra), ou null. */

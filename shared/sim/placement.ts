@@ -21,6 +21,8 @@ export interface PlacementWorld {
   terrain: ArrayLike<Terrain>;
   resourceNodes: Cell[];
   buildings: Iterable<{ type: BuildingType; owner: Slot; cell: Cell; progress: number; hp?: number; claims?: number[]; depositId?: number | null }>;
+  /** Células com lote privado do zoneamento (nada se constrói em cima; o dono demole antes). */
+  lots?: { has(i: number): boolean };
   /** Nome da cidade de uma sede (QG ou prefeitura), para as mensagens do limite por cidade. */
   cityName?: (seat: { type: BuildingType; cell: Cell }) => string | null;
   units: Iterable<{ type: UnitType; pos: { x: number; y: number } }>;
@@ -53,6 +55,7 @@ export function placementError(w: PlacementWorld, slot: Slot, type: BuildingType
         return x >= b.cell.cx && x < b.cell.cx + s && y >= b.cell.cy && y < b.cell.cy + s;
       });
       if (occupied) return 'Local ocupado';
+      if (w.lots?.has(y * w.width + x)) return 'Lote privado no lugar (zoneamento): demolir antes';
       const owner = w.territory[y * w.width + x] ?? -1;
       if (owner !== slot) {
         outside = true;

@@ -1,3 +1,4 @@
+import { ZONE_KINDS, type CityZoneStats, type ZoneTax } from './zoning.ts';
 import { BUILDERS, BUILDINGS, MINE, RESOURCE_TYPES, SPACE, TICK_RATE, UNITS, type BuildingType, type DepositSize, type MilitaryResearchId, type ProducibleType, type Stockpile, type UnitType } from './config.ts';
 import type { PlayerPower, Population, Simulation } from './Simulation.ts';
 import { encodeTerritory } from './territory.ts';
@@ -218,6 +219,12 @@ export interface Snapshot {
    * já recusa coleta nova neles e as pedras aparecem gastas.
    */
   depleted?: number[];
+  /**
+   * Zoneamento (02/11). `lots` em grupos de 7 números: célula, dono, setor (0 res, 1 com, 2 ind), modelo, nível,
+   * abandonado (0/1), com luz (0/1, só nos próprios) — os próprios e os alheios em célula à vista. `zones` em pares
+   * (célula, setor) e o resto só do próprio jogador.
+   */
+  zoning?: { version: number; lots: number[]; zones: number[]; tax: ZoneTax; cities: CityZoneStats[] };
 }
 
 /** Memória de um jogador sobre edifícios inimigos já avistados (névoa de guerra). */
@@ -349,6 +356,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
     ...(viewer ? { trade: tradeView(sim, viewer.slot), air: airView(sim, viewer.slot) } : {}),
     territoryVersion: sim.territoryVersion,
     ...(viewer ? depletedFor(sim, viewer.slot) : {}),
+    ...(viewer ? { zoning: zoningFor(sim, viewer.slot) } : {}),
     // fronteiras são conhecidas por todos (como no mapa político de Rise of Nations)
     ...(includeTerritory ? { territory: encodeTerritory(sim.territory) } : {}),
     ...(includeTerritory && sim.roads.length ? { roads: sim.roads.map((r) => r.i) } : {}),
@@ -659,4 +667,14 @@ function depletedFor(sim: Simulation, slot: Slot): { depleted?: number[] } {
     if (d.cells.some((i) => sim.territory[i] === slot || sim.isVisibleTo(slot, { x: ((i % w) + 0.5) * cs, y: (Math.floor(i / w) + 0.5) * cs }))) out.push(d.id);
   }
   return out.length ? { depleted: out } : {};
+}
+
+/** Zoneamento visto pelo jogador: os lotes que ele enxerga, as próprias zonas, impostos e números das cidades. */
+function zoningFor(sim: Simulation, slot: Slot): NonNullable<Snapshot['zoning']> {
+  const z = sim.zones;
+  const lots: number[] = [];
+  for (const [i, l] of z.visibleLots(slot)) lots.push(i, l.owner, ZONE_KINDS.indexOf(l.kind), l.variant, l.level, l.abandoned ? 1 : 0, l.owner === slot && z.isLit(i) ? 1 : 0);
+  const zones: number[] = [];
+  for (const [i, k] of z.ownZones(slot)) zones.push(i, ZONE_KINDS.indexOf(k));
+  return { version: z.version, lots, zones, tax: { ...z.taxOf(slot) }, cities: z.cityStats(slot) };
 }
