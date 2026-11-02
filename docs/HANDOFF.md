@@ -48,6 +48,11 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 
 - **01/11/2026 — conta de 30/10 volta a assumir:** continua na mesma branch `claude/youthful-dijkstra-a45emp` (pedido
   do usuário: sem branch nova), a partir do commit `cbd76a1`; `npm ci`, 624 testes, lint e typecheck limpos.
+- **01–02/11/2026 — feedback de partida real (7 prints), entregue nesta ordem:** depósito esgotado visível, sem caminho de
+  cascalho no mapa, tanque/silo 2×2 e armazém 3×3, energia em todas as construções (`docs/REDE_ELETRICA.md`),
+  construtores por obra (`docs/CONSTRUTORES.md`), pesquisa nacional em árvore e caixa do país (`docs/CAIXA_DO_PAIS.md`).
+  O ritmo da IA no `sim-economia` caiu de 8 para 5 dos 9 critérios (eras 1–2 min mais lentas, era 3 até 22:00 em
+  menos IAs); números nos docs de cada sistema. Último commit: `e31378f`; 641 testes.
 - **01/11/2026 — conta que fez as entregas de 30/10 a 01/11:** branch `claude/youthful-dijkstra-a45emp`, criada de
   `claude/serene-bell-7cjnhp` no commit `20bdcc5`. Tudo publicado até o commit deste handoff (01/11, noite).
 - **30/10/2026 — conta anterior:** branch `claude/serene-bell-7cjnhp` (hoje é a de publicação).
