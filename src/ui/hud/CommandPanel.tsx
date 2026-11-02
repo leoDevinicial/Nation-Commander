@@ -17,6 +17,7 @@ import {
   SPACE,
   MINE,
   ROAD,
+  HIGHWAY,
   BUILDERS,
   MILITARY_RESEARCH_USD_SHARE,
   militaryResearchKnowledge,
@@ -317,6 +318,14 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
         )}
         {command && mode.kind === 'normal' && runtime.battleOp === null && buildTab === 'civic' && (
           <CardButton
+            icon="🛣"
+            label="Rodovia"
+            onClick={() => runtime.startRoad(true)}
+            title={`Rodovia: pista dupla que pode sair do território sem engenheiro (terra neutra ou de nação que não está em guerra com você; nunca em país inimigo) e se liga às rodovias e estradas dos outros jogadores. Arraste na grade (até ${HIGHWAY.maxCells} células por vez); sobre a sua estrada, ela vira rodovia.\nCusto: ${HIGHWAY.stonePerCell} de pedra por célula e o dobro da verba da estrada; manutenção em dobro. Não leva energia.\nCaminhões de carga e caravanas andam ${Math.round((HIGHWAY.convoyMul - 1) * 100)}% mais rápido e tropas ${Math.round((HIGHWAY.unitMul - 1) * 100)}%. Liga o seu Terminal Comercial ao de outra nação para vender e comprar por caminhão.`}
+          />
+        )}
+        {command && mode.kind === 'normal' && runtime.battleOp === null && buildTab === 'civic' && (
+          <CardButton
             icon="▦"
             label="Zoneamento"
             onClick={() => runtime.startZone('res')}
@@ -449,14 +458,16 @@ function ZoneInfo({ mode, touch, runtime }: { mode: Extract<ReturnType<typeof us
 
 /** Dica e custo do traçado de estrada em andamento. */
 function RoadHint({ mode, touch, worksCap, stone }: { mode: Extract<ReturnType<typeof useHudStore.getState>['mode'], { kind: 'road' }>; touch: boolean; worksCap: number; stone: number }) {
-  const cost = mode.cells * ROAD.stonePerCell;
-  const usd = Math.round(worksCap * ROAD.usdSharePerCell * mode.cells);
+  const def = mode.highway ? HIGHWAY : ROAD;
+  const cost = mode.cells * def.stonePerCell;
+  const usd = Math.round(worksCap * def.usdSharePerCell * mode.cells);
+  const what = mode.highway ? 'a rodovia' : 'a estrada';
   const how = touch
-    ? 'Toque nas células para marcar ou desmarcar a estrada; depois toque em Construir.'
+    ? `Toque nas células para marcar ou desmarcar ${what}; depois toque em Construir.`
     : 'Clique para marcar ou desmarcar uma célula, ou clique e arraste para marcar um caminho. Depois, Construir (Enter). Esc sai da ferramenta.';
   return (
     <div>
-      <ModeHint title="Construir estrada" text={how} bad={false} />
+      <ModeHint title={mode.highway ? 'Construir rodovia' : 'Construir estrada'} text={mode.highway ? `${how} A rodovia pode sair da fronteira (nunca em país em guerra com você) e não leva energia.` : how} bad={false} />
       {mode.marked > 0 && (
         <div className="mt-1.5 text-xs text-ink-400">
           {mode.cells} célula(s) a pavimentar · <span className={stone < cost ? 'text-signal-red' : 'text-ink-200'}>{cost} de pedra</span>

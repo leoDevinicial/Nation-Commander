@@ -122,7 +122,7 @@
   <p class="lead">Você é o líder de um país real. Ao mesmo tempo, governa a nação e comanda as tropas no campo de batalha.</p>
   <div class="grid2">
     <div class="card"><div class="ic">🗺</div><h4>O teatro de operações</h4><p>O mapa 3D onde tudo acontece na prática: você coleta recursos, constrói a base, forma a população e treina o exército. É a parte "jogo de estratégia em tempo real".</p></div>
-    <div class="card"><div class="ic">🏛</div><h4>O governo</h4><p>O painel da sua nação: impostos, gastos, dívida, pesquisa, aprovação do povo e diplomacia com outros países. Um dia de jogo passa a cada segundo.</p></div>
+    <div class="card"><div class="ic">🏛</div><h4>O governo</h4><p>O painel da sua nação: impostos, gastos, pesquisa, aprovação do povo e diplomacia com outros países. Um dia de jogo passa a cada segundo.</p></div>
   </div>
   <p style="margin-top:4mm">As duas partes estão ligadas. O orçamento de defesa manda suprimentos para a base; o caixa do país paga as melhorias; as baixas na guerra derrubam a aprovação; e um povo revoltado pode derrubar o seu governo.</p>
   <h2>Como vencer</h2>
@@ -135,7 +135,7 @@
   <div class="box warn"><span class="t">⚠ Como perder</span>Se o seu Centro de Comando for destruído, você perde na hora. Proteja-o sempre.</div>
   <h2>O que torna este jogo diferente</h2>
   <ul>
-    <li><b>Países reais com dados reais.</b> PIB, dívida, inflação e gastos militares vêm do Banco Mundial e do FMI. Cada país começa diferente.</li>
+    <li><b>Países reais com dados reais.</b> PIB, inflação e gastos militares vêm do Banco Mundial e do FMI. Ninguém começa com dívida, e no modo paridade todos têm a mesma economia.</li>
     <li><b>Guerra precisa ser declarada.</b> Sem declaração de guerra, ninguém pode atacar ninguém.</li>
     <li><b>Recursos são escassos.</b> Falta recurso no começo, e você precisa escolher onde gastar.</li>
     <li><b>A nação evolui por eras</b>, da Guerra Fria ao Futuro Próximo, e muda de aparência a cada era.</li>
@@ -336,7 +336,7 @@
     <tr><th style="width:18%">Aba</th><th>O que tem</th></tr>
     <tr><td><b>⚒ Produção</b></td><td>Cidadão, avanço de era, Fazenda, Serraria, Pedreira, Mina, Poço, Tanque de Petróleo, Armazém, Silo, Refinaria e Siderúrgica.</td></tr>
     <tr><td><b>⚡ Energia</b></td><td>Termelétrica a Carvão, Parque Eólico (era 2) e Usina Solar (era 3).</td></tr>
-    <tr><td><b>🏛 Cívicas</b></td><td>Casa, Prédio Residencial, Prefeitura, Escola, Hospital, Delegacia, Universidade, Terminal Comercial, Porto e Estrada.</td></tr>
+    <tr><td><b>🏛 Cívicas</b></td><td>Casa, Prédio Residencial, Prefeitura, Escola, Hospital, Delegacia, Universidade, Terminal Comercial, Porto, Estrada e Rodovia.</td></tr>
     <tr><td><b>⚔ Militares</b></td><td>Base Militar, Fábrica de Veículos, Torre, Centro de Pesquisa Militar, Bateria Antiaérea, Base Aérea e Silo de Mísseis.</td></tr>
     <tr><td><b>★ Projetos</b></td><td>Os Grandes Projetos Nacionais da última era (capítulo 18).</td></tr>
   </table>
@@ -521,7 +521,7 @@
   <h1><span class="num">13</span>Governando o país</h1>
   <p class="lead">O painel Nação (<span class="kbd">G</span>) é o seu gabinete de governo.</p>
   <div class="grid2" style="align-items:start">
-    <figure style="margin-top:0"><img src="img/nacao.jpg"><figcaption>Visão Geral: PIB, crescimento, inflação, desemprego, dívida e aprovação, com gráficos.</figcaption></figure>
+    <figure style="margin-top:0"><img src="img/nacao.jpg"><figcaption>Visão Geral: PIB, crescimento, inflação, desemprego, déficit do orçamento e aprovação, com gráficos.</figcaption></figure>
     <div>
       <h3>As abas</h3>
       <ul style="font-size:9.6pt">
@@ -539,13 +539,13 @@
   <h2>O orçamento em palavras simples</h2>
   <table>
     <tr><th style="width:24%">Item</th><th>Se você aumentar…</th></tr>
-    <tr><td><b>Impostos</b></td><td>Mais dinheiro e menos dívida, mas o povo fica menos feliz e a economia cresce menos.</td></tr>
+    <tr><td><b>Impostos</b></td><td>Mais dinheiro e menos déficit, mas o povo fica menos feliz e a economia cresce menos.</td></tr>
     <tr><td><b>Defesa</b></td><td>Mais suprimentos por segundo na sua base (logística do teatro).</td></tr>
     <tr><td><b>Educação</b></td><td>A economia cresce mais — mas só depois de alguns anos.</td></tr>
     <tr><td><b>Saúde e previdência</b></td><td>Aprovação maior.</td></tr>
     <tr><td><b>Infraestrutura</b></td><td>Crescimento e mais <b>repasse</b> para o caixa do país (o US$ da barra, que paga melhorias e eras).</td></tr>
   </table>
-  <p>Gastar mais do que arrecada cria <b>déficit</b>, que vira <b>dívida</b>; dívida alta gera juros e freia a economia.</p>
+  <p>Gastar mais do que arrecada cria <b>déficit</b>. Não existe dívida pública no jogo: déficit grande vira <b>inflação</b>, que derruba a aprovação e a estabilidade.</p>
   <h2>Aprovação e estabilidade</h2>
   <p>A <b>aprovação</b> mostra o quanto o povo gosta do governo. Inflação, desemprego, impostos altos e <b>baixas na guerra</b> derrubam a aprovação; serviços, crescimento e vitórias a levantam. Abaixo de 35 começam os <b>protestos</b>. A <b>estabilidade</b> segue a aprovação aos poucos; se ela ficar abaixo de 10 por 60 dias, <b>o governo cai e você perde</b>.</p>
 </section>
@@ -569,9 +569,18 @@
   <p>Fique de olho no canto superior esquerdo da tela: as exigências aparecem lá (por exemplo, "Forças Armadas exigem: ter 1 base aérea pronta no teatro em 90 dias").</p>
   <h2>Pedidos das potências</h2>
   <p>As maiores economias que você conhece podem pedir algo com prazo de 90 dias: exportar, reforçar a defesa, concluir uma pesquisa ou <i>não</i> declarar guerra a alguém. Cumprir dá relação +12 e ajuda financeira; falhar ou recusar piora a relação.</p>
-  <h2>Comércio</h2>
-  <p>Com um <b>Terminal Comercial</b> você compra e vende recursos com outros países. A carga viaja de caminhão, navio (Porto) ou avião (Base Aérea). Em guerra, tropas inimigas podem destruir os comboios no caminho.</p>
-  <div class="box tip"><span class="t">💡 Sobrando um recurso e faltando outro?</span>Venda o que sobra e compre o que falta. É mais rápido do que construir uma coleta nova.</div>
+  <h2>Comércio entre nações</h2>
+  <p>Com um <b>Terminal Comercial</b> (era 2) você negocia com as outras nações da partida, no painel <b>Nação → Comércio</b>. Tudo passa pelo <b>caixa do país</b>, e nada é instantâneo: o dinheiro só entra para quem vende, e a mercadoria só entra para quem compra, quando a carga <b>chega</b>.</p>
+  <ul>
+    <li><b>Venda simples:</b> anuncie "X de um recurso por US$ Y". A mercadoria fica reservada até alguém comprar (ou você retirar o anúncio).</li>
+    <li><b>Contrato de fornecimento:</b> "X de cada recurso (até 3) a cada N dias, por US$ Z ao mês". Segue até alguém encerrar, ou cai sozinho se faltar o estoque na data ou se o comprador não tiver caixa para a entrega.</li>
+    <li><b>Quem compra escolhe o transporte:</b> 🚚 <b>caminhão</b>, com os dois Terminais Comerciais ligados por estrada ou <b>rodovia</b>; 🚢 <b>navio</b>, com Porto dos dois lados ligados pela água; ✈️ <b>avião</b>, com Base Aérea ou QG nível 4 dos dois lados, em linha reta e com pouca carga por voo.</li>
+    <li><b>Perigo no caminho:</b> tropas, torres e antiaérea de quem está em guerra com o vendedor <b>ou</b> com o comprador destroem o veículo. Ninguém paga, e a carga se perde.</li>
+    <li>Entre nações em guerra não há comércio. Se a guerra começa, a carga a caminho é apreendida e o contrato cai.</li>
+  </ul>
+  <h2>Mercado mundial</h2>
+  <p>Os países de fora da partida compram e vendem direto, sem anúncio, mas pagam pior: compram a <b>80%</b> do preço de referência e vendem a <b>160%</b>, até 300 de cada recurso por dia. A carga sai ou entra pela borda do mapa e também paga só na chegada. Serve para o aperto; um vizinho costuma pagar melhor.</p>
+  <div class="box tip"><span class="t">💡 Sobrando um recurso e faltando outro?</span>Anuncie o que sobra e compre o que falta de um vizinho. Ligue o seu Terminal Comercial ao dele com uma rodovia: o caminhão é o transporte mais barato de manter e o mais fácil de proteger.</div>
   <h2>Mercado interno: excedente vira suprimentos</h2>
   <p>No meio da partida é comum sobrar comida, madeira, pedra e ferro e faltar <b>suprimentos</b>, que pagam o QG, as eras, os recrutas e as tropas. Selecione o seu <b>Terminal Comercial</b> (era 2): o painel dele tem o <b>mercado interno</b>. Escolha um recurso e venda um lote de 100 ou 500. Os suprimentos entram na hora.</p>
   <table>
@@ -593,8 +602,10 @@
     <tr><td>Repasse do orçamento (infraestrutura)</td><td>Manutenção do exército (cada tropa; veículos e aviões custam mais)</td></tr>
     <tr><td>Produção das fazendas, coletas e indústrias</td><td>Energia consumida</td></tr>
     <tr><td>Produtividade (infraestrutura e educação)</td><td>Manutenção das construções e das estradas</td></tr>
-    <tr><td>Exportações e acordos comerciais</td><td>Serviços públicos (hospital, escola, delegacia, prefeitura)</td></tr>
+    <tr><td>Vendas no comércio (cargas entregues) e acordos comerciais</td><td>Serviços públicos (hospital, escola, delegacia, prefeitura)</td></tr>
+    <tr><td>Imposto do zoneamento</td><td>Compras no comércio (cargas recebidas) e pesquisa nacional</td></tr>
   </table>
+  <p>Guerra, missões de contato, ajuda a outros países e operações fora do mapa também saem do caixa. Não existe dívida: o que o país não tem, ele não gasta.</p>
   <p>O caixa não tem teto e pode ficar negativo: um exército grande demais faz o país perder dinheiro, e sem saldo as melhorias, estradas e eras esperam.</p>
 </section>
 
@@ -612,7 +623,7 @@
     <tr><td><b>Acordo de defesa</b></td><td>O aliado manda ajuda militar (suprimentos por segundo) para a sua base. Exige relação alta.</td></tr>
     <tr><td><b>Sanções</b></td><td>Prejudicam a economia e a aprovação do alvo. Você pode pedir a outros países que sancionem seu inimigo.</td></tr>
     <tr><td><b>Missão diplomática</b></td><td>Melhora a relação aos poucos.</td></tr>
-    <tr><td><b>Ajuda</b></td><td>Melhora a relação rapidamente; é paga com dívida.</td></tr>
+    <tr><td><b>Ajuda</b></td><td>Melhora a relação rapidamente; sai do caixa do país.</td></tr>
   </table>
   <p>As relações vão de −100 a +100 e o jogo sempre mostra o motivo de cada número. Romper um acordo antes do prazo prejudica a sua reputação com todos.</p>
   <h2>Operações em outros países</h2>
@@ -658,6 +669,15 @@
     <li><b>+15% de produção:</b> fazendas, serrarias, pedreiras, minas, poços, refinaria e siderúrgica ligados por estrada ao Centro de Comando ou a uma prefeitura produzem 15% a mais.</li>
     <li>Fora do território, só com um Engenheiro por perto.</li>
     <li>Cuidado: o inimigo em guerra também usa as suas estradas.</li>
+  </ul>
+  <h2>Rodovias</h2>
+  <p>A <b>Rodovia</b> (aba Cívicas do QG) é uma pista dupla, com canteiro central e guard-rail. Ela se marca do mesmo jeito que a estrada e serve para ligar países.</p>
+  <ul>
+    <li><b>Sai da fronteira sem engenheiro:</b> vale em terra neutra e no território de quem não está em guerra com você. <b>Nunca</b> entra em país inimigo.</li>
+    <li><b>Liga-se às rodovias e estradas dos outros jogadores.</b> Duas nações podem construir cada uma o seu pedaço e se encontrar no meio.</li>
+    <li><b>Mais rápida:</b> caminhões de carga e caravanas andam o dobro, e as tropas 70% mais rápido que fora da estrada.</li>
+    <li><b>Não leva energia</b> (a luz só anda pelas estradas comuns). Custa 20 de pedra por célula e o dobro da verba e da manutenção da estrada. Sobre a sua estrada, ela vira rodovia.</li>
+    <li>Cuidado: em guerra, o inimigo também anda rápido nela.</li>
   </ul>
   <h2>Caravanas</h2>
   <p>Cada prefeitura pronta tem um <b>caminhão de carga</b> que vai e volta sozinho entre ela e o Centro de Comando. Cada chegada traz suprimentos: quanto mais longa a rota, mais carga. Na prática, uma prefeitura ligada ao QG quase dobra o que rende.</p>

@@ -4,7 +4,7 @@ import type { NationalEvent } from '../../shared/strategic/NationalSimulation.ts
 import { TECHNOLOGIES } from '../../shared/strategic/technologies.ts';
 import { formatPct, formatUsd } from '../lib/format.ts';
 
-const INDICATOR = { debt: 'Dívida pública', inflation: 'Inflação', approval: 'Aprovação do governo', growth: 'Crescimento do PIB' } as const;
+const INDICATOR = { inflation: 'Inflação', approval: 'Aprovação do governo', growth: 'Crescimento do PIB' } as const;
 
 export const TREATY_LABEL: Record<TreatyType, string> = {
   trade: 'Acordo comercial',
@@ -45,8 +45,7 @@ export function describeNationalEvent(e: NationalEvent, mySlot: number, nameOf: 
       }
       const bad = e.indicator === 'approval' ? e.direction === 'down' : e.direction === 'up';
       const verb = e.direction === 'up' ? 'ultrapassou' : 'caiu abaixo de';
-      const unit = e.indicator === 'debt' ? '% do PIB' : '%';
-      return { text: `${label} ${verb} ${e.threshold}${unit} (agora ${formatPct(e.value)})`, tone: bad ? 'bad' : 'good' };
+      return { text: `${label} ${verb} ${e.threshold}% (agora ${formatPct(e.value)})`, tone: bad ? 'bad' : 'good' };
     }
     case 'operation': {
       const outcome = { victory: 'vitória', defeat: 'derrota', retreat: 'recuo', stalemate: 'impasse (recuo)' }[e.outcome];

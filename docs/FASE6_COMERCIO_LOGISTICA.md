@@ -1,5 +1,8 @@
 # Fase 6 do adendo — comércio internacional e logística visível
 
+> **02/11 — substituído.** O comércio foi refeito (anúncios entre as nações da partida, rodovia, mercado mundial, tudo
+> pelo caixa e sem dívida): ver [`COMERCIO.md`](COMERCIO.md). O texto abaixo é histórico.
+
 > **02/11:** trens e ferrovias saíram do jogo (pedido do usuário). O modal ferroviário não existe mais; a Estação
 > Ferroviária não é construível (as de partidas salvas antes ficam de pé, sem função) e contratos salvos com trem
 > voltam como rodoviários. As linhas sobre trem abaixo ficam como histórico.

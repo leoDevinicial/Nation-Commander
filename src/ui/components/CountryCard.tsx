@@ -13,7 +13,6 @@ export const MAIN_ROWS: { key: ReferenceKey; fmt: Fmt }[] = [
   { key: 'gdpGrowthPct', fmt: (v) => formatPct(v) },
   { key: 'inflationPct', fmt: (v) => formatPct(v) },
   { key: 'unemploymentPct', fmt: (v) => formatPct(v) },
-  { key: 'govDebtPctGdp', fmt: (v) => formatPct(v) },
   { key: 'militaryPctGdp', fmt: (v) => formatPct(v, 2) },
   { key: 'militaryUsd', fmt: formatUsd },
   { key: 'armedForces', fmt: formatCount },
@@ -53,7 +52,6 @@ export function difficultyFactors(id: string): string[] {
   const out: string[] = [];
   const val = (k: ReferenceKey) => v[k].value;
   if ((val('inflationPct') ?? 0) > 10) out.push(`inflação alta (${formatPct(val('inflationPct'))}): pressiona a aprovação até ceder`);
-  if ((val('govDebtPctGdp') ?? 0) > 90) out.push(`dívida elevada (${formatPct(val('govDebtPctGdp'))} do PIB): juros maiores e menos folga fiscal`);
   if ((val('unemploymentPct') ?? 0) > 15) out.push(`desemprego estrutural alto (${formatPct(val('unemploymentPct'))})`);
   if ((val('gdpGrowthPct') ?? 2) < 1) out.push(`crescimento fraco (${formatPct(val('gdpGrowthPct'))})`);
   const rev = val('govRevenuePctGdp');

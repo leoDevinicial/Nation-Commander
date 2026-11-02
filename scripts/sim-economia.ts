@@ -86,6 +86,14 @@ function run(seed: number, difficulty: Difficulty): Result {
     knowledge: (s) => sim.players[s]?.knowledge ?? 0,
     spendKnowledge: (s, kp) => sim.spendKnowledge(s, kp),
   });
+  // comércio (02/11) ligado como no servidor: caixa do país e diplomacia
+  sim.setTradeLink({
+    atWar: (a, b) => national.diplomacy.atWar(a, b),
+    sanctioned: (a, b) => !!national.diplomacy.active('sanctions', a, b),
+    spendable: (s) => national.spendableUsd(s),
+    pay: (s, usd, kind) => national.tradePayment(s, usd, kind),
+    partnerName: (s) => `P${s}`,
+  });
   sim.national = {
     techs: (s) => national.nation(s)?.research.done ?? [],
     infrastructureIndex: (s) => national.nation(s)?.infrastructureIndex ?? 1,
@@ -185,6 +193,13 @@ function run(seed: number, difficulty: Difficulty): Result {
         const k = (v: number) => (v / 1e3).toFixed(0) + 'k';
         if (d) console.log(`${t / MIN}min P${s} caixa ${(w!.fundUsd / 1e6).toFixed(1)}mi líquido ${k(d.net)}/dia | ${d.income.map((l) => `${l.key} ${k(l.usd)}`).join(' ')} | ${d.expense.map((l) => `${l.key} ${k(l.usd)}`).join(' ')}`);
       }
+    // TRADE_LOG=1: comércio de cada IA a cada 5 minutos (anúncios, cargas e mercado mundial)
+    if (process.env.TRADE_LOG && t % (5 * MIN) === 0) {
+      const tr = sim.trade;
+      const by = (st: string) => tr.shipments.filter((x) => x.state === st).length;
+      console.log(`  terminais: ${[0, 1].map((s) => `P${s} ${sim.buildings.filter((b) => b.owner === s && b.type === "market" && b.progress >= 1).length} (era ${sim.eraOf(s)}) estoque ${["food", "wood", "stone", "iron", "oil", "coal"].map((r) => Math.round(tr.sellable(s, r as never))).join("/")} cap ${["food", "wood", "stone", "iron", "oil", "coal"].map((r) => Math.round(sim.capacity(s)[r as never])).join("/")}`).join(" · ")}`);
+      console.log(`${t / MIN}min comércio: anúncios ${tr.listings.length} (abertos ${tr.listings.filter((l) => l.status === 'open').length}, vendidos ${tr.listings.filter((l) => l.status === 'sold').length}) | cargas entregues ${by('delivered')} perdidas ${by('lost')} a caminho ${by('moving') + by('offmap') + by('loading')} | ${[0, 1].map((s) => `P${s} vendas ${((national.nation(s)?.trade.exportsUsd ?? 0) / 1e6).toFixed(1)}mi compras ${((national.nation(s)?.trade.importsUsd ?? 0) / 1e6).toFixed(1)}mi`).join(' · ')}`);
+    }
     const events = sim.drainEvents();
     if (t < 15 * MIN) for (const e of events) if (e.type === 'unit_produced') trained[e.owner]!++;
     if (t < 15 * MIN) for (const e of events) if (e.type === 'destroyed' && e.entity === 'unit') lost[e.owner]!++;

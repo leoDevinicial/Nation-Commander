@@ -1,5 +1,6 @@
 import type { Factor, NationState } from './NationalSimulation.ts';
 import { regionOf } from '../data/geography.ts';
+import { CAIXA_DAYS } from './params.ts';
 
 /**
  * Diplomacia bilateral. Não há base de dados confiável de relações bilaterais para iniciar o
@@ -117,11 +118,9 @@ export const DIPLO = {
   allianceAidK: 0.5,
   /** Forças de dois países mobilizadas no mesmo teatro, ainda sem guerra. */
   theaterRivalry: -20,
-  /** Missão de contato: custo único (% do PIB) e prazo em dias. */
-  contactCostPct: 0.01,
+  /** Missão de contato: prazo em dias (o custo sai do caixa: `CAIXA_DAYS.contact`). */
   contactDays: 20,
-  /** Declaração de guerra: mobilização (% do PIB, financiada por dívida), suprimentos e combustível do teatro. */
-  warMobilizationPct: 0.2,
+  /** Declaração de guerra: mobilização (dias de repasse pagos do caixa do país, `CAIXA_DAYS.war`), suprimentos e combustível do teatro. */
   warSupplies: 150,
   warOil: 50,
   warApproval: -3,
@@ -130,15 +129,15 @@ export const DIPLO = {
   warAllyMemory: -20,
   /** Aliado do alvo (governo da IA) sanciona o agressor se a relação com ele estiver abaixo disto. */
   warAllyResponseBelow: 40,
-  /** Acima desta dívida (% do PIB) não há como financiar a mobilização. */
-  warDebtCapPct: 250,
 } as const;
 
 export interface WarPreviewInput {
   actor: NationId;
   target: NationId;
-  actorGdpUsd: number;
-  actorDebtPctGdp: number;
+  /** Um dia do repasse de referência de quem declara (`NationState.dayUsd`). */
+  actorDayUsd: number;
+  /** Caixa do país de quem declara (US$). */
+  actorFundUsd: number;
   /** Estoque do teatro do agressor (null se o país não está no teatro). */
   theaterStock: { supplies: number; oil: number } | null;
   targetInTheater: boolean;
@@ -167,7 +166,7 @@ export interface WarPreview {
  */
 export function warPreview(i: WarPreviewInput): WarPreview {
   const costs: WarCosts = {
-    usd: Math.round((DIPLO.warMobilizationPct / 100) * i.actorGdpUsd),
+    usd: Math.round(CAIXA_DAYS.war * i.actorDayUsd),
     supplies: DIPLO.warSupplies,
     oil: DIPLO.warOil,
     approval: DIPLO.warApproval,
@@ -176,7 +175,7 @@ export function warPreview(i: WarPreviewInput): WarPreview {
   if (i.actor === i.target) blockers.push('Alvo inválido');
   if (!i.known) blockers.push('País não descoberto: sem contato, não há alvo para uma declaração de guerra');
   if (i.atWar) blockers.push('Os dois países já estão em guerra');
-  if (i.actorDebtPctGdp > DIPLO.warDebtCapPct) blockers.push(`Sem capacidade de financiar a mobilização: dívida acima de ${DIPLO.warDebtCapPct}% do PIB`);
+  if (i.actorFundUsd < costs.usd) blockers.push(`Caixa insuficiente para a mobilização: US$ ${(costs.usd / 1e6).toFixed(1).replace('.', ',')} mi necessários`);
   if (!i.theaterStock) blockers.push('Seu país não tem forças neste teatro');
   else {
     if (i.theaterStock.supplies < costs.supplies) blockers.push(`Suprimentos insuficientes no teatro: ${costs.supplies} necessários, ${Math.floor(i.theaterStock.supplies)} disponíveis`);
@@ -526,8 +525,9 @@ export class Diplomacy {
         if (this.knows(actor, other.slot)) return 'Já há contato com este país';
         const k = `${actor}>${other.slot}`;
         if (this.pendingContacts.has(k)) return 'Missão de contato já em andamento';
-        const cost = (DIPLO.contactCostPct / 100) * me.gdpUsd;
-        me.debtUsd += cost;
+        const cost = CAIXA_DAYS.contact * me.dayUsd;
+        if (me.works.fundUsd < cost) return 'Caixa insuficiente para a missão de contato';
+        me.works.fundUsd -= cost;
         const due = day + DIPLO.contactDays;
         this.pendingContacts.set(k, due);
         this.emit({ type: 'contact_started', day, from: actor, to: other.slot, dueDay: due, costUsd: Math.round(cost) });
@@ -595,8 +595,9 @@ export class Diplomacy {
         if (unknown(other.slot)) return unknown(other.slot);
         if (this.atWar(actor, other.slot)) return 'Não é possível enviar ajuda a um adversário em guerra';
         const pct = clamp(action.pctGdp, 0.01, 0.5);
-        const amount = (pct / 100) * me.gdpUsd;
-        me.debtUsd += amount; // pago com endividamento (sai do orçamento do ano)
+        const amount = pct * CAIXA_DAYS.aidPerPctGdp * me.dayUsd;
+        if (me.works.fundUsd < amount) return 'Caixa insuficiente para a ajuda';
+        me.works.fundUsd -= amount; // sai do caixa do país
         const p = this.pair(actor, other.slot);
         p.aid = Math.min(DIPLO.aidCap, p.aid + DIPLO.aidRelationPer01Pct * (pct / 0.1));
         this.emit({ type: 'aid_sent', day, from: actor, to: other.slot, amountUsd: Math.round(amount) });

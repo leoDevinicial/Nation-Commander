@@ -9,7 +9,7 @@ import { combineMods, type ModId } from './modernization.ts';
 import { DRONE } from './drones.ts';
 import { AIRCRAFT, IRON_DOME, MISSILE, NUCLEAR, missileSpec, type AircraftState, type AircraftType, type LaunchState, type MissionKind, type MissionResult, type MissionState } from './air.ts';
 import { caravanIncome, type CaravanState } from './caravans.ts';
-import { TRADE_RESOURCES, TRANSPORT_MODES, type ShipmentState, type TradeContract, type TradeOffer, type TradeResource, type TransportMode } from './trade.ts';
+import { TRADE_RESOURCES, TRANSPORT_MODES, type ShipmentState, type TradeContract, type TradeItem, type TradeListing, type TradeResource, type TransportMode } from './trade.ts';
 import type { MarketResource } from './market.ts';
 
 export interface UnitSnapshot {
@@ -131,17 +131,20 @@ export interface CaravanView {
 
 export interface ShipmentView {
   id: number;
-  contractId: number;
+  contractId: number | null;
   mode: TransportMode;
   state: ShipmentState;
   x: number;
   y: number;
   /** Direção do movimento (radianos no plano). */
   heading: number;
+  /** Jogador ou 999 (mercado mundial). */
   seller: number;
   buyer: number;
-  resource?: TradeResource;
-  quantity?: number;
+  /** Carga (só para quem negocia). */
+  items?: TradeItem[];
+  /** Pagamento na entrega (só para quem negocia). */
+  payUsd?: number;
   /** Segundos restantes estimados (só para quem negocia). */
   etaSeconds?: number;
   /** Trajeto restante no mapa (só para quem negocia: inspeção de rota). */
@@ -149,16 +152,20 @@ export interface ShipmentView {
   reason?: string | null;
 }
 
-/** Comércio do ponto de vista de um jogador. */
+/** Um anúncio aberto, com o que impede o observador de comprá-lo por cada transporte (null = pode). */
+export type ListingView = TradeListing & { blockers?: Record<TransportMode, string | null> };
+
+/** Comércio do ponto de vista de um jogador (02/11: anúncios, contratos e mercado mundial, tudo pelo caixa). */
 export interface TradeView {
-  offers: TradeOffer[];
+  /** Anúncios abertos de quem não está em guerra com o observador, e os próprios (abertos ou recentes). */
+  listings: ListingView[];
   contracts: TradeContract[];
   shipments: ShipmentView[];
-  /** Cotação dos países da IA (venda/compra por unidade) e o quanto têm/querem agora. */
-  quotes: { partner: number; resource: TradeResource; sell: number; buy: number; supply: number; demand: number }[];
-  /** Motivo de cada modal estar indisponível para o jogador (null = disponível) e embarques simultâneos. */
-  modes: Record<TransportMode, { blocker: string | null; limit: number }>;
-  /** Estoque vendável (nos depósitos certos) e espaço livre por recurso. */
+  /** Mercado mundial: preço de compra e venda por unidade e quanto ainda se negocia hoje. */
+  world: Record<TradeResource, { buy: number; sell: number; left: number }>;
+  /** O que falta para cada transporte (null = disponível), veículos simultâneos e a rota até a borda do mapa. */
+  modes: Record<TransportMode, { blocker: string | null; limit: number; world: string | null }>;
+  /** Estoque vendável e espaço livre por recurso. */
   sellable: Record<TradeResource, number>;
   free: Record<TradeResource, number>;
 }
@@ -207,6 +214,8 @@ export interface Snapshot {
   victory?: { kind: 'territory' | 'political'; slot: Slot; progress: number }[];
   /** Estradas construídas pelos jogadores (índices de célula), junto com o território. */
   roads?: number[];
+  /** Quais dessas células são rodovia (02/11). */
+  highways?: number[];
   /** Caravanas internas que o observador vê. */
   caravans?: CaravanView[];
   /** Minas que o observador vê (as próprias e as inimigas detectadas). */
@@ -361,6 +370,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
     // fronteiras são conhecidas por todos (como no mapa político de Rise of Nations)
     ...(includeTerritory ? { territory: encodeTerritory(sim.territory) } : {}),
     ...(includeTerritory && sim.roads.length ? { roads: sim.roads.map((r) => r.i) } : {}),
+    ...(includeTerritory && sim.highways.size ? { highways: [...sim.highways] } : {}),
     ...(() => {
       const v = sim.victoryPressure().map((x) => ({ ...x, progress: r2(x.progress) }));
       return v.length ? { victory: v } : {};
@@ -415,12 +425,13 @@ export function tradeView(sim: Simulation, slot: Slot): TradeView {
   const shipments: ShipmentView[] = [];
   for (const s of t.shipments) {
     if (s.state === 'delivered' || s.state === 'lost') continue;
-    const p = t.position(s);
     const own = mine(s.seller, s.buyer);
     const onMap = s.state === 'moving' || s.state === 'loading' || s.state === 'waiting_capacity';
-    if (!own && !(onMap && sim.isVisibleTo(slot, p))) continue;
-    const ahead = s.path.find((_, i) => i > 0) ?? p;
+    if (!own && !onMap) continue;
+    const p = t.position(s);
+    if (!own && !sim.isVisibleTo(slot, p)) continue;
     const next = t.position({ ...s, travelled: Math.min(s.pathLength, s.travelled + 0.5) });
+    const ahead = s.path[1] ?? p;
     const heading = Math.atan2(next.y - p.y, next.x - p.x) || Math.atan2(ahead.y - p.y, ahead.x - p.x);
     shipments.push({
       id: s.id,
@@ -434,30 +445,37 @@ export function tradeView(sim: Simulation, slot: Slot): TradeView {
       buyer: s.buyer,
       ...(own
         ? {
-            resource: s.resource,
-            quantity: r1(s.quantity),
-            etaSeconds: Math.max(0, Math.round((s.etaTicks - (sim.tick - s.startTick)) / 20)),
+            items: s.items.map((i) => ({ resource: i.resource, quantity: r1(i.quantity) })),
+            payUsd: s.payUsd,
+            etaSeconds: s.state === 'queued' ? -1 : Math.max(0, Math.round((s.etaTicks - (sim.tick - s.startTick)) / 20)),
             path: s.path.map((q) => ({ x: r2(q.x), y: r2(q.y) })),
             reason: s.reason,
           }
         : {}),
     });
   }
-  const quotes: TradeView['quotes'] = [];
-  for (const n of t.link?.npcs() ?? []) {
-    if (!t.link?.knows(slot, n.id)) continue;
-    for (const r of TRADE_RESOURCES) {
-      const q = t.quote(n.id, slot, r);
-      const pool = t.npcPool(n.id)[r];
-      quotes.push({ partner: n.id, resource: r, sell: q.sell, buy: q.buy, supply: Math.floor(pool.supply), demand: Math.floor(pool.demand) });
+  // anúncios: os abertos de quem não está em guerra com o observador (com o bloqueio de cada transporte) e os próprios
+  const listings: ListingView[] = [];
+  for (const l of t.listings) {
+    if (l.seller === slot) {
+      if (l.status === 'open' || sim.tick - l.createdTick < 20 * 240) listings.push(l);
+      continue;
     }
+    if (l.status !== 'open' || sim.hostile(slot, l.seller)) continue;
+    const blockers = Object.fromEntries(TRANSPORT_MODES.map((m) => [m, t.buyBlocker(slot, l, m)])) as Record<TransportMode, string | null>;
+    listings.push({ ...l, blockers });
   }
   return {
-    offers: t.offers.filter((o) => mine(o.from, o.to) && (o.status === 'pending' || sim.tick - o.createdTick < 20 * 120)),
-    contracts: t.contracts.filter((c) => mine(c.seller, c.buyer)),
+    listings,
+    contracts: t.contracts.filter((c) => mine(c.seller, c.buyer) && (c.status === 'active' || sim.tick - c.startTick < 20 * 600)),
     shipments,
-    quotes,
-    modes: Object.fromEntries(TRANSPORT_MODES.map((m) => [m, { blocker: t.modeBlocker(slot, m), limit: t.convoyLimit(slot, m) }])) as TradeView['modes'],
+    world: Object.fromEntries(TRADE_RESOURCES.map((r) => [r, t.worldQuote(slot, r)])) as TradeView['world'],
+    modes: Object.fromEntries(
+      TRANSPORT_MODES.map((m) => {
+        const w = t.modeBlocker(slot, m) ?? t.worldRoute(slot, m);
+        return [m, { blocker: t.modeBlocker(slot, m), limit: t.convoyLimit(slot, m), world: typeof w === 'string' ? w : null }];
+      }),
+    ) as TradeView['modes'],
     sellable: Object.fromEntries(TRADE_RESOURCES.map((r) => [r, Math.floor(t.sellable(slot, r))])) as Record<TradeResource, number>,
     free: Object.fromEntries(TRADE_RESOURCES.map((r) => [r, Math.floor(t.freeCapacity(slot, r))])) as Record<TradeResource, number>,
   };
@@ -576,9 +594,11 @@ export function airView(sim: Simulation, slot: Slot): AirView {
 
 function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
   switch (e.type) {
-    case 'trade_offer':
-    case 'trade_reply':
-      return e.from === slot || e.to === slot;
+    case 'trade_listed':
+      // anúncio novo: aviso a quem pode comprar (não está em guerra com o vendedor)
+      return e.seller === slot || !sim.hostile(slot, e.seller);
+    case 'trade_sold':
+      return e.seller === slot || e.buyer === slot;
     case 'contract_update':
     case 'shipment_delivered':
       return e.seller === slot || e.buyer === slot;

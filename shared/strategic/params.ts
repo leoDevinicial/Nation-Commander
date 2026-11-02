@@ -36,9 +36,24 @@ export const BASE_INFRASTRUCTURE_PCT = 2.5;
  * Verba de obras do teatro (Fase 4): parcela do orçamento anual de infraestrutura reservada às
  * melhorias de construções no teatro de operações. Hipótese de jogo. A parcela já faz parte do gasto
  * público contabilizado (não cria despesa nova); para ter mais verba, aumenta-se o orçamento de
- * infraestrutura, com os efeitos normais sobre déficit e dívida.
+ * infraestrutura, com os efeitos normais sobre o déficit.
  */
 export const WORKS_SHARE_OF_INFRA = 0.003;
+/**
+ * 02/11 — sem dívida pública: gastos de governo antes financiados por dívida (mobilização, missão de contato, ajuda
+ * externa) saem do caixa do país, medidos em dias do repasse de referência (`NationState.dayUsd`: PIB de referência ×
+ * infraestrutura-base × parcela do teatro ÷ 365). Na paridade todos pagam o mesmo.
+ */
+export const CAIXA_DAYS = {
+  /** Declaração de guerra. */
+  war: 60,
+  /** Missão de contato. */
+  contact: 3,
+  /** Ajuda externa: dias por 1% do PIB escolhido no painel (0,2% → 60 dias). */
+  aidPerPctGdp: 300,
+  /** Pedido de uma potência cumprido: ajuda recebida. */
+  requestAid: 30,
+} as const;
 /** A verba começa a partida com esta fração do teto anual (o resto chega dia a dia). Rebalanceamento
  * da economia: começa com pouco dinheiro, para a primeira melhoria ser uma escolha. */
 export const WORKS_START_FRACTION = 0.25;
@@ -75,8 +90,6 @@ export const COEF = {
   /** Efeito do capital humano (educação) sobre o crescimento, com defasagem. */
   educationGrowth: 1.2,
   educationLagYears: 4,
-  /** Arrasto da dívida acima de 90% do PIB, por p.p. */
-  debtDrag: 0.01,
   /** Arrasto da instabilidade abaixo de 40 pontos. */
   instabilityDrag: 0.03,
   /** Lei de Okun: variação do desemprego por p.p. de crescimento acima da tendência. */
@@ -90,13 +103,6 @@ export const COEF = {
   deficitInflation: 0.8,
   /** Ajuste da inflação em direção ao alvo (fração por ano). */
   inflationAdjust: 1.5,
-  /** Juros: base + metade da inflação + prêmio de risco por p.p. de dívida acima de 60%. */
-  baseRate: 2,
-  inflationPassThrough: 0.5,
-  /** A inflação acima disso não é repassada aos juros médios do estoque da dívida. */
-  inflationPassThroughCap: 20,
-  maxInterestRate: 25,
-  riskPremiumPerPoint: 0.04,
   /** Aprovação: constante de tempo (dias) e pesos dos fatores. */
   approvalDays: 60,
   approvalBase: 50,

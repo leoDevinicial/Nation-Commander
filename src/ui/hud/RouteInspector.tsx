@@ -1,14 +1,15 @@
 import { countryName } from '../../../shared/data/countries.ts';
 import { RESOURCE_LABELS } from '../../../shared/sim/config.ts';
-import { TRANSPORT } from '../../../shared/sim/trade.ts';
+import { TRANSPORT, WORLD } from '../../../shared/sim/trade.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 
 const STATE: Record<string, string> = {
+  queued: 'Na fila do terminal',
   loading: 'Carregando no terminal',
   moving: 'Em trânsito no mapa',
-  offmap: 'Em trânsito fora do teatro',
+  offmap: 'Fora do mapa (mercado mundial)',
   waiting_capacity: 'Aguardando espaço no destino',
 };
 
@@ -24,7 +25,7 @@ export function RouteInspector() {
   const players = useAppStore((st) => st.match?.players ?? []);
   const npcs = useNationalStore((st) => st.diplomacy?.nations ?? []);
   if (id === null) return null;
-  const name = (n: number) => countryName(players.find((p) => p.slot === n)?.countryId ?? npcs.find((x) => x.id === n)?.countryId ?? '') || `#${n}`;
+  const name = (n: number) => n === WORLD ? 'Mercado mundial' : countryName(players.find((p) => p.slot === n)?.countryId ?? npcs.find((x) => x.id === n)?.countryId ?? '') || `#${n}`;
   const close = () => useHudStore.getState().set({ inspectedShipment: null });
   if (!s) {
     return (
@@ -44,7 +45,7 @@ export function RouteInspector() {
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="font-semibold text-ink-100">
-            {s.quantity} de {s.resource ? RESOURCE_LABELS[s.resource] : 'carga'} · {def.label}
+            {(s.items ?? []).map((i) => `${Math.round(i.quantity)} de ${RESOURCE_LABELS[i.resource]}`).join(' + ') || 'Carga'} · {def.label}
           </div>
           <div className="text-[11px] text-ink-300">
             {name(s.seller)} → {name(s.buyer)}
@@ -58,20 +59,21 @@ export function RouteInspector() {
         <dt className="text-ink-400">Estado</dt>
         <dd className="text-ink-200">{STATE[s.state] ?? s.state}</dd>
         <dt className="text-ink-400">Chegada</dt>
-        <dd className="text-ink-200">{s.etaSeconds !== undefined ? `~${s.etaSeconds} dias` : '—'}</dd>
+        <dd className="text-ink-200">{s.etaSeconds !== undefined && s.etaSeconds >= 0 ? `~${s.etaSeconds} dias` : '—'}</dd>
         <dt className="text-ink-400">Capacidade</dt>
         <dd className="text-ink-200">
-          {s.quantity}/{def.capacity} por viagem
+          {Math.round((s.items ?? []).reduce((a, i) => a + i.quantity, 0))}/{def.capacity} por viagem
         </dd>
         {contract && (
           <>
             <dt className="text-ink-400">Contrato</dt>
             <dd className="text-ink-200">
-              {Math.round(contract.delivered)}/{contract.quantity} entregues · {contract.status === 'suspended' ? 'suspenso' : contract.status === 'active' ? 'ativo' : contract.status}
+              {contract.deliveries} entregas · {contract.status === 'active' ? 'ativo' : 'encerrado'}
             </dd>
           </>
         )}
       </dl>
+      {s.payUsd ? <p className="mt-1 text-[11px] text-ink-300">Pagamento na entrega: US$ {(s.payUsd / 1e6).toFixed(2).replace('.', ',')} mi</p> : null}
       <p className="mt-1.5 text-[10px] text-ink-400">Riscos: {def.risk}</p>
       {s.reason && <p className="mt-1 text-[11px] text-brass-400">{s.reason}</p>}
     </div>

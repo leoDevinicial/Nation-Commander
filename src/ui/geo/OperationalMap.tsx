@@ -272,7 +272,7 @@ export function OperationalMap({ runtime, target }: { runtime: GameRuntime; targ
                 </dd>
                 <dt className="text-ink-400">Custo</dt>
                 <dd>
-                  {formatUsd(cost.usd)} (dívida) · {cost.supplies} suprimentos · {cost.oil} petróleo
+                  {formatUsd(cost.usd)} (caixa) · {cost.supplies} suprimentos · {cost.oil} petróleo
                 </dd>
                 <dt className="text-ink-400">Munição</dt>
                 <dd>cobrada no fim, pelos disparos</dd>

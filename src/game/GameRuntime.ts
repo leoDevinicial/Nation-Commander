@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { GameSpeed, MatchStartInfo, ServerMessage } from '../../shared/protocol.ts';
 import type { Command, SandboxToggle } from '../../shared/sim/commands.ts';
-import { BUILDINGS, CITIZEN, CITY, MILITARY_RESEARCH, MILITARY_RESEARCH_IDS, RECRUIT, RESOURCE_TYPES, ROAD, SERVICES, TICK_RATE, UNITS, emptyStockpile, type BuildingType, type MilitaryResearchId, type Terrain, type UnitType } from '../../shared/sim/config.ts';
+import { BUILDINGS, CITIZEN, CITY, MILITARY_RESEARCH, MILITARY_RESEARCH_IDS, RECRUIT, RESOURCE_TYPES, ROAD, HIGHWAY, SERVICES, TICK_RATE, UNITS, emptyStockpile, type BuildingType, type MilitaryResearchId, type Terrain, type UnitType } from '../../shared/sim/config.ts';
 import { MOD_IDS, MODS, checkModernize, pickRefitFacility, type FacilityInfo, type ModId, type ModernizeCheck } from '../../shared/sim/modernization.ts';
 import { anchorForCursor, placementError } from '../../shared/sim/placement.ts';
 import type { BuildingSnapshot, Snapshot, UnitSnapshot } from '../../shared/sim/snapshot.ts';
@@ -680,7 +680,7 @@ export class GameRuntime {
     if (s.territory) {
       this.territory = decodeTerritory(s.territory);
       this.bordersDirty = true;
-      this.applyRoads(s.roads ?? []);
+      this.applyRoads(s.roads ?? [], s.highways ?? []);
     }
     this.snapshotAt = performance.now();
     this.paused = msg.paused;
@@ -822,6 +822,8 @@ export class GameRuntime {
   private decorKey = '';
   /** Estradas construídas pelos jogadores já pintadas no solo. */
   private readonly roadCells = new Set<number>();
+  /** Células de rodovia (02/11), desenhadas como pista dupla. */
+  private readonly highwayCells = new Set<number>();
 
   /** Zoneamento do snapshot: lotes à vista, zonas próprias e o que o painel mostra (impostos e cidades). */
   private applyZoning(z: Snapshot['zoning']): void {
@@ -963,16 +965,19 @@ export class GameRuntime {
   }
 
   /** Estradas novas (vêm junto com o território): terreno local, solo e vegetação por cima. */
-  private applyRoads(cells: readonly number[]): void {
+  private applyRoads(cells: readonly number[], highways: readonly number[] = []): void {
     const fresh = cells.filter((i) => !this.roadCells.has(i));
-    if (!fresh.length) return;
+    // rodovia nova (inclusive sobre estrada que já existia)
+    const freshHw = highways.filter((i) => !this.highwayCells.has(i));
+    if (!fresh.length && !freshHw.length) return;
     for (const i of fresh) {
       this.roadCells.add(i);
       this.map.terrain[i] = T.Road;
     }
-    this.terrain.repaint(fresh);
+    for (const i of freshHw) this.highwayCells.add(i);
+    if (fresh.length) this.terrain.repaint(fresh);
     // peças de asfalto por cima, encaixadas pelas vizinhas
-    this.roadLayer.set(this.roadCells, (i) => this.map.terrain[i] === T.Road);
+    this.roadLayer.set(this.roadCells, (i) => this.map.terrain[i] === T.Road, this.highwayCells);
     this.decorKey = '';
   }
 
@@ -2493,12 +2498,21 @@ export class GameRuntime {
    * em L (só retas, como numa grade de cidade). Nada é construído até o jogador confirmar
    * ("Construir" ou Enter), com a prévia e o custo à vista.
    */
-  startRoad(): void {
+  startRoad(highway = false): void {
     this.roadPending.clear();
     this.roadStroke = null;
     this.roadHover = null;
+    this.roadHighway = highway;
     this.roadPreview.set([]);
-    this.setMode({ kind: 'road', cells: 0, bad: 0, marked: 0, reason: null });
+    this.setMode({ kind: 'road', cells: 0, bad: 0, marked: 0, reason: null, ...(highway ? { highway: true } : {}) });
+  }
+
+  /** Ferramenta aberta para rodovia (02/11): sai do território sem engenheiro e vira rodovia sobre a estrada própria. */
+  private roadHighway = false;
+
+  /** Em guerra com a nação (lista de guerras da diplomacia; o servidor confere de novo ao construir). */
+  private atWarWith(slot: number): boolean {
+    return useNationalStore.getState().diplomacy?.wars.some(([a, b]) => (a === this.mySlot && b === slot) || (a === slot && b === this.mySlot)) ?? false;
   }
 
   /** Células marcadas e ainda não construídas (ordem em que foram marcadas). */
@@ -2520,6 +2534,15 @@ export class GameRuntime {
   private roadCellProblem(c: { cx: number; cy: number }, occupied: Set<number>, engineers: { x: number; y: number }[]): string | null {
     const i = c.cy * this.map.width + c.cx;
     const t = this.map.terrain[i];
+    if (this.roadHighway) {
+      // rodovia: terra própria, neutra ou de quem não está em guerra com você (a simulação confere a guerra)
+      if (t === T.Road) return null;
+      if (t !== T.Plains && t !== T.Fertile) return 'Rodovias só em planície ou solo fértil';
+      if (occupied.has(i)) return 'Há uma construção no lugar';
+      const owner = this.territory[i];
+      if (owner !== undefined && owner >= 0 && owner !== this.mySlot && this.atWarWith(owner)) return 'Território inimigo: rodovia nunca entra em país em guerra com você';
+      return null;
+    }
     if (t !== T.Plains && t !== T.Fertile) return 'Estradas só em planície ou solo fértil';
     if (occupied.has(i)) return 'Há uma construção no lugar';
     if (this.territory[i] !== this.mySlot) {
@@ -2551,11 +2574,11 @@ export class GameRuntime {
     let bad = 0;
     let reason: string | null = null;
     for (const [i, c] of marked) {
-      if (this.map.terrain[i] === T.Road) {
+      if (this.map.terrain[i] === T.Road && (!this.roadHighway || this.highwayCells.has(i))) {
         preview.push({ ...c, state: 'road' });
         continue;
       }
-      const problem = ok.length >= ROAD.maxCells ? `Até ${ROAD.maxCells} células por obra` : this.roadCellProblem(c, occupied, engineers);
+      const problem = ok.length >= (this.roadHighway ? HIGHWAY.maxCells : ROAD.maxCells) ? `Até ${this.roadHighway ? HIGHWAY.maxCells : ROAD.maxCells} células por obra` : this.roadCellProblem(c, occupied, engineers);
       if (problem) {
         bad++;
         reason ??= problem;
@@ -2567,7 +2590,7 @@ export class GameRuntime {
     }
     const h = this.roadHover;
     if (h && !this.roadStroke && !marked.has(h.cy * W + h.cx)) {
-      const problem = this.map.terrain[h.cy * W + h.cx] === T.Road ? 'road' : this.roadCellProblem(h, occupied, engineers);
+      const problem = this.map.terrain[h.cy * W + h.cx] === T.Road && (!this.roadHighway || this.highwayCells.has(h.cy * W + h.cx)) ? 'road' : this.roadCellProblem(h, occupied, engineers);
       preview.push({ ...h, state: problem ? 'bad' : 'hover' });
     }
     this.roadPreview.set(preview);
@@ -2579,7 +2602,7 @@ export class GameRuntime {
     const { ok, bad, reason } = this.evaluateRoad();
     const marked = this.roadPending.size + (this.roadStroke?.cells.length ?? 0);
     const m = this.mode;
-    if (m.cells !== ok.length || m.bad !== bad || m.reason !== reason || m.marked !== marked) this.setMode({ kind: 'road', cells: ok.length, bad, marked, reason });
+    if (m.cells !== ok.length || m.bad !== bad || m.reason !== reason || m.marked !== marked) this.setMode({ kind: 'road', cells: ok.length, bad, marked, reason, ...(this.roadHighway ? { highway: true } : {}) });
   }
 
   /** Caminho em L de `a` até `b`: primeiro ao longo do eixo mais longo, depois do outro. */
@@ -2647,10 +2670,10 @@ export class GameRuntime {
     if (this.mode.kind !== 'road') return;
     const { ok, reason } = this.evaluateRoad();
     if (!ok.length) {
-      useHudStore.getState().pushEvent({ tick: this.snapshot?.tick ?? 0, text: `Estrada: ${reason ?? 'marque as células da estrada no mapa'}`, tone: 'warn' });
+      useHudStore.getState().pushEvent({ tick: this.snapshot?.tick ?? 0, text: `${this.roadHighway ? 'Rodovia' : 'Estrada'}: ${reason ?? 'marque as células no mapa'}`, tone: 'warn' });
       return;
     }
-    this.send({ type: 'build_road', cells: ok });
+    this.send({ type: 'build_road', cells: ok, ...(this.roadHighway ? { highway: true } : {}) });
     this.roadPending.clear();
     this.roadStroke = null;
     this.refreshRoad();

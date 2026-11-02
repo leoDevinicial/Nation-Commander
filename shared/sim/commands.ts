@@ -34,7 +34,7 @@ export type Command =
   /** Engenheiro de Combate: instala uma mina antitanque no ponto. */
   | { type: 'lay_mine'; unitIds: EntityId[]; x: number; y: number }
   /** Estrada: traçado de células adjacentes (horizontal, vertical ou diagonal). */
-  | { type: 'build_road'; cells: { cx: number; cy: number }[] }
+  | { type: 'build_road'; cells: { cx: number; cy: number }[]; highway?: boolean }
   /** Zoneamento (02/11): pinta (ou apaga, com `kind` null) células junto às estradas; demole lotes; imposto do setor. */
   | { type: 'zone_paint'; cells: number[]; kind: ZoneKind | null }
   | { type: 'zone_demolish'; cells: number[] }
@@ -52,11 +52,15 @@ export type Command =
   /** Instala um pacote de modernização nas unidades (Fase 5); cada uma precisa estar perto de uma instalação compatível. */
   | { type: 'modernize'; unitIds: EntityId[]; mod: ModId }
   | { type: 'cancel_modernize'; unitIds: EntityId[] }
-  /** Comércio (Fase 6): proposta (ou contraproposta) a outro país, resposta, retirada e cancelamento. */
-  | { type: 'trade_offer'; partner: number; side: 'buy' | 'sell'; resource: TradeResource; quantity: number; price: number; mode: TransportMode; days: number; counterOf?: number }
-  | { type: 'trade_respond'; offerId: number; accept: boolean }
-  | { type: 'trade_withdraw'; offerId: number }
+  /**
+   * Comércio (02/11): anúncio de venda simples ou contrato, compra de um anúncio escolhendo o transporte, retirada do
+   * anúncio, fim de contrato e compra/venda no mercado mundial.
+   */
+  | { type: 'trade_list'; kind: 'sale' | 'contract'; items: { resource: TradeResource; quantity: number }[]; priceUsd: number; everyDays?: number }
+  | { type: 'trade_buy'; listingId: number; mode: TransportMode }
+  | { type: 'trade_withdraw'; listingId: number }
   | { type: 'trade_cancel'; contractId: number }
+  | { type: 'trade_world'; side: 'buy' | 'sell'; resource: TradeResource; quantity: number; mode: TransportMode }
   /** Força aérea e mísseis (Fase 7). */
   | { type: 'build_aircraft'; buildingId: EntityId; aircraftType: AircraftType }
   | { type: 'air_mission'; buildingId: EntityId; aircraftIds: number[]; mission: MissionKind; targetId?: EntityId; x?: number; y?: number }
@@ -152,7 +156,7 @@ export function parseCommand(raw: unknown): Command | null {
         if (!isObj(c) || !Number.isInteger(c.cx) || !Number.isInteger(c.cy)) return null;
         cells.push({ cx: c.cx as number, cy: c.cy as number });
       }
-      return { type: 'build_road', cells };
+      return { type: 'build_road', cells, ...(raw.highway === true ? { highway: true } : {}) };
     }
     case 'market_sell':
       if (!isId(raw.buildingId) || !isMarketResource(raw.resource) || !Number.isInteger(raw.quantity) || (raw.quantity as number) <= 0 || (raw.quantity as number) > 100_000) return null;
@@ -181,30 +185,28 @@ export function parseCommand(raw: unknown): Command | null {
     case 'cancel_modernize':
       if (!isIdList(raw.unitIds)) return null;
       return { type: 'cancel_modernize', unitIds: [...new Set(raw.unitIds)] };
-    case 'trade_offer': {
-      if (!Number.isInteger(raw.partner) || (raw.partner as number) < 0 || (raw.partner as number) > 1000) return null;
-      if (raw.side !== 'buy' && raw.side !== 'sell') return null;
-      if (!TRADE_RESOURCES.includes(raw.resource as TradeResource) || !TRANSPORT_MODES.includes(raw.mode as TransportMode)) return null;
-      if (!Number.isInteger(raw.quantity) || !isFiniteNum(raw.price) || !Number.isInteger(raw.days)) return null;
-      if (raw.counterOf !== undefined && !isId(raw.counterOf)) return null;
-      return {
-        type: 'trade_offer',
-        partner: raw.partner as number,
-        side: raw.side,
-        resource: raw.resource as TradeResource,
-        quantity: raw.quantity as number,
-        price: raw.price,
-        mode: raw.mode as TransportMode,
-        days: raw.days as number,
-        ...(raw.counterOf !== undefined ? { counterOf: raw.counterOf as number } : {}),
-      };
+    case 'trade_list': {
+      if (raw.kind !== 'sale' && raw.kind !== 'contract') return null;
+      if (!Array.isArray(raw.items) || raw.items.length < 1 || raw.items.length > 3) return null;
+      const items: { resource: TradeResource; quantity: number }[] = [];
+      for (const it of raw.items) {
+        if (!isObj(it) || !TRADE_RESOURCES.includes(it.resource as TradeResource) || !Number.isInteger(it.quantity)) return null;
+        items.push({ resource: it.resource as TradeResource, quantity: it.quantity as number });
+      }
+      if (!isFiniteNum(raw.priceUsd) || (raw.priceUsd as number) <= 0) return null;
+      if (raw.everyDays !== undefined && !Number.isInteger(raw.everyDays)) return null;
+      return { type: 'trade_list', kind: raw.kind, items, priceUsd: raw.priceUsd as number, ...(raw.everyDays !== undefined ? { everyDays: raw.everyDays as number } : {}) };
     }
-    case 'trade_respond':
-      if (!isId(raw.offerId) || typeof raw.accept !== 'boolean') return null;
-      return { type: 'trade_respond', offerId: raw.offerId, accept: raw.accept };
+    case 'trade_buy':
+      if (!isId(raw.listingId) || !TRANSPORT_MODES.includes(raw.mode as TransportMode)) return null;
+      return { type: 'trade_buy', listingId: raw.listingId, mode: raw.mode as TransportMode };
     case 'trade_withdraw':
-      if (!isId(raw.offerId)) return null;
-      return { type: 'trade_withdraw', offerId: raw.offerId };
+      if (!isId(raw.listingId)) return null;
+      return { type: 'trade_withdraw', listingId: raw.listingId };
+    case 'trade_world':
+      if ((raw.side !== 'buy' && raw.side !== 'sell') || !TRADE_RESOURCES.includes(raw.resource as TradeResource) || !TRANSPORT_MODES.includes(raw.mode as TransportMode)) return null;
+      if (!Number.isInteger(raw.quantity) || (raw.quantity as number) < 1 || (raw.quantity as number) > 10_000) return null;
+      return { type: 'trade_world', side: raw.side, resource: raw.resource as TradeResource, quantity: raw.quantity as number, mode: raw.mode as TransportMode };
     case 'trade_cancel':
       if (!isId(raw.contractId)) return null;
       return { type: 'trade_cancel', contractId: raw.contractId };

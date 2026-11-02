@@ -63,7 +63,8 @@ export interface NationalSummary {
   gdpEndUsd: number;
   realGrowthAvgPct: number;
   approvalEnd: number;
-  debtPctGdpEnd: number;
+  /** Caixa do país no fim (02/11: substitui a dívida/PIB). */
+  fundEndUsd: number;
   inflationEndPct: number;
   unemploymentEndPct: number;
   researchDone: TechId[];

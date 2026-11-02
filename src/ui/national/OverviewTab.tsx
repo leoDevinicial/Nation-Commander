@@ -12,7 +12,6 @@ function dateOf(day: number): string {
 }
 
 export function OverviewTab({ nation, history, day, balanceMode }: { nation: NationView; history: HistoryPoint[]; day: number; balanceMode: 'parity' | 'realistic' }) {
-  const debtPct = (nation.debtUsd / nation.gdpUsd) * 100;
   const pts = [...history];
   const lastDay = pts.at(-1)?.day ?? -1;
   if (lastDay < day) {
@@ -22,7 +21,7 @@ export function OverviewTab({ nation, history, day, balanceMode }: { nation: Nat
       growthPct: nation.realGrowthPct,
       inflationPct: nation.inflationPct,
       unemploymentPct: nation.unemploymentPct,
-      debtPctGdp: debtPct,
+      deficitPctGdp: nation.deficitPctGdp,
       approval: nation.approval,
     });
   }
@@ -66,11 +65,11 @@ export function OverviewTab({ nation, history, day, balanceMode }: { nation: Nat
           format={(v) => formatPct(v)}
         />
         <StatTile
-          label="Dívida do governo (% do PIB)"
-          value={formatPct(debtPct, 0)}
-          delta={delta(debtPct, first?.debtPctGdp, false, ' p.p.', 0)}
-          series={series('debtPctGdp')}
-          format={(v) => formatPct(v, 0)}
+          label="Déficit do orçamento (% do PIB)"
+          value={formatPct(nation.deficitPctGdp, 1)}
+          delta={delta(nation.deficitPctGdp, first?.deficitPctGdp, false, ' p.p.', 1)}
+          series={series('deficitPctGdp')}
+          format={(v) => formatPct(v, 1)}
         />
         <StatTile
           label="Aprovação do governo"
@@ -82,7 +81,7 @@ export function OverviewTab({ nation, history, day, balanceMode }: { nation: Nat
       </div>
       <div className="space-y-2 rounded border border-ink-700 bg-ink-900 p-2.5">
         <Meter label="Aprovação" value={nation.approval} hint="Abaixo de 35, cresce o risco de protestos." />
-        <Meter label="Estabilidade institucional" value={nation.stability} hint="Depende da aprovação, da dívida e da inflação. Abaixo de 40 freia o crescimento." />
+        <Meter label="Estabilidade institucional" value={nation.stability} hint="Depende da aprovação e da inflação. Abaixo de 40 freia o crescimento." />
       </div>
       <div className="rounded border border-ink-700 bg-ink-900 p-2.5 text-xs text-ink-200">
         <div className="mb-1 text-[11px] text-ink-400">Logística do teatro de operações</div>

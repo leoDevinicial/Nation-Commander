@@ -65,6 +65,12 @@ segundo de jogo e quando estradas ou fronteiras mudam.
 deixando 200 de pedra de reserva. O traçado evita plantações e prefere planície a solo fértil (ver
 [`CARAVANAS.md`](CARAVANAS.md)).
 
+## Rodovia (02/11)
+
+Pista dupla que sai do território sem engenheiro (nunca em país inimigo), liga-se às estradas e rodovias dos outros
+jogadores, não leva energia e dá o dobro de velocidade aos caminhões de carga e às caravanas (tropas ×1,7). Regras,
+custos e desenho em [`COMERCIO.md`](COMERCIO.md).
+
 ## Engenheiro de Combate
 
 O Engenheiro de Combate sai da Base Militar a partir da era Pós-Guerra Fria. Ele é liberado pela pesquisa militar

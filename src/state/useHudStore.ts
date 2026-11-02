@@ -83,7 +83,7 @@ export type PointerMode =
    * fim). `cells` são as células novas a pavimentar; `reason`, o que impede o traçado.
    */
   /** Ferramenta de estrada: células que podem ser pavimentadas, inválidas, marcadas no total e o primeiro motivo de recusa. */
-  | { kind: 'road'; cells: number; bad: number; marked: number; reason: string | null }
+  | { kind: 'road'; cells: number; bad: number; marked: number; reason: string | null; highway?: boolean }
   /** Ferramenta de zoneamento (02/11): pincel, células válidas e inválidas do arrasto e o primeiro motivo de recusa. */
   | { kind: 'zone'; brush: ZoneBrush; cells: number; bad: number; reason: string | null };
 

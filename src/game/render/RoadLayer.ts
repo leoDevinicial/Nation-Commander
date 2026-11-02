@@ -7,6 +7,12 @@ const ASPHALT = '#1f2227';
 const SIDEWALK = '#8e8b84';
 const CURB = '#c3bfb5';
 const PAINT = '#efeee8';
+/** Rodovia (02/11): asfalto mais escuro, canteiro de concreto, guard-rail e placas verdes. */
+const HW_ASPHALT = '#18191c';
+const HW_BARRIER = '#b8b4aa';
+const HW_RAIL = '#9aa2a8';
+const HW_SIGN = '#2f7a46';
+const HW_EDGE = '#f1e7b0';
 
 /** Largura da calçada (com meio-fio) nas bordas sem estrada vizinha, em fração da célula. */
 const SIDEWALK_FRAC = 0.15;
@@ -52,7 +58,7 @@ export class RoadLayer {
    * Refaz as peças. `paved` são as células com asfalto do jogador; `isRoad` diz se uma célula é
    * estrada de qualquer tipo (inclusive a de terra do mapa), para o encaixe.
    */
-  set(paved: ReadonlySet<number>, isRoad: (i: number) => boolean): void {
+  set(paved: ReadonlySet<number>, isRoad: (i: number) => boolean, highways: ReadonlySet<number> = new Set()): void {
     const l = layers();
     const b = l.body;
     const W = this.width;
@@ -60,6 +66,10 @@ export class RoadLayer {
     for (const i of paved) {
       const cx = i % W;
       const cy = Math.floor(i / W);
+      if (highways.has(i)) {
+        this.highwayTile(b, cx, cy, { n: road(cx, cy - 1), s: road(cx, cy + 1), w: road(cx - 1, cy), e: road(cx + 1, cy) });
+        continue;
+      }
       this.tile(b, cx, cy, { n: road(cx, cy - 1), s: road(cx, cy + 1), w: road(cx - 1, cy), e: road(cx + 1, cy) }, {
         nw: road(cx - 1, cy - 1),
         ne: road(cx + 1, cy - 1),
@@ -67,7 +77,8 @@ export class RoadLayer {
         se: road(cx + 1, cy + 1),
       });
     }
-    this.poles(b, paved, road);
+    // a rodovia não leva energia: sem postes nas células dela
+    this.poles(b, highways.size ? new Set([...paved].filter((i) => !highways.has(i))) : paved, road);
     const geo = l.build().body;
     this.drape(geo);
     this.mesh.geometry.dispose();
@@ -233,6 +244,65 @@ export class RoadLayer {
       if (c.s) dashNS(q);
       if (c.w) dashWE(-q);
       if (c.e) dashWE(q);
+    }
+  }
+
+  /**
+   * Rodovia: pista dupla sem calçada. Nas retas, canteiro central de concreto, faixas tracejadas de cada lado, linhas
+   * de borda e guard-rail onde não há vizinha; de tempos em tempos uma placa verde. Em curvas e cruzamentos fica só o
+   * asfalto com as linhas de borda (o canteiro abre para o trevo).
+   */
+  private highwayTile(b: PartBuilder, cx: number, cy: number, c: { n: boolean; s: boolean; w: boolean; e: boolean }): void {
+    const cs = this.cellSize;
+    const half = cs / 2;
+    const x = (cx + 0.5) * cs;
+    const z = (cy + 0.5) * cs;
+    const top = 0.014;
+    b.add(new THREE.PlaneGeometry(cs, cs, PLATE_SEG, PLATE_SEG).rotateX(-Math.PI / 2), HW_ASPHALT, { pos: [x, 0, z] });
+    const straightNS = c.n && c.s && !c.w && !c.e;
+    const straightWE = c.w && c.e && !c.n && !c.s;
+    const endNS = !c.w && !c.e && (c.n || c.s);
+    const endWE = !c.n && !c.s && (c.w || c.e);
+    const ns = straightNS || endNS;
+    const we = straightWE || endWE;
+    // guard-rail e linha de borda nas bordas sem vizinha
+    const rail = (horizontal: boolean, off: number) => {
+      const len = cs;
+      if (horizontal) {
+        b.box(len, 0.05, 0.03, HW_RAIL, [x, 0.17, z + off]);
+        for (const k of [-0.75, -0.25, 0.25, 0.75]) b.box(0.035, 0.18, 0.035, HW_RAIL, [x + k * half, 0.09, z + off]);
+        b.box(len, 0.008, 0.05, HW_EDGE, [x, top, z + off * 0.86]);
+      } else {
+        b.box(0.03, 0.05, len, HW_RAIL, [x + off, 0.17, z]);
+        for (const k of [-0.75, -0.25, 0.25, 0.75]) b.box(0.035, 0.18, 0.035, HW_RAIL, [x + off, 0.09, z + k * half]);
+        b.box(0.05, 0.008, len, HW_EDGE, [x + off * 0.86, top, z]);
+      }
+    };
+    const edge = half - 0.06;
+    if (!c.n) rail(true, -edge);
+    if (!c.s) rail(true, edge);
+    if (!c.w) rail(false, -edge);
+    if (!c.e) rail(false, edge);
+    if (!ns && !we) return;
+    // canteiro central de concreto (barreira baixa) e uma faixa tracejada em cada pista
+    const dashL = cs * 0.22;
+    if (ns) {
+      b.box(0.14, 0.13, cs, HW_BARRIER, [x, 0.065, z]);
+      b.box(0.07, 0.03, cs, '#d6d2c8', [x, 0.14, z]);
+      for (const lane of [-1, 1]) for (const dz of [-0.25, 0.25]) b.box(0.05, 0.008, dashL, PAINT, [x + lane * cs * 0.26, top, z + dz * cs]);
+    } else {
+      b.box(cs, 0.13, 0.14, HW_BARRIER, [x, 0.065, z]);
+      b.box(cs, 0.03, 0.07, '#d6d2c8', [x, 0.14, z]);
+      for (const lane of [-1, 1]) for (const dx of [-0.25, 0.25]) b.box(dashL, 0.008, 0.05, PAINT, [x + dx * cs, top, z + lane * cs * 0.26]);
+    }
+    // placa verde de tempos em tempos, no canteiro (poste e painel)
+    if ((cx * 7 + cy * 13) % 9 === 0) {
+      const H = 1.05;
+      b.box(0.06, H, 0.06, HW_RAIL, [x, H / 2, z]);
+      if (ns) b.box(0.55, 0.3, 0.04, HW_SIGN, [x, H, z]);
+      else b.box(0.04, 0.3, 0.55, HW_SIGN, [x, H, z]);
+      if (ns) b.box(0.42, 0.03, 0.045, '#e9efe9', [x, H + 0.04, z]);
+      else b.box(0.045, 0.03, 0.42, '#e9efe9', [x, H + 0.04, z]);
     }
   }
 

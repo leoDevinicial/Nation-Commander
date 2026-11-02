@@ -91,7 +91,7 @@ export function ResultsOverlay() {
                   <th>PIB final</th>
                   <th>Variação</th>
                   <th>Aprovação</th>
-                  <th>Dívida/PIB</th>
+                  <th>Caixa</th>
                   <th>Inflação</th>
                   <th>Pesquisas</th>
                 </tr>
@@ -104,7 +104,7 @@ export function ResultsOverlay() {
                       <td>{formatUsd(p.national.gdpEndUsd)}</td>
                       <td>{formatSigned(((p.national.gdpEndUsd / p.national.gdpStartUsd) - 1) * 100, 1, '%')}</td>
                       <td>{formatPct(p.national.approvalEnd, 0)}</td>
-                      <td>{formatPct(p.national.debtPctGdpEnd, 0)}</td>
+                      <td>{formatUsd(p.national.fundEndUsd)}</td>
                       <td>{formatPct(p.national.inflationEndPct)}</td>
                       <td className="font-sans text-xs" title={p.national.researchDone.map((t) => TECHNOLOGIES[t].label).join(', ')}>
                         {p.national.researchDone.length}

@@ -21,7 +21,7 @@ export const MANUAL: ManualCard[] = [
     points: [
       'Duas frentes ao mesmo tempo: o mapa de batalha (economia e exército) e o governo (orçamento, pesquisa e diplomacia).',
       'Vence quem destruir o Centro de Comando inimigo. Perdeu o seu, perdeu a partida.',
-      'Os países usam dados reais (Banco Mundial e FMI): PIB, dívida e gastos fazem diferença.',
+      'Os países usam dados reais (Banco Mundial e FMI): PIB, crescimento e gastos fazem diferença (todos começam sem dívida).',
     ],
     tip: 'Os primeiros 8 minutos são de preparo: a IA não ataca. Use-os para montar a economia.',
   },
@@ -76,7 +76,7 @@ export const MANUAL: ManualCard[] = [
     title: 'Nação e melhorias',
     lead: 'O governo financia a guerra.',
     points: [
-      'Painel Nação (🏛): impostos, gastos, dívida, pesquisa e aprovação. Um dia passa a cada segundo.',
+      'Painel Nação (🏛): impostos, gastos, pesquisa e aprovação. Um dia passa a cada segundo.',
       'O US$ da barra é o caixa do país: produção e repasse entram, manutenção sai. Toque para ver o extrato.',
       'Selecione um prédio e toque em ⬆ Melhorar: até 10 níveis. No nível 6 você escolhe uma especialização, e ela é permanente.',
       'Pesquisas militares liberam modernizações: leve a tropa à base militar ou fábrica e toque no pacote.',

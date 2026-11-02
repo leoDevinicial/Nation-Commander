@@ -20,6 +20,7 @@ import {
   NUCLEAR_SHOCK,
   ROAD_APPROVAL,
   theaterSupply,
+  CAIXA_DAYS,
 } from './params.ts';
 import { countryReference, type ReferenceKey } from './reference.ts';
 import { TECHNOLOGIES, techKnowledge, techDailyUsd, techDays, combineEffects, researchBlocker, TECH_IDS, type TechEffects, type TechId } from './technologies.ts';
@@ -72,7 +73,7 @@ export interface ForeignView {
   known: boolean;
   /** Dia previsto para concluir a missão de contato do observador, se houver. */
   contactDueDay: number | null;
-  intel: { gdpUsd: number; realGrowthPct: number; approval: number; defensePct: number; debtPctGdp: number } | null;
+  intel: { gdpUsd: number; realGrowthPct: number; approval: number; defensePct: number; deficitPctGdp: number } | null;
 }
 
 export interface GeopoliticalView {
@@ -121,7 +122,8 @@ export interface HistoryPoint {
   growthPct: number;
   inflationPct: number;
   unemploymentPct: number;
-  debtPctGdp: number;
+  /** Saldo do orçamento (% do PIB; positivo = déficit). Antes de 02/11 era a dívida. */
+  deficitPctGdp: number;
   approval: number;
 }
 
@@ -143,8 +145,8 @@ export interface WorksFund {
    * pode ficar negativo; `capUsd` segue como o repasse anual do orçamento (base dos preços de projetos e eras).
    */
   today?: TreasuryDay;
-  /** Exportações acumuladas no fim do último dia (para medir as do dia). */
-  exportsSeenUsd?: number;
+  /** Comércio do dia ainda não fechado no extrato (02/11: tudo pelo caixa, sem dívida). */
+  tradePending?: { inUsd: number; outUsd: number; freightUsd: number };
 }
 
 /**
@@ -181,14 +183,13 @@ export interface NationState {
   inflationPct: number;
   unemploymentPct: number;
   naturalUnemploymentPct: number;
-  debtUsd: number;
-  interestRatePct: number;
   budget: Budget;
   referenceBudget: Budget;
   /** Fluxos anuais correntes (US$) — derivados do orçamento e do PIB atuais. */
   revenueUsd: number;
   spendingUsd: number;
-  interestUsd: number;
+  /** Um dia do repasse de referência (US$): mede no caixa os gastos que antes viravam dívida (`CAIXA_DAYS`). */
+  dayUsd: number;
   deficitPctGdp: number;
   infrastructureIndex: number;
   humanCapitalIndex: number;
@@ -211,8 +212,6 @@ export interface NationState {
   estimatedFields: ReferenceKey[];
   /** Ajuste (p.p. do PIB) somado à receita do governo central para cobrir gastos subnacionais. */
   taxAdjustmentPct: number;
-  /** Dívida/PIB na data de referência. */
-  baseDebtPctGdp: number;
   history: HistoryPoint[];
   /** Decretos, facções e pedidos das potências (ausente em salvamentos antigos). */
   policies?: PolicyState;
@@ -225,7 +224,7 @@ export interface NationState {
 export type NationalEvent =
   | { type: 'research_completed'; day: number; slot: Slot; techId: TechId }
   | { type: 'protest'; day: number; slot: Slot; approval: number; causes: Factor[] }
-  | { type: 'threshold'; day: number; slot: Slot; indicator: 'debt' | 'inflation' | 'approval' | 'growth'; value: number; threshold: number; direction: 'up' | 'down' }
+  | { type: 'threshold'; day: number; slot: Slot; indicator: 'inflation' | 'approval' | 'growth'; value: number; threshold: number; direction: 'up' | 'down' }
   | { type: 'budget_changed'; day: number; slot: Slot; deficitPctGdp: number }
   /** Ataque aéreo ou de míssil registrado (Fase 7): custo, dano, petróleo perdido e alvo. */
   /** Operação expedicionária concluída (Fase 8): resultado reconciliado uma única vez. */
@@ -371,8 +370,8 @@ export class NationalSimulation {
     return warPreview({
       actor,
       target,
-      actorGdpUsd: me?.gdpUsd ?? 0,
-      actorDebtPctGdp: me ? (me.debtUsd / me.gdpUsd) * 100 : 0,
+      actorDayUsd: me?.dayUsd ?? 0,
+      actorFundUsd: me?.works.fundUsd ?? 0,
       theaterStock: this.theater?.resources(actor) ?? null,
       targetInTheater: !!this.nation(target) && d.inTheater(actor, target),
       known: !!this.nation(target) && d.knows(actor, target),
@@ -394,7 +393,8 @@ export class NationalSimulation {
     const preview = this.warPreview(actor, target);
     if (preview.blockers.length) return preview.blockers[0]!;
     this.theater!.spend(actor, { supplies: preview.costs.supplies, oil: preview.costs.oil });
-    me.debtUsd += preview.costs.usd;
+    me.works.fundUsd -= preview.costs.usd;
+    this.ledger(me, preview.costs.usd, 'Mobilização para a guerra');
     me.approval = Math.max(0, me.approval + preview.costs.approval);
     this.diplomacy.applyWar(actor, target, this.day, preview);
     this.theater!.setWar(actor, target);
@@ -425,7 +425,7 @@ export class NationalSimulation {
                   realGrowthPct: round2(n.realGrowthPct),
                   approval: Math.round(n.approval * 10) / 10,
                   defensePct: round2(n.budget.defensePct),
-                  debtPctGdp: Math.round((n.debtUsd / n.gdpUsd) * 1000) / 10,
+                  deficitPctGdp: round2(n.deficitPctGdp),
                 }
               : null,
           };
@@ -497,17 +497,35 @@ export class NationalSimulation {
   }
 
   /**
-   * Lançamento de comércio no tesouro (Fase 6): receita de exportação reduz a dívida; importação e
-   * frete a aumentam. `kind` separa os totais para o painel.
+   * Lançamento de comércio no caixa do país (02/11: sem dívida): venda entra, compra e frete saem, na hora da
+   * entrega ou do despacho. `kind` separa os totais para o painel.
    */
   tradePayment(slot: Slot, usd: number, kind: 'export' | 'import' | 'freight'): void {
     const n = this.nations.find((x) => x.slot === slot);
     if (!n) return;
-    n.debtUsd = Math.max(0, n.debtUsd - usd);
-    if (kind === 'export') n.trade.exportsUsd += usd;
-    else if (kind === 'import') n.trade.importsUsd -= usd;
-    else n.trade.freightUsd -= usd;
+    // entra no extrato do dia (fechado no próximo passo diário); a compra já reserva o dinheiro (`spendableUsd`)
+    const t = (n.works.tradePending ??= { inUsd: 0, outUsd: 0, freightUsd: 0 });
+    if (kind === 'export') {
+      n.trade.exportsUsd += usd;
+      t.inUsd += usd;
+    } else if (kind === 'import') {
+      n.trade.importsUsd += -usd;
+      t.outUsd += -usd;
+    } else {
+      n.trade.freightUsd += -usd;
+      t.freightUsd += -usd;
+    }
+    if (this.isNpc(n.slot)) n.works.fundUsd += usd;
   }
+
+  /** Dinheiro livre do caixa agora: o saldo menos as compras e fretes ainda não fechados no dia. */
+  spendableUsd(slot: Slot): number {
+    const n = this.nation(slot);
+    if (!n) return 0;
+    const t = n.works.tradePending;
+    return n.works.fundUsd + (t ? t.inUsd - t.outUsd - t.freightUsd : 0);
+  }
+
 
   /** Estado de pesquisa de todas as nações (JSON) — parte do salvar/carregar da partida. */
   saveResearch(): Record<number, ResearchState> {
@@ -594,10 +612,17 @@ export class NationalSimulation {
 
   // ------------------------------------------------------------ operações (Fase 8)
 
-  /** Gasto militar extraordinário (operação expedicionária): financiado por dívida, como a mobilização. */
+  /** Gasto militar extraordinário (operação expedicionária): sai do caixa do país. */
   militarySpend(slot: Slot, usd: number): void {
     const n = this.nation(slot);
-    if (n && usd > 0) n.debtUsd += usd;
+    if (!n || usd <= 0) return;
+    n.works.fundUsd -= usd;
+    this.ledger(n, usd, 'Operação expedicionária');
+  }
+
+  /** Caixa do país (para validar gastos fora do teatro). */
+  fundOf(slot: Slot): number {
+    return this.nation(slot)?.works.fundUsd ?? 0;
   }
 
   /** Baixas de uma operação contam na opinião pública como as do teatro. */
@@ -729,7 +754,6 @@ export class NationalSimulation {
     const dt = 1 / DAYS_PER_YEAR;
     const fx = combineEffects(n.research.done);
     const b = n.budget;
-    const debtPct = (n.debtUsd / n.gdpUsd) * 100;
     const totalSpendPct = spendPct(b);
     const diplo = this.diplomacy.growthEffects(n.slot);
 
@@ -740,7 +764,6 @@ export class NationalSimulation {
       { key: 'tax', label: 'Carga tributária vs. referência', value: -COEF.taxDrag * (b.taxPct - n.base.taxPct) },
       { key: 'infra', label: 'Estoque de infraestrutura', value: COEF.infrastructureGrowth * (n.infrastructureIndex - 1) },
       { key: 'education', label: 'Capital humano (educação, com defasagem)', value: COEF.educationGrowth * (n.humanCapitalIndex - 1) },
-      { key: 'debt', label: 'Dívida acima de 90% do PIB', value: -COEF.debtDrag * Math.max(0, debtPct - 90) },
       { key: 'stability', label: 'Instabilidade política', value: -COEF.instabilityDrag * Math.max(0, 40 - n.stability) },
       { key: 'tech', label: 'Pesquisas concluídas', value: fx.growthBonus },
       { key: 'trade', label: 'Acordos comerciais', value: diplo.trade },
@@ -784,16 +807,15 @@ export class NationalSimulation {
     let researchPaid = this.isNpc(n.slot);
     if (this.isNpc(n.slot)) n.works.fundUsd = Math.min(n.works.capUsd, n.works.fundUsd + n.works.capUsd / DAYS_PER_YEAR);
     else {
-      const exportsToday = Math.max(0, n.trade.exportsUsd - (n.works.exportsSeenUsd ?? n.trade.exportsUsd));
-      n.works.exportsSeenUsd = n.trade.exportsUsd;
       const gdpRef = this.mode === 'parity' ? COEF.parityGdpUsd : n.gdpUsd;
       const day = treasuryDay(this.theater?.stats?.(n.slot)?.economy ?? null, {
         transferUsd: n.works.capUsd / DAYS_PER_YEAR,
         scale: gdpRef / COEF.parityGdpUsd,
         productivity: clamp(n.infrastructureIndex * n.humanCapitalIndex - 1, -0.4, 0.6),
-        exportsUsd: exportsToday,
         tradeGrowthPct: diplo.trade,
+        ...(n.works.tradePending ? { trade: n.works.tradePending } : {}),
       });
+      n.works.tradePending = undefined;
       const cur = n.research.current;
       n.research.usdScale = gdpRef / COEF.parityGdpUsd;
       if (cur) {
@@ -809,11 +831,10 @@ export class NationalSimulation {
       n.works.today = day;
       n.works.fundUsd += day.net;
     }
-    n.debtUsd = Math.max(0, n.debtUsd + (n.spendingUsd + n.interestUsd - n.revenueUsd) * dt);
 
     // --- opinião pública
     this.updateApproval(n);
-    const stabilityTarget = clamp(30 + pol.stability + 0.7 * n.approval - Math.min(15, 0.2 * Math.max(0, debtPct - 100)) - Math.min(20, 0.3 * Math.max(0, n.inflationPct - 20)), 0, 100);
+    const stabilityTarget = clamp(30 + pol.stability + 0.7 * n.approval - Math.min(20, 0.3 * Math.max(0, n.inflationPct - 20)), 0, 100);
     n.stability += ((stabilityTarget - n.stability) * 1) / COEF.stabilityDays;
 
     // --- protesto: risco probabilístico com causas registradas
@@ -852,8 +873,6 @@ export class NationalSimulation {
     n.victories30d.length = Math.min(n.victories30d.length, 30);
 
     // --- limiares (geram eventos uma vez ao cruzar)
-    const newDebtPct = (n.debtUsd / n.gdpUsd) * 100;
-    this.crossing(n, 'debt', debtPct, newDebtPct, [60, 90, 120]);
     this.crossing(n, 'inflation', prevInflation, n.inflationPct, [10, 25]);
     this.crossing(n, 'growth', prevGrowth, n.realGrowthPct, [0]);
 
@@ -942,9 +961,9 @@ export class NationalSimulation {
       const st = this.requestStatus(n, r);
       if (st === 'met') {
         this.diplomacy.adjustRelation(n.slot, r.from, REQUEST.relationWin);
-        const aid = n.gdpUsd * REQUEST.aidGdpShare;
-        n.debtUsd = Math.max(0, n.debtUsd - aid);
-        this.events.push({ type: 'policy', day, slot: n.slot, text: `Pedido de ${countryOf(this, r.from)} cumprido: relação +${REQUEST.relationWin} e ajuda de US$ ${Math.round(aid / 1e6)} mi`, tone: 'good' });
+        const aid = CAIXA_DAYS.requestAid * n.dayUsd;
+        n.works.fundUsd += aid;
+        this.events.push({ type: 'policy', day, slot: n.slot, text: `Pedido de ${countryOf(this, r.from)} cumprido: relação +${REQUEST.relationWin} e ajuda de US$ ${(aid / 1e6).toFixed(1).replace('.', ',')} mi no caixa`, tone: 'good' });
         p.request = null;
         p.nextRequestDay = day + REQUEST.gapDays;
       } else if (st === 'failed' || day >= r.dueDay) {
@@ -1051,23 +1070,21 @@ export class NationalSimulation {
   /** Recalcula fluxos anuais e a logística do teatro a partir do orçamento e do PIB atuais. */
   private recompute(n: NationState, _dt: number): void {
     const b = n.budget;
-    const debtPct = (n.debtUsd / n.gdpUsd) * 100;
-    n.interestRatePct = interestRate(n.inflationPct, debtPct, n.baseDebtPctGdp);
     n.revenueUsd = (b.taxPct / 100) * n.gdpUsd;
     n.spendingUsd = ((spendPct(b) + this.diplomacy.costPct(n.slot)) / 100) * n.gdpUsd;
-    n.interestUsd = (n.interestRatePct / 100) * n.debtUsd;
-    n.deficitPctGdp = ((n.spendingUsd + n.interestUsd - n.revenueUsd) / n.gdpUsd) * 100;
+    n.deficitPctGdp = ((n.spendingUsd - n.revenueUsd) / n.gdpUsd) * 100;
     const fx = combineEffects(n.research.done);
     const gdpFor = (x: NationState) => (this.mode === 'parity' ? COEF.parityGdpUsd : x.gdpUsd);
     const defenseBn = ((b.defensePct / 100) * gdpFor(n)) / 1e9;
     // teto anual da verba de obras: segue o orçamento de infraestrutura (e o PIB) atuais
+    n.dayUsd = Math.round(((BASE_INFRASTRUCTURE_PCT / 100) * gdpFor(n) * WORKS_SHARE_OF_INFRA) / DAYS_PER_YEAR);
     n.works.capUsd = Math.round((b.infrastructurePct / 100) * gdpFor(n) * WORKS_SHARE_OF_INFRA * (n.projects?.includes('financial_center') ? PROJECT_FX.financialWorksMul : 1));
     if (this.isNpc(n.slot) && n.works.fundUsd > n.works.capUsd) n.works.fundUsd = n.works.capUsd;
     n.allianceAidPerSec = this.diplomacy.allianceAid(n.slot, gdpFor);
     n.theaterSupplyPerSec = theaterSupply(defenseBn) * fx.theaterSupplyMul + n.allianceAidPerSec;
   }
 
-  private crossing(n: NationState, indicator: 'debt' | 'inflation' | 'approval' | 'growth', before: number, after: number, thresholds: number[]): void {
+  private crossing(n: NationState, indicator: 'inflation' | 'approval' | 'growth', before: number, after: number, thresholds: number[]): void {
     for (const t of thresholds) {
       if (before < t && after >= t) this.events.push({ type: 'threshold', day: this.day, slot: n.slot, indicator, value: round2(after), threshold: t, direction: 'up' });
       else if (before >= t && after < t) this.events.push({ type: 'threshold', day: this.day, slot: n.slot, indicator, value: round2(after), threshold: t, direction: 'down' });
@@ -1081,7 +1098,7 @@ export class NationalSimulation {
       growthPct: round2(n.realGrowthPct),
       inflationPct: round2(n.inflationPct),
       unemploymentPct: round2(n.unemploymentPct),
-      debtPctGdp: round2((n.debtUsd / n.gdpUsd) * 100),
+      deficitPctGdp: round2(n.deficitPctGdp),
       approval: round2(n.approval),
     });
     if (n.history.length > HISTORY_MAX_POINTS) n.history.shift();
@@ -1107,7 +1124,6 @@ export function createNation(slot: Slot, countryId: string): NationState {
   const growth = clamp(pick('gdpGrowthPct', FALLBACKS.gdpGrowthPct), COEF.trendGrowthRange[0], COEF.trendGrowthRange[1]);
   const inflation = pick('inflationPct', FALLBACKS.inflationPct);
   const unemployment = pick('unemploymentPct', FALLBACKS.unemploymentPct);
-  const debtPct = pick('govDebtPctGdp', FALLBACKS.govDebtPctGdp);
   const revenuePct = pick('govRevenuePctGdp', FALLBACKS.govRevenuePctGdp);
   const expensePct = pick('govExpensePctGdp', FALLBACKS.govExpensePctGdp);
   const defensePct = pick('militaryPctGdp', FALLBACKS.militaryPctGdp);
@@ -1116,10 +1132,10 @@ export function createNation(slot: Slot, countryId: string): NationState {
   const researchPct = pick('researchPctGdp', FALLBACKS.researchPctGdp) * PUBLIC_RESEARCH_SHARE;
 
   // "social" fecha a despesa total de referência (descontados juros estimados e demais rubricas)
-  const interestEstimatePct = interestRate(inflation, debtPct, debtPct) * (debtPct / 100);
+  // 02/11: sem dívida pública (todos começam iguais); os juros que a despesa real incluía ficam no "social"
   const named = defensePct + educationPct + healthPct + BASE_INFRASTRUCTURE_PCT + researchPct;
-  const socialPct = clamp(expensePct - named - interestEstimatePct, 2, 40);
-  const modelSpend = named + socialPct + interestEstimatePct;
+  const socialPct = clamp(expensePct - named, 2, 40);
+  const modelSpend = named + socialPct;
 
   // Receita/despesa do WDI cobrem só o governo central, enquanto saúde e educação cobrem todos
   // os níveis de governo. A receita do modelo é ajustada para preservar o déficit observado
@@ -1156,13 +1172,11 @@ export function createNation(slot: Slot, countryId: string): NationState {
     inflationPct: inflation,
     unemploymentPct: unemployment,
     naturalUnemploymentPct: unemployment,
-    debtUsd: (debtPct / 100) * gdpUsd,
-    interestRatePct: 0,
     budget,
     referenceBudget: { ...budget },
     revenueUsd: 0,
     spendingUsd: 0,
-    interestUsd: 0,
+    dayUsd: 0,
     deficitPctGdp: 0,
     infrastructureIndex: 1,
     humanCapitalIndex: 1,
@@ -1180,7 +1194,6 @@ export function createNation(slot: Slot, countryId: string): NationState {
     victories30d: [0],
     estimatedFields: estimated,
     taxAdjustmentPct: round2(taxAdjustmentPct),
-    baseDebtPctGdp: debtPct,
     history: [],
     base: {
       inflationPct: inflation,
@@ -1193,15 +1206,6 @@ export function createNation(slot: Slot, countryId: string): NationState {
   };
 }
 
-/**
- * Juros nominais médios da dívida (hipótese de jogo): base + repasse parcial da inflação (limitado,
- * pois parte da dívida é prefixada/indexada) + prêmio de risco pelo endividamento adicional.
- */
-export function interestRate(inflationPct: number, debtPct: number, baseDebtPct: number): number {
-  // o mercado já precifica a dívida inicial: o prêmio incide só sobre o aumento acima dela (e de 60%)
-  const r = COEF.baseRate + COEF.inflationPassThrough * clamp(inflationPct, 0, COEF.inflationPassThroughCap) + COEF.riskPremiumPerPoint * Math.max(0, debtPct - Math.max(60, baseDebtPct));
-  return Math.min(r, COEF.maxInterestRate);
-}
 
 export function clampBudget(b: Budget): Budget {
   return {

@@ -6,7 +6,7 @@ import type { Simulation } from './Simulation.ts';
 import type { Building, Cell, Entity, Slot, Unit, Vec2 } from './types.ts';
 import type { SpecId } from './upgrades.ts';
 import { MOD_IDS, MODS, checkModernize } from './modernization.ts';
-import { BASE_PRICE } from './trade.ts';
+import { REF_PRICE, TRADE_RESOURCES, TRANSPORT_MODES, type TradeResource } from './trade.ts';
 import { DIPLO } from '../strategic/Diplomacy.ts';
 import { DIFFICULTY, firstAttackTicks } from './difficulty.ts';
 import { ERAS, buildingEra, type Era } from './eras.ts';
@@ -50,6 +50,10 @@ const AI_MAX_CITIES = 6;
 const AI_MARKET_KEEP = 500;
 const AI_MARKET_KEEP_FRACTION = 0.5;
 const AI_MARKET_LOT = 100;
+/** Comércio entre nações (02/11): a cada 10 s; lote de 100; só compra do mundo com folga no caixa. */
+const AI_TRADE_EVERY_TICKS = TICK_RATE * 10;
+const AI_TRADE_LOT = 100;
+const AI_WORLD_MIN_CAIXA = 20_000_000;
 const AI_MARKET_MIN_PRICE = 0.5;
 export const AI_MARKET_EVERY_TICKS = TICK_RATE * 5;
 /** Ferro do equipamento da infantaria (o mínimo para formar um soldado). */
@@ -193,6 +197,8 @@ export class TacticalAI {
   private lastRoadTick = -Infinity;
   /** Última venda no mercado interno. */
   private lastMarketTick = -Infinity;
+  /** Último passo de comércio entre nações (02/11). */
+  private lastTradeTick = -Infinity;
   /** País contra o qual a IA quer declarar guerra (lido e processado pelo servidor). */
   wantsWarWith: Slot | null = null;
 
@@ -720,12 +726,8 @@ export class TacticalAI {
     // --- engenharia (lote 3): remove as minas inimigas conhecidas e mina a frente da base
     this.planEngineers(sim, hq, army, committed, level.mines, take, cmds);
 
-    // --- comércio (Fase 6): responde a ofertas de outros jogadores pela mesma regra de aceitação
-    for (const o of sim.trade.offers) {
-      if (o.status !== 'pending' || o.to !== this.slot || o.from >= 100) continue;
-      const fair = Math.abs(o.price / BASE_PRICE[o.resource] - 1) <= 0.15;
-      cmds.push({ type: 'trade_respond', offerId: o.id, accept: fair && sim.trade.acceptBlocker(o) === null });
-    }
+    // --- comércio (02/11): anuncia o que sobra, compra o que falta de quem não está em guerra e, no aperto, do mundo
+    this.planTrade(sim, mine, cmds);
 
     // --- modernização (Fase 5): tropas paradas perto da instalação recebem os pacotes liberados
     if (!this.attacking) this.planModernize(sim, army, take, cmds);
@@ -1034,6 +1036,60 @@ export class TacticalAI {
     const quantity = Math.min(AI_MARKET_LOT * 5, Math.floor(best.extra / AI_MARKET_LOT) * AI_MARKET_LOT);
     cmds.push({ type: 'market_sell', buildingId: market.id, resource: best.r, quantity });
     this.lastMarketTick = sim.tick;
+  }
+
+  /**
+   * Comércio entre nações (02/11), a cada 10 s: um anúncio de venda aberto por vez com a maior sobra (o que passa de
+   * 35% da capacidade, a 15% acima da referência); compra anúncio de quem não está em guerra quando um recurso cai
+   * abaixo de 20% da capacidade e o preço por unidade não passa de 1,5× a referência; abaixo de 8% e sem anúncio, compra
+   * um lote do mercado mundial.
+   */
+  private planTrade(sim: Simulation, mine: Building[], cmds: Command[]): void {
+    if (sim.tick - this.lastTradeTick < AI_TRADE_EVERY_TICKS) return;
+    this.lastTradeTick = sim.tick;
+    if (!mine.some((b) => b.type === 'market' && b.progress >= 1 && b.hp > 0)) return;
+    const t = sim.trade;
+    const me = this.slot;
+    const res = sim.players[me]!.resources;
+    const cap = sim.capacity(me);
+    // vende: um anúncio aberto por vez
+    if (!t.listings.some((l) => l.seller === me && l.status === 'open')) {
+      let best: { r: TradeResource; extra: number } | null = null;
+      for (const r of TRADE_RESOURCES) {
+        const extra = t.sellable(me, r) - Math.max(AI_MARKET_KEEP, cap[r] * 0.35);
+        if (extra >= AI_TRADE_LOT && (!best || extra * REF_PRICE[r] > best.extra * REF_PRICE[best.r])) best = { r, extra };
+      }
+      if (best) {
+        const quantity = Math.min(AI_TRADE_LOT * 4, Math.floor(best.extra / 50) * 50);
+        cmds.push({ type: 'trade_list', kind: 'sale', items: [{ resource: best.r, quantity }], priceUsd: Math.round(REF_PRICE[best.r] * quantity * 1.15) });
+      }
+    }
+    // compra: o recurso mais em falta
+    for (const r of TRADE_RESOURCES) {
+      if (cap[r] <= 0 || res[r] >= cap[r] * 0.2) continue;
+      const room = cap[r] - res[r];
+      for (const l of t.listings) {
+        if (l.status !== 'open' || l.seller === me) continue;
+        const it = l.items.find((i) => i.resource === r);
+        if (!it || it.quantity > room) continue;
+        const per = l.kind === 'sale' ? l.priceUsd / it.quantity : t.perDelivery(l.priceUsd, l.everyDays) / it.quantity;
+        if (l.items.length > 1 || per > REF_PRICE[r] * 1.5) continue;
+        if (l.kind === 'contract' && t.contracts.some((c) => c.buyer === me && c.status === 'active')) continue;
+        const mode = TRANSPORT_MODES.find((m) => t.buyBlocker(me, l, m) === null);
+        if (mode) {
+          cmds.push({ type: 'trade_buy', listingId: l.id, mode });
+          return;
+        }
+      }
+      if (res[r] < cap[r] * 0.08) {
+        const quantity = Math.min(AI_TRADE_LOT, Math.floor(room));
+        const mode = TRANSPORT_MODES.find((m) => quantity > 0 && t.worldBlocker(me, 'buy', r, quantity, m) === null);
+        if (mode && (t.link?.spendable(me) ?? 0) > AI_WORLD_MIN_CAIXA) {
+          cmds.push({ type: 'trade_world', side: 'buy', resource: r, quantity, mode });
+          return;
+        }
+      }
+    }
   }
 
   private planUpgrade(sim: Simulation, mine: Building[], budget: Stockpile, take: (c: Cost) => boolean, cmds: Command[], onlyHq = false): void {

@@ -67,17 +67,16 @@ describe('modelo nacional', () => {
     });
   });
 
-  it('déficit acumula dívida; superávit a reduz', () => {
+  it('sem dívida pública: déficit grande vira inflação; superávit, não', () => {
     const sim = new NationalSimulation([{ slot: 0, countryId: 'DEU' }, { slot: 1, countryId: 'DEU' }], 1, 'realistic');
     const a = sim.nation(0)!;
     const b = sim.nation(1)!;
-    sim.setBudget(0, { ...a.budget, taxPct: a.budget.taxPct - 5 });
+    expect('debtUsd' in a).toBe(false);
+    sim.setBudget(0, { ...a.budget, taxPct: a.budget.taxPct - 8 });
     sim.setBudget(1, { ...b.budget, taxPct: b.budget.taxPct + 5 });
-    const debtA = a.debtUsd;
-    const debtB = b.debtUsd;
     run(sim, 180);
-    expect(a.debtUsd).toBeGreaterThan(debtA);
-    expect(b.debtUsd).toBeLessThan(debtB);
+    expect(a.deficitPctGdp).toBeGreaterThan(b.deficitPctGdp);
+    expect(a.inflationPct).toBeGreaterThan(b.inflationPct);
   });
 
   it('aumentar impostos reduz a aprovação com defasagem, e o fator aparece no diagnóstico', () => {

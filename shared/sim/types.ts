@@ -304,11 +304,11 @@ export type SimEvent =
   | { type: 'attrition'; tick: number; owner: Slot; pos: Vec2 }
   | { type: 'modernize_started'; tick: number; id: EntityId; owner: Slot; unitType: UnitType; mod: ModId; usd: number; pos: Vec2 }
   | { type: 'unit_modernized'; tick: number; id: EntityId; owner: Slot; unitType: UnitType; mod: ModId; pos: Vec2 }
-  | { type: 'trade_offer'; tick: number; offerId: number; from: number; to: number }
-  | { type: 'trade_reply'; tick: number; offerId: number; from: number; to: number; accepted: boolean; reason: string | null }
+  | { type: 'trade_listed'; tick: number; listingId: number; seller: number; kind: 'sale' | 'contract' }
+  | { type: 'trade_sold'; tick: number; listingId: number; seller: number; buyer: number; kind: 'sale' | 'contract' }
   | { type: 'contract_update'; tick: number; contractId: number; seller: number; buyer: number; status: string; text: string }
-  | { type: 'shipment_delivered'; tick: number; shipmentId: number; contractId: number; seller: number; buyer: number; resource: string; quantity: number }
-  | { type: 'shipment_lost'; tick: number; shipmentId: number; contractId: number; seller: number; buyer: number; resource: string; quantity: number; reason: string; pos: Vec2 }
+  | { type: 'shipment_delivered'; tick: number; shipmentId: number; contractId: number; seller: number; buyer: number; resource: string; quantity: number; usd: number }
+  | { type: 'shipment_lost'; tick: number; shipmentId: number; contractId: number; seller: number; buyer: number; resource: string; quantity: number; reason: string; pos: Vec2; mode: 'road' | 'sea' | 'air' }
   | { type: 'air_mission'; tick: number; owner: Slot; missionId: number; kind: 'strike' | 'recon'; phase: 'launched' | 'result'; text: string; pos: Vec2 }
   /** `air`: abatida em combate aéreo (a explosão é no ar, longe do alvo). */
   | { type: 'aircraft_lost'; tick: number; owner: Slot; aircraftType: string; pos: Vec2; air?: boolean }

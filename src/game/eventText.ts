@@ -86,24 +86,19 @@ export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone
       return e.owner === mySlot ? { text: `Obra de melhoria cancelada: ${BUILDINGS[e.buildingType].label} (devolução parcial)`, tone: 'warn' } : null;
     case 'attrition':
       return e.owner === mySlot ? { text: 'Tropas sofrendo atrito em território inimigo: leve um blindado de transporte para manter o suprimento', tone: 'warn' } : null;
-    case 'trade_offer':
-      return e.to === mySlot ? { text: 'Nova oferta comercial recebida (Nação → Comércio)', tone: 'info' } : null;
-    case 'trade_reply':
-      if (e.to !== mySlot) return null;
-      return e.accepted ? { text: 'Proposta comercial aceita: contrato fechado', tone: 'good' } : { text: `Proposta comercial: ${e.reason ?? 'recusada'}`, tone: 'warn' };
-    case 'contract_update': {
+    case 'trade_listed':
+      return e.seller !== mySlot ? { text: `Novo anúncio ${e.kind === 'sale' ? 'de venda' : 'de contrato'} no comércio (Nação → Comércio)`, tone: 'info' } : null;
+    case 'trade_sold':
+      if (e.seller === mySlot) return { text: e.kind === 'sale' ? 'Seu anúncio foi comprado: a carga está saindo' : 'Seu contrato foi assinado: a primeira entrega está saindo', tone: 'good' };
+      return null;
+    case 'contract_update':
       if (e.seller !== mySlot && e.buyer !== mySlot) return null;
-      const kind = e.seller === mySlot ? 'exportação' : 'importação';
-      if (e.status === 'fulfilled') return { text: `Contrato de ${kind} cumprido`, tone: 'good' };
-      if (e.status === 'suspended') return { text: `Contrato de ${kind} suspenso: ${e.text}`, tone: 'warn' };
-      if (e.status === 'interrupted') return { text: `Contrato de ${kind} interrompido: ${e.text}`, tone: 'bad' };
-      if (e.status === 'expired' || e.status === 'cancelled') return { text: `Contrato de ${kind} encerrado: ${e.text}`, tone: 'warn' };
-      return e.text === 'Contrato fechado' ? null : { text: `Comércio: ${e.text}`, tone: 'info' };
-    }
+      return { text: `Contrato de ${e.seller === mySlot ? 'fornecimento' : 'compra'} encerrado: ${e.text}`, tone: 'warn' };
     case 'shipment_delivered': {
       const r = RESOURCE_LABELS[e.resource as keyof typeof RESOURCE_LABELS] ?? e.resource;
-      if (e.buyer === mySlot) return { text: `Carga recebida: ${e.quantity} de ${r}`, tone: 'good' };
-      if (e.seller === mySlot) return { text: `Carga entregue: ${e.quantity} de ${r} (pagamento recebido)`, tone: 'good' };
+      const usd = e.usd >= 1e6 ? `US$ ${(e.usd / 1e6).toFixed(1).replace('.', ',')} mi` : `US$ ${Math.round(e.usd / 1000)} mil`;
+      if (e.buyer === mySlot) return { text: `Carga recebida: ${e.quantity} de ${r} (pago ${usd})`, tone: 'good' };
+      if (e.seller === mySlot) return { text: `Carga entregue: ${e.quantity} de ${r} (recebido ${usd})`, tone: 'good' };
       return null;
     }
     case 'shipment_lost':

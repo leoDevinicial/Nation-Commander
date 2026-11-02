@@ -65,6 +65,11 @@ O Nation Commander é **low poly estilizado**, por decisão do responsável pelo
   para). Testes de regra antigos rodam sem eles (`shared/test/setup.ts`), como a rede elétrica.
 - Caixa do país (`shared/strategic/treasury.ts`, `docs/CAIXA_DO_PAIS.md`): o antigo "verba de obras" (`works.fundUsd`)
   recebe repasse, produção e comércio e paga exército, energia, prédios, estradas e serviços todo dia; sem teto.
+  Não existe dívida pública (02/11): guerra, contato, ajuda e operações saem do caixa em dias de repasse (`CAIXA_DAYS`).
+- Comércio (`shared/sim/trade.ts`, `docs/COMERCIO.md`): anúncios entre as nações da partida (venda simples ou contrato),
+  rota por rodovia/estrada, porto ou aeroporto, cargas atacáveis por quem está em guerra com uma das partes e pagamento
+  só na chegada; mercado mundial de reserva. Rodovia (`HIGHWAY`): sai da fronteira sem engenheiro (nunca em país
+  inimigo), não leva energia e acelera cargas, caravanas e tropas.
 - Cidades e conhecimento (`shared/sim/cities.ts`, `KNOWLEDGE`, `docs/CONHECIMENTO_E_CIDADES.md`): cada construção pertence
   ao QG ou prefeitura mais próxima; `perCity` limita escola, universidade e as produções da era 3. Pesquisas custam
   US$ + conhecimento.

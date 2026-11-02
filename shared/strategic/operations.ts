@@ -31,9 +31,9 @@ export const OPS = {
   /** Suprimentos por unidade enviada e petróleo por veículo (na partida). */
   suppliesPerUnit: 15,
   oilPerVehicle: 12,
-  /** US$ por unidade: base + por 1.000 km. */
-  usdPerUnit: 1_500_000,
-  usdPerUnitPer1000Km: 600_000,
+  /** US$ por unidade, do caixa do país (02/11: sem dívida, na escala do caixa): base + por 1.000 km. */
+  usdPerUnit: 300_000,
+  usdPerUnitPer1000Km: 120_000,
   /** Suprimentos por disparo do atacante (munição), cobrados na reconciliação. */
   ammoPerShot: 0.15,
   /** Batalha sem decisão vira impasse e as tropas recuam. */
@@ -219,8 +219,7 @@ export class OperationsSystem {
     if (!res) return 'Nação inválida';
     if (res.supplies < cost.supplies) return `Suprimentos insuficientes: ${cost.supplies} necessários`;
     if (res.oil < cost.oil) return `Combustível insuficiente: ${cost.oil} de petróleo necessários`;
-    const n = this.national.nation(slot)!;
-    if ((n.debtUsd / n.gdpUsd) * 100 > 250) return 'Sem capacidade de financiar a operação: dívida acima de 250% do PIB';
+    if (this.national.fundOf(slot) < cost.usd) return `Caixa insuficiente: US$ ${(cost.usd / 1e6).toFixed(1).replace('.', ',')} mi necessários`;
     return null;
   }
 

@@ -350,8 +350,8 @@ function OwnSummary({ me }: { me: NonNullable<ReturnType<typeof useNationalStore
       <dd className="text-right font-mono">{formatPct(me.realGrowthPct)}</dd>
       <dt className="text-ink-400">Aprovação</dt>
       <dd className="text-right font-mono">{formatPct(me.approval, 0)}</dd>
-      <dt className="text-ink-400">Dívida</dt>
-      <dd className="text-right font-mono">{formatPct((me.debtUsd / me.gdpUsd) * 100)} do PIB</dd>
+      <dt className="text-ink-400">Caixa do país</dt>
+      <dd className="text-right font-mono">{formatUsd(me.works.fundUsd)}</dd>
       <dd className="col-span-2 mt-1 text-[11px] text-ink-400">Economia, orçamento e pesquisa no painel 🏛 Nação; construções e tropas no teatro de operações.</dd>
     </dl>
   );

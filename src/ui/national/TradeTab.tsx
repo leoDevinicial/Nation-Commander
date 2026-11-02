@@ -1,45 +1,45 @@
-import { useMemo, useState } from 'react';
-import type { NationView } from '../../../shared/protocol.ts';
-import type { Command } from '../../../shared/sim/commands.ts';
-import type { TradeView } from '../../../shared/sim/snapshot.ts';
+import { useState } from "react";
+import type { NationView } from "../../../shared/protocol.ts";
+import type { Command } from "../../../shared/sim/commands.ts";
+import type {
+  ListingView,
+  ShipmentView,
+  TradeView,
+} from "../../../shared/sim/snapshot.ts";
 import {
-  BASE_PRICE,
-  DEPOT_FOR,
+  REF_PRICE,
   TRADE,
   TRADE_RESOURCES,
   TRANSPORT,
   TRANSPORT_MODES,
-  isNpcPartner,
-  type ContractStatus,
+  WORLD,
+  refValue,
   type TradeContract,
-  type TradeOffer,
+  type TradeItem,
   type TradeResource,
   type TransportMode,
-} from '../../../shared/sim/trade.ts';
-import { BUILDINGS, RESOURCE_LABELS } from '../../../shared/sim/config.ts';
-import { formatUsd } from '../../lib/format.ts';
-import { gameClient } from '../../net/client.ts';
-import { useHudStore } from '../../state/useHudStore.ts';
+} from "../../../shared/sim/trade.ts";
+import { RESOURCE_LABELS } from "../../../shared/sim/config.ts";
+import { formatUsd } from "../../lib/format.ts";
+import { gameClient } from "../../net/client.ts";
+import { useHudStore } from "../../state/useHudStore.ts";
 
-const send = (cmd: Command) => gameClient.send({ t: 'cmd', cmd });
+const send = (cmd: Command) => gameClient.send({ t: "cmd", cmd });
 const RES = (r: TradeResource) => RESOURCE_LABELS[r] ?? r;
-
-const STATUS: Record<ContractStatus, { label: string; cls: string }> = {
-  active: { label: 'Ativo', cls: 'text-signal-blue border-signal-blue/50' },
-  fulfilled: { label: 'Cumprido', cls: 'text-signal-green border-signal-green/50' },
-  suspended: { label: 'Suspenso', cls: 'text-brass-400 border-brass-400/60' },
-  interrupted: { label: 'Interrompido', cls: 'text-red-300 border-red-400/50' },
-  cancelled: { label: 'Cancelado', cls: 'text-ink-300 border-ink-600' },
-  expired: { label: 'Expirado', cls: 'text-ink-300 border-ink-600' },
+const MODE_ICON: Record<TransportMode, string> = {
+  road: "🚚",
+  sea: "🚢",
+  air: "✈️",
 };
+const items = (list: readonly TradeItem[]) =>
+  list.map((i) => `${Math.round(i.quantity)} ${RES(i.resource)}`).join(" + ");
 
 const SHIP_STATE: Record<string, string> = {
-  loading: 'carregando',
-  moving: 'em trânsito no mapa',
-  offmap: 'em trânsito fora do teatro',
-  waiting_capacity: 'aguardando espaço no destino',
-  delivered: 'entregue',
-  lost: 'perdida',
+  queued: "na fila do terminal",
+  loading: "carregando",
+  moving: "a caminho",
+  offmap: "fora do mapa",
+  waiting_capacity: "aguardando espaço no depósito",
 };
 
 interface Partner {
@@ -49,358 +49,678 @@ interface Partner {
 }
 
 /**
- * Comércio internacional (Fase 6): propor compra ou venda a países conhecidos, responder ofertas
- * (aceitar, recusar, contrapropor), acompanhar contratos e cargas e consultar o mercado. Tudo o
- * que é bloqueado diz o motivo; o servidor revalida com a mesma regra.
+ * Comércio (02/11): anúncios entre as nações da partida (venda simples ou contrato), compra escolhendo o transporte
+ * (caminhão pela rodovia, navio entre portos, avião entre aeroportos), contratos, cargas a caminho e o mercado mundial.
+ * Tudo pelo caixa do país; o dinheiro e a mercadoria só mudam de mão quando a carga chega. O servidor revalida tudo.
  */
-export function TradeTab({ nation, mySlot, partners }: { nation: NationView; mySlot: number; partners: Partner[] }) {
+export function TradeTab({
+  nation,
+  mySlot,
+  partners,
+}: {
+  nation: NationView;
+  mySlot: number;
+  partners: Partner[];
+}) {
   const trade = useHudStore((s) => s.trade);
   const tick = useHudStore((s) => s.tick);
-  const [draft, setDraft] = useState<Draft | null>(null);
-  const nameOf = (id: number) => partners.find((p) => p.id === id)?.name ?? (id === mySlot ? 'Você' : `#${id}`);
-  if (!trade) return <p className="text-sm text-ink-400">Aguardando dados de comércio…</p>;
-  const received = trade.offers.filter((o) => o.to === mySlot && o.status === 'pending');
-  const sent = trade.offers.filter((o) => o.from === mySlot && o.status === 'pending');
-  const recent = trade.offers.filter((o) => o.status !== 'pending').slice(-6).reverse();
-  const contracts = [...trade.contracts].sort((a, b) => order(a.status) - order(b.status) || b.id - a.id);
-  const noMarket = trade.modes.road.blocker?.includes('Terminal Comercial');
+  const nameOf = (id: number) =>
+    id === WORLD
+      ? "Mercado mundial"
+      : id === mySlot
+        ? "Você"
+        : (partners.find((p) => p.id === id)?.name ?? `Jogador ${id + 1}`);
+  if (!trade)
+    return (
+      <p className="text-sm text-ink-400">Aguardando dados de comércio…</p>
+    );
+  const noMarket = trade.modes.road.blocker?.includes("Terminal Comercial")
+    ? trade.modes.road.blocker
+    : null;
+  const others = trade.listings.filter(
+    (l) => l.seller !== mySlot && l.status === "open",
+  );
+  const own = trade.listings
+    .filter((l) => l.seller === mySlot)
+    .sort(
+      (a, b) =>
+        (a.status === "open" ? 0 : 1) - (b.status === "open" ? 0 : 1) ||
+        b.id - a.id,
+    );
+  const contracts = [...trade.contracts].sort(
+    (a, b) =>
+      (a.status === "active" ? 0 : 1) - (b.status === "active" ? 0 : 1) ||
+      b.id - a.id,
+  );
+  const ships = trade.shipments.filter((s) => s.items);
 
   return (
     <div className="space-y-3 text-xs">
       <section className="rounded border border-ink-700 bg-ink-900 p-2.5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <span className="font-semibold text-ink-100">Balança comercial</span>
+          <span className="font-semibold text-ink-100">Comércio do país</span>
           <span className="font-mono text-ink-200">
-            <span className="text-signal-green">+{formatUsd(nation.trade?.exportsUsd ?? 0)}</span> · <span className="text-red-300">−{formatUsd(nation.trade?.importsUsd ?? 0)}</span> · frete −
-            {formatUsd(nation.trade?.freightUsd ?? 0)}
+            vendas{" "}
+            <span className="text-signal-green">
+              +{formatUsd(nation.trade?.exportsUsd ?? 0)}
+            </span>{" "}
+            · compras{" "}
+            <span className="text-red-300">
+              −{formatUsd(nation.trade?.importsUsd ?? 0)}
+            </span>
           </span>
         </div>
-        <div className="mt-1.5 grid grid-cols-2 gap-1 sm:grid-cols-4">
+        <p className="mt-1 text-[11px] text-ink-400">
+          Tudo passa pelo caixa do país. O dinheiro e a mercadoria só mudam de
+          mão quando a carga chega; no caminho, quem está em guerra com uma das
+          partes pode destruí-la.
+        </p>
+        <div className="mt-1.5 grid grid-cols-3 gap-1">
           {TRANSPORT_MODES.map((m) => (
-            <div key={m} className={`rounded border px-1.5 py-1 ${trade.modes[m].blocker ? 'border-ink-700 text-ink-400' : 'border-signal-green/40 text-ink-100'}`} title={trade.modes[m].blocker ?? TRANSPORT[m].risk}>
+            <div
+              key={m}
+              className={`rounded border px-1.5 py-1 ${trade.modes[m].blocker ? "border-ink-700 text-ink-400" : "border-signal-green/40 text-ink-100"}`}
+              title={
+                trade.modes[m].blocker ??
+                `${TRANSPORT[m].needs}. ${TRANSPORT[m].risk}`
+              }
+            >
               <div className="font-semibold">
                 {MODE_ICON[m]} {TRANSPORT[m].label}
               </div>
-              <div className="text-[10px]">{trade.modes[m].blocker ? 'indisponível' : `${TRANSPORT[m].capacity}/viagem · ${trade.modes[m].limit} simultâneos`}</div>
+              <div className="text-[10px]">
+                {trade.modes[m].blocker
+                  ? "indisponível"
+                  : `${TRANSPORT[m].capacity}/viagem · ${trade.modes[m].limit} ao mesmo tempo`}
+              </div>
             </div>
           ))}
         </div>
-        {noMarket && <p className="mt-1.5 text-brass-400">{trade.modes.road.blocker}</p>}
+        {noMarket && <p className="mt-1.5 text-brass-400">{noMarket}</p>}
       </section>
 
-      {received.length > 0 && (
-        <Section title={`Ofertas recebidas (${received.length})`}>
-          {received.map((o) => (
-            <OfferCard key={o.id} o={o} mySlot={mySlot} nameOf={nameOf} tick={tick}>
-              <button className="btn btn-primary px-2 py-1 text-xs" onClick={() => send({ type: 'trade_respond', offerId: o.id, accept: true })}>
-                Aceitar
-              </button>
-              <button className="btn px-2 py-1 text-xs" onClick={() => send({ type: 'trade_respond', offerId: o.id, accept: false })}>
-                Recusar
-              </button>
-              <button className="btn px-2 py-1 text-xs" onClick={() => setDraft({ ...fromOffer(o, mySlot), counterOf: o.id })}>
-                Contrapropor
-              </button>
-            </OfferCard>
-          ))}
-        </Section>
-      )}
-
-      <Section title="Nova proposta">
-        {draft ? (
-          <ProposalForm draft={draft} setDraft={setDraft} trade={trade} partners={partners.filter((p) => p.known)} nameOf={nameOf} />
-        ) : (
-          <button className="btn w-full py-1.5 text-xs" disabled={!!noMarket} title={noMarket ? (trade.modes.road.blocker ?? '') : ''} onClick={() => setDraft(defaultDraft(partners.filter((p) => p.known)[0]?.id ?? null, trade))}>
-            + Propor compra ou venda
-          </button>
+      <Section title={`Anúncios de outras nações (${others.length})`}>
+        {others.length === 0 && (
+          <p className="text-ink-400">
+            Nenhum anúncio aberto agora. Nações em guerra com você não aparecem.
+          </p>
         )}
-      </Section>
-
-      {sent.length > 0 && (
-        <Section title="Propostas enviadas">
-          {sent.map((o) => (
-            <OfferCard key={o.id} o={o} mySlot={mySlot} nameOf={nameOf} tick={tick}>
-              <button className="btn px-2 py-1 text-xs" onClick={() => send({ type: 'trade_withdraw', offerId: o.id })}>
-                Retirar
-              </button>
-            </OfferCard>
-          ))}
-        </Section>
-      )}
-
-      <Section title={`Contratos (${contracts.filter((c) => c.status === 'active' || c.status === 'suspended').length} em andamento)`}>
-        {contracts.length === 0 && <p className="text-ink-400">Nenhum contrato ainda.</p>}
-        {contracts.map((c) => (
-          <ContractCard key={c.id} c={c} mySlot={mySlot} nameOf={nameOf} tick={tick} trade={trade} />
+        {others.map((l) => (
+          <ListingCard key={l.id} l={l} nameOf={nameOf} tick={tick}>
+            {TRANSPORT_MODES.map((m) => {
+              const why = l.blockers?.[m] ?? null;
+              return (
+                <button
+                  key={m}
+                  className={`btn px-2 py-1 text-xs ${why ? "" : "btn-primary"}`}
+                  disabled={!!why}
+                  title={
+                    why ??
+                    `Comprar e receber por ${TRANSPORT[m].label.toLowerCase()}`
+                  }
+                  onClick={() =>
+                    send({ type: "trade_buy", listingId: l.id, mode: m })
+                  }
+                >
+                  {MODE_ICON[m]} {l.kind === "sale" ? "Comprar" : "Assinar"}
+                </button>
+              );
+            })}
+          </ListingCard>
         ))}
       </Section>
 
-      {recent.length > 0 && (
-        <Section title="Respostas recentes">
-          {recent.map((o) => (
-            <div key={o.id} className="flex justify-between gap-2 border-b border-ink-800 py-1 text-[11px] last:border-0">
-              <span className="text-ink-300">
-                {o.from === mySlot ? `Para ${nameOf(o.to)}` : `De ${nameOf(o.from)}`}: {o.from === o.seller ? 'venda' : 'compra'} de {o.quantity} {RES(o.resource)}
-              </span>
-              <span className={o.status === 'accepted' ? 'text-signal-green' : o.status === 'countered' ? 'text-brass-400' : 'text-ink-400'}>
-                {OFFER_STATUS[o.status]}
-                {o.reason ? ` — ${o.reason}` : ''}
-              </span>
-            </div>
+      <Section title="Anunciar">
+        <ListingForm trade={trade} disabled={noMarket} />
+      </Section>
+
+      {own.length > 0 && (
+        <Section title="Meus anúncios">
+          {own.map((l) => (
+            <ListingCard key={l.id} l={l} nameOf={nameOf} tick={tick}>
+              {l.status === "open" ? (
+                <button
+                  className="btn px-2 py-1 text-xs"
+                  onClick={() =>
+                    send({ type: "trade_withdraw", listingId: l.id })
+                  }
+                  title={
+                    l.kind === "sale"
+                      ? "A mercadoria reservada volta ao estoque"
+                      : ""
+                  }
+                >
+                  Retirar
+                </button>
+              ) : (
+                <span className="text-[11px] text-ink-400">
+                  {l.status === "sold"
+                    ? `${l.kind === "sale" ? "Vendido" : "Contrato fechado"} com ${nameOf(l.buyer ?? -1)}`
+                    : l.status === "expired"
+                      ? "Expirou"
+                      : "Retirado"}
+                </span>
+              )}
+            </ListingCard>
           ))}
         </Section>
       )}
 
-      <Section title="Mercado dos países conhecidos (US$ por unidade)">
-        <Quotes trade={trade} nameOf={nameOf} />
+      <Section
+        title={`Contratos (${contracts.filter((c) => c.status === "active").length} ativos)`}
+      >
+        {contracts.length === 0 && (
+          <p className="text-ink-400">
+            Nenhum contrato. Assine um anúncio de contrato ou publique o seu.
+          </p>
+        )}
+        {contracts.map((c) => (
+          <ContractCard
+            key={c.id}
+            c={c}
+            mySlot={mySlot}
+            nameOf={nameOf}
+            tick={tick}
+          />
+        ))}
+      </Section>
+
+      {ships.length > 0 && (
+        <Section title={`Cargas a caminho (${ships.length})`}>
+          {ships.map((s) => (
+            <ShipmentRow key={s.id} s={s} mySlot={mySlot} nameOf={nameOf} />
+          ))}
+        </Section>
+      )}
+
+      <Section title="Mercado mundial (países de fora da partida)">
+        <WorldMarket trade={trade} disabled={noMarket} />
       </Section>
     </div>
   );
 }
 
-const MODE_ICON: Record<TransportMode, string> = { road: '🚚', sea: '🚢', air: '🚁' };
-const OFFER_STATUS: Record<string, string> = { pending: 'pendente', accepted: 'aceita', rejected: 'recusada', countered: 'contraproposta', expired: 'expirou', withdrawn: 'retirada' };
-const order = (s: ContractStatus) => ['active', 'suspended', 'fulfilled', 'interrupted', 'expired', 'cancelled'].indexOf(s);
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <section>
-      <h3 className="mb-1.5 text-[11px] font-semibold tracking-wide text-ink-400 uppercase">{title}</h3>
+      <h3 className="mb-1.5 text-[11px] font-semibold tracking-wide text-ink-400 uppercase">
+        {title}
+      </h3>
       <div className="space-y-1.5">{children}</div>
     </section>
   );
 }
 
-function OfferCard({ o, mySlot, nameOf, tick, children }: { o: TradeOffer; mySlot: number; nameOf: (id: number) => string; tick: number; children: React.ReactNode }) {
-  const iSell = o.seller === mySlot;
+/** Preço do anúncio comparado à referência (o quanto acima ou abaixo). */
+function vsRef(l: {
+  kind: string;
+  items: TradeItem[];
+  priceUsd: number;
+  everyDays: number;
+}): string {
+  const perDelivery =
+    l.kind === "contract" ? (l.priceUsd * l.everyDays) / 30 : l.priceUsd;
+  const pct = Math.round((perDelivery / refValue(l.items) - 1) * 100);
+  return pct === 0
+    ? "no preço de referência"
+    : `${pct > 0 ? "+" : ""}${pct}% da referência`;
+}
+
+function ListingCard({
+  l,
+  nameOf,
+  tick,
+  children,
+}: {
+  l: ListingView;
+  nameOf: (id: number) => string;
+  tick: number;
+  children: React.ReactNode;
+}) {
   return (
     <div className="rounded border border-ink-700 bg-ink-900 p-2">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="font-semibold text-ink-100">
-          {iSell ? 'Vender' : 'Comprar'} {o.quantity} de {RES(o.resource)} {iSell ? 'para' : 'de'} {nameOf(iSell ? o.buyer : o.seller)}
+          {l.kind === "sale" ? "Venda" : "Contrato"}: {items(l.items)}
+          {l.kind === "contract" ? ` a cada ${l.everyDays} dias` : ""}
         </span>
-        <span className="font-mono text-ink-200">{formatUsd(o.price * o.quantity)}</span>
+        <span className="font-mono text-ink-200">
+          {formatUsd(l.priceUsd)}
+          {l.kind === "contract" ? "/mês" : ""}
+        </span>
       </div>
       <div className="mt-0.5 text-[11px] text-ink-400">
-        {formatUsd(o.price)}/un · {MODE_ICON[o.mode]} {TRANSPORT[o.mode].label} · prazo {o.days} dias · expira em {Math.max(0, Math.ceil((o.expiresTick - tick) / 20))} dias
-        {o.reason ? <span className="text-brass-400"> · {o.reason}</span> : null}
+        {nameOf(l.seller)} · {vsRef(l)}
+        {l.status === "open"
+          ? ` · aberto por mais ${Math.max(0, Math.ceil((l.expiresTick - tick) / 20))} dias`
+          : ""}
       </div>
-      <div className="mt-1.5 flex flex-wrap gap-1.5">{children}</div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        {children}
+      </div>
     </div>
   );
 }
 
-function ContractCard({ c, mySlot, nameOf, tick, trade }: { c: TradeContract; mySlot: number; nameOf: (id: number) => string; tick: number; trade: TradeView }) {
+const DAYS = [20, 30, 60, 90] as const;
+
+function ListingForm({
+  trade,
+  disabled,
+}: {
+  trade: TradeView;
+  disabled: string | null;
+}) {
+  const [kind, setKind] = useState<"sale" | "contract">("sale");
+  const [rows, setRows] = useState<TradeItem[]>([
+    { resource: "food", quantity: 100 },
+  ]);
+  const [every, setEvery] = useState<number>(30);
+  const [markup, setMarkup] = useState(10);
+  const list = kind === "sale" ? rows.slice(0, 1) : rows;
+  const ref = refValue(list);
+  // preço sugerido: referência ± o ajuste escolhido (no contrato, por mês)
+  const perDelivery = Math.round(ref * (1 + markup / 100));
+  const price =
+    kind === "contract" ? Math.round((perDelivery * 30) / every) : perDelivery;
+  const short =
+    kind === "sale"
+      ? list.find((i) => trade.sellable[i.resource] < i.quantity)
+      : undefined;
+  const why =
+    disabled ??
+    (short
+      ? `Estoque insuficiente de ${RES(short.resource)}: ${trade.sellable[short.resource]} disponíveis`
+      : null);
+  const setRow = (i: number, p: Partial<TradeItem>) =>
+    setRows(rows.map((r, k) => (k === i ? { ...r, ...p } : r)));
+  return (
+    <div className="space-y-1.5 rounded border border-ink-700 bg-ink-900 p-2">
+      <div className="flex gap-1">
+        {(["sale", "contract"] as const).map((k) => (
+          <button
+            key={k}
+            className={`btn flex-1 py-1 text-xs ${kind === k ? "btn-primary" : ""}`}
+            onClick={() => setKind(k)}
+          >
+            {k === "sale" ? "Venda simples" : "Contrato de fornecimento"}
+          </button>
+        ))}
+      </div>
+      <p className="text-[11px] text-ink-400">
+        {kind === "sale"
+          ? "Um lote por um preço fechado. A mercadoria fica reservada até alguém comprar; quem compra escolhe o transporte."
+          : "Você entrega o lote a cada N dias e recebe por mês, até alguém encerrar. Cai sozinho se faltar estoque na data ou se o comprador não tiver caixa."}
+      </p>
+      {list.map((it, i) => (
+        <div key={i} className="flex items-center gap-1.5">
+          <select
+            className="input flex-1 py-1 text-xs"
+            value={it.resource}
+            onChange={(e) =>
+              setRow(i, { resource: e.target.value as TradeResource })
+            }
+          >
+            {TRADE_RESOURCES.map((r) => (
+              <option
+                key={r}
+                value={r}
+                disabled={list.some((x, k) => k !== i && x.resource === r)}
+              >
+                {RES(r)} (você tem {trade.sellable[r]})
+              </option>
+            ))}
+          </select>
+          <input
+            className="input w-20 py-1 text-right text-xs"
+            type="number"
+            min={1}
+            max={TRADE.maxQuantity}
+            step={10}
+            value={it.quantity}
+            onChange={(e) =>
+              setRow(i, {
+                quantity: Math.max(
+                  1,
+                  Math.min(
+                    TRADE.maxQuantity,
+                    Math.round(Number(e.target.value) || 1),
+                  ),
+                ),
+              })
+            }
+          />
+          {kind === "contract" && list.length > 1 && (
+            <button
+              className="btn px-1.5 py-1 text-[10px]"
+              onClick={() => setRows(rows.filter((_, k) => k !== i))}
+              aria-label="Tirar recurso"
+            >
+              ✖
+            </button>
+          )}
+        </div>
+      ))}
+      {kind === "contract" && rows.length < TRADE.maxItems && (
+        <button
+          className="btn w-full py-1 text-[11px]"
+          onClick={() =>
+            setRows([
+              ...rows,
+              {
+                resource: TRADE_RESOURCES.find(
+                  (r) => !rows.some((x) => x.resource === r),
+                )!,
+                quantity: 100,
+              },
+            ])
+          }
+        >
+          + Outro recurso no mesmo contrato
+        </button>
+      )}
+      {kind === "contract" && (
+        <div className="flex items-center gap-1.5">
+          <span className="text-ink-400">Entrega a cada</span>
+          {DAYS.map((d) => (
+            <button
+              key={d}
+              className={`btn px-2 py-0.5 text-[11px] ${every === d ? "btn-primary" : ""}`}
+              onClick={() => setEvery(d)}
+            >
+              {d} dias
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-1.5">
+        <span className="text-ink-400">Preço</span>
+        <input
+          className="flex-1"
+          type="range"
+          min={-30}
+          max={60}
+          step={5}
+          value={markup}
+          onChange={(e) => setMarkup(Number(e.target.value))}
+          aria-label="Ajuste sobre a referência"
+        />
+        <span className="w-24 text-right font-mono text-ink-100">
+          {formatUsd(price)}
+          {kind === "contract" ? "/mês" : ""}
+        </span>
+      </div>
+      <div className="text-[10px] text-ink-400">
+        Referência {formatUsd(ref)} por{" "}
+        {kind === "contract" ? "entrega" : "lote"} ({markup >= 0 ? "+" : ""}
+        {markup}%)
+        {kind === "contract" ? ` · ${formatUsd(perDelivery)} por entrega` : ""}
+      </div>
+      <button
+        className="btn btn-primary w-full py-1.5 text-xs"
+        disabled={!!why}
+        title={why ?? ""}
+        onClick={() =>
+          send({
+            type: "trade_list",
+            kind,
+            items: list,
+            priceUsd: price,
+            ...(kind === "contract" ? { everyDays: every } : {}),
+          })
+        }
+      >
+        Publicar anúncio
+      </button>
+      {why && <p className="text-[11px] text-brass-400">{why}</p>}
+    </div>
+  );
+}
+
+function ContractCard({
+  c,
+  mySlot,
+  nameOf,
+  tick,
+}: {
+  c: TradeContract;
+  mySlot: number;
+  nameOf: (id: number) => string;
+  tick: number;
+}) {
   const iSell = c.seller === mySlot;
-  const st = STATUS[c.status];
-  const open = c.status === 'active' || c.status === 'suspended';
-  const ships = trade.shipments.filter((s) => s.contractId === c.id);
-  const pct = (n: number) => `${(n / c.quantity) * 100}%`;
+  const active = c.status === "active";
   return (
     <div className="rounded border border-ink-700 bg-ink-900 p-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-semibold text-ink-100">
-          {iSell ? 'Exportação' : 'Importação'}: {c.quantity} {RES(c.resource)} {iSell ? '→' : '←'} {nameOf(iSell ? c.buyer : c.seller)}
+          {iSell ? "Você fornece" : "Você recebe"}: {items(c.items)}{" "}
+          {iSell ? "→" : "←"} {nameOf(iSell ? c.buyer : c.seller)}
         </span>
-        <span className={`rounded border px-1.5 text-[10px] font-semibold ${st.cls}`}>{st.label}</span>
-      </div>
-      {/* entregue (verde), em trânsito (azul), perdido (vermelho) */}
-      <div className="relative mt-1.5 h-2 overflow-hidden rounded bg-ink-950" title={`Entregue ${Math.round(c.delivered)} · embarcado ${c.shipped} · perdido ${Math.round(c.lost)} · reservado ${c.reserved}`}>
-        <div className="absolute inset-y-0 left-0 bg-signal-blue/60" style={{ width: pct(c.shipped) }} />
-        <div className="absolute inset-y-0 left-0 bg-signal-green" style={{ width: pct(c.delivered) }} />
-        <div className="absolute inset-y-0 bg-red-400" style={{ left: pct(c.delivered), width: pct(c.lost) }} />
+        <span
+          className={`rounded border px-1.5 text-[10px] font-semibold ${active ? "border-signal-blue/50 text-signal-blue" : "border-ink-600 text-ink-300"}`}
+        >
+          {active ? "Ativo" : "Encerrado"}
+        </span>
       </div>
       <div className="mt-1 grid grid-cols-2 gap-x-3 text-[10px] text-ink-400 sm:grid-cols-4">
-        <span>Entregue: {Math.round(c.delivered)}/{c.quantity}</span>
-        <span>{iSell ? 'Recebido' : 'Pago'}: {formatUsd(c.paidUsd)}</span>
-        <span>Frete: {formatUsd(c.freightUsd)}</span>
-        <span>{open ? `Prazo: ${Math.max(0, Math.ceil((c.deadlineTick - tick) / 20))} dias` : `${MODE_ICON[c.mode]} ${TRANSPORT[c.mode].label}`}</span>
+        <span>
+          {formatUsd(c.monthlyUsd)}/mês · a cada {c.everyDays} dias
+        </span>
+        <span>
+          {MODE_ICON[c.mode]} {TRANSPORT[c.mode].label}
+        </span>
+        <span>
+          Entregas: {c.deliveries}
+          {c.lost > 0 ? ` · perdidos ${Math.round(c.lost)}` : ""}
+        </span>
+        <span>
+          {active
+            ? `Próxima em ${Math.max(0, Math.ceil((c.nextTick - tick) / 20))} dias`
+            : `${iSell ? "Recebido" : "Pago"}: ${formatUsd(c.paidUsd)}`}
+        </span>
       </div>
-      {c.reason && <div className={`mt-1 text-[11px] ${c.status === 'suspended' ? 'text-brass-400' : 'text-ink-300'}`}>{c.reason}</div>}
-      {ships.length > 0 && (
-        <ul className="mt-1.5 space-y-0.5">
-          {ships.map((s) => (
-            <li key={s.id} className="flex items-center justify-between gap-2 text-[11px]">
-              <span className="text-ink-200">
-                {MODE_ICON[s.mode]} {s.quantity} {s.resource ? RES(s.resource) : ''} — {SHIP_STATE[s.state]}
-                {s.etaSeconds !== undefined && s.state !== 'waiting_capacity' ? ` · ~${s.etaSeconds} dias` : ''}
-                {s.reason ? <span className="text-brass-400"> · {s.reason}</span> : null}
-              </span>
-              {s.state !== 'offmap' && (
-                <button className="btn px-1.5 py-0.5 text-[10px]" onClick={() => useHudStore.getState().set({ inspectedShipment: s.id })} title="Mostrar a rota no mapa">
-                  Ver rota
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
+      {c.reason && (
+        <div className="mt-1 text-[11px] text-ink-300">{c.reason}</div>
       )}
-      {c.log.length > 0 && <div className="mt-1 text-[10px] text-ink-400">Último: {c.log[c.log.length - 1]!.text}</div>}
-      {open && (
-        <button className="btn mt-1.5 px-2 py-0.5 text-[10px]" onClick={() => send({ type: 'trade_cancel', contractId: c.id })} title="Encerra o contrato: a reserva ainda não embarcada volta ao estoque; nada já pago é devolvido">
-          Cancelar contrato
+      {c.log.length > 0 && (
+        <div className="mt-1 text-[10px] text-ink-400">
+          Último: {c.log[c.log.length - 1]!.text}
+        </div>
+      )}
+      {active && (
+        <button
+          className="btn mt-1.5 px-2 py-0.5 text-[10px]"
+          onClick={() => send({ type: "trade_cancel", contractId: c.id })}
+          title="Encerra o contrato. Cargas já a caminho ainda chegam e são pagas na entrega."
+        >
+          Encerrar contrato
         </button>
       )}
     </div>
   );
 }
 
-function Quotes({ trade, nameOf }: { trade: TradeView; nameOf: (id: number) => string }) {
-  const partners = [...new Set(trade.quotes.map((q) => q.partner))];
-  if (!partners.length) return <p className="text-ink-400">Nenhum país conhecido fora do teatro ainda (faça contato pelo Globo).</p>;
+function ShipmentRow({
+  s,
+  mySlot,
+  nameOf,
+}: {
+  s: ShipmentView;
+  mySlot: number;
+  nameOf: (id: number) => string;
+}) {
+  const out = s.seller === mySlot;
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-[10px]">
-        <thead>
-          <tr className="text-ink-400">
-            <th className="py-0.5 text-left font-normal">País</th>
-            {TRADE_RESOURCES.map((r) => (
-              <th key={r} className="px-1 text-right font-normal">
-                {RES(r)}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {partners.map((p) => (
-            <tr key={p} className="border-t border-ink-800">
-              <td className="py-0.5 pr-1 text-ink-200">{nameOf(p)}</td>
-              {TRADE_RESOURCES.map((r) => {
-                const q = trade.quotes.find((x) => x.partner === p && x.resource === r)!;
-                return (
-                  <td key={r} className="px-1 text-right font-mono" title={`Vende a ${formatUsd(q.sell)} (tem ${q.supply}) · compra a ${formatUsd(q.buy)} (quer ${q.demand})`}>
-                    <span className="text-red-300">{Math.round(q.sell / 1000)}</span>/<span className="text-signal-green">{Math.round(q.buy / 1000)}</span>
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="mt-1 text-[10px] text-ink-400">Mil US$ por unidade: vermelho = preço de venda do país, verde = quanto ele paga. Toque num valor para ver estoque e demanda.</p>
+    <div className="flex items-center justify-between gap-2 rounded border border-ink-800 bg-ink-900 px-2 py-1 text-[11px]">
+      <span className="text-ink-200">
+        {MODE_ICON[s.mode]} {items(s.items ?? [])} {out ? "→" : "←"}{" "}
+        {nameOf(out ? s.buyer : s.seller)} · {SHIP_STATE[s.state] ?? s.state}
+        {s.etaSeconds !== undefined &&
+        s.etaSeconds >= 0 &&
+        s.state !== "waiting_capacity"
+          ? ` · ~${s.etaSeconds} dias`
+          : ""}
+        {s.payUsd ? ` · ${formatUsd(s.payUsd)} na entrega` : ""}
+        {s.reason ? (
+          <span className="text-brass-400"> · {s.reason}</span>
+        ) : null}
+      </span>
+      {(s.state === "moving" ||
+        s.state === "loading" ||
+        s.state === "waiting_capacity") && (
+        <button
+          className="btn px-1.5 py-0.5 text-[10px]"
+          onClick={() =>
+            useHudStore.getState().set({ inspectedShipment: s.id })
+          }
+          title="Mostrar a rota no mapa"
+        >
+          Ver rota
+        </button>
+      )}
     </div>
   );
 }
 
-// ------------------------------------------------------------------ formulário
+const LOTS = [50, 100, 300] as const;
 
-interface Draft {
-  partner: number | null;
-  side: 'buy' | 'sell';
-  resource: TradeResource;
-  quantity: number;
-  price: number;
-  mode: TransportMode;
-  days: number;
-  counterOf?: number;
-}
-
-function suggestedPrice(trade: TradeView, partner: number | null, side: 'buy' | 'sell', r: TradeResource): number {
-  const q = partner !== null ? trade.quotes.find((x) => x.partner === partner && x.resource === r) : undefined;
-  if (!q) return BASE_PRICE[r];
-  return side === 'sell' ? q.buy : q.sell;
-}
-
-function defaultDraft(partner: number | null, trade: TradeView): Draft {
-  return { partner, side: 'sell', resource: 'iron', quantity: 50, price: suggestedPrice(trade, partner, 'sell', 'iron'), mode: 'road', days: 180 };
-}
-
-function fromOffer(o: TradeOffer, mySlot: number): Draft {
-  return { partner: o.from, side: o.seller === mySlot ? 'sell' : 'buy', resource: o.resource, quantity: o.quantity, price: o.price, mode: o.mode, days: o.days };
-}
-
-function ProposalForm({ draft, setDraft, trade, partners, nameOf }: { draft: Draft; setDraft: (d: Draft | null) => void; trade: TradeView; partners: Partner[]; nameOf: (id: number) => string }) {
-  const d = draft;
-  const up = (patch: Partial<Draft>) => setDraft({ ...d, ...patch });
-  const def = TRANSPORT[d.mode];
-  const lots = Math.ceil(d.quantity / def.capacity);
-  const freight = d.side === 'sell' || (d.partner !== null && !isNpcPartner(d.partner)) ? d.quantity * def.costPerUnit : 0;
-  // verificação rápida no cliente (o servidor revalida com a regra completa)
-  const blocker = useMemo(() => {
-    if (d.partner === null) return 'Escolha um país';
-    if (trade.modes[d.mode].blocker) return trade.modes[d.mode].blocker;
-    if (d.quantity < 1 || d.quantity > TRADE.maxQuantity) return `Quantidade entre 1 e ${TRADE.maxQuantity}`;
-    if (d.days < TRADE.minDays || d.days > TRADE.maxDays) return `Prazo entre ${TRADE.minDays} e ${TRADE.maxDays} dias`;
-    if (d.side === 'sell' && trade.sellable[d.resource] < d.quantity)
-      return `Estoque vendável: ${trade.sellable[d.resource]} (${d.resource === 'oil' ? 'só o petróleo dos tanques' : `no ${BUILDINGS[DEPOT_FOR[d.resource]].label}`})`;
-    if (d.side === 'buy' && trade.free[d.resource] < Math.min(d.quantity, def.capacity)) return `Espaço livre para receber: ${trade.free[d.resource]}`;
-    return null;
-  }, [d, trade, def.capacity]);
-  const submit = () => {
-    if (blocker || d.partner === null) return;
-    send({ type: 'trade_offer', partner: d.partner, side: d.side, resource: d.resource, quantity: d.quantity, price: Math.round(d.price), mode: d.mode, days: d.days, ...(d.counterOf !== undefined ? { counterOf: d.counterOf } : {}) });
-    setDraft(null);
-  };
-  const field = 'mt-0.5 w-full rounded border border-ink-600 bg-ink-850 px-1.5 py-1 text-xs text-ink-100';
+function WorldMarket({
+  trade,
+  disabled,
+}: {
+  trade: TradeView;
+  disabled: string | null;
+}) {
+  const [qty, setQty] = useState<number>(100);
+  const [mode, setMode] = useState<TransportMode>("road");
+  const modeWhy = disabled ?? trade.modes[mode].world;
   return (
-    <div className="rounded border border-signal-blue/40 bg-ink-900 p-2">
-      {d.counterOf !== undefined && <div className="mb-1 text-brass-400">Contraproposta para {nameOf(d.partner ?? -1)}</div>}
-      <div className="grid grid-cols-2 gap-2">
-        <label className="text-ink-400">
-          País
-          <select className={field} value={d.partner ?? ''} disabled={d.counterOf !== undefined} onChange={(e) => up({ partner: Number(e.target.value), price: suggestedPrice(trade, Number(e.target.value), d.side, d.resource) })}>
-            {partners.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-ink-400">
-          Operação
-          <select className={field} value={d.side} onChange={(e) => up({ side: e.target.value as 'buy' | 'sell', price: suggestedPrice(trade, d.partner, e.target.value as 'buy' | 'sell', d.resource) })}>
-            <option value="sell">Vender (exportar)</option>
-            <option value="buy">Comprar (importar)</option>
-          </select>
-        </label>
-        <label className="text-ink-400">
-          Recurso
-          <select className={field} value={d.resource} onChange={(e) => up({ resource: e.target.value as TradeResource, price: suggestedPrice(trade, d.partner, d.side, e.target.value as TradeResource) })}>
-            {TRADE_RESOURCES.map((r) => (
-              <option key={r} value={r}>
-                {RES(r)} {d.side === 'sell' ? `(tem ${trade.sellable[r]})` : `(cabe ${trade.free[r]})`}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-ink-400">
-          Quantidade
-          <input className={field} type="number" min={1} max={TRADE.maxQuantity} value={d.quantity} onChange={(e) => up({ quantity: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} />
-        </label>
-        <label className="text-ink-400">
-          Preço por unidade (mil US$)
-          <input className={field} type="number" min={1} step={1} value={Math.round(d.price / 1000)} onChange={(e) => up({ price: Math.max(1, Number(e.target.value) || 0) * 1000 })} />
-        </label>
-        <label className="text-ink-400">
-          Prazo (dias)
-          <input className={field} type="number" min={TRADE.minDays} max={TRADE.maxDays} step={30} value={d.days} onChange={(e) => up({ days: Math.floor(Number(e.target.value) || 0) })} />
-        </label>
-      </div>
-      <div className="mt-2 grid grid-cols-2 gap-1 sm:grid-cols-4">
+    <div className="space-y-1.5 rounded border border-ink-700 bg-ink-900 p-2">
+      <p className="text-[11px] text-ink-400">
+        Compra a {Math.round(TRADE.worldBuyMul * 100)}% e vende a{" "}
+        {Math.round(TRADE.worldSellMul * 100)}% do preço de referência, até{" "}
+        {TRADE.worldDailyUnits} de cada recurso por dia. A carga entra ou sai
+        pela borda do mapa e só paga na chegada. Um vizinho costuma pagar
+        melhor.
+      </p>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-ink-400">Lote</span>
+        {LOTS.map((q) => (
+          <button
+            key={q}
+            className={`btn px-2 py-0.5 text-[11px] ${qty === q ? "btn-primary" : ""}`}
+            onClick={() => setQty(q)}
+          >
+            {q}
+          </button>
+        ))}
+        <span className="ml-2 text-ink-400">Por</span>
         {TRANSPORT_MODES.map((m) => (
           <button
             key={m}
-            className={`rounded border px-1 py-1 text-[10px] ${d.mode === m ? 'border-signal-blue bg-signal-blue/15 text-ink-100' : 'border-ink-600 text-ink-300'} ${trade.modes[m].blocker ? 'opacity-50' : ''}`}
-            onClick={() => up({ mode: m })}
-            title={trade.modes[m].blocker ?? TRANSPORT[m].risk}
+            className={`btn px-2 py-0.5 text-[11px] ${mode === m ? "btn-primary" : ""}`}
+            onClick={() => setMode(m)}
+            title={trade.modes[m].world ?? TRANSPORT[m].label}
           >
-            {MODE_ICON[m]} {TRANSPORT[m].label}
+            {MODE_ICON[m]}
           </button>
         ))}
       </div>
-      <div className="mt-1.5 text-[11px] text-ink-300">
-        Total {formatUsd(d.price * d.quantity)} · {lots} {lots === 1 ? 'viagem' : 'viagens'} de até {def.capacity} · frete ≈ {formatUsd(freight)}
-        {d.partner !== null && isNpcPartner(d.partner) ? ` · trecho fora do teatro ≈ ${def.offmapSeconds} dias` : ''}
-        <div className="text-[10px] text-ink-400">{def.risk}</div>
-      </div>
-      {blocker && <div className="mt-1 text-[11px] text-red-300">{blocker}</div>}
-      <div className="mt-2 flex gap-2">
-        <button className="btn btn-primary flex-1 py-1 text-xs" disabled={!!blocker} onClick={submit}>
-          Enviar proposta
-        </button>
-        <button className="btn py-1 text-xs" onClick={() => setDraft(null)}>
-          Fechar
-        </button>
+      {modeWhy && <p className="text-[11px] text-brass-400">{modeWhy}</p>}
+      <div className="overflow-x-auto">
+        <table className="w-full text-[11px]">
+          <thead>
+            <tr className="text-ink-400">
+              <th className="py-0.5 text-left font-normal">Recurso</th>
+              <th className="text-right font-normal">Compra/un</th>
+              <th className="text-right font-normal">Venda/un</th>
+              <th className="text-right font-normal">Hoje</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {TRADE_RESOURCES.map((r) => {
+              const q = trade.world[r];
+              const n = Math.min(qty, q.left);
+              const buyWhy =
+                modeWhy ??
+                (n <= 0
+                  ? "Limite de hoje atingido"
+                  : trade.free[r] < n
+                    ? `Sem espaço: ${trade.free[r]} livres`
+                    : null);
+              const sellWhy =
+                modeWhy ??
+                (n <= 0
+                  ? "Limite de hoje atingido"
+                  : trade.sellable[r] < n
+                    ? `Estoque: ${trade.sellable[r]}`
+                    : null);
+              return (
+                <tr key={r} className="border-t border-ink-800">
+                  <td className="py-1 text-ink-200">{RES(r)}</td>
+                  <td
+                    className="text-right font-mono text-ink-200"
+                    title={`Referência ${formatUsd(REF_PRICE[r])}`}
+                  >
+                    {formatUsd(q.buy)}
+                  </td>
+                  <td className="text-right font-mono text-ink-200">
+                    {formatUsd(q.sell)}
+                  </td>
+                  <td className="text-right font-mono text-ink-400">
+                    {q.left}
+                  </td>
+                  <td className="py-1 pl-1.5 text-right whitespace-nowrap">
+                    <button
+                      className="btn px-1.5 py-0.5 text-[10px]"
+                      disabled={!!buyWhy}
+                      title={
+                        buyWhy ?? `Comprar ${n} por ${formatUsd(n * q.buy)}`
+                      }
+                      onClick={() =>
+                        send({
+                          type: "trade_world",
+                          side: "buy",
+                          resource: r,
+                          quantity: n,
+                          mode,
+                        })
+                      }
+                    >
+                      Comprar
+                    </button>{" "}
+                    <button
+                      className="btn px-1.5 py-0.5 text-[10px]"
+                      disabled={!!sellWhy}
+                      title={
+                        sellWhy ?? `Vender ${n} por ${formatUsd(n * q.sell)}`
+                      }
+                      onClick={() =>
+                        send({
+                          type: "trade_world",
+                          side: "sell",
+                          resource: r,
+                          quantity: n,
+                          mode,
+                        })
+                      }
+                    >
+                      Vender
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );

@@ -27,6 +27,7 @@ function setup(units: Unit['type'][] = ['infantry', 'infantry', 'tank', 'apc']) 
     setWar: (a, b) => theater.setWar(a, b, true),
   });
   for (const p of theater.players) for (const r of Object.keys(p.resources) as (keyof typeof p.resources)[]) p.resources[r] = 900;
+  national.nation(0)!.works.fundUsd = 1e9;
   const usa = national.npcs.find((n) => n.countryId === 'USA')!.slot;
   meet(national, 0, usa);
   const ops = new OperationsSystem(theater, national, 11);
@@ -57,7 +58,7 @@ describe('Fase 8 — guerra contra governos fora do teatro e lançamento', () =>
     national.diplomaticAction(0, { type: 'declare_war', target: usa });
     const before = mine();
     const pop = theater.population(0);
-    const debt = national.nation(0)!.debtUsd;
+    national.nation(0)!.works.fundUsd = 1e9;
     const supplies = theater.players[0]!.resources.supplies;
     const cost = operationCost(
       'BRA',
@@ -76,7 +77,7 @@ describe('Fase 8 — guerra contra governos fora do teatro e lançamento', () =>
     expect(theater.population(0).military).toBe(pop.military);
     expect(theater.population(0).total).toBe(pop.total);
     expect(theater.players[0]!.resources.supplies).toBe(supplies - cost.supplies);
-    expect(national.nation(0)!.debtUsd).toBeCloseTo(debt + cost.usd, 0);
+    expect(national.nation(0)!.works.fundUsd).toBeCloseTo(1e9 - cost.usd, 0);
     const op = ops.ops[0]!;
     expect(op.units.map((u) => u.originId)).toEqual(before.map((u) => u.id));
     expect(op.state).toBe('transit');

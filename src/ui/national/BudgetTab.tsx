@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { NationView } from '../../../shared/protocol.ts';
-import { interestRate, spendPct, type Budget } from '../../../shared/strategic/NationalSimulation.ts';
+import { spendPct, type Budget } from '../../../shared/strategic/NationalSimulation.ts';
 import { COEF, LIMITS, WORKS_SHARE_OF_INFRA, theaterSupply } from '../../../shared/strategic/params.ts';
 import { formatPct, formatSigned, formatUsd } from '../../lib/format.ts';
 
@@ -20,14 +20,12 @@ export function BudgetTab({ nation, onApply, balanceMode }: { nation: NationView
   const dirty = edited !== null;
 
   const preview = useMemo(() => {
-    const debtPct = (nation.debtUsd / nation.gdpUsd) * 100;
-    const interestPct = interestRate(nation.inflationPct, debtPct, nation.baseDebtPctGdp) * (debtPct / 100);
     const spend = spendPct(draft);
-    const balance = draft.taxPct - spend - interestPct;
+    const balance = draft.taxPct - spend;
     const gdpForTheater = balanceMode === 'parity' ? COEF.parityGdpUsd : nation.gdpUsd;
     const supply = theaterSupply(((draft.defensePct / 100) * gdpForTheater) / 1e9);
     const worksCap = (draft.infrastructurePct / 100) * gdpForTheater * WORKS_SHARE_OF_INFRA;
-    return { interestPct, spend, balance, supplyBase: supply, worksCap };
+    return { spend, balance, supplyBase: supply, worksCap };
   }, [draft, nation, balanceMode]);
 
   const set = (key: keyof Budget, v: number) => setEdited({ ...draft, [key]: v });
@@ -77,8 +75,6 @@ export function BudgetTab({ nation, onApply, balanceMode }: { nation: NationView
         <span className="text-right">{formatPct(draft.taxPct)}</span>
         <span className="font-sans text-ink-400">Despesas primárias</span>
         <span className="text-right">{formatPct(preview.spend)}</span>
-        <span className="font-sans text-ink-400">Juros da dívida ({formatPct(interestRate(nation.inflationPct, (nation.debtUsd / nation.gdpUsd) * 100, nation.baseDebtPctGdp))} a.a.)</span>
-        <span className="text-right">{formatPct(preview.interestPct)}</span>
         <span className="font-sans font-semibold text-ink-200">Saldo (− = déficit)</span>
         <span className={`text-right font-semibold ${preview.balance < 0 ? 'text-red-300' : 'text-signal-green'}`}>
           {formatSigned(preview.balance, 1, '%')} · {usd(preview.balance)}

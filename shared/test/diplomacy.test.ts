@@ -1,3 +1,4 @@
+import { CAIXA_DAYS } from '../strategic/params.ts';
 import { describe, expect, it } from 'vitest';
 import { COUNTRIES } from '../data/countries.ts';
 import { DIPLO } from '../strategic/Diplomacy.ts';
@@ -83,12 +84,14 @@ describe('diplomacia', () => {
     expect(sim.diplomacy.factors(1, ind.slot).some((f) => f.key === 'enemy_ally')).toBe(true);
   });
 
-  it('ajuda é paga com dívida e missões custam orçamento', () => {
+  it('ajuda sai do caixa do país e missões custam orçamento', () => {
     const { sim, npc } = setup();
     const n = sim.nation(0)!;
-    const debt = n.debtUsd;
+    n.works.fundUsd = 1e9;
     sim.diplomaticAction(0, { type: 'send_aid', partner: npc('MEX').slot, pctGdp: 0.2 });
-    expect(n.debtUsd).toBeCloseTo(debt + 0.002 * n.gdpUsd, -3);
+    expect(n.works.fundUsd).toBeCloseTo(1e9 - 0.2 * CAIXA_DAYS.aidPerPctGdp * n.dayUsd, -3);
+    n.works.fundUsd = 0;
+    expect(sim.diplomaticAction(0, { type: 'send_aid', partner: npc('MEX').slot, pctGdp: 0.2 })).toMatch(/Caixa insuficiente/);
     const spend = n.spendingUsd;
     sim.diplomaticAction(0, { type: 'set_mission', partner: npc('MEX').slot, active: true });
     expect(n.spendingUsd).toBeGreaterThan(spend);

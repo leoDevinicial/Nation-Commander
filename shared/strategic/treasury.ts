@@ -16,8 +16,6 @@ import type { ZoneKind } from '../sim/zoning.ts';
 export const TREASURY = {
   /** US$ por unidade produzida (1 dia de jogo = 1 s; a coleta é medida por segundo). */
   price: { food: 4_500, wood: 4_500, stone: 4_500, iron: 8_000, oil: 10_000, coal: 6_000, supplies: 6_000 } as Record<ResourceType, number>,
-  /** Fatia das exportações do dia que fica no caixa do teatro (o resto abate a dívida do país). */
-  exportShare: 0.2,
   /** Acordos comerciais: % do repasse por ponto percentual de crescimento vindo dos acordos. */
   tradePactShare: 0.25,
   /** Manutenção do exército por dia: infantaria, veículo e aeronave. */
@@ -65,7 +63,7 @@ export interface TreasuryDay {
 
 export function treasuryDay(
   inputs: TreasuryInputs | null,
-  ctx: { transferUsd: number; scale: number; productivity: number; exportsUsd: number; tradeGrowthPct: number },
+  ctx: { transferUsd: number; scale: number; productivity: number; tradeGrowthPct: number; trade?: { inUsd: number; outUsd: number; freightUsd: number } },
 ): TreasuryDay {
   const k = ctx.scale;
   const sumProd = inputs ? Object.entries(inputs.production).reduce((a, [r, v]) => a + (v ?? 0) * TREASURY.price[r as ResourceType], 0) : 0;
@@ -74,8 +72,10 @@ export function treasuryDay(
     { key: 'transfer', label: 'Repasse do orçamento (infraestrutura)', usd: ctx.transferUsd },
     { key: 'production', label: 'Produção (fazendas, coletas e indústrias)', usd: production },
     { key: 'productivity', label: 'Produtividade (infraestrutura e educação)', usd: production * ctx.productivity },
-    { key: 'trade', label: 'Exportações e acordos comerciais', usd: ctx.exportsUsd * TREASURY.exportShare + ctx.transferUsd * TREASURY.tradePactShare * Math.max(0, ctx.tradeGrowthPct) },
+    { key: 'trade', label: 'Acordos comerciais', usd: ctx.transferUsd * TREASURY.tradePactShare * Math.max(0, ctx.tradeGrowthPct) },
   ];
+  // comércio (02/11): o valor inteiro de cada venda entregue entra no caixa; compras e fretes saem dele
+  if (ctx.trade?.inUsd) income.push({ key: 'trade_in', label: 'Vendas no comércio (cargas entregues)', usd: ctx.trade.inUsd });
   // impostos do zoneamento: um por setor, só quando há lotes
   const z = inputs?.zoning;
   if (z)
@@ -94,6 +94,8 @@ export function treasuryDay(
         { key: 'services', label: 'Serviços públicos', usd: inputs.services * TREASURY.service * k },
       ]
     : [];
+  if (ctx.trade?.outUsd) expense.push({ key: 'trade_out', label: 'Compras no comércio (cargas recebidas)', usd: ctx.trade.outUsd });
+  if (ctx.trade?.freightUsd) expense.push({ key: 'freight', label: 'Fretes', usd: ctx.trade.freightUsd });
   const round = (l: TreasuryLine) => ({ ...l, usd: Math.round(l.usd) });
   const inc = income.map(round);
   const exp = expense.map(round);

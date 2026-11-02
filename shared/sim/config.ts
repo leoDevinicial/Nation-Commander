@@ -769,6 +769,26 @@ export const ROAD = {
 };
 
 /**
+ * Rodovia (02/11): estrada larga de pista dupla. Pode sair do território (terra neutra ou de nação que não esteja em
+ * guerra com quem constrói; nunca em país inimigo), não leva energia e se liga às rodovias e estradas dos outros
+ * jogadores. Caminhões de carga, caravanas e tropas andam bem mais rápido nela.
+ */
+export const HIGHWAY = {
+  maxCells: 40,
+  stonePerCell: 20,
+  /** Fração do teto anual da verba de obras por célula (o dobro da estrada). */
+  usdSharePerCell: 0.004,
+  /** Velocidade de caminhões de carga e caravanas na rodovia (na estrada: `ROAD.convoyMul`). */
+  convoyMul: 2,
+  /** Velocidade das tropas na rodovia (na estrada: 1,3 do terreno). */
+  unitMul: 1.7,
+  /** Custo de caminho (as tropas preferem a rodovia). */
+  pathCost: 0.4,
+  /** Manutenção: cada célula de rodovia conta como esta quantidade de células de estrada. */
+  upkeepCells: 2,
+};
+
+/**
  * Vitórias alternativas (lote 2, item 15), além de destruir o QG: territorial (controlar a maior
  * parte do território reivindicado por um tempo) e política (o rival em colapso de estabilidade).
  */

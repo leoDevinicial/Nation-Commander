@@ -1,232 +1,550 @@
-import { describe, expect, it } from 'vitest';
-import { BUILDINGS, TICK_RATE, Terrain, type BuildingType } from '../sim/config.ts';
-import { parseCommand } from '../sim/commands.ts';
-import { Simulation } from '../sim/Simulation.ts';
-import { TRADE, TRANSPORT, type TradeLink } from '../sim/trade.ts';
-import type { Building } from '../sim/types.ts';
-import { flatMap } from './helpers.ts';
+import { describe, expect, it } from "vitest";
+import {
+  HIGHWAY,
+  ROAD,
+  TICK_RATE,
+  Terrain,
+  type BuildingType,
+} from "../sim/config.ts";
+import { parseCommand, type Command } from "../sim/commands.ts";
+import { Simulation } from "../sim/Simulation.ts";
+import {
+  REF_PRICE,
+  TRADE,
+  TRANSPORT,
+  WORLD,
+  type TradeLink,
+} from "../sim/trade.ts";
+import type { Building, Cell } from "../sim/types.ts";
+import { flatMap } from "./helpers.ts";
+import { TacticalAI } from "../sim/TacticalAI.ts";
 
 const DAY = 20;
 const run = (sim: Simulation, ticks: number) => {
   for (let i = 0; i < ticks; i++) sim.step();
 };
 
-/** Diplomacia e tesouro de teste. */
+/** Diplomacia e caixa de teste: cada jogador com US$ 100 mi. */
 function link() {
-  const st = { war: new Set<string>(), sanctions: new Set<string>(), unknown: new Set<string>(), ledger: [] as { slot: number; usd: number; d: string }[], relation: 0, debt: 50 };
+  const st = {
+    war: new Set<string>(),
+    sanctions: new Set<string>(),
+    fund: new Map<number, number>(),
+    ledger: [] as { slot: number; usd: number; kind: string }[],
+  };
   const k = (a: number, b: number) => (a < b ? `${a}:${b}` : `${b}:${a}`);
   const l: TradeLink = {
-    npcs: () => [
-      { id: 100, countryId: 'AUS' },
-      { id: 101, countryId: 'JPN' },
-    ],
-    knows: (a, b) => !st.unknown.has(k(a, b)),
     atWar: (a, b) => st.war.has(k(a, b)),
     sanctioned: (a, b) => st.sanctions.has(k(a, b)),
-    relation: () => st.relation,
-    atWarAny: (a) => [...st.war].some((x) => x.split(':').includes(String(a))),
-    debtPctGdp: () => st.debt,
-    pay: (slot, usd, d) => void st.ledger.push({ slot, usd, d }),
-    partnerName: (id) => (id === 100 ? 'Austrália' : id === 101 ? 'Japão' : `Jogador ${id + 1}`),
+    spendable: (slot) => st.fund.get(slot) ?? 100e6,
+    pay: (slot, usd, kind) => {
+      st.ledger.push({ slot, usd, kind });
+      st.fund.set(slot, (st.fund.get(slot) ?? 100e6) + usd);
+    },
+    partnerName: (id) => `Jogador ${id + 1}`,
   };
   return { st, k, link: l };
 }
 
-/** Partida plana com terminal comercial, silo e tanque prontos para o jogador 0. */
-function setup(opts: { wall?: boolean; types?: BuildingType[] } = {}) {
-  const map = flatMap(40, (set) => {
-    if (opts.wall) for (let x = 0; x < 40; x++) set(x, 38, Terrain.Rock); // isola a borda sul (saída para o Japão)
+/** Partida plana com 3 jogadores; o 0 e o 1 têm Terminal Comercial (a ligação por estrada é opcional). */
+function setup(opts: { road?: boolean; players?: 2 | 3 } = {}) {
+  const map = flatMap(48);
+  map.spawns.push({ cx: 3, cy: 44 });
+  const sim = new Simulation({
+    map,
+    playerCount: opts.players ?? 3,
+    startingUnits: [],
   });
-  const sim = new Simulation({ map, playerCount: 2, startingUnits: [] });
   const L = link();
   sim.setTradeLink(L.link);
-  const p = sim.players[0]!;
-  const place = (type: BuildingType): Building => {
-    for (let cy = 1; cy < 14; cy++)
-      for (let cx = 2; cx < 14; cx++) if (sim.applyCommand(0, { type: 'build', buildingType: type, cx, cy }) === null) return sim.buildings.find((b) => b.type === type && b.owner === 0 && b.cell.cx === cx && b.cell.cy === cy)!;
-    throw new Error(`sem lugar para ${type}`);
-  };
-  // estoque folgado (o custo crescente encarece o segundo silo)
-  for (const r of Object.keys(p.resources) as (keyof typeof p.resources)[]) p.resources[r] = 1000;
-  const built: Partial<Record<BuildingType, Building>> = {};
-  for (const t of opts.types ?? ['market', 'silo', 'oil_tank']) built[t] = place(t);
-  run(sim, (Math.max(...Object.values(built).map((b) => BUILDINGS[b.type].buildSeconds)) + 1) * TICK_RATE);
-  // estoque controlado: 200 de ferro no armazém inicial
-  p.resources.iron = 200;
-  return { sim, p, ...L, built };
+  const put = (type: BuildingType, owner: number, cell: Cell): Building =>
+    sim.addBuilding(type, owner, cell, 1);
+  const m0 = put("market", 0, { cx: 10, cy: 10 });
+  const m1 = put("market", 1, { cx: 30, cy: 10 });
+  if (opts.road) layRoad(sim, 10, 30, 12);
+  for (const p of sim.players)
+    for (const r of Object.keys(p.resources) as (keyof typeof p.resources)[])
+      p.resources[r] = 300;
+  return { sim, ...L, put, m0, m1 };
 }
 
-/** Preço que o Japão (101) paga pelo ferro: a venda é aceita. */
-const JP = (sim: Simulation) => sim.trade.quote(101, 0, 'iron').buy;
+/** Estrada reta (linha y) de x0 a x1, encostando embaixo dos dois terminais (2×2). */
+function layRoad(
+  sim: Simulation,
+  x0: number,
+  x1: number,
+  y: number,
+  highway = false,
+) {
+  for (let x = x0; x <= x1 + 1; x++) {
+    const i = y * sim.map.width + x;
+    sim.map.terrain[i] = Terrain.Road;
+    sim.grid.terrain[i] = Terrain.Road;
+    sim.roads.push({ i, owner: 0, ...(highway ? { hw: true as const } : {}) });
+    if (highway) sim.highways.add(i);
+  }
+}
 
-const sell = (partner: number, quantity: number, price: number, extra: Partial<{ mode: 'road' | 'sea' | 'air'; days: number; resource: 'iron' | 'food' | 'oil' }> = {}) =>
-  ({ type: 'trade_offer', partner, side: 'sell', resource: extra.resource ?? 'iron', quantity, price, mode: extra.mode ?? 'road', days: extra.days ?? 120 }) as const;
-const buy = (partner: number, quantity: number, price: number, extra: Partial<{ mode: 'road' | 'sea' | 'air'; resource: 'iron' | 'food' }> = {}) =>
-  ({ type: 'trade_offer', partner, side: 'buy', resource: extra.resource ?? 'iron', quantity, price, mode: extra.mode ?? 'road', days: 120 }) as const;
+const sale = (
+  resource: "iron" | "food" | "oil",
+  quantity: number,
+  priceUsd: number,
+): Command => ({
+  type: "trade_list",
+  kind: "sale",
+  items: [{ resource, quantity }],
+  priceUsd,
+});
 
-describe('Fase 6 — ofertas e contratos', () => {
-  it('recusa propostas inválidas com o motivo (sem terminal, sem contato, guerra, sanções, limites)', () => {
-    const { sim, st, k } = setup({ types: [] });
-    expect(sim.applyCommand(0, sell(100, 50, 60_000))).toMatch(/Terminal Comercial/);
-    const s2 = setup();
-    st.unknown.add(k(0, 101));
-    s2.st.unknown.add(s2.k(0, 101));
-    expect(s2.sim.applyCommand(0, sell(101, 50, 60_000))).toMatch(/Sem contato/);
-    s2.st.war.add(s2.k(0, 100));
-    expect(s2.sim.applyCommand(0, sell(100, 50, 60_000))).toMatch(/guerra/);
-    s2.st.war.clear();
-    s2.st.sanctions.add(s2.k(0, 100));
-    expect(s2.sim.applyCommand(0, sell(100, 50, 60_000))).toMatch(/Sanções/);
-    s2.st.sanctions.clear();
-    expect(s2.sim.applyCommand(0, sell(100, 0, 60_000))).toMatch(/Quantidade/);
-    expect(s2.sim.applyCommand(0, sell(100, 10, 60_000, { days: 10 }))).toMatch(/Prazo/);
-    // sem trens desde 02/11: o modal ferroviário é recusado
-    expect(s2.sim.applyCommand(0, sell(100, 10, 60_000, { mode: 'rail' as 'road' }))).toMatch(/Modal inválido/);
-    expect(s2.sim.applyCommand(0, sell(100, 10, 60_000, { mode: 'air' }))).toMatch(/nível 4/);
-  });
-
-  it('estoque insuficiente impede o contrato; a reserva impede vender a mesma mercadoria duas vezes', () => {
-    const { sim, p } = setup();
-    expect(sim.applyCommand(0, sell(101, 150, JP(sim)))).toBeNull();
-    expect(sim.applyCommand(0, sell(100, 150, sim.trade.quote(100, 0, 'iron').buy))).toBeNull();
-    run(sim, (TRADE.npcReplyDays + 1) * DAY);
-    const [c1, c2] = [sim.trade.offers[0]!, sim.trade.offers[1]!];
-    // (a Austrália compra pouco ferro: a segunda também cairia por demanda — o motivo é o estoque, verificado antes)
-    // a primeira foi aceita e reservou 150; a segunda já não tem estoque
-    expect(c1.status).toBe('accepted');
-    expect(p.resources.iron).toBe(50);
-    expect(c2.status).toBe('rejected');
-    expect(c2.reason).toMatch(/Estoque insuficiente/);
-  });
-
-  it('exportação completa: reserva, embarque, trajeto, trecho fora do mapa, entrega e pagamento', () => {
-    const { sim, p, st } = setup();
-    const price = JP(sim);
-    expect(sim.applyCommand(0, sell(101, 100, price))).toBeNull();
-    run(sim, (TRADE.npcReplyDays + 1) * DAY);
-    const c = sim.trade.contracts[0]!;
-    expect(c.status).toBe('active');
-    expect(p.resources.iron).toBe(100); // 100 reservados saíram do estoque utilizável
-    expect(c.reserved + c.shipped).toBe(100);
-    run(sim, 2 * DAY);
-    const lots = sim.trade.shipments;
-    expect(lots.length).toBe(2); // 60 + 40: capacidade do caminhão
-    expect(lots.map((s) => s.quantity)).toEqual([60, 40]);
-    expect(lots.every((s) => s.state === 'loading' || s.state === 'moving')).toBe(true);
-    expect(st.ledger.filter((x) => x.d.startsWith('Frete')).reduce((t, x) => t + x.usd, 0)).toBe(-100 * TRANSPORT.road.costPerUnit);
-    // nada é pago antes de chegar
-    expect(st.ledger.some((x) => x.d.startsWith('Exportação'))).toBe(false);
-    run(sim, 120 * TICK_RATE);
-    expect(c.status).toBe('fulfilled');
-    expect(c.delivered).toBe(100);
-    expect(st.ledger.filter((x) => x.d.startsWith('Exportação')).reduce((a, x) => a + x.usd, 0)).toBe(100 * price);
-    expect(p.resources.iron).toBe(100); // o estoque nunca volta nem duplica
-  });
-
-  it('importação: a carga só entra no estoque ao chegar e se houver espaço', () => {
-    const { sim, p, st } = setup();
-    const cap = sim.capacity(0).iron;
-    p.resources.iron = cap - 20; // só cabem 20
-    const q = sim.trade.quote(100, 0, 'iron');
-    expect(sim.applyCommand(0, buy(100, 20, q.sell))).toBeNull();
-    run(sim, (TRADE.npcReplyDays + 1) * DAY);
-    expect(sim.trade.contracts[0]!.status).toBe('active');
-    run(sim, DAY);
-    const s = sim.trade.shipments[0]!;
-    expect(s.state).toBe('offmap');
-    expect(p.resources.iron).toBe(cap - 20);
-    p.resources.iron = cap - 5; // o espaço diminuiu durante a viagem
-    run(sim, 80 * TICK_RATE);
-    expect(p.resources.iron).toBe(cap);
-    expect(s.state).toBe('waiting_capacity');
-    expect(s.quantity).toBe(15);
-    p.resources.iron = cap - 100;
-    run(sim, 2 * TICK_RATE);
-    expect(s.state).toBe('delivered');
-    expect(p.resources.iron).toBe(cap - 85);
-    expect(sim.trade.contracts[0]!.status).toBe('fulfilled');
-    expect(st.ledger.filter((x) => x.d.startsWith('Importação')).reduce((a, x) => a + x.usd, 0)).toBe(-20 * q.sell);
-  });
-
-  it('rota bloqueada não vira transporte instantâneo: o contrato fica suspenso e expira no prazo', () => {
-    const { sim, p } = setup({ wall: true });
-    expect(sim.applyCommand(0, sell(101, 50, JP(sim), { days: 60 }))).toBeNull();
-    run(sim, (TRADE.npcReplyDays + 2) * DAY);
-    const c = sim.trade.contracts[0]!;
-    expect(c.status).toBe('suspended');
-    expect(c.reason).toMatch(/Rota terrestre bloqueada/);
-    expect(sim.trade.shipments).toHaveLength(0);
-    run(sim, 60 * DAY);
-    expect(c.status).toBe('expired');
-    expect(c.delivered).toBe(0);
-    expect(p.resources.iron).toBe(200); // a reserva volta ao estoque
-  });
-
-  it('guerra interrompe o contrato e a carga a caminho é apreendida', () => {
-    const { sim, st, k } = setup();
-    expect(sim.applyCommand(0, sell(101, 100, JP(sim)))).toBeNull();
-    run(sim, (TRADE.npcReplyDays + 3) * DAY);
-    const c = sim.trade.contracts[0]!;
-    expect(sim.trade.shipments.length).toBeGreaterThan(0);
-    st.war.add(k(0, 101));
-    run(sim, DAY);
-    expect(c.status).toBe('interrupted');
-    expect(c.reason).toMatch(/Guerra/);
-    expect(sim.trade.shipments.every((s) => s.state === 'lost')).toBe(true);
-    expect(st.ledger.some((x) => x.d.startsWith('Exportação'))).toBe(false);
-  });
-
-  it('depósito de origem destruído antes da retirada: redireciona se houver outro, senão a reserva se perde', () => {
-    // rota bloqueada segura a carga no depósito (suspenso), como um atraso qualquer
-    const { sim } = setup({ wall: true, types: ['market', 'silo', 'silo'] });
-    const p = sim.players[0]!;
-    p.resources.food = 140;
-    expect(sim.applyCommand(0, sell(101, 60, sim.trade.quote(101, 0, 'food').buy, { resource: 'food', days: 200 }))).toBeNull();
-    run(sim, (TRADE.npcReplyDays + 2) * DAY);
-    const c = sim.trade.contracts[0]!;
-    expect(c.status).toBe('suspended');
-    const first = sim.entities.get(c.depotId!) as Building;
-    first.hp = 0;
-    run(sim, 2 * DAY);
-    expect(c.log.some((x) => /redirecionada/.test(x.text))).toBe(true);
-    expect(c.depotId).not.toBe(first.id);
-    ;(sim.entities.get(c.depotId!) as Building).hp = 0;
-    run(sim, (TRADE.redirectDelaySeconds + 2) * TICK_RATE);
-    expect(c.status).toBe('interrupted');
-    expect(c.reason).toMatch(/Depósito de origem destruído/);
-    expect(c.lost).toBe(60);
-  });
-
-  it('contraproposta de preço do país da IA', () => {
+describe("Comércio entre nações (02/11)", () => {
+  it("anúncio: precisa de terminal, preço dentro da faixa e estoque; a venda reserva a mercadoria e a retirada a devolve", () => {
     const { sim } = setup();
-    const q = sim.trade.quote(101, 0, 'iron');
-    expect(sim.applyCommand(0, sell(101, 30, Math.round(q.buy * 1.15)))).toBeNull();
-    run(sim, (TRADE.npcReplyDays + 1) * DAY);
-    const [orig, counter] = sim.trade.offers;
-    expect(orig!.status).toBe('countered');
-    expect(counter!.from).toBe(101);
-    expect(counter!.price).toBe(q.buy);
-    expect(sim.applyCommand(0, { type: 'trade_respond', offerId: counter!.id, accept: true })).toBeNull();
-    expect(sim.trade.contracts[0]!.price).toBe(q.buy);
+    expect(sim.applyCommand(2, sale("iron", 50, 50 * REF_PRICE.iron))).toMatch(
+      /Terminal Comercial/,
+    );
+    expect(sim.applyCommand(0, sale("iron", 50, 1))).toMatch(/Preço fora/);
+    expect(
+      sim.applyCommand(0, sale("iron", 900, 900 * REF_PRICE.iron)),
+    ).toMatch(/Estoque insuficiente/);
+    expect(
+      sim.applyCommand(0, sale("iron", 100, 100 * REF_PRICE.iron)),
+    ).toBeNull();
+    expect(sim.players[0]!.resources.iron).toBe(200);
+    const l = sim.trade.listings[0]!;
+    expect(
+      sim.applyCommand(1, { type: "trade_withdraw", listingId: l.id }),
+    ).toMatch(/indisponível/);
+    expect(
+      sim.applyCommand(0, { type: "trade_withdraw", listingId: l.id }),
+    ).toBeNull();
+    expect(sim.players[0]!.resources.iron).toBe(300);
   });
 
-  it('o comércio persiste no salvar/carregar e continua igual', () => {
-    const { sim, link: l } = setup();
-    expect(sim.applyCommand(0, sell(101, 100, JP(sim)))).toBeNull();
-    run(sim, (TRADE.npcReplyDays + 3) * DAY);
-    const copy = Simulation.deserialize(sim.serialize());
-    copy.setTradeLink(l);
-    expect(copy.trade.contracts).toEqual(sim.trade.contracts);
-    run(sim, 30 * TICK_RATE);
-    run(copy, 30 * TICK_RATE);
-    expect(copy.trade.toSave()).toEqual(sim.trade.toSave());
+  it("venda por caminhão: precisa de estrada contínua; dinheiro e mercadoria só mudam de mão na chegada", () => {
+    const { sim, st } = setup();
+    expect(sim.applyCommand(0, sale("iron", 100, 1_000_000))).toBeNull();
+    const id = sim.trade.listings[0]!.id;
+    expect(
+      sim.applyCommand(1, { type: "trade_buy", listingId: id, mode: "road" }),
+    ).toMatch(/estrada ou rodovia contínua/);
+    layRoad(sim, 10, 30, 12);
+    run(sim, TICK_RATE * 3); // a rota em cache expira
+    const iron1 = sim.players[1]!.resources.iron;
+    expect(
+      sim.applyCommand(1, { type: "trade_buy", listingId: id, mode: "road" }),
+    ).toBeNull();
+    const ship = sim.trade.shipments[0]!;
+    expect(ship.mode).toBe("road");
+    run(sim, TICK_RATE * 5);
+    expect(ship.state).toBe("moving");
+    expect(st.ledger).toEqual([]);
+    expect(sim.players[1]!.resources.iron).toBe(iron1);
+    run(sim, TICK_RATE * 40);
+    expect(ship.state).toBe("delivered");
+    expect(sim.players[1]!.resources.iron).toBe(iron1 + 100);
+    expect(st.ledger).toEqual([
+      { slot: 1, usd: -1_000_000, kind: "import" },
+      { slot: 0, usd: 1_000_000, kind: "export" },
+    ]);
   });
 
-  it('valida a forma dos comandos de comércio', () => {
-    expect(parseCommand(sell(100, 5, 1000))).toEqual(sell(100, 5, 1000));
-    expect(parseCommand({ ...sell(100, 5, 1000), resource: 'gold' })).toBeNull();
-    expect(parseCommand({ ...sell(100, 5, 1000), mode: 'teleport' })).toBeNull();
-    expect(parseCommand({ type: 'trade_respond', offerId: 3, accept: 'sim' })).toBeNull();
-    expect(parseCommand({ type: 'trade_cancel', contractId: 2 })).toEqual({ type: 'trade_cancel', contractId: 2 });
+  it("rodovia: o caminhão anda mais rápido que na estrada comum", () => {
+    const time = (highway: boolean) => {
+      const { sim } = setup();
+      layRoad(sim, 10, 30, 12, highway);
+      sim.applyCommand(0, sale("iron", 50, 500_000));
+      sim.applyCommand(1, {
+        type: "trade_buy",
+        listingId: sim.trade.listings[0]!.id,
+        mode: "road",
+      });
+      const s = sim.trade.shipments[0]!;
+      let t = 0;
+      while (s.state !== "delivered" && t < TICK_RATE * 120) {
+        sim.step();
+        t++;
+      }
+      return t;
+    };
+    const road = time(false);
+    const hw = time(true);
+    expect(hw).toBeLessThan(
+      road * (ROAD.convoyMul / HIGHWAY.convoyMul) +
+        TICK_RATE * TRADE.loadSeconds +
+        5,
+    );
+  });
+
+  it("avião: aeroporto dos dois lados (Base Aérea ou QG nível 4), linha reta, carga pequena por voo", () => {
+    const { sim, put } = setup();
+    sim.applyCommand(0, sale("iron", 120, 1_200_000));
+    const id = sim.trade.listings[0]!.id;
+    expect(
+      sim.applyCommand(1, { type: "trade_buy", listingId: id, mode: "air" }),
+    ).toMatch(/Base Aérea|QG/);
+    put("airbase", 0, { cx: 4, cy: 20 });
+    put("airbase", 1, { cx: 38, cy: 20 });
+    run(sim, TICK_RATE * 3);
+    expect(
+      sim.applyCommand(1, { type: "trade_buy", listingId: id, mode: "air" }),
+    ).toBeNull();
+    // 120 em aviões de 50: três voos, cada um paga a sua parte
+    expect(sim.trade.shipments.map((s) => s.units)).toEqual([50, 50, 20]);
+    expect(sim.trade.shipments[0]!.path).toHaveLength(2);
+    run(sim, TICK_RATE * 30);
+    expect(sim.trade.shipments.every((s) => s.state === "delivered")).toBe(
+      true,
+    );
+    expect(sim.players[1]!.resources.iron).toBe(420);
+  });
+
+  it("contrato: X a cada N dias por US$ Z/mês; cai por força maior quando o fornecedor não tem o estoque", () => {
+    const { sim, st } = setup({ road: true });
+    sim.players[1]!.resources.food = 0; // espaço para receber
+    sim.players[1]!.resources.iron = 0;
+    expect(
+      sim.applyCommand(0, {
+        type: "trade_list",
+        kind: "contract",
+        items: [
+          { resource: "iron", quantity: 100 },
+          { resource: "food", quantity: 50 },
+        ],
+        priceUsd: 1_500_000,
+        everyDays: 30,
+      }),
+    ).toBeNull();
+    const l = sim.trade.listings[0]!;
+    // o contrato não reserva nada: o estoque sai a cada entrega
+    expect(sim.players[0]!.resources.iron).toBe(300);
+    expect(
+      sim.applyCommand(1, { type: "trade_buy", listingId: l.id, mode: "road" }),
+    ).toBeNull();
+    const c = sim.trade.contracts[0]!;
+    expect(c.deliveries).toBe(1);
+    expect(sim.players[0]!.resources.iron).toBe(200);
+    run(sim, DAY * 30);
+    expect(c.deliveries).toBe(2);
+    // pago por entrega (mensalidade × 30/30), só na chegada
+    expect(
+      st.ledger.filter((x) => x.slot === 0).reduce((a, x) => a + x.usd, 0),
+    ).toBe(1_500_000);
+    run(sim, DAY * 40);
+    expect(c.deliveries).toBe(3);
+    expect(sim.players[0]!.resources.iron).toBe(0);
+    run(sim, DAY * 31);
+    expect(c.status).toBe("ended");
+    expect(c.reason).toMatch(/não tinha 100 de ferro/);
+  });
+
+  it("contrato cai quando o comprador não tem caixa para a entrega; qualquer parte pode encerrar", () => {
+    const { sim, st } = setup({ road: true });
+    sim.applyCommand(0, {
+      type: "trade_list",
+      kind: "contract",
+      items: [{ resource: "iron", quantity: 50 }],
+      priceUsd: 600_000,
+      everyDays: 20,
+    });
+    sim.applyCommand(1, {
+      type: "trade_buy",
+      listingId: sim.trade.listings[0]!.id,
+      mode: "road",
+    });
+    const c = sim.trade.contracts[0]!;
+    st.fund.set(1, 100_000);
+    run(sim, DAY * 21);
+    expect(c.status).toBe("ended");
+    expect(c.reason).toMatch(/sem caixa/);
+    st.fund.set(1, 100e6);
+    sim.applyCommand(0, {
+      type: "trade_list",
+      kind: "contract",
+      items: [{ resource: "iron", quantity: 50 }],
+      priceUsd: 600_000,
+      everyDays: 20,
+    });
+    sim.applyCommand(1, {
+      type: "trade_buy",
+      listingId: sim.trade.listings.at(-1)!.id,
+      mode: "road",
+    });
+    const c2 = sim.trade.contracts.at(-1)!;
+    expect(
+      sim.applyCommand(2, { type: "trade_cancel", contractId: c2.id }),
+    ).toMatch(/inválido/);
+    expect(
+      sim.applyCommand(1, { type: "trade_cancel", contractId: c2.id }),
+    ).toBeNull();
+    expect(c2.status).toBe("ended");
+  });
+
+  it("guerra: não se compra de inimigo, a carga a caminho é apreendida e o contrato cai", () => {
+    const { sim, st } = setup({ road: true });
+    sim.applyCommand(0, {
+      type: "trade_list",
+      kind: "contract",
+      items: [{ resource: "iron", quantity: 50 }],
+      priceUsd: 600_000,
+      everyDays: 20,
+    });
+    sim.applyCommand(1, {
+      type: "trade_buy",
+      listingId: sim.trade.listings[0]!.id,
+      mode: "road",
+    });
+    run(sim, TICK_RATE * 5);
+    st.war.add("0:1");
+    sim.setWar(0, 1, true);
+    expect(sim.trade.contracts[0]!.status).toBe("ended");
+    expect(sim.trade.shipments[0]!.state).toBe("lost");
+    expect(st.ledger).toEqual([]);
+    sim.applyCommand(0, sale("iron", 50, 500_000));
+    expect(
+      sim.applyCommand(1, {
+        type: "trade_buy",
+        listingId: sim.trade.listings.at(-1)!.id,
+        mode: "road",
+      }),
+    ).toMatch(/Em guerra/);
+  });
+
+  it("emboscada: tropa de quem está em guerra com o comprador destrói o caminhão no caminho; ninguém paga", () => {
+    const { sim, st } = setup({ road: true });
+    st.war.add("1:2");
+    sim.setWar(1, 2, true);
+    sim.addUnit("infantry", 2, sim.grid.cellCenter({ cx: 20, cy: 13 }));
+    sim.applyCommand(0, sale("iron", 100, 1_000_000));
+    sim.applyCommand(1, {
+      type: "trade_buy",
+      listingId: sim.trade.listings[0]!.id,
+      mode: "road",
+    });
+    run(sim, TICK_RATE * 40);
+    const s = sim.trade.shipments[0]!;
+    expect(s.state).toBe("lost");
+    expect(s.reason).toMatch(/Comboio destruído/);
+    expect(st.ledger).toEqual([]);
+  });
+
+  it("mercado mundial: preço pior que o de referência, limite diário e pagamento na chegada pela borda do mapa", () => {
+    const { sim, st } = setup();
+    const q = sim.trade.worldQuote(0, "food");
+    expect(q.buy).toBeGreaterThan(REF_PRICE.food);
+    expect(q.sell).toBeLessThan(REF_PRICE.food);
+    expect(
+      sim.applyCommand(0, {
+        type: "trade_world",
+        side: "buy",
+        resource: "food",
+        quantity: TRADE.worldDailyUnits + 1,
+        mode: "road",
+      }),
+    ).toMatch(/Quantidade/);
+    expect(
+      sim.applyCommand(0, {
+        type: "trade_world",
+        side: "sell",
+        resource: "food",
+        quantity: 200,
+        mode: "road",
+      }),
+    ).toBeNull();
+    expect(sim.players[0]!.resources.food).toBe(100);
+    expect(
+      sim.applyCommand(0, {
+        type: "trade_world",
+        side: "sell",
+        resource: "food",
+        quantity: 150,
+        mode: "road",
+      }),
+    ).toMatch(/só negocia mais 100/);
+    const s = sim.trade.shipments[0]!;
+    expect(s.buyer).toBe(WORLD);
+    expect(st.ledger).toEqual([]);
+    run(sim, TICK_RATE * (TRANSPORT.road.offmapSeconds + 40));
+    expect(s.state).toBe("delivered");
+    // 200 em dois caminhões de até 150: cada um paga a sua parte
+    expect(st.ledger.every((x) => x.slot === 0 && x.kind === "export")).toBe(
+      true,
+    );
+    expect(st.ledger.reduce((t, x) => t + x.usd, 0)).toBe(200 * q.sell);
+    // compra: vem de fora do mapa e paga na chegada
+    run(sim, DAY);
+    expect(
+      sim.applyCommand(0, {
+        type: "trade_world",
+        side: "buy",
+        resource: "iron",
+        quantity: 50,
+        mode: "road",
+      }),
+    ).toBeNull();
+    const b = sim.trade.shipments.at(-1)!;
+    expect(b.state).toBe("offmap");
+    run(sim, TICK_RATE * (TRANSPORT.road.offmapSeconds + 40));
+    expect(b.state).toBe("delivered");
+    expect(st.ledger.at(-1)).toEqual({
+      slot: 0,
+      usd: -50 * Math.round(REF_PRICE.iron * TRADE.worldBuyMul),
+      kind: "import",
+    });
+  });
+
+  it("salvar e carregar no meio de um contrato continua igual", () => {
+    const { sim } = setup({ road: true });
+    sim.applyCommand(0, {
+      type: "trade_list",
+      kind: "contract",
+      items: [{ resource: "iron", quantity: 50 }],
+      priceUsd: 600_000,
+      everyDays: 20,
+    });
+    sim.applyCommand(1, {
+      type: "trade_buy",
+      listingId: sim.trade.listings[0]!.id,
+      mode: "road",
+    });
+    sim.applyCommand(0, sale("food", 40, 200_000));
+    run(sim, TICK_RATE * 7);
+    const copy = Simulation.fromSave(sim.toSave());
+    copy.setTradeLink(sim.trade.link);
+    run(sim, DAY * 25);
+    run(copy, DAY * 25);
+    expect(JSON.stringify(copy.trade.toSave())).toBe(
+      JSON.stringify(sim.trade.toSave()),
+    );
+  });
+
+  it("comandos validados no servidor", () => {
+    expect(
+      parseCommand({
+        type: "trade_list",
+        kind: "sale",
+        items: [{ resource: "iron", quantity: 10 }],
+        priceUsd: 100,
+      }),
+    ).not.toBeNull();
+    expect(
+      parseCommand({
+        type: "trade_list",
+        kind: "leilão",
+        items: [{ resource: "iron", quantity: 10 }],
+        priceUsd: 100,
+      }),
+    ).toBeNull();
+    expect(
+      parseCommand({
+        type: "trade_list",
+        kind: "sale",
+        items: [{ resource: "ouro", quantity: 10 }],
+        priceUsd: 100,
+      }),
+    ).toBeNull();
+    expect(
+      parseCommand({
+        type: "trade_list",
+        kind: "sale",
+        items: [],
+        priceUsd: 100,
+      }),
+    ).toBeNull();
+    expect(
+      parseCommand({ type: "trade_buy", listingId: 3, mode: "rail" }),
+    ).toBeNull();
+    expect(
+      parseCommand({
+        type: "trade_world",
+        side: "buy",
+        resource: "coal",
+        quantity: 10,
+        mode: "sea",
+      }),
+    ).not.toBeNull();
+    expect(
+      parseCommand({
+        type: "build_road",
+        cells: [{ cx: 1, cy: 1 }],
+        highway: true,
+      }),
+    ).toEqual({ type: "build_road", cells: [{ cx: 1, cy: 1 }], highway: true });
+  });
+});
+
+describe("IA no comércio (02/11)", () => {
+  it("a IA anuncia a sobra e compra de outra nação o recurso que lhe falta", () => {
+    const { sim, put } = setup({ road: true });
+    // P0 (IA) com armazém cheio de ferro; P1 (IA) quase sem comida
+    put("warehouse", 0, { cx: 4, cy: 16 });
+    sim.players[0]!.resources.iron = 1500;
+    const ai0 = new TacticalAI(0);
+    const list = ai0.think(sim).find((c) => c.type === "trade_list");
+    expect(list).toMatchObject({
+      type: "trade_list",
+      kind: "sale",
+      items: [{ resource: "iron" }],
+    });
+    expect(sim.applyCommand(0, list!)).toBeNull();
+    // o comprador precisa do recurso: ferro abaixo de 20% da capacidade, com espaço
+    put("warehouse", 1, { cx: 36, cy: 16 });
+    sim.players[1]!.resources.iron = 10;
+    run(sim, TICK_RATE * 3);
+    const buy = new TacticalAI(1)
+      .think(sim)
+      .find((c) => c.type === "trade_buy");
+    expect(buy).toMatchObject({
+      type: "trade_buy",
+      listingId: sim.trade.listings[0]!.id,
+      mode: "road",
+    });
+    expect(sim.applyCommand(1, buy!)).toBeNull();
+  });
+});
+
+describe("Rodovia (02/11)", () => {
+  it("sai do território sem engenheiro, nunca entra em país em guerra, vira rodovia sobre a estrada própria e não leva energia", () => {
+    const { sim } = setup({ players: 2 });
+    const W = sim.map.width;
+    // terra neutra no meio do mapa: estrada comum precisa de engenheiro; rodovia, não
+    const cells = [20, 21, 22].map((cx) => ({ cx, cy: 24 }));
+    expect(sim.territoryOwner(20, 24)).toBe(-1);
+    expect(sim.roadPlan(0, cells).error).toMatch(/Engenheiro/);
+    expect(sim.highwayPlan(0, cells).error).toBeNull();
+    expect(
+      sim.applyCommand(0, { type: "build_road", cells, highway: true }),
+    ).toBeNull();
+    expect(sim.isHighway(24 * W + 21)).toBe(true);
+    // território do outro jogador: só em paz
+    const hq1 = sim.hqOf(1)!;
+    const inside = [{ cx: hq1.cell.cx - 2, cy: hq1.cell.cy + 4 }];
+    expect(sim.territoryOwner(inside[0]!.cx, inside[0]!.cy)).toBe(1);
+    sim.setWar(0, 1, true);
+    expect(sim.highwayPlan(0, inside).error).toMatch(/inimigo/);
+    sim.setWar(0, 1, false);
+    expect(sim.highwayPlan(0, inside).error).toBeNull();
+    // custo de manutenção em dobro
+    expect(sim.roadCount(0)).toBe(3 * HIGHWAY.upkeepCells);
+  });
+
+  it("tropas andam mais rápido na rodovia", () => {
+    const go = (highway: boolean) => {
+      const { sim } = setup({ players: 2 });
+      layRoad(sim, 4, 40, 30, highway);
+      const u = sim.addUnit(
+        "infantry",
+        0,
+        sim.grid.cellCenter({ cx: 6, cy: 30 }),
+      );
+      sim.applyCommand(0, {
+        type: "move",
+        unitIds: [u.id],
+        x: sim.grid.cellCenter({ cx: 38, cy: 30 }).x,
+        y: sim.grid.cellCenter({ cx: 38, cy: 30 }).y,
+      });
+      run(sim, TICK_RATE * 6);
+      return u.pos.x;
+    };
+    expect(go(true)).toBeGreaterThan(go(false) + 2);
   });
 });

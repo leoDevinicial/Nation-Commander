@@ -26,7 +26,8 @@ Onde está:
 | Repasse do orçamento | 1/365 do repasse anual (infraestrutura × PIB × 0,3%), como a antiga recarga |
 | Produção | coleta por segundo de cada recurso × preço (comida, madeira, pedra US$ 4,5 mil; carvão e suprimentos 6 mil; ferro 8 mil; petróleo 10 mil); só coletas produzindo |
 | Produtividade | produção × (infraestrutura × capital humano − 1), entre −40% e +60% |
-| Exportações e acordos | 20% das exportações do dia + 25% do repasse por p.p. de crescimento vindo de acordos comerciais |
+| Acordos comerciais | 25% do repasse por p.p. de crescimento vindo de acordos comerciais |
+| Vendas no comércio (02/11) | o valor inteiro de cada carga entregue no dia (`docs/COMERCIO.md`); compras e fretes viram despesa |
 
 ## Despesas (por dia)
 
@@ -37,7 +38,11 @@ Onde está:
 | Construções | US$ 400 por célula de área das construções prontas (sem o QG) |
 | Estradas | US$ 600 por célula de estrada do jogador |
 | Serviços públicos | US$ 20 mil por Hospital, Escola, Delegacia e Prefeitura |
+| Compras no comércio (02/11) | o valor de cada carga recebida no dia |
 | Pesquisa nacional | enquanto uma pesquisa corre: `techDailyUsd` = 15 mil + 12 mil por nível na árvore (+15 mil nas de era mínima); prazo = `minDays` da tecnologia |
+
+**Sem dívida (02/11).** Não existe mais dívida pública: guerra, missão de contato, ajuda externa e operações saem do
+caixa (em dias de repasse, `CAIXA_DAYS`), e o comércio entra e sai dele direto. Ver `docs/COMERCIO.md`.
 
 **Pesquisa paga por dia.** A pesquisa nacional não usa mais o % de P&D do orçamento (a linha saiu da aba Orçamento):
 o custo diário entra como despesa do dia. Quem ganha 300 mil por dia e pesquisa algo de 40 mil fica com 260 mil até a

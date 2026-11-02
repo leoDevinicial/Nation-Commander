@@ -21,6 +21,7 @@ import {
   Terrain,
   PROJECT_FX,
   ROAD,
+  HIGHWAY,
   SPACE,
   TICK_RATE,
   TICK_SECONDS,
@@ -174,7 +175,7 @@ export interface SimulationSave {
   /** Rede elétrica ligada (ausente nos salvamentos de antes dela: tudo fica com luz). */
   power?: boolean;
   powerState?: { powered: number[]; load: [number, number][]; coalDebt: number[]; info: PlayerPower[]; homes: { homes: number; lit: number }[] };
-  roads?: { i: number; owner: Slot }[];
+  roads?: { i: number; owner: Slot; hw?: true }[];
   victory?: VictoryKind | null;
   territoryHold?: number[];
   collapseDays?: number[];
@@ -334,7 +335,9 @@ export class Simulation {
   /** Pares em guerra formal ("a:b", a < b). Sem guerra não há disparo nem ordem de ataque. */
   private readonly wars = new Set<string>();
   /** Estradas construídas pelos jogadores (célula e dono, para a manutenção). */
-  roads: { i: number; owner: Slot }[] = [];
+  roads: { i: number; owner: Slot; hw?: true }[] = [];
+  /** Células de rodovia (02/11): mais rápidas, sem energia, podem sair do território. A grade usa o mesmo conjunto. */
+  readonly highways = new Set<number>();
   private roadSet: Set<number> | null = null;
   private roadSetSize = -1;
   /** Células das estradas dos jogadores (cache; as estradas só são acrescentadas). */
@@ -369,10 +372,16 @@ export class Simulation {
   territoryHold: number[] = [];
   collapseDays: number[] = [];
 
+  /** Células de estrada para a manutenção (a rodovia conta em dobro, `HIGHWAY.upkeepCells`). */
   roadCount(slot: Slot): number {
     let n = 0;
-    for (const r of this.roads) if (r.owner === slot) n++;
+    for (const r of this.roads) if (r.owner === slot) n += r.hw ? HIGHWAY.upkeepCells : 1;
     return n;
+  }
+
+  /** A célula é rodovia. */
+  isHighway(i: number): boolean {
+    return this.highways.has(i);
   }
 
   /** Incidentes de fronteira em curso ("a:b" → tick em que acabam). */
@@ -423,6 +432,7 @@ export class Simulation {
     this.idCipher = init.idCipher ?? null;
     this.map = init.map;
     this.grid = new Grid(init.map.width, init.map.height, init.map.cellSize, [...init.map.terrain]);
+    this.grid.highway = this.highways;
     this.battle = !!init.battle;
     this.power = init.power ?? (Simulation.powerByDefault && !init.battle);
     this.builders = init.builders ?? (Simulation.buildersByDefault && !init.battle);
@@ -623,6 +633,8 @@ export class Simulation {
     sim.difficulty = data.difficulty ?? 'normal';
     sim.eras = !!data.eras;
     sim.roads = (data.roads ?? []).map((r) => ({ ...r }));
+    sim.highways.clear();
+    for (const r of sim.roads) if (r.hw) sim.highways.add(r.i);
     sim.victory = data.victory ?? null;
     sim.territoryHold = [...(data.territoryHold ?? [])];
     sim.collapseDays = [...(data.collapseDays ?? [])];
@@ -662,7 +674,11 @@ export class Simulation {
 
   setWar(a: Slot, b: Slot, atWar: boolean): void {
     const k = a < b ? `${a}:${b}` : `${b}:${a}`;
-    if (atWar) this.wars.add(k);
+    if (atWar && !this.wars.has(k)) {
+      this.wars.add(k);
+      // a carga a caminho entre os dois é apreendida e os contratos caem (02/11)
+      this.trade.onWar(a, b);
+    } else if (atWar) this.wars.add(k);
     else this.wars.delete(k);
   }
 
@@ -1276,6 +1292,24 @@ export class Simulation {
       case 'lay_mine':
         return this.mines.lay(slot, cmd.unitIds, cmd.x, cmd.y);
       case 'build_road': {
+        if (cmd.highway) {
+          const hp = this.highwayPlan(slot, cmd.cells);
+          if (hp.error) return hp.error;
+          const freeHw = this.isSandbox(slot);
+          if (!freeHw && this.national && hp.usd > 0 && !this.national.chargeWorks(slot, hp.usd, `Rodovia (${hp.cells.length} células)`)) return 'Caixa do país sem saldo para a rodovia';
+          if (!freeHw) this.spend(player, { stone: hp.stone });
+          for (const i of hp.cells) {
+            this.zones.clearCell(i);
+            this.map.terrain[i] = Terrain.Road;
+            this.grid.terrain[i] = Terrain.Road;
+            const own = this.roads.find((r) => r.i === i);
+            if (own) own.hw = true;
+            else this.roads.push({ i, owner: slot, hw: true });
+            this.highways.add(i);
+          }
+          this.territoryVersion++;
+          return null;
+        }
         const plan = this.roadPlan(slot, cmd.cells);
         if (plan.error) return plan.error;
         const free = this.isSandbox(slot);
@@ -1478,22 +1512,14 @@ export class Simulation {
         }
         return started > 0 ? null : (firstError ?? 'Nenhuma unidade pode receber este pacote');
       }
-      case 'trade_offer': {
-        return this.trade.propose(slot, {
-          partner: cmd.partner,
-          side: cmd.side,
-          resource: cmd.resource,
-          quantity: cmd.quantity,
-          price: cmd.price,
-          mode: cmd.mode,
-          days: cmd.days,
-          ...(cmd.counterOf !== undefined ? { counterOf: cmd.counterOf } : {}),
-        });
-      }
-      case 'trade_respond':
-        return this.trade.respond(slot, cmd.offerId, cmd.accept);
+      case 'trade_list':
+        return this.trade.list(slot, { kind: cmd.kind, items: cmd.items, priceUsd: cmd.priceUsd, ...(cmd.everyDays !== undefined ? { everyDays: cmd.everyDays } : {}) });
+      case 'trade_buy':
+        return this.trade.buy(slot, cmd.listingId, cmd.mode);
       case 'trade_withdraw':
-        return this.trade.withdraw(slot, cmd.offerId);
+        return this.trade.withdraw(slot, cmd.listingId);
+      case 'trade_world':
+        return this.trade.world(slot, cmd.side, cmd.resource, cmd.quantity, cmd.mode);
       case 'trade_cancel':
         return this.trade.cancel(slot, cmd.contractId);
       case 'build_aircraft':
@@ -1751,6 +1777,42 @@ export class Simulation {
     if (!this.isSandbox(slot)) {
       if ((this.players[slot]?.resources.stone ?? 0) < stone) return { cells: out, stone, usd, error: `Pedra insuficiente: a estrada custa ${stone}` };
       if (this.national && this.national.worksFundUsd(slot) + 1e-6 < usd) return { cells: out, stone, usd, error: 'Caixa do país sem saldo para a estrada' };
+    }
+    return { cells: out, stone, usd, error: null };
+  }
+
+  /**
+   * Validação e custo de um traçado de rodovia (02/11). Sem engenheiro: pode sair do território, em terra neutra ou de
+   * nação que não esteja em guerra com quem constrói; nunca em país inimigo. Estrada própria vira rodovia (paga a
+   * célula); estrada ou rodovia de outro jogador e pontes do mapa são puladas (servem de ligação).
+   */
+  highwayPlan(slot: Slot, cells: readonly Cell[]): { cells: number[]; stone: number; usd: number; error: string | null } {
+    const out: number[] = [];
+    const fail = (error: string) => ({ cells: [], stone: 0, usd: 0, error });
+    if (cells.length > HIGHWAY.maxCells) return fail(`Traçado longo demais: até ${HIGHWAY.maxCells} células por vez`);
+    const builtBy = new Map<number, Slot>();
+    for (const r of this.roads) builtBy.set(r.i, r.owner);
+    for (const c of cells) {
+      if (!this.grid.inBounds(c.cx, c.cy)) return fail('Fora do mapa');
+      const i = c.cy * this.map.width + c.cx;
+      if (out.includes(i) || this.highways.has(i)) continue;
+      const owner = this.territory[i] ?? NO_OWNER;
+      if (owner !== NO_OWNER && owner !== slot && this.hostile(slot, owner)) return fail('Território inimigo: rodovia nunca entra em país em guerra com você');
+      const t = this.map.terrain[i]!;
+      if (t === Terrain.Road) {
+        if (builtBy.get(i) === slot) out.push(i); // estrada própria vira rodovia
+        continue;
+      }
+      if (t !== Terrain.Plains && t !== Terrain.Fertile) return fail('Rodovias só em planície ou solo fértil');
+      if (this.grid.occupant(c.cx, c.cy) !== 0) return fail('Há uma construção no traçado');
+      out.push(i);
+    }
+    if (!out.length) return fail('O traçado já é rodovia');
+    const stone = out.length * HIGHWAY.stonePerCell;
+    const usd = Math.round((this.national?.worksCapUsd?.(slot) ?? 0) * HIGHWAY.usdSharePerCell * out.length);
+    if (!this.isSandbox(slot)) {
+      if ((this.players[slot]?.resources.stone ?? 0) < stone) return { cells: out, stone, usd, error: `Pedra insuficiente: a rodovia custa ${stone}` };
+      if (this.national && this.national.worksFundUsd(slot) + 1e-6 < usd) return { cells: out, stone, usd, error: 'Caixa do país sem saldo para a rodovia' };
     }
     return { cells: out, stone, usd, error: null };
   }
@@ -2048,7 +2110,8 @@ export class Simulation {
       for (const p of this.players) {
         const slot = p.slot;
         const roads: number[] = [];
-        for (const r of this.roads) if (r.owner === slot) roads.push(r.i);
+        // a rodovia não leva energia (02/11)
+        for (const r of this.roads) if (r.owner === slot && !r.hw) roads.push(r.i);
         const hubs: PowerNode[] = [];
         const nodes: PowerNode[] = [];
         let homes = 0;
@@ -2062,7 +2125,7 @@ export class Simulation {
         // lotes privados do zoneamento: 0,5 cada (entram depois das construções do governo)
         nodes.push(...this.zones.powerNodes(slot));
         // estradas do mapa dentro do território também levam a energia
-        for (let i = 0; i < this.territory.length; i++) if (this.territory[i] === slot && this.map.terrain[i] === Terrain.Road) roads.push(i);
+        for (let i = 0; i < this.territory.length; i++) if (this.territory[i] === slot && this.map.terrain[i] === Terrain.Road && !this.highways.has(i)) roads.push(i);
         const res = solvePower(w, this.map.height, roads, hubs, nodes);
         for (const id of res.powered) if (id >= 0) this.powered.add(id);
         this.zones.setLit(res.powered, slot);
@@ -3263,6 +3326,7 @@ export class Simulation {
     const cell = this.grid.worldToCell(u.pos);
     const terrain = this.grid.inBounds(cell.cx, cell.cy) ? this.grid.terrainAt(cell.cx, cell.cy) : null;
     let terrainMul = terrain !== null ? TERRAIN[terrain].speedMultiplier : 1;
+    if (terrain === Terrain.Road && this.highways.has(this.grid.index(cell.cx, cell.cy))) terrainMul = HIGHWAY.unitMul;
     if (terrain === Terrain.Forest) terrainMul *= this.bonusOf(u.owner).forestSpeedMul ?? 1;
     const speed = UNITS[u.type].speed * combineMods(u.mods).speedMul * Math.max(terrainMul, 0.3) * TICK_SECONDS;
     const dx = wp.x - u.pos.x;

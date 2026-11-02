@@ -20,8 +20,8 @@ export function WarDialog({ target, mySlot, nameOf, onConfirm, onClose }: { targ
   const p = warPreview({
     actor: mySlot,
     target,
-    actorGdpUsd: me.gdpUsd,
-    actorDebtPctGdp: (me.debtUsd / me.gdpUsd) * 100,
+    actorDayUsd: me.dayUsd,
+    actorFundUsd: me.works.fundUsd,
     theaterStock: stock,
     targetInTheater: !!f?.isPlayer,
     known: !!f?.known,
@@ -45,7 +45,7 @@ export function WarDialog({ target, mySlot, nameOf, onConfirm, onClose }: { targ
         <h3 className="label mt-3">Custo da mobilização (cobrado uma vez)</h3>
         <ul className="space-y-1 text-sm">
           <li className="flex justify-between">
-            <span>Gasto público extra (financiado por dívida)</span>
+            <span>Mobilização (do caixa do país)</span>
             <span className="font-mono">{formatUsd(p.costs.usd)}</span>
           </li>
           <li className="flex justify-between">

@@ -114,11 +114,11 @@ describe('pedidos das potências', () => {
     // força um pedido simples de cumprir: reforçar a defesa
     r.request = { kind: 'defense', pct: sim.nation(0)!.budget.defensePct + 0.5 };
     sim.setBudget(0, { ...sim.nation(0)!.budget, defensePct: sim.nation(0)!.budget.defensePct + 1 });
-    const debt = sim.nation(0)!.debtUsd;
+    const fund = sim.nation(0)!.works.fundUsd;
     run(sim, 1);
     expect(sim.nation(0)!.policies!.request).toBeNull();
     expect(sim.diplomacy.relation(0, r.from)).toBeGreaterThan(rel0);
-    expect(sim.nation(0)!.debtUsd).toBeLessThan(debt + debt * 0.01);
+    expect(sim.nation(0)!.works.fundUsd).toBeGreaterThan(fund);
     // próximo pedido: recusado
     run(sim, REQUEST.gapDays);
     const next = sim.nation(0)!.policies!.request!;

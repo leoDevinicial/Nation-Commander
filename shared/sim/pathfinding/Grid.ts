@@ -1,4 +1,6 @@
-import { TERRAIN, Terrain } from '../config.ts';
+import { HIGHWAY, TERRAIN, Terrain } from '../config.ts';
+
+const HIGHWAY_PATH_COST = HIGHWAY.pathCost;
 import type { Cell, Vec2 } from '../types.ts';
 
 /** Grade de navegação: terreno estático + ocupação dinâmica por edifícios. */
@@ -14,6 +16,8 @@ export class Grid {
    * durante o planejamento de um caminho.
    */
   blocker: ((cx: number, cy: number) => boolean) | null = null;
+  /** Células de rodovia (mais rápidas e mais baratas no caminho), mantidas pela simulação. */
+  highway: Set<number> | null = null;
 
   constructor(width: number, height: number, cellSize: number, terrain: Terrain[]) {
     if (terrain.length !== width * height) throw new Error('Tamanho de terreno inválido');
@@ -46,6 +50,7 @@ export class Grid {
   }
 
   pathCost(cx: number, cy: number): number {
+    if (this.highway?.has(this.index(cx, cy))) return HIGHWAY_PATH_COST;
     return TERRAIN[this.terrainAt(cx, cy)].pathCost;
   }
 

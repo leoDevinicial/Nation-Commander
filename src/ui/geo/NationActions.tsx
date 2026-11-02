@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { DiplomacyView, ForeignView, NationView } from '../../../shared/protocol.ts';
 import { DIPLO, type DiplomaticAction, type NationId, type Treaty } from '../../../shared/strategic/Diplomacy.ts';
+import { CAIXA_DAYS } from '../../../shared/strategic/params.ts';
 import { formatPct, formatSigned, formatUsd } from '../../lib/format.ts';
 
 interface Props {
@@ -46,7 +47,7 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
   const [confirmAid, setConfirmAid] = useState(false);
 
   if (!f.known) {
-    const cost = (DIPLO.contactCostPct / 100) * me.gdpUsd;
+    const cost = CAIXA_DAYS.contact * me.dayUsd;
     return (
       <div className="space-y-2 text-xs">
         <p className="text-ink-400">
@@ -98,8 +99,8 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
             <dd className="text-right font-mono">{formatPct(f.intel.approval, 0)}</dd>
             <dt className="text-ink-400">Defesa</dt>
             <dd className="text-right font-mono">{formatPct(f.intel.defensePct, 2)} do PIB</dd>
-            <dt className="text-ink-400">Dívida</dt>
-            <dd className="text-right font-mono">{formatPct(f.intel.debtPctGdp)} do PIB</dd>
+            <dt className="text-ink-400">Saldo do orçamento</dt>
+            <dd className="text-right font-mono">{formatPct(-f.intel.deficitPctGdp)} do PIB</dd>
           </dl>
         ) : (
           <p className="text-ink-400">Dados correntes indisponíveis: abra uma missão diplomática para obter informação atualizada do governo.</p>
@@ -159,7 +160,7 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
                   setConfirmAid(false);
                 }}
               >
-                Confirmar {formatUsd((AID_PCT / 100) * me.gdpUsd)}
+                Confirmar {formatUsd(AID_PCT * CAIXA_DAYS.aidPerPctGdp * me.dayUsd)} do caixa
               </button>
               <button className="btn px-2 py-1 text-xs" onClick={() => setConfirmAid(false)}>
                 Não

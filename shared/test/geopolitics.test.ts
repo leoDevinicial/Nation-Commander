@@ -43,9 +43,9 @@ describe('contato e descoberta', () => {
     const jpn = npc('JPN').slot;
     expect(sim.diplomaticAction(0, { type: 'propose', treaty: 'trade', partner: jpn })).toMatch(/não descoberto/);
     expect(sim.diplomaticAction(0, { type: 'set_mission', partner: jpn, active: true })).toMatch(/não descoberto/);
-    const debt = sim.nation(0)!.debtUsd;
+    sim.nation(0)!.works.fundUsd = 1e9;
     expect(sim.diplomaticAction(0, { type: 'establish_contact', partner: jpn })).toBeNull();
-    expect(sim.nation(0)!.debtUsd).toBeGreaterThan(debt);
+    expect(sim.nation(0)!.works.fundUsd).toBeLessThan(1e9);
     expect(sim.diplomaticAction(0, { type: 'establish_contact', partner: jpn })).toMatch(/em andamento/);
     run(sim, DIPLO.contactDays - 1);
     expect(sim.diplomacy.knows(0, jpn)).toBe(false);
@@ -100,7 +100,8 @@ describe('declaração de guerra', () => {
     d.treaties.push({ id: 900, type: 'alliance', a: 1, b: usa, startDay: 0, endDay: 999 });
     d.treaties.push({ id: 901, type: 'trade', a: 0, b: 1, startDay: 0, endDay: 999 });
     const me = sim.nation(0)!;
-    const debt = me.debtUsd;
+    me.works.fundUsd = 1e9;
+    const fund = me.works.fundUsd;
     const approval = me.approval;
     const preview = sim.warPreview(0, 1);
     expect(preview.blockers).toEqual([]);
@@ -112,7 +113,7 @@ describe('declaração de guerra', () => {
     expect(t.wars).toEqual([[0, 1]]);
     expect(t.stocks.get(0)!.supplies).toBe(1000 - DIPLO.warSupplies);
     expect(t.stocks.get(0)!.oil).toBe(1000 - DIPLO.warOil);
-    expect(me.debtUsd - debt).toBeCloseTo(preview.costs.usd, -3);
+    expect(fund - me.works.fundUsd).toBeCloseTo(preview.costs.usd, -3);
     expect(me.approval).toBeCloseTo(approval + DIPLO.warApproval);
     expect(d.active('trade', 0, 1)).toBeUndefined();
     expect(d.active('sanctions', usa, 0, true)).toBeDefined();
@@ -129,21 +130,21 @@ describe('declaração de guerra', () => {
   it('recursos insuficientes bloqueiam com explicação e não alteram nada', () => {
     const { sim } = setup();
     const t = theater(sim, { supplies: 100, oil: 500 });
-    const debt = sim.nation(0)!.debtUsd;
+    sim.nation(0)!.works.fundUsd = 1e9;
     expect(sim.diplomaticAction(0, { type: 'declare_war', target: 1 })).toMatch(/Suprimentos insuficientes.*150 necessários, 100 disponíveis/);
     expect(sim.diplomacy.atWar(0, 1)).toBe(false);
     expect(t.wars).toEqual([]);
     expect(t.stocks.get(0)!.supplies).toBe(100);
-    expect(sim.nation(0)!.debtUsd).toBe(debt);
+    expect(sim.nation(0)!.works.fundUsd).toBe(1e9);
     expect(sim.drainEvents()).toEqual([]);
   });
 
-  it('dívida acima do teto impede financiar a mobilização', () => {
+  it('caixa sem dinheiro impede pagar a mobilização', () => {
     const { sim } = setup();
     theater(sim);
     const me = sim.nation(0)!;
-    me.debtUsd = me.gdpUsd * 3;
-    expect(sim.diplomaticAction(0, { type: 'declare_war', target: 1 })).toMatch(/financiar/);
+    me.works.fundUsd = 0;
+    expect(sim.diplomaticAction(0, { type: 'declare_war', target: 1 })).toMatch(/Caixa insuficiente/);
   });
 
   it('alvo desconhecido é recusado antes de qualquer outra regra; governo conhecido fora do teatro pode ser alvo (Fase 8)', () => {
@@ -159,8 +160,8 @@ describe('declaração de guerra', () => {
     const p = warPreview({
       actor: 0,
       target: 1,
-      actorGdpUsd: 1e12,
-      actorDebtPctGdp: 50,
+      actorDayUsd: 200_000,
+      actorFundUsd: 1e9,
       theaterStock: { supplies: 10, oil: 10 },
       targetInTheater: true,
       known: true,
@@ -169,7 +170,7 @@ describe('declaração de guerra', () => {
       isNpc: () => false,
       relationWith: () => 0,
     });
-    expect(p.costs.usd).toBe(2e9);
+    expect(p.costs.usd).toBe(60 * 200_000);
     expect(p.blockers).toHaveLength(2);
   });
 });

@@ -1,4 +1,4 @@
-import { BUILDINGS, CARAVAN, ROAD, TICK_RATE, Terrain } from './config.ts';
+import { BUILDINGS, CARAVAN, HIGHWAY, ROAD, TICK_RATE, Terrain } from './config.ts';
 import type { Simulation } from './Simulation.ts';
 import { TRADE } from './trade.ts';
 import type { Building, Cell, EntityId, Slot, Vec2 } from './types.ts';
@@ -177,7 +177,7 @@ export class CaravanSystem {
     const pos = this.position(c);
     let speed = CARAVAN.speed;
     const cell = this.sim.grid.worldToCell(pos);
-    if (this.sim.grid.inBounds(cell.cx, cell.cy) && this.sim.map.terrain[cell.cy * this.sim.map.width + cell.cx] === Terrain.Road) speed *= ROAD.convoyMul;
+    if (this.sim.grid.inBounds(cell.cx, cell.cy) && this.sim.map.terrain[cell.cy * this.sim.map.width + cell.cx] === Terrain.Road) speed *= this.sim.isHighway(cell.cy * this.sim.map.width + cell.cx) ? HIGHWAY.convoyMul : ROAD.convoyMul;
     c.travelled = Math.min(c.pathLength, c.travelled + speed / TICK_RATE);
     if (this.sim.tick % 5 === 0 && this.sim.hostileNear(c.owner, this.position(c), TRADE.ambushRange)) {
       this.destroy(c);
