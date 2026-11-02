@@ -289,8 +289,8 @@ describe('coleta de recursos', () => {
     const b = sim.buildings.filter((x) => x.type === 'sawmill')[1]!;
     expect(b.claims.length).toBeGreaterThan(0);
     expect(b.claims.some((i) => a.claims.includes(i))).toBe(false);
-    // a terceira esbarra no limite do depósito médio
-    expect(sim.placementError(0, 'sawmill', { cx: 4, cy: 12 })).toMatch(/Depósito médio já tem 2/);
+    // a terceira esbarra no limite de 2 extrações por lugar
+    expect(sim.placementError(0, 'sawmill', { cx: 4, cy: 12 })).toMatch(/floresta já tem 2 extrações/);
 
     const wood0 = sim.players[0]!.resources.wood;
     run(sim, BUILDINGS.sawmill.buildSeconds * TICK_RATE); // concluídas (e com trabalhadores)

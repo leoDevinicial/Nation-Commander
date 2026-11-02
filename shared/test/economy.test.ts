@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BUILDINGS, CITIZEN, POP_ABSOLUTE_CAP, RECRUIT, STARTING_CITIZENS, STARTING_RECRUITS, TICK_RATE, Terrain, UNITS, type BuildingType } from '../sim/config.ts';
 import { parseCommand } from '../sim/commands.ts';
 import { findDeposits, sizeClass } from '../sim/deposits.ts';
+import { DEPOSIT_RULES } from '../sim/config.ts';
 import { Simulation } from '../sim/Simulation.ts';
 import { makeSnapshot } from '../sim/snapshot.ts';
 import { computeTerritory, decodeTerritory, encodeTerritory, NO_OWNER } from '../sim/territory.ts';
@@ -208,7 +209,7 @@ describe('armazenamento físico', () => {
 });
 
 describe('depósitos e geologia', () => {
-  it('classe do depósito pelo tamanho: floresta pequena 1, média 2, grande 3 serrarias', () => {
+  it('classe do depósito pelo tamanho: floresta pequena 1 serraria, média e grande 2', () => {
     expect(sizeClass(Terrain.Forest, 10)).toBe('small');
     expect(sizeClass(Terrain.Forest, 30)).toBe('medium');
     expect(sizeClass(Terrain.Forest, 60)).toBe('large');
@@ -221,6 +222,34 @@ describe('depósitos e geologia', () => {
     const s = sim(map);
     build(s, 0, 'sawmill', { cx: 4, cy: 10 });
     expect(s.placementError(0, 'sawmill', { cx: 4, cy: 12 })).toMatch(/Depósito pequeno já tem 1 instalação/);
+  });
+
+  it('montanha: rocha e minério ligados são um lugar só, com no máximo 2 extrações (pedreira + mina)', () => {
+    const map = flatMap(32, (set) => {
+      for (let y = 6; y < 14; y++) for (let x = 8; x < 16; x++) set(x, y, Terrain.Rock); // 64 células de rocha
+      for (let y = 9; y < 11; y++) for (let x = 8; x < 10; x++) set(x, y, Terrain.Ore); // veio na encosta oeste
+    });
+    const d = findDeposits(map);
+    const rock = d.deposits.find((x) => x.terrain === Terrain.Rock)!;
+    const ore = d.deposits.find((x) => x.terrain === Terrain.Ore)!;
+    expect(rock.place).toBe(ore.place);
+    // reservas triplicadas (02/11)
+    expect(rock.initial).toBe(rock.cells.length * DEPOSIT_RULES[Terrain.Rock]!.amountPerCell);
+    expect(DEPOSIT_RULES[Terrain.Rock]!.amountPerCell).toBe(720);
+    const s = sim(map);
+    // primeiro lugar válido (no território) para cada tipo
+    const spot = (type: 'quarry' | 'mine') => {
+      for (let cy = 0; cy < 32; cy++) for (let cx = 0; cx < 32; cx++) if (!s.placementError(0, type, { cx, cy })) return { cx, cy };
+      return null;
+    };
+    build(s, 0, 'quarry', spot('quarry')!);
+    build(s, 0, 'mine', spot('mine')!);
+    // a terceira extração na mesma montanha é recusada em qualquer ponto, seja pedreira ou mina
+    expect(spot('quarry')).toBeNull();
+    expect(spot('mine')).toBeNull();
+    const errors = new Set<string>();
+    for (let cy = 4; cy < 16; cy++) for (let cx = 4; cx < 18; cx++) errors.add(s.placementError(0, 'quarry', { cx, cy }) ?? '');
+    expect([...errors].some((e) => /montanha já tem 2 extrações/.test(e))).toBe(true);
   });
 
   it('montanha com minério: mina exige veio; depósito esgotado para de produzir', () => {

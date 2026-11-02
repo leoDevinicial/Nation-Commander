@@ -204,14 +204,20 @@ export interface DepositRule {
   amountPerCell: number;
 }
 
-// reservas dobradas no rebalanceamento da economia (custos 1,5–3× maiores): os depósitos duram a partida
+// reservas dobradas no rebalanceamento da economia (custos 1,5–3× maiores) e triplicadas em 02/11 (pedido do usuário:
+// "depósitos 3x maiores", com no máximo 2 extrações por lugar, `PLACE_MAX_SITES`)
 export const DEPOSIT_RULES: Partial<Record<Terrain, DepositRule>> = {
-  [Terrain.Forest]: { mediumFrom: 20, largeFrom: 50, maxSites: { small: 1, medium: 2, large: 3 }, amountPerCell: 160 },
-  [Terrain.Rock]: { mediumFrom: 12, largeFrom: 36, maxSites: { small: 1, medium: 2, large: 2 }, amountPerCell: 240 },
-  [Terrain.Ore]: { mediumFrom: 6, largeFrom: 16, maxSites: { small: 1, medium: 1, large: 2 }, amountPerCell: 200 },
+  [Terrain.Forest]: { mediumFrom: 20, largeFrom: 50, maxSites: { small: 1, medium: 2, large: 2 }, amountPerCell: 480 },
+  [Terrain.Rock]: { mediumFrom: 12, largeFrom: 36, maxSites: { small: 1, medium: 2, large: 2 }, amountPerCell: 720 },
+  [Terrain.Ore]: { mediumFrom: 6, largeFrom: 16, maxSites: { small: 1, medium: 1, large: 2 }, amountPerCell: 600 },
 };
+/**
+ * Extrações por lugar (02/11): no máximo 2 em cada floresta e em cada montanha. A montanha é a rocha e o minério
+ * ligados entre si, então ela aceita 2 pedreiras, 2 minas ou 1 de cada.
+ */
+export const PLACE_MAX_SITES = 2;
 /** Solo fértil é renovável (sem esgotamento), limitado só pelas células livres. */
-export const OIL_DEPOSIT_AMOUNT = 5000;
+export const OIL_DEPOSIT_AMOUNT = 15000;
 
 // ------------------------------------------------------------------ unidades
 

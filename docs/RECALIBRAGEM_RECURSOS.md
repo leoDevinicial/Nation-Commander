@@ -377,3 +377,17 @@ memória:
 npx tsx scripts/sim-economia.ts 7 25          # seed 7, 25 minutos, estado de P0 a cada 2:30
 npx tsx scripts/sim-economia.ts 1,2,3,4,5 25  # várias seeds e a tabela de critérios da seção 5
 ```
+
+## 7. Depósitos maiores, 2 extrações por lugar (02/11)
+
+Pedido do usuário: "deixar os depósitos 3x maiores, mas limitar a 2 extrações no máximo por lugar: 2 pedreiras numa
+montanha, ou 1 pedreira e 1 mina, ou 2 minas; no máximo 2 serrarias por floresta". As fontes continuam finitas (no Rise
+of Nations são inesgotáveis); com 3× a reserva, um depósito médio dura boa parte da partida.
+
+- **Reservas ×3:** `DEPOSIT_RULES.amountPerCell` floresta 480, rocha 720, minério 600; jazida de petróleo 15.000.
+- **Lugar** (`Deposit.place`, `findDeposits`): a rocha e o minério ligados entre si formam uma montanha; floresta e
+  petróleo são o próprio depósito. `PLACE_MAX_SITES = 2` vale para a soma das extrações do lugar (de qualquer país,
+  inclusive em obra). A floresta grande perdeu a 3ª serraria; o limite pelo tamanho segue (depósito pequeno: 1).
+- **Mensagem:** "Esta montanha/floresta já tem 2 extrações (máximo por lugar)".
+- **Teste:** `economy.test.ts` ("montanha: rocha e minério ligados são um lugar só").
+- **IA:** `sim-economia` 1–7 segue em 5 de 9 critérios; era 3 até 22:00 em 5 de 14 IAs (eram 4).

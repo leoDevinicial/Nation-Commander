@@ -13,6 +13,11 @@ export interface Deposit {
   cells: number[];
   size: DepositSize;
   maxSites: number;
+  /**
+   * Lugar (02/11): depósitos ligados que dividem o limite `PLACE_MAX_SITES` — a rocha e o minério de uma mesma
+   * montanha. Floresta e petróleo: o próprio depósito.
+   */
+  place: number;
   initial: number;
   remaining: number;
 }
@@ -56,13 +61,35 @@ export function findDeposits(map: { width: number; height: number; terrain: Arra
     cells.sort((a, b) => a - b);
     const size = sizeClass(t, cells.length);
     const amount = cells.length * rule.amountPerCell;
-    deposits.push({ id, terrain: t, cells, size, maxSites: rule.maxSites[size], initial: amount, remaining: amount });
+    deposits.push({ id, terrain: t, cells, size, maxSites: rule.maxSites[size], place: id, initial: amount, remaining: amount });
+  }
+  // montanhas: rocha e minério ligados (4-vizinhança) formam um lugar só; o lugar recebe o menor id entre eles
+  const mountain = (t: Terrain | undefined) => t === Terrain.Rock || t === Terrain.Ore;
+  const seen = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    if (seen[i] || !mountain(map.terrain[i])) continue;
+    const ids = new Set<number>();
+    const stack = [i];
+    seen[i] = 1;
+    while (stack.length) {
+      const c = stack.pop()!;
+      ids.add(cellDeposit[c]!);
+      const x = c % w;
+      const y = (c - x) / w;
+      for (const n of [x > 0 ? c - 1 : -1, x < w - 1 ? c + 1 : -1, y > 0 ? c - w : -1, y < h - 1 ? c + w : -1]) {
+        if (n < 0 || seen[n] || !mountain(map.terrain[n])) continue;
+        seen[n] = 1;
+        stack.push(n);
+      }
+    }
+    const place = Math.min(...ids);
+    for (const id of ids) deposits[id]!.place = place;
   }
   for (const n of map.resourceNodes) {
     const id = deposits.length;
     const i = n.cy * w + n.cx;
     cellDeposit[i] = id;
-    deposits.push({ id, terrain: null, cells: [i], size: 'small', maxSites: 1, initial: OIL_DEPOSIT_AMOUNT, remaining: OIL_DEPOSIT_AMOUNT });
+    deposits.push({ id, terrain: null, cells: [i], size: 'small', maxSites: 1, place: id, initial: OIL_DEPOSIT_AMOUNT, remaining: OIL_DEPOSIT_AMOUNT });
   }
   return { deposits, cellDeposit };
 }

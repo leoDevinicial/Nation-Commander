@@ -1,4 +1,4 @@
-import { BUILDINGS, DEPOSIT_SIZE_LABELS, type BuildingType, type Terrain } from './config.ts';
+import { BUILDINGS, DEPOSIT_SIZE_LABELS, PLACE_MAX_SITES, Terrain, type BuildingType } from './config.ts';
 import type { DepositIndex } from './deposits.ts';
 import type { Cell } from './types.ts';
 
@@ -96,8 +96,14 @@ export function chooseClaims(
   }
   const ranked = [...groups].sort((a, b) => b[1].length - a[1].length || a[0] - b[0]);
   let limitMsg: string | null = null;
+  // extrações já feitas em cada lugar (a montanha soma pedreiras e minas)
+  const placeSites = (place: number) => index.deposits.reduce((a, x) => a + (x.place === place ? (sites.get(x.id) ?? 0) : 0), 0);
   for (const [id, list] of ranked) {
     const d = rule(id)!;
+    if (placeSites(d.place ?? id) >= PLACE_MAX_SITES) {
+      limitMsg ??= `${d.terrain === Terrain.Forest ? 'Esta floresta' : 'Esta montanha'} já tem ${PLACE_MAX_SITES} extrações (máximo por lugar)`;
+      continue;
+    }
     if ((sites.get(id) ?? 0) >= d.maxSites) {
       limitMsg ??= `Depósito ${DEPOSIT_SIZE_LABELS[d.size]} já tem ${d.maxSites} ${d.maxSites === 1 ? 'instalação' : 'instalações'} (limite pelo tamanho)`;
       continue;

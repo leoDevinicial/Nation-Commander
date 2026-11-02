@@ -160,7 +160,8 @@ do mesmo tipo não dividem as mesmas células. Ao posicionar, o painel mostra qu
 estão ao alcance e a renda resultante. A coleta só rende cheia com 6 trabalhadores (4 no poço): formar cidadãos
 compete com formar tropas. Cada edifício novo do mesmo tipo custa 18% a mais (custo crescente, como no Rise of
 Nations). Madeira, pedra, ferro e petróleo vêm de depósitos finitos (o solo fértil
-é renovável): um depósito esgotado pede outro edifício em outro lugar. Detalhes em `docs/RECALIBRAGEM_RECURSOS.md`. Construções exigem estar perto das
+é renovável), com reservas grandes (triplicadas em 02/11) e no máximo 2 extrações por lugar (2 serrarias por floresta; 2
+pedreiras, 2 minas ou 1 de cada por montanha): um depósito esgotado pede outro edifício em outro lugar. Detalhes em `docs/RECALIBRAGEM_RECURSOS.md`. Construções exigem estar perto das
 suas estruturas; poços podem ser erguidos em qualquer jazida livre.
 
 ### Névoa de guerra

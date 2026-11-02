@@ -478,6 +478,7 @@ Proposta registrada a partir do feedback da versão 1.0. **Implementada** em 31/
 | Construção por cidadãos (01/11): até 4 construtores por obra, 25% da velocidade cada; saem dos ociosos e dos empregos; cidadãos visíveis no canteiro; começo com 11 cidadãos | Feito | `docs/CONSTRUTORES.md` |
 | Pesquisa nacional em árvore (01/11): menu de áreas e, em cada uma, nós ligados pelos pré-requisitos; detalhe ao tocar | Feito | `src/ui/national/ResearchTab.tsx`, `techTree.ts` |
 | Caixa do país (01/11): a verba de obras vira caixa sem teto com receitas (repasse, produção, produtividade, comércio) e despesas (exército, energia, construções, estradas, serviços) por dia; extrato na barra | Feito | `docs/CAIXA_DO_PAIS.md` |
+| Depósitos 3× maiores e no máximo 2 extrações por lugar (floresta; montanha = rocha + minério ligados) (02/11) | Feito | `docs/RECALIBRAGEM_RECURSOS.md` §7 |
 | Mercado interno no Terminal Comercial (excedente → suprimentos, preço com pressão que se recupera; IA vende a sobra) | Feito | `docs/MERCADO_INTERNO.md`, `shared/sim/market.ts` |
 | Lote 1, §2.6 — incidentes de fronteira no preparo | Feito | `Simulation.startIncident`, `TacticalAI.planHarass` |
 | Lote 1, §2.7 — curva de defesa (raiz com saturação suave) | Feito | `theaterSupply` em `shared/strategic/params.ts` |
