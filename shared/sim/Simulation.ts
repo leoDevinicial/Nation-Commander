@@ -796,7 +796,7 @@ export class Simulation {
       queuedMilitary,
       queuedCitizens,
       total: citizens + recruits + military + queuedMilitary + queuedCitizens + queuedRecruits,
-      cap: Math.min(POP_ABSOLUTE_CAP, housing),
+      cap: Math.min(POP_ABSOLUTE_CAP, housing + this.zones.privateHousing(slot)),
       housing,
     };
   }
@@ -3861,6 +3861,13 @@ function zoningHost(sim: Simulation): ZoningHost {
     },
     get powerOn() {
       return sim.power;
+    },
+    era: (s) => sim.eraOf(s),
+    housingOf: (b) => (b.unpaid ? 0 : sim.fx(b).housing),
+    popRoom: (s) => Math.max(0, POP_ABSOLUTE_CAP - sim.population(s).total),
+    moveCitizens: (s, n) => {
+      const p = sim.players[s];
+      if (p) p.citizens = Math.max(0, p.citizens + n);
     },
     approval: (s) => sim.national?.approval?.(s) ?? 55,
     growth: (s) => sim.national?.growth?.(s) ?? 2,

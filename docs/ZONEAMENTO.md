@@ -8,25 +8,46 @@ zoneamento fecha o ciclo de recursos: depois dele, só melhorias nas mecânicas 
   ⌫ Apagar (zona sem lote) e 🧨 Demolir (lote). Clique numa célula ou arraste um retângulo (no celular, toque ou
   arraste um dedo). A prévia mostra em verde o que vale e em vermelho o que não vale, com o motivo.
 - **Onde:** no próprio território, em planície ou solo fértil livre, a até **3 células** de uma estrada construída sua.
-- **Pintar não constrói:** casas, prédios, lojas e indústrias **privadas** aparecem aos poucos (avaliação a cada 4 s
-  por cidade e setor, chance proporcional à demanda). O lote ocupa a célula: nada se constrói em cima até demolir.
+- **Pintar não constrói:** casas, prédios, lojas e indústrias **privadas** aparecem aos poucos, no ritmo da
+  atratividade de cada cidade (sem cadência fixa; ver "Crescimento"). O lote ocupa a célula: nada se constrói em cima
+  até demolir.
+- **No começo é difícil:** uma cidade sem atrativos tem atratividade negativa e não cresce. O governo precisa
+  construir casas e prédios residenciais (que só aumentam o teto de população; os cidadãos vêm do Centro de Comando).
+  Conforme a cidade ganha serviços, empregos, construções e era, e o país vai bem, as zonas começam a povoar.
 - **Painel:** imposto de cada setor (0 a 30%, padrão 10%) com −/+ e, para cada cidade, as barras de demanda R, C e I,
   os serviços (👮 🎓 🏥) e quantos lotes estão abandonados.
 
+## População (02/11)
+- **Casa privada:** +1 cidadão e +1 de teto de população. **Prédio privado:** +5 e +5; raro (só com muita procura
+  residencial e 30+ moradores na cidade; 12% dos lotes novos nesse caso, e casas viram prédio raramente).
+- Os cidadãos chegam junto com o lote e vão embora quando ele é abandonado, demolido ou perdido com a fronteira.
+- **Teto nacional de população: 300** (era 200). Um lote residencial não surge se não couber.
+- Casa e prédio residencial do governo só aumentam o teto; os cidadãos vêm do Centro de Comando.
+
 ## Cidades
 Cada célula pertence à cidade do QG ou da prefeitura mais próxima (`cities.ts`). Os números são por cidade:
-moradores (casa 4, prédio 14), empregos (loja 4, indústria 8 e os trabalhadores das construções do governo na cidade),
-lojas, indústrias, serviços (delegacia; escola ou universidade; hospital) e lotes com luz.
+moradores (metade da capacidade das moradias do governo + os cidadãos das casas e prédios privados), empregos
+(trabalhadores das construções do governo na cidade + loja 3 e indústria 6), lojas, indústrias, serviços (delegacia;
+escola ou universidade; hospital), construções do governo e lotes com luz.
 
-## Demanda (−1 a 1, `ZoneSystem.evaluate`)
-- **Industrial:** 0,35 + economia (aprovação e crescimento do país) − imposto industrial − ataques − governo autoritário.
-- **Residencial:** 0,25 + falta de moradores para os empregos da cidade + 0,1 por serviço − imposto residencial −
+## Atratividade (−1 a 1, `ZoneSystem.evaluate`)
+- **Desenvolvimento da cidade (0 a 1):** serviços (até 0,35), empregos (até 0,3 com 90), construções do governo (até 0,2
+  com 25) e era (+0,08 por era depois da primeira). Aparece no painel ao passar o dedo/mouse no nome da cidade.
+- **Economia do país:** aprovação acima de 45 e crescimento real somam; abaixo, tiram.
+- **Industrial:** −0,3 + 0,6 × desenvolvimento + economia − imposto industrial − ataques − autoritarismo.
+- **Residencial:** −0,3 + 0,5 × desenvolvimento + empregos sobrando na cidade + economia − imposto residencial −
   ataques − autoritarismo − casas sem luz.
-- **Comercial:** 0,05 + moradores + indústrias + economia − imposto comercial − ataques − autoritarismo.
-- **Imposto:** cada ponto acima de 10% tira 0,05 da demanda; abaixo de 10%, soma.
+- **Comercial:** −0,35 + 0,4 × desenvolvimento + moradores + indústrias + economia − imposto comercial − ataques −
+  autoritarismo.
+- **Imposto:** cada ponto acima de 10% tira 0,05; abaixo de 10%, soma.
 - **Governo autoritário:** lei marcial 0,7; recrutamento obrigatório 0,2; racionamento e economia de guerra 0,15 cada.
 - **Ataques:** cada alerta de "sob ataque" a uma construção soma; o medo cai pela metade a cada 90 s.
-- **Prédio:** com demanda residencial alta e 16+ moradores, o lote novo pode nascer prédio, e casas viram prédio.
+
+## Crescimento
+Não há cadência fixa: cada cidade acumula procura em cada setor, proporcional ao **quadrado** da atratividade
+(`growthPerSecond` 0,08 lote/s com atratividade 1), com uma variação aleatória. O lote surge quando a procura enche.
+- Atratividade 0,2 → um lote a cada ~5 min; 0,35 → ~1,5 min; 0,6 → ~35 s; atratividade zero ou negativa → nada (e a
+  procura acumulada esvazia aos poucos).
 
 ## Abandono
 Por avaliação, cada lote ativo tem risco de ser abandonado: demanda negativa do setor, imposto acima de 18%,
@@ -60,11 +81,11 @@ escuro, sem imposto e sem gastar luz, até o jogador **demolir**; aí a zona vol
 
 ## IA
 A partir dos 8 min, com folga de energia, pinta até 4 células por minuto junto às próprias estradas (metade
-residencial) e demole os lotes abandonados.
+residencial; para com 6 zonas vazias) e demole os lotes abandonados.
 
 ## Efeito no ritmo da IA
-`sim-economia` 1–7: 4 de 9 critérios (eram 5). A era 3 até 22:00 voltou a passar; as tropas até 15:00 caíram para
-9,6 em média (eram 10,6), porque os lotes gastam energia e o carvão aperta.
+`sim-economia` 1–7: 5 de 9 critérios, como antes do zoneamento; tropas até 15:00 em 10,6 de média. A cidade da IA
+(sem delegacia, hospital e escola no começo) quase não cresce: 1 a 2 lotes até os 25 min.
 
 ## Testes
 `shared/test/zoning.test.ts`.

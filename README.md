@@ -140,7 +140,7 @@ formal, nenhum lado pode atacar nem entrar no território do outro).
 
 **População e fronteiras:** cidadãos são formados no Centro de Comando (`Z`) e trabalham nos
 edifícios; cada soldado ou tripulação sai da força de trabalho. Moradia: QG 20, Casa (`U`) +10,
-Prédio Residencial (`I`) +20, teto de 200. Recursos ficam em Armazéns (`R`), Silos (`L`) e Tanques de
+Prédio Residencial (`I`) +20, teto de 300. Recursos ficam em Armazéns (`R`), Silos (`L`) e Tanques de
 Petróleo (`Y`) — poços só operam com tanque por perto; minas (`J`) extraem ferro nas montanhas.
 Só se constrói dentro do próprio território, que cresce com o QG, torres, bases, fábricas e casas.
 

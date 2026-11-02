@@ -30,16 +30,23 @@ export const ZONING = {
   reach: 3,
   /** A cidade é avaliada a cada N ticks. */
   everyTicks: TICK_RATE * 4,
-  /** Chance de um lote novo por avaliação, por cidade e setor, multiplicada pela demanda (0..1). */
-  growChance: 0.22,
+  /**
+   * Crescimento: lotes por segundo de um setor com atratividade 1 (cresce com o quadrado da atratividade: 0,5 dá um
+   * quarto disso; 0,2, 4%).
+   */
+  growthPerSecond: 0.08,
+  /** Chance de o lote residencial novo já nascer prédio (com muita procura e cidade grande). */
+  apartmentChance: 0.12,
+  /** Cidadãos que cada casa e cada prédio privados trazem (e levam ao serem abandonados ou demolidos). */
+  citizens: [1, 5] as const,
   /** Chance de abandono por avaliação, por lote, multiplicada pelo risco. */
   abandonChance: 0.03,
   /** Energia de cada lote ativo. */
   lotPower: 0.5,
-  /** Moradores de uma casa e de um prédio. */
-  residents: [4, 14] as const,
-  /** Empregos de uma loja e de uma indústria privadas. */
-  jobs: { com: 4, ind: 8 },
+  /** Moradores (para a demanda da cidade) de uma casa e de um prédio privados: os cidadãos que eles trazem. */
+  residents: [1, 5] as const,
+  /** Empregos de uma loja e de uma indústria privadas (para a demanda residencial). */
+  jobs: { com: 3, ind: 6 },
   /** Imposto por setor (%): padrão e teto. */
   taxDefault: 10,
   taxMax: 30,
@@ -72,6 +79,7 @@ export interface ZoneSave {
   lots: [number, Lot][];
   tax: ZoneTax[];
   heat: number[];
+  growth?: Record<number, Record<ZoneKind, number>>[];
 }
 
 /** Números de uma cidade para o zoneamento (o que o painel mostra). */
@@ -85,8 +93,10 @@ export interface CityZoneStats {
   abandoned: number;
   zoned: Record<ZoneKind, number>;
   services: { police: boolean; school: boolean; hospital: boolean };
-  /** Demanda por setor (−1..1): positiva atrai lotes novos. */
+  /** Atratividade por setor (−1..1): positiva atrai lotes novos, mais rápido quanto maior. */
   demand: Record<ZoneKind, number>;
+  /** Desenvolvimento da cidade (0..1): serviços, empregos, construções do governo e era. */
+  development: number;
 }
 
 /** O que o zoneamento precisa da simulação (mantém o módulo testável e sem dependência circular). */
@@ -105,6 +115,14 @@ export interface ZoningHost {
   cityName(b: Building): string | undefined;
   workersIn(b: Building): number;
   isVisibleTo(slot: Slot, p: { x: number; y: number }): boolean;
+  /** Era da nação (1..4). */
+  era(slot: Slot): number;
+  /** Capacidade de moradia de uma construção do governo pronta (casas e prédios residenciais). */
+  housingOf(b: Building): number;
+  /** Quantos cidadãos ainda cabem no teto nacional de população. */
+  popRoom(slot: Slot): number;
+  /** Cidadãos chegam (lote residencial novo) ou vão embora (abandonado ou demolido). */
+  moveCitizens(slot: Slot, n: number): void;
   /** Rede elétrica ligada na partida (sem ela, todo lote conta como aceso). */
   readonly powerOn: boolean;
   /** Há unidade parada na célula (o lote não nasce em cima dela). */
@@ -132,6 +150,8 @@ export class ZoneSystem {
   heat: number[] = [];
   /** Lotes com luz no último cálculo da rede. */
   private litLots = new Set<number>();
+  /** Procura acumulada por jogador, cidade (id da sede) e setor (o lote surge quando enche). */
+  growth: Record<number, Record<ZoneKind, number>>[] = [];
   /** Muda a cada alteração de zonas ou lotes (o cliente refaz as camadas). */
   version = 0;
   private stats: CityZoneStats[][] = [];
@@ -213,6 +233,7 @@ export class ZoneSystem {
     for (const i of new Set(cells)) {
       const lot = this.lots.get(i);
       if (!lot || lot.owner !== slot) continue;
+      if (lot.kind === 'res' && !lot.abandoned) this.host.moveCitizens(slot, -ZONING.citizens[lot.level - 1]!);
       this.removeLot(i);
       n++;
     }
@@ -279,6 +300,13 @@ export class ZoneSystem {
     return this.stats[slot] ?? [];
   }
 
+  /** Moradia dos lotes residenciais privados ativos (casa 1, prédio 5): entra no teto de população. */
+  privateHousing(slot: Slot): number {
+    let n = 0;
+    for (const l of this.lots.values()) if (l.owner === slot && l.kind === 'res' && !l.abandoned) n += ZONING.citizens[l.level - 1]!;
+    return n;
+  }
+
   /** Imposto pagos por dia (para o caixa): unidades ativas por setor (prédio conta como 3 casas). */
   taxBase(slot: Slot): Record<ZoneKind, number> {
     const out = { res: 0, com: 0, ind: 0 };
@@ -300,6 +328,7 @@ export class ZoneSystem {
         }
       for (const [i, l] of this.lots)
         if (h.territory[i] !== l.owner) {
+          if (l.kind === 'res' && !l.abandoned) h.moveCitizens(l.owner, -ZONING.citizens[l.level - 1]!);
           this.removeLot(i);
           this.zones.delete(i);
           this.version++;
@@ -309,7 +338,15 @@ export class ZoneSystem {
     for (let slot = 0; slot < h.playerCount; slot++) this.evaluate(slot);
   }
 
-  /** Avalia as cidades do jogador: demanda, lotes novos, prédios e abandono. */
+  /**
+   * Avalia as cidades do jogador: atratividade de cada setor, crescimento, prédios e abandono.
+   *
+   * Atratividade (−1..1) por cidade: começa negativa numa cidade sem atrativos e sobe com o desenvolvimento (serviços,
+   * empregos, construções do governo, era) e com a economia do país; cai com imposto alto, governo autoritário e
+   * ataques. O crescimento não tem ritmo fixo: cada setor acumula "procura" proporcional à atratividade (ao quadrado,
+   * então uma cidade pouco atraente quase não cresce) e um lote surge quando a procura enche; com atratividade baixa,
+   * leva muitos minutos; numa cidade desenvolvida, segundos.
+   */
   private evaluate(slot: Slot): void {
     const h = this.host;
     const W = h.map.width;
@@ -321,16 +358,20 @@ export class ZoneSystem {
     const tax = this.taxOf(slot);
     const heat = clamp((this.heat[slot] ?? 0) / 4, 0, 1);
     const auth = clamp(h.authoritarian(slot), 0, 1);
-    const econ = clamp((h.approval(slot) - 40) / 40, -1, 1) * 0.2 + clamp(h.growth(slot) / 6, -0.5, 0.5) * 0.3;
+    const econ = clamp((h.approval(slot) - 45) / 40, -1, 1) * 0.15 + clamp(h.growth(slot) / 6, -0.5, 0.5) * 0.2;
+    const eraBonus = (clamp(h.era(slot), 1, 4) - 1) * 0.08;
     // números de cada cidade
-    const by = new Map<number, { seat: Building; free: Record<ZoneKind, number[]>; lots: [number, Lot][]; jobs: number; services: CityZoneStats['services'] }>();
-    for (const s of seats) by.set(s.id, { seat: s, free: { res: [], com: [], ind: [] }, lots: [], jobs: 0, services: { police: false, school: false, hospital: false } });
+    type CityAcc = { seat: Building; free: Record<ZoneKind, number[]>; lots: [number, Lot][]; jobs: number; gov: number; housing: number; services: CityZoneStats['services'] };
+    const by = new Map<number, CityAcc>();
+    for (const s of seats) by.set(s.id, { seat: s, free: { res: [], com: [], ind: [] }, lots: [], jobs: 0, gov: 0, housing: 0, services: { police: false, school: false, hospital: false } });
     for (const b of h.buildings) {
       if (b.owner !== slot || b.hp <= 0 || b.progress < 1) continue;
       const seat = citySeat(seats, slot, b.type, b.cell);
       const c = seat && by.get(seat.id);
       if (!c) continue;
       c.jobs += h.workersIn(b);
+      c.gov++;
+      c.housing += h.housingOf(b);
       if (b.type === 'police_station') c.services.police = true;
       if (b.type === 'school' || b.type === 'university') c.services.school = true;
       if (b.type === 'hospital') c.services.hospital = true;
@@ -344,9 +385,13 @@ export class ZoneSystem {
       if (lot) c.lots.push([i, lot]);
       else if (h.grid.occupant(i % W, Math.floor(i / W)) === 0) c.free[z.kind].push(i);
     }
+    let popRoom = h.popRoom(slot);
     const stats: CityZoneStats[] = [];
+    const acc = (this.growth[slot] ??= {});
     for (const c of by.values()) {
-      let residents = 0;
+      // moradores da cidade: metade da capacidade das moradias do governo (nem toda vaga está ocupada) e as
+      // casas/prédios privados
+      let residents = Math.round(c.housing / 2);
       let jobs = c.jobs;
       const count = { res: 0, com: 0, ind: 0 };
       let abandoned = 0;
@@ -365,18 +410,20 @@ export class ZoneSystem {
         } else jobs += ZONING.jobs[l.kind];
       }
       const services = (c.services.police ? 1 : 0) + (c.services.school ? 1 : 0) + (c.services.hospital ? 1 : 0);
+      // desenvolvimento da cidade (0..1): serviços, empregos, construções do governo e era
+      const dev = clamp((services / 3) * 0.35 + clamp(jobs / 90, 0, 1) * 0.3 + clamp(c.gov / 25, 0, 1) * 0.2 + eraBonus, 0, 1);
       const darkRatio = resLots ? dark / resLots : 0;
       const taxPen = (k: ZoneKind) => (tax[k] - 10) / 20;
       const unemployed = residents > 0 ? clamp((residents - jobs) / residents, 0, 1) : 0;
       const demand: Record<ZoneKind, number> = {
-        ind: clamp(0.35 + econ - taxPen('ind') - 0.5 * heat - 0.4 * auth, -1, 1),
-        res: clamp(0.25 + 0.35 * clamp((jobs - residents) / Math.max(12, residents), -1, 1) + 0.1 * services - taxPen('res') - 0.4 * heat - 0.3 * auth - 0.5 * darkRatio, -1, 1),
-        com: clamp(0.05 + 0.4 * clamp(residents / 60, 0, 1) + 0.2 * clamp(count.ind / 6, 0, 1) + econ * 0.5 - taxPen('com') - 0.4 * heat - 0.3 * auth, -1, 1),
+        ind: clamp(-0.3 + 0.6 * dev + econ - taxPen('ind') - 0.5 * heat - 0.4 * auth, -1, 1),
+        res: clamp(-0.3 + 0.5 * dev + 0.3 * clamp((jobs - residents) / Math.max(10, residents), -1, 1) + econ - taxPen('res') - 0.4 * heat - 0.3 * auth - 0.5 * darkRatio, -1, 1),
+        com: clamp(-0.35 + 0.4 * dev + 0.3 * clamp(residents / 50, 0, 1) + 0.2 * clamp(count.ind / 6, 0, 1) + econ - taxPen('com') - 0.4 * heat - 0.3 * auth, -1, 1),
       };
       const zoned = { res: 0, com: 0, ind: 0 };
       for (const k of ZONE_KINDS) zoned[k] = c.free[k].length;
       for (const [, l] of c.lots) zoned[l.kind]++;
-      stats.push({ seat: c.seat.id, name: h.cityName(c.seat) ?? (c.seat.type === 'hq' ? 'Capital' : 'Cidade'), residents, jobs, lots: count, abandoned, zoned, services: c.services, demand });
+      stats.push({ seat: c.seat.id, name: h.cityName(c.seat) ?? (c.seat.type === 'hq' ? 'Capital' : 'Cidade'), residents, jobs, lots: count, abandoned, zoned, services: c.services, demand, development: Math.round(dev * 100) / 100 });
 
       // --- abandono: imposto alto, governo autoritário, ataques, sem luz (casas), sem emprego (casas), demanda negativa
       for (const [i, l] of c.lots) {
@@ -390,29 +437,44 @@ export class ZoneSystem {
           l.abandoned = true;
           l.since = h.tick;
           this.litLots.delete(i);
+          if (l.kind === 'res') h.moveCitizens(slot, -ZONING.citizens[l.level - 1]!);
           this.version++;
         }
       }
-      // --- crescimento: um lote novo por setor (dois com demanda alta); casas viram prédios com muita procura
+      // --- crescimento: a procura de cada setor acumula conforme a atratividade; o lote surge quando ela enche
+      const g = (acc[c.seat.id] ??= { res: 0, com: 0, ind: 0 });
       for (const k of ZONE_KINDS) {
         const d = demand[k];
-        if (d <= 0.05) continue;
-        const tries = d > 0.85 ? 2 : 1;
-        for (let t = 0; t < tries && c.free[k].length; t++) {
-          if (lotRandom(h.tick, c.seat.id & 0xffff, 10 + ZONE_KINDS.indexOf(k) * 3 + t) >= d * ZONING.growChance) continue;
-          const pick = Math.floor(lotRandom(h.tick, c.free[k].length, 20 + t) * c.free[k].length);
-          const i = c.free[k].splice(pick, 1)[0]!;
-          if (h.unitOn(i)) continue;
-          const level: 1 | 2 = k === 'res' && d > 0.6 && residents >= 16 && lotRandom(h.tick, i, 3) < 0.35 ? 2 : 1;
-          this.lots.set(i, { owner: slot, kind: k, variant: Math.floor(lotRandom(h.tick, i, 4) * ZONING.variants), level, abandoned: false, since: h.tick });
-          h.grid.setOccupied({ cx: i % W, cy: Math.floor(i / W) }, 1, LOT_OCCUPANT);
-          this.version++;
+        if (d <= 0 || !c.free[k].length) {
+          g[k] = Math.max(0, g[k] - 0.02);
+          continue;
         }
+        g[k] += d * d * ZONING.growthPerSecond * (ZONING.everyTicks / TICK_RATE) * (0.6 + 0.8 * lotRandom(h.tick, c.seat.id & 0xffff, 30 + ZONE_KINDS.indexOf(k)));
+        if (g[k] < 1) continue;
+        const pick = Math.floor(lotRandom(h.tick, c.free[k].length, 20) * c.free[k].length);
+        const i = c.free[k][pick]!;
+        if (h.unitOn(i)) continue;
+        // prédio privado: raro, só com muita procura e cidade grande
+        const level: 1 | 2 = k === 'res' && d > 0.65 && residents >= 30 && lotRandom(h.tick, i, 3) < ZONING.apartmentChance ? 2 : 1;
+        const people = k === 'res' ? ZONING.citizens[level - 1]! : 0;
+        if (people > popRoom) continue; // teto nacional de população
+        c.free[k].splice(pick, 1);
+        g[k] -= 1;
+        this.lots.set(i, { owner: slot, kind: k, variant: Math.floor(lotRandom(h.tick, i, 4) * ZONING.variants), level, abandoned: false, since: h.tick });
+        h.grid.setOccupied({ cx: i % W, cy: Math.floor(i / W) }, 1, LOT_OCCUPANT);
+        if (people) {
+          h.moveCitizens(slot, people);
+          popRoom -= people;
+        }
+        this.version++;
       }
-      if (demand.res > 0.75 && residents >= 16) {
-        const house = c.lots.find(([i, l]) => l.kind === 'res' && l.level === 1 && !l.abandoned && lotRandom(h.tick, i, 5) < 0.15);
+      // casa vira prédio (raro)
+      if (demand.res > 0.75 && residents >= 30 && popRoom >= ZONING.citizens[1]! - ZONING.citizens[0]!) {
+        const house = c.lots.find(([i, l]) => l.kind === 'res' && l.level === 1 && !l.abandoned && lotRandom(h.tick, i, 5) < 0.03);
         if (house) {
           house[1].level = 2;
+          h.moveCitizens(slot, ZONING.citizens[1]! - ZONING.citizens[0]!);
+          popRoom -= ZONING.citizens[1]! - ZONING.citizens[0]!;
           this.version++;
         }
       }
@@ -443,6 +505,7 @@ export class ZoneSystem {
       lots: [...this.lots].map(([i, l]) => [i, { ...l }]),
       tax: this.tax.map((t) => ({ ...t })),
       heat: [...this.heat],
+      growth: this.growth.map((g) => JSON.parse(JSON.stringify(g ?? {})) as Record<number, Record<ZoneKind, number>>),
     };
   }
 
@@ -458,6 +521,7 @@ export class ZoneSystem {
     }
     this.tax = s.tax.map((t) => ({ ...t }));
     this.heat = [...s.heat];
+    this.growth = (s.growth ?? []).map((g) => JSON.parse(JSON.stringify(g ?? {})) as Record<number, Record<ZoneKind, number>>);
     this.version++;
   }
 }

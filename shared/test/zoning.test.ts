@@ -62,28 +62,66 @@ describe('zoneamento', () => {
     expect(parseCommand({ type: 'zone_tax', kind: 'ind', pct: ZONING.taxMax + 1 })).toBeNull();
   });
 
-  it('pintar não constrói: os lotes aparecem aos poucos com demanda e ocupam a célula', () => {
-    const { s, W, below } = setup();
+  /** Cidade desenvolvida: delegacia, escola e hospital, era 4 e economia boa (a atratividade sobe). */
+  function develop(s: Simulation) {
+    const hq = s.hqOf(0)!;
+    force(s, 'police_station', { cx: hq.cell.cx - 4, cy: hq.cell.cy });
+    force(s, 'hospital', { cx: hq.cell.cx - 4, cy: hq.cell.cy - 3 });
+    force(s, 'school', { cx: hq.cell.cx + 4, cy: hq.cell.cy - 3 });
+    s.players[0]!.era = 4;
+  }
+
+  it('cidade sem atrativos quase não cresce; desenvolvida, os lotes aparecem aos poucos e ocupam a célula', () => {
+    const bare = setup();
+    bare.s.applyCommand(0, { type: 'zone_paint', cells: bare.below, kind: 'ind' });
+    run(bare.s, ZONING.everyTicks * 40);
+    expect(bare.s.zones.lots.size).toBe(0);
+    expect(bare.s.zones.cityStats(0)[0]!.demand.ind).toBeLessThanOrEqual(0.1);
+
+    const { s, W, below } = setup({ approval: 90, growth: 6 });
+    develop(s);
     s.applyCommand(0, { type: 'zone_paint', cells: below, kind: 'ind' });
     expect(s.zones.lots.size).toBe(0);
-    run(s, ZONING.everyTicks * 12);
+    run(s, ZONING.everyTicks * 120);
+    const city = s.zones.cityStats(0)[0]!;
+    expect(city.development).toBeGreaterThan(0.5);
     const lots = [...s.zones.lots].filter(([, l]) => l.owner === 0);
     expect(lots.length).toBeGreaterThan(0);
     expect(lots.length).toBeLessThan(below.length + 1);
     for (const [i, l] of lots) {
       expect(l.kind).toBe('ind');
       expect(s.grid.occupant(i % W, Math.floor(i / W))).toBe(LOT_OCCUPANT);
-      // nada se constrói em cima do lote
       expect(s.placementError(0, 'house', { cx: i % W, cy: Math.floor(i / W) })).toMatch(/Lote privado|ocupado/);
     }
   });
 
+  it('casa privada traz 1 cidadão e 1 vaga; prédio, 5; demolir leva embora', () => {
+    const { s, W, below } = setup({ approval: 90, growth: 6 });
+    develop(s);
+    // imposto residencial zerado: mais procura por moradia
+    s.applyCommand(0, { type: 'zone_tax', kind: 'res', pct: 0 });
+    s.applyCommand(0, { type: 'zone_paint', cells: below, kind: 'res' });
+    const before = s.players[0]!.citizens;
+    const cap = s.population(0).cap;
+    run(s, ZONING.everyTicks * 150);
+    const res = [...s.zones.lots].filter(([, l]) => l.owner === 0 && l.kind === 'res' && !l.abandoned);
+    expect(res.length).toBeGreaterThan(0);
+    const people = res.reduce((a, [, l]) => a + ZONING.citizens[l.level - 1]!, 0);
+    expect(s.players[0]!.citizens).toBe(before + people);
+    expect(s.population(0).cap).toBe(cap + people);
+    const [i, l] = res[0]!;
+    s.applyCommand(0, { type: 'zone_demolish', cells: [i] });
+    expect(s.players[0]!.citizens).toBe(before + people - ZONING.citizens[l.level - 1]!);
+    expect(W).toBeGreaterThan(0);
+  });
+
   it('imposto alto e governo autoritário afastam a indústria; imposto baixo atrai', () => {
     const grow = (tax: number, authoritarian = 0) => {
-      const { s, below } = setup({ authoritarian });
+      const { s, below } = setup({ authoritarian, approval: 90, growth: 6 });
+      develop(s);
       s.applyCommand(0, { type: 'zone_tax', kind: 'ind', pct: tax });
       s.applyCommand(0, { type: 'zone_paint', cells: below, kind: 'ind' });
-      run(s, ZONING.everyTicks * 15);
+      run(s, ZONING.everyTicks * 80);
       return { lots: s.zones.lots.size, demand: s.zones.cityStats(0)[0]!.demand.ind };
     };
     const low = grow(0);

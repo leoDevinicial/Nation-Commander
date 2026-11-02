@@ -377,7 +377,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
 }
 
 const ZONE_BRUSHES: { id: ZoneBrush; icon: string; label: string; title: string }[] = [
-  { id: 'res', icon: '🏠', label: 'Residencial', title: 'Casas e, com muita procura, prédios. Crescem com emprego por perto, serviços, luz e imposto baixo.' },
+  { id: 'res', icon: '🏠', label: 'Residencial', title: 'Casas (+1 cidadão cada) e, raramente, prédios (+5). Crescem com a cidade desenvolvida, emprego por perto, serviços, luz e imposto baixo.' },
   { id: 'com', icon: '🏪', label: 'Comercial', title: 'Lojas, postos e escritórios. Crescem com moradores, indústrias e imposto baixo.' },
   { id: 'ind', icon: '🏭', label: 'Industrial', title: 'Indústrias privadas. Vêm com economia boa, aprovação alta e imposto industrial baixo.' },
   { id: 'erase', icon: '⌫', label: 'Apagar', title: 'Tira a zona das células sem lote.' },
@@ -420,11 +420,11 @@ function ZoneInfo({ mode, touch, runtime }: { mode: Extract<ReturnType<typeof us
           <div className="mt-1.5 max-h-28 space-y-1 overflow-y-auto">
             {zoning.cities.map((c) => (
               <div key={c.seat} className="flex items-center gap-2">
-                <span className="w-24 truncate text-ink-200" title={`${c.name}: ${c.residents} moradores, ${c.jobs} empregos, ${c.lots.res + c.lots.com + c.lots.ind} lotes${c.abandoned ? `, ${c.abandoned} abandonados` : ''}`}>
+                <span className="w-24 truncate text-ink-200" title={`${c.name}: desenvolvimento ${Math.round(c.development * 100)}% · ${c.residents} moradores, ${c.jobs} empregos, ${c.lots.res + c.lots.com + c.lots.ind} lotes privados${c.abandoned ? `, ${c.abandoned} abandonados` : ''}`}>
                   {c.name}
                 </span>
                 {kinds.map(({ k, label, color }) => (
-                  <span key={k} className="flex items-center gap-0.5" title={`Demanda ${label}: ${Math.round(c.demand[k] * 100)}% · ${c.lots[k]} lotes de ${c.zoned[k]} células`}>
+                  <span key={k} className="flex items-center gap-0.5" title={`Atratividade ${label}: ${Math.round(c.demand[k] * 100)}% (abaixo de zero, a zona não cresce; quanto maior, mais rápido) · ${c.lots[k]} lotes de ${c.zoned[k]} células`}>
                     <span style={{ color }}>{label}</span>
                     <span className="relative h-2 w-8 overflow-hidden rounded bg-ink-800">
                       <span className="absolute inset-y-0 left-0" style={{ width: `${Math.max(0, c.demand[k]) * 100}%`, background: color }} />
