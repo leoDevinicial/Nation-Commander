@@ -62,7 +62,7 @@ const BUILD_TABS: { id: BuildTab; label: string; icon: string; types: BuildingTy
   { id: 'production', label: 'Produção', icon: '⚒', types: ['farm', 'sawmill', 'quarry', 'mine', 'oil_well', 'oil_tank', 'warehouse', 'silo', 'refinery', 'steel_mill', 'eucalyptus_forest', 'charcoal_kiln', 'underground_mine'] },
   // rede elétrica: as usinas (a nuclear e a hidrelétrica continuam nos Grandes Projetos)
   { id: 'energy', label: 'Energia', icon: '⚡', types: ['coal_plant', 'wind_farm', 'solar_farm'] },
-  { id: 'civic', label: 'Cívicas', icon: '🏛', types: ['house', 'residential', 'city_hall', 'school', 'university', 'hospital', 'police_station', 'market', 'rail_station', 'port'] },
+  { id: 'civic', label: 'Cívicas', icon: '🏛', types: ['house', 'residential', 'city_hall', 'school', 'university', 'hospital', 'police_station', 'market', 'port'] },
   { id: 'military', label: 'Militares', icon: '⚔', types: ['barracks', 'factory', 'research_center', 'tower', 'tank_trap', 'aa_battery', 'airbase', 'missile_silo', 'iron_dome'] },
   // Grandes Projetos Nacionais (Futuro Próximo)
   { id: 'projects', label: 'Projetos', icon: '★', types: ['nuclear_plant', 'network_5g', 'hydro_dam', 'financial_center', 'space_center'] },

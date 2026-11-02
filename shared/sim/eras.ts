@@ -85,7 +85,6 @@ export const BUILDING_ERA: Partial<Record<BuildingType, Era>> = {
   residential: 2,
   market: 2,
   port: 2,
-  rail_station: 2,
   aa_battery: 2,
   airbase: 3,
   missile_silo: 4,

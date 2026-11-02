@@ -59,9 +59,9 @@ function setup(opts: { wall?: boolean; types?: BuildingType[] } = {}) {
 /** Preço que o Japão (101) paga pelo ferro: a venda é aceita. */
 const JP = (sim: Simulation) => sim.trade.quote(101, 0, 'iron').buy;
 
-const sell = (partner: number, quantity: number, price: number, extra: Partial<{ mode: 'road' | 'rail' | 'sea' | 'air'; days: number; resource: 'iron' | 'food' | 'oil' }> = {}) =>
+const sell = (partner: number, quantity: number, price: number, extra: Partial<{ mode: 'road' | 'sea' | 'air'; days: number; resource: 'iron' | 'food' | 'oil' }> = {}) =>
   ({ type: 'trade_offer', partner, side: 'sell', resource: extra.resource ?? 'iron', quantity, price, mode: extra.mode ?? 'road', days: extra.days ?? 120 }) as const;
-const buy = (partner: number, quantity: number, price: number, extra: Partial<{ mode: 'road' | 'rail' | 'sea' | 'air'; resource: 'iron' | 'food' }> = {}) =>
+const buy = (partner: number, quantity: number, price: number, extra: Partial<{ mode: 'road' | 'sea' | 'air'; resource: 'iron' | 'food' }> = {}) =>
   ({ type: 'trade_offer', partner, side: 'buy', resource: extra.resource ?? 'iron', quantity, price, mode: extra.mode ?? 'road', days: 120 }) as const;
 
 describe('Fase 6 — ofertas e contratos', () => {
@@ -80,7 +80,8 @@ describe('Fase 6 — ofertas e contratos', () => {
     s2.st.sanctions.clear();
     expect(s2.sim.applyCommand(0, sell(100, 0, 60_000))).toMatch(/Quantidade/);
     expect(s2.sim.applyCommand(0, sell(100, 10, 60_000, { days: 10 }))).toMatch(/Prazo/);
-    expect(s2.sim.applyCommand(0, sell(100, 10, 60_000, { mode: 'rail' }))).toMatch(/Estação Ferroviária/);
+    // sem trens desde 02/11: o modal ferroviário é recusado
+    expect(s2.sim.applyCommand(0, sell(100, 10, 60_000, { mode: 'rail' as 'road' }))).toMatch(/Modal inválido/);
     expect(s2.sim.applyCommand(0, sell(100, 10, 60_000, { mode: 'air' }))).toMatch(/nível 4/);
   });
 
@@ -207,23 +208,6 @@ describe('Fase 6 — ofertas e contratos', () => {
     expect(counter!.price).toBe(q.buy);
     expect(sim.applyCommand(0, { type: 'trade_respond', offerId: counter!.id, accept: true })).toBeNull();
     expect(sim.trade.contracts[0]!.price).toBe(q.buy);
-  });
-
-  it('infraestrutura muda o fluxo: estação ferroviária leva lotes maiores e entrega antes', () => {
-    const road = setup();
-    const rail = setup({ types: ['market', 'rail_station'] });
-    for (const s of [road, rail]) s.p.resources.iron = 200;
-    expect(road.sim.applyCommand(0, sell(101, 150, JP(road.sim)))).toBeNull();
-    expect(rail.sim.applyCommand(0, sell(101, 150, JP(rail.sim), { mode: 'rail' }))).toBeNull();
-    for (const s of [road, rail]) run(s.sim, (TRADE.npcReplyDays + 2) * DAY);
-    expect(rail.sim.trade.shipments.map((x) => x.quantity)).toEqual([150]);
-    expect(road.sim.trade.shipments.map((x) => x.quantity)).toEqual([60, 60]); // 2 embarques por terminal
-    let t = 0;
-    while (rail.sim.trade.contracts[0]!.status !== 'fulfilled' && t++ < 4000) rail.sim.step();
-    let u = 0;
-    while (road.sim.trade.contracts[0]!.status !== 'fulfilled' && u++ < 8000) road.sim.step();
-    expect(t).toBeLessThan(u);
-    expect(rail.st.ledger.find((x) => x.d.startsWith('Frete'))!.usd).toBe(-150 * TRANSPORT.rail.costPerUnit);
   });
 
   it('o comércio persiste no salvar/carregar e continua igual', () => {

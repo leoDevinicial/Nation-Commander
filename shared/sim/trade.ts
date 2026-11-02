@@ -20,8 +20,9 @@ import type { Building, Cell, EntityId, Slot, Vec2 } from './types.ts';
 
 export type TradeResource = 'food' | 'wood' | 'stone' | 'iron' | 'oil';
 export const TRADE_RESOURCES: TradeResource[] = ['food', 'wood', 'stone', 'iron', 'oil'];
-export type TransportMode = 'road' | 'rail' | 'sea' | 'air';
-export const TRANSPORT_MODES: TransportMode[] = ['road', 'rail', 'sea', 'air'];
+// 02/11: sem trens e ferrovias (pedido do usuário); contratos salvos com 'rail' voltam como rodoviários em `load`
+export type TransportMode = 'road' | 'sea' | 'air';
+export const TRANSPORT_MODES: TransportMode[] = ['road', 'sea', 'air'];
 export type PartnerId = number;
 
 export const NPC_ID_FROM = 100;
@@ -57,16 +58,6 @@ export const TRANSPORT: Record<TransportMode, TransportDef> = {
     facility: 'market',
     needs: 'Terminal Comercial',
     risk: 'Rota terrestre: território de países em guerra bloqueia o trajeto; tropas inimigas destroem o comboio.',
-  },
-  rail: {
-    label: 'Ferroviário',
-    capacity: 160,
-    speed: 7,
-    offmapSeconds: 18,
-    costPerUnit: 800,
-    facility: 'rail_station',
-    needs: 'Estação Ferroviária',
-    risk: 'Mesma rota terrestre, mais carga e menos frete; a estação é alvo fixo.',
   },
   sea: {
     label: 'Marítimo',
@@ -324,6 +315,8 @@ export class TradeSystem {
     this.shipments = c.shipments;
     this.npc = c.npc;
     this.lastNpcOfferDay = c.lastNpcOfferDay;
+    // salvamentos de antes de 02/11: o modal ferroviário saiu do jogo e vira rodoviário
+    for (const x of [...this.offers, ...this.contracts, ...this.shipments] as { mode: string }[]) if (x.mode === 'rail') x.mode = 'road';
   }
 
   // -------------------------------------------------------------- consultas
@@ -815,7 +808,7 @@ export class TradeSystem {
       }
       s.travelled = Math.min(s.pathLength, s.travelled + speed / TICK_RATE);
       // emboscada: tropas ou torres de quem está em guerra com o dono da carga
-      if (s.mode === 'road' || s.mode === 'rail') {
+      if (s.mode === 'road') {
         const shipper = !isNpcPartner(s.seller) ? s.seller : s.buyer;
         if (this.sim.tick % 5 === 0 && this.sim.hostileNear(shipper, this.position(s), TRADE.ambushRange)) {
           this.lose(s, c, 'Comboio destruído por forças inimigas');

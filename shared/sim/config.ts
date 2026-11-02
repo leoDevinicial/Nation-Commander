@@ -1249,8 +1249,8 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     income: {},
     sight: 6,
     upkeep: { supplies: 0.06 },
-    buildable: true,
-    description: 'Trens pela mesma rota terrestre dos caminhões: até 160 por viagem, mais rápidos e com frete menor.',
+    buildable: false,
+    description: 'Removida em 02/11 (o jogo não tem mais trens nem ferrovias); só segue de pé em partidas salvas antes disso, sem função.',
   },
   airbase: {
     ...NONE,

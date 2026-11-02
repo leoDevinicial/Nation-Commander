@@ -158,7 +158,7 @@ export function TradeTab({ nation, mySlot, partners }: { nation: NationView; myS
   );
 }
 
-const MODE_ICON: Record<TransportMode, string> = { road: '🚚', rail: '🚆', sea: '🚢', air: '🚁' };
+const MODE_ICON: Record<TransportMode, string> = { road: '🚚', sea: '🚢', air: '🚁' };
 const OFFER_STATUS: Record<string, string> = { pending: 'pendente', accepted: 'aceita', rejected: 'recusada', countered: 'contraproposta', expired: 'expirou', withdrawn: 'retirada' };
 const order = (s: ContractStatus) => ['active', 'suspended', 'fulfilled', 'interrupted', 'expired', 'cancelled'].indexOf(s);
 

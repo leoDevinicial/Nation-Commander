@@ -385,7 +385,7 @@ export function buildRailStationModel(): Built {
 // ------------------------------------------------------------------ veículos de carga (mapa)
 
 /** Modelo de um veículo de carga por modal (frente para +x), em escala do mapa. */
-export function cargoVehicle(mode: 'road' | 'rail' | 'sea' | 'air' | 'caravan'): ModelLayers {
+export function cargoVehicle(mode: 'road' | 'sea' | 'air' | 'caravan'): ModelLayers {
   const l = layers();
   if (mode === 'caravan') {
     boxTruck(l);
@@ -394,12 +394,6 @@ export function cargoVehicle(mode: 'road' | 'rail' | 'sea' | 'air' | 'caravan'):
   const { body: b, glass: g, accent: a } = l;
   if (mode === 'road') {
     semiTruck(l);
-  } else if (mode === 'rail') {
-    wagon(b, 0.45, 0, 0, 'loco', '#2f5f8a');
-    wagon(b, -0.45, 0, 0, 'box', '#8a4b32');
-    wagon(b, -1.35, 0, 0, 'tank', '#2b2d30');
-    wagon(b, -2.25, 0, 0, 'box', '#3f7a46');
-    a.box(0.02, 0.1, 0.24, '#ffffff', [0.87, 0.36, 0]);
   } else if (mode === 'sea') {
     // navio porta-contêineres: casco, superestrutura e pilhas no convés
     b.side(
