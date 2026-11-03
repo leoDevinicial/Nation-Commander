@@ -46,6 +46,7 @@ export const MANUAL: ManualCard[] = [
       'Cada coleta precisa do recurso ao lado: a mina, do minério; o poço, da jazida de petróleo e de um tanque por perto.',
       'O estoque é limitado: silo (comida), armazém (madeira, pedra, ferro) e tanque (petróleo). Cheio, a produção pausa.',
       'Depósitos se esgotam. Solo fértil não.',
+      'Combustível ⛽: veículos e navios gastam petróleo ao andar (o Combustível da Refinaria sai primeiro). Sem nenhum dos dois, andam a meia velocidade.',
     ],
   },
   {
@@ -54,7 +55,7 @@ export const MANUAL: ManualCard[] = [
     lead: 'Pessoas são o recurso mais valioso.',
     points: [
       'Cidadãos trabalham nas construções; sem eles, nada produz. Selecione um e mande-o a uma fazenda.',
-      'Recrutas (na Base Militar) ficam na reserva e tripulam as tropas: cada unidade usa 1 recruta.',
+      'Recrutas (na Base Militar) ficam na reserva e tripulam as tropas: cada unidade usa 1 recruta (navios usam a tripulação inteira; o porta-aviões, também os 4 pilotos).',
       'Moradia: Centro de Comando 20, casa +10, prédio residencial +20 — teto de 200 habitantes.',
       'Todos comem. Sem comida, a produção cai pela metade.',
     ],

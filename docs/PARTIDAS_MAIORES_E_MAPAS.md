@@ -96,7 +96,8 @@ transporte (botão direito no navio com tropas selecionadas; com o navio selecio
 
 **Mísseis** (pedido do usuário): o silo tem alcance (90 no 1º nível, 120 no míssil pesado) e o submarino, 70; o anel
 aparece no mapa ao escolher o alvo. O alvo pode ser qualquer ponto fora da própria fronteira (terra neutra, mar ou
-território inimigo, este só em guerra), sem precisar estar à vista. O dano em área não atinge nações em paz com quem
+território inimigo, este só em guerra), sem precisar estar à vista agora, mas já explorado pelo país alguma vez (ou
+junto de um edifício inimigo já descoberto; 03/11, ver `docs/COMBUSTIVEL_E_CORRECOES.md`). O dano em área não atinge nações em paz com quem
 lançou. Para alcançar o inimigo com o silo, é preciso construí-lo perto da fronteira.
 
 **Lançamento do submarino** (só visual, pedido do usuário): na preparação a tampa do tubo da frente abre

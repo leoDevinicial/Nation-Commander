@@ -63,6 +63,8 @@ import {
   type Goods,
   type UnitType,
   recruitsFor,
+  FUEL,
+  fuelPerWorld,
 } from './config.ts';
 import { chooseClaims, claimableCells, claimedBy, gatherRate, sitesByDeposit } from './gathering.ts';
 import { UPGRADE_CANCEL_REFUND, UPGRADE_WORK_EFFICIENCY, buildingEffects, maxLevelOf, missingText, planUpgrade, upgradeTrack, type BuildingEffects, type UpgradePlan, type UpgradeWorld } from './upgrades.ts';
@@ -107,6 +109,8 @@ export interface SimulationInit {
   power?: boolean;
   /** Obras precisam de cidadãos construtores (`BUILDERS`). Padrão: ligado, exceto nas batalhas locais. */
   builders?: boolean;
+  /** Veículos e navios gastam combustível ao andar (`FUEL`). Padrão: ligado, exceto nas batalhas locais. */
+  fuel?: boolean;
   /** KAC-06: permutação secreta dos ids (só o servidor passa; ver `ids.ts`). */
   idCipher?: IdCipher | null;
 }
@@ -181,8 +185,10 @@ export interface SimulationSave {
   builders?: boolean;
   /** Rede elétrica ligada (ausente nos salvamentos de antes dela: tudo fica com luz). */
   power?: boolean;
+  /** Combustível dos veículos ligado (ausente nos salvamentos de antes dele: andam de graça). */
+  fuel?: boolean;
   powerState?: { powered: number[]; load: [number, number][]; coalDebt: number[]; info: PlayerPower[]; homes: { homes: number; lit: number }[] };
-  roads?: { i: number; owner: Slot; hw?: true }[];
+  roads?: { i: number; owner: Slot; hw?: true; prev?: Terrain }[];
   /** Vida das células de estrada já atingidas (02/11). */
   roadHp?: [number, number][];
   victory?: VictoryKind | null;
@@ -365,6 +371,10 @@ export class Simulation {
   builders = false;
   /** Padrão de `SimulationInit.builders` (os testes de regra antigos o desligam em `shared/test/setup.ts`). */
   static buildersByDefault = true;
+  /** Combustível dos veículos e navios ligado nesta partida (`FUEL`). */
+  fuel = false;
+  /** Padrão de `SimulationInit.fuel` (os testes de regra antigos o desligam em `shared/test/setup.ts`). */
+  static fuelByDefault = true;
   /** Rede elétrica ligada nesta partida (ver `power.ts`). */
   power = false;
   /** Padrão de `SimulationInit.power` (os testes de regra antigos o desligam em `shared/test/setup.ts`). */
@@ -449,6 +459,7 @@ export class Simulation {
     this.battle = !!init.battle;
     this.power = init.power ?? (Simulation.powerByDefault && !init.battle);
     this.builders = init.builders ?? (Simulation.buildersByDefault && !init.battle);
+    this.fuel = init.fuel ?? (Simulation.fuelByDefault && !init.battle);
     this.players = [];
     this.lastAlertTick = [];
     this.deposits = findDeposits(init.map);
@@ -574,6 +585,7 @@ export class Simulation {
       ...(this.difficulty !== 'normal' ? { difficulty: this.difficulty } : {}),
       ...(this.eras ? { eras: true } : {}),
       ...(this.builders ? { builders: true } : {}),
+      ...(this.fuel ? { fuel: true } : {}),
       ...(this.power ? { power: true, powerState: { powered: [...this.powered], load: [...this.powerLoad], coalDebt: [...this.coalDebt], info: this.powerInfo.map((p) => ({ ...p })), homes: this.litHomes.map((h) => ({ ...h })) } } : {}),
       ...(this.roads.length ? { roads: this.roads.map((r) => ({ ...r })) } : {}),
       ...(this.roadHp.size ? { roadHp: [...this.roadHp] } : {}),
@@ -676,6 +688,7 @@ export class Simulation {
     sim.battle = !!data.battle;
     sim.power = !!data.power;
     sim.builders = !!data.builders;
+    sim.fuel = !!data.fuel;
     if (data.powerState) {
       sim.powered = new Set(data.powerState.powered);
       sim.powerLoad = new Map(data.powerState.load);
@@ -2763,6 +2776,28 @@ export class Simulation {
   }
 
   /**
+   * Cobra o combustível andado pelos veículos e navios (03/11): primeiro o Combustível da Refinaria (cada um vale
+   * `GOODS.saves` de petróleo), depois o petróleo. Sem os dois, marca o país sem combustível (andam a meia velocidade)
+   * até chegar petróleo ou combustível de novo.
+   */
+  private chargeFuel(p: PlayerState): void {
+    const due = Math.floor(p.fuelAcc ?? 0);
+    let dry: boolean;
+    if (due > 0) {
+      p.fuelAcc! -= due;
+      const goods = Math.min(p.goods?.fuel ?? 0, Math.ceil(due / GOODS.saves));
+      if (goods > 0) this.spendGoods(p, { fuel: goods });
+      const left = Math.max(0, due - goods * GOODS.saves);
+      const paid = Math.min(left, Math.floor(p.resources.oil));
+      if (paid > 0) this.takeOil(p, paid);
+      dry = paid < left;
+    } else dry = (p.fuelAcc ?? 0) > 0 && p.resources.oil < 1 && (p.goods?.fuel ?? 0) < 1;
+    if (dry === !!p.noFuel) return;
+    p.noFuel = dry || undefined;
+    this.emit({ type: 'fuel', tick: this.tick, owner: p.slot, state: dry ? 'out' : 'ok' });
+  }
+
+  /**
    * Consumo de comida pela população e manutenção dos edifícios (suprimentos e petróleo), sem saldo
    * negativo. Sem saldo de um recurso, os edifícios que dependem dele param (e não abrigam/produzem).
    */
@@ -2780,6 +2815,7 @@ export class Simulation {
         if (hungry && !p.hungry) this.emit({ type: 'shortage', tick: this.tick, owner: p.slot, resource: 'food' });
         p.hungry = hungry;
       }
+      if (this.fuel) this.chargeFuel(p);
       const mine = this.buildings.filter((b) => b.owner === p.slot && b.progress >= 1);
       let charged = false;
       for (const r of ['supplies', 'oil'] as const) {
@@ -3822,10 +3858,17 @@ export class Simulation {
     if (UNITS[u.type].naval) terrainMul = 1;
     if (terrain === Terrain.Road && this.highways.has(this.grid.index(cell.cx, cell.cy))) terrainMul = HIGHWAY.unitMul;
     if (terrain === Terrain.Forest) terrainMul *= this.bonusOf(u.owner).forestSpeedMul ?? 1;
-    const speed = UNITS[u.type].speed * combineMods(u.mods).speedMul * Math.max(terrainMul, 0.3) * TICK_SECONDS;
+    let speed = UNITS[u.type].speed * combineMods(u.mods).speedMul * Math.max(terrainMul, 0.3) * TICK_SECONDS;
     const dx = wp.x - u.pos.x;
     const dy = wp.y - u.pos.y;
     const d = Math.hypot(dx, dy);
+    // combustível (03/11): o veículo ou navio gasta pelo trecho andado; sem combustível, anda mais devagar
+    const burn = this.fuel ? fuelPerWorld(u.type) : 0;
+    if (burn > 0) {
+      const p = this.players[u.owner]!;
+      if (p.noFuel) speed *= FUEL.emptySpeedMul;
+      p.fuelAcc = (p.fuelAcc ?? 0) + Math.min(speed, d) * burn;
+    }
     if (d <= speed) {
       if (this.grid.isWorldPassable(wp)) u.pos = { x: wp.x, y: wp.y };
       u.pathIndex++;

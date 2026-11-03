@@ -790,7 +790,7 @@ export class UnitVisual {
 }
 
 /** Altura (mundo) de onde as tropas saem do C-5. */
-const DROP_HEIGHT = 9;
+const DROP_HEIGHT = 12;
 
 /**
  * Paraquedas low poly: cúpula facetada em gomos (cor da nação alternada com branco), cordas até a tropa e, no veículo,

@@ -77,10 +77,10 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
               <div
                 key={r}
                 className="flex shrink-0 items-center gap-1"
-                title={`${RESOURCE_LABELS[r]}: ${have} de ${cap} (guardado em: ${STORAGE_LABEL[r]}). Saldo: ${net >= 0 ? '+' : ''}${net.toFixed(2)}/s${full ? ' — CHEIO: a produção pausa' : ''}`}
+                title={`${RESOURCE_LABELS[r]}: ${have} de ${cap} (guardado em: ${STORAGE_LABEL[r]}). Saldo: ${net >= 0 ? '+' : ''}${net.toFixed(2)}/s${full ? ' — CHEIO: a produção pausa' : ''}${r === 'oil' ? `\nVeículos e navios gastam petróleo ao andar (o Combustível da Refinaria sai primeiro)${me?.noFuel ? ' — SEM COMBUSTÍVEL: andam a meia velocidade' : ''}` : ''}`}
               >
                 <ResourceIcon type={r} />
-                <span className={`font-mono font-bold ${full ? 'text-brass-400' : r === 'food' && me?.hungry ? 'text-red-300' : ''}`}>{have}</span>
+                <span className={`font-mono font-bold ${full ? 'text-brass-400' : (r === 'food' && me?.hungry) || (r === 'oil' && me?.noFuel) ? 'text-red-300' : ''}`}>{have}</span>
                 <span className="hidden font-mono text-[10px] text-ink-400 2xl:inline">/{cap}</span>
                 <span className={`hidden text-[11px] min-[1800px]:inline ${net < 0 ? 'text-red-300' : 'text-signal-green'}`}>
                   {net >= 0 ? '+' : ''}
@@ -93,7 +93,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
         {!sandbox && me?.goods && (me.goods.fuel > 0 || me.goods.steel > 0 || me.goods.cap > GOODS.baseCap) && (
           <div
             className="flex shrink-0 items-center gap-1.5"
-            title={`Bens industriais (cadeias produtivas), até ${me.goods.cap} de cada: ${GOODS.label.fuel} ${me.goods.fuel} (Refinaria, substitui petróleo) · ${GOODS.label.steel} ${me.goods.steel} (Siderúrgica, substitui ferro). Cada unidade poupa ${GOODS.saves} do recurso bruto na produção de veículos e aeronaves e nas missões aéreas.`}
+            title={`Bens industriais (cadeias produtivas), até ${me.goods.cap} de cada: ${GOODS.label.fuel} ${me.goods.fuel} (Refinaria, substitui petróleo) · ${GOODS.label.steel} ${me.goods.steel} (Siderúrgica, substitui ferro). Cada unidade poupa ${GOODS.saves} do recurso bruto na produção de veículos e aeronaves, nas missões aéreas e no deslocamento de veículos e navios.`}
           >
             <span aria-hidden>⛽</span>
             <span className="font-mono">{me.goods.fuel}</span>

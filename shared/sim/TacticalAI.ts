@@ -824,7 +824,7 @@ export class TacticalAI {
         this.launchAmphib(sim, idle, ships, target, cmds);
         if (this.amphib) {
           // fragatas de escolta: vão na frente, até a costa do alvo, atacando o que acharem
-          const escorts = own.filter((u) => u.type === 'frigate' && u.order.kind === 'idle');
+          const escorts = own.filter((u) => (u.type === 'frigate' || u.type === 'submarine') && u.order.kind === 'idle');
           const coast = sim.coastNear(target);
           if (escorts.length && coast) cmds.push({ type: 'attack_move', unitIds: escorts.map((u) => u.id), x: coast.x, y: coast.y });
           this.attacking = true;
@@ -1119,7 +1119,7 @@ export class TacticalAI {
    * Comércio entre nações (02/11), a cada 10 s: um anúncio de venda aberto por vez com a maior sobra (o que passa de
    * 35% da capacidade, a 15% acima da referência); compra anúncio de quem não está em guerra quando um recurso cai
    * abaixo de 20% da capacidade e o preço por unidade não passa de 1,5× a referência; abaixo de 8% e sem anúncio, compra
-   * um lote do mercado mundial.
+   * um lote do mercado mundial. Acima de 85% da capacidade, vende o excedente ao mercado mundial (03/11).
    */
   private planTrade(sim: Simulation, mine: Building[], cmds: Command[]): void {
     if (sim.tick - this.lastTradeTick < AI_TRADE_EVERY_TICKS) return;
@@ -1139,6 +1139,16 @@ export class TacticalAI {
       if (best) {
         const quantity = Math.min(AI_TRADE_LOT * 4, Math.floor(best.extra / 50) * 50);
         cmds.push({ type: 'trade_list', kind: 'sale', items: [{ resource: best.r, quantity }], priceUsd: Math.round(REF_PRICE[best.r] * quantity * 1.15) });
+      }
+    }
+    // armazém quase cheio (03/11): o excedente vai para o mercado mundial em vez de parar a produção
+    for (const r of TRADE_RESOURCES) {
+      if (cap[r] <= 0 || res[r] < cap[r] * 0.85) continue;
+      const quantity = Math.min(AI_TRADE_LOT * 2, Math.floor((res[r] - cap[r] * 0.6) / 50) * 50);
+      const mode = TRANSPORT_MODES.find((m) => quantity > 0 && t.worldBlocker(me, 'sell', r, quantity, m) === null);
+      if (mode) {
+        cmds.push({ type: 'trade_world', side: 'sell', resource: r, quantity, mode });
+        break;
       }
     }
     // compra: o recurso mais em falta
@@ -1487,14 +1497,17 @@ export class TacticalAI {
   }
 
   /**
-   * Produção do Porto (03/11): navios de desembarque para a onda além-mar, até 2 fragatas de escolta (com a pesquisa)
-   * e um cargueiro para o comércio por mar (com Terminal Comercial).
+   * Produção do Porto (03/11): navios de desembarque para a onda além-mar, até 2 fragatas de escolta (com a pesquisa),
+   * submarinos de ataque (1 além-mar, 2 se já viu submarino inimigo; só submarino acerta submarino) e um cargueiro
+   * para o comércio por mar (com Terminal Comercial).
    */
   private portMix(sim: Simulation, own: Unit[], mine: Building[], overseas: boolean, preparing: boolean, fleet: number, techs: readonly string[]): UnitType[] | null {
     const queued = (t: UnitType) => own.filter((u) => u.type === t).length + mine.reduce((a, x) => a + x.queue.filter((q) => q.unitType === t).length, 0);
     const has = (t: UnitType) => !UNITS[t].requiresTech || !sim.national || techs.includes(UNITS[t].requiresTech!);
     if (overseas && !preparing && fleet < Math.min(AI_MAX_SHIPS, Math.ceil(((this.waveSize ?? 4) * 1.5) / 10))) return ['transport_ship'];
     if (overseas && !preparing && has('frigate') && queued('frigate') < 2) return ['frigate'];
+    const enemySubs = sim.units.some((u) => u.owner !== this.slot && UNITS[u.type].submarine && sim.isVisibleTo(this.slot, u.pos));
+    if ((overseas || enemySubs) && !preparing && has('submarine') && queued('submarine') < (enemySubs ? 2 : 1)) return ['submarine'];
     if (mine.some((b) => b.type === 'market' && b.progress >= 1) && has('cargo_ship') && queued('cargo_ship') < 1) return ['cargo_ship'];
     return null;
   }

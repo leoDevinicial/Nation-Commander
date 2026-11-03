@@ -101,6 +101,8 @@ export interface PlayerSnapshot {
   /** Rede elétrica (só para o próprio jogador, com a rede ligada). */
   power?: PlayerPower;
   hungry: boolean | null;
+  /** Sem combustível (só o dono vê): veículos e navios a meia velocidade. */
+  noFuel?: boolean;
   defeated: boolean;
   /** Pesquisas militares concluídas (só para o próprio jogador). */
   militaryResearch?: MilitaryResearchId[];
@@ -363,6 +365,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         population: mine ? sim.population(p.slot) : null,
         ...(mine && sim.power && sim.powerInfo[p.slot] ? { power: sim.powerInfo[p.slot] } : {}),
         hungry: mine ? p.hungry : null,
+        ...(mine && p.noFuel ? { noFuel: true } : {}),
         defeated: p.defeated,
         ...(mine ? { militaryResearch: [...(p.militaryResearch ?? [])], knowledge: Math.floor(p.knowledge ?? 0) } : {}),
         ...(p.era && p.era > 1 ? { era: p.era } : {}),
@@ -650,6 +653,7 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
     case 'deposit_depleted':
     case 'storage_lost':
     case 'shortage':
+    case 'fuel':
     case 'attrition':
     case 'blackout':
       return e.owner === slot;

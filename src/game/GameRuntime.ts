@@ -3184,6 +3184,9 @@ export class GameRuntime {
     audio.ui('click');
   }
 
+  /** Segundo clique da demolição arriscada (id e prazo, em `performance.now()`). */
+  private demolishConfirm: { id: number; until: number } | null = null;
+
   /** Modo Demolir (03/11): clique numa construção sua (menos QG e prefeitura) ou numa estrada sua. */
   startDemolish(): void {
     this.setMode({ kind: 'demolish' });
@@ -3198,6 +3201,21 @@ export class GameRuntime {
     if (b) {
       if (b.snap.owner !== this.mySlot) return warn('Demolir: só construções do seu país');
       if (b.snap.type === 'hq' || b.snap.type === 'city_hall') return warn('O Centro de Comando e as prefeituras não podem ser demolidos');
+      // 03/11: o que guarda aeronaves, mísseis ou custou um Grande Projeto pede um segundo clique (sem reembolso)
+      const risk =
+        b.snap.type === 'airbase'
+          ? 'as aeronaves no hangar serão perdidas'
+          : b.snap.type === 'missile_silo'
+            ? 'os mísseis no silo serão perdidos'
+            : BUILDINGS[b.snap.type].project
+              ? 'é um Grande Projeto e não há reembolso'
+              : null;
+      const now = performance.now();
+      if (risk && (this.demolishConfirm?.id !== b.snap.id || now > this.demolishConfirm.until)) {
+        this.demolishConfirm = { id: b.snap.id, until: now + 4000 };
+        return warn(`Demolir ${BUILDINGS[b.snap.type].label}: ${risk}. Clique de novo para confirmar`);
+      }
+      this.demolishConfirm = null;
       this.send({ type: 'demolish', buildingId: b.snap.id });
       return;
     }

@@ -437,7 +437,7 @@ function submarine(missile: boolean): ShipModel {
   b.cyl(r, r, L - 2 * r, dark, [0, 0.02, 0], [0, 0, Math.PI / 2], 14);
   b.sphere(r, dark, [L / 2 - r, 0.02, 0], [1.35, 1, 1], 12);
   b.sphere(r, dark, [-L / 2 + r, 0.02, 0], [1.7, 1, 1], 12);
-  b.box(L - 2 * r, 0.02, r * 0.5, deckC, [0, r + 0.01, 0]);
+  b.box(L - 2 * r, 0.03, r * 0.5, deckC, [0, r - 0.002, 0]);
   // aberturas de alagamento e cabeços no convés
   for (let i = 0; i < 10; i++) for (const z of [-r * 0.97, r * 0.97]) b.box(0.07, 0.025, 0.01, '#141618', [-L / 2 + r + 0.3 + i * ((L - 2 * r - 0.6) / 9), -0.02, z]);
   for (const x of [L / 2 - r - 0.2, -L / 2 + r + 0.25]) b.box(0.04, 0.04, 0.04, '#3a3e42', [x, r + 0.04, 0]);
@@ -470,20 +470,21 @@ function submarine(missile: boolean): ShipModel {
   b.box(0.3, 0.03, 0.62, dark, [px, 0.02, 0]);
   for (let i = 0; i < 7; i++) b.box(0.03, 0.15, 0.05, '#a8792f', [px - 0.16, 0.02, 0], [(i / 7) * Math.PI * 2, 0, 0]);
   b.cyl(0.04, 0.05, 0.08, '#a8792f', [px - 0.16, 0.02, 0], [0, 0, Math.PI / 2], 6);
-  // lemes de proa
-  for (const z of [-r - 0.1, r + 0.1]) b.box(0.18, 0.02, 0.16, dark, [L / 2 - r - 0.25, 0.04, z]);
+  // lemes de proa: a raiz entra no casco (nada de peça solta ao lado dele)
+  for (const z of [-r - 0.04, r + 0.04]) b.box(0.2, 0.025, 0.2, dark, [L / 2 - r - 0.25, 0.06, z]);
   if (missile) {
     // corcova dos tubos de mísseis atrás da vela, com as tampas e as dobradiças
+    // a base desce até dentro do casco: as bordas da corcova não ficam soltas sobre a curva do cilindro
     b.side(
       [
         [-1.1, 0],
         [0.7, 0],
-        [0.6, 0.13],
-        [-1.0, 0.13],
+        [0.6, 0.23],
+        [-1.0, 0.23],
       ],
       r * 1.25,
       dark,
-      [0, r - 0.03, 0],
+      [0, r - 0.13, 0],
     );
     for (let i = 0; i < 6; i++)
       for (const z of [-0.11, 0.11]) {

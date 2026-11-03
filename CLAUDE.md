@@ -80,10 +80,12 @@ O Nation Commander é **low poly estilizado**, por decisão do responsável pelo
 - Marinha (`docs/PARTIDAS_MAIORES_E_MAPAS.md`): L402, fragata, cargueiro, submarinos e porta-aviões saem do Porto,
   só andam na água (`Grid.naval`), têm tripulação (`crew`), pesquisa nacional (`requiresTech`) e carga por classe
   (`cargo`). Quem atinge quem fica em `shared/sim/targeting.ts` (submarino só por submarino). A carga sai do mapa e
-  só o dono a vê no snapshot. Mísseis têm alcance por lançador e miram qualquer ponto fora da própria fronteira.
+  só o dono a vê no snapshot. Mísseis têm alcance por lançador e miram qualquer ponto fora da própria fronteira que o país já tenha explorado (`Simulation.explored`).
   No Arquipélago não há pontes: o contato é por navio e avião (C-5 com paraquedistas).
 - Alertas e HUD (`docs/ALERTAS_E_HUD.md`): evento `world` (guerra, era, nuclear, Grande Projeto) vai a todos, sem
   posição; sob ataque toca sirene e pulsa no minimapa; botão Construir (B) e comando `demolish` (nunca QG/prefeitura).
+- Combustível (`FUEL`, `docs/COMBUSTIVEL_E_CORRECOES.md`): veículos e navios gastam petróleo ao andar (o Combustível da
+  Refinaria sai primeiro); sem nenhum, andam a 50%. Testes de regra antigos rodam sem ele (`shared/test/setup.ts`).
 - Minas terrestres (`shared/sim/mines.ts`) não são entidades: o snapshot envia só as do dono e as já detectadas
   (`MineSystem.visibleTo`). O satélite do Programa Espacial revela o resto do mapa, mas nunca as minas.
 

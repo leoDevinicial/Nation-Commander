@@ -12,7 +12,10 @@ type Launch = AirView['launches'][number];
 type Kind = 'fighter' | 'gripen' | 'bomber' | 'recon' | 'transport' | 'transport2' | 'missile' | 'missile2' | 'stores' | 'drone' | 'droneProp' | 'cruise' | 'cruiseBooster';
 type DroneView = AirView['drones'][number];
 
-const ALTITUDE = 7;
+/** Altitude de cruzeiro (03/11: subiu de 7 para 10; o C-5 voa ainda mais alto, ver `TRANSPORT_EXTRA`). */
+const ALTITUDE = 10;
+/** Altura a mais do avião cargueiro (grande: de perto da água parecia rasante). */
+const TRANSPORT_EXTRA = 2.5;
 /** Altitude no fundo do mergulho de ataque. */
 const DIVE_ALTITUDE = 2.4;
 /** Raio (a partir do alvo) em que a esquadrilha entra em fila e mergulha. */
@@ -26,8 +29,8 @@ const DOGFIGHT_ORBIT = 4.5;
 const DOGFIGHT_SPIN = 1.3;
 /** Bombardeio em tapete: bombas por bombardeiro, altura de soltura e tempo de queda (s). */
 const BOMBS_PER_BOMBER = 6;
-const BOMB_DROP_ALT = 7.5;
-const BOMB_FALL = 1.05;
+const BOMB_DROP_ALT = 10.5;
+const BOMB_FALL = 1.25;
 /** Formação em "V" (até 4 aeronaves por missão): (atrás, lado). */
 const FORMATION: [number, number][] = [
   [0, 0],
@@ -949,7 +952,7 @@ export class AirLayer {
       const dt2 = Math.hypot(t.pos.x - f.tx, t.pos.y - f.ty);
       dive = f.state === 'outbound' ? smooth(ATTACK_RADIUS, 4, dt2) : smooth(ATTACK_RADIUS * 0.8, 2, dt2);
     }
-    const wantAlt = 0.35 + (ALTITUDE + (f.kind === 'recon' ? 1.5 : bomber ? 0.8 : 0) - 0.35) * nearBase;
+    const wantAlt = 0.35 + (ALTITUDE + (f.kind === 'recon' ? 1.5 : bomber ? 0.8 : f.plane === 'airlifter' || f.plane === 'transport' ? TRANSPORT_EXTRA : 0) - 0.35) * nearBase;
     const targetAlt = wantAlt + (DIVE_ALTITUDE - wantAlt) * dive * nearBase;
     const prevAlt = t.alt;
     if (rolling) t.alt = 0.3;

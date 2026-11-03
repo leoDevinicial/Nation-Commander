@@ -340,6 +340,20 @@ export interface UnitDef {
   carrierFighters?: number;
 }
 
+/**
+ * Combustível (03/11, pedido do usuário): veículos e navios gastam petróleo ao andar, em unidades de petróleo por unidade
+ * de mundo percorrida. O Combustível da Refinaria sai primeiro (cada um vale `GOODS.saves` de petróleo). Sem nenhum dos
+ * dois, os veículos e navios do país andam a `emptySpeedMul` da velocidade até chegar petróleo de novo.
+ */
+export const FUEL = { light: 0.025, heavy: 0.04, ship: 0.05, carrier: 0.1, emptySpeedMul: 0.5 };
+const HEAVY_VEHICLES: ReadonlySet<string> = new Set(['tank', 'mbt', 'artillery', 'rocket_artillery', 'ciws']);
+export function fuelPerWorld(t: UnitType): number {
+  const d = UNITS[t];
+  if (d.naval) return t === 'aircraft_carrier' ? FUEL.carrier : FUEL.ship;
+  if (d.armor !== 'vehicle') return 0;
+  return HEAVY_VEHICLES.has(t) ? FUEL.heavy : FUEL.light;
+}
+
 /** Recrutas que a unidade ocupa ao ser produzida: a tripulação e, no porta-aviões, os pilotos dos caças embarcados. */
 export function recruitsFor(t: UnitType): number {
   return (UNITS[t].crew ?? 1) + (UNITS[t].carrierFighters ?? 0);
@@ -1089,7 +1103,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     maxHp: 450,
     size: 2,
     income: {},
-    gather: { resource: 'iron', terrain: Terrain.Ore, radius: 2, maxCells: 6, minCells: 2, ratePerCell: 0.6 },
+    gather: { resource: 'iron', terrain: Terrain.Ore, radius: 2, maxCells: 6, minCells: 2, ratePerCell: 0.7 },
     sight: 7,
     workers: 6,
     buildable: true,

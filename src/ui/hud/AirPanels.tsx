@@ -351,7 +351,7 @@ export function SiloButtons({ b, runtime }: { b: SelectedBuildingInfo; runtime: 
           blocked={prepBlock !== null}
           short={prepBlock}
           onClick={() => (prepBlock ? warn(`Lançamento: ${prepBlock}`) : runtime.startAirTarget('missile', b.id))}
-          title={`Escolha o alvo: qualquer ponto fora da sua fronteira, dentro do anel de alcance (${launcherRange('silo', gen)}); no território de outra nação, só em guerra. A preparação leva ${spec.prepareSeconds}s e o lançamento ainda exige autorização.`}
+          title={`Escolha o alvo: qualquer ponto já explorado fora da sua fronteira, dentro do anel de alcance (${launcherRange('silo', gen)}); no território de outra nação, só em guerra. A preparação leva ${spec.prepareSeconds}s e o lançamento ainda exige autorização.`}
         />
       )}
       {hasNukeTech && (
@@ -476,7 +476,7 @@ export function airTargetText(purpose: 'recon' | 'strike' | 'missile' | 'drone' 
   if (purpose === 'strike') return { title: 'Ataque aéreo', text: `${act} num edifício inimigo já descoberto, dentro do anel de alcance.` };
   return hasTarget
     ? { title: 'Alvo do míssil marcado', text: `Confira o anel vermelho. Confirmar inicia a preparação (${missileSpec(missileGen).prepareSeconds}s de abastecimento); o lançamento ainda exige autorização.` }
-    : { title: 'Alvo do míssil', text: `${act} no alvo, dentro do anel de alcance: qualquer ponto fora da sua fronteira (no território de outra nação, só em guerra). Dano em área.` };
+    : { title: 'Alvo do míssil', text: `${act} no alvo, dentro do anel de alcance: qualquer ponto já explorado fora da sua fronteira (no território de outra nação, só em guerra). Dano em área.` };
 }
 
 /** Submarino Lançador (03/11): mísseis a bordo, preparação, autorização e aborto, como no silo. */
@@ -494,7 +494,7 @@ export function SubMissileButtons({ unitId, missiles, runtime }: { unitId: numbe
           blocked={block !== null}
           short={block}
           onClick={() => (block ? useHudStore.getState().pushEvent({ tick: useHudStore.getState().tick, text: `Míssil: ${block}`, tone: 'warn' }) : runtime.startAirTarget('missile', unitId))}
-          title={`Míssil de cruzeiro convencional: qualquer ponto fora da sua fronteira a até ${CRUISE.range} do submarino (anel no mapa); dano ${CRUISE.damage} em raio ${String(CRUISE.radius).replace('.', ',')}. Preparação de ${CRUISE.prepareSeconds}s e autorização. Recarrega junto a um Porto seu (um a cada ${CRUISE.reloadSeconds}s, pagando o míssil).`}
+          title={`Míssil de cruzeiro convencional: qualquer ponto já explorado fora da sua fronteira a até ${CRUISE.range} do submarino (anel no mapa); dano ${CRUISE.damage} em raio ${String(CRUISE.radius).replace('.', ',')}. Preparação de ${CRUISE.prepareSeconds}s e autorização. Recarrega junto a um Porto seu (um a cada ${CRUISE.reloadSeconds}s, pagando o míssil).`}
         />
       )}
       {active && (active.state === 'preparing' || active.state === 'armed') && (

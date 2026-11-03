@@ -66,6 +66,12 @@ export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone
             tone: 'bad',
           }
         : null;
+    case 'fuel':
+      return e.owner === mySlot
+        ? e.state === 'out'
+          ? { text: 'Sem combustível ⛽: veículos e navios andam a meia velocidade — produza petróleo ou combustível na Refinaria', tone: 'bad' }
+          : { text: 'Combustível restabelecido ⛽: veículos e navios voltam à velocidade normal', tone: 'good' }
+        : null;
     case 'shortage':
       return e.owner === mySlot
         ? {

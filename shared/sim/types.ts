@@ -253,6 +253,10 @@ export interface PlayerState {
   eraAdvance?: EraAdvance | null;
   /** Bens industriais das cadeias produtivas (combustível e aço). */
   goods?: Goods;
+  /** Petróleo devido pelo trecho andado por veículos e navios (cobrado em unidades inteiras; ver `FUEL`). */
+  fuelAcc?: number;
+  /** Sem petróleo nem combustível: veículos e navios andam a `FUEL.emptySpeedMul` da velocidade. */
+  noFuel?: true;
   /** Pressão do mercado interno por recurso vendido (baixa o preço; some com o tempo). */
   marketPressure?: Partial<Record<MarketResource, number>>;
   /** Demanda do mercado interno por recurso comprado (sobe o preço de compra; some com o tempo). */
@@ -310,6 +314,7 @@ export type SimEvent =
   | { type: 'deposit_depleted'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; pos: Vec2 }
   | { type: 'storage_lost'; tick: number; owner: Slot; resource: ResourceType; amount: number; reason: 'destroyed' | 'capacity' | 'attack' }
   | { type: 'shortage'; tick: number; owner: Slot; resource: 'food' | 'supplies' | 'oil' }
+  | { type: 'fuel'; tick: number; owner: Slot; state: 'out' | 'ok' }
   | { type: 'upgrade_started'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; toLevel: number; spec: SpecId | null; usd: number; pos: Vec2 }
   | { type: 'upgrade_completed'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; level: number; spec: SpecId | null; pos: Vec2 }
   | { type: 'upgrade_cancelled'; tick: number; id: EntityId; owner: Slot; buildingType: BuildingType; toLevel: number; pos: Vec2 }
