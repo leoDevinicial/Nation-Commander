@@ -50,6 +50,9 @@ const AI_RESEARCH_ORDER: TechId[] = [
 /** Com a força aérea e os mísseis na dificuldade: munição guiada e mísseis vêm primeiro. */
 const AI_MILITARY_FIRST: TechId[] = ['logistics', 'digital_comms', 'military_aviation', 'guided_munitions', 'ballistic_missiles'];
 
+/** Arquipélago (03/11): Porto (Logística naval) e escolta (Guerra naval) logo no começo. */
+const AI_NAVAL_FIRST: TechId[] = ['logistics', 'naval_logistics', 'wind_power', 'naval_warfare'];
+
 /** Dia (1 dia = 1 s de partida) a partir do qual o governo da IA puxa o índice de infraestrutura. */
 export const AI_INFRA_FROM_DAY = 720;
 
@@ -63,6 +66,8 @@ export class NationalAI {
      * teatro. Sobe 0,2 ponto por mês, só com o déficit sob controle.
      */
     private readonly defenseMul = 1,
+    /** Mapa em ilhas (Arquipélago): sem Porto não há como chegar ao inimigo, então a marinha vem cedo. */
+    private readonly naval = false,
   ) {}
 
   /** Retorna o orçamento a aplicar (ou null para manter) e a pesquisa desejada. */
@@ -126,7 +131,7 @@ export class NationalAI {
       const ready = (t: TechId) =>
         researchBlocker(t, n.research.done, era !== null ? { era } : {}) === null &&
         (kp === null || (n.research.kpPaid ?? []).includes(t) || kp >= techKnowledge(t) + AI_KNOWLEDGE_RESERVE);
-      research = (this.militaryFirst ? AI_MILITARY_FIRST.find(ready) : undefined) ?? AI_RESEARCH_ORDER.find(ready) ?? TECH_IDS.find(ready) ?? null;
+      research = (this.naval ? AI_NAVAL_FIRST.find(ready) : undefined) ?? (this.militaryFirst ? AI_MILITARY_FIRST.find(ready) : undefined) ?? AI_RESEARCH_ORDER.find(ready) ?? TECH_IDS.find(ready) ?? null;
     }
     return { budget: changed ? b : null, research, diplomacy: this.diplomacy(sim), decrees: this.decrees(sim, n) };
   }

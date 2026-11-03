@@ -127,7 +127,8 @@ function run(seed: number, difficulty: Difficulty): Result {
   };
   applyModifiers();
   const ais = [new TacticalAI(0), new TacticalAI(1)];
-  const nais = [new NationalAI(0, DIFFICULTY[difficulty].missiles, DIFFICULTY[difficulty].defenseBudgetMul), new NationalAI(1, DIFFICULTY[difficulty].missiles, DIFFICULTY[difficulty].defenseBudgetMul)];
+  const naval = sim.map.kind === 'islands';
+  const nais = [new NationalAI(0, DIFFICULTY[difficulty].missiles, DIFFICULTY[difficulty].defenseBudgetMul, naval), new NationalAI(1, DIFFICULTY[difficulty].missiles, DIFFICULTY[difficulty].defenseBudgetMul, naval)];
   const zero = () => Object.fromEntries(RESOURCE_TYPES.map((r) => [r, 0])) as Record<ResourceType, number>;
   const low = [zero(), zero()];
   const full = [zero(), zero()];

@@ -451,7 +451,7 @@ export class Room {
       this.seed,
       this.balanceMode,
     );
-    this.nationalAIs = this.players.filter((p) => p.isAI).map((p) => new NationalAI(p.slot, DIFFICULTY[this.difficulty].missiles, DIFFICULTY[this.difficulty].defenseBudgetMul));
+    this.nationalAIs = this.players.filter((p) => p.isAI).map((p) => new NationalAI(p.slot, DIFFICULTY[this.difficulty].missiles, DIFFICULTY[this.difficulty].defenseBudgetMul, map.kind === 'islands'));
     if (this.mode === 'sandbox') this.national.policiesActive = false;
     if (this.mode === 'sandbox') this.sim.sandbox = { slots: this.players.filter((p) => !p.isAI).map((p) => p.slot), instant: true, aiActive: false, reveal: false };
     this.wire();
@@ -622,7 +622,7 @@ export class Room {
       const st = save.ais.find((x) => x.slot === a.slot);
       if (st) a.load(st.state);
     }
-    room.nationalAIs = room.players.filter((p) => p.isAI).map((p) => new NationalAI(p.slot, DIFFICULTY[room.difficulty].missiles, DIFFICULTY[room.difficulty].defenseBudgetMul));
+    room.nationalAIs = room.players.filter((p) => p.isAI).map((p) => new NationalAI(p.slot, DIFFICULTY[room.difficulty].missiles, DIFFICULTY[room.difficulty].defenseBudgetMul, room.sim?.map.kind === 'islands'));
     for (const [slot, usd] of save.gdpStart) room.gdpStart.set(slot, usd);
     room.reportSamples = save.report?.samples ?? [];
     for (const [slot, r] of save.report?.bestRank ?? []) room.bestRank.set(slot, r);
