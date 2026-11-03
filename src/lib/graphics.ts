@@ -51,6 +51,8 @@ export interface GraphicsProfile {
    * exposição local que clareia regiões em sombra.
    */
   ultra: boolean;
+  /** Ondas na malha da água, espuma nas cristas e rastro mais visível (03/11: do Alto para cima). */
+  waterWaves: boolean;
   /**
    * Ultra+ (cinematográfico): vai além do Ultra — modelos bem mais arredondados (≈20% low-poly,
    * 80% realista), sombras de alta resolução com penumbra larga, sombras de nuvens que se movem
@@ -76,6 +78,7 @@ export const PROFILES: Record<GraphicsPreset, GraphicsProfile> = {
     dynamicLights: 0,
     envProbe: false,
     ultra: false,
+    waterWaves: false,
     cinematic: false,
     globe: { textureWidth: 1024, clouds: false, stars: 400, maxFps: 60 },
   },
@@ -92,6 +95,7 @@ export const PROFILES: Record<GraphicsPreset, GraphicsProfile> = {
     dynamicLights: 2,
     envProbe: false,
     ultra: false,
+    waterWaves: false,
     cinematic: false,
     globe: { textureWidth: 2048, clouds: true, stars: 1200, maxFps: 60 },
   },
@@ -108,6 +112,7 @@ export const PROFILES: Record<GraphicsPreset, GraphicsProfile> = {
     dynamicLights: 4,
     envProbe: true,
     ultra: false,
+    waterWaves: true,
     cinematic: false,
     globe: { textureWidth: 4096, clouds: true, stars: 2000, maxFps: 60 },
   },
@@ -124,6 +129,7 @@ export const PROFILES: Record<GraphicsPreset, GraphicsProfile> = {
     dynamicLights: 6,
     envProbe: true,
     ultra: true,
+    waterWaves: true,
     cinematic: false,
     globe: { textureWidth: 4096, clouds: true, stars: 2400, maxFps: 60 },
   },
@@ -140,6 +146,7 @@ export const PROFILES: Record<GraphicsPreset, GraphicsProfile> = {
     dynamicLights: 8,
     envProbe: true,
     ultra: true,
+    waterWaves: true,
     cinematic: true,
     globe: { textureWidth: 4096, clouds: true, stars: 3000, maxFps: 60 },
   },

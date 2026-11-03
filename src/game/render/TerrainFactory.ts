@@ -188,8 +188,10 @@ export interface TerrainHandle {
   update: (time: number) => void;
   /** Controle do reflexo planar da água (null sem reflexo planar). */
   reflection: WaterHandle['reflection'];
-  /** Ondas da água (Ultra), que o KGPS pode trocar por um plano simples. */
+  /** Ondas da água (Alto e acima), que o KGPS pode trocar por um plano simples. */
   waves: WaterHandle['waves'];
+  /** Rastro de espuma dos navios (ver `WaterHandle.setShips`). */
+  setShips: WaterHandle['setShips'];
   /**
    * Esconde árvores, arbustos e pedras decorativos que ficam sob construções (retângulos em
    * coordenadas de mundo) e devolve os que voltaram a ficar livres. Retorna true se algo mudou.
@@ -255,7 +257,7 @@ interface DecorTrack {
 /** Folga em volta do terreno da construção: a copa ou o arbusto não invade a borda do prédio. */
 const DECOR_MARGIN = 0.35;
 
-export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: WaterReflection = 'sky', ultra = false, cinematic = false, tint: [number, number, number] = [1, 1, 1]): TerrainHandle {
+export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: WaterReflection = 'sky', ultra = false, cinematic = false, tint: [number, number, number] = [1, 1, 1], waves = ultra): TerrainHandle {
   const group = new THREE.Group();
   group.name = 'terrain';
   const W = map.width * map.cellSize;
@@ -336,7 +338,7 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
   disposables.push(groundHeights.texture);
   const shore = shoreTexture(map, Terrain.Water);
   disposables.push(shore);
-  const water = createWater(W, H, reflection, { waves: ultra, ground: groundHeights, shore, reflectionSize: cinematic ? 1024 : ultra ? 768 : 512 });
+  const water = createWater(W, H, reflection, { waves, ground: groundHeights, shore, reflectionSize: cinematic ? 1024 : ultra ? 768 : 512 });
   group.add(water.mesh);
   disposables.push(water);
 
@@ -578,6 +580,7 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
     update: water.update,
     reflection: water.reflection,
     waves: water.waves,
+    setShips: water.setShips,
     clearUnder,
     markDepleted,
     repaint,

@@ -39,9 +39,12 @@ export function groundHeightTexture(heights: ArrayLike<number>, nx: number, nz: 
 
 /**
  * Distância até a costa (03/11), uma célula por texel: 0 na margem, 1 a `SHORE_CELLS` células ou mais mar adentro. A
- * água estilizada usa para o degradê turquesa → azul-profundo e para as cáusticas mais fortes no raso.
+ * água usa como profundidade aparente: turquesa no raso, azul que escurece quanto mais longe da costa (o mapa não tem
+ * fundo real além da margem) e as cáusticas só no raso.
  */
-export const SHORE_CELLS = 14;
+export const SHORE_CELLS = 30;
+/** Navios que deixam rastro de espuma na água (os mais perto da câmera). */
+export const WAKE_SHIPS = 12;
 export function shoreTexture(map: { width: number; height: number; terrain: ArrayLike<number> }, water: number): THREE.DataTexture {
   const { width: w, height: h } = map;
   const dist = new Uint8Array(w * h).fill(255);
@@ -159,6 +162,10 @@ const fragmentShader = /* glsl */ `
   uniform float uHasShore;
   uniform vec3 uMid;
   uniform float uNatural;
+  uniform vec3 uAbyss;
+  uniform vec4 uShips[${WAKE_SHIPS}];
+  uniform vec2 uShipK[${WAKE_SHIPS}];
+  uniform int uShipCount;
   varying vec4 vReflUv;
   varying vec3 vWorld;
   varying vec2 vFogXZ;
@@ -235,6 +242,36 @@ const fragmentShader = /* glsl */ `
     float hz = fbm(a + vec2(0.0, e)) + 0.45 * fbm(b + vec2(0.0, e));
     return vec3((h0 - hx) * 1.9, h0, (h0 - hz) * 1.9);
   }
+  // rastro dos navios: esteira de espuma atrás da popa que abre em "V" e some com a distância, e a onda da proa
+  float wake(vec2 p) {
+    float f = 0.0;
+    for (int i = 0; i < ${WAKE_SHIPS}; i++) {
+      if (i >= uShipCount) break;
+      vec4 sh = uShips[i];
+      float spd = uShipK[i].x;
+      float len = uShipK[i].y;
+      vec2 d = p - sh.xy;
+      float along = -dot(d, sh.zw);
+      float side = abs(d.x * sh.w - d.y * sh.z);
+      float behind = along - len * 0.5;
+      float tail = len * (1.6 + 2.4 * spd);
+      if (behind > -len * 1.2 && behind < tail) {
+        float t = clamp(behind / tail, 0.0, 1.0);
+        // ruído esticado no sentido do navio: a espuma sai em listras, não em nuvem
+        float n = smoothstep(0.3, 0.75, wNoise(vec2(along * 0.9 + uTime * 1.5, side * 5.0)));
+        // esteira central (turbilhão da hélice), mais larga com a distância
+        float width = len * 0.12 + max(behind, 0.0) * 0.05;
+        float core = (1.0 - smoothstep(width * 0.3, width, side)) * step(0.0, behind) * (1.0 - t) * (1.0 - t);
+        // braços do "V" (ondas de Kelvin, ~19°)
+        float arm = abs(side - max(behind, 0.0) * 0.34 - len * 0.2);
+        float kel = (1.0 - smoothstep(0.0, 0.1 + t * 0.25, arm)) * step(0.0, behind) * (1.0 - t) * (1.0 - t) * 0.45;
+        // onda da proa: espuma junto do casco na frente
+        float bow = (1.0 - smoothstep(0.0, len * 0.25, abs(along + len * 0.45))) * (1.0 - smoothstep(len * 0.12, len * 0.3, side));
+        f = max(f, ((core * (0.4 + 0.5 * n)) + kel * n + bow * 0.6) * clamp(spd, 0.0, 1.0) * 0.85);
+      }
+    }
+    return clamp(f, 0.0, 1.0);
+  }
   void main() {
     // superfície facetada (low poly): a normal vem do triângulo, com só um pouco da ondulação fina por cima
     vec3 fa1 = facet(vWorld.xz * 0.42);
@@ -268,8 +305,16 @@ const fragmentShader = /* glsl */ `
     }
     // degradê pela distância até a costa: turquesa na beira, azul-médio, azul-profundo em mar aberto
     float off = uHasShore > 0.5 ? texture2D(uShore, vWorld.xz / uFogSize).r : 0.6;
-    vec3 base = mix(uShallow, uMid, smoothstep(0.0, 0.32, off));
-    base = mix(base, uDeep, smoothstep(0.3, 1.0, off));
+    vec3 base;
+    if (uNatural > 0.5) {
+      // quanto mais longe da costa (mais fundo), mais escuro: turquesa, azul-médio, azul-profundo e quase marinho
+      base = mix(uShallow, uMid, smoothstep(0.0, 0.14, off));
+      base = mix(base, uDeep, smoothstep(0.12, 0.5, off));
+      base = mix(base, uAbyss, smoothstep(0.45, 1.0, off));
+    } else {
+      base = mix(uShallow, uMid, smoothstep(0.0, 0.15, off));
+      base = mix(base, uDeep, smoothstep(0.14, 0.47, off));
+    }
     // facetas triangulares (low poly) em duas escalas, com brilho que muda devagar
     float fa = fa1.z * 0.65 + fa2.z * 0.35;
     // natural: manchas largas de cor (vento, profundidade) no lugar dos triângulos
@@ -284,9 +329,9 @@ const fragmentShader = /* glsl */ `
       float c1 = 1.0 - abs(fbm(vWorld.xz * 1.1 + vec2(uTime * 0.18, uTime * 0.11)) * 2.0 - 1.0);
       float c2 = 1.0 - abs(fbm(vWorld.xz * 1.3 - vec2(uTime * 0.13, -uTime * 0.16) + 4.0) * 2.0 - 1.0);
       float caustN = pow(c1 * c2, 6.0);
-      col += vec3(0.6, 0.9, 0.9) * caustN * mix(0.25, 0.0, smoothstep(0.0, 0.3, off));
+      col += vec3(0.6, 0.9, 0.9) * caustN * mix(0.14, 0.0, smoothstep(0.0, 0.12, off));
       // sol: faixa de brilho larga e cintilação nas pontas das ondulações
-      col += uSunColor * (pow(sd, 60.0) * 0.45 + pow(sd, 10.0) * 0.08);
+      col += uSunColor * (pow(sd, 90.0) * 0.3 + pow(sd, 12.0) * 0.035);
       col += uSunColor * smoothstep(0.992, 1.0, sd) * step(0.7, wNoise(vWorld.xz * 9.0 + uTime * 2.0)) * 0.5;
     } else {
       // linhas de luz das cáusticas, mais fortes no raso e fracas em mar aberto
@@ -312,6 +357,8 @@ const fragmentShader = /* glsl */ `
       float edgeN = smoothstep(0.0, 0.02, depth) * (1.0 - smoothstep(reachN * 0.45, reachN, depth));
       float crestN = smoothstep(0.085, 0.105, vCrest) * smoothstep(0.5, 0.7, flowN);
       float foamN = clamp(edgeN * smoothstep(0.35, 0.55, flowN + 0.15) + crestN * 0.3, 0.0, 1.0);
+      float wk = uShipCount > 0 ? wake(vWorld.xz) : 0.0;
+      foamN = max(foamN, wk);
       col = mix(col, vec3(0.9, 0.94, 0.94), foamN * 0.85);
       alpha = max(alpha, foamN);
     } else if (uWaves > 0.5) {
@@ -347,7 +394,12 @@ function uniforms(): Record<string, THREE.IUniform> {
     uGroundRes: { value: new THREE.Vector2(1, 1) },
     uTime: { value: 0 },
     // água estilizada (03/11): turquesa na costa, azul-médio e azul-profundo em mar aberto
-    uDeep: { value: new THREE.Color('#123f6a') },
+    uDeep: { value: new THREE.Color('#0f355c') },
+    /** Mar aberto, longe de qualquer costa (03/11, pedido do usuário: "quanto mais profundo mais escuro"). */
+    uAbyss: { value: new THREE.Color('#061a33') },
+    uShips: { value: Array.from({ length: WAKE_SHIPS }, () => new THREE.Vector4()) },
+    uShipK: { value: Array.from({ length: WAKE_SHIPS }, () => new THREE.Vector2()) },
+    uShipCount: { value: 0 },
     uMid: { value: new THREE.Color('#1f73a0') },
     /** Água natural estilizada (opção 2): ondulação suave, cáusticas macias, raso transparente e espuma recortada. */
     uNatural: { value: 1 },
@@ -382,6 +434,16 @@ export interface WaterHandle {
    * `uWaves`). Null fora do Ultra. KAICS Adaptables+ · K-09.
    */
   waves: { readonly on: boolean; set(on: boolean): void } | null;
+  /** Navios para o rastro de espuma (posição, rumo em radianos no plano x-z e comprimento); a velocidade sai daqui. */
+  setShips(ships: readonly WakeShip[], time: number): void;
+}
+
+export interface WakeShip {
+  id: number;
+  x: number;
+  z: number;
+  heading: number;
+  length: number;
 }
 
 export interface WaterOptions {
@@ -473,10 +535,38 @@ export function createWater(W: number, H: number, mode: WaterReflection, opts: W
         },
       }
     : null;
+  // velocidade de cada navio (unidades/s, suavizada) a partir da posição entre os quadros
+  const track = new Map<number, { x: number; z: number; t: number; v: number }>();
+  const setShips = (ships: readonly WakeShip[], time: number): void => {
+    const u = material.uniforms;
+    const pos = u.uShips!.value as THREE.Vector4[];
+    const k = u.uShipK!.value as THREE.Vector2[];
+    let n = 0;
+    const seen = new Set<number>();
+    for (const sh of ships) {
+      seen.add(sh.id);
+      const prev = track.get(sh.id);
+      let v = 0;
+      if (prev) {
+        const dt = time - prev.t;
+        const inst = dt > 0 ? Math.hypot(sh.x - prev.x, sh.z - prev.z) / dt : prev.v;
+        v = prev.v + ((inst > 20 ? prev.v : inst) - prev.v) * Math.min(1, Math.max(0, dt) * 2);
+      }
+      track.set(sh.id, { x: sh.x, z: sh.z, t: time, v });
+      if (n >= WAKE_SHIPS || v < 0.15) continue;
+      pos[n]!.set(sh.x, sh.z, Math.cos(sh.heading), Math.sin(sh.heading));
+      // força 0..1 pela velocidade (os navios andam ~1,5 a 4 unidades/s)
+      k[n]!.set(Math.min(1, v / 3), sh.length);
+      n++;
+    }
+    for (const id of track.keys()) if (!seen.has(id)) track.delete(id);
+    u.uShipCount!.value = n;
+  };
   return {
     mesh,
     reflection,
     waves,
+    setShips,
     update: (time) => (material.uniforms.uTime!.value = time),
     dispose: () => {
       geo.dispose();

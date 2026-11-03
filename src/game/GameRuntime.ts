@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { GameSpeed, MatchStartInfo, ServerMessage } from '../../shared/protocol.ts';
 import type { Command, SandboxToggle } from '../../shared/sim/commands.ts';
 import { BUILDINGS, CITIZEN, CITY, MILITARY_RESEARCH, MILITARY_RESEARCH_IDS, RECRUIT, RESOURCE_TYPES, ROAD, HIGHWAY, SERVICES, TICK_RATE, UNITS, emptyStockpile, type BuildingType, type MilitaryResearchId, type Terrain, type UnitType } from '../../shared/sim/config.ts';
+import { WAKE_SHIPS, type WakeShip } from './render/Water.ts';
 import { MOD_IDS, MODS, checkModernize, pickRefitFacility, type FacilityInfo, type ModId, type ModernizeCheck } from '../../shared/sim/modernization.ts';
 import { anchorForCursor, placementError } from '../../shared/sim/placement.ts';
 import type { BuildingSnapshot, Snapshot, UnitSnapshot } from '../../shared/sim/snapshot.ts';
@@ -576,7 +577,7 @@ export class GameRuntime {
     this.scene.add(this.weather.group);
     // mapa do tipo Deserto: tons áridos no teatro (as batalhas locais usam o bioma da região)
     const tint = this.opts.battle?.biome ? BIOME_TINT[this.opts.battle.biome] : this.map.kind === 'desert' ? BIOME_TINT.arid : undefined;
-    this.terrain = buildTerrain(this.map, this.opts.profile.terrain, this.opts.profile.reflections, this.opts.profile.ultra, this.opts.profile.cinematic, tint);
+    this.terrain = buildTerrain(this.map, this.opts.profile.terrain, this.opts.profile.reflections, this.opts.profile.ultra, this.opts.profile.cinematic, tint, this.opts.profile.waterWaves);
     this.scene.add(this.terrain.group);
     this.sharpenTextures(this.terrain.group);
     // modelos do Nature Kit chegam depois; até lá, vegetação procedural
@@ -1507,6 +1508,7 @@ export class GameRuntime {
       this.sky.position.copy(this.camera.position);
       (this.sky.material as THREE.ShaderMaterial).uniforms.uTime!.value = now / 1000;
       this.terrain.update(now / 1000);
+      this.feedWakes(now / 1000);
       // vento das folhas (movimento reduzido: parado)
       windUniforms.uWindTime.value = useSettingsStore.getState().reducedMotion || prefersReducedMotion() ? 0 : now / 1000;
       this.shadowFollow?.update(this.cameraCtl.target, this.cameraCtl.distance);
@@ -3226,6 +3228,22 @@ export class GameRuntime {
       return;
     }
     warn('Demolir: clique numa construção ou estrada sua');
+  }
+
+  /** Navios para o rastro de espuma na água (03/11): os visíveis mais perto do centro da câmera. */
+  private readonly wakeShips: WakeShip[] = [];
+  private feedWakes(time: number): void {
+    const list = this.wakeShips;
+    list.length = 0;
+    const t = this.cameraCtl.target;
+    for (const tu of this.units.values()) {
+      const v = tu.visual;
+      const def = UNITS[v.type];
+      if (!def.naval || !v.group.visible) continue;
+      list.push({ id: v.id, x: v.renderPos.x, z: v.renderPos.y, heading: v.facing, length: def.radius * 2 });
+    }
+    if (list.length > WAKE_SHIPS) list.sort((a, b) => Math.hypot(a.x - t.x, a.z - t.z) - Math.hypot(b.x - t.x, b.z - t.z));
+    this.terrain.setShips(list, time);
   }
 
   centerOnHQ(): void {
