@@ -1566,7 +1566,7 @@ export class TacticalAI {
     }
     if (loaded.length && sim.tick - a.tick < AI_SAIL_TICKS) {
       // navio parado ainda carregado (ordem recusada ou costa ocupada): tenta de novo
-      for (const s of loaded) if (s.order.kind === 'idle') cmds.push({ type: 'unload', shipId: s.id, x: a.target.x, y: a.target.y });
+      if ((sim.tick - a.tick) % (TICK_RATE * 5) < TICK_RATE) for (const s of loaded) if (s.order.kind === 'idle') cmds.push({ type: 'unload', shipId: s.id, x: a.target.x, y: a.target.y });
       return;
     }
     // em terra: a onda avança atacando; os navios voltam para a costa de casa

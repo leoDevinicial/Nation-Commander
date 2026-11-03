@@ -1232,8 +1232,9 @@ export class Simulation {
         ship.repathTimer = 0;
         this.grid.naval = true;
         try {
-          const coast = this.coastWater(target);
-          if (!coast || !this.planPath(ship, coast)) {
+          // a costa mais perto pode ser um lago: só conta a água ligada à do navio
+          const sea = this.waterBody(ship.pos);
+          if (!this.coastWaters(target, 3, sea).some((coast) => this.planPath(ship, coast))) {
             ship.order = { kind: 'idle' };
             return 'Sem costa alcançável pelo mar perto desse ponto';
           }
@@ -3176,27 +3177,48 @@ export class Simulation {
   }
 
   private coastWater(p: Vec2): Vec2 | null {
+    return this.coastWaters(p, 1)[0] ?? null;
+  }
+
+  /** Células de água ligadas (4 vizinhas) à do ponto: o mar ou lago onde o navio está. */
+  private waterBody(p: Vec2): Set<number> {
+    const g = this.grid;
+    const W = this.map.width;
+    const c = g.worldToCell(p);
+    const out = new Set<number>();
+    const stack = [g.index(c.cx, c.cy)];
+    while (stack.length) {
+      const i = stack.pop()!;
+      if (out.has(i) || this.map.terrain[i] !== Terrain.Water) continue;
+      out.add(i);
+      const x = i % W;
+      if (x > 0) stack.push(i - 1);
+      if (x < W - 1) stack.push(i + 1);
+      if (i >= W) stack.push(i - W);
+      if (i + W < W * this.map.height) stack.push(i + W);
+    }
+    return out;
+  }
+
+  /** Até `max` células de água coladas à terra perto do ponto, da mais perto para a mais longe (raio até 24). */
+  private coastWaters(p: Vec2, max: number, within?: Set<number>): Vec2[] {
     const g = this.grid;
     const c = g.worldToCell(p);
-    for (let r = 0; r <= 14; r++) {
-      let best: Cell | null = null;
-      let bestD = Infinity;
+    const out: Vec2[] = [];
+    for (let r = 0; r <= 24 && out.length < max; r++) {
+      const ring: { cx: number; cy: number; d: number }[] = [];
       for (let dy = -r; dy <= r; dy++)
         for (let dx = -r; dx <= r; dx++) {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
           const x = c.cx + dx;
           const y = c.cy + dy;
-          if (!g.inBounds(x, y) || g.terrainAt(x, y) !== Terrain.Water) continue;
-          if (!this.landAround(x, y, 1)) continue;
-          const d = dx * dx + dy * dy;
-          if (d < bestD) {
-            bestD = d;
-            best = { cx: x, cy: y };
-          }
+          if (!g.inBounds(x, y) || g.terrainAt(x, y) !== Terrain.Water || (within && !within.has(g.index(x, y))) || !this.landAround(x, y, 1)) continue;
+          ring.push({ cx: x, cy: y, d: dx * dx + dy * dy });
         }
-      if (best) return g.cellCenter(best);
+      ring.sort((a, b) => a.d - b.d || a.cy - b.cy || a.cx - b.cx);
+      for (const x of ring) out.push(g.cellCenter(x));
     }
-    return null;
+    return out.slice(0, max);
   }
 
   /** Células de terra transitável perto do ponto, da mais perto para a mais longe (até 6; a margem do navio). */
