@@ -158,6 +158,7 @@ const fragmentShader = /* glsl */ `
   uniform sampler2D uShore;
   uniform float uHasShore;
   uniform vec3 uMid;
+  uniform float uNatural;
   varying vec4 vReflUv;
   varying vec3 vWorld;
   varying vec2 vFogXZ;
@@ -211,12 +212,40 @@ const fragmentShader = /* glsl */ `
     float a = h * 6.2831 + uTime * (0.25 + 0.2 * h);
     return vec3(cos(a), sin(a), 0.5 + 0.5 * sin(uTime * 0.6 + h * 6.2831));
   }
+  // água natural estilizada (opção 2): ruído em várias oitavas, com o domínio torcido para não formar grade
+  float fbm(vec2 p) {
+    float a = 0.5;
+    float s = 0.0;
+    for (int i = 0; i < 4; i++) {
+      s += a * wNoise(p);
+      p = mat2(1.6, 1.2, -1.2, 1.6) * p + 7.3;
+      a *= 0.5;
+    }
+    return s;
+  }
+  // normal de ondulações que andam em duas direções (vento e marulho), suaves e sem facetas
+  vec3 swell(vec2 p) {
+    float t = uTime;
+    vec2 w = vec2(fbm(p * 0.35 + t * 0.05), fbm(p * 0.35 - t * 0.04 + 3.1)) * 1.6;
+    vec2 a = p * 0.75 + w + vec2(t * 0.30, t * 0.12);
+    vec2 b = p * 1.9 - w * 0.5 - vec2(t * 0.22, -t * 0.33);
+    float e = 0.12;
+    float h0 = fbm(a) + 0.45 * fbm(b);
+    float hx = fbm(a + vec2(e, 0.0)) + 0.45 * fbm(b + vec2(e, 0.0));
+    float hz = fbm(a + vec2(0.0, e)) + 0.45 * fbm(b + vec2(0.0, e));
+    return vec3((h0 - hx) * 1.9, h0, (h0 - hz) * 1.9);
+  }
   void main() {
     // superfície facetada (low poly): a normal vem do triângulo, com só um pouco da ondulação fina por cima
     vec3 fa1 = facet(vWorld.xz * 0.42);
     vec3 fa2 = facet(vWorld.xz * 0.95 + 3.7);
     vec3 rip = ripples(vWorld.xz);
     vec3 n = normalize(vec3(fa1.x * 0.085 + fa2.x * 0.035 + rip.x * 0.2 + vWaveN.x, 1.0, fa1.y * 0.085 + fa2.y * 0.035 + rip.z * 0.2 + vWaveN.z));
+    vec3 sw = vec3(0.0);
+    if (uNatural > 0.5) {
+      sw = swell(vWorld.xz);
+      n = normalize(vec3(sw.x * 0.26 + rip.x * 0.05 + vWaveN.x * 0.45, 1.0, sw.z * 0.26 + rip.z * 0.05 + vWaveN.z * 0.45));
+    }
     vec3 v = normalize(cameraPosition - vWorld);
     float fres = 0.04 + 0.96 * pow(1.0 - max(dot(n, v), 0.0), 5.0);
     vec3 r = reflect(-v, n);
@@ -243,18 +272,30 @@ const fragmentShader = /* glsl */ `
     base = mix(base, uDeep, smoothstep(0.3, 1.0, off));
     // facetas triangulares (low poly) em duas escalas, com brilho que muda devagar
     float fa = fa1.z * 0.65 + fa2.z * 0.35;
-    base *= 0.86 + 0.28 * fa;
+    // natural: manchas largas de cor (vento, profundidade) no lugar dos triângulos
+    base *= uNatural > 0.5 ? 0.88 + 0.22 * smoothstep(0.25, 0.75, sw.y) : 0.86 + 0.28 * fa;
     // reflexo visível mesmo na câmera alta do RTS (fator mínimo), mais forte rente ao horizonte
     // reflexo bem presente mesmo na câmera alta do RTS (planar mais forte), e quase espelho
     // rente ao horizonte (Fresnel)
-    vec3 col = mix(base, refl, clamp((uPlanar > 0.5 ? 0.3 : 0.16) + fres * 0.85, 0.0, 0.9));
-    // linhas de luz das cáusticas, mais fortes no raso e fracas em mar aberto
-    float edgeC = cells(vWorld.xz * 0.5);
-    float caust = 1.0 - smoothstep(0.0, 0.05, edgeC);
-    col += vec3(0.55, 0.85, 0.9) * caust * mix(0.3, 0.04, smoothstep(0.0, 0.5, off));
-    // brilho especular do sol nas ondulações
+    vec3 col = mix(base, refl, clamp((uPlanar > 0.5 ? 0.3 : 0.16) + fres * (uNatural > 0.5 ? 1.0 : 0.85), 0.0, 0.9));
     float sd = max(dot(r, uSunDir), 0.0);
-    col += uSunColor * (pow(sd, 120.0) * 0.6 + pow(sd, 20.0) * 0.06);
+    if (uNatural > 0.5) {
+      // cáusticas macias só no raso: duas camadas de ruído cruzadas, sem o mosaico de células
+      float c1 = 1.0 - abs(fbm(vWorld.xz * 1.1 + vec2(uTime * 0.18, uTime * 0.11)) * 2.0 - 1.0);
+      float c2 = 1.0 - abs(fbm(vWorld.xz * 1.3 - vec2(uTime * 0.13, -uTime * 0.16) + 4.0) * 2.0 - 1.0);
+      float caustN = pow(c1 * c2, 6.0);
+      col += vec3(0.6, 0.9, 0.9) * caustN * mix(0.25, 0.0, smoothstep(0.0, 0.3, off));
+      // sol: faixa de brilho larga e cintilação nas pontas das ondulações
+      col += uSunColor * (pow(sd, 60.0) * 0.45 + pow(sd, 10.0) * 0.08);
+      col += uSunColor * smoothstep(0.992, 1.0, sd) * step(0.7, wNoise(vWorld.xz * 9.0 + uTime * 2.0)) * 0.5;
+    } else {
+      // linhas de luz das cáusticas, mais fortes no raso e fracas em mar aberto
+      float edgeC = cells(vWorld.xz * 0.5);
+      float caust = 1.0 - smoothstep(0.0, 0.05, edgeC);
+      col += vec3(0.55, 0.85, 0.9) * caust * mix(0.3, 0.04, smoothstep(0.0, 0.5, off));
+      // brilho especular do sol nas ondulações
+      col += uSunColor * (pow(sd, 120.0) * 0.6 + pow(sd, 20.0) * 0.06);
+    }
     // cristas das ondulações um pouco mais claras: a superfície "mexe" mesmo vista de cima
     col += vec3(0.05, 0.06, 0.06) * smoothstep(0.2, 0.6, n.x + n.z);
     float alpha = 0.9;
@@ -262,7 +303,18 @@ const fragmentShader = /* glsl */ `
     float depth = vWorld.y - groundHeight(vWorld.xz);
     float shallow = 1.0 - smoothstep(0.0, 0.3, depth);
     col = mix(col, col * vec3(1.02, 1.08, 1.05) + vec3(0.01, 0.025, 0.02), shallow * 0.5);
-    if (uWaves > 0.5) {
+    if (uNatural > 0.5) {
+      // natural: a água fica mais transparente no raso (a areia do fundo aparece) e a espuma da margem tem borda
+      // recortada pelo ruído, com ou sem ondas na malha
+      alpha = mix(0.93, 0.5, 1.0 - smoothstep(0.0, 0.45, depth));
+      float flowN = fbm(vWorld.xz * 2.4 + vec2(uTime * 0.5, -uTime * 0.35));
+      float reachN = 0.09 + 0.04 * sin(uTime * 1.1 + vWorld.x * 0.6 + vWorld.z * 0.45) + flowN * 0.06;
+      float edgeN = smoothstep(0.0, 0.02, depth) * (1.0 - smoothstep(reachN * 0.45, reachN, depth));
+      float crestN = smoothstep(0.085, 0.105, vCrest) * smoothstep(0.5, 0.7, flowN);
+      float foamN = clamp(edgeN * smoothstep(0.35, 0.55, flowN + 0.15) + crestN * 0.3, 0.0, 1.0);
+      col = mix(col, vec3(0.9, 0.94, 0.94), foamN * 0.85);
+      alpha = max(alpha, foamN);
+    } else if (uWaves > 0.5) {
       alpha = mix(0.92, 0.72, shallow);
       // espuma: faixa fina sobre a água logo antes da margem, que avança e recua um pouco (sem
       // passar para o solo), e cristas das ondas maiores
@@ -297,6 +349,8 @@ function uniforms(): Record<string, THREE.IUniform> {
     // água estilizada (03/11): turquesa na costa, azul-médio e azul-profundo em mar aberto
     uDeep: { value: new THREE.Color('#123f6a') },
     uMid: { value: new THREE.Color('#1f73a0') },
+    /** Água natural estilizada (opção 2): ondulação suave, cáusticas macias, raso transparente e espuma recortada. */
+    uNatural: { value: 1 },
     uShallow: { value: new THREE.Color('#2fa6b0') },
     uShore: { value: null },
     uHasShore: { value: 0 },
