@@ -99,6 +99,13 @@ aparece no mapa ao escolher o alvo. O alvo pode ser qualquer ponto fora da próp
 território inimigo, este só em guerra), sem precisar estar à vista. O dano em área não atinge nações em paz com quem
 lançou. Para alcançar o inimigo com o silo, é preciso construí-lo perto da fronteira.
 
+**Lançamento do submarino** (só visual, pedido do usuário): na preparação a tampa do tubo da frente abre
+(`UnitVisual.setTubeOpen`); na contagem final o míssil sobe do tubo por baixo d'água e rompe a superfície num borrifo
+com anel de espuma e vapor, e só então acende o motor. No voo (`AirLayer.frameCruiseFlight`, `cruisePoint`) ele sobe
+quase na vertical, solta o propulsor, faz a curva e segue baixo, rente ao mar e ao terreno, até mergulhar no alvo; o
+modelo é próprio (corpo cinza fino, asas retas, entrada de ar e cauda em cruz). O lançamento e o evento levam
+`cruise: true` para o cliente escolher o desenho e o raio da explosão.
+
 **C-5 Galaxy** (aeronave da Base Aérea nível 2, era 3, pesquisa Operações aerotransportadas): o botão
 **Paraquedistas** embarca as tropas próprias paradas a até 14 da base (até 12 a pé e 3 veículos), voa até o ponto
 escolhido no anel de alcance, lança as tropas em volta dele e volta. Antiaérea e caças inimigos podem derrubá-lo; aí

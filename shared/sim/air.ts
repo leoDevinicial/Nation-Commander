@@ -1053,7 +1053,7 @@ export class AirSystem {
 
   private missileEvent(l: MissileLaunch, text: string): void {
     const r = l.result && !l.result.intercepted ? { damage: l.result.damage, destroyed: l.result.destroyed, casualties: l.result.casualties } : {};
-    this.sim.emitTrade({ type: 'missile', tick: this.sim.tick, owner: l.owner, launchId: l.id, state: l.state, text, from: { ...l.from }, target: { ...l.target }, targetOwner: l.targetOwner, gen: l.gen ?? 1, ...(l.nuclear ? { nuclear: true } : {}), ...r });
+    this.sim.emitTrade({ type: 'missile', tick: this.sim.tick, owner: l.owner, launchId: l.id, state: l.state, text, from: { ...l.from }, target: { ...l.target }, targetOwner: l.targetOwner, gen: l.gen ?? 1, ...(l.nuclear ? { nuclear: true } : {}), ...(l.cruise ? { cruise: true } : {}), ...r });
   }
 
   private impact(l: MissileLaunch): void {

@@ -4,12 +4,12 @@ import type { AirView } from '../../../shared/sim/snapshot.ts';
 import type { Effects } from './Effects.ts';
 import { factionColor } from './palette.ts';
 import type { ModelLayers } from './models/kit.ts';
-import { AIRBASE_RUNWAY, AIRBASE_SLOTS, DRONE_PROP_X, FIGHTER_SCALE, aircraftModel, bomberStoresModel, droneModel, droneProp, missileModel } from './models/military.ts';
+import { AIRBASE_RUNWAY, AIRBASE_SLOTS, DRONE_PROP_X, FIGHTER_SCALE, aircraftModel, bomberStoresModel, cruiseMissileModel, droneModel, droneProp, missileModel } from './models/military.ts';
 import { glowTexture, volumetricSmokeTexture } from './textures.ts';
 
 type Flight = AirView['flights'][number];
 type Launch = AirView['launches'][number];
-type Kind = 'fighter' | 'gripen' | 'bomber' | 'recon' | 'transport' | 'transport2' | 'missile' | 'missile2' | 'stores' | 'drone' | 'droneProp';
+type Kind = 'fighter' | 'gripen' | 'bomber' | 'recon' | 'transport' | 'transport2' | 'missile' | 'missile2' | 'stores' | 'drone' | 'droneProp' | 'cruise' | 'cruiseBooster';
 type DroneView = AirView['drones'][number];
 
 const ALTITUDE = 7;
@@ -381,6 +381,9 @@ interface TrackedMissile {
   trailAcc: number;
   lightAcc: number;
   last: THREE.Vector3 | null;
+  /** Míssil de cruzeiro (03/11): propulsor de saída (some ao soltar) e se já rompeu a superfície da água. */
+  booster?: THREE.Group;
+  surfaced?: boolean;
 }
 
 /** Partícula do rastro (fumaça do motor e vapor do silo), de um conjunto fixo e reaproveitado. */
@@ -421,7 +424,7 @@ const models = new Map<Kind, ModelLayers>();
 function model(kind: Kind): ModelLayers {
   let m = models.get(kind);
   if (!m) {
-    m = kind === 'missile' ? missileModel(1) : kind === 'missile2' ? missileModel(2) : kind === 'stores' ? bomberStoresModel() : kind === 'drone' ? droneModel(1) : kind === 'droneProp' ? droneProp(1) : aircraftModel(kind);
+    m = kind === 'cruise' ? cruiseMissileModel(false) : kind === 'cruiseBooster' ? cruiseMissileModel(true) : kind === 'missile' ? missileModel(1) : kind === 'missile2' ? missileModel(2) : kind === 'stores' ? bomberStoresModel() : kind === 'drone' ? droneModel(1) : kind === 'droneProp' ? droneProp(1) : aircraftModel(kind);
     models.set(kind, m);
   }
   return m;
@@ -479,6 +482,29 @@ export function missilePoint(l: Pick<Launch, 'fx' | 'fy' | 'tx' | 'ty'>, k: numb
 }
 
 const AXIS = new THREE.Vector3(1, 0, 0);
+
+/** Fração do voo de cruzeiro em que o propulsor solta (fim da subida). */
+const CRUISE_BOOST = 0.08;
+/** Altura do voo de cruzeiro (rente ao mar e ao terreno) e do topo da subida. */
+const CRUISE_ALT = 1.3;
+const CRUISE_POP = 2.8;
+
+/**
+ * Trajetória do míssil de cruzeiro: sobe quase na vertical até `CRUISE_POP`, solta o propulsor, desce para a altura
+ * de cruzeiro e segue em linha reta; nos últimos 8% mergulha no alvo.
+ */
+export function cruisePoint(l: Pick<Launch, 'fx' | 'fy' | 'tx' | 'ty'>, k: number, out = new THREE.Vector3()): THREE.Vector3 {
+  const c = Math.max(0, Math.min(1, k));
+  const s = c < CRUISE_BOOST ? 0.004 * (c / CRUISE_BOOST) : 0.004 + ((c - CRUISE_BOOST) / (1 - CRUISE_BOOST)) * 0.996;
+  let h: number;
+  if (c < CRUISE_BOOST) h = 0.8 + (CRUISE_POP - 0.8) * Math.sin((c / CRUISE_BOOST) * (Math.PI / 2));
+  else if (c < 0.2) {
+    const t = (c - CRUISE_BOOST) / (0.2 - CRUISE_BOOST);
+    h = CRUISE_POP + (CRUISE_ALT - CRUISE_POP) * (t * t * (3 - 2 * t));
+  } else if (c < 0.92) h = CRUISE_ALT;
+  else h = CRUISE_ALT * (1 - (c - 0.92) / 0.08) + 0.2;
+  return out.set(l.fx + (l.tx - l.fx) * s, h, l.fy + (l.ty - l.fy) * s);
+}
 /** Escala do míssil pesado (2ª geração) e a distância da base ao centro do modelo (unidades do modelo). */
 const MISSILE2_SCALE = 3;
 const MISSILE2_BASE = 0.64;
@@ -653,7 +679,9 @@ export class AirLayer {
       live.add(l.id);
       let m = this.missiles.get(l.id);
       if (!m) {
-        const group = meshes(model(l.gen >= 2 ? 'missile2' : 'missile'), l.owner, l.gen >= 2);
+        const group = meshes(model(l.cruise ? 'cruise' : l.gen >= 2 ? 'missile2' : 'missile'), l.owner, l.gen >= 2);
+        const booster = l.cruise ? meshes(model('cruiseBooster'), l.owner, false) : undefined;
+        if (booster) group.add(booster);
         // um pouco maior que a escala real: precisa ser legível com a câmera afastada
         group.scale.setScalar(l.gen >= 2 ? MISSILE2_SCALE : 2.4);
         const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: '#ffb36b', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -664,7 +692,7 @@ export class AirLayer {
         flame.visible = false;
         group.add(flame);
         this.group.add(group);
-        m = { group, glow, flame, prev: l.progress, curr: l.progress, snap: l, trailAcc: 0, lightAcc: 0, last: null };
+        m = { group, glow, flame, prev: l.progress, curr: l.progress, snap: l, trailAcc: 0, lightAcc: 0, last: null, ...(booster ? { booster } : {}) };
         this.missiles.set(l.id, m);
       } else {
         m.prev = m.snap.state === l.state ? m.curr : 0;
@@ -1266,6 +1294,10 @@ export class AirLayer {
    * pré-ignição começa antes, com mais fumaça e luz, e a estrutura treme.
    */
   private frameLaunching(m: TrackedMissile, l: Launch, k: number, dt: number): void {
+    if (l.cruise) {
+      this.frameCruiseLaunch(m, l, k, dt);
+      return;
+    }
     if (l.gen >= 2) {
       const len = (MISSILE2_BASE + 0.83) * MISSILE2_SCALE;
       const pre = Math.max(0, (k - 0.35) / 0.65);
@@ -1326,7 +1358,78 @@ export class AirLayer {
    * percorrida, que se alarga e fica no ar alguns segundos), luz do motor sobre o chão e, na
    * descida final, o brilho branco da reentrada.
    */
+  /**
+   * Saída do submarino (03/11): o míssil sobe do tubo por baixo d'água, rompe a superfície num borrifo com anel de
+   * espuma e vapor e só então acende o propulsor (na água, nada de chama).
+   */
+  private frameCruiseLaunch(m: TrackedMissile, l: Launch, k: number, dt: number): void {
+    const y = -1.4 + k * 2.2;
+    m.group.position.set(l.fx, y, l.fy);
+    m.group.quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
+    const above = y > -0.2;
+    if (above && !m.surfaced) {
+      m.surfaced = true;
+      this.splash(l.fx, l.fy);
+    }
+    m.flame.visible = above;
+    m.flame.scale.set(0.5 + Math.random() * 0.3, 1, 1);
+    m.glow.visible = above;
+    (m.glow.material as THREE.SpriteMaterial).opacity = above ? 0.9 : 0;
+    m.trailAcc += dt;
+    if (m.trailAcc > 0.05) {
+      m.trailAcc = 0;
+      // bolhas e vapor subindo onde o míssil vai sair
+      this.emit(tmpA.set(l.fx + (Math.random() - 0.5) * 0.6, -0.15, l.fy + (Math.random() - 0.5) * 0.6), { life: 1.2, size0: 0.4, size1: 1.4, peak: 0.5, tone: 1.15, vy: 0.6 });
+    }
+  }
+
+  /** Borrifo da saída: coluna de água, anel de espuma rente ao mar e vapor. */
+  private splash(x: number, z: number): void {
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2;
+      const v = 2.2 + Math.random() * 1.2;
+      this.emit(tmpA.set(x, -0.15, z), { life: 1.4, size0: 0.5, size1: 1.8, peak: 0.85, tone: 1.2, vx: Math.cos(a) * v, vy: 0.4, vz: Math.sin(a) * v });
+    }
+    for (let i = 0; i < 8; i++)
+      this.emit(tmpA.set(x + (Math.random() - 0.5) * 0.4, 0, z + (Math.random() - 0.5) * 0.4), { life: 1.1, size0: 0.35, size1: 1.1, peak: 0.9, tone: 1.25, vy: 3 + Math.random() * 2.5 });
+    this.effects.light(tmpA.set(x, 0.8, z), '#ffd29a', 60, 10, 0.25);
+  }
+
+  /**
+   * Voo de cruzeiro (03/11): sobe na vertical, solta o propulsor, faz a curva e segue baixo, rente ao mar e ao terreno,
+   * até mergulhar no alvo no fim. Rastro fino e claro.
+   */
+  private frameCruiseFlight(m: TrackedMissile, l: Launch, k: number, dt: number): void {
+    const pos = cruisePoint(l, k, tmpA);
+    const ahead = cruisePoint(l, Math.min(1, k + 0.006), tmpB);
+    const dir = ahead.sub(pos);
+    if (dir.lengthSq() > 1e-8) m.group.quaternion.setFromUnitVectors(AXIS, dir.normalize());
+    m.group.position.copy(pos);
+    if (m.booster && k >= CRUISE_BOOST) {
+      // propulsor solto: some com um sopro de fumaça
+      m.booster.removeFromParent();
+      m.booster = undefined;
+      this.emit(pos.clone(), { life: 1.6, size0: 0.6, size1: 2.2, peak: 0.8, tone: 0.95, vy: -0.6 });
+    }
+    m.flame.visible = true;
+    m.flame.scale.set((m.booster ? 1.1 : 0.55) * (0.8 + Math.random() * 0.4), m.booster ? 1.1 : 0.7, m.booster ? 1.1 : 0.7);
+    m.glow.visible = true;
+    m.glow.scale.setScalar(m.booster ? 1.6 : 0.9);
+    (m.glow.material as THREE.SpriteMaterial).opacity = 0.75;
+    const tail = pos.clone().addScaledVector(dir, -0.8 * m.group.scale.x);
+    if (!m.last) m.last = tail.clone();
+    const steps = Math.min(10, Math.floor(m.last.distanceTo(tail) / 0.35));
+    for (let i = 1; i <= steps; i++)
+      this.emit(m.last.clone().lerp(tail, i / steps), { life: m.booster ? 2.6 : 1.6, size0: m.booster ? 0.6 : 0.3, size1: m.booster ? 2.6 : 1.3, peak: m.booster ? 0.75 : 0.45, tone: 1.05 });
+    if (steps) m.last.copy(tail);
+    void dt;
+  }
+
   private frameFlight(m: TrackedMissile, l: Launch, k: number, dt: number): void {
+    if (l.cruise) {
+      this.frameCruiseFlight(m, l, k, dt);
+      return;
+    }
     const pos = missilePoint(l, k, tmpA);
     const ahead = missilePoint(l, Math.min(1, k + 0.004), tmpB);
     // o pesado sai de pé da torre (centro mais alto): a diferença some no começo da subida

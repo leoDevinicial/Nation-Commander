@@ -199,7 +199,7 @@ export interface AirView {
   /** Baterias do Domo de Ferro do jogador: interceptadores prontos, recarga do próximo (0..1) e espera dos lançadores (s). */
   domes: { id: EntityId; ready: number; max: number; reload: number; cooldown: number }[];
   /** Lançamentos próprios, e os inimigos em voo que miram este jogador ou estão à vista. */
-  launches: { id: number; owner: Slot; siloId: EntityId; state: LaunchState; progress: number; x: number; y: number; fx: number; fy: number; tx: number; ty: number; targetOwner: Slot; gen: number; nuclear?: boolean }[];
+  launches: { id: number; owner: Slot; siloId: EntityId; state: LaunchState; progress: number; x: number; y: number; fx: number; fy: number; tx: number; ty: number; targetOwner: Slot; gen: number; nuclear?: boolean; cruise?: true }[];
   /** Áreas reveladas pelo reconhecimento próprio (névoa do cliente). */
   reveals: { x: number; y: number; r: number }[];
   /** Edifícios inimigos já descobertos (alvos válidos de ataque aéreo). */
@@ -546,6 +546,7 @@ export function airView(sim: Simulation, slot: Slot): AirView {
       targetOwner: l.targetOwner,
       gen: l.gen ?? 1,
       ...(l.nuclear ? { nuclear: true } : {}),
+      ...(l.cruise ? { cruise: true as const } : {}),
     });
   }
   return {

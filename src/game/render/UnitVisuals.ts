@@ -160,6 +160,10 @@ export class UnitVisual {
   private bob = Math.random() * 10;
   /** Tempo das ondas sob o navio de transporte. */
   private swell = 0;
+  /** Tampa do tubo de mísseis (Submarino Lançador): dobradiça, abertura atual (0..1) e a pedida. */
+  private tube: THREE.Group | null = null;
+  private tubeOpen = 0;
+  private tubeWant = false;
   /** Paraquedas (C-5): fração da descida que falta (1 → 0), segundos totais e o tempo do murchar no pouso. */
   private chute: THREE.Group | null = null;
   private fall = 0;
@@ -303,6 +307,29 @@ export class UnitVisual {
     // desacelera perto do chão (o paraquedas freia)
     const f = this.fall;
     return DROP_HEIGHT * (f * (0.35 + 0.65 * f));
+  }
+
+  /** Submarino Lançador (03/11): abre a tampa do tubo da frente na preparação e fecha depois da saída do míssil. */
+  setTubeOpen(open: boolean): void {
+    if (this.type !== 'missile_submarine') return;
+    this.tubeWant = open;
+    if (this.tube || !open) return;
+    // dobradiça na borda de fora da tampa da frente da corcova (posições do modelo em naval.ts)
+    this.tube = new THREE.Group();
+    this.tube.position.set(0.5, 0.476, 0.18);
+    const lid = new THREE.Mesh(
+      sharedGeometry('sub-tube-lid', () => new THREE.BoxGeometry(0.15, 0.016, 0.15)),
+      sharedMaterial('sub-tube-lid', () => new THREE.MeshStandardMaterial({ color: '#3a3e42', roughness: 0.6, metalness: 0.3, flatShading: true })),
+    );
+    lid.position.set(0, 0, -0.075);
+    this.tube.add(lid);
+    const hole = new THREE.Mesh(
+      sharedGeometry('sub-tube-hole', () => new THREE.BoxGeometry(0.13, 0.004, 0.13)),
+      sharedMaterial('sub-tube-hole', () => new THREE.MeshBasicMaterial({ color: '#050607' })),
+    );
+    hole.position.set(0.5, 0.468, 0.11);
+    hole.name = 'tube-hole';
+    this.body.add(hole, this.tube);
   }
 
   setEra(era: number): void {
@@ -635,6 +662,11 @@ export class UnitVisual {
     const naval = UNITS[this.type].naval;
     if (naval) this.swell += dt;
     this.group.position.set(this.renderPos.x, (naval ? -0.25 + Math.sin(this.swell * 1.4 + this.id) * 0.035 : 0) + this.airborne, this.renderPos.y);
+    if (this.tube) {
+      // a tampa gira na dobradiça até ficar quase de pé
+      this.tubeOpen += ((this.tubeWant ? 1 : 0) - this.tubeOpen) * Math.min(1, dt * 3);
+      this.tube.rotation.x = this.tubeOpen * 1.9;
+    }
     if (!animate) {
       this.body.rotation.y = -this.facing;
       this.skippedDt += dt;

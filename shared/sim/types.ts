@@ -359,5 +359,5 @@ export type SimEvent =
   | { type: 'unloaded'; tick: number; owner: Slot; shipId: EntityId; count: number; pos: Vec2 }
   /** Célula de estrada ou rodovia destruída por tropas (02/11). */
   | { type: 'road_destroyed'; tick: number; owner: Slot; by: Slot; cell: number; highway: boolean; pos: Vec2 }
-  | { type: 'missile'; tick: number; owner: Slot; launchId: number; state: string; text: string; from: Vec2; target: Vec2; targetOwner: Slot; gen?: number; nuclear?: boolean; damage?: number; destroyed?: number; casualties?: number }
+  | { type: 'missile'; tick: number; owner: Slot; launchId: number; state: string; text: string; from: Vec2; target: Vec2; targetOwner: Slot; gen?: number; nuclear?: boolean; cruise?: boolean; damage?: number; destroyed?: number; casualties?: number }
   | { type: 'modernize_cancelled'; tick: number; id: EntityId; owner: Slot; unitType: UnitType; mod: ModId; reason: 'player' | 'facility_lost'; pos: Vec2 };

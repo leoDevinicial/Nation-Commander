@@ -818,6 +818,8 @@ export class GameRuntime {
     for (const l of s.air?.launches ?? [])
       if (l.state === 'preparing' || l.state === 'armed' || l.state === 'launching' || (l.state === 'flight' && l.progress < 0.3)) open.add(l.siloId);
     for (const t of this.buildings.values()) if (t.snap.type === 'missile_silo') t.visual.setHatch(open.has(t.snap.id));
+    // Submarino Lançador (03/11): a tampa do tubo abre do mesmo jeito
+    for (const t of this.units.values()) if (t.snap.type === 'missile_submarine') t.visual.setTubeOpen(open.has(t.snap.id));
   }
 
   /** Chave do conjunto de construções já aplicado à vegetação (só recalcula quando muda). */
@@ -1205,8 +1207,11 @@ export class GameRuntime {
       this.airLayer.shockwave({ x: e.pos.x + SPACE_PAD[0], y: e.pos.y + SPACE_PAD[2] }, 8);
     } else if (e.type === 'missile') {
       const heavy = (e.gen ?? 1) >= 2 || !!e.nuclear;
-      const radius = e.nuclear ? NUCLEAR.radius : missileSpec(e.gen ?? 1).radius;
-      if (e.state === 'flight') {
+      const radius = e.nuclear ? NUCLEAR.radius : e.cruise ? CRUISE.radius : missileSpec(e.gen ?? 1).radius;
+      if (e.state === 'flight' && e.cruise) {
+        // míssil de cruzeiro: a ignição é na saída da água (o borrifo fica com o AirLayer); só um tremor leve
+        this.shakeNear(e.from, 0.15);
+      } else if (e.state === 'flight') {
         // ignição: clarão, luz forte e nuvem de fumaça rolando a partir do silo
         if (heavy) this.effects.heavyIgnition(new THREE.Vector3(e.from.x, 0.4, e.from.y));
         else this.effects.ignition(new THREE.Vector3(e.from.x, 0.4, e.from.y));

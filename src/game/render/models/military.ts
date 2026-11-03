@@ -1036,6 +1036,33 @@ export function missileModel(gen = 1): ModelLayers {
   return l.build();
 }
 
+/**
+ * Míssil de cruzeiro do Submarino Lançador (03/11): corpo cinza fino com ogiva escura, asas retas abertas no meio,
+ * entrada de ar embaixo e cauda em cruz; `booster` acrescenta o propulsor de saída (some depois de soltar).
+ */
+export function cruiseMissileModel(booster: boolean): ModelLayers {
+  const l = layers();
+  const { body: b, accent: a } = l;
+  const X: V3r = [0, 0, Math.PI / 2];
+  if (booster) {
+    b.cyl(0.075, 0.075, 0.3, '#3f4347', [-0.58, 0, 0], X, 10);
+    b.cyl(0.06, 0.075, 0.06, '#26282b', [-0.76, 0, 0], X, 10);
+    return l.build();
+  }
+  b.cyl(0.06, 0.06, 0.82, '#a9adb0', [0, 0, 0], X, 10);
+  b.cyl(0.012, 0.06, 0.16, '#3d4044', [0.49, 0, 0], [0, 0, -Math.PI / 2], 10);
+  // asas retas abertas e entrada de ar ventral
+  b.box(0.12, 0.012, 0.7, '#8e9396', [0.02, 0.02, 0]);
+  b.box(0.16, 0.05, 0.06, '#5b6064', [-0.15, -0.065, 0]);
+  // cauda em cruz
+  for (let i = 0; i < 4; i++) {
+    const ang = (i * Math.PI) / 2;
+    b.box(0.1, 0.01, 0.1, '#5b6064', [-0.36, Math.sin(ang) * 0.08, Math.cos(ang) * 0.08], [ang, 0, 0]);
+  }
+  a.cyl(0.062, 0.062, 0.05, '#ffffff', [0.22, 0, 0], X, 10);
+  return l.build();
+}
+
 function heavyMissile(): ModelLayers {
   const l = layers();
   const { body: b, accent: a } = l;
