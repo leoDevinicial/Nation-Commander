@@ -70,6 +70,38 @@ O cliente só envia a intenção:
 | Sensores e óptica térmica | Defesa | 0,20 | 80 d | Comunicações digitais | pacote Óptica térmica |
 | Propulsão eficiente | Defesa | 0,25 | 100 d | Automação + Perfuração avançada | pacote Motor eficiente |
 
+### Pesquisas que liberam construções (03/11)
+Pedido do usuário: a aba de pesquisas tinha poucas opções (só 3 em "Estado e logística"). Entraram 17 pesquisas que
+liberam o que já existia no jogo e antes dependia só da era (`requiresTech` em `BUILDINGS`; a era continua valendo):
+
+| Área | Pesquisa | Libera | Requer |
+|---|---|---|---|
+| Estado e logística | Engenharia rodoviária | Rodovia (`highwayPlan`) | — |
+| | Comércio exterior | Terminal Comercial | Logística integrada |
+| | Logística naval | Porto (e o Navio de Transporte) | Logística integrada |
+| | Planejamento urbano | Prédio Residencial | — |
+| | Saúde pública | Hospital | Planejamento urbano |
+| | Segurança pública | Delegacia | Planejamento urbano |
+| | Ensino superior | Universidade | Saúde pública |
+| | Mercado financeiro (era 4) | Centro Financeiro | Comércio exterior, Ensino superior |
+| Indústria | Energia eólica | Usina Eólica | — |
+| | Energia solar (era 3) | Usina Solar | Energia eólica |
+| | Hidrelétricas (era 4) | Usina Hidrelétrica | Energia eólica, Construção modular |
+| | Energia nuclear (era 4) | Usina Nuclear | Energia solar, Automação |
+| | Siderurgia | Siderúrgica | — |
+| | Refino de petróleo | Refinaria | Siderurgia |
+| | Redes 5G (era 4) | Torre 5G | Automação |
+| Defesa | Aviação militar (era 3) | Base Aérea | Comunicações digitais |
+| | Defesa aérea | Bateria Antiaérea | — |
+
+- A trava só vale com a camada nacional ligada (partidas de verdade e `sim-economia`); os testes de regra sem ela
+  constroem tudo, e os testes com camada nacional falsa usam `BUILDING_TECHS` (`shared/test/helpers.ts`). No Sandbox
+  nada é travado.
+- O botão da construção mostra "exige pesquisa"; a Rodovia também.
+- IA: o governo pesquisa na ordem de `AI_RESEARCH_ORDER` (eólica, comércio, moradia e antiaérea cedo; aviação militar
+  logo depois das comunicações com força aérea); a IA tática não procura lugar para o que ainda está travado.
+- Teste: `shared/test/techGates.test.ts`.
+
 ## Modernização de tropas
 
 | Pacote | Área | Pesquisa | Unidades | Efeito | Instalação (por unidade) | Na linha de produção |

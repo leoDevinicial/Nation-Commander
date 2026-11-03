@@ -5,7 +5,7 @@ import { FogMemory, makeSnapshot } from '../sim/snapshot.ts';
 import { TacticalAI } from '../sim/TacticalAI.ts';
 import { NO_OWNER } from '../sim/territory.ts';
 import { NationalSimulation } from '../strategic/NationalSimulation.ts';
-import { flatMap } from './helpers.ts';
+import { flatMap, BUILDING_TECHS } from './helpers.ts';
 
 /** Lote 3: estradas do jogador, Engenheiro de Combate, minas antitanque e obstáculos. */
 
@@ -17,7 +17,7 @@ function setup(opts: { fund?: number } = {}) {
   });
   const st = { fund: opts.fund ?? 1e9, charged: 0 };
   const link: NationalLink = {
-    techs: () => [],
+    techs: () => [...BUILDING_TECHS, ...[]],
     infrastructureIndex: () => 1,
     stability: () => 60,
     worksFundUsd: () => st.fund,

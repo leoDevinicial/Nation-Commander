@@ -1867,6 +1867,7 @@ export class Simulation {
     const out: number[] = [];
     const fail = (error: string) => ({ cells: [], stone: 0, usd: 0, error });
     if (cells.length > HIGHWAY.maxCells) return fail(`Traçado longo demais: até ${HIGHWAY.maxCells} células por vez`);
+    if (this.national && !this.isSandbox(slot) && !this.national.techs(slot).includes('road_engineering')) return fail('Exige a pesquisa Engenharia rodoviária');
     const builtBy = new Map<number, Slot>();
     for (const r of this.roads) builtBy.set(r.i, r.owner);
     for (const c of cells) {
@@ -2063,7 +2064,8 @@ export class Simulation {
     const player = this.players[slot];
     if (!player) return 'Jogador inválido';
     const tech = BUILDINGS[type].requiresTech;
-    if (tech && !(this.national?.techs(slot) ?? []).includes(tech)) return `Exige a pesquisa ${techLabel(tech)}`;
+    // sem a camada nacional (testes de regra), não há pesquisa a exigir
+    if (tech && this.national && !this.isSandbox(slot) && !this.national.techs(slot).includes(tech as never)) return `Exige a pesquisa ${techLabel(tech)}`;
     const era = buildingEra(type);
     if (era > this.eraOf(slot)) return `Requer ${eraPhrase(era)} (avance de era no Centro de Comando)`;
     const bdef = BUILDINGS[type];

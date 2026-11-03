@@ -11,6 +11,7 @@ import { decorKept } from './decorThinning.ts';
 import { detailedTrees } from './Trees.ts';
 import { proceduralRocks, type RockInstance } from './Rocks.ts';
 import { cellHeight, mountainDepth, snowAt } from './relief.ts';
+import { coastField, coastHeight, sandWeight } from './coast.ts';
 
 /** Tom aplicado sobre a textura de cada terreno (1 = textura pura). */
 /** Cor do cume nevado (clareia a textura de rocha). */
@@ -91,10 +92,18 @@ function groundMaterial(
         ground /= sum;
         // variação em grande escala para não denunciar a repetição
         float macro = texture2D(uGrass, vFogXZ * 0.013 + 0.37).g;
-        diffuseColor.rgb = ground * vColor.rgb * uTint * (0.86 + 0.28 * macro);`,
+        diffuseColor.rgb = ground * vColor.rgb * uTint * (0.86 + 0.28 * macro);
+        // areia da praia (03/11): tom claro e chapado com o grão da textura de terra; não cobre estrada nem ponte
+        float sandK = vSand * (1.0 - sw.b / sum);
+        vec3 sandCol = vec3(0.93, 0.84, 0.63) * (0.86 + 0.2 * texture2D(uDirt, tuv * 1.9).r) * (0.94 + 0.12 * macro);
+        diffuseColor.rgb = mix(diffuseColor.rgb, sandCol * uTint, sandK);`,
       );
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float aSand;\nvarying float vSand;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSand = aSand;');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vSand;');
   };
-  mat.customProgramCacheKey = () => 'nc-ground-v2';
+  mat.customProgramCacheKey = () => 'nc-ground-v3';
   // células que mudaram de terreno durante a partida (estradas construídas pelos jogadores)
   const repaint = (cells: readonly number[]) => {
     for (const i of cells) paint(i);
@@ -270,18 +279,33 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
   };
   // montanhas (03/11): a rocha sobe conforme a distância até a borda do maciço (relief.ts)
   const depth = mountainDepth(map);
+  // costa orgânica e areia (03/11): a margem segue uma distância com sinal suavizada, não as bordas das células
+  const coast = coastField(map);
+  const sand = new Float32Array(pos.count);
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const z = pos.getZ(i);
     tmp.setRGB(0, 0, 0);
     let height = 0;
+    let landH = 0;
+    let landN = 0;
     const o = map.cellSize * 0.45;
     for (const ci of [cellIndex(x - o, z - o), cellIndex(x + o, z - o), cellIndex(x - o, z + o), cellIndex(x + o, z + o)]) {
       const t = map.terrain[ci] ?? Terrain.Plains;
       tmp.r += TERRAIN_COLORS[t].r / 4;
       tmp.g += TERRAIN_COLORS[t].g / 4;
       tmp.b += TERRAIN_COLORS[t].b / 4;
-      height += cellHeight(t, depth[ci]!, ci) / 4;
+      const ch = cellHeight(t, depth[ci]!, ci);
+      height += ch / 4;
+      if (t !== Terrain.Water) {
+        landH += ch;
+        landN++;
+      }
+    }
+    if (coast.near(x, z)) {
+      const sd = coast.at(x, z);
+      height = coastHeight(sd, landN ? Math.max(0, landH / landN) : 0);
+      sand[i] = sandWeight(sd, coast.sandReach);
     }
     // picos nevados: a cor clareia acima de ~8 de altura
     const snow = snowAt(height);
@@ -295,6 +319,7 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
     uv.setXY(i, (x / W) * 24, (z / H) * 24);
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.setAttribute('aSand', new THREE.BufferAttribute(sand, 1));
   geo.computeVertexNormals();
   const { mat: groundMat, repaint } = groundMaterial(map, quality, disposables, tint);
   const ground = new THREE.Mesh(geo, groundMat);

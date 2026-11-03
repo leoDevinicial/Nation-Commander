@@ -430,6 +430,9 @@ export class TacticalAI {
     let waitCost: Cost = {};
     const tryBuild = (type: BuildingType): boolean => {
       if (buildingEra(type) > sim.eraOf(this.slot)) return false;
+      // construção travada por pesquisa nacional ainda não feita (03/11): nem procura lugar
+      const tech = BUILDINGS[type].requiresTech;
+      if (tech && sim.national && !sim.national.techs(this.slot).includes(tech as never)) return false;
       const cost = costOf(type);
       if (!canAfford(budget, cost)) {
         if (waitingFor === null && spotFor(type)) {
@@ -1287,6 +1290,7 @@ export class TacticalAI {
    */
   private planHighways(sim: Simulation, mine: Building[], budget: Stockpile, take: (c: Cost) => boolean, cmds: Command[]): void {
     if (sim.tick - this.lastHighwayTick < AI_HIGHWAY_COOLDOWN_TICKS) return;
+    if (sim.national && !sim.national.techs(this.slot).includes('road_engineering')) return;
     const market = mine.find((b) => b.type === 'market' && b.progress >= 1 && b.hp > 0);
     if (!market || budget.stone < AI_HIGHWAY_STONE_RESERVE + HIGHWAY.stonePerCell * 5) return;
     this.lastHighwayTick = sim.tick;

@@ -6,7 +6,7 @@ import { parseCommand } from '../sim/commands.ts';
 import { Simulation, type NationalLink } from '../sim/Simulation.ts';
 import { airView } from '../sim/snapshot.ts';
 import type { Building, SimEvent } from '../sim/types.ts';
-import { flatMap } from './helpers.ts';
+import { flatMap, BUILDING_TECHS } from './helpers.ts';
 
 const run = (sim: Simulation, seconds: number) => {
   for (let i = 0; i < seconds * TICK_RATE; i++) sim.step();
@@ -15,7 +15,7 @@ const run = (sim: Simulation, seconds: number) => {
 function setup() {
   const sim = new Simulation({ map: flatMap(40), playerCount: 2, startingUnits: [] });
   const link: NationalLink = {
-    techs: () => ['guided_munitions'],
+    techs: () => [...BUILDING_TECHS, ...['guided_munitions']],
     infrastructureIndex: () => 1,
     stability: () => 60,
     worksFundUsd: () => 1e9,

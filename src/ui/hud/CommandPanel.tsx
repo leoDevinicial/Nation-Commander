@@ -328,7 +328,13 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           <CardButton
             icon="🛣"
             label="Rodovia"
-            onClick={() => runtime.startRoad(true)}
+            blocked={!techs.includes('road_engineering')}
+            short={techs.includes('road_engineering') ? null : 'exige pesquisa'}
+            onClick={() =>
+              techs.includes('road_engineering')
+                ? runtime.startRoad(true)
+                : useHudStore.getState().pushEvent({ tick: useHudStore.getState().tick, text: 'Rodovia: exige a pesquisa Engenharia rodoviária (painel nacional, aba Pesquisa)', tone: 'warn' })
+            }
             title={`Rodovia: pista dupla que vai além da fronteira sem engenheiro, mas só pela terra neutra (nunca no território de outra nação); lá ela se encontra com a rodovia do vizinho. Arraste na grade (até ${HIGHWAY.maxCells} células por vez); sobre a sua estrada, ela vira rodovia.\nCusto: ${HIGHWAY.stonePerCell} de pedra por célula e o dobro da verba da estrada; manutenção mais barata que a da estrada. Não leva energia e as margens não podem ser zoneadas.\nCaminhões de carga e caravanas andam ${Math.round((HIGHWAY.convoyMul - 1) * 100)}% mais rápido e tropas ${Math.round((HIGHWAY.unitMul - 1) * 100)}%. Liga o seu Terminal Comercial ao de outra nação para vender e comprar por caminhão.`}
           />
         )}

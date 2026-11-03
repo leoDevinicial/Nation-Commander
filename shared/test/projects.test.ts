@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BUILDINGS, PROJECT_FX, SPACE, TICK_RATE, Terrain, UNITS, type BuildingType } from '../sim/config.ts';
 import { Simulation, type NationalLink } from '../sim/Simulation.ts';
 import { NationalSimulation } from '../strategic/NationalSimulation.ts';
-import { flatMap } from './helpers.ts';
+import { flatMap, BUILDING_TECHS } from './helpers.ts';
 
 /** Grandes Projetos Nacionais e Programa Espacial (lote 2, itens 13 e 13.1). */
 
@@ -16,7 +16,7 @@ function setup(opts: { techs?: string[]; water?: boolean } = {}) {
   });
   const st = { fund: 1e9, charged: 0 };
   const link: NationalLink = {
-    techs: () => opts.techs ?? ['space_technology'],
+    techs: () => [...BUILDING_TECHS, ...opts.techs ?? ['space_technology']],
     infrastructureIndex: () => 1,
     stability: () => 60,
     worksFundUsd: () => st.fund,

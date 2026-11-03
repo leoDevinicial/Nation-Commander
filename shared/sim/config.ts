@@ -1015,6 +1015,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   refinery: {
     ...NONE,
     label: 'Refinaria',
+    requiresTech: 'oil_refining',
     cost: { wood: 80, stone: 100, iron: 80 },
     buildSeconds: 28,
     maxHp: 550,
@@ -1030,6 +1031,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   steel_mill: {
     ...NONE,
     label: 'Siderúrgica',
+    requiresTech: 'steelmaking',
     cost: { wood: 80, stone: 120, iron: 60 },
     buildSeconds: 28,
     maxHp: 600,
@@ -1045,6 +1047,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   hospital: {
     ...NONE,
     label: 'Hospital',
+    requiresTech: 'public_health',
     cost: { wood: 60, stone: 80, supplies: 60 },
     buildSeconds: 20,
     maxHp: 450,
@@ -1077,6 +1080,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   university: {
     ...NONE,
     label: 'Universidade',
+    requiresTech: 'higher_education',
     cost: { wood: 150, stone: 160, supplies: 120 },
     buildSeconds: 30,
     maxHp: 650,
@@ -1143,6 +1147,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   police_station: {
     ...NONE,
     label: 'Delegacia',
+    requiresTech: 'public_security',
     cost: { wood: 50, stone: 60, supplies: 40 },
     buildSeconds: 15,
     maxHp: 450,
@@ -1173,6 +1178,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   residential: {
     ...NONE,
     label: 'Prédio Residencial',
+    requiresTech: 'urban_planning',
     cost: { wood: 120, stone: 120, supplies: 80 },
     buildSeconds: 20,
     maxHp: 600,
@@ -1231,6 +1237,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   wind_farm: {
     ...NONE,
     label: 'Parque Eólico',
+    requiresTech: 'wind_power',
     cost: { iron: 90, stone: 30, supplies: 60 },
     buildSeconds: 22,
     maxHp: 380,
@@ -1243,6 +1250,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   solar_farm: {
     ...NONE,
     label: 'Usina Solar',
+    requiresTech: 'solar_power',
     cost: { iron: 120, stone: 40, supplies: 120 },
     buildSeconds: 24,
     maxHp: 380,
@@ -1269,6 +1277,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   market: {
     ...NONE,
     label: 'Terminal Comercial',
+    requiresTech: 'foreign_trade',
     cost: { wood: 80, stone: 60, supplies: 60 },
     buildSeconds: 14,
     maxHp: 450,
@@ -1284,6 +1293,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   port: {
     ...NONE,
     label: 'Porto',
+    requiresTech: 'naval_logistics',
     cost: { wood: 120, stone: 100, iron: 40 },
     buildSeconds: 18,
     maxHp: 600,
@@ -1311,6 +1321,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   airbase: {
     ...NONE,
     label: 'Base Aérea',
+    requiresTech: 'military_aviation',
     cost: { wood: 100, stone: 150, iron: 120, supplies: 100 },
     buildSeconds: 24,
     maxHp: 900,
@@ -1327,6 +1338,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   aa_battery: {
     ...NONE,
     label: 'Bateria Antiaérea',
+    requiresTech: 'air_defense',
     cost: { stone: 60, iron: 90, supplies: 40 },
     buildSeconds: 14,
     maxHp: 450,
@@ -1375,6 +1387,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   nuclear_plant: {
     ...NONE,
     label: 'Usina Nuclear',
+    requiresTech: 'nuclear_power',
     cost: { stone: 600, iron: 500, supplies: 500, oil: 200 },
     buildSeconds: 240,
     maxHp: 2200,
@@ -1391,6 +1404,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   network_5g: {
     ...NONE,
     label: 'Rede 5G Nacional',
+    requiresTech: 'telecom_5g',
     cost: { iron: 400, supplies: 400, stone: 200, oil: 100 },
     buildSeconds: 200,
     maxHp: 1200,
@@ -1407,6 +1421,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   hydro_dam: {
     ...NONE,
     label: 'Hidrelétrica',
+    requiresTech: 'hydro_power',
     cost: { stone: 800, iron: 300, supplies: 400 },
     buildSeconds: 220,
     maxHp: 2600,
@@ -1424,6 +1439,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
   financial_center: {
     ...NONE,
     label: 'Centro Financeiro',
+    requiresTech: 'financial_markets',
     cost: { stone: 400, iron: 250, supplies: 600, wood: 200 },
     buildSeconds: 180,
     maxHp: 1400,

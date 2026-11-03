@@ -51,3 +51,6 @@ export function theater(sim: NationalSimulation, stock = { supplies: 1000, oil: 
  * produção conferem regras, não o ritmo da economia.
  */
 export const TEST_START = { supplies: 1200, food: 300, wood: 300, stone: 300, iron: 200, oil: 100, coal: 0 };
+
+/** Pesquisas de 03/11 que só liberam construções que já existiam: os testes com camada nacional falsa as têm feitas. */
+export const BUILDING_TECHS = ['road_engineering', 'foreign_trade', 'naval_logistics', 'urban_planning', 'public_health', 'public_security', 'higher_education', 'financial_markets', 'wind_power', 'solar_power', 'hydro_power', 'nuclear_power', 'steelmaking', 'oil_refining', 'telecom_5g', 'military_aviation', 'air_defense'];

@@ -26,7 +26,25 @@ export type TechId =
   | 'space_technology'
   // 02/11 (era 3): produção sem limite
   | 'silviculture'
-  | 'underground_mining';
+  | 'underground_mining'
+  // 03/11: mais pesquisas, cada uma liberando o que já existe no jogo
+  | 'road_engineering'
+  | 'foreign_trade'
+  | 'naval_logistics'
+  | 'urban_planning'
+  | 'public_health'
+  | 'public_security'
+  | 'higher_education'
+  | 'financial_markets'
+  | 'wind_power'
+  | 'solar_power'
+  | 'hydro_power'
+  | 'nuclear_power'
+  | 'steelmaking'
+  | 'oil_refining'
+  | 'telecom_5g'
+  | 'military_aviation'
+  | 'air_defense';
 
 /** Categoria de investimento: em que área do orçamento de P&D a pesquisa compete. */
 export type TechCategory = 'military' | 'industry' | 'resources' | 'state';
@@ -283,6 +301,200 @@ export const TECHNOLOGIES: Record<TechId, TechDef> = {
     effect: {},
     minEra: 3,
     unlocks: ['Mina Subterrânea em qualquer lugar do território: pedra, ferro e carvão sem acabar (uma por cidade)'],
+  },
+  // --- 03/11 (pedido do usuário: mais pesquisas). Cada uma libera algo que já existia, antes só pela era.
+  road_engineering: {
+    id: 'road_engineering',
+    label: 'Engenharia rodoviária',
+    category: 'state',
+    description: 'Terraplenagem, pavimento de alto tráfego e obras de arte fora das cidades.',
+    cost: 0.02,
+    minDays: 15,
+    prereqs: [],
+    effect: {},
+    unlocks: ['Rodovia: pista dupla que sai da fronteira pela terra neutra e acelera cargas e tropas'],
+  },
+  foreign_trade: {
+    id: 'foreign_trade',
+    label: 'Comércio exterior',
+    category: 'state',
+    description: 'Aduana, câmbio e contratos de fornecimento com outros países.',
+    cost: 0.02,
+    minDays: 15,
+    prereqs: ['logistics'],
+    effect: {},
+    unlocks: ['Terminal Comercial: anúncios e contratos com as nações da partida, mercado mundial e mercado interno'],
+  },
+  naval_logistics: {
+    id: 'naval_logistics',
+    label: 'Logística naval',
+    category: 'state',
+    description: 'Cais, guindastes de contêiner e embarque de tropas pelo mar.',
+    cost: 0.02,
+    minDays: 15,
+    prereqs: ['logistics'],
+    effect: {},
+    unlocks: ['Porto: cargas do comércio por navio', 'Navio de Transporte: tropas pelo mar até outra costa'],
+  },
+  urban_planning: {
+    id: 'urban_planning',
+    label: 'Planejamento urbano',
+    category: 'state',
+    description: 'Plano diretor, verticalização e redes de água e esgoto.',
+    cost: 0.02,
+    minDays: 15,
+    prereqs: [],
+    effect: {},
+    unlocks: ['Prédio Residencial: muito mais moradia na mesma área'],
+  },
+  public_health: {
+    id: 'public_health',
+    label: 'Saúde pública',
+    category: 'state',
+    description: 'Rede hospitalar, vacinação e atendimento de emergência.',
+    cost: 0.02,
+    minDays: 15,
+    prereqs: ['urban_planning'],
+    effect: {},
+    unlocks: ['Hospital: cura tropas e atende a cidade no raio dele'],
+  },
+  public_security: {
+    id: 'public_security',
+    label: 'Segurança pública',
+    category: 'state',
+    description: 'Polícia comunitária, perícia e centrais de atendimento.',
+    cost: 0.02,
+    minDays: 15,
+    prereqs: ['urban_planning'],
+    effect: {},
+    unlocks: ['Delegacia: segurança para a cidade no raio dela'],
+  },
+  higher_education: {
+    id: 'higher_education',
+    label: 'Ensino superior',
+    category: 'state',
+    description: 'Universidades públicas, bolsas e pós-graduação.',
+    cost: 0.025,
+    minDays: 18,
+    prereqs: ['public_health'],
+    effect: {},
+    unlocks: ['Universidade: muito mais conhecimento por dia que a escola'],
+  },
+  financial_markets: {
+    id: 'financial_markets',
+    label: 'Mercado financeiro',
+    category: 'state',
+    description: 'Bolsa de valores, bancos de investimento e câmara de compensação.',
+    cost: 0.04,
+    minDays: 30,
+    prereqs: ['foreign_trade', 'higher_education'],
+    effect: {},
+    minEra: 4,
+    unlocks: ['Centro Financeiro (Grande Projeto)'],
+  },
+  wind_power: {
+    id: 'wind_power',
+    label: 'Energia eólica',
+    category: 'industry',
+    description: 'Aerogeradores de grande porte e linhas de transmissão.',
+    cost: 0.02,
+    minDays: 15,
+    prereqs: [],
+    effect: {},
+    unlocks: ['Usina Eólica: energia sem carvão'],
+  },
+  solar_power: {
+    id: 'solar_power',
+    label: 'Energia solar',
+    category: 'industry',
+    description: 'Painéis fotovoltaicos de alto rendimento e baterias.',
+    cost: 0.025,
+    minDays: 18,
+    prereqs: ['wind_power'],
+    effect: {},
+    minEra: 3,
+    unlocks: ['Usina Solar: energia de dia, sem carvão'],
+  },
+  hydro_power: {
+    id: 'hydro_power',
+    label: 'Hidrelétricas',
+    category: 'industry',
+    description: 'Barragens, turbinas e eclusas em grandes rios.',
+    cost: 0.035,
+    minDays: 25,
+    prereqs: ['wind_power', 'modular_construction'],
+    effect: {},
+    minEra: 4,
+    unlocks: ['Usina Hidrelétrica (Grande Projeto)'],
+  },
+  nuclear_power: {
+    id: 'nuclear_power',
+    label: 'Energia nuclear',
+    category: 'industry',
+    description: 'Reatores de água pressurizada, combustível enriquecido e contenção.',
+    cost: 0.045,
+    minDays: 32,
+    prereqs: ['solar_power', 'automation'],
+    effect: {},
+    minEra: 4,
+    unlocks: ['Usina Nuclear (Grande Projeto)'],
+  },
+  steelmaking: {
+    id: 'steelmaking',
+    label: 'Siderurgia',
+    category: 'industry',
+    description: 'Altos-fornos, aciaria e laminação.',
+    cost: 0.02,
+    minDays: 15,
+    prereqs: [],
+    effect: {},
+    unlocks: ['Siderúrgica: ferro e carvão viram aço, que barateia veículos e obras'],
+  },
+  oil_refining: {
+    id: 'oil_refining',
+    label: 'Refino de petróleo',
+    category: 'industry',
+    description: 'Destilação, craqueamento e tancagem de combustíveis.',
+    cost: 0.02,
+    minDays: 15,
+    prereqs: ['steelmaking'],
+    effect: {},
+    unlocks: ['Refinaria: petróleo vira combustível, que barateia veículos e aeronaves'],
+  },
+  telecom_5g: {
+    id: 'telecom_5g',
+    label: 'Redes 5G',
+    category: 'industry',
+    description: 'Antenas de baixa latência e núcleo de rede definido por software.',
+    cost: 0.035,
+    minDays: 25,
+    prereqs: ['automation'],
+    effect: {},
+    minEra: 4,
+    unlocks: ['Torre 5G'],
+  },
+  military_aviation: {
+    id: 'military_aviation',
+    label: 'Aviação militar',
+    category: 'military',
+    description: 'Caças a jato, pilotos de combate e pistas reforçadas.',
+    cost: 0.03,
+    minDays: 22,
+    prereqs: ['digital_comms'],
+    effect: {},
+    minEra: 3,
+    unlocks: ['Base Aérea: caças, reconhecimento, cargueiros e bombardeiros'],
+  },
+  air_defense: {
+    id: 'air_defense',
+    label: 'Defesa aérea',
+    category: 'military',
+    description: 'Radares de vigilância e mísseis superfície-ar.',
+    cost: 0.02,
+    minDays: 15,
+    prereqs: [],
+    effect: {},
+    unlocks: ['Bateria Antiaérea'],
   },
 };
 

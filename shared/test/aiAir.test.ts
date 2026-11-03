@@ -5,14 +5,14 @@ import { AIRCRAFT } from '../sim/air.ts';
 import { TacticalAI } from '../sim/TacticalAI.ts';
 import type { Building } from '../sim/types.ts';
 import type { Difficulty } from '../sim/difficulty.ts';
-import { flatMap } from './helpers.ts';
+import { flatMap, BUILDING_TECHS } from './helpers.ts';
 
 /** IA usando a força aérea e os mísseis (lote 1, §1.1 e §2.5), com as mesmas regras do jogador. */
 
 function setup(difficulty: Difficulty, war = true) {
   const sim = new Simulation({ map: flatMap(36), playerCount: 2, startingUnits: [] });
   const link: NationalLink = {
-    techs: () => ['guided_munitions', 'ballistic_missiles'],
+    techs: () => [...BUILDING_TECHS, ...['guided_munitions', 'ballistic_missiles']],
     infrastructureIndex: () => 1,
     stability: () => 60,
     worksFundUsd: () => 1e9,

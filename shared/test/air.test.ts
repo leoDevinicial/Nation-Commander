@@ -6,7 +6,7 @@ import { AIR, AIRCRAFT, IRON_DOME, MISSILE, NUCLEAR, type AirMission } from '../
 import { BUILDINGS } from '../sim/config.ts';
 import { airView, type AirView } from '../sim/snapshot.ts';
 import type { Building, SimEvent } from '../sim/types.ts';
-import { flatMap } from './helpers.ts';
+import { flatMap, BUILDING_TECHS } from './helpers.ts';
 import { NationalSimulation } from '../strategic/NationalSimulation.ts';
 
 const run = (sim: Simulation, seconds: number) => {
@@ -17,7 +17,7 @@ const run = (sim: Simulation, seconds: number) => {
 function national(techs: string[] = ['guided_munitions', 'ballistic_missiles']) {
   const st = { techs, fund: 1e9, ledger: [] as { slot: number; usd: number; d: string }[] };
   const link: NationalLink = {
-    techs: () => st.techs,
+    techs: () => [...BUILDING_TECHS, ...st.techs],
     infrastructureIndex: () => 1,
     stability: () => 60,
     worksFundUsd: () => st.fund,

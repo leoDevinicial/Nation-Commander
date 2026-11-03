@@ -7,7 +7,7 @@ import { UNIT_ERA } from '../sim/eras.ts';
 import { makeSnapshot } from '../sim/snapshot.ts';
 import type { Building, SimEvent, Unit } from '../sim/types.ts';
 import { militaryResearchSpeed } from '../strategic/params.ts';
-import { TEST_START, flatMap } from './helpers.ts';
+import { TEST_START, flatMap, BUILDING_TECHS } from './helpers.ts';
 
 const run = (sim: Simulation, seconds: number) => {
   for (let i = 0; i < seconds * TICK_RATE; i++) sim.step();
@@ -16,7 +16,7 @@ const run = (sim: Simulation, seconds: number) => {
 function setup(opts: { speed?: number; war?: boolean } = {}) {
   const sim = new Simulation({ map: flatMap(36), playerCount: 2, startingUnits: [], startingResources: TEST_START });
   const link: NationalLink = {
-    techs: () => ['ballistic_missiles'],
+    techs: () => [...BUILDING_TECHS, ...['ballistic_missiles']],
     infrastructureIndex: () => 1,
     stability: () => 60,
     worksFundUsd: () => 1e9,

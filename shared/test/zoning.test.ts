@@ -6,7 +6,7 @@ import { FogMemory, makeSnapshot } from '../sim/snapshot.ts';
 import { LOT_OCCUPANT, ZONING } from '../sim/zoning.ts';
 import { treasuryDay } from '../strategic/treasury.ts';
 import type { Building, Cell } from '../sim/types.ts';
-import { TEST_START, flatMap } from './helpers.ts';
+import { TEST_START, flatMap, BUILDING_TECHS } from './helpers.ts';
 
 const run = (sim: Simulation, ticks: number) => {
   for (let i = 0; i < ticks; i++) sim.step();
@@ -16,7 +16,7 @@ const run = (sim: Simulation, ticks: number) => {
 function setup(opts: { approval?: number; growth?: number; authoritarian?: number } = {}) {
   const s = new Simulation({ map: flatMap(40), playerCount: 2, startingUnits: [], startingResources: { ...TEST_START } });
   s.national = {
-    techs: () => [],
+    techs: () => [...BUILDING_TECHS, ...[]],
     infrastructureIndex: () => 1,
     stability: () => 50,
     worksFundUsd: () => 1e12,

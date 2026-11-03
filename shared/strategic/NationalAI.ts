@@ -15,15 +15,31 @@ const AI_RESEARCH_ORDER: TechId[] = [
   'agricultural_mechanization',
   'territorial_administration',
   'mechanized_extraction',
+  // 03/11: o que a IA tática constrói no meio da partida (energia sem carvão, comércio, moradia, defesa e serviços)
+  'wind_power',
+  'foreign_trade',
+  'urban_planning',
+  'air_defense',
   'rapid_training',
+  'steelmaking',
+  'oil_refining',
+  'public_security',
+  'public_health',
   'digital_comms',
+  'naval_logistics',
+  'road_engineering',
+  'higher_education',
   'composite_armor',
+  'military_aviation',
   'guided_munitions',
   'advanced_drilling',
   'modular_construction',
+  'solar_power',
   'sensor_optics',
   'automation',
   'efficient_propulsion',
+  'nuclear_power',
+  'financial_markets',
 ];
 
 /**
@@ -31,7 +47,7 @@ const AI_RESEARCH_ORDER: TechId[] = [
  * limitadas — nada de recursos ocultos: usa os mesmos comandos do jogador.
  */
 /** Com a força aérea e os mísseis na dificuldade: munição guiada e mísseis vêm primeiro. */
-const AI_MILITARY_FIRST: TechId[] = ['logistics', 'digital_comms', 'guided_munitions', 'ballistic_missiles'];
+const AI_MILITARY_FIRST: TechId[] = ['logistics', 'digital_comms', 'military_aviation', 'guided_munitions', 'ballistic_missiles'];
 
 /** Dia (1 dia = 1 s de partida) a partir do qual o governo da IA puxa o índice de infraestrutura. */
 export const AI_INFRA_FROM_DAY = 720;

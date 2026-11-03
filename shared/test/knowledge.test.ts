@@ -4,7 +4,7 @@ import { Simulation } from '../sim/Simulation.ts';
 import { techKnowledge, researchBlocker } from '../strategic/technologies.ts';
 import { NationalSimulation } from '../strategic/NationalSimulation.ts';
 import type { Building, Cell } from '../sim/types.ts';
-import { TEST_START, flatMap } from './helpers.ts';
+import { TEST_START, flatMap, BUILDING_TECHS } from './helpers.ts';
 
 const run = (sim: Simulation, ticks: number) => {
   for (let i = 0; i < ticks; i++) sim.step();
@@ -36,7 +36,7 @@ function spot(s: Simulation, type: BuildingType, ok: (err: string | null) => boo
 /** Libera as pesquisas nacionais e a era para os testes de construção. */
 function unlock(s: Simulation, techs: string[], era = 3) {
   s.national = {
-    techs: () => techs,
+    techs: () => [...BUILDING_TECHS, ...techs],
     infrastructureIndex: () => 1,
     stability: () => 50,
     worksFundUsd: () => 1e12,

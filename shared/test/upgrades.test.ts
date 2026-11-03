@@ -15,7 +15,7 @@ import {
   type SpecId,
 } from '../sim/upgrades.ts';
 import type { Building, Cell } from '../sim/types.ts';
-import { TEST_START, flatMap } from './helpers.ts';
+import { TEST_START, flatMap, BUILDING_TECHS } from './helpers.ts';
 
 const run = (s: Simulation, ticks: number) => {
   for (let i = 0; i < ticks; i++) s.step();
@@ -25,7 +25,7 @@ const run = (s: Simulation, ticks: number) => {
 function fakeNation(over: Partial<{ techs: string[]; infra: number; stability: number; fund: number }> = {}) {
   const st = { techs: over.techs ?? [], infra: over.infra ?? 1, stability: over.stability ?? 60, fund: over.fund ?? 1e9, ledger: [] as number[] };
   const link: NationalLink = {
-    techs: () => st.techs,
+    techs: () => [...BUILDING_TECHS, ...st.techs],
     infrastructureIndex: () => st.infra,
     stability: () => st.stability,
     worksFundUsd: () => st.fund,

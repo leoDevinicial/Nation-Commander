@@ -7,7 +7,7 @@ import type { Building, Unit } from '../sim/types.ts';
 import { NationalAI } from '../strategic/NationalAI.ts';
 import { NationalSimulation } from '../strategic/NationalSimulation.ts';
 import { TECHNOLOGIES, TECH_IDS, researchBlocker, researchEtaDays, techDailyUsd, techDays, type TechId } from '../strategic/technologies.ts';
-import { flatMap } from './helpers.ts';
+import { flatMap, BUILDING_TECHS } from './helpers.ts';
 
 const run = (sim: Simulation, ticks: number) => {
   for (let i = 0; i < ticks; i++) sim.step();
@@ -20,7 +20,7 @@ const runDays = (sim: NationalSimulation, days: number) => {
 function link(techs: TechId[] = [], fundUsd = 50e6) {
   const state = { techs: [...techs] as string[], fund: fundUsd, ledger: [] as number[] };
   const l: NationalLink = {
-    techs: () => state.techs,
+    techs: () => [...BUILDING_TECHS, ...state.techs],
     infrastructureIndex: () => 1,
     stability: () => 60,
     worksFundUsd: () => state.fund,
