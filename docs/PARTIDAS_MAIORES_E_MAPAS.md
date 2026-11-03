@@ -62,6 +62,22 @@ bases em todos os tipos de mapa.
 O anfitrião escolhe o tipo, ou deixa sorteado no início da partida. Os tipos navais, Oceano Central e Arquipélago,
 esperam o conteúdo naval de combate (passos 3 e 4 da ordem sugerida no documento de design).
 
+### Montanhas (03/11)
+Pedido do usuário: o mapa não tinha montanhas. Agora cada nação ganha dois maciços altos (`generateMatchMap`, copiados
+pela mesma simetria do mapa, para ninguém sair em vantagem):
+- **no flanco da base:** raio ~5 (×1,3 no Montanhoso, ×0,8 no Deserto), com o anel de minério virado para a base;
+- **entre a nação e a vizinha (disputado):** maior (raio 6 a 7), com minério em manchas por toda a base.
+
+A borda do maciço tem um anel de ~2 células onde aflora o minério; o resto é rocha. Lagos e passagens não são cobertos
+(a passagem da base ao centro corta a serra, se precisar). Os depósitos ficam grandes: no mapa de 2 nações, seed 7, a
+rocha dos maciços dá 57, 61 e 116 células (41 a 83 mil de pedra; uma rocha comum tinha poucas dezenas de células),
+com o limite de 2 extrações por montanha. A pedreira e a mina se constroem na base, colada à encosta.
+
+No desenho (`src/game/render/relief.ts`), a rocha e o minério sobem conforme a distância até a borda do maciço: a borda
+fica rente ao chão (onde as construções encostam) e o miolo vira encosta íngreme e facetada, com pico de até ~11 e neve
+acima de ~8. A mesma conta serve à malha do terreno e à altura das tropas, construções e estradas (`groundHeight`).
+Só visual: a simulação segue na grade plana e a rocha continua intransitável. As pedras decorativas ficam só na base.
+
 ## Região inicial do país
 
 A região perto da base reflete o país. Cada perfil ganha mais de um recurso e perde de outro (compensação declarada),

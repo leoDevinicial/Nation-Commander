@@ -264,6 +264,62 @@ export function generateMatchMap(seed: number, opts: MatchMapOptions): MapData {
       }
     }
   };
+  // --- montanhas (03/11): maciços altos de rocha com veios de minério na base, onde cabem pedreira e mina com estoque
+  // grande. Por nação: um no flanco da base e um maior entre ela e a vizinha (disputado). Desenhados na nação 0 e
+  // copiados para as outras pela mesma simetria do mapa; lagos e passagens ficam como estão.
+  const scale = type === 'mountains' ? 1.3 : type === 'desert' ? 0.8 : 1;
+  /** Terreno de um ponto do maciço, a partir do centro (dx, dy) (null = fora). `ore` aponta para onde fica o minério. */
+  const massifAt = (mx: number, my: number, r0: number, ore: { x: number; y: number } | null, dx: number, dy: number): Terrain | null => {
+    const d = Math.hypot(dx, dy);
+    const rr = r0 * (0.8 + 0.45 * detail(mx + dx * 0.9 + 5, my + dy * 0.9 + 9));
+    if (d > rr) return null;
+    if (d <= rr - 2.3) return Terrain.Rock;
+    // anel da base: minério do lado indicado (ou em manchas, se não houver lado)
+    if (ore ? (dx * ore.x + dy * ore.y) / (d || 1) > 0.3 : detail(mx - dx + 2, my - dy + 4) > 0.55) return Terrain.Ore;
+    return Terrain.Rock;
+  };
+  const massif = (mx: number, my: number, r0: number, ore: { x: number; y: number } | null) => {
+    const ext = Math.ceil(r0 * 1.3) + 1;
+    for (let k = 0; k < n; k++) {
+      if (!circular) {
+        for (let dy = -ext; dy <= ext; dy++)
+          for (let dx = -ext; dx <= ext; dx++) {
+            const t = massifAt(mx, my, r0, ore, dx, dy);
+            if (t === null) continue;
+            const [px, py] = rotCell(Math.round(mx) + dx, Math.round(my) + dy, k);
+            if (inside(px, py) && terrain[py * size + px] !== Terrain.Water && terrain[py * size + px] !== Terrain.Road) terrain[py * size + px] = t;
+          }
+        continue;
+      }
+      // 3, 5 e 6 nações: cada célula em volta do centro girado amostra o maciço de referência (sem buracos)
+      const a = k * sector;
+      const ox = mx - c;
+      const oy = my - c;
+      const qx = Math.round(c + ox * Math.cos(a) - oy * Math.sin(a));
+      const qy = Math.round(c + ox * Math.sin(a) + oy * Math.cos(a));
+      for (let ey = -ext; ey <= ext; ey++)
+        for (let ex = -ext; ex <= ext; ex++) {
+          const rx = ex * Math.cos(-a) - ey * Math.sin(-a);
+          const ry = ex * Math.sin(-a) + ey * Math.cos(-a);
+          const t = massifAt(mx, my, r0, ore, rx, ry);
+          if (t === null) continue;
+          const px = qx + ex;
+          const py = qy + ey;
+          if (inside(px, py) && terrain[py * size + px] !== Terrain.Water && terrain[py * size + px] !== Terrain.Road) terrain[py * size + px] = t;
+        }
+    }
+  };
+  {
+    // flanco da base: minério virado para a base
+    const fl = at(6, -18);
+    const toBase = { x: s0.cx - fl.x, y: s0.cy - fl.y };
+    const len = Math.hypot(toBase.x, toBase.y) || 1;
+    massif(fl.x, fl.y, 5 * scale, { x: toBase.x / len, y: toBase.y / len });
+    // entre as nações (disputado): maior, com minério em manchas por toda a base
+    const ma = base + 0.5 * sector;
+    const mr = n === 2 ? R * 0.5 : n === 4 ? R * 0.55 : R * 0.5;
+    massif(c + mr * Math.cos(ma), c + mr * Math.sin(ma), (n === 2 ? 7 : 6) * scale, null);
+  }
   paintKit(setOne);
 
 

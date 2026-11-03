@@ -45,6 +45,7 @@ import { DroneFpv, type FpvTarget } from './render/DroneFpv.ts';
 import { BUILDING_SOLID_HEIGHT } from '../../shared/sim/buildingHeights.ts';
 import { AmbientLife } from './render/AmbientLife.ts';
 import { CityTraffic } from './render/CityTraffic.ts';
+import { mountainDepth, reliefHeight } from './render/relief.ts';
 import { POWER, POWER_GEN, POWER_USE } from '../../shared/sim/power.ts';
 import { WeatherSystem } from './render/Weather.ts';
 import { CLIMATE_LABELS, dayLight, matchClimate } from '../../shared/sim/climate.ts';
@@ -590,16 +591,12 @@ export class GameRuntime {
 
   /** Altura aproximada do terreno (mesma regra do TerrainFactory, sem o ruído). */
   private groundHeight(x: number, z: number): number {
-    const cs = this.map.cellSize;
-    const at = (px: number, pz: number) => {
-      const cx = Math.min(this.map.width - 1, Math.max(0, Math.floor(px / cs)));
-      const cy = Math.min(this.map.height - 1, Math.max(0, Math.floor(pz / cs)));
-      const t = this.map.terrain[cy * this.map.width + cx];
-      return t === T.Water ? -0.7 : t === T.Rock || t === T.Ore ? 0.9 : t === T.Mud ? -0.08 : 0;
-    };
-    const o = cs * 0.45;
-    return (at(x - o, z - o) + at(x + o, z - o) + at(x - o, z + o) + at(x + o, z + o)) / 4;
+    // a mesma conta da malha do terreno, com as montanhas (relief.ts)
+    this.relief ??= mountainDepth(this.map);
+    return reliefHeight(this.map, this.relief, x, z);
   }
+  /** Profundidade das montanhas (calculada uma vez: rocha e minério não mudam na partida). */
+  private relief: Uint8Array | null = null;
 
   /** Depósitos esgotados já conhecidos (as pedras ficam gastas e a prévia recusa coleta nova ali). */
   private readonly depletedSeen = new Set<number>();

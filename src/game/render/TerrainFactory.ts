@@ -10,8 +10,12 @@ import { C, PartBuilder } from './models/kit.ts';
 import { decorKept } from './decorThinning.ts';
 import { detailedTrees } from './Trees.ts';
 import { proceduralRocks, type RockInstance } from './Rocks.ts';
+import { cellHeight, mountainDepth, snowAt } from './relief.ts';
 
 /** Tom aplicado sobre a textura de cada terreno (1 = textura pura). */
+/** Cor do cume nevado (clareia a textura de rocha). */
+const SNOW_TINT = new THREE.Color(1.45, 1.45, 1.5);
+
 const TERRAIN_COLORS: Record<Terrain, THREE.Color> = {
   [Terrain.Plains]: new THREE.Color(1, 1, 1),
   [Terrain.Road]: new THREE.Color(1, 1, 1),
@@ -259,28 +263,35 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
   const uv = geo.attributes.uv as THREE.BufferAttribute;
   const colors = new Float32Array(pos.count * 3);
   const tmp = new THREE.Color();
-  const terrainAt = (x: number, z: number): Terrain => {
+  const cellIndex = (x: number, z: number): number => {
     const cx = Math.min(map.width - 1, Math.max(0, Math.floor(x / map.cellSize)));
     const cy = Math.min(map.height - 1, Math.max(0, Math.floor(z / map.cellSize)));
-    return map.terrain[cy * map.width + cx] ?? Terrain.Plains;
+    return cy * map.width + cx;
   };
+  // montanhas (03/11): a rocha sobe conforme a distância até a borda do maciço (relief.ts)
+  const depth = mountainDepth(map);
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const z = pos.getZ(i);
     tmp.setRGB(0, 0, 0);
     let height = 0;
     const o = map.cellSize * 0.45;
-    for (const t of [terrainAt(x - o, z - o), terrainAt(x + o, z - o), terrainAt(x - o, z + o), terrainAt(x + o, z + o)]) {
+    for (const ci of [cellIndex(x - o, z - o), cellIndex(x + o, z - o), cellIndex(x - o, z + o), cellIndex(x + o, z + o)]) {
+      const t = map.terrain[ci] ?? Terrain.Plains;
       tmp.r += TERRAIN_COLORS[t].r / 4;
       tmp.g += TERRAIN_COLORS[t].g / 4;
       tmp.b += TERRAIN_COLORS[t].b / 4;
-      height += (t === Terrain.Water ? -0.7 : t === Terrain.Rock || t === Terrain.Ore ? 0.9 : t === Terrain.Mud ? -0.08 : 0) / 4;
+      height += cellHeight(t, depth[ci]!, ci) / 4;
     }
+    // picos nevados: a cor clareia acima de ~8 de altura
+    const snow = snowAt(height);
+    if (snow > 0) tmp.lerp(SNOW_TINT, snow * 0.85);
     const jitter = 0.93 + rng.next() * 0.12;
     colors[i * 3] = tmp.r * jitter;
     colors[i * 3 + 1] = tmp.g * jitter;
     colors[i * 3 + 2] = tmp.b * jitter;
-    pos.setY(i, height + (rng.next() - 0.5) * 0.05);
+    // encosta rochosa irregular (facetas low poly); o chão comum quase não treme
+    pos.setY(i, height + (rng.next() - 0.5) * (height > 1.2 ? 0.16 * height : 0.05));
     uv.setXY(i, (x / W) * 24, (z / H) * 24);
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -315,7 +326,8 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
       if (t === Terrain.Forest) {
         const n = quality === 'high' ? 2 : 1;
         for (let k = 0; k < n; k++) trees.push({ x: bx + 0.3 + rng.next() * 1.4, z: bz + 0.3 + rng.next() * 1.4, s: 0.8 + rng.next() * 0.5, r: rng.next() * 6.28, v: rng.next() });
-      } else if (t === Terrain.Rock || t === Terrain.Ore) {
+      } else if ((t === Terrain.Rock || t === Terrain.Ore) && depth[cy * map.width + cx]! <= 1) {
+        // só na base do maciço: no alto, a própria encosta é a rocha (as pedras ficariam enterradas)
         rocks.push({ x: bx + 1, z: bz + 1, s: 0.9 + rng.next() * 0.5, r: rng.next() * 6.28, v: rng.next(), ore: t === Terrain.Ore });
         if (t === Terrain.Ore) ores.push({ x: bx + 0.4 + rng.next() * 1.2, z: bz + 0.4 + rng.next() * 1.2, s: 0.5 + rng.next() * 0.3, r: rng.next() * 6.28, v: rng.next() });
       } else if (t === Terrain.Plains && quality === 'high' && rng.next() < 0.025) {

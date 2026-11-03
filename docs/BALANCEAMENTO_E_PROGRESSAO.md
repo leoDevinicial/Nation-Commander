@@ -485,6 +485,7 @@ Proposta registrada a partir do feedback da versão 1.0. **Implementada** em 31/
 | Sem dívida pública (custos de governo saem do caixa); comércio entre as nações da partida por anúncios (venda simples e contrato) com rota por rodovia, porto ou aeroporto, cargas atacáveis e pagamento na chegada; mercado mundial de reserva; Rodovia fora da fronteira; IA anunciando e comprando | Feito | `docs/COMERCIO.md` |
 | IA constrói rodovias até os terminais dos vizinhos em paz; rodovia com manutenção menor e margens sem zoneamento; Terminal Comercial 3×3; carros dos cidadãos nas ruas (visual) | Feito | `docs/COMERCIO.md`, `docs/VIDA_AMBIENTE.md` |
 | Rodovia só no próprio território ou no neutro (encontro no neutro); estradas e rodovias como alvo militar por ordem do jogador (corta energia, caravanas e cargas); carros com modelos melhores | Feito | `docs/COMERCIO.md`, `docs/VIDA_AMBIENTE.md` |
+| Montanhas no mapa: dois maciços altos por nação (flanco e disputado), com rocha e minério de estoque grande na base; relevo facetado com neve no pico | Feito | `docs/PARTIDAS_MAIORES_E_MAPAS.md` |
 | Mercado interno no Terminal Comercial (excedente → suprimentos, preço com pressão que se recupera; IA vende a sobra) | Feito | `docs/MERCADO_INTERNO.md`, `shared/sim/market.ts` |
 | Lote 1, §2.6 — incidentes de fronteira no preparo | Feito | `Simulation.startIncident`, `TacticalAI.planHarass` |
 | Lote 1, §2.7 — curva de defesa (raiz com saturação suave) | Feito | `theaterSupply` em `shared/strategic/params.ts` |
