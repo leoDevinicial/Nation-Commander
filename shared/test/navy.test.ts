@@ -121,9 +121,12 @@ describe('Marinha (03/11)', () => {
     // longe demais
     const far = at(45, 45);
     expect(sim.air.prepareBlocker(0, sub.id, far.x, far.y)).toMatch(/Fora do alcance/);
-    // no mar aberto (neutro), dentro do alcance: pode, mesmo sem ver o ponto
+    // no mar aberto (neutro), dentro do alcance: só depois de explorado (nada de bombardear às cegas)
     const p = at(40, 10);
     expect(Math.hypot(p.x - sub.pos.x, p.y - sub.pos.y)).toBeLessThan(CRUISE.range);
+    expect(sim.air.prepareBlocker(0, sub.id, p.x, p.y)).toMatch(/não explorado/);
+    const pc = sim.grid.worldToCell(p);
+    (sim.explored[0] ??= new Uint8Array(sim.map.width * sim.map.height))[pc.cy * sim.map.width + pc.cx] = 1;
     const enemyShip = sim.addUnit('frigate', 1, p);
     expect(sim.applyCommand(0, { type: 'missile_prepare', buildingId: sub.id, x: p.x, y: p.y })).toBeNull();
     expect(sub.missiles).toBe((UNITS.missile_submarine.missiles ?? 0) - 1);

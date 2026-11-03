@@ -340,6 +340,11 @@ export interface UnitDef {
   carrierFighters?: number;
 }
 
+/** Recrutas que a unidade ocupa ao ser produzida: a tripulação e, no porta-aviões, os pilotos dos caças embarcados. */
+export function recruitsFor(t: UnitType): number {
+  return (UNITS[t].crew ?? 1) + (UNITS[t].carrierFighters ?? 0);
+}
+
 /** Navio de transporte (03/11): vagas, alcance para embarcar e desembarcar, e onde a carga desce. */
 export const NAVAL = {
   /** Distância (mundo) entre a tropa e o navio para embarcar. */

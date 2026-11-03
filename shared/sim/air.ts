@@ -882,6 +882,9 @@ export class AirSystem {
     if (owner >= 0 && !this.sim.formalWar(slot, owner)) return 'Sem estado de guerra com o dono desse território';
     const d = dist(ln.pos, p);
     if (d > ln.range) return `Fora do alcance: ${Math.round(d)} de ${ln.range} (lance de mais perto)`;
+    // só onde o país já explorou (ou junto de um edifício inimigo já descoberto): nada de bombardear às cegas
+    const known = this.sim.buildings.some((bb) => bb.owner !== slot && this.isKnown(slot, bb.id) && dist(bb.pos, p) <= MISSILE.radius + 2);
+    if (!known && !this.sim.isExplored(slot, c.cx, c.cy)) return 'Alvo não explorado: mande tropas, reconhecimento aéreo ou drone até lá antes';
     return null;
   }
 
@@ -959,6 +962,8 @@ export class AirSystem {
       const port = this.sim.buildings.some((b) => b.owner === u.owner && b.type === 'port' && b.progress >= 1 && b.hp > 0 && dist(b.pos, u.pos) <= CRUISE.reloadRange);
       const p = this.sim.players[u.owner];
       if (!port || !p || !canAfford(p.resources, MISSILE.cost)) continue;
+      // o míssil de cruzeiro custa o mesmo que o do silo, inclusive em US$ (03/11)
+      if (this.sim.national && !this.sim.national.chargeWorks(u.owner, MISSILE.usd, 'Míssil de cruzeiro')) continue;
       this.sim.spendResources(u.owner, MISSILE.cost);
       u.missiles = (u.missiles ?? 0) + 1;
     }

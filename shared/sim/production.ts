@@ -16,6 +16,7 @@ import {
   type Goods,
   type ProducibleType,
   type Stockpile,
+  recruitsFor,
 } from './config.ts';
 import { buildingEffects, missingText, scaledCost, type SpecId } from './upgrades.ts';
 import { addCost, productionStandard, type ModId } from './modernization.ts';
@@ -143,9 +144,9 @@ export function checkProduce(unit: ProducibleType, c: ProduceContext): ProduceCh
       return no(`Requer a pesquisa nacional "${label}"`, 'pesquisar');
     }
     // cada unidade militar precisa de recrutas da reserva como tripulação (navios: vários)
-    const crew = def.crew ?? 1;
+    const crew = recruitsFor(unit);
     if (c.recruits < crew)
-      return no(crew > 1 ? `Tripulação de ${crew} recrutas: há ${c.recruits} na reserva (aliste na base militar)` : 'Nenhum recruta disponível: aliste recrutas na base militar (quartel)', 'sem recruta');
+      return no(crew > 1 ? `Tripulação${def.carrierFighters ? ' e pilotos' : ''} de ${crew} recrutas: há ${c.recruits} na reserva (aliste na base militar)` : 'Nenhum recruta disponível: aliste recrutas na base militar (quartel)', 'sem recruta');
   }
   if (!canAfford(c.resources, cost)) return no(`Recursos insuficientes: faltam ${missingText(c.resources, cost)}`, firstMissing(c.resources, cost));
   return { cost, ...eq, blocker: null, short: null, basic, goods };

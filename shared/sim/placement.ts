@@ -126,6 +126,8 @@ export function placementError(w: PlacementWorld, slot: Slot, type: BuildingType
         if (w.terrain[y * w.width + x] === WATER) water++;
       }
     if (water < 2) return `${def.label}: precisa ficar na margem da água`;
+    // 03/11: lagoa pequena não serve (os navios ficariam presos): a água em volta precisa ser um mar ou um lago grande
+    if (type === 'port' && !bigWaterNear(w, cell, def.size, PORT_MIN_WATER)) return `${def.label}: essa água é uma lagoa pequena; construa na margem do mar`;
   }
   if (def.gather) {
     // mesma regra do servidor: a coleta não conta células embaixo de edifícios (nem embaixo do próprio)
@@ -233,4 +235,32 @@ function open(w: PlacementWorld, b: { type: BuildingType; cell: Cell }, free: (x
     }
   }
   return seen.size >= EXIT_CELLS;
+}
+
+/** Células de água ligadas que o Porto precisa ter à frente (menos que isso é lagoa e prenderia os navios). */
+export const PORT_MIN_WATER = 120;
+
+/** Alguma água encostada no terreno pertence a um corpo d'água com pelo menos `min` células? (busca limitada) */
+function bigWaterNear(w: { width: number; height: number; terrain: ArrayLike<number> }, cell: { cx: number; cy: number }, size: number, min: number): boolean {
+  const seen = new Set<number>();
+  for (let y = cell.cy - 1; y <= cell.cy + size; y++)
+    for (let x = cell.cx - 1; x <= cell.cx + size; x++) {
+      if (x < 0 || y < 0 || x >= w.width || y >= w.height) continue;
+      const start = y * w.width + x;
+      if (w.terrain[start] !== WATER || seen.has(start)) continue;
+      const stack = [start];
+      let n = 0;
+      while (stack.length) {
+        const i = stack.pop()!;
+        if (seen.has(i) || w.terrain[i] !== WATER) continue;
+        seen.add(i);
+        if (++n >= min) return true;
+        const cx = i % w.width;
+        if (cx > 0) stack.push(i - 1);
+        if (cx < w.width - 1) stack.push(i + 1);
+        if (i >= w.width) stack.push(i - w.width);
+        if (i + w.width < w.width * w.height) stack.push(i + w.width);
+      }
+    }
+  return false;
 }

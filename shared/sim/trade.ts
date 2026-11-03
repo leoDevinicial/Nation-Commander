@@ -300,11 +300,12 @@ export class TradeSystem {
   }
 
   /** O jogador pode negociar por este modal? (motivo, ou null). O Terminal Comercial é a bolsa: sem ele, nada. */
-  modeBlocker(slot: Slot, mode: TransportMode): string | null {
+  modeBlocker(slot: Slot, mode: TransportMode, ships = true): string | null {
     if (this.facilities(slot, 'market').length === 0) return 'Construa um Terminal Comercial para negociar';
     if (mode === 'air' && !this.airports(slot).length) return `Avião: construa uma Base Aérea ou melhore o Centro de Comando até o nível ${AIR_HQ_LEVEL} (heliponto de carga)`;
     if (mode === 'sea' && !this.facilities(slot, 'port').length) return 'Navio: construa um Porto na margem da água';
-    if (mode === 'sea' && !this.cargoShips(slot)) return 'Navio: produza um Cargueiro no Porto';
+    // o navio é de quem despacha: quem compra só precisa do Porto para receber (03/11)
+    if (mode === 'sea' && ships && !this.cargoShips(slot)) return 'Navio: produza um Cargueiro no Porto';
     return null;
   }
 
@@ -445,7 +446,7 @@ export class TradeSystem {
     if (!TRANSPORT_MODES.includes(mode)) return 'Transporte inválido';
     const access = this.accessBlocker(buyer, l.seller);
     if (access) return access;
-    const mb = this.modeBlocker(buyer, mode);
+    const mb = this.modeBlocker(buyer, mode, false);
     if (mb) return mb;
     if (this.modeBlocker(l.seller, mode)) return `${this.name(l.seller)} não despacha por ${TRANSPORT[mode].label.toLowerCase()}`;
     const route = this.route(l.seller, buyer, mode);

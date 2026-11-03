@@ -1497,7 +1497,10 @@ export function treasuryInputs(sim: Simulation, slot: Slot): TreasuryInputs {
   // as tropas a bordo dos navios de transporte também recebem soldo (03/11)
   for (const u of sim.units.flatMap((x) => [x, ...(x.cargo ?? [])])) {
     if (u.owner !== slot) continue;
-    if (UNITS[u.type].producedBy === 'factory') vehicles++;
+    const def = UNITS[u.type];
+    // navios (03/11): pagam como veículos, um por cada 3 tripulantes (o porta-aviões, 3 veículos; antes pagavam soldo de soldado)
+    if (def.naval) vehicles += Math.max(1, Math.ceil((def.crew ?? 1) / 3));
+    else if (def.producedBy === 'factory') vehicles++;
     else infantry++;
   }
   const power = sim.power ? sim.powerInfo[slot] : undefined;

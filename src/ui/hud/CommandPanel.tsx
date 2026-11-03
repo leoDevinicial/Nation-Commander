@@ -28,6 +28,7 @@ import {
   emptyStockpile,
   ESCALATING_BUILDINGS,
   ESCALATING_COST_STEP,
+  recruitsFor,
   type BuildingType,
   type MilitaryResearchId,
   type ProducibleType,
@@ -786,7 +787,7 @@ function ProduceButtons({ runtime, b }: { runtime: GameRuntime; b: SelectedBuild
             hotkey={def.hotkey}
             label={def.label}
             onRun={() => runtime.produce(u)}
-            title={`${def.label} — ${def.description}\nTripulação: ${def.crew ?? 1} recruta${(def.crew ?? 1) > 1 ? "s" : ""} (reserva: ${recruits})${def.cargo ? ` · Leva ${def.cargo.infantry} a pé${def.cargo.vehicles ? ` e ${def.cargo.vehicles} veículos` : ""}` : ""} · Tempo: ${timeText(def.buildSeconds)} · Vida: ${def.maxHp} · Dano: ${def.weapon.damage} · Alcance: ${def.weapon.range} · Visão: ${def.sight}${counterText(u)}`}
+            title={`${def.label} — ${def.description}\nTripulação: ${recruitsFor(u)} recruta${recruitsFor(u) > 1 ? "s" : ""}${def.carrierFighters ? ` (com ${def.carrierFighters} pilotos)` : ""} (reserva: ${recruits})${def.cargo ? ` · Leva ${def.cargo.infantry} a pé${def.cargo.vehicles ? ` e ${def.cargo.vehicles} veículos` : ""}` : ""} · Tempo: ${timeText(def.buildSeconds)} · Vida: ${def.maxHp} · Dano: ${def.weapon.damage} · Alcance: ${def.weapon.range} · Visão: ${def.sight}${counterText(u)}`}
           />
         );
       })}

@@ -62,6 +62,7 @@ import {
   type Stockpile,
   type Goods,
   type UnitType,
+  recruitsFor,
 } from './config.ts';
 import { chooseClaims, claimableCells, claimedBy, gatherRate, sitesByDeposit } from './gathering.ts';
 import { UPGRADE_CANCEL_REFUND, UPGRADE_WORK_EFFICIENCY, buildingEffects, maxLevelOf, missingText, planUpgrade, upgradeTrack, type BuildingEffects, type UpgradePlan, type UpgradeWorld } from './upgrades.ts';
@@ -174,6 +175,8 @@ export interface SimulationSave {
   incidents?: [string, number][];
   difficulty?: Difficulty;
   eras?: boolean;
+  /** Células exploradas por jogador, em bits (base64). */
+  explored?: string[];
   /** Obras com construtores (ausente nos salvamentos de antes deles: a obra anda sozinha). */
   builders?: boolean;
   /** Rede elétrica ligada (ausente nos salvamentos de antes dela: tudo fica com luz). */
@@ -342,7 +345,8 @@ export class Simulation {
   /** Pares em guerra formal ("a:b", a < b). Sem guerra não há disparo nem ordem de ataque. */
   private readonly wars = new Set<string>();
   /** Estradas construídas pelos jogadores (célula e dono, para a manutenção). */
-  roads: { i: number; owner: Slot; hw?: true }[] = [];
+  /** Estradas dos jogadores. `prev`: o terreno embaixo (solo fértil volta a ser fértil se a estrada sair; 03/11). */
+  roads: { i: number; owner: Slot; hw?: true; prev?: Terrain }[] = [];
   /** Células de rodovia (02/11): mais rápidas, sem energia, podem sair do território. A grade usa o mesmo conjunto. */
   readonly highways = new Set<number>();
   /** Vida das células de estrada e rodovia já atingidas por tropas (as intactas não entram). */
@@ -525,9 +529,10 @@ export class Simulation {
       this.addBuilding('coal_plant', slot, o.plant, 1);
       for (const c of o.road) {
         const i = c.cy * w + c.cx;
+        const prev = this.map.terrain[i]!;
         this.map.terrain[i] = Terrain.Road;
         this.grid.terrain[i] = Terrain.Road;
-        this.roads.push({ i, owner: slot });
+        this.roads.push({ i, owner: slot, ...(prev === Terrain.Fertile ? { prev } : {}) });
       }
       return;
     }
@@ -572,6 +577,7 @@ export class Simulation {
       ...(this.power ? { power: true, powerState: { powered: [...this.powered], load: [...this.powerLoad], coalDebt: [...this.coalDebt], info: this.powerInfo.map((p) => ({ ...p })), homes: this.litHomes.map((h) => ({ ...h })) } } : {}),
       ...(this.roads.length ? { roads: this.roads.map((r) => ({ ...r })) } : {}),
       ...(this.roadHp.size ? { roadHp: [...this.roadHp] } : {}),
+      ...(this.explored.length ? { explored: this.explored.map(packBits) } : {}),
       ...(this.victory ? { victory: this.victory } : {}),
       ...(this.territoryHold.some((v) => v > 0) ? { territoryHold: [...this.territoryHold] } : {}),
       ...(this.collapseDays.some((v) => v > 0) ? { collapseDays: [...this.collapseDays] } : {}),
@@ -646,6 +652,7 @@ export class Simulation {
     sim.highways.clear();
     for (const r of sim.roads) if (r.hw) sim.highways.add(r.i);
     sim.roadHp = new Map(data.roadHp ?? []);
+    if (data.explored) sim.explored = data.explored.map((b) => unpackBits(b, data.map.width * data.map.height));
     sim.victory = data.victory ?? null;
     sim.territoryHold = [...(data.territoryHold ?? [])];
     sim.collapseDays = [...(data.collapseDays ?? [])];
@@ -810,7 +817,7 @@ export class Simulation {
       for (const q of e.queue)
         if (q.unitType === 'citizen') queuedCitizens++;
         else if (q.unitType === 'recruit') queuedRecruits++;
-        else queuedMilitary += UNITS[q.unitType].crew ?? 1;
+        else queuedMilitary += recruitsFor(q.unitType);
     }
     // pilotos: cada aeronave (pronta, em missão ou em produção) ocupa um militar
     for (const a of this.air.aircraft) if (a.owner === slot) military++;
@@ -1090,6 +1097,25 @@ export class Simulation {
   private visibility: Uint8Array[] = [];
   private visibilityTick = -1;
 
+  /** Células já exploradas por jogador (03/11: o míssil só mira onde o país já viu). */
+  explored: Uint8Array[] = [];
+
+  /** A célula já foi vista pelo jogador alguma vez (agora ou antes)? */
+  isExplored(slot: Slot, cx: number, cy: number): boolean {
+    const i = cy * this.map.width + cx;
+    return !!this.explored[slot]?.[i] || !!this.visibilityOf(slot)[i];
+  }
+
+  /** Soma a visão atual ao que cada jogador já explorou (a cada segundo). */
+  private updateExplored(): void {
+    const n = this.map.width * this.map.height;
+    this.players.forEach((p) => {
+      const ex = (this.explored[p.slot] ??= new Uint8Array(n));
+      const vis = this.visibilityOf(p.slot);
+      for (let i = 0; i < n; i++) if (vis[i]) ex[i] = 1;
+    });
+  }
+
   /** Grade de células visíveis para o jogador (1 = visível), recalculada a cada poucos ticks. */
   visibilityOf(slot: Slot): Uint8Array {
     if (this.visibilityTick !== this.tick || !this.visibility[slot]) this.recomputeVisibility();
@@ -1331,7 +1357,7 @@ export class Simulation {
           return null;
         }
         const def = UNITS[cmd.unitType];
-        player.recruits -= def.crew ?? 1;
+        player.recruits -= recruitsFor(cmd.unitType);
         const ticks = this.duration(slot, def.buildSeconds * TICK_RATE * player.modifiers.productionTimeMul * bfx.productionTimeMul * (this.bonusOf(slot).unitTimeMul ?? 1));
         b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks, paid: cost, mods: [...check.mods], ...(Object.keys(check.goods).length ? { goodsPaid: { ...check.goods } } : {}) });
         return null;
@@ -1390,11 +1416,12 @@ export class Simulation {
           if (!freeHw) this.spend(player, { stone: hp.stone });
           for (const i of hp.cells) {
             this.zones.clearCell(i);
+            const prev = this.map.terrain[i]!;
             this.map.terrain[i] = Terrain.Road;
             this.grid.terrain[i] = Terrain.Road;
             const own = this.roads.find((r) => r.i === i);
             if (own) own.hw = true;
-            else this.roads.push({ i, owner: slot, hw: true });
+            else this.roads.push({ i, owner: slot, hw: true, ...(prev === Terrain.Fertile ? { prev } : {}) });
             this.highways.add(i);
           }
           this.territoryVersion++;
@@ -1407,9 +1434,10 @@ export class Simulation {
         if (!free) this.spend(player, { stone: plan.stone });
         for (const i of plan.cells) {
           this.zones.clearCell(i);
+          const prev = this.map.terrain[i]!;
           this.map.terrain[i] = Terrain.Road;
           this.grid.terrain[i] = Terrain.Road;
-          this.roads.push({ i, owner: slot });
+          this.roads.push({ i, owner: slot, ...(prev === Terrain.Fertile ? { prev } : {}) });
         }
         // as estradas vão junto com as fronteiras no próximo snapshot
         this.territoryVersion++;
@@ -1491,7 +1519,7 @@ export class Simulation {
         if (!item) return 'Fila vazia';
         this.refund(slot, item.paid ?? (item.unitType === 'citizen' ? CITIZEN.cost : item.unitType === 'recruit' ? RECRUIT.cost : UNITS[item.unitType].cost));
         if (item.goodsPaid) this.refundGoods(player, item.goodsPaid);
-        if (item.unitType !== 'citizen' && item.unitType !== 'recruit') player.recruits += UNITS[item.unitType].crew ?? 1; // a tripulação volta à reserva
+        if (item.unitType !== 'citizen' && item.unitType !== 'recruit') player.recruits += recruitsFor(item.unitType); // a tripulação volta à reserva
         return null;
       }
       case 'set_workers': {
@@ -2122,6 +2150,7 @@ export class Simulation {
     if (this.territoryDirty) this.recomputeTerritory();
     if (this.tick % TICK_RATE === 0) for (const p of this.players) if (!p.defeated) this.staff(p.slot);
     if (this.tick % TICK_RATE === 0) this.watchNuclear();
+    if (this.tick % TICK_RATE === 0) this.updateExplored();
     this.updateEconomy();
     this.updateProcessing();
     this.updateWorkshops();
@@ -2406,7 +2435,7 @@ export class Simulation {
     for (const q of b.queue) {
       if (q.paid) this.refund(slot, q.paid);
       if (q.goodsPaid) this.refundGoods(p, q.goodsPaid);
-      if (q.unitType !== 'citizen' && q.unitType !== 'recruit') p.recruits += UNITS[q.unitType].crew ?? 1;
+      if (q.unitType !== 'citizen' && q.unitType !== 'recruit') p.recruits += recruitsFor(q.unitType);
     }
     b.queue = [];
     this.removeEntity(b);
@@ -2421,11 +2450,12 @@ export class Simulation {
     const hit = [...new Set(cells)].filter((i) => mine.has(i));
     if (!hit.length) return 'Nenhuma estrada sua nessas células';
     for (const i of hit) {
+      const prev = this.roads.find((r) => r.i === i)?.prev ?? Terrain.Plains;
       this.roads = this.roads.filter((r) => r.i !== i);
       this.highways.delete(i);
       this.roadHp.delete(i);
-      this.map.terrain[i] = Terrain.Plains;
-      this.grid.terrain[i] = Terrain.Plains;
+      this.map.terrain[i] = prev;
+      this.grid.terrain[i] = prev;
     }
     this.territoryVersion++;
     const c = hit[0]!;
@@ -3473,8 +3503,8 @@ export class Simulation {
     this.roadHp.delete(cell);
     this.roads = this.roads.filter((r) => r.i !== cell);
     this.highways.delete(cell);
-    this.map.terrain[cell] = Terrain.Plains;
-    this.grid.terrain[cell] = Terrain.Plains;
+    this.map.terrain[cell] = road.prev ?? Terrain.Plains;
+    this.grid.terrain[cell] = road.prev ?? Terrain.Plains;
     this.territoryVersion++;
     const pos = this.grid.cellCenter({ cx: cell % this.map.width, cy: Math.floor(cell / this.map.width) });
     this.emit({ type: 'road_destroyed', tick: this.tick, owner: road.owner, by: attacker, cell, highway: !!road.hw, pos });
@@ -4452,4 +4482,20 @@ function zoningHost(sim: Simulation): ZoningHost {
       return sim.units.some((u) => u.pos.x >= x0 - 0.3 && u.pos.x <= x0 + cs + 0.3 && u.pos.y >= y0 - 0.3 && u.pos.y <= y0 + cs + 0.3);
     },
   };
+}
+
+/** Uint8Array de 0/1 → bits em base64 (salvar o mapa explorado sem pesar). */
+function packBits(a: Uint8Array): string {
+  const out = new Uint8Array(Math.ceil(a.length / 8));
+  for (let i = 0; i < a.length; i++) if (a[i]) out[i >> 3]! |= 1 << (i & 7);
+  let bin = '';
+  for (const b of out) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+
+function unpackBits(s: string, n: number): Uint8Array {
+  const bin = atob(s);
+  const out = new Uint8Array(n);
+  for (let i = 0; i < n; i++) if ((bin.charCodeAt(i >> 3) >> (i & 7)) & 1) out[i] = 1;
+  return out;
 }
