@@ -666,7 +666,13 @@ export class TacticalAI {
     // recrutas: alistados no quartel para tripular as próximas unidades (no preparo, só a guarnição). Um por quartel
     // ou fábrica pronta: recruta parado na reserva prende a comida que formaria o soldado
     const lines = mine.filter((b) => (b.type === 'barracks' || b.type === 'factory') && b.progress >= 1).length;
-    const wantRecruits = Math.min(preparing ? garrisonRoom : 4, lines);
+    // navio pedido pelo Porto (03/11): a tripulação é de vários recrutas; o Porto vem primeiro e o quartel alista para ele
+    const port = mine.find((b) => b.type === 'port' && b.progress >= 1 && b.queue.length === 0);
+    const fleetNow = ships.length + mine.reduce((a, x) => a + x.queue.filter((q) => q.unitType === 'transport_ship').length, 0);
+    const portWant = port ? this.portMix(sim, own, mine, overseas, preparing, fleetNow, natTechs) : null;
+    // a reserva só vale além-mar: no continente, o cargueiro do comércio espera a sobra de recrutas
+    const shipCrew = portWant && overseas ? (UNITS[portWant[0]!].crew ?? 1) : 0;
+    const wantRecruits = Math.max(Math.min(preparing ? garrisonRoom : 4, lines), shipCrew);
     const barracks = mine.find((b) => b.type === 'barracks' && b.progress >= 1 && b.queue.length < 2);
     if (barracks && pop.total < pop.cap && pop.recruits + pop.queuedRecruits < wantRecruits && take(RECRUIT.cost)) {
       cmds.push({ type: 'produce', buildingId: barracks.id, unitType: 'recruit' });
@@ -696,8 +702,11 @@ export class TacticalAI {
     const techs = sim.national ? sim.national.techs(this.slot) : null;
     // bens industriais reservados na própria avaliação (vários pedidos no mesmo turno)
     const goods = { ...(me.goods ?? emptyGoods()) };
-    for (const b of mine) {
+    // o Porto primeiro; enquanto a tripulação do navio não fecha, o quartel e a fábrica guardam os recrutas
+    const order = port ? [port, ...mine.filter((b) => b !== port)] : mine;
+    for (const b of order) {
       if (b.progress < 1 || b.queue.length > 0 || crew <= 0 || (b.workers === 0 && b.type !== 'port')) continue;
+      if (shipCrew && b !== port && crew <= shipCrew) continue;
       const fleet = ships.length + mine.reduce((a, x) => a + x.queue.filter((q) => q.unitType === 'transport_ship').length, 0);
       const mix =
         b.type === 'barracks'
