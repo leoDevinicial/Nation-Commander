@@ -71,32 +71,50 @@ navios. Com o Navio de Transporte, o usuário pediu para tirar as pontes: o cami
 O teste de mapa confere que todas as ilhas encostam no mesmo oceano (os navios chegam a todas) e o teste naval que não há
 caminho por terra entre as bases. No Oceano Central, as nações continuam ligadas por terra em volta do mar.
 
-### Navio de Transporte (03/11)
-`transport_ship` em `UNITS` (era 2, produzido no **Porto**, atalho N): 300 de vida, velocidade 4,2, sem arma, 10 vagas
-(`NAVAL`: infantaria ocupa 1, veículo 2). Só anda na água: a simulação usa a grade em modo naval (`Grid.naval`), em que
-só a água é transitável, para o caminho, a separação entre navios e o ponto de saída do Porto.
-- **Embarcar** (comando `embark`, tropas + navio): cada tropa anda até a margem colada ao navio e, a até
-  `NAVAL.embarkRange`, sai do mapa e entra na carga (`Unit.cargo`). A carga conta na população e na manutenção.
-- **Desembarcar** (comando `unload`, navio + ponto em terra): o navio vai até a água colada à costa mais perto do ponto
-  e solta as tropas nas células de terra livres em volta, viradas para o ponto. Em território de outra nação, só em
-  guerra (a mesma regra de entrada das tropas). Sem costa alcançável pelo mar, a ordem é recusada.
-- **Afundado**, a carga se perde (conta como baixa). O navio nunca entra em combate: precisa de escolta.
-- **KAC:** o servidor confere o dono do navio e das tropas pela conexão; o snapshot só leva a carga (`cargo`, tipos das
-  tropas) para o dono; o inimigo vê o navio, não o que vai dentro. Eventos `embarked` (sem texto, um por tropa) e
-  `unloaded` ("Desembarque inimigo avistado na costa!" para quem vê).
-- **Cliente:** com tropas de terra selecionadas, botão direito no próprio navio embarca; com navios carregados
-  selecionados, botão direito na terra desembarca (o resto da seleção só anda); na água, só move. O painel do navio
-  mostra as vagas e as tropas a bordo. O modelo (`buildTransportShip`) é um navio de desembarque low poly: proa
-  afilada com rampa, convés de carga, ponte de comando à popa, faixa do casco e bandeira na cor da nação; flutua na
-  linha d'água e balança com as ondas.
-- **IA:** quando o adversário escolhido está noutra ilha (fora da terra alcançável a pé a partir da base), ela constrói
-  um Porto que dê para o mar aberto (o maior corpo d'água, não um lago), mantém até 3 navios (vagas para 1,5× a onda) e,
-  na hora da ofensiva, distribui a onda pelos navios parados e manda embarcar. Quando todos embarcaram (ou depois de
-  75 s), os navios desembarcam perto do QG inimigo; em terra, a onda avança atacando e os navios voltam para a costa
-  de casa (`TacticalAI.launchAmphib` e `stepAmphib`; o estado vai no save).
-- **Ilha pequena:** com o inimigo além-mar e sem lugar a 9 células do QG, a IA procura até 16 (prefeitura: 22), menos para usinas; o Porto
-  dispensa o corredor livre em volta (já confere a própria saída).
-- `MAP_TYPE=islands NAVAL_LOG=1 npx tsx scripts/sim-economia.ts 2 40` mostra portos, navios e desembarques.
+### Marinha (03/11)
+Pedido do usuário (com referências): fragata, cargueiro, dois submarinos, porta-aviões e o navio de desembarque L402,
+além do cargueiro aéreo C-5 Galaxy. Todos os navios saem do **Porto** (que passou para a era 1), só andam na água
+(`Grid.naval`), flutuam na linha d'água e levam a cor da nação em faixas, número de costado e bandeira
+(`src/game/render/models/naval.ts`).
+
+| Unidade | Era | Pesquisa nacional | Tripulação | O que faz |
+|---|---|---|---|---|
+| Navio de Desembarque L402 | 1 | Logística naval (Porto) | 4 | leva 10 tropas a pé e 10 veículos; sem arma |
+| Fragata | 1 (3 modelos: Guerra Fria, moderna nas eras 2–3, furtiva no Futuro Próximo) | Guerra naval | 6 | navio × navio e bombardeio da costa (nunca atira em tropa em terra), antiaérea própria, leva 15 soldados a pé |
+| Cargueiro | 1 | Logística integrada | 5 | o comércio por navio só sai com cargueiros: cada um leva uma remessa por vez, do Porto do vendedor ao do comprador |
+| Submarino de Ataque | 2 | Submarinos | 3 | torpedos contra navios; só outro submarino o atinge |
+| Submarino Lançador | 3 | Mísseis de cruzeiro submarinos | 3 | torpedos e 4 mísseis de cruzeiro convencionais; recarrega junto a um Porto próprio (um a cada 45 s, pagando o míssil) |
+| Porta-Aviões | 3 | Aviação embarcada | 8 | sai com 4 caças (sem bombardeiros); caça perdido é reposto no próprio navio pelo preço normal; afundado, perde os do convés |
+
+**Regras de alvo** (`shared/sim/targeting.ts`, `canHit`): submarino só é atingido por submarino (nem torres, nem dano
+em área, nem mísseis, nem drones); o submarino só ataca navios; a fragata só atira em navios e construções. Tropas e
+torres em terra atiram em navios de superfície normalmente.
+
+**Tripulação** (`UnitDef.crew`): a unidade ocupa esse número de recrutas da reserva, e todos contam na população.
+**Carga** (`UnitDef.cargo`): vagas separadas para tropas a pé e veículos; o embarque e o desembarque são os do navio de
+transporte (botão direito no navio com tropas selecionadas; com o navio selecionado, botão direito na terra).
+
+**Mísseis** (pedido do usuário): o silo tem alcance (90 no 1º nível, 120 no míssil pesado) e o submarino, 70; o anel
+aparece no mapa ao escolher o alvo. O alvo pode ser qualquer ponto fora da própria fronteira (terra neutra, mar ou
+território inimigo, este só em guerra), sem precisar estar à vista. O dano em área não atinge nações em paz com quem
+lançou. Para alcançar o inimigo com o silo, é preciso construí-lo perto da fronteira.
+
+**C-5 Galaxy** (aeronave da Base Aérea nível 2, era 3, pesquisa Operações aerotransportadas): o botão
+**Paraquedistas** embarca as tropas próprias paradas a até 14 da base (até 12 a pé e 3 veículos), voa até o ponto
+escolhido no anel de alcance, lança as tropas em volta dele e volta. Antiaérea e caças inimigos podem derrubá-lo; aí
+todos a bordo morrem. No território de outra nação, só em guerra.
+
+**IA:** quando o adversário escolhido está noutra ilha (fora da terra alcançável a pé a partir da base), ela constrói
+um Porto que dê para o mar aberto (o maior corpo d'água, não um lago), mantém navios de desembarque e até 2 fragatas.
+Na hora da ofensiva, distribui a onda pelos navios parados e manda embarcar; as fragatas vão na frente até a costa do
+alvo. Quando todos embarcaram (ou depois de 75 s), os navios desembarcam perto do QG inimigo (a costa escolhida é sempre
+da água ligada à do navio, nunca um lago); em terra, a onda avança atacando e os navios voltam para casa
+(`TacticalAI.launchAmphib` e `stepAmphib`; o estado vai no save). Sem lugar a 9 células do QG numa ilha, procura até 16
+(menos para usinas). Com Terminal Comercial, faz um cargueiro. O governo pesquisa Guerra naval logo depois da Logística
+naval. `MAP_TYPE=islands NAVAL_LOG=1 npx tsx scripts/sim-economia.ts 2 40` mostra portos, navios e desembarques.
+
+Testes: `shared/test/navy.test.ts` (alvos, combate, tripulação, carga, mísseis, porta-aviões, C-5 e cargueiro) e
+`shared/test/naval.test.ts` (embarque, travessia e desembarque no Arquipélago).
 
 ### Montanhas (03/11)
 Pedido do usuário: o mapa não tinha montanhas. Agora cada nação ganha dois maciços altos (`generateMatchMap`, copiados

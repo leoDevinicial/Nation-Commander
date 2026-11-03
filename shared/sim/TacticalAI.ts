@@ -704,8 +704,8 @@ export class TacticalAI {
           ? barracksMix
           : b.type === 'factory'
             ? factoryMix
-            : b.type === 'port' && overseas && !preparing && fleet < Math.min(AI_MAX_SHIPS, Math.ceil((this.waveSize * 1.5) / 10))
-              ? (['transport_ship'] as UnitType[])
+            : b.type === 'port'
+              ? this.portMix(sim, own, mine, overseas, preparing, fleet, natTechs)
               : null;
       if (!mix) continue;
       // a mesma regra do servidor (custo real, com o equipamento do padrão vigente); se a escolha
@@ -814,6 +814,10 @@ export class TacticalAI {
         // além-mar: embarca a onda nos navios (o desembarque sai na próxima fase)
         this.launchAmphib(sim, idle, ships, target, cmds);
         if (this.amphib) {
+          // fragatas de escolta: vão na frente, até a costa do alvo, atacando o que acharem
+          const escorts = own.filter((u) => u.type === 'frigate' && u.order.kind === 'idle');
+          const coast = sim.coastNear(target);
+          if (escorts.length && coast) cmds.push({ type: 'attack_move', unitIds: escorts.map((u) => u.id), x: coast.x, y: coast.y });
           this.attacking = true;
           this.lastWaveTick = sim.tick;
           if (this.amphib.units.length >= this.waveSize) this.waveSize = Math.min(this.waveSize + level.waveStep, level.maxWave);
@@ -1471,6 +1475,19 @@ export class TacticalAI {
       }
     });
     return best;
+  }
+
+  /**
+   * Produção do Porto (03/11): navios de desembarque para a onda além-mar, até 2 fragatas de escolta (com a pesquisa)
+   * e um cargueiro para o comércio por mar (com Terminal Comercial).
+   */
+  private portMix(sim: Simulation, own: Unit[], mine: Building[], overseas: boolean, preparing: boolean, fleet: number, techs: readonly string[]): UnitType[] | null {
+    const queued = (t: UnitType) => own.filter((u) => u.type === t).length + mine.reduce((a, x) => a + x.queue.filter((q) => q.unitType === t).length, 0);
+    const has = (t: UnitType) => !UNITS[t].requiresTech || !sim.national || techs.includes(UNITS[t].requiresTech!);
+    if (overseas && !preparing && fleet < Math.min(AI_MAX_SHIPS, Math.ceil(((this.waveSize ?? 4) * 1.5) / 10))) return ['transport_ship'];
+    if (overseas && !preparing && has('frigate') && queued('frigate') < 2) return ['frigate'];
+    if (mine.some((b) => b.type === 'market' && b.progress >= 1) && has('cargo_ship') && queued('cargo_ship') < 1) return ['cargo_ship'];
+    return null;
   }
 
   /** O alvo fica fora da terra alcançável a pé a partir da base (outra ilha)? */

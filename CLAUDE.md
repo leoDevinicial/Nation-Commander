@@ -77,9 +77,11 @@ O Nation Commander é **low poly estilizado**, por decisão do responsável pelo
 - Zoneamento (`shared/sim/zoning.ts`, `docs/ZONEAMENTO.md`): zonas R/C/I junto às estradas; lotes privados não são
   entidades (ocupam a grade com `LOT_OCCUPANT`), crescem pela demanda de cada cidade, pagam imposto e gastam energia.
 - Clima e dia/noite (`shared/sim/climate.ts`, `docs/CLIMA_DIA_NOITE.md`) são só visuais, exceto a usina solar.
-- Navio de Transporte (`transport_ship`, `NAVAL`, `docs/PARTIDAS_MAIORES_E_MAPAS.md`): sai do Porto, só anda na água
-  (`Grid.naval`), leva até 10 vagas (`embark`/`unload`); a carga sai do mapa e só o dono a vê no snapshot. No
-  Arquipélago não há pontes: o contato é por navio e avião, e a IA faz desembarques.
+- Marinha (`docs/PARTIDAS_MAIORES_E_MAPAS.md`): L402, fragata, cargueiro, submarinos e porta-aviões saem do Porto,
+  só andam na água (`Grid.naval`), têm tripulação (`crew`), pesquisa nacional (`requiresTech`) e carga por classe
+  (`cargo`). Quem atinge quem fica em `shared/sim/targeting.ts` (submarino só por submarino). A carga sai do mapa e
+  só o dono a vê no snapshot. Mísseis têm alcance por lançador e miram qualquer ponto fora da própria fronteira.
+  No Arquipélago não há pontes: o contato é por navio e avião (C-5 com paraquedistas).
 - Minas terrestres (`shared/sim/mines.ts`) não são entidades: o snapshot envia só as do dono e as já detectadas
   (`MineSystem.visibleTo`). O satélite do Programa Espacial revela o resto do mapa, mas nunca as minas.
 

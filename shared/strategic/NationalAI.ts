@@ -27,6 +27,7 @@ const AI_RESEARCH_ORDER: TechId[] = [
   'public_health',
   'digital_comms',
   'naval_logistics',
+  'naval_warfare',
   'road_engineering',
   'higher_education',
   'composite_armor',
