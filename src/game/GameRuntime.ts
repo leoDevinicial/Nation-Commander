@@ -57,7 +57,9 @@ import { SPACE_PAD } from './render/models/projects.ts';
 import { PRODUCTION_SOUND, audio } from './audio/AudioService.ts';
 import { useSettingsStore } from '../state/useSettingsStore.ts';
 import { AdaptiveExposure, EnvironmentProbe, ShadowFollow } from './render/Lighting.ts';
-import { describeEvent } from './eventText.ts';
+import { describeEvent, worldAlertText } from './eventText.ts';
+import { useAppStore } from '../state/useAppStore.ts';
+import { countryName } from '../../shared/data/countries.ts';
 import type { GraphicsProfile } from '../lib/graphics.ts';
 import { GRAPHICS_REVISION, isTouchDevice, prefersReducedMotion } from '../lib/graphics.ts';
 import { TouchGestures, type TouchPoint } from './input/TouchGestures.ts';
@@ -1273,6 +1275,19 @@ export class GameRuntime {
       });
     }
     this.eventSound(e);
+    if (e.type === 'world') {
+      // alerta mundial: faixa no topo, som de anúncio e registro no painel de eventos
+      const players = useAppStore.getState().match?.players ?? [];
+      const a = worldAlertText(e, this.mySlot, (slot) => {
+        const p = players.find((x) => x.slot === slot);
+        return p ? countryName(p.countryId) : `Nação ${slot + 1}`;
+      });
+      useHudStore.getState().pushWorldAlert(a);
+      // a declaração de guerra já entra no registro pela camada nacional; os outros, aqui
+      if (e.kind !== 'war') useHudStore.getState().pushEvent({ tick: e.tick, text: a.text, tone: a.tone });
+      audio.ui(a.tone === 'bad' ? 'warning' : 'herald');
+      return;
+    }
     const text = describeEvent(e, this.mySlot);
     if (text) useHudStore.getState().pushEvent({ tick: e.tick, text: text.text, tone: text.tone });
   }
@@ -2295,6 +2310,9 @@ export class GameRuntime {
   }
 
   /** Dados para o minimapa (chamado pelo componente em baixa frequência). */
+  /** Ataques recentes às nossas forças (03/11): o minimapa pulsa em vermelho no lugar por alguns segundos. */
+  readonly attackPings: { x: number; y: number; at: number }[] = [];
+
   minimapData() {
     const units: { x: number; y: number; owner: number; selected: boolean }[] = [];
     for (const t of this.units.values()) units.push({ x: t.visual.renderPos.x, y: t.visual.renderPos.y, owner: t.snap.owner, selected: this.selection.has(t.snap.id) });
@@ -3151,6 +3169,47 @@ export class GameRuntime {
     this.follow = this.cameraCtl.closeUp ? id : null;
   }
 
+  /**
+   * Botão Construir (03/11): abre o menu de construção sem ir até o QG — seleciona o Centro de Comando (ou a primeira
+   * prefeitura pronta) e deixa a câmera onde está.
+   */
+  openBuildMenu(): void {
+    const own = [...this.buildings.values()].filter((b) => b.snap.owner === this.mySlot);
+    const pick = own.find((b) => b.snap.type === 'hq') ?? own.find((b) => b.snap.type === 'city_hall' && b.snap.progress >= 1);
+    if (!pick) return;
+    this.cancelMode();
+    this.citizens.selected.clear();
+    this.selection.clear();
+    this.selection.add(pick.snap.id);
+    audio.ui('click');
+  }
+
+  /** Modo Demolir (03/11): clique numa construção sua (menos QG e prefeitura) ou numa estrada sua. */
+  startDemolish(): void {
+    this.setMode({ kind: 'demolish' });
+  }
+
+  private demolishAt(clientX: number, clientY: number): void {
+    const p = this.groundAt(clientX, clientY);
+    if (!p) return;
+    const warn = (text: string) => useHudStore.getState().pushEvent({ tick: this.snapshot?.tick ?? 0, text, tone: 'warn' });
+    const hit = this.pickEntity(p);
+    const b = hit !== null ? this.buildings.get(hit) : undefined;
+    if (b) {
+      if (b.snap.owner !== this.mySlot) return warn('Demolir: só construções do seu país');
+      if (b.snap.type === 'hq' || b.snap.type === 'city_hall') return warn('O Centro de Comando e as prefeituras não podem ser demolidos');
+      this.send({ type: 'demolish', buildingId: b.snap.id });
+      return;
+    }
+    const c = this.cellAtScreen(clientX, clientY);
+    const cell = c ? c.cy * this.map.width + c.cx : -1;
+    if (c && this.roadCells.has(cell)) {
+      this.send({ type: 'demolish', cells: [cell] });
+      return;
+    }
+    warn('Demolir: clique numa construção ou estrada sua');
+  }
+
   centerOnHQ(): void {
     for (const b of this.buildings.values()) {
       if (b.snap.owner === this.mySlot && b.snap.type === 'hq') {
@@ -3295,8 +3354,18 @@ export class GameRuntime {
         audio.playAt('explosion', e.pos.x, e.pos.y);
         if (mine(e.owner)) audio.ui('alert');
         break;
+      case 'demolished':
+        // poeira da demolição e um estalo surdo
+        this.effects.plume(new THREE.Vector3(e.pos.x, 0.3, e.pos.y), { count: e.buildingType ? 6 : 2, size: e.buildingType ? 1.4 : 0.7, rise: 1.6, life: 2.6, spread: 0.8, tone: 0.78 });
+        audio.playAt('explosion', e.pos.x, e.pos.y);
+        break;
       case 'under_attack':
-        if (mine(e.owner)) audio.ui('alert');
+        if (mine(e.owner)) {
+          // sirene e aviso pulsante no minimapa onde o ataque está acontecendo
+          audio.ui('attack');
+          this.attackPings.push({ x: e.pos.x, y: e.pos.y, at: performance.now() });
+          if (this.attackPings.length > 6) this.attackPings.shift();
+        }
         break;
       case 'unit_promoted':
         if (mine(e.owner)) audio.ui('success');
@@ -3458,6 +3527,14 @@ export class GameRuntime {
       }
       return;
     }
+    // B abre o menu de construção (03/11); com o QG ou uma prefeitura já selecionados, B segue sendo a Base Militar
+    if (e.code === 'KeyB' && !e.ctrlKey && !e.metaKey && ![...this.selection].some((id) => {
+      const t = this.buildings.get(id)?.snap.type;
+      return t === 'hq' || t === 'city_hall';
+    })) {
+      this.openBuildMenu();
+      return;
+    }
     switch (e.code) {
       case 'Enter':
       case 'NumpadEnter':
@@ -3566,6 +3643,11 @@ export class GameRuntime {
     if (this.mode.kind === 'attack_road') {
       this.attackRoadAt(e.clientX, e.clientY);
       if (!e.shiftKey) this.cancelMode();
+      return;
+    }
+    if (this.mode.kind === 'demolish') {
+      // continua no modo até o botão direito ou Esc (várias demolições seguidas)
+      this.demolishAt(e.clientX, e.clientY);
       return;
     }
     if (this.mode.kind === 'air_target') {
@@ -3689,6 +3771,10 @@ export class GameRuntime {
     if (this.mode.kind === 'attack_road') {
       this.attackRoadAt(x, y);
       this.cancelMode();
+      return;
+    }
+    if (this.mode.kind === 'demolish') {
+      this.demolishAt(x, y);
       return;
     }
     if (this.mode.kind === 'air_target') {

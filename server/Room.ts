@@ -516,6 +516,7 @@ export class Room {
       approval: (slot) => national.nation(slot)?.approval ?? 50,
       growth: (slot) => national.nation(slot)?.realGrowthPct ?? 2,
       authoritarian: (slot) => authoritarianOf(national.nation(slot)?.policies?.decrees ?? []),
+      researching: (slot) => national.nation(slot)?.research.current ?? null,
     };
     // comércio internacional: diplomacia, países da IA e tesouro nacional
     const d = national.diplomacy;

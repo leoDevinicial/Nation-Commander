@@ -152,6 +152,8 @@ export interface NationalLink {
   approval?(slot: Slot): number;
   growth?(slot: Slot): number;
   authoritarian?(slot: Slot): number;
+  /** Pesquisa nacional em andamento (alerta mundial da pesquisa nuclear). */
+  researching?(slot: Slot): string | null;
 }
 
 /**
@@ -685,6 +687,8 @@ export class Simulation {
     const k = a < b ? `${a}:${b}` : `${b}:${a}`;
     if (atWar && !this.wars.has(k)) {
       this.wars.add(k);
+      // alerta mundial: quem declara é o primeiro (a camada nacional chama setWar(quem declara, alvo))
+      if (this.tick > 0) this.emit({ type: 'world', tick: this.tick, kind: 'war', slot: a, other: b, phase: 'started' });
       // a carga a caminho entre os dois é apreendida e os contratos caem (02/11)
       this.trade.onWar(a, b);
     } else if (atWar) this.wars.add(k);
@@ -1289,6 +1293,7 @@ export class Simulation {
         for (let dy = 0; dy < def.size; dy++) for (let dx = 0; dx < def.size; dx++) this.zones.clearCell((cell.cy + dy) * this.map.width + cell.cx + dx);
         if (this.builders) this.staff(slot);
         this.emit({ type: 'construction_started', tick: this.tick, id: b.id, owner: slot, buildingType: b.type, pos: { ...b.pos } });
+        if (def.project && !this.isSandbox(slot)) this.emit({ type: 'world', tick: this.tick, kind: 'project', slot, buildingType: b.type, phase: 'started' });
         return null;
       }
       case 'produce': {
@@ -1370,6 +1375,8 @@ export class Simulation {
         return this.zones.paint(slot, cmd.cells, cmd.kind);
       case 'zone_demolish':
         return this.zones.demolish(slot, cmd.cells);
+      case 'demolish':
+        return cmd.buildingId !== undefined ? this.demolishBuilding(slot, cmd.buildingId) : this.demolishRoads(slot, cmd.cells ?? []);
       case 'zone_tax':
         return this.zones.setTax(slot, cmd.kind, cmd.pct);
       case 'lay_mine':
@@ -2114,6 +2121,7 @@ export class Simulation {
     this.sandboxTopUp();
     if (this.territoryDirty) this.recomputeTerritory();
     if (this.tick % TICK_RATE === 0) for (const p of this.players) if (!p.defeated) this.staff(p.slot);
+    if (this.tick % TICK_RATE === 0) this.watchNuclear();
     this.updateEconomy();
     this.updateProcessing();
     this.updateWorkshops();
@@ -2384,6 +2392,45 @@ export class Simulation {
     const level = maxLevelOf(by);
     const specs = upgradeTrack(by)?.specs ?? [];
     return Math.max(...[null, ...specs.map((x) => x.id)].map((spec) => buildingEffects(by, level, spec).unitHpMul));
+  }
+
+  /**
+   * Demolição pelo dono (03/11): a construção some na hora, sem reembolso da obra (a fila de produção é devolvida,
+   * com a tripulação). O QG e as prefeituras não podem ser demolidos (são as cidades).
+   */
+  demolishBuilding(slot: Slot, id: EntityId): string | null {
+    const b = this.entities.get(id);
+    if (!b || b.kind !== 'building' || b.owner !== slot || b.hp <= 0) return 'Construção inválida';
+    if (b.type === 'hq' || b.type === 'city_hall') return 'O Centro de Comando e as prefeituras não podem ser demolidos';
+    const p = this.players[slot]!;
+    for (const q of b.queue) {
+      if (q.paid) this.refund(slot, q.paid);
+      if (q.goodsPaid) this.refundGoods(p, q.goodsPaid);
+      if (q.unitType !== 'citizen' && q.unitType !== 'recruit') p.recruits += UNITS[q.unitType].crew ?? 1;
+    }
+    b.queue = [];
+    this.removeEntity(b);
+    this.staff(slot);
+    this.emit({ type: 'demolished', tick: this.tick, owner: slot, buildingType: b.type, pos: { ...b.pos } });
+    return null;
+  }
+
+  /** Demolição de estradas e rodovias próprias (as pontes do mapa não são de ninguém e ficam). */
+  demolishRoads(slot: Slot, cells: readonly number[]): string | null {
+    const mine = new Set(this.roads.filter((r) => r.owner === slot).map((r) => r.i));
+    const hit = [...new Set(cells)].filter((i) => mine.has(i));
+    if (!hit.length) return 'Nenhuma estrada sua nessas células';
+    for (const i of hit) {
+      this.roads = this.roads.filter((r) => r.i !== i);
+      this.highways.delete(i);
+      this.roadHp.delete(i);
+      this.map.terrain[i] = Terrain.Plains;
+      this.grid.terrain[i] = Terrain.Plains;
+    }
+    this.territoryVersion++;
+    const c = hit[0]!;
+    this.emit({ type: 'demolished', tick: this.tick, owner: slot, roads: hit.length, pos: this.grid.cellCenter({ cx: c % this.map.width, cy: Math.floor(c / this.map.width) }) });
+    return null;
   }
 
   /** Remove uma entidade sem destruição (Sandbox): sem explosão, sem perda contabilizada. */
@@ -2750,6 +2797,7 @@ export class Simulation {
         if (def.territoryRadius > 0) this.territoryDirty = true;
         this.staff(b.owner);
         this.emit({ type: 'construction_completed', tick: this.tick, id: b.id, owner: b.owner, buildingType: b.type, pos: { ...b.pos } });
+        if (def.project) this.emit({ type: 'world', tick: this.tick, kind: 'project', slot: b.owner, buildingType: b.type, phase: 'completed' });
       }
     }
   }
@@ -2884,6 +2932,7 @@ export class Simulation {
       p.era = a.to;
       p.eraAdvance = null;
       this.emit({ type: 'era', tick: this.tick, owner: p.slot, era: a.to, state: 'completed', pos: { ...hq.pos } });
+      this.emit({ type: 'world', tick: this.tick, kind: 'era', slot: p.slot, era: a.to, phase: 'completed' });
     }
   }
 
@@ -4050,6 +4099,29 @@ export class Simulation {
     this.entities.set(u.id, u);
     if (UNITS[type].naval) this.onShipLaunched(u);
     return u;
+  }
+
+  /** Alertas de pesquisa nuclear já dados (`slot:fase`), para avisar o mundo uma vez só. */
+  nuclearAlerts = new Set<string>();
+
+  /** Pesquisa de armas nucleares (03/11): o mundo fica sabendo quando um país começa e quando termina. */
+  private watchNuclear(): void {
+    const n = this.national;
+    if (!n) return;
+    for (const p of this.players) {
+      if (p.defeated || this.isSandbox(p.slot)) continue;
+      const started = `${p.slot}:started`;
+      const done = `${p.slot}:completed`;
+      if (!this.nuclearAlerts.has(started) && n.researching?.(p.slot) === 'nuclear_weapons') {
+        this.nuclearAlerts.add(started);
+        this.emit({ type: 'world', tick: this.tick, kind: 'nuclear', slot: p.slot, phase: 'started' });
+      }
+      if (!this.nuclearAlerts.has(done) && n.techs(p.slot).includes('nuclear_weapons')) {
+        this.nuclearAlerts.add(started);
+        this.nuclearAlerts.add(done);
+        this.emit({ type: 'world', tick: this.tick, kind: 'nuclear', slot: p.slot, phase: 'completed' });
+      }
+    }
   }
 
   /** Atualiza os modificadores vindos da camada nacional. */

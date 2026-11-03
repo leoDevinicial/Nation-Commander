@@ -29,6 +29,13 @@ export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone
       return e.owner === mySlot ? { text: `Construção concluída: ${BUILDINGS[e.buildingType].label}`, tone: 'good' } : null;
     case 'unit_produced':
       return e.owner === mySlot ? { text: `Pronta para o combate: ${UNITS[e.unitType].label}`, tone: 'good' } : null;
+    case 'demolished':
+      if (e.owner !== mySlot) return null;
+      return e.buildingType
+        ? { text: `Demolido: ${BUILDINGS[e.buildingType].label}`, tone: 'info' }
+        : { text: `${e.roads ?? 1} célula(s) de estrada demolida(s)`, tone: 'info' };
+    case 'world':
+      return null; // alerta mundial: faixa própria no topo (GameRuntime)
     case 'under_attack':
       return e.owner === mySlot ? { text: 'Nossas forças estão sob ataque!', tone: 'bad' } : null;
     case 'destroyed': {
@@ -218,5 +225,35 @@ export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone
       return { text: e.slot === mySlot ? 'Nosso QG caiu.' : 'Forças inimigas derrotadas!', tone: e.slot === mySlot ? 'bad' : 'good' };
     default:
       return null;
+  }
+}
+
+/**
+ * Alerta mundial (03/11): título, texto e tom da faixa do topo. `nameOf` dá o nome do país de cada jogador.
+ * Do ponto de vista de quem recebe: "nós" quando é o próprio país, o nome dele nos outros casos.
+ */
+export function worldAlertText(
+  e: Extract<SimEvent, { type: 'world' }>,
+  mySlot: number,
+  nameOf: (slot: number) => string,
+): { icon: string; title: string; text: string; tone: 'info' | 'warn' | 'bad' } {
+  const who = e.slot === mySlot ? 'Nosso país' : nameOf(e.slot);
+  switch (e.kind) {
+    case 'war': {
+      const target = e.other === mySlot ? 'nós' : nameOf(e.other ?? -1);
+      return { icon: '⚔', title: 'Declaração de guerra', text: `${who} declarou guerra a ${target}`, tone: e.other === mySlot ? 'bad' : 'warn' };
+    }
+    case 'era':
+      return { icon: '⏫', title: 'Nova era', text: `${who} entrou na era ${ERAS[(e.era ?? 1) as keyof typeof ERAS]?.label ?? e.era}`, tone: e.slot === mySlot ? 'info' : 'warn' };
+    case 'nuclear':
+      return e.phase === 'started'
+        ? { icon: '☢', title: 'Programa nuclear', text: `${who} começou a pesquisar armas nucleares`, tone: e.slot === mySlot ? 'info' : 'bad' }
+        : { icon: '☢', title: 'Potência nuclear', text: `${who} agora tem armas nucleares`, tone: e.slot === mySlot ? 'info' : 'bad' };
+    case 'project': {
+      const label = e.buildingType ? BUILDINGS[e.buildingType].label : 'Grande Projeto';
+      return e.phase === 'started'
+        ? { icon: '🏛', title: 'Grande Projeto', text: `${who} começou a construir: ${label}`, tone: e.slot === mySlot ? 'info' : 'warn' }
+        : { icon: '🏛', title: 'Grande Projeto concluído', text: `${who} concluiu: ${label}`, tone: e.slot === mySlot ? 'info' : 'warn' };
+    }
   }
 }

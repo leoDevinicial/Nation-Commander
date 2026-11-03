@@ -64,6 +64,26 @@ export function Minimap({ runtime }: { runtime: GameRuntime }) {
         ctx.fillStyle = u.selected ? '#ffffff' : factionColor(u.owner);
         ctx.fillRect(u.x * scale - 1.5, u.y * scale - 1.5, 3, 3);
       }
+      // sob ataque (03/11): anéis vermelhos que se expandem a partir do lugar do ataque, por 4 s
+      const now = performance.now();
+      for (const p of runtime.attackPings) {
+        const age = (now - p.at) / 1000;
+        if (age > 4) continue;
+        const cx = p.x * scale;
+        const cy = p.y * scale;
+        for (const off of [0, 0.5]) {
+          const k = ((age + off) % 1) / 1;
+          ctx.strokeStyle = `rgba(255,70,50,${(1 - k) * (1 - age / 4)})`;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(cx, cy, 3 + k * 14, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.fillStyle = `rgba(255,60,40,${0.9 - age * 0.2})`;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
       const pts = d.view.filter((p): p is NonNullable<typeof p> => p !== null);
       if (pts.length === 4) {
         ctx.strokeStyle = 'rgba(255,255,255,0.85)';
@@ -75,7 +95,8 @@ export function Minimap({ runtime }: { runtime: GameRuntime }) {
       }
     };
     draw();
-    const id = setInterval(draw, 200);
+    // 10 quadros por segundo: o bastante para o pulso do alerta de ataque andar suave
+    const id = setInterval(draw, 100);
     return () => clearInterval(id);
   }, [runtime]);
 
@@ -88,6 +109,15 @@ export function Minimap({ runtime }: { runtime: GameRuntime }) {
 
   return (
     <div className="panel pointer-events-auto shrink-0 self-end p-1 sm:p-1.5" onPointerDown={(e) => e.stopPropagation()}>
+      {/* Construir (03/11): abre o menu de construção de qualquer lugar, sem ir até o QG */}
+      <button
+        className="btn btn-primary mb-1 flex w-full items-center justify-center gap-1 px-1 py-1 text-xs"
+        onClick={() => runtime.openBuildMenu()}
+        title="Construir (B): abre o menu de construção do Centro de Comando sem mover a câmera"
+      >
+        🏗 <span>Construir</span>
+        <span className="hidden text-[10px] opacity-70 sm:inline">(B)</span>
+      </button>
       <canvas
         ref={canvasRef}
         width={SIZE}

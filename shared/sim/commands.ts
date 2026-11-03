@@ -43,6 +43,8 @@ export type Command =
   /** Zoneamento (02/11): pinta (ou apaga, com `kind` null) células junto às estradas; demole lotes; imposto do setor. */
   | { type: 'zone_paint'; cells: number[]; kind: ZoneKind | null }
   | { type: 'zone_demolish'; cells: number[] }
+  /** Demolir (03/11): uma construção própria (menos QG e prefeitura) ou células de estrada/rodovia próprias. */
+  | { type: 'demolish'; buildingId?: EntityId; cells?: number[] }
   | { type: 'zone_tax'; kind: ZoneKind; pct: number }
   /** Mercado interno do Terminal Comercial: vende o excedente por suprimentos. */
   | { type: 'market_sell'; buildingId: EntityId; resource: MarketResource; quantity: number }
@@ -160,6 +162,12 @@ export function parseCommand(raw: unknown): Command | null {
     case 'zone_demolish':
       if (!isCellList(raw.cells)) return null;
       return { type: 'zone_demolish', cells: raw.cells };
+    case 'demolish': {
+      if (raw.buildingId !== undefined && !isId(raw.buildingId)) return null;
+      if (raw.cells !== undefined && !isCellList(raw.cells)) return null;
+      if ((raw.buildingId === undefined) === (raw.cells === undefined)) return null;
+      return raw.buildingId !== undefined ? { type: 'demolish', buildingId: raw.buildingId as number } : { type: 'demolish', cells: raw.cells as number[] };
+    }
     case 'zone_tax':
       if (!isZoneKind(raw.kind) || !Number.isInteger(raw.pct) || (raw.pct as number) < 0 || (raw.pct as number) > ZONING.taxMax) return null;
       return { type: 'zone_tax', kind: raw.kind, pct: raw.pct as number };

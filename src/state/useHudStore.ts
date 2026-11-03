@@ -77,6 +77,7 @@ export type PointerMode =
   | { kind: 'attack_move' }
   /** Mira numa célula de estrada ou rodovia inimiga (02/11). */
   | { kind: 'attack_road' }
+  | { kind: 'demolish' }
   /**
    * Escolha de alvo da força aérea (Fase 7): ponto do reconhecimento, edifício inimigo descoberto
    * do ataque, ou ponto do míssil — este último fica marcado e só segue com "Confirmar alvo".
@@ -197,7 +198,21 @@ export interface HudState {
   touchAdditive: boolean;
   set: (patch: Partial<Omit<HudState, 'set' | 'pushEvent' | 'expireEvents'>>) => void;
   pushEvent: (e: Omit<HudEvent, 'id' | 'at'>) => void;
+  /** Alertas mundiais (03/11): faixa grande no topo da tela, para todos os jogadores. */
+  worldAlerts: WorldAlert[];
+  pushWorldAlert: (a: Omit<WorldAlert, 'id' | 'at'>) => void;
+  dropWorldAlert: (id: number) => void;
   expireEvents: (maxAgeMs: number) => void;
+}
+
+/** Alerta mundial na faixa do topo (guerra, era, nuclear, Grande Projeto). */
+export interface WorldAlert {
+  id: number;
+  at: number;
+  icon: string;
+  title: string;
+  text: string;
+  tone: 'info' | 'warn' | 'bad';
 }
 
 let seq = 1;
@@ -238,6 +253,9 @@ export const useHudStore = create<HudState>((set) => ({
   touchTool: 'select',
   touchAdditive: false,
   set: (patch) => set(patch),
+  worldAlerts: [],
+  pushWorldAlert: (a) => set((s) => ({ worldAlerts: [...s.worldAlerts.slice(-2), { ...a, id: seq++, at: performance.now() }] })),
+  dropWorldAlert: (id) => set((s) => ({ worldAlerts: s.worldAlerts.filter((x) => x.id !== id) })),
   pushEvent: (e) =>
     set((s) => {
       // agrupa repetições imediatas (ex.: vários alertas de ataque seguidos)

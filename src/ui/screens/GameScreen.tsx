@@ -7,6 +7,7 @@ import { PROFILES } from '../../lib/graphics.ts';
 import { CommandPanel } from '../hud/CommandPanel.tsx';
 import { EventLog } from '../hud/EventLog.tsx';
 import { Minimap } from '../hud/Minimap.tsx';
+import { WorldAlerts } from '../hud/WorldAlerts.tsx';
 import { PauseMenu } from '../hud/PauseMenu.tsx';
 import { ResultsOverlay } from '../hud/ResultsOverlay.tsx';
 import { DefeatedOverlay } from '../hud/DefeatedOverlay.tsx';
@@ -222,6 +223,7 @@ export function GameScreen() {
           {!battleActive && !opMap && <BattlePrompt />}
           {globeMounted && <GlobePanel visible={globeOpen} onClose={() => useNationalStore.getState().closeGlobe()} />}
           <EventLog />
+          <WorldAlerts />
           {!globeOpen && (
             <div className="pointer-events-none absolute right-2 bottom-2 left-2 flex items-end gap-2 sm:right-3 sm:bottom-3 sm:left-3 sm:gap-3">
               <Minimap key={battleActive ? 'b' : 't'} runtime={active} />

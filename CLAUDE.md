@@ -82,6 +82,8 @@ O Nation Commander é **low poly estilizado**, por decisão do responsável pelo
   (`cargo`). Quem atinge quem fica em `shared/sim/targeting.ts` (submarino só por submarino). A carga sai do mapa e
   só o dono a vê no snapshot. Mísseis têm alcance por lançador e miram qualquer ponto fora da própria fronteira.
   No Arquipélago não há pontes: o contato é por navio e avião (C-5 com paraquedistas).
+- Alertas e HUD (`docs/ALERTAS_E_HUD.md`): evento `world` (guerra, era, nuclear, Grande Projeto) vai a todos, sem
+  posição; sob ataque toca sirene e pulsa no minimapa; botão Construir (B) e comando `demolish` (nunca QG/prefeitura).
 - Minas terrestres (`shared/sim/mines.ts`) não são entidades: o snapshot envia só as do dono e as já detectadas
   (`MineSystem.visibleTo`). O satélite do Programa Espacial revela o resto do mapa, mas nunca as minas.
 

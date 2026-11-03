@@ -608,6 +608,11 @@ export function airView(sim: Simulation, slot: Slot): AirView {
 
 function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
   switch (e.type) {
+    case 'demolished':
+      return e.owner === slot || sim.isVisibleTo(slot, e.pos);
+    case 'world':
+      // alerta mundial: todos ficam sabendo (sem posição)
+      return true;
     case 'trade_listed':
       // anúncio novo: aviso a quem pode comprar (não está em guerra com o vendedor)
       return e.seller === slot || !sim.hostile(slot, e.seller);

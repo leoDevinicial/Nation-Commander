@@ -358,6 +358,13 @@ export type SimEvent =
   | { type: 'embarked'; tick: number; owner: Slot; shipId: EntityId; count: number; pos: Vec2 }
   | { type: 'unloaded'; tick: number; owner: Slot; shipId: EntityId; count: number; pos: Vec2 }
   /** Célula de estrada ou rodovia destruída por tropas (02/11). */
+  /** Demolição pelo próprio dono (03/11): construção (`buildingType`) ou células de estrada (`roads`). */
+  | { type: 'demolished'; tick: number; owner: Slot; buildingType?: BuildingType; roads?: number; pos: Vec2 }
   | { type: 'road_destroyed'; tick: number; owner: Slot; by: Slot; cell: number; highway: boolean; pos: Vec2 }
+  /**
+   * Alerta mundial (03/11), para todos os jogadores: guerra declarada, nova era, pesquisa nuclear e Grande Projeto.
+   * Sem posição (não revela onde fica a obra).
+   */
+  | { type: 'world'; tick: number; kind: 'war' | 'era' | 'nuclear' | 'project'; slot: Slot; other?: Slot; era?: number; buildingType?: BuildingType; phase: 'started' | 'completed' }
   | { type: 'missile'; tick: number; owner: Slot; launchId: number; state: string; text: string; from: Vec2; target: Vec2; targetOwner: Slot; gen?: number; nuclear?: boolean; cruise?: boolean; damage?: number; destroyed?: number; casualties?: number }
   | { type: 'modernize_cancelled'; tick: number; id: EntityId; owner: Slot; unitType: UnitType; mod: ModId; reason: 'player' | 'facility_lost'; pos: Vec2 };

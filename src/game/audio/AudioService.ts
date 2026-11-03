@@ -19,7 +19,7 @@ export type Volumes = Record<Channel | 'master', number>;
 
 export const DEFAULT_VOLUMES: Volumes = { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 };
 
-export type UiSound = 'click' | 'confirm' | 'error' | 'alert' | 'success' | 'hold';
+export type UiSound = 'click' | 'confirm' | 'error' | 'alert' | 'success' | 'hold' | 'herald' | 'warning' | 'attack';
 export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'mbt_gun' | 'tank_gun' | 'vehicle_explosion' | 'vehicle_explosion_heavy' | 'nuclear_blast' | 'space_prelaunch' | 'space_liftoff' | 'dome_launch' | 'dome_intercept' | 'gatling' | 'bomber' | 'jet_cannon' | 'bomb_whistle' | 'carpet_rumble' | 'aam_launch' | 'agm_launch' | 'air_mg' | 'drone_pass' | 'apc_gun';
 export type MissileCue = 'prepare' | 'armed' | 'authorize';
 
@@ -1780,6 +1780,25 @@ export class AudioService {
       case 'alert':
         tone(880, t, 0.12, 0.25, 'square');
         tone(660, t + 0.16, 0.16, 0.25, 'square');
+        break;
+      case 'herald':
+        // anúncio mundial (03/11): três notas de clarim subindo
+        tone(523, t, 0.16, 0.22, 'sawtooth');
+        tone(659, t + 0.17, 0.16, 0.22, 'sawtooth');
+        tone(784, t + 0.34, 0.42, 0.24, 'sawtooth');
+        break;
+      case 'warning':
+        // anúncio mundial grave (guerra contra nós, armas nucleares): clarim descendo em tom menor
+        tone(659, t, 0.18, 0.24, 'sawtooth');
+        tone(523, t + 0.2, 0.18, 0.24, 'sawtooth');
+        tone(415, t + 0.4, 0.5, 0.26, 'sawtooth');
+        break;
+      case 'attack':
+        // sob ataque (03/11): sirene curta de dois tons, duas vezes
+        for (const k of [0, 0.42]) {
+          tone(520, t + k, 0.2, 0.28, 'square', 760);
+          tone(760, t + k + 0.2, 0.2, 0.28, 'square', 520);
+        }
         break;
     }
   }
