@@ -58,9 +58,16 @@ bases em todos os tipos de mapa.
 | Rios e Pontes | rio largo na fronteira entre nações vizinhas e lago central; a travessia é pelas estradas (pontes) |
 | Montanhoso | cordilheiras nas fronteiras com dois passos cada, mais rocha e minério |
 | Deserto | pouca floresta e solo fértil, uma jazida de petróleo a mais por nação; terreno com tons áridos |
+| Oceano Central (03/11) | mar no centro (raio ~45% do mapa, costa irregular com praia) e as nações na faixa de terra em volta, ligadas por terra ao redor do mar; a jazida disputada fica na faixa de terra; o caminho até o centro não vira ponte |
+| Arquipélago (03/11) | cada nação na sua ilha (raio ~23 células, costa irregular), uma ilha central com as jazidas disputadas e oceano no resto; uma ponte longa liga cada ilha à central (a mesma passagem do mapa de rios), único caminho por terra |
 
-O anfitrião escolhe o tipo, ou deixa sorteado no início da partida. Os tipos navais, Oceano Central e Arquipélago,
-esperam o conteúdo naval de combate (passos 3 e 4 da ordem sugerida no documento de design).
+O anfitrião escolhe o tipo, ou deixa sorteado no início da partida (o sorteio inclui os oceânicos).
+
+**Oceânicos sem navios de guerra (03/11):** o pedido do usuário veio antes do conteúdo naval de combate. Para o
+Arquipélago continuar jogável por terra, as ilhas se ligam à ilha central por pontes (gargalos de defesa); o oceano vale
+para os portos, os navios de carga do comércio e a defesa. Quando houver navio de transporte com desembarque, as pontes
+podem virar opcionais. Os testes de mapa (recursos iniciais garantidos e ligação por terra entre todas as bases) cobrem
+os dois tipos com 2 a 6 nações.
 
 ### Montanhas (03/11)
 Pedido do usuário: o mapa não tinha montanhas. Agora cada nação ganha dois maciços altos (`generateMatchMap`, copiados

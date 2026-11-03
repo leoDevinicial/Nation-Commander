@@ -105,6 +105,6 @@ já foi feito; atualizar a tabela a cada entrega. Resumo do que já foi decidido
   fortificações). Minas são invisíveis ao inimigo e ao satélite.
 - **Partidas maiores:** até 4 nações na versão grátis e até 6 para assinantes (humanos + bots); mapas de 96×96 a
   160×160 conforme o número de nações, com gerador por simetria em N partes.
-- **Tipos de mapa:** Continental, Rios e Pontes, Montanhoso, Deserto, Oceano Central, Arquipélago. Os navais só depois
-  de existir conteúdo naval de combate. O tipo de mapa é escolhido pelo anfitrião ou sorteado; a geografia real do país
+- **Tipos de mapa:** Continental, Rios e Pontes, Montanhoso, Deserto, Oceano Central e Arquipélago (os dois oceânicos
+  existem desde 03/11; no Arquipélago, pontes ligam as ilhas à ilha central até haver navios de guerra). O tipo de mapa é escolhido pelo anfitrião ou sorteado; a geografia real do país
   só influencia a região inicial de cada nação, com compensações declaradas.

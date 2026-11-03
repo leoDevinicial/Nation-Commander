@@ -14,8 +14,8 @@ import type { Cell, MapData } from './types.ts';
  *   compensação declarada em outro recurso.
  * Mesmo seed, mesmas nações e mesmo tipo → mesmo mapa.
  */
-export type MapType = 'continental' | 'rivers' | 'mountains' | 'desert';
-export const MAP_TYPES: readonly MapType[] = ['continental', 'rivers', 'mountains', 'desert'];
+export type MapType = 'continental' | 'rivers' | 'mountains' | 'desert' | 'ocean' | 'islands';
+export const MAP_TYPES: readonly MapType[] = ['continental', 'rivers', 'mountains', 'desert', 'ocean', 'islands'];
 export const isMapType = (v: unknown): v is MapType => typeof v === 'string' && (MAP_TYPES as readonly string[]).includes(v);
 
 export const MAP_TYPE_INFO: Record<MapType, { label: string; description: string }> = {
@@ -23,6 +23,8 @@ export const MAP_TYPE_INFO: Record<MapType, { label: string; description: string
   rivers: { label: 'Rios e Pontes', description: 'Rios largos entre as nações, cruzados só por pontes: pontos de estrangulamento.' },
   mountains: { label: 'Montanhoso', description: 'Cordilheiras com poucos passos, ferro farto e defesa forte; a artilharia vale mais.' },
   desert: { label: 'Deserto', description: 'Pouca comida e madeira, muito petróleo: economia de comércio e veículos.' },
+  ocean: { label: 'Oceano Central', description: 'Um mar no centro e as nações na faixa de terra em volta: portos e navios de carga valem mais.' },
+  islands: { label: 'Arquipélago', description: 'Cada nação na sua ilha, com o oceano entre elas; pontes longas até a ilha central são os únicos caminhos por terra.' },
 };
 
 /** Nações por partida: até 4 na versão grátis e até 6 para assinantes. */
@@ -114,7 +116,37 @@ export function generateMatchMap(seed: number, opts: MatchMapOptions): MapData {
     rivers: { water: 0.14, mud: 0.2, rock: 0.8, forest: 0.62, fertileLo: 0.34 },
     mountains: { water: 0.16, mud: 0.21, rock: 0.64, forest: 0.68, fertileLo: 0.26 },
     desert: { water: 0.1, mud: 0.13, rock: 0.8, forest: 0.86, fertileLo: 0.12 },
+    // oceânicos (03/11): poucos lagos em terra; o mar vem da forma do mapa (abaixo)
+    ocean: { water: 0.12, mud: 0.17, rock: 0.79, forest: 0.64, fertileLo: 0.3 },
+    islands: { water: 0.1, mud: 0.15, rock: 0.8, forest: 0.62, fertileLo: 0.32 },
   }[type];
+  // ponto de partida da nação 0 (as demais giram junto); usado também pela forma das ilhas
+  const spawnR = n === 2 ? R * 0.92 : n === 4 ? R * 0.86 : R * 0.72;
+  const s0 = { cx: Math.round(c + spawnR * Math.cos(base)), cy: Math.round(c + spawnR * Math.sin(base)) };
+  /** Raio da ilha de cada nação e da ilha central (Arquipélago) e do mar central (Oceano Central). */
+  const islandR = 23;
+  const islandShift = 5 / Math.max(1, spawnR);
+  const centralIslandR = R * 0.2;
+  const seaR = R * 0.45;
+  /** Forma dos mapas oceânicos no domínio fundamental: água, praia (lama) ou terra (null = segue o relevo). */
+  const oceanShape = (fx: number, fy: number, r: number): Terrain | null => {
+    const wobble = 0.85 + 0.3 * detail(fx * 0.8 + 11, fy * 0.8 + 3);
+    if (type === 'islands') {
+      // a ilha fica um pouco para dentro da base (no mapa de 2 nações a base está no canto)
+      const d = Math.hypot(fx - (s0.cx + (c - s0.cx) * islandShift), fy - (s0.cy + (c - s0.cy) * islandShift));
+      const rr = islandR * wobble;
+      const rc = centralIslandR * (0.9 + 0.2 * detail(fx + 5, fy + 5));
+      if (d < rr - 1.5 || r < rc - 1.2) return null;
+      if (d < rr || r < rc) return Terrain.Mud;
+      return Terrain.Water;
+    }
+    if (type === 'ocean') {
+      const rs = seaR * wobble;
+      if (r < rs) return Terrain.Water;
+      if (r < rs + 1.5) return Terrain.Mud;
+    }
+    return null;
+  };
 
   /** Terreno do ponto do domínio fundamental equivalente à célula (simetria por amostragem). */
   const sample = (x: number, y: number): Terrain => {
@@ -129,6 +161,8 @@ export function generateMatchMap(seed: number, opts: MatchMapOptions): MapData {
     const m = moisture(fx, fy);
     // faixa de lama (praia) na costa do continente circular
     if (circular && r > R - 1.5) return Terrain.Mud;
+    const shape = oceanShape(fx, fy, r);
+    if (shape !== null) return shape;
     if (e < mix.water) return Terrain.Water;
     if (e < mix.mud) return Terrain.Mud;
     if (e > mix.rock) return detail(fx, fy) > 0.62 && e > mix.rock + 0.04 ? Terrain.Ore : Terrain.Rock;
@@ -215,8 +249,6 @@ export function generateMatchMap(seed: number, opts: MatchMapOptions): MapData {
   }
 
   // --- ponto de partida e região inicial (kit da nação 0, replicado; o perfil do país muda o tamanho)
-  const spawnR = n === 2 ? R * 0.92 : n === 4 ? R * 0.86 : R * 0.72;
-  const s0 = { cx: Math.round(c + spawnR * Math.cos(base)), cy: Math.round(c + spawnR * Math.sin(base)) };
   const spawns: Cell[] = [];
   for (let k = 0; k < n; k++) {
     const [x, y] = rotCell(s0.cx, s0.cy, k);
@@ -334,7 +366,8 @@ export function generateMatchMap(seed: number, opts: MatchMapOptions): MapData {
   const cellOf = (p: { x: number; y: number }): Cell => ({ cx: Math.round(p.x), cy: Math.round(p.y) });
   const shared = [cellOf(at(3, 10)), cellOf(at(-1, -11))];
   const ca = base + 0.3 * sector;
-  const cr = n === 2 ? R * 0.35 : R * 0.45;
+  // Arquipélago: a jazida disputada fica na ilha central; Oceano Central: na faixa de terra, longe do mar
+  const cr = type === 'islands' ? R * 0.1 : type === 'ocean' ? R * 0.68 : n === 2 ? R * 0.35 : R * 0.45;
   shared.push({ cx: Math.round(c + cr * Math.cos(ca)), cy: Math.round(c + cr * Math.sin(ca)) });
   const extra = cellOf(at(-8, 1));
   for (let k = 0; k < n; k++) {
@@ -348,6 +381,8 @@ export function generateMatchMap(seed: number, opts: MatchMapOptions): MapData {
   const onNode = (x: number, y: number) => resourceNodes.some((nd) => x >= nd.cx && x <= nd.cx + 1 && y >= nd.cy && y <= nd.cy + 1);
   const road = (x: number, y: number) => {
     if (!inside(x, y) || onNode(x, y)) return;
+    // Oceano Central: o caminho até o centro morre no mar (sem ponte); só corta a serra
+    if (type === 'ocean' && terrain[y * size + x] === Terrain.Water) return;
     if (!TERRAIN[terrain[y * size + x]!].passable) setOne(x, y, Terrain.Road);
   };
   if (!circular) {
@@ -373,7 +408,7 @@ export function generateMatchMap(seed: number, opts: MatchMapOptions): MapData {
       }
     }
   }
-  disc(c, c, 2.2, Terrain.Road, (t) => TERRAIN[t].passable);
+  if (type !== 'ocean') disc(c, c, 2.2, Terrain.Road, (t) => TERRAIN[t].passable);
   // início garantido: os discos de recursos de cada base são repintados por cima das estradas e jazidas
   // (sem cobrir a estrada, que garante a passagem), para nenhuma nação perder células da primeira coleta
   paintKit((x, y, t) => {
