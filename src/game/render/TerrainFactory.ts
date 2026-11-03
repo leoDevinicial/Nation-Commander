@@ -4,7 +4,7 @@ import { Terrain } from '../../../shared/sim/config.ts';
 import { Random } from '../../../shared/sim/Random.ts';
 import type { MapData } from '../../../shared/sim/types.ts';
 import { withFog } from './materials.ts';
-import { createWater, groundHeightTexture, type WaterHandle, type WaterReflection } from './Water.ts';
+import { createWater, groundHeightTexture, shoreTexture, type WaterHandle, type WaterReflection } from './Water.ts';
 import { asphaltTexture, dirtTexture, grassTexture, rockTexture } from './textures.ts';
 import { C, PartBuilder } from './models/kit.ts';
 import { decorKept } from './decorThinning.ts';
@@ -309,7 +309,9 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
   for (let i = 0; i < pos.count; i++) heights[i] = pos.getY(i);
   const groundHeights = groundHeightTexture(heights, map.width * sub + 1, map.height * sub + 1);
   disposables.push(groundHeights.texture);
-  const water = createWater(W, H, reflection, { waves: ultra, ground: groundHeights, reflectionSize: cinematic ? 1024 : ultra ? 768 : 512 });
+  const shore = shoreTexture(map, Terrain.Water);
+  disposables.push(shore);
+  const water = createWater(W, H, reflection, { waves: ultra, ground: groundHeights, shore, reflectionSize: cinematic ? 1024 : ultra ? 768 : 512 });
   group.add(water.mesh);
   disposables.push(water);
 

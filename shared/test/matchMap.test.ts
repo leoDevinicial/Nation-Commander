@@ -35,16 +35,46 @@ describe('mapas das partidas', () => {
         }
   }, 120_000);
 
-  it('tamanho cresce com as nações; todos os pontos de partida se alcançam, em todos os tipos', () => {
+  it('tamanho cresce com as nações; todos os pontos de partida se alcançam (por terra, ou pelo mar no Arquipélago)', () => {
     for (const n of [2, 3, 4, 5, 6])
       for (const type of MAP_TYPES)
         for (const seed of [1, 42]) {
           const m = generateMatchMap(seed, { nations: n, type });
-          expect(m.width).toBe(mapSizeFor(n));
+          expect(m.width).toBe(mapSizeFor(n, type));
           expect(m.spawns).toHaveLength(n);
           expect(m.kind).toBe(type);
-          const r = reachable(m, m.spawns[0]!);
-          for (const s of m.spawns) expect(r.has(s.cy * m.width + s.cx)).toBe(true);
+          if (type === 'islands') {
+            // Arquipélago (03/11): sem ponte; cada ilha encosta no mesmo oceano (contato por navio e avião)
+            const W = m.width;
+            // o oceano é o maior corpo de água (os lagos dentro das ilhas ficam de fora)
+            const seen = new Set<number>();
+            let sea = new Set<number>();
+            m.terrain.forEach((t, start) => {
+              if (t !== Terrain.Water || seen.has(start)) return;
+              const comp = new Set<number>([start]);
+              seen.add(start);
+              const stack = [start];
+              while (stack.length) {
+                const i = stack.pop()!;
+                for (const nb of [i - 1, i + 1, i - W, i + W]) {
+                  if (nb < 0 || nb >= m.terrain.length || seen.has(nb) || m.terrain[nb] !== Terrain.Water || Math.abs((nb % W) - (i % W)) > 1) continue;
+                  seen.add(nb);
+                  comp.add(nb);
+                  stack.push(nb);
+                }
+              }
+              if (comp.size > sea.size) sea = comp;
+            });
+            const r0 = reachable(m, m.spawns[0]!);
+            expect(r0.has(m.spawns[1]!.cy * W + m.spawns[1]!.cx)).toBe(false);
+            for (const s of m.spawns) {
+              const island = reachable(m, s);
+              expect([...island].some((i) => [i - 1, i + 1, i - W, i + W].some((nb) => sea.has(nb))), `ilha ${s.cx},${s.cy}`).toBe(true);
+            }
+          } else {
+            const r = reachable(m, m.spawns[0]!);
+            for (const s of m.spawns) expect(r.has(s.cy * m.width + s.cx)).toBe(true);
+          }
           // a simulação monta todas as bases
           const sim = new Simulation({ map: m, playerCount: n });
           expect(sim.buildings.filter((b) => b.type === 'hq')).toHaveLength(n);

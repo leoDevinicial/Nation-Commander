@@ -24,15 +24,20 @@ export const MAP_TYPE_INFO: Record<MapType, { label: string; description: string
   mountains: { label: 'Montanhoso', description: 'Cordilheiras com poucos passos, ferro farto e defesa forte; a artilharia vale mais.' },
   desert: { label: 'Deserto', description: 'Pouca comida e madeira, muito petróleo: economia de comércio e veículos.' },
   ocean: { label: 'Oceano Central', description: 'Um mar no centro e as nações na faixa de terra em volta: portos e navios de carga valem mais.' },
-  islands: { label: 'Arquipélago', description: 'Cada nação na sua ilha, com o oceano entre elas; pontes longas até a ilha central são os únicos caminhos por terra.' },
+  islands: { label: 'Arquipélago', description: 'Cada nação na sua ilha, com o oceano entre elas e uma ilha central disputada: o contato é por navio de transporte e por avião.' },
 };
 
 /** Nações por partida: até 4 na versão grátis e até 6 para assinantes. */
 export const MAX_NATIONS_FREE = 4;
 export const MAX_NATIONS_SUBSCRIBER = 6;
 
-export function mapSizeFor(nations: number): number {
-  return nations <= 2 ? 96 : nations <= 4 ? 128 : 160;
+/**
+ * Lado do mapa (células). 03/11: maiores com mais nações (3–4: 144, 5–6: 192) e, nos oceânicos, +24 (o mar ocupa boa
+ * parte). O de 2 nações continua 96 no continente (o ritmo medido pelo `sim-economia` é esse).
+ */
+export function mapSizeFor(nations: number, type: MapType = 'continental'): number {
+  const base = nations <= 2 ? 96 : nations <= 4 ? 144 : 192;
+  return type === 'ocean' || type === 'islands' ? base + 24 : base;
 }
 
 /** Perfil da região inicial de cada país (com a compensação declarada no texto). */
@@ -97,7 +102,7 @@ function noiseField(rng: Random, size: number, scale: number): (x: number, y: nu
 export function generateMatchMap(seed: number, opts: MatchMapOptions): MapData {
   const n = Math.max(2, Math.min(MAX_NATIONS_SUBSCRIBER, Math.floor(opts.nations)));
   const type = opts.type ?? 'continental';
-  const size = mapSizeFor(n);
+  const size = mapSizeFor(n, type);
   const rng = new Random(seed ^ (n * 0x9e37) ^ (MAP_TYPES.indexOf(type) * 0x51ed));
   const elevation = noiseField(rng, size, 11);
   const moisture = noiseField(rng, size, 7);
@@ -381,8 +386,8 @@ export function generateMatchMap(seed: number, opts: MatchMapOptions): MapData {
   const onNode = (x: number, y: number) => resourceNodes.some((nd) => x >= nd.cx && x <= nd.cx + 1 && y >= nd.cy && y <= nd.cy + 1);
   const road = (x: number, y: number) => {
     if (!inside(x, y) || onNode(x, y)) return;
-    // Oceano Central: o caminho até o centro morre no mar (sem ponte); só corta a serra
-    if (type === 'ocean' && terrain[y * size + x] === Terrain.Water) return;
+    // Oceano Central e Arquipélago: o caminho até o centro morre no mar (sem ponte; o contato é por navio e avião)
+    if ((type === 'ocean' || type === 'islands') && terrain[y * size + x] === Terrain.Water) return;
     if (!TERRAIN[terrain[y * size + x]!].passable) setOne(x, y, Terrain.Road);
   };
   if (!circular) {

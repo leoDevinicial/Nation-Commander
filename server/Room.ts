@@ -334,7 +334,9 @@ export class Room {
 
   /** Anfitrião: número de nações e tipo de mapa. */
   setRoom(conn: Connection, opts: { maxPlayers?: number; mapType?: MapType | 'random'; isPublic?: boolean; name?: string }): void {
-    if (this.status !== 'lobby' || conn.user?.id !== this.hostUserId || this.mode === 'sandbox') return;
+    if (this.status !== 'lobby' || conn.user?.id !== this.hostUserId) return;
+    // Sandbox (03/11): só o tipo de mapa muda (um inimigo fixo, sala privada)
+    if (this.mode === 'sandbox') opts = opts.mapType !== undefined ? { mapType: opts.mapType } : {};
     if (opts.name !== undefined && opts.name !== this.name) {
       this.name = opts.name;
       this.system(`Sala renomeada: ${this.displayName()}.`);

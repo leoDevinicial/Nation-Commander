@@ -4,12 +4,15 @@ import { DIFFICULTIES, DIFFICULTY } from '../../../shared/sim/difficulty.ts';
 import { gameClient } from '../../net/client.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { factionColor } from '../../game/factions.ts';
-import { MAP_TYPE_INFO, MAP_TYPES, MAX_NATIONS_FREE, MAX_NATIONS_SUBSCRIBER, REGION_INFO, mapSizeFor, regionOf } from '../../../shared/sim/matchMap.ts';
+import { MAP_TYPE_INFO, MAP_TYPES, type MapType, MAX_NATIONS_FREE, MAX_NATIONS_SUBSCRIBER, REGION_INFO, mapSizeFor, regionOf } from '../../../shared/sim/matchMap.ts';
 import { ChatBox } from '../components/ChatBox.tsx';
 import { CountrySelect } from '../components/CountrySelect.tsx';
 import { CountryCard } from '../components/CountryCard.tsx';
 import { autoFullscreen } from '../components/FullscreenButton.tsx';
 import { Shell } from '../components/Shell.tsx';
+
+/** Tipo usado para o tamanho do mapa (o sorteado mostra o do continente). */
+const sizeType = (t: MapType | 'random' | undefined): MapType => (t === undefined || t === 'random' ? 'continental' : t);
 
 export function LobbyScreen() {
   const room = useAppStore((s) => s.room);
@@ -130,9 +133,8 @@ export function LobbyScreen() {
               );
             })}
           </ul>
-          {!sandbox && (
-            <fieldset className="mt-4 rounded border border-ink-700 p-3">
-              <legend className="label px-1">Nações e mapa</legend>
+          <fieldset className="mt-4 rounded border border-ink-700 p-3">
+              <legend className="label px-1">{sandbox ? 'Mapa' : 'Nações e mapa'}</legend>
               {room.mode === 'pvp' && (
                 <label className={`mb-2 flex items-center gap-2 text-xs ${isHost ? 'cursor-pointer' : 'opacity-80'}`}>
                   <input type="checkbox" className="accent-[#e0b44c]" checked={!!room.isPublic} disabled={!isHost} onChange={(e) => gameClient.send({ t: 'set_room', isPublic: e.target.checked })} />
@@ -142,7 +144,7 @@ export function LobbyScreen() {
                   </span>
                 </label>
               )}
-              <div className="flex flex-wrap items-center gap-2 text-xs">
+              {!sandbox && <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="text-ink-300">Vagas na sala:</span>
                 {Array.from({ length: Math.max(0, limit - 1) }, (_, i) => i + 2).map((n) => (
                   <button
@@ -157,10 +159,10 @@ export function LobbyScreen() {
                 ))}
                 <span className="text-[11px] text-ink-400">
                   {limit >= MAX_NATIONS_SUBSCRIBER ? `Assinante: até ${MAX_NATIONS_SUBSCRIBER} nações.` : `Versão grátis: até ${MAX_NATIONS_FREE} nações (assinantes: até ${MAX_NATIONS_SUBSCRIBER}).`} Mapa de{' '}
-                  {mapSizeFor(room.maxPlayers)}×{mapSizeFor(room.maxPlayers)} células.
+                  {mapSizeFor(room.maxPlayers, sizeType(room.mapType))}×{mapSizeFor(room.maxPlayers, sizeType(room.mapType))} células.
                 </span>
-              </div>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+              </div>}
+              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 {([...MAP_TYPES, 'random'] as const).map((t) => {
                   const on = (room.mapType ?? 'continental') === t;
                   const info = t === 'random' ? { label: 'Sorteado', description: 'Um dos tipos acima, sorteado no início da partida.' } : MAP_TYPE_INFO[t];
@@ -176,10 +178,9 @@ export function LobbyScreen() {
                 })}
               </div>
               <p className="mt-1 text-[11px] text-ink-400">
-                Times: quem está no mesmo time começa aliado e não pode declarar guerra ao parceiro. Oceano Central e Arquipélago chegam com o conteúdo naval.
+                {sandbox ? 'O Sandbox usa o mapa escolhido aqui.' : 'Times: quem está no mesmo time começa aliado e não pode declarar guerra ao parceiro.'} No Arquipélago, o contato entre as ilhas é por navio de transporte (Porto) e por avião.
               </p>
             </fieldset>
-          )}
           <fieldset className="mt-4 rounded border border-ink-700 p-3">
             <legend className="label px-1">Regra do teatro de operações</legend>
             <div className="grid gap-2 sm:grid-cols-2">

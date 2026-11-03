@@ -37,6 +37,48 @@ export function groundHeightTexture(heights: ArrayLike<number>, nx: number, nz: 
   return { texture, res: new THREE.Vector2(nx, nz) };
 }
 
+/**
+ * Distância até a costa (03/11), uma célula por texel: 0 na margem, 1 a `SHORE_CELLS` células ou mais mar adentro. A
+ * água estilizada usa para o degradê turquesa → azul-profundo e para as cáusticas mais fortes no raso.
+ */
+export const SHORE_CELLS = 14;
+export function shoreTexture(map: { width: number; height: number; terrain: ArrayLike<number> }, water: number): THREE.DataTexture {
+  const { width: w, height: h } = map;
+  const dist = new Uint8Array(w * h).fill(255);
+  const queue: number[] = [];
+  for (let i = 0; i < w * h; i++)
+    if (map.terrain[i] !== water) {
+      dist[i] = 0;
+      queue.push(i);
+    }
+  for (let q = 0; q < queue.length; q++) {
+    const i = queue[q]!;
+    const x = i % w;
+    const y = (i - x) / w;
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+      const n = ny * w + nx;
+      if (dist[n] !== 255) continue;
+      dist[n] = Math.min(254, dist[i]! + 1);
+      queue.push(n);
+    }
+  }
+  const data = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) data[i] = Math.round(Math.min(1, dist[i]! / SHORE_CELLS) * 255);
+  const texture = new THREE.DataTexture(data, w, h, THREE.RedFormat);
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearFilter;
+  texture.needsUpdate = true;
+  return texture;
+}
+
 const GROUND_GLSL = /* glsl */ `
   float groundHeight(vec2 xz) {
     vec2 uv = (xz / uFogSize * (uGroundRes - 1.0) + 0.5) / uGroundRes;
@@ -113,6 +155,9 @@ const fragmentShader = /* glsl */ `
   uniform float uWaves;
   uniform sampler2D uGround;
   uniform vec2 uGroundRes;
+  uniform sampler2D uShore;
+  uniform float uHasShore;
+  uniform vec3 uMid;
   varying vec4 vReflUv;
   varying vec3 vWorld;
   varying vec2 vFogXZ;
@@ -137,10 +182,41 @@ const fragmentShader = /* glsl */ `
     float hz = wNoise(a + vec2(0.0, e)) + 0.5 * wNoise(b + vec2(0.0, e));
     return normalize(vec3((h0 - hx) * 2.6, 1.0, (h0 - hz) * 2.6));
   }
+  vec2 wHash2(vec2 p) { return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453); }
+  // cáusticas estilizadas: distância até a borda das células de Voronoi, que se mexem devagar
+  float cells(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    float d1 = 8.0;
+    float d2 = 8.0;
+    for (int y = -1; y <= 1; y++)
+      for (int x = -1; x <= 1; x++) {
+        vec2 g = vec2(float(x), float(y));
+        vec2 o = wHash2(i + g);
+        o = 0.5 + 0.38 * sin(uTime * 0.5 + 6.2831 * o);
+        vec2 r = g + o - f;
+        float d = dot(r, r);
+        if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) { d2 = d; }
+      }
+    return sqrt(d2) - sqrt(d1);
+  }
+  // facetas low poly: grade triangular em coordenadas inclinadas; cada triângulo tem a sua inclinação, que muda
+  // devagar (xz = inclinação da normal, w = brilho 0..1)
+  vec3 facet(vec2 p) {
+    vec2 q = vec2(p.x + p.y * 0.57735, p.y * 1.1547);
+    vec2 c = floor(q);
+    vec2 fr = fract(q);
+    float tri = step(fr.y, fr.x);
+    float h = wHash(c + tri * vec2(17.31, 5.71));
+    float a = h * 6.2831 + uTime * (0.25 + 0.2 * h);
+    return vec3(cos(a), sin(a), 0.5 + 0.5 * sin(uTime * 0.6 + h * 6.2831));
+  }
   void main() {
-    vec3 n = ripples(vWorld.xz);
-    // ondas grandes (vértices) + ondulação fina (pixels)
-    n = normalize(vec3(n.x + vWaveN.x, 1.0, n.z + vWaveN.z));
+    // superfície facetada (low poly): a normal vem do triângulo, com só um pouco da ondulação fina por cima
+    vec3 fa1 = facet(vWorld.xz * 0.42);
+    vec3 fa2 = facet(vWorld.xz * 0.95 + 3.7);
+    vec3 rip = ripples(vWorld.xz);
+    vec3 n = normalize(vec3(fa1.x * 0.085 + fa2.x * 0.035 + rip.x * 0.2 + vWaveN.x, 1.0, fa1.y * 0.085 + fa2.y * 0.035 + rip.z * 0.2 + vWaveN.z));
     vec3 v = normalize(cameraPosition - vWorld);
     float fres = 0.04 + 0.96 * pow(1.0 - max(dot(n, v), 0.0), 5.0);
     vec3 r = reflect(-v, n);
@@ -161,14 +237,24 @@ const fragmentShader = /* glsl */ `
     } else {
       refl = mix(uHorizon, uZenith, pow(clamp(r.y, 0.0, 1.0), 0.55));
     }
-    vec3 base = mix(uShallow, uDeep, 0.6 + 0.4 * n.x);
+    // degradê pela distância até a costa: turquesa na beira, azul-médio, azul-profundo em mar aberto
+    float off = uHasShore > 0.5 ? texture2D(uShore, vWorld.xz / uFogSize).r : 0.6;
+    vec3 base = mix(uShallow, uMid, smoothstep(0.0, 0.32, off));
+    base = mix(base, uDeep, smoothstep(0.3, 1.0, off));
+    // facetas triangulares (low poly) em duas escalas, com brilho que muda devagar
+    float fa = fa1.z * 0.65 + fa2.z * 0.35;
+    base *= 0.86 + 0.28 * fa;
     // reflexo visível mesmo na câmera alta do RTS (fator mínimo), mais forte rente ao horizonte
     // reflexo bem presente mesmo na câmera alta do RTS (planar mais forte), e quase espelho
     // rente ao horizonte (Fresnel)
-    vec3 col = mix(base, refl, clamp((uPlanar > 0.5 ? 0.46 : 0.28) + fres * 0.9, 0.0, 0.94));
+    vec3 col = mix(base, refl, clamp((uPlanar > 0.5 ? 0.3 : 0.16) + fres * 0.85, 0.0, 0.9));
+    // linhas de luz das cáusticas, mais fortes no raso e fracas em mar aberto
+    float edgeC = cells(vWorld.xz * 0.5);
+    float caust = 1.0 - smoothstep(0.0, 0.05, edgeC);
+    col += vec3(0.55, 0.85, 0.9) * caust * mix(0.3, 0.04, smoothstep(0.0, 0.5, off));
     // brilho especular do sol nas ondulações
     float sd = max(dot(r, uSunDir), 0.0);
-    col += uSunColor * (pow(sd, 260.0) * 2.2 + pow(sd, 24.0) * 0.18);
+    col += uSunColor * (pow(sd, 120.0) * 0.6 + pow(sd, 20.0) * 0.06);
     // cristas das ondulações um pouco mais claras: a superfície "mexe" mesmo vista de cima
     col += vec3(0.05, 0.06, 0.06) * smoothstep(0.2, 0.6, n.x + n.z);
     float alpha = 0.9;
@@ -208,8 +294,12 @@ function uniforms(): Record<string, THREE.IUniform> {
     uGround: { value: null },
     uGroundRes: { value: new THREE.Vector2(1, 1) },
     uTime: { value: 0 },
-    uDeep: { value: new THREE.Color('#1d3d4a') },
-    uShallow: { value: new THREE.Color('#3b6a70') },
+    // água estilizada (03/11): turquesa na costa, azul-médio e azul-profundo em mar aberto
+    uDeep: { value: new THREE.Color('#123f6a') },
+    uMid: { value: new THREE.Color('#1f73a0') },
+    uShallow: { value: new THREE.Color('#2fa6b0') },
+    uShore: { value: null },
+    uHasShore: { value: 0 },
     uZenith: { value: SKY.zenith },
     uHorizon: { value: SKY.horizon },
     uSunDir: { value: SKY.sunDir },
@@ -247,6 +337,8 @@ export interface WaterOptions {
   ground?: GroundHeight | null;
   /** Resolução da textura do reflexo planar (px). */
   reflectionSize?: number;
+  /** Distância até a costa (ver `shoreTexture`): degradê de cor e cáusticas. */
+  shore?: THREE.DataTexture | null;
 }
 
 export function createWater(W: number, H: number, mode: WaterReflection, opts: WaterOptions = {}): WaterHandle {
@@ -305,6 +397,10 @@ export function createWater(W: number, H: number, mode: WaterReflection, opts: W
   if (opts.ground) {
     material.uniforms.uGround!.value = opts.ground.texture;
     material.uniforms.uGroundRes!.value = opts.ground.res;
+  }
+  if (opts.shore) {
+    material.uniforms.uShore!.value = opts.shore;
+    material.uniforms.uHasShore!.value = 1;
   }
   material.transparent = true;
   material.fog = true;
