@@ -51,7 +51,7 @@ const AI_RESEARCH_ORDER: TechId[] = [
 const AI_MILITARY_FIRST: TechId[] = ['logistics', 'digital_comms', 'military_aviation', 'guided_munitions', 'ballistic_missiles'];
 
 /** Arquipélago (03/11): Porto (Logística naval) e escolta (Guerra naval) logo no começo. */
-const AI_NAVAL_FIRST: TechId[] = ['logistics', 'naval_logistics', 'wind_power', 'naval_warfare'];
+const AI_NAVAL_FIRST: TechId[] = ['naval_logistics', 'logistics', 'wind_power', 'naval_warfare'];
 
 /** Dia (1 dia = 1 s de partida) a partir do qual o governo da IA puxa o índice de infraestrutura. */
 export const AI_INFRA_FROM_DAY = 720;

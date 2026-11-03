@@ -78,7 +78,7 @@ liberam o que já existia no jogo e antes dependia só da era (`requiresTech` em
 |---|---|---|---|
 | Estado e logística | Engenharia rodoviária | Rodovia (`highwayPlan`) | — |
 | | Comércio exterior | Terminal Comercial | Logística integrada |
-| | Logística naval | Porto (e o Navio de Transporte) | Logística integrada |
+| | Logística naval | Porto (e os navios) | — |
 | | Planejamento urbano | Prédio Residencial | — |
 | | Saúde pública | Hospital | Planejamento urbano |
 | | Segurança pública | Delegacia | Planejamento urbano |

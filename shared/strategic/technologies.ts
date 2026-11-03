@@ -338,7 +338,7 @@ export const TECHNOLOGIES: Record<TechId, TechDef> = {
     description: 'Cais, guindastes de contêiner e embarque de tropas pelo mar.',
     cost: 0.02,
     minDays: 15,
-    prereqs: ['logistics'],
+    prereqs: [],
     effect: {},
     unlocks: ['Porto: cargas do comércio por navio', 'Navio de Transporte: tropas pelo mar até outra costa'],
   },
