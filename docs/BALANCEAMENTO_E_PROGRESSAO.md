@@ -505,8 +505,9 @@ Proposta registrada a partir do feedback da versão 1.0. **Implementada** em 31/
 | Lote 4, §1–2 — partidas com até 4 nações (6 para assinantes), bots e times; mapas de 96 a 160 células com simetria em N partes; IA com vários rivais | Feito | `docs/PARTIDAS_MAIORES_E_MAPAS.md` |
 | Lote 4, §3 — tipos Continental, Rios e Pontes, Montanhoso e Deserto (escolhidos ou sorteados) | Feito | `docs/PARTIDAS_MAIORES_E_MAPAS.md` |
 | Lote 4, §4 — região inicial pelo país, com compensação declarada | Feito | `docs/PARTIDAS_MAIORES_E_MAPAS.md` |
-| Lote 4, §3 — Oceano Central e Arquipélago (03/11; Arquipélago com pontes até a ilha central enquanto não há navios de guerra) | Feito | `docs/PARTIDAS_MAIORES_E_MAPAS.md` |
-| Lote 4, §3 — conteúdo naval de combate (transporte com desembarque, fragata, submarino) | Pendente | — |
+| Lote 4, §3 — Oceano Central e Arquipélago (03/11; o Arquipélago perdeu as pontes com o Navio de Transporte) | Feito | `docs/PARTIDAS_MAIORES_E_MAPAS.md` |
+| Lote 4, §3 — Navio de Transporte com embarque e desembarque (03/11; Arquipélago sem pontes, IA anfíbia) | Feito | `docs/PARTIDAS_MAIORES_E_MAPAS.md` |
+| Lote 4, §3 — navios de combate (fragata, submarino) | Pendente | — |
 | Lote 1, §3.2 — relatório pós-partida (gráficos de tropas, construções, território, recursos e PIB; medalhas) | Feito | `docs/RELATORIO_POS_PARTIDA.md` |
 | Lote 3, §2 — Engenheiro de Combate, minas antitanque (invisíveis ao inimigo e ao satélite), obstáculo antitanque, minas esquecidas na aprovação, IA com engenheiros | Feito | `docs/ESTRADAS_ENGENHARIA.md` |
 | Rebalanceamento da economia — custos 1,25× a 3× maiores, depósitos com o dobro de reserva, começo com 6 cidadãos e 1 Explorador, verba inicial de 25%, IA que guarda recursos para era e pesquisa | Feito | `docs/ECONOMIA.md`, `ECONOMY` em `shared/sim/config.ts` |

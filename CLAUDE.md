@@ -77,6 +77,9 @@ O Nation Commander é **low poly estilizado**, por decisão do responsável pelo
 - Zoneamento (`shared/sim/zoning.ts`, `docs/ZONEAMENTO.md`): zonas R/C/I junto às estradas; lotes privados não são
   entidades (ocupam a grade com `LOT_OCCUPANT`), crescem pela demanda de cada cidade, pagam imposto e gastam energia.
 - Clima e dia/noite (`shared/sim/climate.ts`, `docs/CLIMA_DIA_NOITE.md`) são só visuais, exceto a usina solar.
+- Navio de Transporte (`transport_ship`, `NAVAL`, `docs/PARTIDAS_MAIORES_E_MAPAS.md`): sai do Porto, só anda na água
+  (`Grid.naval`), leva até 10 vagas (`embark`/`unload`); a carga sai do mapa e só o dono a vê no snapshot. No
+  Arquipélago não há pontes: o contato é por navio e avião, e a IA faz desembarques.
 - Minas terrestres (`shared/sim/mines.ts`) não são entidades: o snapshot envia só as do dono e as já detectadas
   (`MineSystem.visibleTo`). O satélite do Programa Espacial revela o resto do mapa, mas nunca as minas.
 
@@ -106,5 +109,5 @@ já foi feito; atualizar a tabela a cada entrega. Resumo do que já foi decidido
 - **Partidas maiores:** até 4 nações na versão grátis e até 6 para assinantes (humanos + bots); mapas de 96×96 a
   160×160 conforme o número de nações, com gerador por simetria em N partes.
 - **Tipos de mapa:** Continental, Rios e Pontes, Montanhoso, Deserto, Oceano Central e Arquipélago (os dois oceânicos
-  existem desde 03/11; no Arquipélago, pontes ligam as ilhas à ilha central até haver navios de guerra). O tipo de mapa é escolhido pelo anfitrião ou sorteado; a geografia real do país
+  existem desde 03/11; no Arquipélago não há pontes: navio de transporte e avião). O tipo de mapa é escolhido pelo anfitrião ou sorteado; a geografia real do país
   só influencia a região inicial de cada nação, com compensações declaradas.

@@ -22,7 +22,7 @@ export interface UnitSnapshot {
   hp: number;
   maxHp: number;
   activity: UnitActivity;
-  order: 'idle' | 'move' | 'attackMove' | 'attack' | 'attackRoad';
+  order: 'idle' | 'move' | 'attackMove' | 'attack' | 'attackRoad' | 'embark' | 'unload';
   targetId: EntityId | null;
   /** Sofrendo atrito em território inimigo. */
   attrition?: true;
@@ -35,8 +35,11 @@ export interface UnitSnapshot {
   /** Abates (só para o dono). */
   kills?: number;
   /** Modernização em andamento (só para o dono). */
-  refit?: { mod: ModId; progress: number; facility: EntityId };  /** Recarga da salva (lança-foguetes): 0 recém-disparado → 1 pronto; ausente quando pronto. */
+  refit?: { mod: ModId; progress: number; facility: EntityId };
+  /** Recarga da salva (lança-foguetes): 0 recém-disparado → 1 pronto; ausente quando pronto. */
   reload?: number;
+  /** Navio de transporte: tipos das tropas a bordo (só para o dono; KAC — o inimigo não sabe o que vai dentro). */
+  cargo?: UnitType[];
 }
 
 export interface BuildingSnapshot {
@@ -291,6 +294,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         ...(e.era && e.era > 1 ? { era: e.era } : {}),
         ...(e.kills && (!viewer || e.owner === viewer.slot) ? { kills: e.kills } : {}),
         ...(UNITS[e.type].weapon.salvo && e.cooldown > 0 ? { reload: r2(Math.max(0, 1 - e.cooldown / Math.max(1, UNITS[e.type].weapon.cooldown * combineMods(e.mods).cooldownMul * TICK_RATE))) } : {}),
+        ...(e.cargo?.length && (!viewer || e.owner === viewer.slot) ? { cargo: e.cargo.map((c) => c.type) } : {}),
         ...(e.refit && (!viewer || e.owner === viewer.slot) ? { refit: { mod: e.refit.mod, progress: r2(1 - e.refit.remainingTicks / e.refit.totalTicks), facility: e.refit.facilityId } } : {}),
       });
     } else {
@@ -643,6 +647,9 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
     case 'city_captured':
       return e.owner === slot || e.victim === slot || sim.isVisibleTo(slot, e.pos);
     case 'caravan_lost':
+      return e.owner === slot || sim.isVisibleTo(slot, e.pos);
+    case 'embarked':
+    case 'unloaded':
       return e.owner === slot || sim.isVisibleTo(slot, e.pos);
     case 'road_destroyed':
       return e.owner === slot || e.by === slot || sim.isVisibleTo(slot, e.pos);

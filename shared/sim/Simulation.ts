@@ -22,6 +22,7 @@ import {
   PROJECT_FX,
   ROAD,
   HIGHWAY,
+  NAVAL,
   SPACE,
   TICK_RATE,
   TICK_SECONDS,
@@ -792,6 +793,8 @@ export class Simulation {
       if (e.owner !== slot) continue;
       if (e.kind === 'unit') {
         military++;
+        // tropas embarcadas num navio continuam na população (03/11)
+        if (e.cargo) military += e.cargo.length;
         continue;
       }
       employed += e.workers + (e.builders ?? 0);
@@ -1166,13 +1169,20 @@ export class Simulation {
         if (units.length === 0) return 'Nenhuma unidade válida';
         const tc = this.grid.worldToCell(this.clampToMap({ x: cmd.x, y: cmd.y }));
         if (!this.canEnter(slot, tc.cx, tc.cy)) return 'Território de outra nação: sem guerra ou aliança não é possível entrar';
-        const targets = this.formationTargets(units, { x: cmd.x, y: cmd.y }).map((t) => this.nearestEnterable(slot, t) ?? t);
+        const forms = this.formationTargets(units, { x: cmd.x, y: cmd.y });
         units.forEach((u, i) => {
-          const target = targets[i]!;
-          u.order = cmd.type === 'move' ? { kind: 'move', target } : { kind: 'attackMove', target };
-          u.engageId = null;
-          u.replans = 0;
-          if (!this.planPath(u, target)) u.order = { kind: 'idle' };
+          // navio (03/11): destino na água mais perto; nunca "avança atacando" (não tem arma)
+          const naval = !!UNITS[u.type].naval;
+          this.grid.naval = naval;
+          try {
+            const target = this.nearestEnterable(slot, forms[i]!) ?? forms[i]!;
+            u.order = cmd.type === 'move' || naval ? { kind: 'move', target } : { kind: 'attackMove', target };
+            u.engageId = null;
+            u.replans = 0;
+            if (!this.planPath(u, target)) u.order = { kind: 'idle' };
+          } finally {
+            this.grid.naval = false;
+          }
         });
         return null;
       }
@@ -1190,6 +1200,45 @@ export class Simulation {
           u.path = [];
           u.repathTimer = 0;
           u.replans = 0;
+        }
+        return null;
+      }
+      case 'embark': {
+        // tropas embarcam num navio de transporte próprio (03/11)
+        const ship = this.entities.get(cmd.shipId);
+        if (!ship || ship.kind !== 'unit' || ship.owner !== slot || !UNITS[ship.type].naval || ship.hp <= 0) return 'Navio inválido';
+        const units = this.ownUnits(slot, cmd.unitIds, true).filter((u) => !UNITS[u.type].naval);
+        if (units.length === 0) return 'Nenhuma tropa válida para embarcar';
+        if (this.cargoFree(ship) <= 0) return 'Navio lotado';
+        for (const u of units) {
+          u.order = { kind: 'embark', shipId: ship.id };
+          u.engageId = null;
+          u.path = [];
+          u.repathTimer = 0;
+          u.replans = 0;
+        }
+        return null;
+      }
+      case 'unload': {
+        // navio vai até a costa mais perto do ponto e desembarca a carga (03/11)
+        const ship = this.entities.get(cmd.shipId);
+        if (!ship || ship.kind !== 'unit' || ship.owner !== slot || !UNITS[ship.type].naval || ship.hp <= 0) return 'Navio inválido';
+        if (!ship.cargo?.length) return 'O navio está vazio';
+        const target = this.clampToMap({ x: cmd.x, y: cmd.y });
+        const tc = this.grid.worldToCell(target);
+        if (!this.canEnter(slot, tc.cx, tc.cy)) return 'Território de outra nação: sem guerra ou aliança não é possível desembarcar';
+        ship.order = { kind: 'unload', target };
+        ship.path = [];
+        ship.repathTimer = 0;
+        this.grid.naval = true;
+        try {
+          const coast = this.coastWater(target);
+          if (!coast || !this.planPath(ship, coast)) {
+            ship.order = { kind: 'idle' };
+            return 'Sem costa alcançável pelo mar perto desse ponto';
+          }
+        } finally {
+          this.grid.naval = false;
         }
         return null;
       }
@@ -2076,7 +2125,16 @@ export class Simulation {
     this.mines.step();
     this.zones.step();
     this.caravans.step();
-    for (const u of this.units) this.updateUnit(u);
+    for (const u of this.units) {
+      // navio (03/11): a grade vira só água enquanto ele pensa e anda
+      this.grid.naval = !!UNITS[u.type].naval;
+      try {
+        this.updateUnit(u);
+      } finally {
+        this.grid.naval = false;
+      }
+    }
+    this.applyBoarding();
     this.updateInterceptions();
     this.updateSalvos();
     this.updateAttrition();
@@ -2919,7 +2977,40 @@ export class Simulation {
     const def = UNITS[u.type];
     const reach = Math.max(def.sight + fx.sightAdd, def.weapon.range + fx.rangeAdd);
 
+    // navio de transporte (03/11): só anda e desembarca; sem arma, nunca entra em combate
+    if (def.naval) {
+      this.updateShip(u);
+      return;
+    }
     switch (u.order.kind) {
+      case 'embark': {
+        const ship = this.entities.get(u.order.shipId);
+        if (!ship || ship.kind !== 'unit' || ship.hp <= 0 || ship.owner !== u.owner || this.cargoFree(ship) < NAVAL.slots(u.type)) {
+          this.setIdle(u);
+          return;
+        }
+        if (dist(u.pos, ship.pos) <= NAVAL.embarkRange + UNITS[ship.type].radius) {
+          this.boarding.push([u, ship]);
+          u.activity = 'idle';
+          u.path = [];
+          return;
+        }
+        u.activity = 'moving';
+        u.repathTimer--;
+        if (u.repathTimer <= 0 || u.pathIndex >= u.path.length) {
+          u.repathTimer = CHASE_REPATH_TICKS;
+          // o navio está na água: a tropa anda até a terra perto dele (a margem mais perto pode não ter caminho)
+          if (!this.shoresNear(ship.pos).some((shore) => this.planPath(u, shore))) {
+            this.setIdle(u);
+            return;
+          }
+        }
+        this.followPath(u);
+        return;
+      }
+      case 'unload':
+        this.setIdle(u);
+        return;
       case 'attackRoad': {
         const cell = u.order.cell;
         const road = this.roads.find((r) => r.i === cell);
@@ -3051,6 +3142,162 @@ export class Simulation {
       u.halt = null;
       if (u.order.kind === 'attack') this.setIdle(u);
       else u.engageId = null;
+    }
+  }
+
+  // ---------------------------------------------------------------- navio de transporte (03/11)
+
+  /** Tropas que chegaram ao navio neste tick (embarcam depois do laço das unidades). */
+  private boarding: [Unit, Unit][] = [];
+
+  /** Vagas livres no navio (infantaria ocupa 1, veículo 2). */
+  cargoFree(ship: Unit): number {
+    const used = (ship.cargo ?? []).reduce((a, c) => a + NAVAL.slots(c.type), 0);
+    return (UNITS[ship.type].capacity ?? 0) - used;
+  }
+
+  /** Embarque: a tropa sai do mapa e vai para a carga do navio (se ainda couber). */
+  private applyBoarding(): void {
+    for (const [u, ship] of this.boarding) {
+      if (u.hp <= 0 || ship.hp <= 0 || !this.entities.has(ship.id) || !this.entities.has(u.id) || this.cargoFree(ship) < NAVAL.slots(u.type)) continue;
+      this.entities.delete(u.id);
+      u.order = { kind: 'idle' };
+      u.engageId = null;
+      u.path = [];
+      (ship.cargo ??= []).push(u);
+      this.emit({ type: 'embarked', tick: this.tick, owner: ship.owner, shipId: ship.id, count: 1, pos: { ...ship.pos } });
+    }
+    this.boarding = [];
+  }
+
+  /** Célula de água colada à terra mais perto do ponto (onde o navio encosta para desembarcar). */
+  coastNear(p: Vec2): Vec2 | null {
+    return this.coastWater(p);
+  }
+
+  private coastWater(p: Vec2): Vec2 | null {
+    const g = this.grid;
+    const c = g.worldToCell(p);
+    for (let r = 0; r <= 14; r++) {
+      let best: Cell | null = null;
+      let bestD = Infinity;
+      for (let dy = -r; dy <= r; dy++)
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = c.cx + dx;
+          const y = c.cy + dy;
+          if (!g.inBounds(x, y) || g.terrainAt(x, y) !== Terrain.Water) continue;
+          if (!this.landAround(x, y, 1)) continue;
+          const d = dx * dx + dy * dy;
+          if (d < bestD) {
+            bestD = d;
+            best = { cx: x, cy: y };
+          }
+        }
+      if (best) return g.cellCenter(best);
+    }
+    return null;
+  }
+
+  /** Células de terra transitável perto do ponto, da mais perto para a mais longe (até 6; a margem do navio). */
+  private shoresNear(p: Vec2): Vec2[] {
+    const g = this.grid;
+    const c = g.worldToCell(p);
+    const naval = g.naval;
+    g.naval = false;
+    try {
+      const out: Cell[] = [];
+      for (let r = 0; r <= 4 && out.length < 6; r++) {
+        const ring: Cell[] = [];
+        for (let dy = -r; dy <= r; dy++)
+          for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r && g.isPassable(c.cx + dx, c.cy + dy)) ring.push({ cx: c.cx + dx, cy: c.cy + dy });
+        ring.sort((a, b) => (a.cx - c.cx) ** 2 + (a.cy - c.cy) ** 2 - ((b.cx - c.cx) ** 2 + (b.cy - c.cy) ** 2) || a.cy - b.cy || a.cx - b.cx);
+        out.push(...ring);
+      }
+      return out.slice(0, 6).map((x) => g.cellCenter(x));
+    } finally {
+      g.naval = naval;
+    }
+  }
+
+  /** Há terra transitável (não água) a até `r` células? */
+  private landAround(cx: number, cy: number, r: number): boolean {
+    const g = this.grid;
+    const naval = g.naval;
+    g.naval = false;
+    try {
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (g.isPassable(cx + dx, cy + dy)) return true;
+      return false;
+    } finally {
+      g.naval = naval;
+    }
+  }
+
+  /** Navio: anda pela água; com ordem de desembarque, encosta na costa e solta a carga em terra. */
+  private updateShip(u: Unit): void {
+    const o = u.order;
+    if (o.kind === 'move') {
+      u.activity = 'moving';
+      if (this.followPath(u) && u.pathIndex >= u.path.length) this.setIdle(u);
+      return;
+    }
+    if (o.kind === 'unload') {
+      const here = this.grid.worldToCell(u.pos);
+      const nearLand = this.landAround(here.cx, here.cy, Math.ceil(NAVAL.unloadRange / this.map.cellSize));
+      if (nearLand && (u.pathIndex >= u.path.length || dist(u.pos, o.target) <= NAVAL.unloadRange * 3)) {
+        this.unloadShip(u, o.target);
+        this.setIdle(u);
+        return;
+      }
+      u.activity = 'moving';
+      if (this.followPath(u) && u.pathIndex >= u.path.length) {
+        if (nearLand) this.unloadShip(u, o.target);
+        this.setIdle(u);
+      }
+      return;
+    }
+    if (o.kind !== 'idle') this.setIdle(u);
+    u.activity = 'idle';
+  }
+
+  /** Desembarque: cada tropa vai para uma célula de terra livre perto do navio, virada para o ponto pedido. */
+  private unloadShip(ship: Unit, toward: Vec2): void {
+    const cargo = ship.cargo ?? [];
+    if (!cargo.length) return;
+    const g = this.grid;
+    const naval = g.naval;
+    g.naval = false;
+    try {
+      const taken = new Set(this.units.map((x) => g.index(...cellTuple(g.worldToCell(x.pos)))));
+      const c = g.worldToCell(ship.pos);
+      const placed: Unit[] = [];
+      for (let r = 1; r <= 6 && placed.length < cargo.length; r++) {
+        const ring: Cell[] = [];
+        for (let dy = -r; dy <= r; dy++)
+          for (let dx = -r; dx <= r; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+            const x = c.cx + dx;
+            const y = c.cy + dy;
+            if (!g.isPassable(x, y) || taken.has(g.index(x, y)) || !this.canEnter(ship.owner, x, y)) continue;
+            ring.push({ cx: x, cy: y });
+          }
+        ring.sort((a, b) => dist(g.cellCenter(a), toward) - dist(g.cellCenter(b), toward) || a.cy - b.cy || a.cx - b.cx);
+        for (const cell of ring) {
+          const u = cargo[placed.length];
+          if (!u) break;
+          u.pos = g.cellCenter(cell);
+          u.order = { kind: 'idle' };
+          u.path = [];
+          u.engageId = null;
+          this.entities.set(u.id, u);
+          taken.add(g.index(cell.cx, cell.cy));
+          placed.push(u);
+        }
+      }
+      ship.cargo = cargo.slice(placed.length);
+      if (placed.length) this.emit({ type: 'unloaded', tick: this.tick, owner: ship.owner, shipId: ship.id, count: placed.length, pos: { ...ship.pos } });
+    } finally {
+      g.naval = naval;
     }
   }
 
@@ -3414,6 +3661,7 @@ export class Simulation {
     const cell = this.grid.worldToCell(u.pos);
     const terrain = this.grid.inBounds(cell.cx, cell.cy) ? this.grid.terrainAt(cell.cx, cell.cy) : null;
     let terrainMul = terrain !== null ? TERRAIN[terrain].speedMultiplier : 1;
+    if (UNITS[u.type].naval) terrainMul = 1;
     if (terrain === Terrain.Road && this.highways.has(this.grid.index(cell.cx, cell.cy))) terrainMul = HIGHWAY.unitMul;
     if (terrain === Terrain.Forest) terrainMul *= this.bonusOf(u.owner).forestSpeedMul ?? 1;
     const speed = UNITS[u.type].speed * combineMods(u.mods).speedMul * Math.max(terrainMul, 0.3) * TICK_SECONDS;
@@ -3484,6 +3732,10 @@ export class Simulation {
       const a = units[i]!;
       for (let j = i + 1; j < units.length; j++) {
         const b = units[j]!;
+        // navio e tropa em terra não se empurram; navio com navio, só pela água (03/11)
+        const navalA = !!UNITS[a.type].naval;
+        if (navalA !== !!UNITS[b.type].naval) continue;
+        this.grid.naval = navalA;
         const minD = (UNITS[a.type].radius + UNITS[b.type].radius) * 0.9;
         const dx = b.pos.x - a.pos.x;
         const dy = b.pos.y - a.pos.y;
@@ -3500,6 +3752,7 @@ export class Simulation {
         if (this.grid.isWorldPassable(pb)) b.pos = pb;
       }
     }
+    this.grid.naval = false;
   }
 
   /** Posições em grade ao redor do destino para que um grupo não se empilhe. */
@@ -3630,8 +3883,14 @@ export class Simulation {
     const size = BUILDINGS[b.type].size;
     const occupied = new Set(this.units.map((u) => this.grid.index(...cellTuple(this.grid.worldToCell(u.pos)))));
     // primeiro só células com saída (o edifício pode ter sido cercado por obras); se nada servir, a regra antiga
-    const cell = this.spawnCell(b, size, occupied, 12, true) ?? this.spawnCell(b, size, occupied, 4, false);
-    return cell ? this.addUnit(type, b.owner, this.grid.cellCenter(cell), hpMul, mods) : null;
+    // navio (03/11): nasce na água ao lado do Porto
+    this.grid.naval = !!UNITS[type].naval;
+    try {
+      const cell = this.spawnCell(b, size, occupied, 12, true) ?? this.spawnCell(b, size, occupied, 4, false);
+      return cell ? this.addUnit(type, b.owner, this.grid.cellCenter(cell), hpMul, mods) : null;
+    } finally {
+      this.grid.naval = false;
+    }
   }
 
   /** Célula livre no anel mais próximo do edifício (até `maxR`), voltada para o centro do mapa; `open`: exige saída. */
@@ -3755,6 +4014,12 @@ export class Simulation {
     if (e.kind === 'unit') {
       victim.stats.unitsLost++;
       if (killer) killer.stats.unitsKilled++;
+      // navio afundado: a carga vai junto (03/11)
+      if (e.cargo?.length) {
+        victim.stats.unitsLost += e.cargo.length;
+        if (killer) killer.stats.unitsKilled += e.cargo.length;
+        e.cargo = [];
+      }
     } else {
       victim.stats.structuresLost++;
       if (killer) killer.stats.structuresDestroyed++;

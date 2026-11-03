@@ -26,6 +26,8 @@ export interface SelectedUnitInfo {
   /** Veterania: patente (0 = recruta) e abates. */
   rank: number;
   kills: number;
+  /** Navio de transporte: tropas a bordo. */
+  cargo?: UnitType[];
 }
 
 export interface SelectedBuildingInfo {

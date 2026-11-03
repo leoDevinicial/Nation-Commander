@@ -26,7 +26,11 @@ export type UnitOrder =
   | { kind: 'attackMove'; target: Vec2 }
   | { kind: 'attack'; targetId: EntityId }
   /** Atacar uma célula de estrada ou rodovia inimiga (02/11): só por ordem do jogador, nunca automático. */
-  | { kind: 'attackRoad'; cell: number };
+  | { kind: 'attackRoad'; cell: number }
+  /** Tropa indo embarcar num navio próprio (03/11). */
+  | { kind: 'embark'; shipId: EntityId }
+  /** Navio indo até a costa para desembarcar a carga perto de `target` (03/11). */
+  | { kind: 'unload'; target: Vec2 };
 
 export type UnitActivity = 'idle' | 'moving' | 'chasing' | 'attacking';
 
@@ -70,6 +74,8 @@ export interface Unit {
   interceptReadyTick?: number;
   /** Tiros já dados na rajada atual (armas com `burst`). */
   burstShots?: number;
+  /** Navio de transporte (03/11): tropas a bordo (fora do mapa enquanto embarcadas). */
+  cargo?: Unit[];
 }
 
 export interface Refit {
@@ -344,6 +350,9 @@ export type SimEvent =
   | { type: 'city_captured'; tick: number; owner: Slot; victim: Slot; id: EntityId; city: string; buildings: number; pos: Vec2 }
   /** Caravana interna destruída por forças inimigas no caminho entre o QG e a prefeitura. */
   | { type: 'caravan_lost'; tick: number; owner: Slot; cityId: EntityId; city: string; pos: Vec2 }
+  /** Navio de transporte (03/11): tropas embarcaram / desembarcaram. */
+  | { type: 'embarked'; tick: number; owner: Slot; shipId: EntityId; count: number; pos: Vec2 }
+  | { type: 'unloaded'; tick: number; owner: Slot; shipId: EntityId; count: number; pos: Vec2 }
   /** Célula de estrada ou rodovia destruída por tropas (02/11). */
   | { type: 'road_destroyed'; tick: number; owner: Slot; by: Slot; cell: number; highway: boolean; pos: Vec2 }
   | { type: 'missile'; tick: number; owner: Slot; launchId: number; state: string; text: string; from: Vec2; target: Vec2; targetOwner: Slot; gen?: number; nuclear?: boolean; damage?: number; destroyed?: number; casualties?: number }

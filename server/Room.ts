@@ -1467,7 +1467,7 @@ export function theaterStats(sim: Simulation, slot: Slot): TheaterStats {
   const leftoverMines = sim.atWarAny(slot) ? 0 : sim.mines.mines.filter((m) => m.owner === slot).length;
   return {
     buildings,
-    military: sim.units.filter((u) => u.owner === slot).length,
+    military: sim.population(slot).military,
     workers: pop.employed,
     food: sim.players[slot]?.resources.food ?? 0,
     homes: homes.homes,
@@ -1493,7 +1493,8 @@ export function treasuryInputs(sim: Simulation, slot: Slot): TreasuryInputs {
   }
   let infantry = 0;
   let vehicles = 0;
-  for (const u of sim.units) {
+  // as tropas a bordo dos navios de transporte também recebem soldo (03/11)
+  for (const u of sim.units.flatMap((x) => [x, ...(x.cargo ?? [])])) {
     if (u.owner !== slot) continue;
     if (UNITS[u.type].producedBy === 'factory') vehicles++;
     else infantry++;

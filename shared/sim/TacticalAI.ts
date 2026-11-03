@@ -1,5 +1,6 @@
-import { BUILDINGS, buildingCost, emptyStockpile, Terrain, ROAD, HIGHWAY, CITIZEN, GOODS_TYPES, MINE, OIL_TANK_RANGE, emptyGoods, RECRUIT, type ResourceType, POP_ABSOLUTE_CAP, RESOURCE_TYPES, TICK_RATE, UNITS, MILITARY_RESEARCH, militaryResearchBlocker, militaryResearchKnowledge, canAfford, type MilitaryResearchId, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
+import { BUILDINGS, buildingCost, emptyStockpile, Terrain, ROAD, HIGHWAY, CITIZEN, GOODS_TYPES, MINE, OIL_TANK_RANGE, emptyGoods, RECRUIT, type ResourceType, POP_ABSOLUTE_CAP, RESOURCE_TYPES, TICK_RATE, UNITS, NAVAL, MILITARY_RESEARCH, militaryResearchBlocker, militaryResearchKnowledge, canAfford, type MilitaryResearchId, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
 import { claimableCells, claimedBy } from './gathering.ts';
+import { reachable } from './MapGen.ts';
 import { checkProduce } from './production.ts';
 import type { Command } from './commands.ts';
 import type { Simulation } from './Simulation.ts';
@@ -174,7 +175,22 @@ export interface TacticalAISave {
   lastRoadTick?: number | null;
   lastMarketTick?: number | null;
   scoutLeg?: number;
+  amphib?: Amphib | null;
 }
+
+/** Desembarque em curso (03/11): a onda embarca nos navios, atravessa o mar e desembarca perto do alvo. */
+interface Amphib {
+  phase: 'boarding' | 'sailing';
+  units: number[];
+  ships: number[];
+  tick: number;
+  target: Vec2;
+}
+
+/** Vagas de navios de transporte que a IA mantém por onda (cada navio leva 10) e tempos-limite das fases. */
+const AI_MAX_SHIPS = 3;
+const AI_BOARD_TICKS = TICK_RATE * 75;
+const AI_SAIL_TICKS = TICK_RATE * 240;
 
 export class TacticalAI {
   /** Tamanho da próxima onda (null até a primeira avaliação, que lê a dificuldade). */
@@ -206,6 +222,13 @@ export class TacticalAI {
   private lastHighwayTick = -Infinity;
   /** País contra o qual a IA quer declarar guerra (lido e processado pelo servidor). */
   wantsWarWith: Slot | null = null;
+  /** Desembarque em curso (mapas com ilhas). */
+  private amphib: Amphib | null = null;
+  /** Células de terra alcançáveis a pé a partir da base e células do mar aberto (cache: o terreno não muda). */
+  private landReach: Set<number> | null = null;
+  private sea: Set<number> | null = null;
+  /** Inimigo além-mar nesta avaliação (ilha pequena: procura lugar para construir mais longe do QG). */
+  private islandMode = false;
 
   constructor(readonly slot: Slot) {}
 
@@ -227,6 +250,7 @@ export class TacticalAI {
       lastRoadTick: Number.isFinite(this.lastRoadTick) ? this.lastRoadTick : null,
       lastMarketTick: Number.isFinite(this.lastMarketTick) ? this.lastMarketTick : null,
       scoutLeg: this.scoutLeg,
+      amphib: this.amphib ? { ...this.amphib, units: [...this.amphib.units], ships: [...this.amphib.ships], target: { ...this.amphib.target } } : null,
     };
   }
 
@@ -246,6 +270,7 @@ export class TacticalAI {
     this.lastRoadTick = s.lastRoadTick ?? -Infinity;
     this.lastMarketTick = s.lastMarketTick ?? -Infinity;
     this.scoutLeg = s.scoutLeg ?? 0;
+    this.amphib = s.amphib ? { ...s.amphib, units: [...s.amphib.units], ships: [...s.amphib.ships], target: { ...s.amphib.target } } : null;
   }
 
   think(sim: Simulation): Command[] {
@@ -270,7 +295,14 @@ export class TacticalAI {
     }
 
     const mine = sim.buildings.filter((b) => b.owner === this.slot);
-    const army = sim.units.filter((u) => u.owner === this.slot);
+    const own = sim.units.filter((u) => u.owner === this.slot);
+    // navios de transporte não lutam: ficam fora do exército (03/11)
+    const army = own.filter((u) => !UNITS[u.type].naval);
+    const ships = own.filter((u) => u.type === 'transport_ship');
+    // além-mar: o adversário mais próximo está noutra ilha (sem caminho por terra)
+    const objectiveNow = this.enemyObjective(sim);
+    const overseas = objectiveNow !== null && this.overseas(sim, objectiveNow.pos);
+    this.islandMode = overseas;
     const count = (t: BuildingType) => mine.filter((b) => b.type === t).length;
     // coletas ainda produtivas: um depósito esgotado pede outro edifício em outro lugar
     const active = (t: BuildingType) => mine.filter((b) => b.type === t && b.status !== 'depleted').length;
@@ -545,6 +577,8 @@ export class TacticalAI {
       [bottleneck ?? 'farm', bottleneck !== null && worst > AI_BOTTLENECK_SECONDS],
       ['tower', expandTo !== null && count('tower') < 3],
       ['research_center', count('research_center') === 0 && done('barracks') && sim.tick >= AI_RESEARCH_TICK],
+      // inimigo noutra ilha (03/11): um Porto no mar aberto para os navios de transporte
+      ['port', overseas && count('port') === 0 && done('barracks')],
       // fábrica depois da era 2 e do Centro de Pesquisa (ou sem eras)
       ['factory', count('factory') === 0 && done('barracks') && !savingCore],
       ['tower', count('tower') < 1 && done('factory') && !saving],
@@ -660,8 +694,16 @@ export class TacticalAI {
     // bens industriais reservados na própria avaliação (vários pedidos no mesmo turno)
     const goods = { ...(me.goods ?? emptyGoods()) };
     for (const b of mine) {
-      if (b.progress < 1 || b.queue.length > 0 || crew <= 0 || b.workers === 0) continue;
-      const mix = b.type === 'barracks' ? barracksMix : b.type === 'factory' ? factoryMix : null;
+      if (b.progress < 1 || b.queue.length > 0 || crew <= 0 || (b.workers === 0 && b.type !== 'port')) continue;
+      const fleet = ships.length + mine.reduce((a, x) => a + x.queue.filter((q) => q.unitType === 'transport_ship').length, 0);
+      const mix =
+        b.type === 'barracks'
+          ? barracksMix
+          : b.type === 'factory'
+            ? factoryMix
+            : b.type === 'port' && overseas && !preparing && fleet < Math.min(AI_MAX_SHIPS, Math.ceil((this.waveSize * 1.5) / (UNITS.transport_ship.capacity ?? 10)))
+              ? (['transport_ship'] as UnitType[])
+              : null;
       if (!mix) continue;
       // a mesma regra do servidor (custo real, com o equipamento do padrão vigente); se a escolha
       // não couber, tenta a próxima da lista em vez de insistir num pedido que seria recusado
@@ -765,7 +807,17 @@ export class TacticalAI {
       // sem guerra formal não há ofensiva: pede a declaração e espera
       if (objective && !sim.formalWar(this.slot, objective.slot)) this.wantsWarWith = objective.slot;
       const target = objective && sim.formalWar(this.slot, objective.slot) ? objective.pos : null;
-      if (target) {
+      if (target && overseas) {
+        // além-mar: embarca a onda nos navios (o desembarque sai na próxima fase)
+        this.launchAmphib(sim, idle, ships, target, cmds);
+        if (this.amphib) {
+          this.attacking = true;
+          this.lastWaveTick = sim.tick;
+          if (this.amphib.units.length >= this.waveSize) this.waveSize = Math.min(this.waveSize + level.waveStep, level.maxWave);
+          this.armyPeak = 0;
+          this.peakTick = sim.tick;
+        }
+      } else if (target) {
         // guarda da base: as últimas tropas ficam para conter o contra-ataque (com a economia apertada, um
         // QG sem ninguém cai na primeira resposta do inimigo)
         const wave = idle.length > AI_HOME_GUARD + AI_MIN_WAVE ? idle.slice(0, idle.length - AI_HOME_GUARD) : idle;
@@ -777,6 +829,8 @@ export class TacticalAI {
         this.armyPeak = 0;
         this.peakTick = sim.tick;
       }
+    } else if (this.amphib) {
+      this.stepAmphib(sim, hq, cmds);
     } else if (this.attacking && army.every((u) => u.order.kind === 'idle')) {
       this.attacking = false;
     } else if (!this.attacking) {
@@ -1415,6 +1469,115 @@ export class TacticalAI {
     return best;
   }
 
+  /** O alvo fica fora da terra alcançável a pé a partir da base (outra ilha)? */
+  private overseas(sim: Simulation, target: Vec2): boolean {
+    const spawn = sim.map.spawns[this.slot];
+    if (!spawn) return false;
+    this.landReach ??= reachable(sim.map, spawn);
+    const c = sim.grid.worldToCell(target);
+    return !this.landReach.has(c.cy * sim.map.width + c.cx);
+  }
+
+  /** Mar aberto: o maior corpo d'água do mapa (lagos não levam a lugar nenhum). */
+  private seaCells(sim: Simulation): Set<number> {
+    if (this.sea) return this.sea;
+    const { width: W, height: H, terrain } = sim.map;
+    const seen = new Uint8Array(W * H);
+    let best: number[] = [];
+    for (let i = 0; i < W * H; i++) {
+      if (seen[i] || terrain[i] !== Terrain.Water) continue;
+      const comp: number[] = [];
+      const stack = [i];
+      seen[i] = 1;
+      while (stack.length) {
+        const j = stack.pop()!;
+        comp.push(j);
+        const x = j % W;
+        for (const n of [x > 0 ? j - 1 : -1, x < W - 1 ? j + 1 : -1, j - W, j + W]) {
+          if (n < 0 || n >= W * H || seen[n] || terrain[n] !== Terrain.Water) continue;
+          seen[n] = 1;
+          stack.push(n);
+        }
+      }
+      if (comp.length > best.length) best = comp;
+    }
+    this.sea = new Set(best);
+    return this.sea;
+  }
+
+  /** O Porto em `cell` (2×2) encosta no mar aberto? */
+  private touchesSea(sim: Simulation, cell: Cell, size: number): boolean {
+    const sea = this.seaCells(sim);
+    const W = sim.map.width;
+    for (let y = cell.cy - 1; y <= cell.cy + size; y++)
+      for (let x = cell.cx - 1; x <= cell.cx + size; x++) if (x >= 0 && y >= 0 && x < W && sea.has(y * W + x)) return true;
+    return false;
+  }
+
+  /** Onda além-mar: distribui as tropas ociosas pelas vagas dos navios parados e manda embarcar. */
+  private launchAmphib(sim: Simulation, idle: Unit[], ships: Unit[], target: Vec2, cmds: Command[]): void {
+    const free = ships.filter((s) => s.order.kind === 'idle' && !(s.cargo?.length ?? 0));
+    if (!free.length) return;
+    const pool = idle.length > AI_HOME_GUARD + AI_MIN_WAVE ? idle.slice(0, idle.length - AI_HOME_GUARD) : idle;
+    const units: number[] = [];
+    const groups: { shipId: number; ids: number[] }[] = [];
+    let k = 0;
+    for (const ship of free) {
+      let room = UNITS[ship.type].capacity ?? 0;
+      const group: number[] = [];
+      for (; k < pool.length; k++) {
+        const slots = NAVAL.slots(pool[k]!.type);
+        if (slots > room) break;
+        room -= slots;
+        group.push(pool[k]!.id);
+      }
+      if (!group.length) break;
+      groups.push({ shipId: ship.id, ids: group });
+      units.push(...group);
+    }
+    // só embarca uma onda de verdade (a ordem sai uma vez; o resto fica para a próxima)
+    if (units.length < AI_MIN_WAVE) return;
+    for (const g of groups) cmds.push({ type: 'embark', unitIds: g.ids, shipId: g.shipId });
+    const used = groups.map((g) => g.shipId);
+    this.amphib = { phase: 'boarding', units, ships: used, tick: sim.tick, target: { ...target } };
+  }
+
+  /** Fases do desembarque: embarque → travessia → em terra, a onda avança atacando e os navios voltam. */
+  private stepAmphib(sim: Simulation, hq: Building, cmds: Command[]): void {
+    const a = this.amphib!;
+    const ships = a.ships.map((id) => sim.entities.get(id)).filter((s): s is Unit => !!s && s.kind === 'unit' && s.hp > 0);
+    const loaded = ships.filter((s) => (s.cargo?.length ?? 0) > 0);
+    const ashore = () => a.units.map((id) => sim.entities.get(id)).filter((u): u is Unit => !!u && u.kind === 'unit' && u.hp > 0);
+    if (a.phase === 'boarding') {
+      // ainda há tropa andando até o navio
+      const waiting = ashore().filter((u) => u.order.kind === 'embark');
+      if (waiting.length && sim.tick - a.tick < AI_BOARD_TICKS) return;
+      if (!loaded.length) {
+        this.amphib = null;
+        this.attacking = false;
+        return;
+      }
+      if (waiting.length) cmds.push({ type: 'stop', unitIds: waiting.map((u) => u.id) });
+      for (const s of loaded) cmds.push({ type: 'unload', shipId: s.id, x: a.target.x, y: a.target.y });
+      a.phase = 'sailing';
+      a.tick = sim.tick;
+      a.ships = loaded.map((s) => s.id);
+      return;
+    }
+    if (loaded.length && sim.tick - a.tick < AI_SAIL_TICKS) {
+      // navio parado ainda carregado (ordem recusada ou costa ocupada): tenta de novo
+      for (const s of loaded) if (s.order.kind === 'idle') cmds.push({ type: 'unload', shipId: s.id, x: a.target.x, y: a.target.y });
+      return;
+    }
+    // em terra: a onda avança atacando; os navios voltam para a costa de casa
+    const landed = ashore().filter((u) => u.owner === this.slot);
+    if (landed.length) cmds.push({ type: 'attack_move', unitIds: landed.map((u) => u.id), x: a.target.x, y: a.target.y });
+    const home = sim.coastNear(this.rallyPoint(sim, hq));
+    const empty = ships.filter((s) => !(s.cargo?.length ?? 0));
+    if (home && empty.length) cmds.push({ type: 'move', unitIds: empty.map((s) => s.id), x: home.x, y: home.y });
+    this.amphib = null;
+  }
+
   /** Explorador parado segue para o próximo ponto da ronda: volta do território a 18 células e o centro do mapa. */
   private planScout(sim: Simulation, hq: Building, army: Unit[], committed: Set<number>, cmds: Command[]): void {
     const scout = army.find((u) => u.type === 'scout' && u.order.kind === 'idle' && u.engageId === null);
@@ -1568,14 +1731,19 @@ export class TacticalAI {
       for (const { cell } of candidates) {
         const err = sim.placementError(this.slot, type, cell);
         if (err !== null && !(ignoreCost && err === 'Recursos insuficientes')) continue;
-        // deixa um corredor livre de 1 célula ao redor para as unidades circularem
-        if (!this.hasClearance(sim, cell, BUILDINGS[type].size)) continue;
+        // o Porto precisa dar para o mar aberto, não para um lago
+        if (type === 'port' && !this.touchesSea(sim, cell, BUILDINGS[type].size)) continue;
+        // deixa um corredor livre de 1 célula ao redor para as unidades circularem (o Porto já confere a própria saída)
+        if (type !== 'port' && !this.hasClearance(sim, cell, BUILDINGS[type].size)) continue;
         return cell;
       }
       return null;
     };
     // prefeituras ficam longe do QG (espaçamento mínimo entre cidades)
-    const found = scan(hq.cell, gather ? 13 : type === 'city_hall' ? 17 : 9);
+    let found = scan(hq.cell, gather ? 13 : type === 'city_hall' ? 17 : 9);
+    // sem lugar perto do QG numa ilha (pequena, cheia de mata): procura mais longe, ainda no território (03/11)
+    // (usinas não: longe da malha ficariam isoladas e a IA ergueria uma atrás da outra)
+    if (!found && !gather && !POWER_GEN[type] && this.islandMode) found = scan(hq.cell, type === 'city_hall' ? 22 : 16);
     if (found || !gather || !mine) return found;
     // depósitos próximos esgotados: procura também em volta das torres e prefeituras (fronteira ampliada)
     for (const b of mine) {

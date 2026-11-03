@@ -2208,6 +2208,7 @@ export class GameRuntime {
             refit: u.snap.refit ? { mod: u.snap.refit.mod, progress: u.snap.refit.progress } : null,
             rank: u.snap.rank ?? 0,
             kills: u.snap.kills ?? 0,
+            ...(u.snap.cargo ? { cargo: u.snap.cargo } : {}),
           });
         else inspected = { kind: 'unit' as const, type: u.snap.type, owner: u.snap.owner, hp: u.snap.hp, maxHp: u.snap.maxHp, level: 1, spec: null };
         continue;
@@ -3721,6 +3722,34 @@ export class GameRuntime {
     b.style.height = `${Math.abs(y1 - y0)}px`;
   }
 
+  /**
+   * Navio de transporte (03/11): botão direito no próprio navio com tropas de terra selecionadas = embarcar; com
+   * navios carregados selecionados, botão direito na terra = desembarcar na costa mais perto (o resto da seleção anda).
+   */
+  private navalOrder(ids: number[], hit: number | null, p: THREE.Vector2): boolean {
+    const naval = (id: number) => {
+      const t = this.units.get(id)?.snap.type;
+      return !!t && !!UNITS[t].naval;
+    };
+    const land = ids.filter((id) => !naval(id));
+    if (hit !== null && this.ownerOf(hit) === this.mySlot && naval(hit) && land.length) {
+      this.send({ type: 'embark', unitIds: land, shipId: hit });
+      this.flashTarget(hit);
+      return true;
+    }
+    const loaded = ids.filter((id) => naval(id) && (this.units.get(id)?.snap.cargo?.length ?? 0) > 0);
+    const cs = this.map.cellSize;
+    const cx = Math.floor(p.x / cs);
+    const cy = Math.floor(p.y / cs);
+    const onLand = cx >= 0 && cy >= 0 && cx < this.map.width && cy < this.map.height && this.map.terrain[cy * this.map.width + cx] !== T.Water;
+    if (!loaded.length || !onLand) return false;
+    for (const shipId of loaded) this.send({ type: 'unload', shipId, x: p.x, y: p.y });
+    const rest = ids.filter((id) => !loaded.includes(id));
+    if (rest.length) this.send({ type: 'move', unitIds: rest, x: p.x, y: p.y });
+    this.effects.flash(new THREE.Vector3(p.x, 0.1, p.y), 0.45, '#7fc8ff', 0.4);
+    return true;
+  }
+
   /** Ordem contextual no ponto da tela (botão direito ou toque longo). Retorna se algo foi ordenado. */
   private orderAt(clientX: number, clientY: number): boolean {
     const p = this.groundAt(clientX, clientY);
@@ -3728,6 +3757,7 @@ export class GameRuntime {
     const ids = this.myUnitIds();
     if (ids.length > 0) {
       const hit = this.pickEntity(p);
+      if (this.navalOrder(ids, hit, p)) return true;
       if (hit && this.ownerOf(hit) !== this.mySlot) {
         this.send({ type: 'attack', unitIds: ids, targetId: hit });
         this.flashTarget(hit);

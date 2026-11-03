@@ -158,6 +158,8 @@ export class UnitVisual {
   readonly hp: HealthBar;
   private recoil = 0;
   private bob = Math.random() * 10;
+  /** Tempo das ondas sob o navio de transporte. */
+  private swell = 0;
   private readonly muzzleLocal: THREE.Vector3;
   /** Posição renderizada (interpolada) no plano. */
   readonly renderPos = new THREE.Vector2();
@@ -576,7 +578,10 @@ export class UnitVisual {
    * suspensão, torre, recuo, barra de vida) fica para o próximo, com o tempo acumulado.
    */
   update(dt: number, moving: boolean, aimAngle: number | null, hpFraction: number, showHp: boolean, camera: THREE.Camera, deployed = false, animate = true): void {
-    this.group.position.set(this.renderPos.x, 0, this.renderPos.y);
+    // navio (03/11): flutua na linha d'água (a superfície do mar fica em y = -0,25) e balança nas ondas
+    const naval = UNITS[this.type].naval;
+    if (naval) this.swell += dt;
+    this.group.position.set(this.renderPos.x, naval ? -0.25 + Math.sin(this.swell * 1.4 + this.id) * 0.035 : 0, this.renderPos.y);
     if (!animate) {
       this.body.rotation.y = -this.facing;
       this.skippedDt += dt;
@@ -681,8 +686,8 @@ export class UnitVisual {
       this.fireKick *= Math.exp(-dt * 6);
       // mola amortecida: afunda a traseira no tiro e volta passando um pouco do ponto
       const kick = this.fireKick * Math.sin((1 - this.fireKick) * Math.PI * 1.6) * 0.035;
-      this.body.rotation.x = this.roll;
-      this.body.rotation.z = this.pitchTilt + rumble + kick;
+      this.body.rotation.x = this.roll + (naval ? Math.sin(this.swell * 1.1 + this.id) * 0.03 : 0);
+      this.body.rotation.z = this.pitchTilt + (naval ? Math.sin(this.swell * 0.8 + this.id * 2) * 0.015 : rumble) + kick;
     }
     this.hp.set(hpFraction);
     this.hp.group.visible = showHp;

@@ -346,7 +346,21 @@ export function generateMatchMap(seed: number, opts: MatchMapOptions): MapData {
         }
     }
   };
-  {
+  if (type === 'islands') {
+    // Arquipélago (03/11): os maciços do continente cairiam no mar. Dois dentro de cada ilha (minério virado para a
+    // base) e um na ilha central, disputado; o carvão e o ferro saem das minas, então a ilha precisa de minério
+    for (const [along, across, r0] of [
+      [5, -13, 4.6],
+      [13, 9, 4.2],
+    ] as const) {
+      const m = at(along, across);
+      const toBase = { x: s0.cx - m.x, y: s0.cy - m.y };
+      const len = Math.hypot(toBase.x, toBase.y) || 1;
+      massif(m.x, m.y, r0, { x: toBase.x / len, y: toBase.y / len });
+    }
+    const ma = base + 0.5 * sector;
+    massif(c + centralIslandR * 0.35 * Math.cos(ma), c + centralIslandR * 0.35 * Math.sin(ma), Math.max(3, centralIslandR * 0.32), null);
+  } else {
     // flanco da base: minério virado para a base
     const fl = at(6, -18);
     const toBase = { x: s0.cx - fl.x, y: s0.cy - fl.y };

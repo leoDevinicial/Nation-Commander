@@ -18,6 +18,8 @@ export class Grid {
   blocker: ((cx: number, cy: number) => boolean) | null = null;
   /** Células de rodovia (mais rápidas e mais baratas no caminho), mantidas pela simulação. */
   highway: Set<number> | null = null;
+  /** Modo naval (03/11): enquanto ligado, só a água é transitável (navio de transporte). */
+  naval = false;
 
   constructor(width: number, height: number, cellSize: number, terrain: Terrain[]) {
     if (terrain.length !== width * height) throw new Error('Tamanho de terreno inválido');
@@ -46,10 +48,12 @@ export class Grid {
 
   isPassable(cx: number, cy: number): boolean {
     if (!this.inBounds(cx, cy)) return false;
+    if (this.naval) return this.terrainAt(cx, cy) === Terrain.Water && !this.blocker?.(cx, cy);
     return TERRAIN[this.terrainAt(cx, cy)].passable && this.occupant(cx, cy) === 0 && !this.blocker?.(cx, cy);
   }
 
   pathCost(cx: number, cy: number): number {
+    if (this.naval) return 1;
     if (this.highway?.has(this.index(cx, cy))) return HIGHWAY_PATH_COST;
     return TERRAIN[this.terrainAt(cx, cy)].pathCost;
   }

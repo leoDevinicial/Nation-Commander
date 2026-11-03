@@ -227,7 +227,7 @@ export const OIL_DEPOSIT_AMOUNT = 15000;
 
 // ------------------------------------------------------------------ unidades
 
-export type UnitType = 'infantry' | 'apc' | 'tank' | 'artillery' | 'at_infantry' | 'special_forces' | 'mbt' | 'rocket_artillery' | 'mobile_aa' | 'ciws' | 'engineer' | 'scout';
+export type UnitType = 'infantry' | 'apc' | 'tank' | 'artillery' | 'at_infantry' | 'special_forces' | 'mbt' | 'rocket_artillery' | 'mobile_aa' | 'ciws' | 'engineer' | 'scout' | 'transport_ship';
 
 /** Classe de blindagem do alvo: define os bônus das armas (antitanque contra veículos, etc.). */
 export type ArmorClass = 'infantry' | 'vehicle';
@@ -322,7 +322,21 @@ export interface UnitDef {
   requires?: MilitaryResearchId;
   /** Contribui para a defesa antiaérea por perto (aeronaves e mísseis), como uma bateria. */
   airDefense?: boolean;
+  /** Naval (03/11): anda só na água; sem arma, nunca entra em combate. */
+  naval?: boolean;
+  /** Vagas de carga (infantaria ocupa 1, veículo 2). */
+  capacity?: number;
 }
+
+/** Navio de transporte (03/11): vagas, alcance para embarcar e desembarcar, e onde a carga desce. */
+export const NAVAL = {
+  /** Distância (mundo) entre a tropa e o navio para embarcar. */
+  embarkRange: 3.2,
+  /** Distância (mundo) do navio até a terra para desembarcar. */
+  unloadRange: 3.5,
+  /** Vagas por tipo de tropa. */
+  slots: (t: UnitType): number => (UNITS[t].armor === 'vehicle' ? 2 : 1),
+};
 
 export const UNITS: Record<UnitType, UnitDef> = {
   infantry: {
@@ -460,6 +474,23 @@ export const UNITS: Record<UnitType, UnitDef> = {
     hotkey: 'E',
     armor: 'infantry',
     requires: 'combat_engineering',
+  },
+  transport_ship: {
+    label: 'Navio de Transporte',
+    cost: { wood: 120, iron: 70, oil: 40, supplies: 40 },
+    buildSeconds: 20,
+    maxHp: 300,
+    speed: 4.2,
+    radius: 1.5,
+    sight: 12,
+    weapon: { damage: 0, range: 0, cooldown: 99 },
+    producedBy: 'port',
+    description:
+      'Leva até 10 vagas de tropas pelo mar (infantaria ocupa 1, veículo 2). Selecione as tropas e clique com o botão direito no navio para embarcar; com o navio selecionado, botão direito na terra para desembarcar na costa. Sem arma: escolte-o. Afundado, a carga se perde.',
+    hotkey: 'N',
+    armor: 'vehicle',
+    naval: true,
+    capacity: 10,
   },
   scout: {
     label: 'Explorador',
@@ -1262,7 +1293,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     upkeep: { supplies: 0.08 },
     buildable: true,
     nearWater: true,
-    description: 'Construído na margem da água. Navios levam até 320 por viagem com o menor frete, mas são lentos e, em guerra, navegam escoltados (+50% de tempo).',
+    description: 'Construído na margem da água. Despacha e recebe as cargas do comércio por navio (600 por viagem) e produz o Navio de Transporte, que leva tropas pelo mar até outra costa.',
   },
   rail_station: {
     ...NONE,

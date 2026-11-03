@@ -13,6 +13,7 @@ import {
   OIL_TANK_RANGE,
   RESOURCE_LABELS,
   UNITS,
+  NAVAL,
   PRODUCTION_QUEUE_LIMIT,
   SPACE,
   MINE,
@@ -1031,6 +1032,26 @@ function ModChip({ mod }: { mod: ModId }) {
   );
 }
 
+/** Navio de transporte: vagas ocupadas, tropas a bordo e como embarcar e desembarcar. */
+function CargoInfo({ cargo, capacity }: { cargo: UnitType[]; capacity: number }) {
+  const used = cargo.reduce((a, t) => a + NAVAL.slots(t), 0);
+  const counts = new Map<UnitType, number>();
+  for (const t of cargo) counts.set(t, (counts.get(t) ?? 0) + 1);
+  return (
+    <div className="mt-1.5 text-xs text-ink-400">
+      <div className="text-ink-200">
+        A bordo: {used}/{capacity} vagas
+        {counts.size > 0 && <span className="text-ink-400"> · {[...counts].map(([t, n]) => `${n}× ${UNITS[t].label}`).join(', ')}</span>}
+      </div>
+      <div className="mt-0.5 leading-snug">
+        {used > 0
+          ? 'Botão direito na terra: encosta na costa mais perto e desembarca as tropas. Em território de outra nação, só em guerra.'
+          : 'Selecione tropas de terra e clique com o botão direito no navio para embarcar (infantaria ocupa 1 vaga, veículo 2).'}
+      </div>
+    </div>
+  );
+}
+
 function UnitsInfo({ units }: { units: ReturnType<typeof useHudStore.getState>['selectedUnits'] }) {
   if (units.length === 1) {
     const u = units[0]!;
@@ -1077,6 +1098,7 @@ function UnitsInfo({ units }: { units: ReturnType<typeof useHudStore.getState>['
             ))}
           </div>
         )}
+        {def.naval && <CargoInfo cargo={u.cargo ?? []} capacity={def.capacity ?? 0} />}
       </div>
     );
   }

@@ -10,7 +10,7 @@
  *   npx tsx scripts/sim-economia.ts 1,2,3 25 easy,hard,brutal # outras dificuldades (só os critérios de ritmo)
  */
 import { Simulation } from '../shared/sim/Simulation.ts';
-import { generateMatchMap } from '../shared/sim/matchMap.ts';
+import { generateMatchMap, isMapType } from '../shared/sim/matchMap.ts';
 import { AI_HARASS_SECONDS, TacticalAI } from '../shared/sim/TacticalAI.ts';
 import { BUILDINGS, RESOURCE_TYPES, TICK_RATE, type ResourceType } from '../shared/sim/config.ts';
 import { DIFFICULTY, isDifficulty, type Difficulty } from '../shared/sim/difficulty.ts';
@@ -64,7 +64,9 @@ interface Result {
 }
 
 function run(seed: number, difficulty: Difficulty): Result {
-  const sim = new Simulation({ map: generateMatchMap(seed, { nations: 2 }), playerCount: 2 });
+  // MAP_TYPE=islands (ou outro tipo): roda no mapa pedido; NAVAL_LOG=1 mostra portos, navios e desembarques
+  const mapType = isMapType(process.env.MAP_TYPE) ? process.env.MAP_TYPE : undefined;
+  const sim = new Simulation({ map: generateMatchMap(seed, { nations: 2, ...(mapType ? { type: mapType } : {}) }), playerCount: 2 });
   sim.difficulty = difficulty;
   sim.eras = true;
   // camada nacional ligada como em server/Room.ts (wire, advanceNational e applyNationalModifiers)
@@ -201,6 +203,14 @@ function run(seed: number, difficulty: Difficulty): Result {
       console.log(`${t / MIN}min comércio: anúncios ${tr.listings.length} (abertos ${tr.listings.filter((l) => l.status === 'open').length}, vendidos ${tr.listings.filter((l) => l.status === 'sold').length}) | cargas entregues ${by('delivered')} perdidas ${by('lost')} a caminho ${by('moving') + by('offmap') + by('loading')} | ${[0, 1].map((s) => `P${s} vendas ${((national.nation(s)?.trade.exportsUsd ?? 0) / 1e6).toFixed(1)}mi compras ${((national.nation(s)?.trade.importsUsd ?? 0) / 1e6).toFixed(1)}mi`).join(' · ')}`);
     }
     const events = sim.drainEvents();
+    if (process.env.NAVAL_LOG) {
+      for (const e of events) if (e.type === 'unloaded') console.log(`  ${fmt(t)} desembarque IA ${e.owner}: ${e.count} tropas`);
+      if (t % (5 * MIN) === 0)
+        for (const p of sim.players)
+          console.log(
+            `  ${fmt(t)} IA ${p.slot}: portos ${sim.buildings.filter((b) => b.owner === p.slot && b.type === 'port').length}, navios ${sim.units.filter((u) => u.owner === p.slot && u.type === 'transport_ship').length}, exército ${sim.units.filter((u) => u.owner === p.slot).length}, era ${p.era ?? 1}`,
+          );
+    }
     if (t < 15 * MIN) for (const e of events) if (e.type === 'unit_produced') trained[e.owner]!++;
     if (t < 15 * MIN) for (const e of events) if (e.type === 'destroyed' && e.entity === 'unit') lost[e.owner]!++;
     national.registerTacticalEvents(events);

@@ -243,6 +243,7 @@ const BUILDERS: Record<UnitType, () => BuiltUnit> = {
   ciws: buildCiws,
   engineer: buildEngineer,
   scout: buildScout,
+  transport_ship: buildTransportShip,
 };
 
 // ------------------------------------------------------------------ infantaria
@@ -375,6 +376,61 @@ function buildScout(): BuiltUnit {
   l.body.cyl(0.008, 0.008, 0.7, C.metalDark, [-0.2, 1.3, 0.06], undefined, 4);
   l.accent.box(0.05, 0.05, 0.05, '#ffffff', [-0.2, 1.66, 0.06]);
   return { hull: l.build(), turret: null, turretPivot: [0, 0, 0], muzzle: [0.3, 0.7, 0] };
+}
+
+/**
+ * Navio de transporte (03/11): navio de desembarque visto de cima — casco de proa afilada com a rampa, convés de carga
+ * aberto com amarrações, ponte de comando à popa com chaminé e mastro. A faixa do casco e a bandeira levam a cor da
+ * nação. Origem na linha d'água (o casco afunda um pouco abaixo de y = 0).
+ */
+function buildTransportShip(): BuiltUnit {
+  const l = layers();
+  const { body: b, accent: a, glass: g } = l;
+  // planta do casco no plano (x, z), extrudada na vertical
+  const plan = (k: number): [number, number][] => [
+    [-2.05 * k, -0.62 * k],
+    [1.25 * k, -0.62 * k],
+    [2.15 * k, 0],
+    [1.25 * k, 0.62 * k],
+    [-2.05 * k, 0.62 * k],
+  ];
+  const flat: V3 = [Math.PI / 2, 0, 0];
+  b.side(plan(0.96), 0.22, '#7a2b24', [0, -0.08, 0], flat); // obras vivas (abaixo d'água)
+  b.side(plan(1), 0.4, '#5f6870', [0, 0.23, 0], flat); // costado
+  b.side(plan(0.93), 0.04, '#454b52', [0, 0.44, 0], flat); // convés
+  // faixa da nação no costado
+  for (const z of [-0.625, 0.625]) a.box(2.9, 0.07, 0.01, '#ffffff', [-0.45, 0.32, z]);
+  // borda do convés (amurada) e rampa de proa erguida
+  for (const z of [-0.6, 0.6]) b.box(3.3, 0.12, 0.04, '#6c757d', [-0.4, 0.5, z]);
+  b.side(
+    [
+      [1.25, 0.44],
+      [1.7, 0.44],
+      [1.5, 0.78],
+      [1.3, 0.78],
+    ],
+    0.9,
+    '#6c757d',
+  );
+  b.box(0.04, 0.3, 0.82, '#3c4147', [1.47, 0.62, 0]);
+  // convés de carga: marcações de amarração e duas lonas sobre a carga
+  for (let x = -0.9; x <= 1.0; x += 0.38) b.box(0.03, 0.01, 1.0, '#d8c35a', [x, 0.465, 0]);
+  b.box(0.7, 0.2, 0.5, '#5a6145', [0.55, 0.56, -0.2], [0, 0.08, 0]);
+  b.box(0.55, 0.16, 0.42, '#646b4c', [-0.15, 0.54, 0.22]);
+  // ponte de comando à popa: dois andares, janelas, chaminé, mastro com radar e bandeira
+  b.box(0.75, 0.42, 1.0, '#c9ccc8', [-1.6, 0.67, 0]);
+  b.box(0.5, 0.3, 0.8, '#d7dad6', [-1.58, 1.03, 0]);
+  g.box(0.06, 0.1, 0.72, '#ffffff', [-1.32, 1.06, 0]);
+  for (const z of [-0.41, 0.41]) g.box(0.36, 0.08, 0.02, '#ffffff', [-1.58, 1.06, z]);
+  b.box(0.56, 0.03, 0.9, '#3c4147', [-1.58, 1.19, 0]);
+  b.cyl(0.1, 0.12, 0.42, '#2b2d30', [-1.9, 1.05, 0], undefined, 8);
+  a.box(0.21, 0.06, 0.25, '#ffffff', [-1.9, 1.2, 0]);
+  b.cyl(0.018, 0.018, 0.75, '#2b2d30', [-1.55, 1.55, 0], undefined, 5);
+  b.box(0.05, 0.03, 0.42, '#2b2d30', [-1.55, 1.72, 0], [0, 0, 0]);
+  a.box(0.2, 0.12, 0.01, '#ffffff', [-1.66, 1.82, 0]);
+  // casco: número de costado em branco (cor neutra) e botes salva-vidas
+  for (const z of [-0.52, 0.52]) b.cyl(0.07, 0.07, 0.36, '#e08a2a', [-1.2, 0.62, z], [0, 0, Math.PI / 2], 6);
+  return { hull: l.build(), turret: null, turretPivot: [0, 0, 0], muzzle: [2, 0.6, 0] };
 }
 
 function buildInfantry(): BuiltUnit {

@@ -14,6 +14,9 @@ export type Command =
   | { type: 'move'; unitIds: EntityId[]; x: number; y: number }
   | { type: 'attack_move'; unitIds: EntityId[]; x: number; y: number }
   | { type: 'attack'; unitIds: EntityId[]; targetId: EntityId }
+  /** Navio de transporte (03/11): tropas embarcam num navio próprio; o navio desembarca a carga perto de (x, y). */
+  | { type: 'embark'; unitIds: EntityId[]; shipId: EntityId }
+  | { type: 'unload'; shipId: EntityId; x: number; y: number }
   /** Atacar uma célula de estrada ou rodovia de quem está em guerra com você (02/11). */
   | { type: 'attack_road'; unitIds: EntityId[]; cx: number; cy: number }
   | { type: 'stop'; unitIds: EntityId[] }
@@ -110,6 +113,12 @@ export function parseCommand(raw: unknown): Command | null {
     case 'attack':
       if (!isIdList(raw.unitIds) || !isId(raw.targetId)) return null;
       return { type: 'attack', unitIds: [...new Set(raw.unitIds)], targetId: raw.targetId };
+    case 'embark':
+      if (!isIdList(raw.unitIds) || !isId(raw.shipId)) return null;
+      return { type: 'embark', unitIds: [...new Set(raw.unitIds)], shipId: raw.shipId };
+    case 'unload':
+      if (!isId(raw.shipId) || !isFiniteNum(raw.x) || !isFiniteNum(raw.y)) return null;
+      return { type: 'unload', shipId: raw.shipId, x: raw.x as number, y: raw.y as number };
     case 'attack_road':
       if (!isIdList(raw.unitIds) || !Number.isInteger(raw.cx) || !Number.isInteger(raw.cy)) return null;
       return { type: 'attack_road', unitIds: [...new Set(raw.unitIds)], cx: raw.cx as number, cy: raw.cy as number };
