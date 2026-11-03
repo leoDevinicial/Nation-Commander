@@ -12,11 +12,11 @@ import { INFRA_GATE_MIN } from '../sim/upgrades.ts';
 /** Ordem de pesquisa da IA: primeiro o que ajuda no teatro, depois a economia. */
 const AI_RESEARCH_ORDER: TechId[] = [
   'logistics',
+  // 03/11: a eólica cedo (o carvão das térmicas acaba); depois o que a IA tática constrói no meio da partida
+  'wind_power',
   'agricultural_mechanization',
   'territorial_administration',
   'mechanized_extraction',
-  // 03/11: o que a IA tática constrói no meio da partida (energia sem carvão, comércio, moradia, defesa e serviços)
-  'wind_power',
   'foreign_trade',
   'urban_planning',
   'air_defense',
