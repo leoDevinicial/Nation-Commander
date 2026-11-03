@@ -112,7 +112,8 @@ export interface ZoningHost {
   readonly map: { width: number; height: number; terrain: Terrain[] };
   readonly territory: ArrayLike<number>;
   readonly buildings: readonly Building[];
-  readonly roads: readonly { i: number; owner: Slot }[];
+  /** `hw`: rodovia (02/11) — as margens dela não podem ser zoneadas. */
+  readonly roads: readonly { i: number; owner: Slot; hw?: true }[];
   readonly grid: { occupant(cx: number, cy: number): number; setOccupied(cell: { cx: number; cy: number }, size: number, id: number): void };
   readonly playerCount: number;
   /** Economia do país (aprovação 0..100 e crescimento real em % ao ano) e quão autoritário está o governo (0..1). */
@@ -185,8 +186,8 @@ export class ZoneSystem {
     const t = h.map.terrain[i];
     if (t !== Terrain.Plains && t !== Terrain.Fertile) return 'Zonas só em planície ou solo fértil';
     if (h.grid.occupant(cx, cy) !== 0) return 'Há uma construção no lugar';
-    const roads = ownRoads ?? new Set(h.roads.filter((r) => r.owner === slot).map((r) => r.i));
-    if (!this.nearRoad(cx, cy, roads)) return `Zonas ficam a até ${ZONING.reach} células de uma estrada sua`;
+    const roads = ownRoads ?? new Set(h.roads.filter((r) => r.owner === slot && !r.hw).map((r) => r.i));
+    if (!this.nearRoad(cx, cy, roads)) return `Zonas ficam a até ${ZONING.reach} células de uma estrada comum sua (rodovia não serve)`;
     return null;
   }
 
@@ -206,7 +207,7 @@ export class ZoneSystem {
   paint(slot: Slot, cells: readonly number[], kind: ZoneKind | null): string | null {
     if (!cells.length) return 'Nenhuma célula';
     if (cells.length > ZONING.maxCellsPerCommand) return `Até ${ZONING.maxCellsPerCommand} células por vez`;
-    const roads = new Set(this.host.roads.filter((r) => r.owner === slot).map((r) => r.i));
+    const roads = new Set(this.host.roads.filter((r) => r.owner === slot && !r.hw).map((r) => r.i));
     let changed = 0;
     let first: string | null = null;
     for (const i of new Set(cells)) {
@@ -446,7 +447,7 @@ export class ZoneSystem {
       } else if (h.grid.occupant(i % W, Math.floor(i / W)) === 0) c.free[z.kind].push(i);
     }
     let popRoom = h.popRoom(slot);
-    const ownRoads = new Set(h.roads.filter((r) => r.owner === slot).map((r) => r.i));
+    const ownRoads = new Set(h.roads.filter((r) => r.owner === slot && !r.hw).map((r) => r.i));
     const stats: CityZoneStats[] = [];
     const acc = (this.growth[slot] ??= {});
     for (const c of by.values()) {

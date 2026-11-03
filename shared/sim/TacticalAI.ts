@@ -1,4 +1,4 @@
-import { BUILDINGS, buildingCost, emptyStockpile, Terrain, ROAD, CITIZEN, GOODS_TYPES, MINE, OIL_TANK_RANGE, emptyGoods, RECRUIT, type ResourceType, POP_ABSOLUTE_CAP, RESOURCE_TYPES, TICK_RATE, UNITS, MILITARY_RESEARCH, militaryResearchBlocker, militaryResearchKnowledge, canAfford, type MilitaryResearchId, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
+import { BUILDINGS, buildingCost, emptyStockpile, Terrain, ROAD, HIGHWAY, CITIZEN, GOODS_TYPES, MINE, OIL_TANK_RANGE, emptyGoods, RECRUIT, type ResourceType, POP_ABSOLUTE_CAP, RESOURCE_TYPES, TICK_RATE, UNITS, MILITARY_RESEARCH, militaryResearchBlocker, militaryResearchKnowledge, canAfford, type MilitaryResearchId, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
 import { claimableCells, claimedBy } from './gathering.ts';
 import { checkProduce } from './production.ts';
 import type { Command } from './commands.ts';
@@ -133,6 +133,9 @@ export const AI_COUNTER_COOLDOWN_TICKS = TICK_RATE * 20;
 export const AI_COUNTER_GROUP = 5;
 /** Estradas até as prefeituras (caravanas só andam por estrada): intervalo mínimo entre obras. */
 export const AI_ROAD_COOLDOWN_TICKS = TICK_RATE * 20;
+/** Rodovia até os vizinhos (02/11): a cada 30 s, guardando pedra para o resto. */
+const AI_HIGHWAY_COOLDOWN_TICKS = TICK_RATE * 30;
+const AI_HIGHWAY_STONE_RESERVE = 150;
 /** Pedra que a IA mantém depois de pagar uma estrada (para obras e defesas). */
 export const AI_ROAD_STONE_RESERVE = 80;
 /** Estrada até uma coleta ou usina (+15% de produção): só trechos curtos e com mais pedra de folga. */
@@ -199,6 +202,8 @@ export class TacticalAI {
   private lastMarketTick = -Infinity;
   /** Último passo de comércio entre nações (02/11). */
   private lastTradeTick = -Infinity;
+  /** Último trecho de rodovia planejado (02/11). */
+  private lastHighwayTick = -Infinity;
   /** País contra o qual a IA quer declarar guerra (lido e processado pelo servidor). */
   wantsWarWith: Slot | null = null;
 
@@ -582,6 +587,8 @@ export class TacticalAI {
     this.planZoning(sim, cmds);
     // (ligar à rede o que está no escuro vale mesmo guardando recursos: coleta sem luz rende menos)
     this.planRoads(sim, hq, mine, budget, take, cmds, !!savingCore || !!waitingFor);
+    // --- rodovia até os vizinhos em paz (02/11): liga o Terminal Comercial ao deles, por trechos
+    if (!savingCore && !waitingFor) this.planHighways(sim, mine, budget, take, cmds);
 
     // --- pesquisa militar: o centro pesquisa na ordem, antes das melhorias e das tropas; a produção usa o
     // que já foi liberado (com o centro ainda em obra, a primeira pesquisa já entra na reserva)
@@ -1218,7 +1225,38 @@ export class TacticalAI {
    * (é reaproveitada); planície livre no próprio território custa 1 e solo fértil livre, 3; água, rocha,
    * floresta, lama, minério, construções, plantações e território alheio ficam de fora (o traçado desvia).
    */
-  private roadRoute(sim: Simulation, from: Building, to: Building): Cell[] | null {
+  /**
+   * Rodovia até os vizinhos (02/11), a cada 30 s: com Terminal Comercial pronto e pedra de folga, liga o terminal ao
+   * do vizinho mais próximo que não está em guerra (nem sob sanções) e ainda não tem rota por caminhão. Sai da fronteira
+   * (terra neutra e território de quem está em paz; nunca de inimigo) e aproveita as estradas que já existem, as do
+   * vizinho inclusive. Constrói até `HIGHWAY.maxCells` células por vez, a partir do próprio terminal.
+   */
+  private planHighways(sim: Simulation, mine: Building[], budget: Stockpile, take: (c: Cost) => boolean, cmds: Command[]): void {
+    if (sim.tick - this.lastHighwayTick < AI_HIGHWAY_COOLDOWN_TICKS) return;
+    const market = mine.find((b) => b.type === 'market' && b.progress >= 1 && b.hp > 0);
+    if (!market || budget.stone < AI_HIGHWAY_STONE_RESERVE + HIGHWAY.stonePerCell * 5) return;
+    this.lastHighwayTick = sim.tick;
+    const t = sim.trade;
+    const theirs = sim.buildings
+      .filter((b) => b.type === 'market' && b.owner !== this.slot && b.progress >= 1 && b.hp > 0 && t.accessBlocker(this.slot, b.owner) === null && typeof t.route(this.slot, b.owner, 'road') === 'string')
+      .sort((a, b) => Math.hypot(a.pos.x - market.pos.x, a.pos.y - market.pos.y) - Math.hypot(b.pos.x - market.pos.x, b.pos.y - market.pos.y));
+    const W = sim.map.width;
+    for (const target of theirs.slice(0, 2)) {
+      const route = this.roadRoute(sim, market, target, true);
+      if (!route) continue;
+      const fresh = route.filter((c) => sim.map.terrain[c.cy * W + c.cx] !== Terrain.Road).slice(0, HIGHWAY.maxCells);
+      if (!fresh.length) continue;
+      const stone = fresh.length * HIGHWAY.stonePerCell;
+      const cells = budget.stone - stone < AI_HIGHWAY_STONE_RESERVE ? fresh.slice(0, Math.floor((budget.stone - AI_HIGHWAY_STONE_RESERVE) / HIGHWAY.stonePerCell)) : fresh;
+      if (cells.length < 3) return;
+      if (sim.highwayPlan(this.slot, cells).error) continue;
+      if (!take({ stone: cells.length * HIGHWAY.stonePerCell })) return;
+      cmds.push({ type: 'build_road', cells, highway: true });
+      return;
+    }
+  }
+
+  private roadRoute(sim: Simulation, from: Building, to: Building, highway = false): Cell[] | null {
     const W = sim.map.width;
     const H = sim.map.height;
     const T = sim.map.terrain;
@@ -1229,7 +1267,15 @@ export class TacticalAI {
       const t = T[i];
       if (t === Terrain.Road) return 0.2;
       if (t !== Terrain.Plains && t !== Terrain.Fertile) return Infinity;
-      if (sim.territory[i] !== this.slot || claimed.has(i)) return Infinity;
+      if (claimed.has(i)) return Infinity;
+      if (sim.territory[i] !== this.slot) {
+        // rodovia: terra neutra ou de quem está em paz (um pouco mais cara, para não cortar o vizinho à toa)
+        const o = sim.territory[i] ?? -1;
+        if (!highway) return Infinity;
+        if (o >= 0 && sim.hostile(this.slot, o)) return Infinity;
+        if (o >= 0 && sim.grid.occupant(i % W, Math.floor(i / W)) !== 0) return Infinity;
+        return o >= 0 ? 1.5 : 1;
+      }
       if (sim.grid.occupant(i % W, Math.floor(i / W)) !== 0) return Infinity;
       // solo fértil livre vale uma fazenda futura: só se não houver planície por perto
       return t === Terrain.Fertile ? 3 : 1;

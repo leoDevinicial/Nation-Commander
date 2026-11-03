@@ -87,7 +87,14 @@ fora do mapa (20 / 30 / 8 s). Paga só na chegada.
 - Pode sair do território **sem engenheiro**: terra neutra ou território de nação que não está em guerra com quem
   constrói. Nunca em país inimigo. Estrada própria vira rodovia (paga a célula); estrada ou rodovia de outro jogador e
   pontes do mapa são puladas e servem de ligação.
-- Custo: 20 de pedra e 0,4% do teto anual da verba por célula (o dobro da estrada); manutenção conta 2 células.
+- Custo: 20 de pedra e 0,4% do teto anual da verba por célula (o dobro da estrada); manutenção mais barata: cada célula conta
+  meia célula de estrada (`HIGHWAY.upkeepCells`).
+- **As margens não podem ser zoneadas:** o zoneamento só conta estradas comuns próprias (as rodovias ficam de fora em
+  `ZoneSystem`), então os bairros crescem nas ruas e não ao longo da rodovia.
+- **IA (`TacticalAI.planHighways`, a cada 30 s):** com Terminal Comercial pronto e pedra de folga (reserva de 150), traça
+  a rodovia (Dijkstra que aceita terra neutra e território de quem está em paz, aproveitando estradas existentes, inclusive
+  as do vizinho) até o terminal do vizinho mais próximo que não está em guerra nem sob sanções e ainda não tem rota por
+  caminhão; constrói até 40 células por vez, a partir do próprio terminal. Nunca em direção a inimigo.
 - Velocidade: caminhões de carga e caravanas ×2 (estrada: ×1,3); tropas ×1,7 (estrada: ×1,3); custo de caminho 0,4 (as
   tropas preferem a rodovia).
 - **Não leva energia:** fica fora da rede elétrica (`roads` com `hw`), inclusive dentro do território.
@@ -96,6 +103,11 @@ fora do mapa (20 / 30 / 8 s). Paga só na chegada.
   tempos e nenhum poste (`RoadLayer.highwayTile`).
 - Botão "Rodovia" na aba Cívicas do QG; a ferramenta é a mesma da estrada (marcar e arrastar), com a prévia e o custo da
   rodovia.
+
+## Terminal Comercial 3×3 e caminhões (02/11)
+O terminal passou de 2×2 para 3×3 (modelo ampliado 1,5×, `MODEL_SCALE`): o caminhão de carga parecia maior que ele. O
+caminhão agora espera, sai e chega pela rua ao lado dos terminais (o trajeto começa e termina nas células de estrada),
+em vez de aparecer por cima do prédio durante o carregamento.
 
 ## Testes
 `shared/test/trade.test.ts`: anúncio (terminal, faixa de preço, estoque, reserva e retirada), venda por caminhão só com

@@ -483,6 +483,7 @@ Proposta registrada a partir do feedback da versão 1.0. **Implementada** em 31/
 | Zoneamento (02/11): zonas residencial, comercial e industrial junto às estradas; lotes privados crescem pela demanda de cada cidade, pagam imposto por setor e gastam energia; abandono e demolição; 14 modelos | Feito | `docs/ZONEAMENTO.md` |
 | Curva do zoneamento por fase (difícil no começo, primeiros lotes 8–12 min, florescendo 17–23 min) e IA erguendo delegacia, escola e hospital; pesquisa nacional paga por dia do caixa | Feito | `docs/ZONEAMENTO.md`, `docs/CAIXA_DO_PAIS.md` |
 | Sem dívida pública (custos de governo saem do caixa); comércio entre as nações da partida por anúncios (venda simples e contrato) com rota por rodovia, porto ou aeroporto, cargas atacáveis e pagamento na chegada; mercado mundial de reserva; Rodovia fora da fronteira; IA anunciando e comprando | Feito | `docs/COMERCIO.md` |
+| IA constrói rodovias até os terminais dos vizinhos em paz; rodovia com manutenção menor e margens sem zoneamento; Terminal Comercial 3×3; carros dos cidadãos nas ruas (visual) | Feito | `docs/COMERCIO.md`, `docs/VIDA_AMBIENTE.md` |
 | Mercado interno no Terminal Comercial (excedente → suprimentos, preço com pressão que se recupera; IA vende a sobra) | Feito | `docs/MERCADO_INTERNO.md`, `shared/sim/market.ts` |
 | Lote 1, §2.6 — incidentes de fronteira no preparo | Feito | `Simulation.startIncident`, `TacticalAI.planHarass` |
 | Lote 1, §2.7 — curva de defesa (raiz com saturação suave) | Feito | `theaterSupply` em `shared/strategic/params.ts` |

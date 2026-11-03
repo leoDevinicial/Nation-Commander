@@ -103,9 +103,9 @@ const variants = new Map<string, BuildingModel>();
 /**
  * Edifícios que ganharam terreno maior depois de modelados (pedido do usuário, 01/11): o modelo inteiro, com os
  * módulos de melhoria, é ampliado por igual, mantendo as proporções do desenho. Tanque e silo passaram de 1×1 para
- * 2×2 e o armazém de 2×2 para 3×3.
+ * 2×2 e o armazém de 2×2 para 3×3; o Terminal Comercial também foi para 3×3 (02/11).
  */
-export const MODEL_SCALE: Partial<Record<BuildingType, number>> = { oil_tank: 2, silo: 2, warehouse: 1.5 };
+export const MODEL_SCALE: Partial<Record<BuildingType, number>> = { oil_tank: 2, silo: 2, warehouse: 1.5, market: 1.5 };
 
 function scaleLayers(l: ModelLayers, k: number): void {
   for (const g of [l.body, l.accent, l.glass]) if (g.getAttribute('position')) g.scale(k, k, k);

@@ -4,6 +4,9 @@ Pedido do usuário: o Nation Commander une RTS de eras (Rise of Nations, Age of 
 zoneamento fecha o ciclo de recursos: depois dele, só melhorias nas mecânicas que já existem.
 
 ## Como joga
+
+> 02/11: só estradas **comuns** próprias servem para zonear; as margens das rodovias ficam de fora.
+
 - **Ferramenta:** QG selecionado → aba Cívicas → **Zoneamento**. Pincéis: 🏠 Residencial, 🏪 Comercial, 🏭 Industrial,
   ⌫ Apagar (zona sem lote) e 🧨 Demolir (lote). Clique numa célula ou arraste um retângulo (no celular, toque ou
   arraste um dedo). A prévia mostra em verde o que vale e em vermelho o que não vale, com o motivo.

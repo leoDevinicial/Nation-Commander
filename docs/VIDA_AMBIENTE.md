@@ -1,4 +1,4 @@
-# Vida ambiente (pássaros e cervos)
+# Vida ambiente (pássaros, cervos e carros nas cidades)
 
 Pedido do usuário (31/10): uma melhora sutil no visual geral do jogo, para dar mais vida ao mapa. É só visual: nada
 disso existe na simulação, não afeta regras nem multijogador. Código em `src/game/render/AmbientLife.ts`, ligado no
@@ -30,6 +30,17 @@ disso existe na simulação, não afeta regras nem multijogador. Código em `src
     pararem;
   - não pisam em água, rocha nem construções (as construções contam com uma célula de folga em volta);
   - mudam de pasto quando uma construção ocupa o lugar.
+
+## Carros nas cidades (02/11)
+`src/game/render/CityTraffic.ts`, só visual: os carros dos cidadãos indo e voltando do trabalho e do comércio.
+- **Modelos:** hatch, sedã, picape e van, low poly (~0,62 de comprimento, como os carros estacionados nos lotes). A
+  pintura é tingida por carro com cores comuns de rua; rodas, para-choques e faróis ficam escuros; vidros na camada de
+  vidro.
+- **Movimento:** de centro em centro das células de estrada e rodovia, sempre na mão direita; no cruzamento escolhe uma
+  saída ao acaso (sem voltar) e no fim da linha faz o retorno. Na rodovia andam mais rápido.
+- **Quantidade:** acompanha o tamanho das cidades (8% das células de estrada + 0,35 por moradia + 0,5 por lote do
+  zoneamento), até 70 carros (30 no perfil leve). Um carro aparece ou some por quadro, sem saltos.
+- **Custo:** 12 chamadas de desenho por instâncias (pintura, peças escuras e vidro de cada modelo), com a névoa de guerra.
 
 ## Desenho e custo
 - Low poly e cores chapadas, com sombra nos cervos.

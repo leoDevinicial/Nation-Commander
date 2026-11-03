@@ -372,7 +372,7 @@ export class Simulation {
   territoryHold: number[] = [];
   collapseDays: number[] = [];
 
-  /** Células de estrada para a manutenção (a rodovia conta em dobro, `HIGHWAY.upkeepCells`). */
+  /** Células de estrada para a manutenção (a rodovia conta meia célula, `HIGHWAY.upkeepCells`). */
   roadCount(slot: Slot): number {
     let n = 0;
     for (const r of this.roads) if (r.owner === slot) n += r.hw ? HIGHWAY.upkeepCells : 1;

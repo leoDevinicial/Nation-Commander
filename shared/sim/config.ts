@@ -784,8 +784,8 @@ export const HIGHWAY = {
   unitMul: 1.7,
   /** Custo de caminho (as tropas preferem a rodovia). */
   pathCost: 0.4,
-  /** Manutenção: cada célula de rodovia conta como esta quantidade de células de estrada. */
-  upkeepCells: 2,
+  /** Manutenção: cada célula de rodovia conta como esta fração de uma célula de estrada (mais barata de manter). */
+  upkeepCells: 0.5,
 };
 
 /**
@@ -1237,12 +1237,13 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     cost: { wood: 80, stone: 60, supplies: 60 },
     buildSeconds: 14,
     maxHp: 450,
-    size: 2,
+    // 02/11: 3×3 (o caminhão de carga parecia maior que o terminal)
+    size: 3,
     income: {},
     sight: 6,
     upkeep: { supplies: 0.05 },
     buildable: true,
-    description: 'Habilita o comércio internacional (ofertas e contratos no painel Nação → Comércio) e despacha comboios rodoviários. Cada terminal opera 2 embarques ao mesmo tempo. Mercado interno: vende comida, madeira, pedra, ferro e petróleo por suprimentos (o preço cai com as vendas e se recupera com o tempo).',
+    description: 'Habilita o comércio (anúncios e contratos com as outras nações e o mercado mundial, no painel Nação → Comércio) e despacha os caminhões de carga pela estrada ou rodovia. Cada terminal opera 2 caminhões ao mesmo tempo. Mercado interno: vende comida, madeira, pedra, ferro, petróleo e carvão por suprimentos (o preço cai com as vendas e se recupera com o tempo).',
     hotkey: 'K',
   },
   port: {

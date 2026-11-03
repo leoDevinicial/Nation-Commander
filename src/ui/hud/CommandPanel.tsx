@@ -321,7 +321,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             icon="🛣"
             label="Rodovia"
             onClick={() => runtime.startRoad(true)}
-            title={`Rodovia: pista dupla que pode sair do território sem engenheiro (terra neutra ou de nação que não está em guerra com você; nunca em país inimigo) e se liga às rodovias e estradas dos outros jogadores. Arraste na grade (até ${HIGHWAY.maxCells} células por vez); sobre a sua estrada, ela vira rodovia.\nCusto: ${HIGHWAY.stonePerCell} de pedra por célula e o dobro da verba da estrada; manutenção em dobro. Não leva energia.\nCaminhões de carga e caravanas andam ${Math.round((HIGHWAY.convoyMul - 1) * 100)}% mais rápido e tropas ${Math.round((HIGHWAY.unitMul - 1) * 100)}%. Liga o seu Terminal Comercial ao de outra nação para vender e comprar por caminhão.`}
+            title={`Rodovia: pista dupla que pode sair do território sem engenheiro (terra neutra ou de nação que não está em guerra com você; nunca em país inimigo) e se liga às rodovias e estradas dos outros jogadores. Arraste na grade (até ${HIGHWAY.maxCells} células por vez); sobre a sua estrada, ela vira rodovia.\nCusto: ${HIGHWAY.stonePerCell} de pedra por célula e o dobro da verba da estrada; manutenção mais barata que a da estrada. Não leva energia e as margens não podem ser zoneadas.\nCaminhões de carga e caravanas andam ${Math.round((HIGHWAY.convoyMul - 1) * 100)}% mais rápido e tropas ${Math.round((HIGHWAY.unitMul - 1) * 100)}%. Liga o seu Terminal Comercial ao de outra nação para vender e comprar por caminhão.`}
           />
         )}
         {command && mode.kind === 'normal' && runtime.battleOp === null && buildTab === 'civic' && (

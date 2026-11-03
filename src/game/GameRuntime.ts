@@ -44,6 +44,7 @@ import { CargoLayer, disposeCargoModels } from './render/CargoLayer.ts';
 import { DroneFpv, type FpvTarget } from './render/DroneFpv.ts';
 import { BUILDING_SOLID_HEIGHT } from '../../shared/sim/buildingHeights.ts';
 import { AmbientLife } from './render/AmbientLife.ts';
+import { CityTraffic } from './render/CityTraffic.ts';
 import { POWER, POWER_GEN, POWER_USE } from '../../shared/sim/power.ts';
 import { WeatherSystem } from './render/Weather.ts';
 import { CLIMATE_LABELS, dayLight, matchClimate } from '../../shared/sim/climate.ts';
@@ -229,6 +230,8 @@ export class GameRuntime {
   private mineLayer!: MineLayer;
   private roadPreview!: RoadPreview;
   private roadLayer!: RoadLayer;
+  /** Carros dos cidadãos nas estradas (02/11, só visual). */
+  private traffic!: CityTraffic;
   /** Zoneamento (02/11): zonas pintadas (só as próprias) e lotes privados à vista. */
   private zoneOverlay!: ZoneOverlay;
   private lotLayer!: LotLayer;
@@ -402,6 +405,8 @@ export class GameRuntime {
     const terrainSub = this.opts.profile.cinematic ? 4 : this.opts.profile.terrain === 'high' ? 2 : 1;
     this.roadLayer = new RoadLayer(this.map.cellSize, this.map.width, this.map.height, (x, z) => this.groundHeight(x, z), terrainSub);
     this.scene.add(this.roadLayer.mesh);
+    this.traffic = new CityTraffic(this.map.cellSize, this.map.width, this.map.height, (x, z) => this.groundHeight(x, z), opts.profile.terrain === 'low' ? 30 : 70);
+    this.scene.add(this.traffic.group);
     this.zoneOverlay = new ZoneOverlay(this.map.cellSize, this.map.width, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.zoneOverlay.mesh);
     this.lotLayer = new LotLayer(this.map.cellSize, this.map.width, this.map.height, (x, z) => this.groundHeight(x, z) + 0.04);
@@ -840,6 +845,8 @@ export class GameRuntime {
     this.myZones.clear();
     for (let k = 0; k + 1 < z.zones.length; k += 2) this.myZones.set(z.zones[k]!, z.zones[k + 1]!);
     this.lotLayer.set(z.lots);
+    // trânsito: carros conforme o tamanho das cidades (estradas, moradias à vista e lotes do zoneamento)
+    this.traffic.setActivity(this.roadCells.size, [...this.buildings.values()].filter((b) => b.snap.type === 'house' || b.snap.type === 'residential').length, Math.floor(z.lots.length / 9));
     this.zoneOverlay.set(z.zones, (i) => this.lotCells.has(i));
     if (this.hudActive) {
       const prev = useHudStore.getState().zoning;
@@ -978,6 +985,7 @@ export class GameRuntime {
     if (fresh.length) this.terrain.repaint(fresh);
     // peças de asfalto por cima, encaixadas pelas vizinhas
     this.roadLayer.set(this.roadCells, (i) => this.map.terrain[i] === T.Road, this.highwayCells);
+    this.traffic.setRoads(this.roadCells, this.highwayCells);
     this.decorKey = '';
   }
 
@@ -1422,6 +1430,7 @@ export class GameRuntime {
     this.airLayer.frame(alpha, dt);
     this.frameFpv(dt);
     this.ambient.update(this.paused ? 0 : dt);
+    this.traffic.update(this.paused ? 0 : dt);
     // os foguetes andam no relógio da simulação: param na pausa e aceleram com a velocidade
     this.rocketLayer.update(this.paused ? 0 : dt * this.speed);
     this.domeLayer.update(this.paused ? 0 : dt * this.speed);
@@ -4119,6 +4128,7 @@ export class GameRuntime {
       this.mineLayer.dispose();
       this.roadPreview.dispose();
       this.roadLayer.dispose();
+      this.traffic.dispose();
       this.zoneOverlay.dispose();
       this.lotLayer.dispose();
       this.fogTexture.dispose();
