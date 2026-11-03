@@ -180,6 +180,27 @@ describe('Marinha (03/11)', () => {
     expect(sim.applyCommand(0, { type: 'air_mission', buildingId: base.id, aircraftIds: [900], mission: 'paradrop', x: drop.x, y: drop.y, unitIds: [] })).not.toBeNull();
   });
 
+  it('paraquedas: na descida a tropa não age, mas pode ser atingida; o veículo desce mais devagar', () => {
+    const { sim, at } = sea();
+    const inf = sim.addUnit('infantry', 0, at(10, 30));
+    const tank = sim.addUnit('tank', 0, at(10, 30));
+    sim.entities.delete(inf.id);
+    sim.entities.delete(tank.id);
+    const enemy = sim.addUnit('infantry', 1, at(12, 30));
+    expect(sim.dropTroops(0, [inf, tank], at(10, 30), 4)).toBe(2);
+    expect(inf.descent!.total).toBe(Math.round(AIRLIFT.descentInfantry * TICK_RATE));
+    expect(tank.descent!.total).toBeGreaterThan(inf.descent!.total);
+    const hp = enemy.hp;
+    const before = inf.hp;
+    run(sim, 1);
+    // no ar: não atira (o inimigo segue inteiro) e já leva tiro
+    expect(enemy.hp).toBe(hp);
+    expect(inf.hp).toBeLessThan(before);
+    run(sim, AIRLIFT.descentVehicle + 1);
+    expect(inf.descent).toBeUndefined();
+    expect(tank.descent).toBeUndefined();
+  });
+
   it('comércio por navio só com Cargueiro', () => {
     const { sim, at } = sea();
     sim.addBuilding('market', 0, { cx: 4, cy: 12 }, 1);

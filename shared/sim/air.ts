@@ -42,6 +42,10 @@ export const AIRLIFT = {
   pickupRadius: 14,
   /** Raio (células) em que as tropas caem em volta do ponto. */
   dropCells: 5,
+  /** Descida (s): soldados e veículos (paraquedas maiores, mais lentos); cada saída pela rampa atrasa a seguinte. */
+  descentInfantry: 3.2,
+  descentVehicle: 4.6,
+  descentStagger: 0.22,
 };
 
 export interface AircraftDef {

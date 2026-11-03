@@ -75,7 +75,7 @@ import { geoOf } from '../data/geography.ts';
 import { Grid } from './pathfinding/Grid.ts';
 import { checkProduce } from './production.ts';
 import { TradeSystem, type TradeLink, type TradeSave } from './trade.ts';
-import { AirSystem, type AirSave } from './air.ts';
+import { AIRLIFT, AirSystem, type AirSave } from './air.ts';
 import { TECHNOLOGIES, isTechId } from '../strategic/technologies.ts';
 import { MOD_CANCEL_REFUND, MODS, checkModernize, combineMods, pickRefitFacility, type FacilityPick, type ModId, type ModernizeContext } from './modernization.ts';
 import type { Building, BuildingStatus, Cell, Entity, EntityId, MapData, PlayerState, SimEvent, Slot, TacticalModifiers, Unit, Vec2 } from './types.ts';
@@ -2978,6 +2978,12 @@ export class Simulation {
 
   private updateUnit(u: Unit): void {
     if (u.hp <= 0) return;
+    // paraquedista no ar: desce sem agir (o fogo inimigo já o alcança)
+    if (u.descent) {
+      u.activity = 'idle';
+      if (--u.descent.left <= 0) delete u.descent;
+      return;
+    }
     if (u.cooldown > 0) u.cooldown--;
     // em modernização: parada na instalação, sem disparar
     if (u.refit) {
@@ -3354,6 +3360,13 @@ export class Simulation {
   /** Salto do C-5 (03/11): as tropas caem em volta do ponto; as que não acham lugar morrem na queda. */
   dropTroops(owner: Slot, units: readonly Unit[], at: Vec2, cells: number): number {
     const placed = this.placeAround(owner, units, at, at, cells);
+    // descida de paraquedas: já no mapa (vulnerável ao fogo inimigo), mas só age depois de tocar o chão
+    for (let i = 0; i < placed; i++) {
+      const u = units[i]!;
+      const secs = (UNITS[u.type].armor === 'vehicle' ? AIRLIFT.descentVehicle : AIRLIFT.descentInfantry) + i * AIRLIFT.descentStagger;
+      const total = Math.round(secs * TICK_RATE);
+      u.descent = { left: total, total };
+    }
     if (placed < units.length) this.loseCarried(owner, units.slice(placed), at);
     if (placed) this.emit({ type: 'unloaded', tick: this.tick, owner, shipId: 0, count: placed, pos: { ...at } });
     return placed;

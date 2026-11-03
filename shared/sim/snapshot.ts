@@ -42,6 +42,9 @@ export interface UnitSnapshot {
   cargo?: UnitType[];
   /** Mísseis a bordo do Submarino Lançador (só para o dono). */
   missiles?: number;
+  /** Paraquedas: fração da descida que falta (1 → 0) e duração total em segundos. */
+  descent?: number;
+  descentSecs?: number;
 }
 
 export interface BuildingSnapshot {
@@ -298,6 +301,8 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         ...(UNITS[e.type].weapon.salvo && e.cooldown > 0 ? { reload: r2(Math.max(0, 1 - e.cooldown / Math.max(1, UNITS[e.type].weapon.cooldown * combineMods(e.mods).cooldownMul * TICK_RATE))) } : {}),
         ...(e.cargo?.length && (!viewer || e.owner === viewer.slot) ? { cargo: e.cargo.map((c) => c.type) } : {}),
         ...(e.missiles !== undefined && (!viewer || e.owner === viewer.slot) ? { missiles: e.missiles } : {}),
+        // descida de paraquedas (visível a quem vê a tropa): 1 = acabou de sair do avião, 0 = no chão
+        ...(e.descent ? { descent: r2(e.descent.left / e.descent.total), descentSecs: r2(e.descent.total / TICK_RATE) } : {}),
         ...(e.refit && (!viewer || e.owner === viewer.slot) ? { refit: { mod: e.refit.mod, progress: r2(1 - e.refit.remainingTicks / e.refit.totalTicks), facility: e.refit.facilityId } } : {}),
       });
     } else {

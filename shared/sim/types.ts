@@ -78,6 +78,8 @@ export interface Unit {
   cargo?: Unit[];
   /** Mísseis de cruzeiro a bordo (Submarino Lançador). */
   missiles?: number;
+  /** Descida de paraquedas (C-5): ticks que faltam e total. No ar, a tropa não anda nem atira, mas pode ser atingida. */
+  descent?: { left: number; total: number };
 }
 
 export interface Refit {

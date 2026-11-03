@@ -100,6 +100,8 @@ interface EnhanceOpts {
    * instância tem sua fase (pela posição), e a base fica parada. 0 = sem vento.
    */
   sway?: number;
+  /** Lama na parte de baixo do modelo (rodas, esteiras, base das paredes). Os navios (03/11) não têm: padrão true. */
+  mud?: boolean;
 }
 
 /**
@@ -217,7 +219,7 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
           // poeira e lama acumuladas na parte de baixo (rodas, esteiras, base das paredes)
           float nearGround = 1.0 - smoothstep(0.0, 0.6, vObjPos.y);
           diffuseColor.rgb *= mix(1.0, grime, ${weather.toFixed(2)});
-          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.36, 0.3, 0.22), nearGround * 0.38);`,
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.36, 0.3, 0.22), nearGround * ${opts.mud === false ? '0.0' : '0.38'});`,
         )
         .replace(
           '#include <emissivemap_fragment>',
@@ -263,7 +265,7 @@ export function withFog<T extends THREE.Material>(material: T, opts: EnhanceOpts
         ${FOG_GLSL}`,
     );
   };
-  material.customProgramCacheKey = () => `nc-fog-v8-w${weather}-p${panes ? 1 : 0}-${ch}-c${clouds ? 1 : 0}-s${sway}`;
+  material.customProgramCacheKey = () => `nc-fog-v8-w${weather}-p${panes ? 1 : 0}-${ch}-c${clouds ? 1 : 0}-s${sway}-m${opts.mud === false ? 0 : 1}`;
   return material;
 }
 
@@ -333,8 +335,15 @@ const UNIT_ERA_BODY: Record<number, { color: string; roughness: number; metalnes
   4: { color: '#8e97a4', roughness: 0.42, metalness: 0.45 },
 };
 
-export const eraUnitBodyMaterial = (era: number) => {
+export const eraUnitBodyMaterial = (era: number, naval = false) => {
   const d = UNIT_ERA_BODY[era];
+  // navios (03/11): pintura naval lisa; o desgaste das tropas sujava de bege os cascos grandes e curvos
+  if (naval)
+    return cached(
+      `unit-body-naval-e${era}`,
+      () => new THREE.MeshStandardMaterial({ vertexColors: true, color: d?.color ?? '#ffffff', roughness: d ? d.roughness + 0.1 : 0.78, metalness: d?.metalness ?? 0.15, envMapIntensity: 0.7 }),
+      { weather: 0.15, mud: false },
+    );
   if (!d) return bodyMaterial();
   return cached(`unit-body-e${era}`, () => new THREE.MeshStandardMaterial({ vertexColors: true, color: d.color, roughness: d.roughness, metalness: d.metalness, envMapIntensity: 0.8 }), { weather: 0.7, seams: true });
 };

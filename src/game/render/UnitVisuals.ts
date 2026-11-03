@@ -132,10 +132,10 @@ function rankChevrons(rank: number): THREE.Group {
   return g;
 }
 
-function layerMeshes(l: ModelLayers, owner: number, era = 1): THREE.Mesh[] {
+function layerMeshes(l: ModelLayers, owner: number, era = 1, naval = false): THREE.Mesh[] {
   const out: THREE.Mesh[] = [];
   for (const [geo, mat] of [
-    [l.body, eraUnitBodyMaterial(era)],
+    [l.body, eraUnitBodyMaterial(era, naval)],
     [l.accent, accentMaterial(owner)],
     [l.glass, glassMaterial()],
   ] as const) {
@@ -160,6 +160,11 @@ export class UnitVisual {
   private bob = Math.random() * 10;
   /** Tempo das ondas sob o navio de transporte. */
   private swell = 0;
+  /** Paraquedas (C-5): fração da descida que falta (1 → 0), segundos totais e o tempo do murchar no pouso. */
+  private chute: THREE.Group | null = null;
+  private fall = 0;
+  private fallSecs = 3;
+  private collapse = -1;
   private readonly muzzleLocal: THREE.Vector3;
   /** Posição renderizada (interpolada) no plano. */
   readonly renderPos = new THREE.Vector2();
@@ -252,11 +257,59 @@ export class UnitVisual {
   readonly modelKey: string;
 
   /** Troca a pintura do corpo para a era dada (modernização numa era nova). */
+  /**
+   * Descida de paraquedas (03/11): o servidor manda a fração que falta; aqui ela corre suave a cada quadro. A tropa
+   * fica pendurada sob a cúpula (soldado) ou sobre um palete com três cúpulas (veículo) e, no pouso, a lona murcha.
+   */
+  setDescent(frac: number | undefined, secs: number | undefined, dt: number): void {
+    if (frac !== undefined) {
+      if (!this.chute) {
+        this.chute = parachute(UNITS[this.type].armor === 'vehicle', this.owner);
+        this.group.add(this.chute);
+        this.fall = frac;
+        this.collapse = -1;
+      }
+      this.fallSecs = secs ?? this.fallSecs;
+      this.fall = Math.max(0, this.fall - dt / Math.max(0.5, this.fallSecs));
+      // o snapshot manda a fração certa: se o relógio local se afastou, aproxima
+      if (Math.abs(this.fall - frac) > 0.12) this.fall += (frac - this.fall) * 0.5;
+    } else if (this.chute) {
+      this.fall = 0;
+      if (this.collapse < 0) this.collapse = 0;
+    }
+    if (!this.chute) return;
+    const t = performance.now() / 1000 + this.id;
+    if (this.collapse >= 0) {
+      // pousou: a cúpula desce e murcha em meio segundo
+      this.collapse += dt;
+      const k = Math.min(1, this.collapse / 0.6);
+      this.chute.scale.set(1 + k * 0.4, Math.max(0.02, 1 - k), 1 + k * 0.4);
+      this.chute.position.y = -k * 0.8;
+      if (k >= 1) {
+        this.chute.removeFromParent();
+        this.chute = null;
+        this.collapse = -1;
+      }
+      return;
+    }
+    this.chute.rotation.z = Math.sin(t * 1.7) * 0.07;
+    this.chute.rotation.x = Math.sin(t * 1.3 + 1) * 0.05;
+    this.body.rotation.x = Math.sin(t * 1.7 + 0.4) * 0.06;
+  }
+
+  /** Altura de queda que o paraquedas soma à posição (0 no chão). */
+  private get airborne(): number {
+    if (!this.chute || this.collapse >= 0) return 0;
+    // desacelera perto do chão (o paraquedas freia)
+    const f = this.fall;
+    return DROP_HEIGHT * (f * (0.35 + 0.65 * f));
+  }
+
   setEra(era: number): void {
     if (era === this.era) return;
     this.era = era;
     this.group.traverse((o) => {
-      if (o.userData.unitBody && (o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = eraUnitBodyMaterial(era);
+      if (o.userData.unitBody && (o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = eraUnitBodyMaterial(era, !!UNITS[this.type].naval);
     });
   }
 
@@ -272,11 +325,11 @@ export class UnitVisual {
     this.model = model;
     this.modelKey = unitModelKey(type, era);
     this.group.add(this.body);
-    for (const m of layerMeshes(model.hull, owner, era)) this.body.add(m);
+    for (const m of layerMeshes(model.hull, owner, era, !!UNITS[type].naval)) this.body.add(m);
     if (model.turret) {
       this.turret = new THREE.Group();
       this.turret.position.set(...model.turretPivot);
-      for (const m of layerMeshes(model.turret, owner, era)) this.turret.add(m);
+      for (const m of layerMeshes(model.turret, owner, era, !!UNITS[type].naval)) this.turret.add(m);
       this.body.add(this.turret);
     }
     // lentes acesas (Shtora do tanque do Futuro Próximo): disco brilhante e halo aditivo, sem sombra
@@ -581,7 +634,7 @@ export class UnitVisual {
     // navio (03/11): flutua na linha d'água (a superfície do mar fica em y = -0,25) e balança nas ondas
     const naval = UNITS[this.type].naval;
     if (naval) this.swell += dt;
-    this.group.position.set(this.renderPos.x, naval ? -0.25 + Math.sin(this.swell * 1.4 + this.id) * 0.035 : 0, this.renderPos.y);
+    this.group.position.set(this.renderPos.x, (naval ? -0.25 + Math.sin(this.swell * 1.4 + this.id) * 0.035 : 0) + this.airborne, this.renderPos.y);
     if (!animate) {
       this.body.rotation.y = -this.facing;
       this.skippedDt += dt;
@@ -702,4 +755,59 @@ export class UnitVisual {
     this.reloadBar?.dispose();
     this.group.removeFromParent();
   }
+}
+
+/** Altura (mundo) de onde as tropas saem do C-5. */
+const DROP_HEIGHT = 9;
+
+/**
+ * Paraquedas low poly: cúpula facetada em gomos (cor da nação alternada com branco), cordas até a tropa e, no veículo,
+ * três cúpulas maiores sobre um palete. Geometrias compartilhadas; a cor vem do material da nação.
+ */
+function parachute(vehicle: boolean, owner: number): THREE.Group {
+  const g = new THREE.Group();
+  const accent = accentMaterial(owner);
+  const white = sharedMaterial('chute-white', () => new THREE.MeshStandardMaterial({ color: '#eceae2', roughness: 0.85, side: THREE.DoubleSide, flatShading: true }));
+  const cord = sharedMaterial('chute-cord', () => new THREE.MeshBasicMaterial({ color: '#2a2b2c' }));
+  const r = vehicle ? 1.15 : 0.6;
+  // cúpula: meia esfera achatada em 8 gomos; os gomos ímpares em branco
+  const gore = (i: number) =>
+    sharedGeometry(`chute-gore-${r}-${i}`, () => new THREE.SphereGeometry(r, 1, 3, (i / 8) * Math.PI * 2, Math.PI / 4, 0, Math.PI / 2.4).scale(1, 0.55, 1));
+  const canopy = (x: number, z: number, y: number) => {
+    const c = new THREE.Group();
+    for (let i = 0; i < 8; i++) c.add(new THREE.Mesh(gore(i), i % 2 ? white : accent));
+    c.position.set(x, y, z);
+    g.add(c);
+    // cordas da borda da cúpula até o engate
+    const lineGeo = sharedGeometry('chute-line', () => new THREE.CylinderGeometry(0.008, 0.008, 1, 3));
+    const anchor = vehicle ? new THREE.Vector3(x * 0.25, 0.9, z * 0.25) : new THREE.Vector3(x, 1.05, z);
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const rim = new THREE.Vector3(x + Math.cos(a) * r * 0.82, y + 0.05, z + Math.sin(a) * r * 0.82);
+      const len = rim.distanceTo(anchor);
+      const m = new THREE.Mesh(lineGeo, cord);
+      m.scale.y = len;
+      m.position.copy(rim).add(anchor).multiplyScalar(0.5);
+      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), rim.clone().sub(anchor).normalize());
+      g.add(m);
+    }
+  };
+  if (vehicle) {
+    canopy(-0.9, 0, 3.6);
+    canopy(0.6, 0.75, 3.8);
+    canopy(0.6, -0.75, 3.7);
+    // palete de lançamento sob o veículo
+    const pallet = new THREE.Mesh(
+      sharedGeometry('chute-pallet', () => new THREE.BoxGeometry(2.3, 0.12, 1.25)),
+      sharedMaterial('chute-pallet', () => new THREE.MeshStandardMaterial({ color: '#6b5a3e', roughness: 0.9, flatShading: true })),
+    );
+    pallet.position.y = -0.04;
+    g.add(pallet);
+  } else {
+    // um paraquedas por soldado do grupo (as posições do modelo da infantaria)
+    canopy(0.26, 0, 2.5);
+    canopy(-0.24, 0.42, 2.35);
+    canopy(-0.24, -0.42, 2.45);
+  }
+  return g;
 }

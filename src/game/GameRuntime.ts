@@ -1424,6 +1424,7 @@ export class GameRuntime {
       v.setReload(t.snap.reload !== undefined && !this.cameraCtl.closeUp ? t.snap.reload : null, this.camera);
       v.setRank(t.snap.rank ?? 0, !this.cameraCtl.closeUp, this.camera);
       v.setEra(t.snap.era ?? 1);
+      v.setDescent(t.snap.descent, t.snap.descentSecs, dt);
     }
     for (const t of this.buildings.values()) {
       const frac = t.snap.hp / t.snap.maxHp;

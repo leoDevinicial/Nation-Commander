@@ -104,6 +104,18 @@ lançou. Para alcançar o inimigo com o silo, é preciso construí-lo perto da f
 escolhido no anel de alcance, lança as tropas em volta dele e volta. Antiaérea e caças inimigos podem derrubá-lo; aí
 todos a bordo morrem. No território de outra nação, só em guerra.
 
+**Descida de paraquedas** (pedido do usuário): ao saltar, cada tropa já está no mapa, no ponto de pouso, mas desce por
+3,2 s (soldado) ou 4,6 s (veículo, num palete com três paraquedas), uma depois da outra (0,22 s entre saídas). No ar
+ela **não anda nem atira, mas pode ser atingida** (`Unit.descent`; o snapshot manda a fração que falta a quem vê a
+tropa). No cliente (`UnitVisuals.setDescent`), cada soldado do grupo pendura no próprio paraquedas em gomos na cor da
+nação e branco, com cordas; o veículo desce no palete com três cúpulas maiores; no pouso a lona murcha.
+
+**Modelos** (`naval.ts`, 1 a 2,5 mil triângulos cada): castelo de proa, faixa preta na linha d'água, guarda-corpos,
+vigias, âncoras, número de costado, botes e balsas, radares, CIWS, VLS, lançadores antinavio, convoo com helicóptero
+(L402 e fragatas), porta-aviões com seis caças, sponsons e ilha em três níveis, cargueiro com bulbo de proa, baias de
+contêineres e guindaste. Os navios usam uma variante do material das tropas sem a lama na parte de baixo
+(`eraUnitBodyMaterial(era, naval)`), que sujava de bege os cascos.
+
 **IA:** quando o adversário escolhido está noutra ilha (fora da terra alcançável a pé a partir da base), ela constrói
 um Porto que dê para o mar aberto (o maior corpo d'água, não um lago), mantém navios de desembarque e até 2 fragatas.
 Na hora da ofensiva, distribui a onda pelos navios parados e manda embarcar; as fragatas vão na frente até a costa do
