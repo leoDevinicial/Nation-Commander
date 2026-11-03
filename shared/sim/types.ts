@@ -24,7 +24,9 @@ export type UnitOrder =
   | { kind: 'idle' }
   | { kind: 'move'; target: Vec2 }
   | { kind: 'attackMove'; target: Vec2 }
-  | { kind: 'attack'; targetId: EntityId };
+  | { kind: 'attack'; targetId: EntityId }
+  /** Atacar uma célula de estrada ou rodovia inimiga (02/11): só por ordem do jogador, nunca automático. */
+  | { kind: 'attackRoad'; cell: number };
 
 export type UnitActivity = 'idle' | 'moving' | 'chasing' | 'attacking';
 
@@ -342,5 +344,7 @@ export type SimEvent =
   | { type: 'city_captured'; tick: number; owner: Slot; victim: Slot; id: EntityId; city: string; buildings: number; pos: Vec2 }
   /** Caravana interna destruída por forças inimigas no caminho entre o QG e a prefeitura. */
   | { type: 'caravan_lost'; tick: number; owner: Slot; cityId: EntityId; city: string; pos: Vec2 }
+  /** Célula de estrada ou rodovia destruída por tropas (02/11). */
+  | { type: 'road_destroyed'; tick: number; owner: Slot; by: Slot; cell: number; highway: boolean; pos: Vec2 }
   | { type: 'missile'; tick: number; owner: Slot; launchId: number; state: string; text: string; from: Vec2; target: Vec2; targetOwner: Slot; gen?: number; nuclear?: boolean; damage?: number; destroyed?: number; casualties?: number }
   | { type: 'modernize_cancelled'; tick: number; id: EntityId; owner: Slot; unitType: UnitType; mod: ModId; reason: 'player' | 'facility_lost'; pos: Vec2 };

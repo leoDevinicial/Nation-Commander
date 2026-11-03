@@ -1226,10 +1226,10 @@ export class TacticalAI {
    * floresta, lama, minério, construções, plantações e território alheio ficam de fora (o traçado desvia).
    */
   /**
-   * Rodovia até os vizinhos (02/11), a cada 30 s: com Terminal Comercial pronto e pedra de folga, liga o terminal ao
-   * do vizinho mais próximo que não está em guerra (nem sob sanções) e ainda não tem rota por caminhão. Sai da fronteira
-   * (terra neutra e território de quem está em paz; nunca de inimigo) e aproveita as estradas que já existem, as do
-   * vizinho inclusive. Constrói até `HIGHWAY.maxCells` células por vez, a partir do próprio terminal.
+   * Rodovia até os vizinhos (02/11), a cada 30 s: com Terminal Comercial pronto e pedra de folga, leva a rodovia do
+   * próprio terminal em direção ao do vizinho mais próximo que não está em guerra (nem sob sanções) e ainda não tem rota
+   * por caminhão. Constrói só no próprio território e na terra neutra; no país do vizinho, só aproveita as estradas que
+   * ele já tem. Se faltar a parte dele, vai até a borda neutra e espera o vizinho chegar (até `HIGHWAY.maxCells` por vez).
    */
   private planHighways(sim: Simulation, mine: Building[], budget: Stockpile, take: (c: Cost) => boolean, cmds: Command[]): void {
     if (sim.tick - this.lastHighwayTick < AI_HIGHWAY_COOLDOWN_TICKS) return;
@@ -1269,12 +1269,10 @@ export class TacticalAI {
       if (t !== Terrain.Plains && t !== Terrain.Fertile) return Infinity;
       if (claimed.has(i)) return Infinity;
       if (sim.territory[i] !== this.slot) {
-        // rodovia: terra neutra ou de quem está em paz (um pouco mais cara, para não cortar o vizinho à toa)
+        // rodovia: só terra neutra fora do próprio país (no território do vizinho, só o que já é estrada dele)
         const o = sim.territory[i] ?? -1;
-        if (!highway) return Infinity;
-        if (o >= 0 && sim.hostile(this.slot, o)) return Infinity;
-        if (o >= 0 && sim.grid.occupant(i % W, Math.floor(i / W)) !== 0) return Infinity;
-        return o >= 0 ? 1.5 : 1;
+        if (!highway || o >= 0) return Infinity;
+        return 1;
       }
       if (sim.grid.occupant(i % W, Math.floor(i / W)) !== 0) return Infinity;
       // solo fértil livre vale uma fazenda futura: só se não houver planície por perto
@@ -1295,7 +1293,12 @@ export class TacticalAI {
       return out;
     };
     const goals = new Set(ring(to));
-    if (!goals.size) return null;
+    if (!goals.size && !highway) return null;
+    // rodovia: se não chega ao terminal do vizinho (falta a parte dele), vai até a célula alcançada mais perto dele
+    let near = -1;
+    let nearD = Infinity;
+    const tx = to.cell.cx + BUILDINGS[to.type].size / 2;
+    const ty = to.cell.cy + BUILDINGS[to.type].size / 2;
     const best = new Float64Array(W * H).fill(Infinity);
     const prev = new Int32Array(W * H).fill(-1);
     // fila de prioridade (heap binário de [custo, célula])
@@ -1334,6 +1337,13 @@ export class TacticalAI {
     while (heap.length) {
       const [c, i] = pop();
       if (c > best[i]!) continue;
+      if (highway) {
+        const d = Math.hypot((i % W) + 0.5 - tx, Math.floor(i / W) + 0.5 - ty);
+        if (d < nearD) {
+          nearD = d;
+          near = i;
+        }
+      }
       if (goals.has(i)) {
         const path: Cell[] = [];
         for (let k = i; k !== -1; k = prev[k]!) path.push({ cx: k % W, cy: Math.floor(k / W) });
@@ -1358,6 +1368,11 @@ export class TacticalAI {
           push(nc, n);
         }
       }
+    }
+    if (highway && near >= 0) {
+      const path: Cell[] = [];
+      for (let k = near; k !== -1; k = prev[k]!) path.push({ cx: k % W, cy: Math.floor(k / W) });
+      return path.reverse();
     }
     return null;
   }

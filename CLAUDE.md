@@ -68,8 +68,9 @@ O Nation Commander é **low poly estilizado**, por decisão do responsável pelo
   Não existe dívida pública (02/11): guerra, contato, ajuda e operações saem do caixa em dias de repasse (`CAIXA_DAYS`).
 - Comércio (`shared/sim/trade.ts`, `docs/COMERCIO.md`): anúncios entre as nações da partida (venda simples ou contrato),
   rota por rodovia/estrada, porto ou aeroporto, cargas atacáveis por quem está em guerra com uma das partes e pagamento
-  só na chegada; mercado mundial de reserva. Rodovia (`HIGHWAY`): sai da fronteira sem engenheiro (nunca em país
-  inimigo), não leva energia e acelera cargas, caravanas e tropas.
+  só na chegada; mercado mundial de reserva. Rodovia (`HIGHWAY`): sai da fronteira sem engenheiro, só pela terra
+  neutra (nunca no território de outra nação), não leva energia e acelera cargas, caravanas e tropas. Estradas e
+  rodovias inimigas são alvo militar só por ordem do jogador (`attack_road`).
 - Cidades e conhecimento (`shared/sim/cities.ts`, `KNOWLEDGE`, `docs/CONHECIMENTO_E_CIDADES.md`): cada construção pertence
   ao QG ou prefeitura mais próxima; `perCity` limita escola, universidade e as produções da era 3. Pesquisas custam
   US$ + conhecimento.

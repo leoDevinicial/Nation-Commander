@@ -176,6 +176,8 @@ export interface SimulationSave {
   power?: boolean;
   powerState?: { powered: number[]; load: [number, number][]; coalDebt: number[]; info: PlayerPower[]; homes: { homes: number; lit: number }[] };
   roads?: { i: number; owner: Slot; hw?: true }[];
+  /** Vida das células de estrada já atingidas (02/11). */
+  roadHp?: [number, number][];
   victory?: VictoryKind | null;
   territoryHold?: number[];
   collapseDays?: number[];
@@ -338,6 +340,8 @@ export class Simulation {
   roads: { i: number; owner: Slot; hw?: true }[] = [];
   /** Células de rodovia (02/11): mais rápidas, sem energia, podem sair do território. A grade usa o mesmo conjunto. */
   readonly highways = new Set<number>();
+  /** Vida das células de estrada e rodovia já atingidas por tropas (as intactas não entram). */
+  roadHp = new Map<number, number>();
   private roadSet: Set<number> | null = null;
   private roadSetSize = -1;
   /** Células das estradas dos jogadores (cache; as estradas só são acrescentadas). */
@@ -562,6 +566,7 @@ export class Simulation {
       ...(this.builders ? { builders: true } : {}),
       ...(this.power ? { power: true, powerState: { powered: [...this.powered], load: [...this.powerLoad], coalDebt: [...this.coalDebt], info: this.powerInfo.map((p) => ({ ...p })), homes: this.litHomes.map((h) => ({ ...h })) } } : {}),
       ...(this.roads.length ? { roads: this.roads.map((r) => ({ ...r })) } : {}),
+      ...(this.roadHp.size ? { roadHp: [...this.roadHp] } : {}),
       ...(this.victory ? { victory: this.victory } : {}),
       ...(this.territoryHold.some((v) => v > 0) ? { territoryHold: [...this.territoryHold] } : {}),
       ...(this.collapseDays.some((v) => v > 0) ? { collapseDays: [...this.collapseDays] } : {}),
@@ -635,6 +640,7 @@ export class Simulation {
     sim.roads = (data.roads ?? []).map((r) => ({ ...r }));
     sim.highways.clear();
     for (const r of sim.roads) if (r.hw) sim.highways.add(r.i);
+    sim.roadHp = new Map(data.roadHp ?? []);
     sim.victory = data.victory ?? null;
     sim.territoryHold = [...(data.territoryHold ?? [])];
     sim.collapseDays = [...(data.collapseDays ?? [])];
@@ -1180,6 +1186,26 @@ export class Simulation {
         if (!this.hostile(slot, target.owner)) return 'Sem estado de guerra com este país: declare guerra no globo antes de atacar';
         for (const u of units) {
           u.order = { kind: 'attack', targetId: target.id };
+          u.engageId = null;
+          u.path = [];
+          u.repathTimer = 0;
+          u.replans = 0;
+        }
+        return null;
+      }
+      case 'attack_road': {
+        // estrada ou rodovia como alvo (02/11): só por ordem do jogador, e só de quem está em guerra com ele
+        const units = this.ownUnits(slot, cmd.unitIds, true);
+        if (units.length === 0) return 'Nenhuma unidade válida';
+        if (!this.grid.inBounds(cmd.cx, cmd.cy)) return 'Fora do mapa';
+        const i = cmd.cy * this.map.width + cmd.cx;
+        const road = this.roads.find((r) => r.i === i);
+        if (!road) return 'Escolha uma célula de estrada ou rodovia construída por uma nação';
+        if (road.owner === slot) return 'Essa estrada é sua';
+        if (!this.hostile(slot, road.owner)) return 'Sem estado de guerra com o dono dessa estrada';
+        if (!this.isVisibleTo(slot, this.grid.cellCenter({ cx: cmd.cx, cy: cmd.cy }))) return 'Estrada fora de visão';
+        for (const u of units) {
+          u.order = { kind: 'attackRoad', cell: i };
           u.engageId = null;
           u.path = [];
           u.repathTimer = 0;
@@ -1782,9 +1808,10 @@ export class Simulation {
   }
 
   /**
-   * Validação e custo de um traçado de rodovia (02/11). Sem engenheiro: pode sair do território, em terra neutra ou de
-   * nação que não esteja em guerra com quem constrói; nunca em país inimigo. Estrada própria vira rodovia (paga a
-   * célula); estrada ou rodovia de outro jogador e pontes do mapa são puladas (servem de ligação).
+   * Validação e custo de um traçado de rodovia (02/11). Sem engenheiro: no próprio território ou em terra neutra (as
+   * rodovias de dois países se encontram no neutro); nunca no território de outra nação, para ninguém encher o país do
+   * outro de rodovias de propósito. Estrada própria vira rodovia (paga a célula); estrada ou rodovia de outro jogador e
+   * pontes do mapa são puladas (servem de ligação).
    */
   highwayPlan(slot: Slot, cells: readonly Cell[]): { cells: number[]; stone: number; usd: number; error: string | null } {
     const out: number[] = [];
@@ -1797,7 +1824,7 @@ export class Simulation {
       const i = c.cy * this.map.width + c.cx;
       if (out.includes(i) || this.highways.has(i)) continue;
       const owner = this.territory[i] ?? NO_OWNER;
-      if (owner !== NO_OWNER && owner !== slot && this.hostile(slot, owner)) return fail('Território inimigo: rodovia nunca entra em país em guerra com você');
+      if (owner !== NO_OWNER && owner !== slot) return fail('Território de outra nação: a rodovia vai só até a terra neutra e se encontra lá com a do vizinho');
       const t = this.map.terrain[i]!;
       if (t === Terrain.Road) {
         if (builtBy.get(i) === slot) out.push(i); // estrada própria vira rodovia
@@ -2893,6 +2920,16 @@ export class Simulation {
     const reach = Math.max(def.sight + fx.sightAdd, def.weapon.range + fx.rangeAdd);
 
     switch (u.order.kind) {
+      case 'attackRoad': {
+        const cell = u.order.cell;
+        const road = this.roads.find((r) => r.i === cell);
+        if (!road || !this.hostile(u.owner, road.owner)) {
+          this.setIdle(u);
+          return;
+        }
+        this.engageRoad(u, cell);
+        return;
+      }
       case 'attack': {
         const target = this.entities.get(u.order.targetId);
         // alvo destruído, inválido ou unidade que sumiu na névoa: a ordem acaba
@@ -3015,6 +3052,57 @@ export class Simulation {
       if (u.order.kind === 'attack') this.setIdle(u);
       else u.engageId = null;
     }
+  }
+
+  /** Ataque a uma célula de estrada: aproxima até o alcance e atira no asfalto até destruir a célula. */
+  private engageRoad(u: Unit, cell: number): void {
+    const weapon = UNITS[u.type].weapon;
+    const fx = combineMods(u.mods);
+    const c = this.grid.cellCenter({ cx: cell % this.map.width, cy: Math.floor(cell / this.map.width) });
+    const d = Math.max(0, dist(u.pos, c) - this.map.cellSize * 0.5);
+    if (d <= weapon.range + fx.rangeAdd) {
+      u.activity = 'attacking';
+      u.path = [];
+      u.facing = Math.atan2(c.y - u.pos.y, c.x - u.pos.x);
+      if (u.cooldown <= 0) {
+        const dmg = weapon.damage * fx.damageMul * rankDamageMul(u.rank ?? 0) * (weapon.vsBuilding ?? 1);
+        u.cooldown = Math.round(weapon.cooldown * fx.cooldownMul * TICK_RATE);
+        this.emit({ type: 'shot', tick: this.tick, attackerId: u.id, targetId: 0, from: { ...u.pos }, to: { ...c }, damage: Math.round(dmg) });
+        this.damageRoad(cell, dmg, u.owner);
+      }
+      return;
+    }
+    u.activity = 'chasing';
+    u.repathTimer--;
+    if (u.repathTimer <= 0 || u.pathIndex >= u.path.length) {
+      u.repathTimer = CHASE_REPATH_TICKS;
+      if (!this.planPath(u, c)) {
+        this.setIdle(u);
+        return;
+      }
+    }
+    this.followPath(u);
+  }
+
+  /** Dano numa célula de estrada; com a vida a zero ela some (vira planície) e corta energia, caravanas e cargas. */
+  damageRoad(cell: number, damage: number, attacker: Slot): void {
+    const road = this.roads.find((r) => r.i === cell);
+    if (!road || damage <= 0) return;
+    const max = road.hw ? HIGHWAY.hp : ROAD.hp;
+    const hp = (this.roadHp.get(cell) ?? max) - damage;
+    this.players[attacker]!.stats.damageDealt += Math.min(damage, hp + damage);
+    if (hp > 0) {
+      this.roadHp.set(cell, hp);
+      return;
+    }
+    this.roadHp.delete(cell);
+    this.roads = this.roads.filter((r) => r.i !== cell);
+    this.highways.delete(cell);
+    this.map.terrain[cell] = Terrain.Plains;
+    this.grid.terrain[cell] = Terrain.Plains;
+    this.territoryVersion++;
+    const pos = this.grid.cellCenter({ cx: cell % this.map.width, cy: Math.floor(cell / this.map.width) });
+    this.emit({ type: 'road_destroyed', tick: this.tick, owner: road.owner, by: attacker, cell, highway: !!road.hw, pos });
   }
 
   /** Recuo do lançador quando o alvo está dentro do alcance mínimo. */

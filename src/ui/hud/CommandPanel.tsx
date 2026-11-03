@@ -193,6 +193,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           )}
           {mode.kind === 'road' && <RoadHint mode={mode} touch={touch} worksCap={worksCap} stone={resources.stone} />}
           {mode.kind === 'zone' && <ZoneInfo mode={mode} touch={touch} runtime={runtime} />}
+          {mode.kind === 'attack_road' && <ModeHint title="Atacar estrada" text={`${touch ? 'Toque' : 'Clique'} numa célula de estrada ou rodovia inimiga à vista. As tropas vão até lá e destroem o asfalto (estrada: ${ROAD.hp} de vida; rodovia: ${HIGHWAY.hp}).`} />}
           {mode.kind === 'attack_move' && <ModeHint title="Avançar atacando" text={`${touch ? 'Toque' : 'Clique'} no destino. As unidades atacam o que encontrarem pelo caminho.`} />}
           {mode.kind === 'normal' && units.length > 0 && <UnitsInfo units={units} />}
           {mode.kind === 'normal' && units.length === 0 && building && <BuildingInfo b={building} runtime={runtime} />}
@@ -247,6 +248,12 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           <>
             <CardButton icon="⚔" hotkey="F" label="Avançar atacando" onClick={() => runtime.startAttackMove()} title="Avançar atacando (F)" />
             <CardButton icon="■" hotkey="X" label="Parar" onClick={() => runtime.stopSelected()} title="Parar (X)" />
+            <CardButton
+              icon="⛌"
+              label="Atacar estrada"
+              onClick={() => runtime.startAttackRoad()}
+              title="Atacar uma célula de estrada ou rodovia de quem está em guerra com você. As tropas nunca fazem isso sozinhas. Destruída, a célula some: corta a energia que passava por ela, as caravanas e a rota dos caminhões de carga."
+            />
             <ModernizeButtons runtime={runtime} />
             {units.some((u) => u.type === 'engineer') && <EngineerButtons runtime={runtime} />}
           </>
@@ -321,7 +328,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             icon="🛣"
             label="Rodovia"
             onClick={() => runtime.startRoad(true)}
-            title={`Rodovia: pista dupla que pode sair do território sem engenheiro (terra neutra ou de nação que não está em guerra com você; nunca em país inimigo) e se liga às rodovias e estradas dos outros jogadores. Arraste na grade (até ${HIGHWAY.maxCells} células por vez); sobre a sua estrada, ela vira rodovia.\nCusto: ${HIGHWAY.stonePerCell} de pedra por célula e o dobro da verba da estrada; manutenção mais barata que a da estrada. Não leva energia e as margens não podem ser zoneadas.\nCaminhões de carga e caravanas andam ${Math.round((HIGHWAY.convoyMul - 1) * 100)}% mais rápido e tropas ${Math.round((HIGHWAY.unitMul - 1) * 100)}%. Liga o seu Terminal Comercial ao de outra nação para vender e comprar por caminhão.`}
+            title={`Rodovia: pista dupla que vai além da fronteira sem engenheiro, mas só pela terra neutra (nunca no território de outra nação); lá ela se encontra com a rodovia do vizinho. Arraste na grade (até ${HIGHWAY.maxCells} células por vez); sobre a sua estrada, ela vira rodovia.\nCusto: ${HIGHWAY.stonePerCell} de pedra por célula e o dobro da verba da estrada; manutenção mais barata que a da estrada. Não leva energia e as margens não podem ser zoneadas.\nCaminhões de carga e caravanas andam ${Math.round((HIGHWAY.convoyMul - 1) * 100)}% mais rápido e tropas ${Math.round((HIGHWAY.unitMul - 1) * 100)}%. Liga o seu Terminal Comercial ao de outra nação para vender e comprar por caminhão.`}
           />
         )}
         {command && mode.kind === 'normal' && runtime.battleOp === null && buildTab === 'civic' && (

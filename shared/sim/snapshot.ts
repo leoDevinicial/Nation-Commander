@@ -22,7 +22,7 @@ export interface UnitSnapshot {
   hp: number;
   maxHp: number;
   activity: UnitActivity;
-  order: 'idle' | 'move' | 'attackMove' | 'attack';
+  order: 'idle' | 'move' | 'attackMove' | 'attack' | 'attackRoad';
   targetId: EntityId | null;
   /** Sofrendo atrito em território inimigo. */
   attrition?: true;
@@ -644,6 +644,8 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
       return e.owner === slot || e.victim === slot || sim.isVisibleTo(slot, e.pos);
     case 'caravan_lost':
       return e.owner === slot || sim.isVisibleTo(slot, e.pos);
+    case 'road_destroyed':
+      return e.owner === slot || e.by === slot || sim.isVisibleTo(slot, e.pos);
     case 'dogfight':
       return e.owner === slot || e.victim === slot || sim.isVisibleTo(slot, e.from) || sim.isVisibleTo(slot, e.to);
     case 'drone':

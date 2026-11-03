@@ -8,7 +8,7 @@ import { PartBuilder } from './models/kit.ts';
  * estradas e rodovias. Nada disso existe na simulação.
  *
  * - Quatro modelos low poly (hatch, sedã, picape e van), com a pintura tingida por carro (paleta de cores comuns de rua),
- *   rodas, para-choques e faróis escuros, vidros na camada de vidro. Frente para +x, ~0,62 de comprimento.
+ *   rodas, para-choques e faróis escuros, vidros na camada de vidro. Frente para +x, de 0,58 a 0,76 de comprimento (×1,15 no mapa).
  * - Cada carro anda de centro em centro de célula de estrada, sempre na mão direita; num cruzamento escolhe uma saída
  *   ao acaso (evita voltar), no fim da linha faz o retorno. Na rodovia anda mais rápido.
  * - A quantidade acompanha o tamanho da cidade (estradas, casas e lotes do zoneamento), com teto por qualidade gráfica.
@@ -23,7 +23,7 @@ const SPEED_HIGHWAY = 2.8;
 /** Cores comuns de carro de rua (branco, prata, cinza, preto, vermelho, azul, verde-escuro, bege). */
 const PAINT = ['#f2f2ef', '#c9ccce', '#8a8f94', '#2c2f33', '#b4322c', '#2f5f9e', '#3d5a45', '#c8b48a', '#e2e4e2', '#6d2f3a'];
 
-interface CarModel {
+export interface CarModel {
   paint: THREE.BufferGeometry;
   trim: THREE.BufferGeometry;
   glass: THREE.BufferGeometry;
@@ -41,109 +41,170 @@ interface Car {
   color: THREE.Color;
 }
 
-const DARK = '#1d1f22';
-const TRIM = '#3a3d41';
-const LIGHT_F = '#f4efd2';
-const LIGHT_R = '#a8261f';
+const TIRE = '#1b1c1e';
+const HUB = '#b9bec2';
+const TRIM = '#2e3135';
+const GRILLE = '#1f2124';
+const LIGHT_F = '#f6f1d6';
+const LIGHT_R = '#b02a22';
+const PLATE = '#e8e6dc';
 
-/** Rodas (4), para-choques e faróis: o que não leva a pintura. */
-function chassis(t: PartBuilder, len: number, wid: number, wheelR: number, frontX: number): void {
-  for (const sx of [-1, 1])
-    for (const sz of [-1, 1]) t.cyl(wheelR, wheelR, 0.05, DARK, [sx * len * 0.3, wheelR, sz * (wid / 2 - 0.01)], [Math.PI / 2, 0, 0], 8);
-  t.box(0.03, 0.05, wid * 0.96, TRIM, [frontX, 0.1, 0]);
-  t.box(0.03, 0.05, wid * 0.96, TRIM, [-len / 2 - 0.005, 0.1, 0]);
+type V3 = [number, number, number];
+/** Espelha pontos do lado +z para os dois lados (cascas simétricas). */
+const sym = (pts: V3[]): V3[] => pts.flatMap(([x, y, z]) => (z === 0 ? [[x, y, z] as V3] : [[x, y, z] as V3, [x, y, -z] as V3]));
+
+/**
+ * Peças comuns que não levam a pintura: pneus com calota, para-choques, grade, faróis, lanternas e placas. `front` e
+ * `rear` são as pontas do carro em x; `wx` a distância dos eixos ao centro; `bumpY` a altura dos para-choques.
+ */
+function running(t: PartBuilder, o: { front: number; rear: number; wid: number; wheelR: number; wx: [number, number]; bumpY: number; lampY: number }): void {
+  const { front, rear, wid, wheelR: r } = o;
+  for (const x of o.wx)
+    for (const sz of [-1, 1]) {
+      t.cyl(r, r, 0.055, TIRE, [x, r, sz * (wid / 2 - 0.02)], [Math.PI / 2, 0, 0], 10);
+      t.cyl(r * 0.55, r * 0.55, 0.012, HUB, [x, r, sz * (wid / 2 + 0.009)], [Math.PI / 2, 0, 0], 8);
+    }
+  // para-choques envolventes e grade
+  t.box(0.035, 0.055, wid * 0.98, TRIM, [front - 0.005, o.bumpY, 0]);
+  t.box(0.035, 0.055, wid * 0.98, TRIM, [rear + 0.005, o.bumpY, 0]);
+  t.box(0.012, 0.045, wid * 0.42, GRILLE, [front + 0.012, o.lampY, 0]);
   for (const sz of [-1, 1]) {
-    t.box(0.012, 0.03, 0.06, LIGHT_F, [frontX + 0.012, 0.15, sz * wid * 0.32]);
-    t.box(0.012, 0.03, 0.06, LIGHT_R, [-len / 2 - 0.012, 0.15, sz * wid * 0.32]);
+    t.box(0.014, 0.032, 0.075, LIGHT_F, [front + 0.01, o.lampY + 0.005, sz * wid * 0.33]);
+    t.box(0.014, 0.034, 0.07, LIGHT_R, [rear - 0.01, o.lampY + 0.01, sz * wid * 0.33]);
   }
+  t.box(0.008, 0.03, 0.09, PLATE, [front + 0.025, o.bumpY, 0]);
+  t.box(0.008, 0.03, 0.09, PLATE, [rear - 0.025, o.bumpY + 0.02, 0]);
 }
 
+/** Retrovisores (na pintura). */
+function mirrors(p: PartBuilder, x: number, y: number, wid: number): void {
+  for (const sz of [-1, 1]) p.box(0.03, 0.025, 0.04, '#ffffff', [x, y, sz * (wid / 2 + 0.015)]);
+}
+
+/** Hatch compacto: frente curta e inclinada, traseira quase reta, vidraça ampla com teto pintado. */
 function hatch(): CarModel {
   const p = new PartBuilder();
   const t = new PartBuilder();
   const g = new PartBuilder();
-  p.box(0.56, 0.12, 0.28, '#ffffff', [0, 0.14, 0]);
+  const L = 0.58;
+  const W = 0.3;
   p.convex(
-    [
-      [0.1, 0.2, 0.13],
-      [0.1, 0.2, -0.13],
-      [-0.26, 0.2, 0.13],
-      [-0.26, 0.2, -0.13],
-      [0.02, 0.32, 0.12],
-      [0.02, 0.32, -0.12],
-      [-0.24, 0.31, 0.12],
-      [-0.24, 0.31, -0.12],
-    ],
+    sym([
+      [L / 2, 0.08, W / 2 - 0.035],
+      [L / 2, 0.18, W / 2 - 0.035],
+      [L / 2 - 0.08, 0.225, W / 2 - 0.012],
+      [0.05, 0.07, W / 2],
+      [0.05, 0.235, W / 2],
+      [-L / 2, 0.08, W / 2 - 0.03],
+      [-L / 2, 0.235, W / 2 - 0.025],
+    ]),
     '#ffffff',
   );
-  g.box(0.012, 0.09, 0.22, '#ffffff', [0.065, 0.26, 0], [0, 0, -0.75]);
-  for (const sz of [-1, 1]) g.box(0.24, 0.08, 0.01, '#ffffff', [-0.11, 0.26, sz * 0.125]);
-  chassis(t, 0.56, 0.28, 0.07, 0.285);
+  // vidraça (o "aquário") e o teto pintado por cima, com colunas
+  g.convex(sym([[0.13, 0.225, W / 2 - 0.03], [-0.27, 0.23, W / 2 - 0.03], [0.02, 0.345, W / 2 - 0.05], [-0.25, 0.34, W / 2 - 0.05]]), '#ffffff');
+  p.convex(sym([[0.03, 0.34, W / 2 - 0.048], [-0.255, 0.335, W / 2 - 0.048], [0.025, 0.355, W / 2 - 0.055], [-0.25, 0.35, W / 2 - 0.055]]), '#ffffff');
+  for (const sz of [-1, 1]) p.box(0.025, 0.11, 0.012, '#ffffff', [-0.08, 0.285, sz * (W / 2 - 0.038)]);
+  mirrors(p, 0.11, 0.25, W);
+  running(t, { front: L / 2, rear: -L / 2, wid: W, wheelR: 0.072, wx: [0.17, -0.18], bumpY: 0.1, lampY: 0.17 });
   return { paint: p.build(), trim: t.build(), glass: g.build() };
 }
 
+/** Sedã: capô longo, cabine no meio e porta-malas. */
 function sedan(): CarModel {
   const p = new PartBuilder();
   const t = new PartBuilder();
   const g = new PartBuilder();
-  p.box(0.66, 0.12, 0.29, '#ffffff', [0, 0.14, 0]);
+  const L = 0.7;
+  const W = 0.31;
   p.convex(
-    [
-      [0.14, 0.2, 0.135],
-      [0.14, 0.2, -0.135],
-      [-0.22, 0.2, 0.135],
-      [-0.22, 0.2, -0.135],
-      [0.05, 0.31, 0.12],
-      [0.05, 0.31, -0.12],
-      [-0.15, 0.31, 0.12],
-      [-0.15, 0.31, -0.12],
-    ],
+    sym([
+      [L / 2, 0.085, W / 2 - 0.035],
+      [L / 2, 0.175, W / 2 - 0.035],
+      [L / 2 - 0.07, 0.215, W / 2 - 0.012],
+      [0, 0.07, W / 2],
+      [0, 0.23, W / 2],
+      [-L / 2, 0.09, W / 2 - 0.03],
+      [-L / 2, 0.205, W / 2 - 0.03],
+      [-L / 2 + 0.07, 0.235, W / 2 - 0.012],
+    ]),
     '#ffffff',
   );
-  g.box(0.012, 0.08, 0.22, '#ffffff', [0.095, 0.26, 0], [0, 0, -0.9]);
-  g.box(0.012, 0.08, 0.22, '#ffffff', [-0.185, 0.26, 0], [0, 0, 0.9]);
-  for (const sz of [-1, 1]) g.box(0.19, 0.075, 0.01, '#ffffff', [-0.05, 0.255, sz * 0.13]);
-  chassis(t, 0.66, 0.29, 0.07, 0.335);
+  g.convex(sym([[0.16, 0.22, W / 2 - 0.03], [-0.21, 0.225, W / 2 - 0.03], [0.04, 0.335, W / 2 - 0.05], [-0.13, 0.335, W / 2 - 0.05]]), '#ffffff');
+  p.convex(sym([[0.05, 0.33, W / 2 - 0.048], [-0.14, 0.33, W / 2 - 0.048], [0.045, 0.345, W / 2 - 0.056], [-0.135, 0.345, W / 2 - 0.056]]), '#ffffff');
+  for (const sz of [-1, 1]) p.box(0.022, 0.1, 0.012, '#ffffff', [-0.045, 0.28, sz * (W / 2 - 0.038)]);
+  mirrors(p, 0.14, 0.245, W);
+  running(t, { front: L / 2, rear: -L / 2, wid: W, wheelR: 0.074, wx: [0.215, -0.215], bumpY: 0.105, lampY: 0.165 });
   return { paint: p.build(), trim: t.build(), glass: g.build() };
 }
 
+/** Picape: alta, cabine simples na frente, caçamba aberta com tampa e santantônio. */
 function pickup(): CarModel {
   const p = new PartBuilder();
   const t = new PartBuilder();
   const g = new PartBuilder();
-  p.box(0.7, 0.14, 0.3, '#ffffff', [0, 0.16, 0]);
-  // cabine na frente e caçamba aberta atrás (bordas)
-  p.box(0.24, 0.15, 0.28, '#ffffff', [0.1, 0.3, 0]);
-  for (const sz of [-1, 1]) p.box(0.3, 0.07, 0.02, '#ffffff', [-0.19, 0.265, sz * 0.14]);
-  p.box(0.02, 0.07, 0.3, '#ffffff', [-0.345, 0.265, 0]);
-  t.box(0.28, 0.01, 0.26, '#2a2c2f', [-0.19, 0.235, 0]);
-  g.box(0.012, 0.1, 0.24, '#ffffff', [0.225, 0.31, 0], [0, 0, -0.3]);
-  for (const sz of [-1, 1]) g.box(0.16, 0.08, 0.01, '#ffffff', [0.1, 0.315, sz * 0.141]);
-  chassis(t, 0.7, 0.3, 0.085, 0.355);
+  const L = 0.76;
+  const W = 0.33;
+  p.convex(
+    sym([
+      [L / 2, 0.1, W / 2 - 0.03],
+      [L / 2, 0.235, W / 2 - 0.03],
+      [L / 2 - 0.06, 0.27, W / 2 - 0.01],
+      [-0.07, 0.27, W / 2],
+      [-0.07, 0.09, W / 2],
+    ]),
+    '#ffffff',
+  );
+  // cabine
+  p.convex(sym([[0.1, 0.26, W / 2 - 0.01], [-0.06, 0.26, W / 2 - 0.01], [0.04, 0.42, W / 2 - 0.035], [-0.06, 0.42, W / 2 - 0.035]]), '#ffffff');
+  g.convex(sym([[0.115, 0.275, W / 2 - 0.02], [0.05, 0.41, W / 2 - 0.04], [0.035, 0.29, W / 2 - 0.012], [0.035, 0.4, W / 2 - 0.03]]), '#ffffff');
+  for (const sz of [-1, 1]) g.box(0.09, 0.08, 0.008, '#ffffff', [-0.005, 0.34, sz * (W / 2 - 0.018)]);
+  g.box(0.008, 0.08, W - 0.09, '#ffffff', [-0.066, 0.35, 0]);
+  // caçamba: assoalho escuro, laterais e tampa pintadas
+  t.box(0.36, 0.012, W - 0.04, '#2a2c2f', [-0.24, 0.215, 0]);
+  p.box(0.4, 0.13, W, '#ffffff', [-0.24, 0.15, 0]);
+  for (const sz of [-1, 1]) p.box(0.38, 0.08, 0.022, '#ffffff', [-0.24, 0.255, sz * (W / 2 - 0.011)]);
+  p.box(0.022, 0.08, W, '#ffffff', [-L / 2 + 0.011, 0.255, 0]);
+  // santantônio
+  for (const sz of [-1, 1]) t.box(0.02, 0.14, 0.02, TRIM, [-0.085, 0.33, sz * (W / 2 - 0.03)]);
+  t.box(0.02, 0.02, W - 0.04, TRIM, [-0.085, 0.4, 0]);
+  mirrors(p, 0.08, 0.31, W);
+  running(t, { front: L / 2, rear: -L / 2, wid: W, wheelR: 0.088, wx: [0.24, -0.23], bumpY: 0.12, lampY: 0.2 });
   return { paint: p.build(), trim: t.build(), glass: g.build() };
 }
 
+/** Van: caixa alta, bico curto, janelas laterais e rack no teto. */
 function van(): CarModel {
   const p = new PartBuilder();
   const t = new PartBuilder();
   const g = new PartBuilder();
-  p.box(0.66, 0.34, 0.31, '#ffffff', [-0.02, 0.26, 0]);
+  const L = 0.72;
+  const W = 0.32;
   p.convex(
-    [
-      [0.31, 0.09, 0.15],
-      [0.31, 0.09, -0.15],
-      [0.31, 0.24, 0.15],
-      [0.31, 0.24, -0.15],
-      [0.24, 0.42, 0.15],
-      [0.24, 0.42, -0.15],
-    ],
+    sym([
+      [L / 2, 0.09, W / 2 - 0.03],
+      [L / 2, 0.22, W / 2 - 0.03],
+      [L / 2 - 0.1, 0.27, W / 2 - 0.01],
+      [L / 2 - 0.2, 0.45, W / 2 - 0.02],
+      [-L / 2, 0.08, W / 2 - 0.01],
+      [-L / 2, 0.46, W / 2 - 0.02],
+      [0, 0.08, W / 2],
+      [0, 0.465, W / 2 - 0.01],
+    ]),
     '#ffffff',
   );
-  g.box(0.012, 0.13, 0.27, '#ffffff', [0.285, 0.33, 0], [0, 0, -0.35]);
-  for (const sz of [-1, 1]) for (const x of [0.12, -0.08, -0.26]) g.box(0.13, 0.09, 0.01, '#ffffff', [x, 0.34, sz * 0.157]);
-  chassis(t, 0.66, 0.31, 0.075, 0.33);
+  // para-brisa inclinado e janelas laterais
+  g.convex(sym([[L / 2 - 0.091, 0.275, W / 2 - 0.035], [L / 2 - 0.186, 0.44, W / 2 - 0.045], [L / 2 - 0.106, 0.275, W / 2 - 0.035], [L / 2 - 0.196, 0.44, W / 2 - 0.045]]), '#ffffff');
+  for (const sz of [-1, 1]) for (const x of [0.07, -0.1, -0.27]) g.box(0.13, 0.09, 0.008, '#ffffff', [x, 0.36, sz * (W / 2 - 0.004)]);
+  // rack do teto
+  for (const x of [-0.2, 0.05]) t.box(0.02, 0.02, W - 0.05, TRIM, [x, 0.475, 0]);
+  for (const sz of [-1, 1]) t.box(0.34, 0.015, 0.015, TRIM, [-0.075, 0.48, sz * (W / 2 - 0.03)]);
+  mirrors(p, L / 2 - 0.13, 0.3, W);
+  running(t, { front: L / 2, rear: -L / 2, wid: W, wheelR: 0.08, wx: [0.22, -0.22], bumpY: 0.11, lampY: 0.19 });
   return { paint: p.build(), trim: t.build(), glass: g.build() };
 }
+
+/** Os quatro modelos (hatch, sedã, picape e van), para a prévia de modelos. */
+export const carModels = (): CarModel[] => [hatch(), sedan(), pickup(), van()];
 
 export class CityTraffic {
   readonly group = new THREE.Group();
@@ -172,7 +233,8 @@ export class CityTraffic {
     const paintMat = bodyMaterial();
     const trimMat = bodyMaterial();
     const glassMat = glassMaterial();
-    const k = cellSize / 2;
+    // um pouco maiores que os carros estacionados nos lotes: leem melhor andando, na câmera do RTS
+    const k = (cellSize / 2) * 1.15;
     for (const model of this.models) {
       for (const g of [model.paint, model.trim, model.glass]) g.scale(k, k, k);
       const mk = (geo: THREE.BufferGeometry, mat: THREE.Material) => {

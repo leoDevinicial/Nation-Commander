@@ -14,6 +14,8 @@ export type Command =
   | { type: 'move'; unitIds: EntityId[]; x: number; y: number }
   | { type: 'attack_move'; unitIds: EntityId[]; x: number; y: number }
   | { type: 'attack'; unitIds: EntityId[]; targetId: EntityId }
+  /** Atacar uma célula de estrada ou rodovia de quem está em guerra com você (02/11). */
+  | { type: 'attack_road'; unitIds: EntityId[]; cx: number; cy: number }
   | { type: 'stop'; unitIds: EntityId[] }
   | { type: 'build'; buildingType: BuildingType; cx: number; cy: number }
   | { type: 'produce'; buildingId: EntityId; unitType: ProducibleType }
@@ -108,6 +110,9 @@ export function parseCommand(raw: unknown): Command | null {
     case 'attack':
       if (!isIdList(raw.unitIds) || !isId(raw.targetId)) return null;
       return { type: 'attack', unitIds: [...new Set(raw.unitIds)], targetId: raw.targetId };
+    case 'attack_road':
+      if (!isIdList(raw.unitIds) || !Number.isInteger(raw.cx) || !Number.isInteger(raw.cy)) return null;
+      return { type: 'attack_road', unitIds: [...new Set(raw.unitIds)], cx: raw.cx as number, cy: raw.cy as number };
     case 'stop':
       if (!isIdList(raw.unitIds)) return null;
       return { type: 'stop', unitIds: [...new Set(raw.unitIds)] };

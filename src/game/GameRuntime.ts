@@ -976,13 +976,23 @@ export class GameRuntime {
     const fresh = cells.filter((i) => !this.roadCells.has(i));
     // rodovia nova (inclusive sobre estrada que já existia)
     const freshHw = highways.filter((i) => !this.highwayCells.has(i));
-    if (!fresh.length && !freshHw.length) return;
+    // células destruídas por tropas (02/11): somem do mapa e voltam a ser planície
+    const now = new Set(cells);
+    const hwNow = new Set(highways);
+    const gone = [...this.roadCells].filter((i) => !now.has(i));
+    const hwGone = [...this.highwayCells].filter((i) => !hwNow.has(i));
+    if (!fresh.length && !freshHw.length && !gone.length && !hwGone.length) return;
     for (const i of fresh) {
       this.roadCells.add(i);
       this.map.terrain[i] = T.Road;
     }
+    for (const i of gone) {
+      this.roadCells.delete(i);
+      this.map.terrain[i] = T.Plains;
+    }
     for (const i of freshHw) this.highwayCells.add(i);
-    if (fresh.length) this.terrain.repaint(fresh);
+    for (const i of hwGone) this.highwayCells.delete(i);
+    if (fresh.length || gone.length) this.terrain.repaint([...fresh, ...gone]);
     // peças de asfalto por cima, encaixadas pelas vizinhas
     this.roadLayer.set(this.roadCells, (i) => this.map.terrain[i] === T.Road, this.highwayCells);
     this.traffic.setRoads(this.roadCells, this.highwayCells);
@@ -2519,11 +2529,6 @@ export class GameRuntime {
   /** Ferramenta aberta para rodovia (02/11): sai do território sem engenheiro e vira rodovia sobre a estrada própria. */
   private roadHighway = false;
 
-  /** Em guerra com a nação (lista de guerras da diplomacia; o servidor confere de novo ao construir). */
-  private atWarWith(slot: number): boolean {
-    return useNationalStore.getState().diplomacy?.wars.some(([a, b]) => (a === this.mySlot && b === slot) || (a === slot && b === this.mySlot)) ?? false;
-  }
-
   /** Células marcadas e ainda não construídas (ordem em que foram marcadas). */
   private readonly roadPending = new Map<number, { cx: number; cy: number }>();
   /** Arrasto em andamento: célula onde começou, células do caminho e se o ponteiro saiu dela. */
@@ -2544,12 +2549,12 @@ export class GameRuntime {
     const i = c.cy * this.map.width + c.cx;
     const t = this.map.terrain[i];
     if (this.roadHighway) {
-      // rodovia: terra própria, neutra ou de quem não está em guerra com você (a simulação confere a guerra)
+      // rodovia: só terra própria ou neutra (as dos vizinhos se encontram no neutro)
       if (t === T.Road) return null;
       if (t !== T.Plains && t !== T.Fertile) return 'Rodovias só em planície ou solo fértil';
       if (occupied.has(i)) return 'Há uma construção no lugar';
       const owner = this.territory[i];
-      if (owner !== undefined && owner >= 0 && owner !== this.mySlot && this.atWarWith(owner)) return 'Território inimigo: rodovia nunca entra em país em guerra com você';
+      if (owner !== undefined && owner >= 0 && owner !== this.mySlot) return 'Território de outra nação: a rodovia vai só até a terra neutra';
       return null;
     }
     if (t !== T.Plains && t !== T.Fertile) return 'Estradas só em planície ou solo fértil';
@@ -2951,6 +2956,23 @@ export class GameRuntime {
 
   startAttackMove(): void {
     if (this.myUnitIds().length > 0) this.setMode({ kind: 'attack_move' });
+  }
+
+  /** Mira numa estrada ou rodovia inimiga (02/11): as tropas só atacam estrada por ordem do jogador. */
+  startAttackRoad(): void {
+    if (this.myUnitIds().length > 0) this.setMode({ kind: 'attack_road' });
+  }
+
+  /** Ordena o ataque à célula de estrada sob o ponteiro (o servidor confere guerra, visão e dono). */
+  private attackRoadAt(clientX: number, clientY: number): void {
+    const c = this.cellAtScreen(clientX, clientY);
+    const ids = this.myUnitIds();
+    if (!c || !ids.length) return;
+    if (!this.roadCells.has(c.cy * this.map.width + c.cx)) {
+      useHudStore.getState().pushEvent({ tick: this.snapshot?.tick ?? 0, text: 'Escolha uma célula de estrada ou rodovia inimiga', tone: 'warn' });
+      return;
+    }
+    this.send({ type: 'attack_road', unitIds: ids, cx: c.cx, cy: c.cy });
   }
 
   cancelMode(): void {
@@ -3517,6 +3539,11 @@ export class GameRuntime {
       if (!e.shiftKey) this.cancelMode();
       return;
     }
+    if (this.mode.kind === 'attack_road') {
+      this.attackRoadAt(e.clientX, e.clientY);
+      if (!e.shiftKey) this.cancelMode();
+      return;
+    }
     if (this.mode.kind === 'air_target') {
       this.airTargetAt(e.clientX, e.clientY);
       return;
@@ -3632,6 +3659,11 @@ export class GameRuntime {
       const p = this.groundAt(x, y);
       const ids = this.myUnitIds();
       if (p && ids.length) this.send({ type: 'attack_move', unitIds: ids, x: p.x, y: p.y });
+      this.cancelMode();
+      return;
+    }
+    if (this.mode.kind === 'attack_road') {
+      this.attackRoadAt(x, y);
       this.cancelMode();
       return;
     }

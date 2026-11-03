@@ -84,17 +84,20 @@ fora do mapa (20 / 30 / 8 s). Paga só na chegada.
 
 ## Rodovia (`HIGHWAY` em `config.ts`)
 - Comando `build_road` com `highway: true`; validação em `Simulation.highwayPlan`.
-- Pode sair do território **sem engenheiro**: terra neutra ou território de nação que não está em guerra com quem
-  constrói. Nunca em país inimigo. Estrada própria vira rodovia (paga a célula); estrada ou rodovia de outro jogador e
-  pontes do mapa são puladas e servem de ligação.
+- Pode sair do território **sem engenheiro**, mas só pela **terra neutra**: nunca no território de outra nação, em paz
+  ou em guerra (evita que um jogador encha o país do outro de rodovias para atrapalhar). As rodovias de dois países se
+  encontram no neutro. Estrada própria vira rodovia (paga a célula); estrada ou rodovia de outro jogador e pontes do
+  mapa são puladas e servem de ligação.
 - Custo: 20 de pedra e 0,4% do teto anual da verba por célula (o dobro da estrada); manutenção mais barata: cada célula conta
   meia célula de estrada (`HIGHWAY.upkeepCells`).
 - **As margens não podem ser zoneadas:** o zoneamento só conta estradas comuns próprias (as rodovias ficam de fora em
   `ZoneSystem`), então os bairros crescem nas ruas e não ao longo da rodovia.
 - **IA (`TacticalAI.planHighways`, a cada 30 s):** com Terminal Comercial pronto e pedra de folga (reserva de 150), traça
-  a rodovia (Dijkstra que aceita terra neutra e território de quem está em paz, aproveitando estradas existentes, inclusive
-  as do vizinho) até o terminal do vizinho mais próximo que não está em guerra nem sob sanções e ainda não tem rota por
-  caminhão; constrói até 40 células por vez, a partir do próprio terminal. Nunca em direção a inimigo.
+  a rodovia (Dijkstra pelo próprio território e pela terra neutra; no país do vizinho, só pelas estradas que ele já tem)
+  até o terminal do vizinho mais próximo que não está em guerra nem sob sanções e ainda não tem rota por caminhão. Se a
+  parte do vizinho ainda não existe, leva a rodovia até a célula neutra mais perto do terminal dele e espera; duas IAs
+  se encontram no neutro. Até 40 células por vez, a partir do próprio terminal. Nunca em direção a inimigo.
+- **Alvo militar:** ver "Estradas como alvo" abaixo.
 - Velocidade: caminhões de carga e caravanas ×2 (estrada: ×1,3); tropas ×1,7 (estrada: ×1,3); custo de caminho 0,4 (as
   tropas preferem a rodovia).
 - **Não leva energia:** fica fora da rede elétrica (`roads` com `hw`), inclusive dentro do território.
@@ -103,6 +106,15 @@ fora do mapa (20 / 30 / 8 s). Paga só na chegada.
   tempos e nenhum poste (`RoadLayer.highwayTile`).
 - Botão "Rodovia" na aba Cívicas do QG; a ferramenta é a mesma da estrada (marcar e arrastar), com a prévia e o custo da
   rodovia.
+
+## Estradas como alvo (02/11)
+- Comando `attack_road` (unidades, célula): a célula precisa ser estrada ou rodovia construída por uma nação em guerra
+  com quem ataca e estar à vista. Ordem `attackRoad` na unidade: vai até o alcance e atira no asfalto (dano da arma ×
+  `vsBuilding`). As tropas **nunca** atacam estrada sozinhas.
+- Vida: estrada `ROAD.hp` = 80, rodovia `HIGHWAY.hp` = 160 (`Simulation.roadHp` guarda só as atingidas; vai no save).
+- Destruída: sai de `roads`, vira planície, emite `road_destroyed` (visível ao dono, a quem atacou e a quem vê o lugar).
+  Corta a energia que passava por ela, as caravanas e a rota dos caminhões de carga até alguém reconstruir. No cliente,
+  a célula some do mapa (`applyRoads` também tira células) e o painel das tropas tem o botão **Atacar estrada**.
 
 ## Terminal Comercial 3×3 e caminhões (02/11)
 O terminal passou de 2×2 para 3×3 (modelo ampliado 1,5×, `MODEL_SCALE`): o caminhão de carga parecia maior que ele. O

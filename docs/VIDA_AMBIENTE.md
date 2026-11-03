@@ -33,9 +33,10 @@ disso existe na simulação, não afeta regras nem multijogador. Código em `src
 
 ## Carros nas cidades (02/11)
 `src/game/render/CityTraffic.ts`, só visual: os carros dos cidadãos indo e voltando do trabalho e do comércio.
-- **Modelos:** hatch, sedã, picape e van, low poly (~0,62 de comprimento, como os carros estacionados nos lotes). A
-  pintura é tingida por carro com cores comuns de rua; rodas, para-choques e faróis ficam escuros; vidros na camada de
-  vidro.
+- **Modelos (refeitos em 02/11):** hatch, sedã, picape (caçamba com tampa e santantônio) e van (janelas laterais e rack
+  no teto), low poly com casco facetado (capô e traseira inclinados), vidraça com colunas e teto pintado, retrovisores,
+  pneus com calota, para-choques, grade, faróis, lanternas e placas. A pintura é tingida por carro com cores comuns de
+  rua; o resto não. ~0,6 a 0,76 de comprimento, ×1,15 no mapa (leem melhor andando).
 - **Movimento:** de centro em centro das células de estrada e rodovia, sempre na mão direita; no cruzamento escolhe uma
   saída ao acaso (sem voltar) e no fim da linha faz o retorno. Na rodovia andam mais rápido.
 - **Quantidade:** acompanha o tamanho das cidades (8% das células de estrada + 0,35 por moradia + 0,5 por lote do

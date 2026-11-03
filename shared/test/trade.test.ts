@@ -438,6 +438,30 @@ describe('IA no comércio (02/11)', () => {
 });
 
 describe('Rodovia (02/11)', () => {
+  it('estrada como alvo militar: só por ordem, só de inimigo; destruída, a célula some e corta a rota', () => {
+    const { sim, st } = setup({ road: true, players: 2 });
+    const W = sim.map.width;
+    const cell = { cx: 20, cy: 13 };
+    const u = sim.addUnit('infantry', 1, sim.grid.cellCenter({ cx: 20, cy: 16 }));
+    // a estrada é do jogador 0; em paz, não dá para atacar
+    expect(sim.applyCommand(1, { type: 'attack_road', unitIds: [u.id], ...cell })).toMatch(/guerra/);
+    st.war.add('0:1');
+    sim.setWar(0, 1, true);
+    expect(sim.applyCommand(1, { type: 'attack_road', unitIds: [u.id], cx: 20, cy: 20 })).toMatch(/estrada ou rodovia/);
+    expect(typeof sim.trade.route(0, 1, 'road')).not.toBe('string');
+    // tropa parada perto da estrada não ataca sozinha
+    run(sim, TICK_RATE * 5);
+    expect(sim.roads.some((r) => r.i === 13 * W + 20)).toBe(true);
+    expect(sim.applyCommand(1, { type: 'attack_road', unitIds: [u.id], ...cell })).toBeNull();
+    run(sim, TICK_RATE * 40);
+    expect(sim.roads.some((r) => r.i === 13 * W + 20)).toBe(false);
+    expect(sim.map.terrain[13 * W + 20]).toBe(Terrain.Plains);
+    expect(sim.drainEvents().some((e) => e.type === 'road_destroyed' && e.owner === 0 && e.by === 1)).toBe(true);
+    run(sim, TICK_RATE * 3);
+    expect(sim.trade.route(0, 1, 'road')).toMatch(/contínua/);
+    expect(u.order.kind).toBe('idle');
+  });
+
   it('a IA constrói rodovia por trechos até o terminal do vizinho em paz, saindo da fronteira', () => {
     const { sim } = setup({ players: 2 });
     const ai = new TacticalAI(0);
@@ -454,6 +478,23 @@ describe('Rodovia (02/11)', () => {
     }
     expect(built).toBeGreaterThan(0);
     expect(typeof sim.trade.route(0, 1, 'road')).not.toBe('string');
+    // terminal do vizinho dentro do país dele: cada IA leva a rodovia até a terra neutra e elas se encontram lá
+    const { sim: s3, m1 } = setup({ players: 2 });
+    m1.hp = 0;
+    const hq1 = s3.hqOf(1)!;
+    s3.addBuilding('market', 1, { cx: hq1.cell.cx - 5, cy: hq1.cell.cy }, 1);
+    const ais = [new TacticalAI(0), new TacticalAI(1)];
+    const W = s3.map.width;
+    for (let k = 0; k < 14 && typeof s3.trade.route(0, 1, 'road') === 'string'; k++) {
+      for (const a of ais) {
+        s3.players[a.slot]!.resources.stone = 3000;
+        for (const c of a.think(s3)) if (c.type === 'build_road' && c.highway) expect(s3.applyCommand(a.slot, c)).toBeNull();
+      }
+      run(s3, TICK_RATE * 31);
+    }
+    expect(typeof s3.trade.route(0, 1, 'road')).not.toBe('string');
+    // nenhuma rodovia no território do outro
+    for (const r of s3.roads) if (r.hw) expect([r.owner, -1]).toContain(s3.territoryOwner(r.i % W, Math.floor(r.i / W)));
     // em guerra, não constrói até o inimigo
     const { sim: s2 } = setup({ players: 2 });
     s2.setWar(0, 1, true);
@@ -481,14 +522,13 @@ describe('Rodovia (02/11)', () => {
     expect(sim.highwayPlan(0, cells).error).toBeNull();
     expect(sim.applyCommand(0, { type: 'build_road', cells, highway: true })).toBeNull();
     expect(sim.isHighway(24 * W + 21)).toBe(true);
-    // território do outro jogador: só em paz
+    // território de outra nação: nunca, nem em paz (ninguém enche o país do vizinho de rodovias)
     const hq1 = sim.hqOf(1)!;
     const inside = [{ cx: hq1.cell.cx - 2, cy: hq1.cell.cy + 4 }];
     expect(sim.territoryOwner(inside[0]!.cx, inside[0]!.cy)).toBe(1);
+    expect(sim.highwayPlan(0, inside).error).toMatch(/outra nação/);
     sim.setWar(0, 1, true);
-    expect(sim.highwayPlan(0, inside).error).toMatch(/inimigo/);
-    sim.setWar(0, 1, false);
-    expect(sim.highwayPlan(0, inside).error).toBeNull();
+    expect(sim.highwayPlan(0, inside).error).toMatch(/outra nação/);
     // manutenção mais barata que a da estrada comum
     expect(sim.roadCount(0)).toBe(3 * HIGHWAY.upkeepCells);
   });

@@ -766,6 +766,8 @@ export const ROAD = {
   convoyMul: 1.3,
   /** Coletas, Refinaria e Siderúrgica ligadas por estrada ao QG ou a uma prefeitura própria produzem mais. */
   productionMul: 1.15,
+  /** Vida de cada célula de estrada como alvo militar (02/11; a rodovia tem `HIGHWAY.hp`). */
+  hp: 80,
 };
 
 /**
@@ -784,6 +786,8 @@ export const HIGHWAY = {
   unitMul: 1.7,
   /** Custo de caminho (as tropas preferem a rodovia). */
   pathCost: 0.4,
+  /** Vida de cada célula como alvo militar (02/11). */
+  hp: 160,
   /** Manutenção: cada célula de rodovia conta como esta fração de uma célula de estrada (mais barata de manter). */
   upkeepCells: 0.5,
 };

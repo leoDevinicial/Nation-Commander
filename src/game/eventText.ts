@@ -103,6 +103,12 @@ export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone
     }
     case 'shipment_lost':
       return e.seller === mySlot || e.buyer === mySlot ? { text: `Carga perdida: ${e.reason}`, tone: 'bad' } : null;
+    case 'road_destroyed': {
+      const what = e.highway ? 'Rodovia' : 'Estrada';
+      if (e.owner === mySlot) return { text: `${what} cortada por forças inimigas: energia, caravanas e cargas que passavam por ali param`, tone: 'bad' };
+      if (e.by === mySlot) return { text: `${what} inimiga destruída`, tone: 'good' };
+      return null;
+    }
     case 'caravan_lost':
       return e.owner === mySlot
         ? { text: `Caravana de ${e.city} destruída por forças inimigas; outra sai do Centro de Comando em ${CARAVAN.respawnSeconds} s`, tone: 'bad' }
