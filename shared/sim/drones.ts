@@ -1,4 +1,5 @@
 import { BUILDINGS, TICK_RATE, UNITS } from './config.ts';
+import { canHit } from './targeting.ts';
 import type { Simulation } from './Simulation.ts';
 import type { Building, Slot, Vec2 } from './types.ts';
 import { BUILDING_SOLID_HEIGHT } from './buildingHeights.ts';
@@ -309,7 +310,7 @@ export class DroneSystem {
     const clearance = d.alt - (under ? this.solidHeight(under) : 0);
     if (end !== 'shot_down' && clearance < 3) {
       for (const e of [...this.sim.entities.values()]) {
-        if (e.hp <= 0 || !this.sim.hostile(d.owner, e.owner)) continue;
+        if (e.hp <= 0 || !this.sim.hostile(d.owner, e.owner) || !canHit(null, e)) continue;
         const dd = Math.hypot(e.pos.x - d.pos.x, e.pos.y - d.pos.y);
         const reach = DRONE.radius + this.sim.entityRadius(e);
         if (dd > reach) continue;

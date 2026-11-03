@@ -51,7 +51,7 @@ import { WeatherSystem } from './render/Weather.ts';
 import { CLIMATE_LABELS, dayLight, matchClimate } from '../../shared/sim/climate.ts';
 import { AirLayer, disposeAirModels, missilePoint } from './render/AirLayer.ts';
 import { DomeLayer } from './render/DomeLayer.ts';
-import { AIRCRAFT, FLIGHT_SIGHT, NUCLEAR, missileSpec } from '../../shared/sim/air.ts';
+import { AIRCRAFT, AIRLIFT, CRUISE, FLIGHT_SIGHT, NUCLEAR, launcherRange, missileSpec } from '../../shared/sim/air.ts';
 import { ERAS, type Era } from '../../shared/sim/eras.ts';
 import { SPACE_PAD } from './render/models/projects.ts';
 import { PRODUCTION_SOUND, audio } from './audio/AudioService.ts';
@@ -2209,6 +2209,7 @@ export class GameRuntime {
             rank: u.snap.rank ?? 0,
             kills: u.snap.kills ?? 0,
             ...(u.snap.cargo ? { cargo: u.snap.cargo } : {}),
+            ...(u.snap.missiles !== undefined ? { missiles: u.snap.missiles } : {}),
           });
         else inspected = { kind: 'unit' as const, type: u.snap.type, owner: u.snap.owner, hp: u.snap.hp, maxHp: u.snap.maxHp, level: 1, spec: null };
         continue;
@@ -2779,7 +2780,7 @@ export class GameRuntime {
   }
 
   /** Escolha de alvo da força aérea: reconhecimento (ponto), ataque (edifício) ou míssil (ponto). */
-  startAirTarget(purpose: 'recon' | 'strike' | 'missile' | 'drone', sourceId: number, aircraftIds: number[] = [], nuclear = false): void {
+  startAirTarget(purpose: 'recon' | 'strike' | 'missile' | 'drone' | 'paradrop', sourceId: number, aircraftIds: number[] = [], nuclear = false): void {
     this.setMode({ kind: 'air_target', purpose, sourceId, aircraftIds, target: null, ...(nuclear ? { nuclear: true } : {}) });
   }
 
@@ -2801,6 +2802,21 @@ export class GameRuntime {
       // drone de ataque: sai rumo ao ponto; nos primeiros segundos dá para assumir o controle (clique nele ou T)
       this.send({ type: 'launch_drone', buildingId: m.sourceId, x: p.x, y: p.y });
       this.effects.flash(new THREE.Vector3(p.x, 0.2, p.y), 0.8, '#ff9a5a', 0.5);
+      this.cancelMode();
+      return;
+    }
+    if (m.purpose === 'paradrop') {
+      // C-5: embarcam as tropas próprias de terra mais perto da base (o servidor confere vagas e distância)
+      const base = this.positionOf(m.sourceId);
+      const near = base
+        ? [...this.units.values()]
+            .filter((t) => t.snap.owner === this.mySlot && !UNITS[t.snap.type].naval && Math.hypot(t.curr.x - base.x, t.curr.y - base.y) <= AIRLIFT.pickupRadius)
+            .sort((a, b) => Math.hypot(a.curr.x - base.x, a.curr.y - base.y) - Math.hypot(b.curr.x - base.x, b.curr.y - base.y))
+            .map((t) => t.snap.id)
+        : [];
+      if (!near.length) return warn(`Paraquedistas: nenhuma tropa sua a até ${AIRLIFT.pickupRadius} da base aérea`);
+      this.send({ type: 'air_mission', buildingId: m.sourceId, aircraftIds: m.aircraftIds, mission: 'paradrop', x: p.x, y: p.y, unitIds: near });
+      this.effects.flash(new THREE.Vector3(p.x, 0.2, p.y), 0.8, '#ffd27a', 0.5);
       this.cancelMode();
       return;
     }
@@ -2947,9 +2963,13 @@ export class GameRuntime {
       return;
     }
     const src = this.positionOf(m.sourceId);
+    // míssil (03/11): o anel mostra até onde ele chega a partir do silo ou do submarino
+    const sub = this.units.get(m.sourceId)?.snap.type === 'missile_submarine';
     const types = m.aircraftIds.map((id) => this.snapshot?.air?.aircraft.find((a) => a.id === id)?.type).filter((t) => t !== undefined);
-    const range = types.length ? Math.min(...types.map((t) => AIRCRAFT[t].range)) : 0;
-    this.airLayer.setTargeting(src && range ? { x: src.x, y: src.y, r: range } : null, m.target ? { x: m.target.x, y: m.target.y, r: missileSpec(this.missileGenOf(m.sourceId)).radius } : null);
+    const range =
+      m.purpose === 'missile' ? launcherRange(sub ? 'sub' : 'silo', this.missileGenOf(m.sourceId)) : types.length ? Math.min(...types.map((t) => AIRCRAFT[t].range)) : 0;
+    const blast = sub ? CRUISE.radius : m.nuclear ? NUCLEAR.radius : missileSpec(this.missileGenOf(m.sourceId)).radius;
+    this.airLayer.setTargeting(src && range ? { x: src.x, y: src.y, r: range } : null, m.target ? { x: m.target.x, y: m.target.y, r: blast } : null);
   }
 
   startAttackMove(): void {

@@ -44,7 +44,7 @@ import { factionColor } from '../../game/render/palette.ts';
 import { useHudStore, type ZoneBrush } from '../../state/useHudStore.ts';
 import { ZONING, type ZoneKind } from '../../../shared/sim/zoning.ts';
 import { CardButton } from './CardButton.tsx';
-import { AirbaseButtons, AirbaseInfo, DomeInfo, HoldToConfirm, SiloButtons, SiloInfo, airTargetText } from './AirPanels.tsx';
+import { AirbaseButtons, AirbaseInfo, CarrierButtons, DomeInfo, HoldToConfirm, SiloButtons, SiloInfo, SubMissileButtons, airTargetText } from './AirPanels.tsx';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { buildingEffects, formatUsd as usdShort, specDef, upgradeTrack } from '../../../shared/sim/upgrades.ts';
@@ -257,6 +257,8 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             />
             <ModernizeButtons runtime={runtime} />
             {units.some((u) => u.type === 'engineer') && <EngineerButtons runtime={runtime} />}
+            {units.length === 1 && units[0]!.type === 'aircraft_carrier' && <CarrierButtons unitId={units[0]!.id} runtime={runtime} />}
+            {units.length === 1 && units[0]!.type === 'missile_submarine' && <SubMissileButtons unitId={units[0]!.id} missiles={units[0]!.missiles ?? 0} runtime={runtime} />}
           </>
         )}
         {mode.kind === 'place' && touch && (
@@ -389,7 +391,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             );
           })}
         {building && building.progress >= 1 && mode.kind === 'normal' && runtime.battleOp === null && upgradeTrack(building.type) && <UpgradeButton runtime={runtime} b={building} />}
-        {building && building.progress >= 1 && (building.type === 'barracks' || building.type === 'factory') && <ProduceButtons runtime={runtime} b={building} />}
+        {building && building.progress >= 1 && (building.type === 'barracks' || building.type === 'factory' || building.type === 'port') && <ProduceButtons runtime={runtime} b={building} />}
         {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'research_center' && runtime.battleOp === null && <ResearchButtons runtime={runtime} b={building} />}
         {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'airbase' && <AirbaseButtons runtime={runtime} b={building} />}
         {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'missile_silo' && <SiloButtons runtime={runtime} b={building} />}
@@ -773,7 +775,7 @@ function ProduceButtons({ runtime, b }: { runtime: GameRuntime; b: SelectedBuild
             hotkey={def.hotkey}
             label={def.label}
             onRun={() => runtime.produce(u)}
-            title={`${def.label} — ${def.description}\nTripulação: 1 recruta (reserva: ${recruits}) · Tempo: ${timeText(def.buildSeconds)} · Vida: ${def.maxHp} · Dano: ${def.weapon.damage} · Alcance: ${def.weapon.range} · Visão: ${def.sight}${counterText(u)}`}
+            title={`${def.label} — ${def.description}\nTripulação: ${def.crew ?? 1} recruta${(def.crew ?? 1) > 1 ? "s" : ""} (reserva: ${recruits})${def.cargo ? ` · Leva ${def.cargo.infantry} a pé${def.cargo.vehicles ? ` e ${def.cargo.vehicles} veículos` : ""}` : ""} · Tempo: ${timeText(def.buildSeconds)} · Vida: ${def.maxHp} · Dano: ${def.weapon.damage} · Alcance: ${def.weapon.range} · Visão: ${def.sight}${counterText(u)}`}
           />
         );
       })}
@@ -1039,20 +1041,22 @@ function ModChip({ mod }: { mod: ModId }) {
 }
 
 /** Navio de transporte: vagas ocupadas, tropas a bordo e como embarcar e desembarcar. */
-function CargoInfo({ cargo, capacity }: { cargo: UnitType[]; capacity: number }) {
-  const used = cargo.reduce((a, t) => a + NAVAL.slots(t), 0);
+function CargoInfo({ cargo, capacity }: { cargo: UnitType[]; capacity: { infantry: number; vehicles: number } }) {
+  const foot = cargo.filter((t) => NAVAL.slotOf(t) === 'infantry').length;
+  const cars = cargo.length - foot;
+  const used = cargo.length;
   const counts = new Map<UnitType, number>();
   for (const t of cargo) counts.set(t, (counts.get(t) ?? 0) + 1);
   return (
     <div className="mt-1.5 text-xs text-ink-400">
       <div className="text-ink-200">
-        A bordo: {used}/{capacity} vagas
+        A bordo: {foot}/{capacity.infantry} a pé{capacity.vehicles ? ` · ${cars}/${capacity.vehicles} veículos` : ''}
         {counts.size > 0 && <span className="text-ink-400"> · {[...counts].map(([t, n]) => `${n}× ${UNITS[t].label}`).join(', ')}</span>}
       </div>
       <div className="mt-0.5 leading-snug">
         {used > 0
           ? 'Botão direito na terra: encosta na costa mais perto e desembarca as tropas. Em território de outra nação, só em guerra.'
-          : 'Selecione tropas de terra e clique com o botão direito no navio para embarcar (infantaria ocupa 1 vaga, veículo 2).'}
+          : 'Selecione tropas de terra e clique com o botão direito no navio para embarcar.'}
       </div>
     </div>
   );
@@ -1104,7 +1108,7 @@ function UnitsInfo({ units }: { units: ReturnType<typeof useHudStore.getState>['
             ))}
           </div>
         )}
-        {def.naval && <CargoInfo cargo={u.cargo ?? []} capacity={def.capacity ?? 0} />}
+        {def.cargo && <CargoInfo cargo={u.cargo ?? []} capacity={def.cargo} />}
       </div>
     );
   }

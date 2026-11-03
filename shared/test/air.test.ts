@@ -401,11 +401,8 @@ describe('Fase 7 — mísseis', () => {
     const { sim, silo: sl, enemyHq } = silo();
     sim.air.silo(sl.id).missiles = 1;
     const target = { x: enemyHq.pos.x, y: enemyHq.pos.y };
-    // alvo fora de vista e sem edifício descoberto
-    expect(sim.applyCommand(0, { type: 'missile_prepare', buildingId: sl.id, ...target })).toMatch(/não observado/);
-    sim.air.known[0] = new Set([enemyHq.id]);
-    // alvo no próprio território
-    expect(sim.applyCommand(0, { type: 'missile_prepare', buildingId: sl.id, x: sl.pos.x, y: sl.pos.y })).toMatch(/guerra/);
+    // 03/11: qualquer ponto fora da própria fronteira (não precisa estar à vista), dentro do alcance
+    expect(sim.applyCommand(0, { type: 'missile_prepare', buildingId: sl.id, x: sl.pos.x, y: sl.pos.y })).toMatch(/fora da sua fronteira/);
     expect(sim.applyCommand(0, { type: 'missile_prepare', buildingId: sl.id, ...target })).toBeNull();
     const l = sim.air.launches[0]!;
     expect(l.state).toBe('preparing');

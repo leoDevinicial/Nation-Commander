@@ -68,7 +68,7 @@ export type Command =
   | { type: 'trade_world'; side: 'buy' | 'sell'; resource: TradeResource; quantity: number; mode: TransportMode }
   /** Força aérea e mísseis (Fase 7). */
   | { type: 'build_aircraft'; buildingId: EntityId; aircraftType: AircraftType }
-  | { type: 'air_mission'; buildingId: EntityId; aircraftIds: number[]; mission: MissionKind; targetId?: EntityId; x?: number; y?: number }
+  | { type: 'air_mission'; buildingId: EntityId; aircraftIds: number[]; mission: MissionKind; targetId?: EntityId; x?: number; y?: number; unitIds?: EntityId[] }
   | { type: 'build_missile'; buildingId: EntityId; nuclear?: boolean }
   | { type: 'missile_prepare'; buildingId: EntityId; x: number; y: number; nuclear?: boolean }
   | { type: 'missile_authorize'; launchId: number }
@@ -228,7 +228,8 @@ export function parseCommand(raw: unknown): Command | null {
       if (!isId(raw.buildingId) || !isAircraftType(raw.aircraftType)) return null;
       return { type: 'build_aircraft', buildingId: raw.buildingId, aircraftType: raw.aircraftType };
     case 'air_mission': {
-      if (!isId(raw.buildingId) || !isIdList(raw.aircraftIds) || (raw.mission !== 'strike' && raw.mission !== 'recon')) return null;
+      if (!isId(raw.buildingId) || !isIdList(raw.aircraftIds) || (raw.mission !== 'strike' && raw.mission !== 'recon' && raw.mission !== 'paradrop')) return null;
+      if (raw.unitIds !== undefined && !isIdList(raw.unitIds)) return null;
       if (raw.targetId !== undefined && !isId(raw.targetId)) return null;
       const hasPoint = raw.x !== undefined || raw.y !== undefined;
       if (hasPoint && (!isFiniteNum(raw.x) || !isFiniteNum(raw.y))) return null;
@@ -239,6 +240,7 @@ export function parseCommand(raw: unknown): Command | null {
         mission: raw.mission,
         ...(raw.targetId !== undefined ? { targetId: raw.targetId as number } : {}),
         ...(hasPoint ? { x: raw.x as number, y: raw.y as number } : {}),
+        ...(raw.unitIds !== undefined ? { unitIds: [...new Set(raw.unitIds as number[])] } : {}),
       };
     }
     case 'build_missile':

@@ -76,6 +76,8 @@ export interface Unit {
   burstShots?: number;
   /** Navio de transporte (03/11): tropas a bordo (fora do mapa enquanto embarcadas). */
   cargo?: Unit[];
+  /** Mísseis de cruzeiro a bordo (Submarino Lançador). */
+  missiles?: number;
 }
 
 export interface Refit {
@@ -317,7 +319,7 @@ export type SimEvent =
   | { type: 'contract_update'; tick: number; contractId: number; seller: number; buyer: number; status: string; text: string }
   | { type: 'shipment_delivered'; tick: number; shipmentId: number; contractId: number; seller: number; buyer: number; resource: string; quantity: number; usd: number }
   | { type: 'shipment_lost'; tick: number; shipmentId: number; contractId: number; seller: number; buyer: number; resource: string; quantity: number; reason: string; pos: Vec2; mode: 'road' | 'sea' | 'air' }
-  | { type: 'air_mission'; tick: number; owner: Slot; missionId: number; kind: 'strike' | 'recon'; phase: 'launched' | 'result'; text: string; pos: Vec2 }
+  | { type: 'air_mission'; tick: number; owner: Slot; missionId: number; kind: 'strike' | 'recon' | 'paradrop'; phase: 'launched' | 'result'; text: string; pos: Vec2 }
   /** `air`: abatida em combate aéreo (a explosão é no ar, longe do alvo). */
   | { type: 'aircraft_lost'; tick: number; owner: Slot; aircraftType: string; pos: Vec2; air?: boolean }
   /** `bombers`/`dir`: bombardeio em tapete (quantos bombardeiros e o rumo da passagem, em radianos). */

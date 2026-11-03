@@ -227,7 +227,7 @@ export const OIL_DEPOSIT_AMOUNT = 15000;
 
 // ------------------------------------------------------------------ unidades
 
-export type UnitType = 'infantry' | 'apc' | 'tank' | 'artillery' | 'at_infantry' | 'special_forces' | 'mbt' | 'rocket_artillery' | 'mobile_aa' | 'ciws' | 'engineer' | 'scout' | 'transport_ship';
+export type UnitType = 'infantry' | 'apc' | 'tank' | 'artillery' | 'at_infantry' | 'special_forces' | 'mbt' | 'rocket_artillery' | 'mobile_aa' | 'ciws' | 'engineer' | 'scout' | 'transport_ship' | 'frigate' | 'submarine' | 'missile_submarine' | 'aircraft_carrier' | 'cargo_ship';
 
 /** Classe de blindagem do alvo: define os bônus das armas (antitanque contra veículos, etc.). */
 export type ArmorClass = 'infantry' | 'vehicle';
@@ -322,10 +322,22 @@ export interface UnitDef {
   requires?: MilitaryResearchId;
   /** Contribui para a defesa antiaérea por perto (aeronaves e mísseis), como uma bateria. */
   airDefense?: boolean;
-  /** Naval (03/11): anda só na água; sem arma, nunca entra em combate. */
+  /** Naval (03/11): anda só na água. */
   naval?: boolean;
-  /** Vagas de carga (infantaria ocupa 1, veículo 2). */
-  capacity?: number;
+  /** Carga (03/11): vagas para tropas a pé e para veículos (0 = não leva). */
+  cargo?: { infantry: number; vehicles: number };
+  /** Tripulação: recrutas da reserva que a unidade ocupa (padrão 1); todos contam na população. */
+  crew?: number;
+  /** Pesquisa nacional que libera a produção (03/11; só vale com a camada nacional). */
+  requiresTech?: string;
+  /** Submarino: só é atacado por outro submarino e só ataca navios. */
+  submarine?: boolean;
+  /** Navio de guerra: só atira em navios (de superfície) e construções, nunca em tropas em terra. */
+  shipsAndCoast?: boolean;
+  /** Mísseis de cruzeiro que leva (submarino lançador); recarrega junto a um Porto próprio. */
+  missiles?: number;
+  /** Porta-aviões: caças que vêm com ele (hangar embarcado). */
+  carrierFighters?: number;
 }
 
 /** Navio de transporte (03/11): vagas, alcance para embarcar e desembarcar, e onde a carga desce. */
@@ -334,8 +346,8 @@ export const NAVAL = {
   embarkRange: 3.2,
   /** Distância (mundo) do navio até a terra para desembarcar. */
   unloadRange: 3.5,
-  /** Vagas por tipo de tropa. */
-  slots: (t: UnitType): number => (UNITS[t].armor === 'vehicle' ? 2 : 1),
+  /** Classe da vaga que a tropa ocupa: a pé ou veículo (navios nunca embarcam). */
+  slotOf: (t: UnitType): 'infantry' | 'vehicles' => (UNITS[t].armor === 'vehicle' ? 'vehicles' : 'infantry'),
 };
 
 export const UNITS: Record<UnitType, UnitDef> = {
@@ -476,21 +488,119 @@ export const UNITS: Record<UnitType, UnitDef> = {
     requires: 'combat_engineering',
   },
   transport_ship: {
-    label: 'Navio de Transporte',
-    cost: { wood: 120, iron: 70, oil: 40, supplies: 40 },
-    buildSeconds: 20,
-    maxHp: 300,
+    label: 'Navio de Desembarque L402',
+    cost: { wood: 120, iron: 90, oil: 50, supplies: 50 },
+    buildSeconds: 24,
+    maxHp: 420,
     speed: 4.2,
-    radius: 1.5,
+    radius: 1.7,
     sight: 12,
     weapon: { damage: 0, range: 0, cooldown: 99 },
     producedBy: 'port',
     description:
-      'Leva até 10 vagas de tropas pelo mar (infantaria ocupa 1, veículo 2). Selecione as tropas e clique com o botão direito no navio para embarcar; com o navio selecionado, botão direito na terra para desembarcar na costa. Sem arma: escolte-o. Afundado, a carga se perde.',
+      'Navio de desembarque com doca alagável: leva até 10 tropas a pé e 10 veículos pelo mar. Selecione as tropas e clique com o botão direito no navio para embarcar; com o navio selecionado, botão direito na terra para desembarcar na costa. Sem arma: escolte-o. Afundado, a carga se perde.',
     hotkey: 'N',
     armor: 'vehicle',
     naval: true,
-    capacity: 10,
+    cargo: { infantry: 10, vehicles: 10 },
+    crew: 4,
+  },
+  frigate: {
+    label: 'Fragata',
+    cost: { iron: 220, oil: 120, supplies: 140, wood: 60 },
+    buildSeconds: 40,
+    maxHp: 900,
+    speed: 4.6,
+    radius: 1.7,
+    sight: 16,
+    weapon: { damage: 70, range: 17, cooldown: 2.6, vsBuilding: 1.3, vsInfantry: 0.4 },
+    producedBy: 'port',
+    description:
+      'Navio de guerra: combate outros navios e bombardeia construções na costa (não atira em tropas em terra). Tem defesa antiaérea própria e leva até 15 soldados a pé. Muda de cara a cada era.',
+    hotkey: 'F',
+    armor: 'vehicle',
+    naval: true,
+    shipsAndCoast: true,
+    airDefense: true,
+    cargo: { infantry: 15, vehicles: 0 },
+    crew: 6,
+    requiresTech: 'naval_warfare',
+  },
+  submarine: {
+    label: 'Submarino de Ataque',
+    cost: { iron: 200, oil: 140, supplies: 120 },
+    buildSeconds: 38,
+    maxHp: 520,
+    speed: 4.4,
+    radius: 1.4,
+    sight: 12,
+    weapon: { damage: 120, range: 12, cooldown: 3.5 },
+    producedBy: 'port',
+    description: 'Torpedos contra navios. Só outro submarino consegue atacá-lo; não ataca construções nem tropas em terra.',
+    hotkey: 'S',
+    armor: 'vehicle',
+    naval: true,
+    submarine: true,
+    crew: 3,
+    requiresTech: 'submarine_warfare',
+  },
+  missile_submarine: {
+    label: 'Submarino Lançador',
+    cost: { iron: 380, oil: 240, supplies: 260 },
+    buildSeconds: 60,
+    maxHp: 640,
+    speed: 4,
+    radius: 1.6,
+    sight: 12,
+    weapon: { damage: 110, range: 12, cooldown: 3.5 },
+    producedBy: 'port',
+    description:
+      'Submarino com torpedos e 4 mísseis de cruzeiro convencionais: lança contra qualquer ponto fora da sua fronteira, dentro do alcance mostrado no mapa (dano em área). Recarrega junto a um Porto seu. Só outro submarino o ataca.',
+    hotkey: 'M',
+    armor: 'vehicle',
+    naval: true,
+    submarine: true,
+    missiles: 4,
+    crew: 3,
+    requiresTech: 'cruise_missiles',
+  },
+  aircraft_carrier: {
+    label: 'Porta-Aviões',
+    cost: { iron: 600, oil: 400, supplies: 450, wood: 150 },
+    buildSeconds: 120,
+    maxHp: 2600,
+    speed: 3.6,
+    radius: 2.6,
+    sight: 18,
+    weapon: { damage: 0, range: 0, cooldown: 99 },
+    producedBy: 'port',
+    description:
+      'Base aérea flutuante: sai com 4 caças (não leva bombardeiros). Selecione-o para mandar os caças atacar; caça abatido é reposto no próprio porta-aviões, pelo preço normal. Tem defesa antiaérea; afundado, os caças a bordo se perdem.',
+    hotkey: 'P',
+    armor: 'vehicle',
+    naval: true,
+    airDefense: true,
+    carrierFighters: 4,
+    crew: 8,
+    requiresTech: 'naval_aviation',
+  },
+  cargo_ship: {
+    label: 'Cargueiro',
+    cost: { wood: 100, iron: 60, oil: 30, supplies: 40 },
+    buildSeconds: 22,
+    maxHp: 350,
+    speed: 3.4,
+    radius: 1.6,
+    sight: 9,
+    weapon: { damage: 0, range: 0, cooldown: 99 },
+    producedBy: 'port',
+    description:
+      'Navio mercante: as vendas e compras por navio entre as nações só saem com cargueiros (cada cargueiro pronto leva uma remessa por vez, do Porto do vendedor ao do comprador). Sem arma.',
+    hotkey: 'C',
+    armor: 'vehicle',
+    naval: true,
+    crew: 5,
+    requiresTech: 'logistics',
   },
   scout: {
     label: 'Explorador',

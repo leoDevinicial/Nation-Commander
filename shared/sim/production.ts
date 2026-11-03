@@ -21,6 +21,7 @@ import { buildingEffects, missingText, scaledCost, type SpecId } from './upgrade
 import { addCost, productionStandard, type ModId } from './modernization.ts';
 import type { CountryBonus } from './countryBonus.ts';
 import { UNIT_ERA, eraPhrase } from './eras.ts';
+import { TECHNOLOGIES, type TechId } from '../strategic/technologies.ts';
 
 /**
  * Regra única de produção (cidadão, recruta e unidades militares): o servidor valida com ela e o
@@ -136,8 +137,15 @@ export function checkProduce(unit: ProducibleType, c: ProduceContext): ProduceCh
     if (c.era !== undefined && UNIT_ERA[unit] > c.era) return no(`Requer ${eraPhrase(UNIT_ERA[unit])} (avance de era no Centro de Comando)`, `era ${UNIT_ERA[unit]}`);
     if (def.requires && !c.militaryResearch.includes(def.requires))
       return no(`Requer a pesquisa "${MILITARY_RESEARCH[def.requires].label}" no Centro de Pesquisa Militar`, 'pesquisar');
-    // cada unidade militar precisa de um recruta da reserva como tripulação
-    if (c.recruits < 1) return no('Nenhum recruta disponível: aliste recrutas na base militar (quartel)', 'sem recruta');
+    // pesquisa nacional (03/11: navios); sem a camada nacional, não há o que exigir
+    if (def.requiresTech && c.techs !== null && !c.techs.includes(def.requiresTech)) {
+      const label = TECHNOLOGIES[def.requiresTech as TechId]?.label ?? def.requiresTech;
+      return no(`Requer a pesquisa nacional "${label}"`, 'pesquisar');
+    }
+    // cada unidade militar precisa de recrutas da reserva como tripulação (navios: vários)
+    const crew = def.crew ?? 1;
+    if (c.recruits < crew)
+      return no(crew > 1 ? `Tripulação de ${crew} recrutas: há ${c.recruits} na reserva (aliste na base militar)` : 'Nenhum recruta disponível: aliste recrutas na base militar (quartel)', 'sem recruta');
   }
   if (!canAfford(c.resources, cost)) return no(`Recursos insuficientes: faltam ${missingText(c.resources, cost)}`, firstMissing(c.resources, cost));
   return { cost, ...eq, blocker: null, short: null, basic, goods };

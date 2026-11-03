@@ -44,7 +44,13 @@ export type TechId =
   | 'oil_refining'
   | 'telecom_5g'
   | 'military_aviation'
-  | 'air_defense';
+  | 'air_defense'
+  // 03/11: Marinha e paraquedistas
+  | 'naval_warfare'
+  | 'submarine_warfare'
+  | 'cruise_missiles'
+  | 'naval_aviation'
+  | 'airborne_operations';
 
 /** Categoria de investimento: em que área do orçamento de P&D a pesquisa compete. */
 export type TechCategory = 'military' | 'industry' | 'resources' | 'state';
@@ -495,6 +501,65 @@ export const TECHNOLOGIES: Record<TechId, TechDef> = {
     prereqs: [],
     effect: {},
     unlocks: ['Bateria Antiaérea'],
+  },
+  naval_warfare: {
+    id: 'naval_warfare',
+    label: 'Guerra naval',
+    category: 'military',
+    description: 'Cascos de combate, canhões navais e controle de tiro no mar.',
+    cost: 0.03,
+    minDays: 22,
+    prereqs: ['naval_logistics'],
+    effect: {},
+    unlocks: ['Fragata: combate navios, bombardeia a costa, tem antiaérea e leva 15 soldados'],
+  },
+  submarine_warfare: {
+    id: 'submarine_warfare',
+    label: 'Submarinos',
+    category: 'military',
+    description: 'Cascos de pressão, sonar passivo e torpedos guiados.',
+    cost: 0.04,
+    minDays: 30,
+    prereqs: ['naval_warfare'],
+    effect: {},
+    minEra: 2,
+    unlocks: ['Submarino de Ataque: afunda navios e só é atacado por outro submarino'],
+  },
+  cruise_missiles: {
+    id: 'cruise_missiles',
+    label: 'Mísseis de cruzeiro submarinos',
+    category: 'military',
+    description: 'Tubos verticais, lançamento submerso e guiagem por terreno (ogiva convencional).',
+    cost: 0.07,
+    minDays: 50,
+    prereqs: ['submarine_warfare', 'guided_munitions'],
+    effect: {},
+    minEra: 3,
+    unlocks: ['Submarino Lançador: torpedos e 4 mísseis de cruzeiro contra qualquer ponto fora da sua fronteira, dentro do alcance'],
+  },
+  naval_aviation: {
+    id: 'naval_aviation',
+    label: 'Aviação embarcada',
+    category: 'military',
+    description: 'Catapultas, cabos de parada e caças navalizados.',
+    cost: 0.08,
+    minDays: 55,
+    prereqs: ['naval_warfare', 'military_aviation'],
+    effect: {},
+    minEra: 3,
+    unlocks: ['Porta-Aviões com 4 caças embarcados'],
+  },
+  airborne_operations: {
+    id: 'airborne_operations',
+    label: 'Operações aerotransportadas',
+    category: 'military',
+    description: 'Cargueiros estratégicos, paraquedas de carga e tropas paraquedistas.',
+    cost: 0.05,
+    minDays: 35,
+    prereqs: ['military_aviation'],
+    effect: {},
+    minEra: 3,
+    unlocks: ['Cargueiro C-5 Galaxy: lança até 12 soldados e 3 veículos de paraquedas no ponto escolhido'],
   },
 };
 

@@ -1,3 +1,4 @@
+import { canHit } from './targeting.ts';
 import { prepTicks, type Difficulty } from './difficulty.ts';
 import type { IdCipher, IdSpace } from './ids.ts';
 import { RANKS, rankDamageMul, rankFor, rankHpMul } from './veterancy.ts';
@@ -238,6 +239,7 @@ const PATH_CLEARANCE = 0.3;
 export const RESEARCH_CANCEL_REFUND = 0.75;
 /** Fração do dano que atinge quem está no raio de uma arma de área. */
 export const SPLASH_FRACTION = 0.6;
+
 
 /** Multiplicador de dano de uma arma contra um alvo (antitanque contra veículos, etc.). */
 /** Salva de foguetes disparada e ainda no ar: o dano cai na área de `at` no tick do impacto. */
@@ -792,9 +794,10 @@ export class Simulation {
     for (const e of this.entities.values()) {
       if (e.owner !== slot) continue;
       if (e.kind === 'unit') {
-        military++;
+        // a tripulação inteira conta (navios: vários recrutas)
+        military += UNITS[e.type].crew ?? 1;
         // tropas embarcadas num navio continuam na população (03/11)
-        if (e.cargo) military += e.cargo.length;
+        if (e.cargo) for (const c of e.cargo) military += UNITS[c.type].crew ?? 1;
         continue;
       }
       employed += e.workers + (e.builders ?? 0);
@@ -803,10 +806,12 @@ export class Simulation {
       for (const q of e.queue)
         if (q.unitType === 'citizen') queuedCitizens++;
         else if (q.unitType === 'recruit') queuedRecruits++;
-        else queuedMilitary++;
+        else queuedMilitary += UNITS[q.unitType].crew ?? 1;
     }
     // pilotos: cada aeronave (pronta, em missão ou em produção) ocupa um militar
     for (const a of this.air.aircraft) if (a.owner === slot) military++;
+    // paraquedistas em voo no C-5 (03/11)
+    for (const m of this.air.missions) if (m.owner === slot && m.cargo) for (const c of m.cargo) military += UNITS[c.type].crew ?? 1;
     military += this.detached[slot] ?? 0;
     const citizens = p?.citizens ?? 0;
     const recruits = p?.recruits ?? 0;
@@ -1207,9 +1212,11 @@ export class Simulation {
         // tropas embarcam num navio de transporte próprio (03/11)
         const ship = this.entities.get(cmd.shipId);
         if (!ship || ship.kind !== 'unit' || ship.owner !== slot || !UNITS[ship.type].naval || ship.hp <= 0) return 'Navio inválido';
-        const units = this.ownUnits(slot, cmd.unitIds, true).filter((u) => !UNITS[u.type].naval);
-        if (units.length === 0) return 'Nenhuma tropa válida para embarcar';
-        if (this.cargoFree(ship) <= 0) return 'Navio lotado';
+        const sdef = UNITS[ship.type];
+        if (!sdef.cargo) return `${sdef.label} não leva tropas`;
+        const units = this.ownUnits(slot, cmd.unitIds, true).filter((u) => !UNITS[u.type].naval && (sdef.cargo![NAVAL.slotOf(u.type)] ?? 0) > 0);
+        if (units.length === 0) return sdef.cargo.vehicles ? 'Nenhuma tropa válida para embarcar' : `${sdef.label} leva só soldados a pé`;
+        if (units.every((u) => this.cargoRoom(ship, u.type) < 1)) return 'Navio lotado';
         for (const u of units) {
           u.order = { kind: 'embark', shipId: ship.id };
           u.engageId = null;
@@ -1319,7 +1326,7 @@ export class Simulation {
           return null;
         }
         const def = UNITS[cmd.unitType];
-        player.recruits--;
+        player.recruits -= def.crew ?? 1;
         const ticks = this.duration(slot, def.buildSeconds * TICK_RATE * player.modifiers.productionTimeMul * bfx.productionTimeMul * (this.bonusOf(slot).unitTimeMul ?? 1));
         b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks, paid: cost, mods: [...check.mods], ...(Object.keys(check.goods).length ? { goodsPaid: { ...check.goods } } : {}) });
         return null;
@@ -1477,7 +1484,7 @@ export class Simulation {
         if (!item) return 'Fila vazia';
         this.refund(slot, item.paid ?? (item.unitType === 'citizen' ? CITIZEN.cost : item.unitType === 'recruit' ? RECRUIT.cost : UNITS[item.unitType].cost));
         if (item.goodsPaid) this.refundGoods(player, item.goodsPaid);
-        if (item.unitType !== 'citizen' && item.unitType !== 'recruit') player.recruits++; // a tripulação volta à reserva
+        if (item.unitType !== 'citizen' && item.unitType !== 'recruit') player.recruits += UNITS[item.unitType].crew ?? 1; // a tripulação volta à reserva
         return null;
       }
       case 'set_workers': {
@@ -1604,6 +1611,7 @@ export class Simulation {
         return this.air.launchMission(slot, cmd.buildingId, cmd.aircraftIds, cmd.mission, {
           ...(cmd.targetId !== undefined ? { buildingId: cmd.targetId } : {}),
           ...(cmd.x !== undefined && cmd.y !== undefined ? { x: cmd.x, y: cmd.y } : {}),
+          ...(cmd.unitIds ? { unitIds: cmd.unitIds } : {}),
         });
       case 'launch_drone':
         return this.air.launchDrone(slot, cmd.buildingId, cmd.x, cmd.y);
@@ -2980,15 +2988,16 @@ export class Simulation {
     const def = UNITS[u.type];
     const reach = Math.max(def.sight + fx.sightAdd, def.weapon.range + fx.rangeAdd);
 
-    // navio de transporte (03/11): só anda e desembarca; sem arma, nunca entra em combate
-    if (def.naval) {
+    // navios (03/11): o de transporte e o cargueiro só andam e desembarcam; os de guerra (fragata, submarinos) lutam
+    // como as tropas, na grade naval (o caminho até um alvo em terra para na água mais perto)
+    if (def.naval && (def.weapon.damage <= 0 || u.order.kind === 'unload')) {
       this.updateShip(u);
       return;
     }
     switch (u.order.kind) {
       case 'embark': {
         const ship = this.entities.get(u.order.shipId);
-        if (!ship || ship.kind !== 'unit' || ship.hp <= 0 || ship.owner !== u.owner || this.cargoFree(ship) < NAVAL.slots(u.type)) {
+        if (!ship || ship.kind !== 'unit' || ship.hp <= 0 || ship.owner !== u.owner || this.cargoRoom(ship, u.type) < 1) {
           this.setIdle(u);
           return;
         }
@@ -3027,7 +3036,7 @@ export class Simulation {
       case 'attack': {
         const target = this.entities.get(u.order.targetId);
         // alvo destruído, inválido ou unidade que sumiu na névoa: a ordem acaba
-        if (!target || target.hp <= 0 || !this.hostile(u.owner, target.owner) || (target.kind === 'unit' && !this.canSee(u.owner, target))) {
+        if (!target || target.hp <= 0 || !this.hostile(u.owner, target.owner) || (target.kind === 'unit' && !this.canSee(u.owner, target)) || !canHit(u.type, target)) {
           this.setIdle(u);
           return;
         }
@@ -3035,7 +3044,7 @@ export class Simulation {
         return;
       }
       case 'attackMove': {
-        const target = this.validEngageTarget(u, reach * 1.5) ?? this.acquireTarget(u.pos, u.owner, reach, def.weapon.minRange) ?? this.acquireTarget(u.pos, u.owner, reach);
+        const target = this.validEngageTarget(u, reach * 1.5) ?? this.acquireTarget(u.pos, u.owner, reach, def.weapon.minRange, u.type) ?? this.acquireTarget(u.pos, u.owner, reach, 0, u.type);
         if (target) {
           if (u.engageId !== target.id) {
             u.engageId = target.id;
@@ -3062,7 +3071,7 @@ export class Simulation {
         return;
       }
       case 'idle': {
-        const target = this.validEngageTarget(u, reach * 1.5) ?? this.acquireTarget(u.pos, u.owner, reach, def.weapon.minRange) ?? this.acquireTarget(u.pos, u.owner, reach);
+        const target = this.validEngageTarget(u, reach * 1.5) ?? this.acquireTarget(u.pos, u.owner, reach, def.weapon.minRange, u.type) ?? this.acquireTarget(u.pos, u.owner, reach, 0, u.type);
         if (!target) {
           u.engageId = null;
           u.activity = 'idle';
@@ -3082,7 +3091,7 @@ export class Simulation {
   private validEngageTarget(u: Unit, leash: number): Entity | null {
     if (u.engageId === null) return null;
     const t = this.entities.get(u.engageId);
-    if (!t || t.hp <= 0 || !this.hostile(u.owner, t.owner) || !this.canSee(u.owner, t)) return null;
+    if (!t || t.hp <= 0 || !this.hostile(u.owner, t.owner) || !this.canSee(u.owner, t) || !canHit(u.type, t)) return null;
     if (this.distanceToEdge(u.pos, t) > leash) return null;
     return t;
   }
@@ -3091,11 +3100,11 @@ export class Simulation {
    * Seleção de alvo determinística: inimigo (em guerra) visível mais próximo dentro do raio, unidades antes
    * de edifícios; empate resolvido pelo menor id. Respeita a névoa de guerra do dono.
    */
-  acquireTarget(from: Vec2, owner: Slot, radius: number, minRadius = 0): Entity | null {
+  acquireTarget(from: Vec2, owner: Slot, radius: number, minRadius = 0, attacker: UnitType | null = null): Entity | null {
     let best: Entity | null = null;
     let bestScore = Infinity;
     for (const e of this.entities.values()) {
-      if (e.hp <= 0 || !this.hostile(owner, e.owner)) continue;
+      if (e.hp <= 0 || !this.hostile(owner, e.owner) || !canHit(attacker, e)) continue;
       if (!this.canSee(owner, e)) continue;
       const d = this.distanceToEdge(from, e);
       if (d > radius || d < minRadius) continue;
@@ -3150,19 +3159,27 @@ export class Simulation {
 
   // ---------------------------------------------------------------- navio de transporte (03/11)
 
+  /** Navio novo (03/11): o Submarino Lançador sai com os mísseis e o Porta-Aviões, com os caças embarcados. */
+  onShipLaunched(u: Unit): void {
+    const def = UNITS[u.type];
+    if (def.missiles) u.missiles = def.missiles;
+    if (def.carrierFighters) this.air.embarkFighters(u, def.carrierFighters);
+  }
+
   /** Tropas que chegaram ao navio neste tick (embarcam depois do laço das unidades). */
   private boarding: [Unit, Unit][] = [];
 
-  /** Vagas livres no navio (infantaria ocupa 1, veículo 2). */
-  cargoFree(ship: Unit): number {
-    const used = (ship.cargo ?? []).reduce((a, c) => a + NAVAL.slots(c.type), 0);
-    return (UNITS[ship.type].capacity ?? 0) - used;
+  /** Vagas livres no navio para a classe da tropa (a pé ou veículo). */
+  cargoRoom(ship: Unit, t: UnitType): number {
+    const cls = NAVAL.slotOf(t);
+    const cap = UNITS[ship.type].cargo?.[cls] ?? 0;
+    return cap - (ship.cargo ?? []).filter((c) => NAVAL.slotOf(c.type) === cls).length;
   }
 
   /** Embarque: a tropa sai do mapa e vai para a carga do navio (se ainda couber). */
   private applyBoarding(): void {
     for (const [u, ship] of this.boarding) {
-      if (u.hp <= 0 || ship.hp <= 0 || !this.entities.has(ship.id) || !this.entities.has(u.id) || this.cargoFree(ship) < NAVAL.slots(u.type)) continue;
+      if (u.hp <= 0 || ship.hp <= 0 || !this.entities.has(ship.id) || !this.entities.has(u.id) || this.cargoRoom(ship, u.type) < 1) continue;
       this.entities.delete(u.id);
       u.order = { kind: 'idle' };
       u.engageId = null;
@@ -3288,26 +3305,36 @@ export class Simulation {
   private unloadShip(ship: Unit, toward: Vec2): void {
     const cargo = ship.cargo ?? [];
     if (!cargo.length) return;
+    const placed = this.placeAround(ship.owner, cargo, ship.pos, toward, 6);
+    ship.cargo = cargo.slice(placed);
+    if (placed) this.emit({ type: 'unloaded', tick: this.tick, owner: ship.owner, shipId: ship.id, count: placed, pos: { ...ship.pos } });
+  }
+
+  /**
+   * Põe de volta no mapa tropas que estavam fora dele (navio, C-5): células de terra livres em anéis em volta de
+   * `center`, as mais perto de `toward` primeiro, só onde o dono pode entrar. Devolve quantas couberam (na ordem).
+   */
+  private placeAround(owner: Slot, units: readonly Unit[], center: Vec2, toward: Vec2, maxRing: number): number {
     const g = this.grid;
     const naval = g.naval;
     g.naval = false;
     try {
       const taken = new Set(this.units.map((x) => g.index(...cellTuple(g.worldToCell(x.pos)))));
-      const c = g.worldToCell(ship.pos);
-      const placed: Unit[] = [];
-      for (let r = 1; r <= 6 && placed.length < cargo.length; r++) {
+      const c = g.worldToCell(center);
+      let placed = 0;
+      for (let r = 0; r <= maxRing && placed < units.length; r++) {
         const ring: Cell[] = [];
         for (let dy = -r; dy <= r; dy++)
           for (let dx = -r; dx <= r; dx++) {
             if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
             const x = c.cx + dx;
             const y = c.cy + dy;
-            if (!g.isPassable(x, y) || taken.has(g.index(x, y)) || !this.canEnter(ship.owner, x, y)) continue;
+            if (!g.isPassable(x, y) || taken.has(g.index(x, y)) || !this.canEnter(owner, x, y)) continue;
             ring.push({ cx: x, cy: y });
           }
         ring.sort((a, b) => dist(g.cellCenter(a), toward) - dist(g.cellCenter(b), toward) || a.cy - b.cy || a.cx - b.cx);
         for (const cell of ring) {
-          const u = cargo[placed.length];
+          const u = units[placed];
           if (!u) break;
           u.pos = g.cellCenter(cell);
           u.order = { kind: 'idle' };
@@ -3315,14 +3342,29 @@ export class Simulation {
           u.engageId = null;
           this.entities.set(u.id, u);
           taken.add(g.index(cell.cx, cell.cy));
-          placed.push(u);
+          placed++;
         }
       }
-      ship.cargo = cargo.slice(placed.length);
-      if (placed.length) this.emit({ type: 'unloaded', tick: this.tick, owner: ship.owner, shipId: ship.id, count: placed.length, pos: { ...ship.pos } });
+      return placed;
     } finally {
       g.naval = naval;
     }
+  }
+
+  /** Salto do C-5 (03/11): as tropas caem em volta do ponto; as que não acham lugar morrem na queda. */
+  dropTroops(owner: Slot, units: readonly Unit[], at: Vec2, cells: number): number {
+    const placed = this.placeAround(owner, units, at, at, cells);
+    if (placed < units.length) this.loseCarried(owner, units.slice(placed), at);
+    if (placed) this.emit({ type: 'unloaded', tick: this.tick, owner, shipId: 0, count: placed, pos: { ...at } });
+    return placed;
+  }
+
+  /** Tropas que estavam a bordo de um navio afundado ou de um avião abatido: baixas de quem as levava. */
+  loseCarried(owner: Slot, units: readonly Unit[], at: Vec2): void {
+    if (!units.length) return;
+    const p = this.players[owner];
+    if (p) p.stats.unitsLost += units.length;
+    void at;
   }
 
   /** Ataque a uma célula de estrada: aproxima até o alcance e atira no asfalto até destruir a célula. */
@@ -3471,7 +3513,7 @@ export class Simulation {
       const w = UNITS[v.unitType].weapon;
       const radius = w.splash ?? 2;
       for (const e of [...this.entities.values()]) {
-        if (e.hp <= 0 || !this.hostile(v.owner, e.owner)) continue;
+        if (e.hp <= 0 || !this.hostile(v.owner, e.owner) || !canHit(v.unitType, e)) continue;
         if (this.distanceToEdge(v.at, e) > radius) continue;
         // o alvo marcado leva a salva inteira; quem estava em volta, a fração de área
         const dmg = v.base * targetMultiplier(w, e) * (e.id === v.targetId ? 1 : SPLASH_FRACTION);
@@ -3515,7 +3557,7 @@ export class Simulation {
     // dano em área (foguetes): quem estiver perto do ponto de impacto recebe 60% do dano
     if (splash) {
       for (const e of [...this.entities.values()]) {
-        if (e === target || e.hp <= 0 || !this.hostile(attacker.owner, e.owner)) continue;
+        if (e === target || e.hp <= 0 || !this.hostile(attacker.owner, e.owner) || !canHit(attacker.kind === 'unit' ? attacker.type : null, e)) continue;
         if (this.distanceToEdge(target.pos, e) > splash.radius) continue;
         const dmg = splash.base * SPLASH_FRACTION * targetMultiplier(splash.weapon, e);
         this.players[attacker.owner]!.stats.damageDealt += Math.min(dmg, e.hp);
@@ -3993,6 +4035,7 @@ export class Simulation {
       ...(this.visualEra(owner) > 1 ? { era: this.visualEra(owner) } : {}),
     };
     this.entities.set(u.id, u);
+    if (UNITS[type].naval) this.onShipLaunched(u);
     return u;
   }
 

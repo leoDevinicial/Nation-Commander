@@ -7,7 +7,7 @@ import type { BuildingStatus, EntityId, SimEvent, Slot, UnitActivity, Vec2 } fro
 import { buildingEffects, type SpecId } from './upgrades.ts';
 import { combineMods, type ModId } from './modernization.ts';
 import { DRONE } from './drones.ts';
-import { AIRCRAFT, IRON_DOME, MISSILE, NUCLEAR, missileSpec, type AircraftState, type AircraftType, type LaunchState, type MissionKind, type MissionResult, type MissionState } from './air.ts';
+import { AIRCRAFT, IRON_DOME, MISSILE, NUCLEAR, type AircraftState, type AircraftType, type LaunchState, type MissionKind, type MissionResult, type MissionState } from './air.ts';
 import { caravanIncome, type CaravanState } from './caravans.ts';
 import { TRADE_RESOURCES, TRANSPORT_MODES, type ShipmentState, type TradeContract, type TradeItem, type TradeListing, type TradeResource, type TransportMode } from './trade.ts';
 import type { MarketResource } from './market.ts';
@@ -40,6 +40,8 @@ export interface UnitSnapshot {
   reload?: number;
   /** Navio de transporte: tipos das tropas a bordo (só para o dono; KAC — o inimigo não sabe o que vai dentro). */
   cargo?: UnitType[];
+  /** Mísseis a bordo do Submarino Lançador (só para o dono). */
+  missiles?: number;
 }
 
 export interface BuildingSnapshot {
@@ -176,7 +178,7 @@ export interface TradeView {
 /** Força aérea e mísseis do ponto de vista de um jogador (Fase 7). */
 export interface AirView {
   /** Aeronaves próprias. `progress`: produção ou manutenção (0..1); `gen`: modelo dos caças da base (desenho no pátio). */
-  aircraft: { id: number; type: AircraftType; baseId: EntityId; state: AircraftState; progress: number; gen: number }[];
+  aircraft: { id: number; type: AircraftType; baseId: EntityId; state: AircraftState; progress: number; gen: number; carrier?: true }[];
   /** Voos no mapa: os próprios e os inimigos visíveis. */
   /**
    * Voos em andamento. `gen`: modelo dos caças (1 = F-5EM, 2 = F-39 Gripen); `bx/by`: base de origem (nos voos alheios,
@@ -295,6 +297,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         ...(e.kills && (!viewer || e.owner === viewer.slot) ? { kills: e.kills } : {}),
         ...(UNITS[e.type].weapon.salvo && e.cooldown > 0 ? { reload: r2(Math.max(0, 1 - e.cooldown / Math.max(1, UNITS[e.type].weapon.cooldown * combineMods(e.mods).cooldownMul * TICK_RATE))) } : {}),
         ...(e.cargo?.length && (!viewer || e.owner === viewer.slot) ? { cargo: e.cargo.map((c) => c.type) } : {}),
+        ...(e.missiles !== undefined && (!viewer || e.owner === viewer.slot) ? { missiles: e.missiles } : {}),
         ...(e.refit && (!viewer || e.owner === viewer.slot) ? { refit: { mod: e.refit.mod, progress: r2(1 - e.refit.remainingTicks / e.refit.totalTicks), facility: e.refit.facilityId } } : {}),
       });
     } else {
@@ -521,7 +524,7 @@ export function airView(sim: Simulation, slot: Slot): AirView {
       if (l.targetOwner !== slot && !sim.isVisibleTo(slot, p)) continue;
     }
     if (!live(l.state) && sim.tick - (l.endTick ?? l.startTick) > TICK_RATE * 60) continue;
-    const spec = missileSpec(l.gen ?? 1);
+    const spec = air.launchSpec(l);
     const total = l.state === 'preparing' ? spec.prepareSeconds * TICK_RATE : l.state === 'launching' ? spec.launchSeconds * TICK_RATE : l.flightTicks;
     launches.push({
       id: l.id,
@@ -547,7 +550,8 @@ export function airView(sim: Simulation, slot: Slot): AirView {
         const total = a.state === 'building' ? AIRCRAFT[a.type].buildSeconds * TICK_RATE : AIRCRAFT[a.type].maintenanceSeconds * TICK_RATE;
         const base = sim.entities.get(a.baseId);
         const gen = base && 'level' in base ? buildingEffects('airbase', base.level).fighterGen : 1;
-        return { id: a.id, type: a.type, baseId: a.baseId, state: a.state, progress: a.state === 'building' || a.state === 'maintenance' ? r2(1 - a.timer / Math.max(1, total)) : 1, gen };
+        const carrier = base?.kind === 'unit';
+        return { id: a.id, type: a.type, baseId: a.baseId, state: a.state, progress: a.state === 'building' || a.state === 'maintenance' ? r2(1 - a.timer / Math.max(1, total)) : 1, gen: carrier ? 2 : gen, ...(carrier ? { carrier: true as const } : {}) };
       }),
     flights,
     missions: air.missions

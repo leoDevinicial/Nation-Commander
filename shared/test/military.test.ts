@@ -338,7 +338,7 @@ describe('progressão militar — tropas novas em combate', () => {
     // o veículo mais caro da Era Digital: acima de todas as tropas da era em cada recurso
     const total = (c: object) => Object.values(c).reduce((a: number, v: number) => a + v, 0);
     for (const t of Object.keys(UNIT_ERA) as (keyof typeof UNITS)[]) {
-      if (t === 'ciws' || UNIT_ERA[t] !== 3) continue;
+      if (t === 'ciws' || UNIT_ERA[t] !== 3 || UNITS[t].naval) continue;
       expect(total(UNITS.ciws.cost)).toBeGreaterThan(total(UNITS[t].cost));
       for (const [r, v] of Object.entries(UNITS[t].cost)) if (r !== 'food') expect(UNITS.ciws.cost[r as 'oil'] ?? 0).toBeGreaterThan(v);
     }

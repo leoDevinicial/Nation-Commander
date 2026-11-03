@@ -4,7 +4,9 @@ import type { CountryBonus } from './countryBonus.ts';
 import { AIRCRAFT_ERA, eraPhrase } from './eras.ts';
 import { buildingEffects, missingText } from './upgrades.ts';
 import type { Simulation } from './Simulation.ts';
-import type { Building, EntityId, Slot, Vec2 } from './types.ts';
+import { canHit } from './targeting.ts';
+import { TECHNOLOGIES, type TechId } from '../strategic/technologies.ts';
+import type { Building, EntityId, Slot, Unit, Vec2 } from './types.ts';
 import { DRONE, DroneSystem, type Drone } from './drones.ts';
 
 /**
@@ -25,8 +27,22 @@ import { DRONE, DroneSystem, type Drone } from './drones.ts';
  * Toda aleatoriedade usa um gerador determinístico guardado no estado (salvar/carregar idêntico).
  */
 
-export type AircraftType = 'fighter' | 'bomber' | 'recon' | 'transport' | 'drone';
-export const AIRCRAFT_TYPES: AircraftType[] = ['fighter', 'bomber', 'recon', 'transport', 'drone'];
+export type AircraftType = 'fighter' | 'bomber' | 'recon' | 'transport' | 'drone' | 'airlifter';
+export const AIRCRAFT_TYPES: AircraftType[] = ['fighter', 'bomber', 'recon', 'transport', 'drone', 'airlifter'];
+
+/** Pesquisa nacional exigida por aeronave (03/11; só vale com a camada nacional). */
+export const AIRCRAFT_TECH: Partial<Record<AircraftType, string>> = { airlifter: 'airborne_operations' };
+
+/** C-5 Galaxy (03/11): leva tropas da base e as lança de paraquedas no ponto escolhido. */
+export const AIRLIFT = {
+  /** Vagas: soldados a pé e veículos. */
+  infantry: 12,
+  vehicles: 3,
+  /** Raio (mundo) em volta da base em que as tropas selecionadas embarcam. */
+  pickupRadius: 14,
+  /** Raio (células) em que as tropas caem em volta do ponto. */
+  dropCells: 5,
+};
 
 export interface AircraftDef {
   label: string;
@@ -104,6 +120,20 @@ export const AIRCRAFT: Record<AircraftType, AircraftDef> = {
     maintenanceSeconds: 0,
     strikeDamage: 0,
   },
+  airlifter: {
+    label: 'Cargueiro C-5 Galaxy',
+    role: 'Paraquedistas: leva até 12 soldados e 3 veículos que estão perto da base e os lança no ponto escolhido; volta para a base. Abatido, todos a bordo morrem.',
+    cost: { iron: 120, oil: 80, supplies: 100 },
+    usd: 9_000_000,
+    buildSeconds: 50,
+    range: 200,
+    speed: 5.5,
+    fuelPerWorld: 0.25,
+    upkeep: 0.06,
+    maintenanceSeconds: 35,
+    strikeDamage: 0,
+    minBaseLevel: 2,
+  },
   drone: {
     label: 'Drone de ataque',
     role: 'Munição vagante: voa até o ponto escolhido e mergulha no alvo; nos primeiros segundos você pode assumir o controle em primeira pessoa. É consumido no ataque.',
@@ -120,7 +150,7 @@ export const AIRCRAFT: Record<AircraftType, AircraftDef> = {
 };
 
 /** Visão das aeronaves em voo (área revelada embaixo delas, como a das tropas). */
-export const FLIGHT_SIGHT: Record<AircraftType, number> = { fighter: 9, bomber: 8, recon: 14, transport: 7, drone: DRONE.sight };
+export const FLIGHT_SIGHT: Record<AircraftType, number> = { fighter: 9, bomber: 8, recon: 14, transport: 7, drone: DRONE.sight, airlifter: 8 };
 
 export const AIR = {
   hangarPerBase: 4,
@@ -167,7 +197,32 @@ export const MISSILE = {
   interceptChance: 0.2,
   interceptRange: 10,
   maxIntercept: 0.6,
+  /**
+   * Alcance (03/11, pedido do usuário: o silo não alcança o mapa inteiro; para atingir o inimigo, construa perto da
+   * fronteira). Por geração do silo; o raio aparece no mapa ao escolher o alvo.
+   */
+  range: { 1: 90, 2: 120 } as Record<number, number>,
 };
+
+/** Míssil de cruzeiro do Submarino Lançador (convencional): menor que o balístico, sai em segundos. */
+export const CRUISE = {
+  range: 70,
+  prepareSeconds: 4,
+  launchSeconds: 1,
+  speed: 20,
+  damage: 520,
+  radius: 3.5,
+  interceptChance: 0.2,
+  maxIntercept: 0.6,
+  /** Recarga junto a um Porto próprio: um míssil a cada `reloadSeconds`, pagando o custo do balístico. */
+  reloadSeconds: 45,
+  reloadRange: 10,
+};
+
+/** Alcance do lançador (silo pela geração, submarino pelo míssil de cruzeiro). */
+export function launcherRange(kind: 'silo' | 'sub', gen = 1): number {
+  return kind === 'sub' ? CRUISE.range : (MISSILE.range[gen] ?? MISSILE.range[1]!);
+}
 
 /**
  * Domo de Ferro: bateria de defesa antimíssil. Protege o que estiver a até `range` dela contra o míssil balístico comum
@@ -245,7 +300,7 @@ export interface Aircraft {
   missionId: number | null;
 }
 
-export type MissionKind = 'strike' | 'recon';
+export type MissionKind = 'strike' | 'recon' | 'paradrop';
 export type MissionState = 'outbound' | 'returning' | 'done';
 
 export interface MissionResult {
@@ -277,6 +332,8 @@ export interface AirMission {
   gen?: number;
   /** Missões inimigas com que esta já travou combate aéreo (cada par luta uma vez). */
   fought?: number[];
+  /** Paraquedistas a bordo do C-5 (saem do mapa no embarque e voltam no salto). */
+  cargo?: Unit[];
 }
 
 /** Combate aéreo em andamento entre duas esquadrilhas: as duas ficam presas no lugar até acabar. */
@@ -308,6 +365,8 @@ export interface MissileLaunch {
   gen?: number;
   /** Ogiva nuclear. */
   nuclear?: boolean;
+  /** Lançado de um Submarino Lançador (`siloId` é a unidade): míssil de cruzeiro. */
+  cruise?: boolean;
   /** Engajamento do Domo de Ferro: bateria, tick do encontro, acerto (sorteado no disparo) e se já foi resolvido. */
   dome?: { domeId: EntityId; meetTick: number; hit: boolean; resolved?: boolean };
 }
@@ -424,6 +483,31 @@ export class AirSystem {
     return !!b && b.type === type && b.owner === slot && b.progress >= 1 && b.hp > 0 && !b.unpaid;
   }
 
+  /**
+   * Base de aeronaves (03/11): Base Aérea pronta ou Porta-Aviões vivo. `carrier` marca o navio (só caças, hangar de
+   * `carrierFighters`, a posição acompanha o navio).
+   */
+  airBase(id: EntityId): { pos: Vec2; owner: Slot; level: number; carrier: boolean; powered: boolean; building: Building | null } | null {
+    const e = this.sim.entities.get(id);
+    if (!e || e.hp <= 0) return null;
+    if (e.kind === 'unit') return e.type === 'aircraft_carrier' ? { pos: e.pos, owner: e.owner, level: 2, carrier: true, powered: true, building: null } : null;
+    return e.type === 'airbase' ? { pos: e.pos, owner: e.owner, level: e.level, carrier: false, powered: this.sim.isPowered(e), building: e } : null;
+  }
+
+  /** Base do jogador em condição de operar (a Base Aérea pronta e paga; o porta-aviões, vivo). */
+  private operationalBase(id: EntityId, slot: Slot): ReturnType<AirSystem['airBase']> {
+    const b = this.airBase(id);
+    if (!b || b.owner !== slot) return null;
+    if (b.building && !this.operational(b.building, 'airbase', slot)) return null;
+    return b;
+  }
+
+  /** Caças que vêm com o porta-aviões (prontos, sem custo extra nem piloto da reserva: a tripulação já os inclui). */
+  embarkFighters(carrier: Unit, n: number): void {
+    for (let i = 0; i < n; i++)
+      this.aircraft.push({ id: this.sim.opaqueId('air', this.nextId++), type: 'fighter', owner: carrier.owner, baseId: carrier.id, home: { ...carrier.pos }, state: 'ready', timer: 0, missionId: null });
+  }
+
   aircraftAt(baseId: EntityId): Aircraft[] {
     return this.aircraft.filter((a) => a.baseId === baseId);
   }
@@ -444,12 +528,20 @@ export class AirSystem {
   // -------------------------------------------------------------- produção de aeronaves
 
   buildBlocker(slot: Slot, baseId: EntityId, type: AircraftType): string | null {
-    const base = this.building(baseId);
-    if (!this.operational(base, 'airbase', slot)) return 'Base aérea inválida ou inoperante';
+    const base = this.operationalBase(baseId, slot);
+    if (!base) return 'Base aérea inválida ou inoperante';
     const def = this.aircraftCost(slot, type);
     if (AIRCRAFT_ERA[type] > this.sim.eraOf(slot)) return `${def.label} exige ${eraPhrase(AIRCRAFT_ERA[type])}`;
-    if (def.minBaseLevel && base.level < def.minBaseLevel) return `${def.label} exige Base Aérea nível ${def.minBaseLevel}`;
-    if (this.aircraftAt(baseId).length >= AIR.hangarPerBase) return `Hangar cheio: ${AIR.hangarPerBase} aeronaves por base`;
+    const reqTech = AIRCRAFT_TECH[type];
+    if (reqTech && this.sim.national && !this.techs(slot).includes(reqTech)) return `${def.label} exige a pesquisa ${TECHNOLOGIES[reqTech as TechId]?.label ?? reqTech}`;
+    if (base.carrier) {
+      if (type !== 'fighter') return 'O porta-aviões só opera caças';
+      const max = UNITS.aircraft_carrier.carrierFighters ?? 4;
+      if (this.aircraftAt(baseId).length >= max) return `Convés cheio: ${max} caças por porta-aviões`;
+    } else {
+      if (def.minBaseLevel && base.level < def.minBaseLevel) return `${def.label} exige Base Aérea nível ${def.minBaseLevel}`;
+      if (this.aircraftAt(baseId).length >= AIR.hangarPerBase) return `Hangar cheio: ${AIR.hangarPerBase} aeronaves por base`;
+    }
     const p = this.sim.players[slot]!;
     if (p.recruits < 1) return 'Nenhum recruta para piloto: aliste recrutas na base militar';
     if (!canAfford(p.resources, def.cost)) return `Recursos insuficientes: faltam ${missingText(p.resources, def.cost)}`;
@@ -471,7 +563,7 @@ export class AirSystem {
     this.sim.spendResources(slot, def.cost);
     if (def.goods) this.sim.spendGoods(this.sim.players[slot]!, def.goods);
     this.sim.players[slot]!.recruits--;
-    this.aircraft.push({ id: this.sim.opaqueId('air', this.nextId++), type, owner: slot, baseId, home: { ...this.building(baseId)!.pos }, state: 'building', timer: this.sim.duration(slot, def.buildSeconds * TICK_RATE), missionId: null });
+    this.aircraft.push({ id: this.sim.opaqueId('air', this.nextId++), type, owner: slot, baseId, home: { ...this.airBase(baseId)!.pos }, state: 'building', timer: this.sim.duration(slot, def.buildSeconds * TICK_RATE), missionId: null });
     return null;
   }
 
@@ -500,16 +592,43 @@ export class AirSystem {
   // -------------------------------------------------------------- missões
 
   /** Motivo de uma missão não poder sair (mesma regra no painel). */
-  missionBlocker(slot: Slot, baseId: EntityId, ids: number[], kind: MissionKind, target: { buildingId?: EntityId; x?: number; y?: number }): string | null {
-    const base = this.building(baseId);
-    if (!this.operational(base, 'airbase', slot)) return 'Base aérea inválida ou inoperante';
+  /** Tropas que entram no C-5: as escolhidas, próprias, de terra, perto da base, até as vagas (a pé e veículos). */
+  paradropTroops(slot: Slot, baseId: EntityId, unitIds: readonly number[]): Unit[] {
+    const base = this.airBase(baseId);
+    if (!base) return [];
+    const room = { infantry: AIRLIFT.infantry, vehicles: AIRLIFT.vehicles };
+    const out: Unit[] = [];
+    for (const id of unitIds) {
+      const u = this.sim.entities.get(id);
+      if (!u || u.kind !== 'unit' || u.owner !== slot || u.hp <= 0 || UNITS[u.type].naval || u.refit) continue;
+      if (dist(u.pos, base.pos) > AIRLIFT.pickupRadius) continue;
+      const cls = UNITS[u.type].armor === 'vehicle' ? 'vehicles' : 'infantry';
+      if (room[cls] < 1 || out.includes(u)) continue;
+      room[cls]--;
+      out.push(u);
+    }
+    return out;
+  }
+
+  missionBlocker(slot: Slot, baseId: EntityId, ids: number[], kind: MissionKind, target: { buildingId?: EntityId; x?: number; y?: number; unitIds?: number[] }): string | null {
+    const base = this.operationalBase(baseId, slot);
+    if (!base) return 'Base aérea inválida ou inoperante';
     const planes = ids.map((id) => this.aircraft.find((a) => a.id === id));
     if (!planes.length || planes.some((a) => !a || a.owner !== slot || a.baseId !== baseId)) return 'Aeronaves inválidas';
     if (planes.some((a) => a!.state !== 'ready')) return 'Há aeronaves indisponíveis (em produção, em missão, em manutenção ou sem manutenção paga)';
-    const allowed: AircraftType[] = kind === 'strike' ? ['fighter', 'bomber'] : ['recon'];
-    if (planes.some((a) => !allowed.includes(a!.type))) return kind === 'strike' ? 'Ataque: só caças e bombardeiros' : 'Reconhecimento: só aeronaves de reconhecimento';
+    const allowed: AircraftType[] = kind === 'strike' ? ['fighter', 'bomber'] : kind === 'paradrop' ? ['airlifter'] : ['recon'];
+    if (planes.some((a) => !allowed.includes(a!.type)))
+      return kind === 'strike' ? 'Ataque: só caças e bombardeiros' : kind === 'paradrop' ? 'Paraquedistas: só o C-5 Galaxy' : 'Reconhecimento: só aeronaves de reconhecimento';
     let pos: Vec2;
-    if (kind === 'strike') {
+    if (kind === 'paradrop') {
+      if (planes.length !== 1) return 'Um C-5 por salto';
+      if (target.x === undefined || target.y === undefined) return 'Escolha o ponto do salto';
+      pos = this.sim.clampToMap({ x: target.x, y: target.y });
+      const c = this.sim.grid.worldToCell(pos);
+      const owner = this.sim.territoryOwner(c.cx, c.cy);
+      if (owner >= 0 && owner !== slot && !this.sim.formalWar(slot, owner)) return 'Saltar no território de outra nação só em guerra com ela';
+      if (!this.paradropTroops(slot, baseId, target.unitIds ?? []).length) return `Nenhuma tropa a bordo: selecione soldados ou veículos a até ${AIRLIFT.pickupRadius} da base`;
+    } else if (kind === 'strike') {
       if (!this.techs(slot).includes(AIR.strikeTech)) return 'Ataque aéreo a infraestrutura exige a pesquisa Munição guiada';
       const t = target.buildingId !== undefined ? this.sim.entities.get(target.buildingId) : undefined;
       // só alvos já descobertos: o ataque não ignora a névoa de guerra
@@ -531,10 +650,10 @@ export class AirSystem {
     return null;
   }
 
-  launchMission(slot: Slot, baseId: EntityId, ids: number[], kind: MissionKind, target: { buildingId?: EntityId; x?: number; y?: number }): string | null {
+  launchMission(slot: Slot, baseId: EntityId, ids: number[], kind: MissionKind, target: { buildingId?: EntityId; x?: number; y?: number; unitIds?: number[] }): string | null {
     const err = this.missionBlocker(slot, baseId, ids, kind, target);
     if (err) return err;
-    const base = this.building(baseId)!;
+    const base = this.airBase(baseId)!;
     const t = kind === 'strike' ? (this.sim.entities.get(target.buildingId!) as Building) : null;
     const pos = t ? { ...t.pos } : this.sim.clampToMap({ x: target.x!, y: target.y! });
     const d = dist(base.pos, pos);
@@ -560,11 +679,21 @@ export class AirSystem {
       legTicks: Math.max(1, Math.round((d / speed) * TICK_RATE)),
       fuel: Math.round(fuel * 10) / 10,
       result: null,
-      gen: buildingEffects('airbase', base.level).fighterGen,
+      gen: base.carrier ? 2 : buildingEffects('airbase', base.level).fighterGen,
     };
     for (const a of planes) {
       a.state = 'mission';
       a.missionId = m.id;
+    }
+    if (kind === 'paradrop') {
+      // as tropas sobem no C-5 e saem do mapa até o salto
+      m.cargo = this.paradropTroops(slot, baseId, target.unitIds ?? []);
+      for (const u of m.cargo) {
+        this.sim.entities.delete(u.id);
+        u.order = { kind: 'idle' };
+        u.engageId = null;
+        u.path = [];
+      }
     }
     this.missions.push(m);
     this.sim.emitTrade({
@@ -574,7 +703,7 @@ export class AirSystem {
       missionId: m.id,
       kind,
       phase: 'launched',
-      text: `${kind === 'strike' ? 'Ataque aéreo' : 'Reconhecimento'} decolou com ${ids.length} aeronave(s)`,
+      text: kind === 'paradrop' ? `C-5 decolou com ${m.cargo?.length ?? 0} paraquedista(s)` : `${kind === 'strike' ? 'Ataque aéreo' : 'Reconhecimento'} decolou com ${ids.length} aeronave(s)`,
       pos: { ...m.from },
     });
     return null;
@@ -593,6 +722,10 @@ export class AirSystem {
       else if (b.type === 'tower' && d <= AIR.aaRange * 0.7) chance += AIR.towerAaChance;
       else if (b.type === 'airbase' && d <= AIR.interceptRadius) chance += AIR.fighterInterceptChance * this.aircraftAt(b.id).filter((a) => a.type === 'fighter' && a.state === 'ready').length;
     }
+    // porta-aviões inimigo por perto: os caças prontos no convés interceptam como os de uma base
+    for (const u of this.sim.units)
+      if (enemy(u.owner) && u.type === 'aircraft_carrier' && u.hp > 0 && dist(u.pos, m.target) <= AIR.interceptRadius)
+        chance += AIR.fighterInterceptChance * this.aircraftAt(u.id).filter((a) => a.type === 'fighter' && a.state === 'ready').length;
     // antiaérea móvel acompanhando as tropas: como uma bateria, um pouco menos eficaz
     for (const u of this.sim.units) if (enemy(u.owner) && u.hp > 0 && UNITS[u.type].airDefense && dist(u.pos, m.target) <= AIR.aaRange) chance += AIR.aaChance * MOBILE_AA_FACTOR * (this.sim.bonusOf(u.owner).aaMul ?? 1);
     chance = Math.min(AIR.maxShootDown, chance);
@@ -606,7 +739,18 @@ export class AirSystem {
     }
     m.aircraft = m.aircraft.filter((id) => this.aircraft.some((a) => a.id === id));
     const r: MissionResult = { shotDown, damage: 0, oilLost: 0, destroyed: false, revealed: 0, text: '' };
-    if (m.kind === 'recon') {
+    if (m.kind === 'paradrop') {
+      const cargo = m.cargo ?? [];
+      m.cargo = [];
+      if (!m.aircraft.length) {
+        // C-5 abatido: todos a bordo morrem
+        this.sim.loseCarried(m.owner, cargo, m.target);
+        r.text = `C-5 abatido com ${cargo.length} paraquedista(s) a bordo`;
+      } else {
+        const landed = this.sim.dropTroops(m.owner, cargo, m.target, AIRLIFT.dropCells);
+        r.text = `Salto concluído: ${landed} tropa(s) em terra${landed < cargo.length ? ` (${cargo.length - landed} sem lugar para cair)` : ''}`;
+      }
+    } else if (m.kind === 'recon') {
       if (m.aircraft.length) {
         this.reveals.push({ owner: m.owner, pos: { ...m.target }, radius: AIR.reconRadius, untilTick: this.sim.tick + AIR.reconSeconds * TICK_RATE });
         for (const b of this.sim.buildings)
@@ -715,33 +859,41 @@ export class AirSystem {
   }
 
   prepareBlocker(slot: Slot, siloId: EntityId, x: number, y: number, nuclear = false): string | null {
-    const b = this.building(siloId);
-    if (!this.operational(b, 'missile_silo', slot)) return 'Silo de mísseis inválido ou inoperante';
-    if (!this.techs(slot).includes(MISSILE.tech)) return 'Exige a pesquisa Mísseis balísticos';
-    const s = this.silo(siloId);
-    if (nuclear ? (s.nuclear ?? 0) < 1 : s.missiles - (s.nuclear ?? 0) < 1) return nuclear ? 'Sem míssil nuclear no silo' : 'Sem míssil convencional no silo';
-    if (this.launches.some((l) => l.siloId === siloId && (l.state === 'preparing' || l.state === 'armed' || l.state === 'launching'))) return 'O silo já tem um lançamento em andamento';
+    const ln = this.launcher(slot, siloId);
+    if (!ln) return 'Silo de mísseis ou submarino lançador inválido ou inoperante';
+    if (ln.kind === 'silo') {
+      if (!this.techs(slot).includes(MISSILE.tech)) return 'Exige a pesquisa Mísseis balísticos';
+      const s = this.silo(siloId);
+      if (nuclear ? (s.nuclear ?? 0) < 1 : s.missiles - (s.nuclear ?? 0) < 1) return nuclear ? 'Sem míssil nuclear no silo' : 'Sem míssil convencional no silo';
+    } else {
+      if (nuclear) return 'O submarino só leva mísseis convencionais';
+      if ((ln.u.missiles ?? 0) < 1) return 'Sem mísseis a bordo: volte a um Porto seu para recarregar';
+    }
+    if (this.launches.some((l) => l.siloId === siloId && (l.state === 'preparing' || l.state === 'armed' || l.state === 'launching'))) return 'Já há um lançamento em andamento neste lançador';
     const p = this.sim.clampToMap({ x, y });
     const c = this.sim.grid.worldToCell(p);
     const owner = this.sim.territoryOwner(c.cx, c.cy);
-    // alvo: território de um país com quem há guerra, num ponto que o jogador vê ou cujo edifício já descobriu
-    if (owner < 0 || owner === slot || !this.sim.formalWar(slot, owner)) return 'O alvo precisa estar no território de um país com quem você está em guerra';
-    const seen = this.sim.isVisibleTo(slot, p) || this.sim.buildings.some((bb) => bb.owner === owner && this.isKnown(slot, bb.id) && dist(bb.pos, p) <= MISSILE.radius + 2);
-    if (!seen) return 'Alvo não observado: precisa estar à vista ou junto de um edifício já descoberto';
+    // 03/11: qualquer ponto fora da própria fronteira; no território de outra nação, só em guerra com ela
+    if (owner === slot) return 'O alvo precisa estar fora da sua fronteira';
+    if (owner >= 0 && !this.sim.formalWar(slot, owner)) return 'Sem estado de guerra com o dono desse território';
+    const d = dist(ln.pos, p);
+    if (d > ln.range) return `Fora do alcance: ${Math.round(d)} de ${ln.range} (lance de mais perto)`;
     return null;
   }
 
   prepare(slot: Slot, siloId: EntityId, x: number, y: number, nuclear = false): string | null {
     const err = this.prepareBlocker(slot, siloId, x, y, nuclear);
     if (err) return err;
-    const b = this.building(siloId)!;
+    const ln = this.launcher(slot, siloId)!;
     const p = this.sim.clampToMap({ x, y });
     const c = this.sim.grid.worldToCell(p);
-    const st = this.silo(siloId);
-    st.missiles--;
-    if (nuclear) st.nuclear = (st.nuclear ?? 0) - 1;
-    const gen = buildingEffects('missile_silo', b.level).missileGen;
-    const spec = missileSpec(gen);
+    if (ln.kind === 'silo') {
+      const st = this.silo(siloId);
+      st.missiles--;
+      if (nuclear) st.nuclear = (st.nuclear ?? 0) - 1;
+    } else ln.u.missiles = (ln.u.missiles ?? 0) - 1;
+    const cruise = ln.kind === 'sub';
+    const spec = this.launchSpec({ gen: ln.gen, ...(cruise ? { cruise: true } : {}) });
     const l: MissileLaunch = {
       id: this.sim.opaqueId('air', this.nextId++),
       owner: slot,
@@ -750,15 +902,16 @@ export class AirSystem {
       targetOwner: this.sim.territoryOwner(c.cx, c.cy),
       state: 'preparing',
       timer: spec.prepareSeconds * TICK_RATE,
-      from: { ...b.pos },
-      flightTicks: Math.max(1, Math.round((dist(b.pos, p) / spec.speed) * TICK_RATE)),
+      from: { ...ln.pos },
+      flightTicks: Math.max(1, Math.round((dist(ln.pos, p) / spec.speed) * TICK_RATE)),
       startTick: this.sim.tick,
       result: null,
-      gen,
+      gen: ln.gen,
       ...(nuclear ? { nuclear: true } : {}),
+      ...(cruise ? { cruise: true } : {}),
     };
     this.launches.push(l);
-    this.missileEvent(l, 'Míssil em preparação (abastecimento)');
+    this.missileEvent(l, cruise ? 'Míssil de cruzeiro em preparação' : 'Míssil em preparação (abastecimento)');
     return null;
   }
 
@@ -767,10 +920,10 @@ export class AirSystem {
     const l = this.launches.find((x) => x.id === launchId);
     if (!l || l.owner !== slot) return 'Lançamento inválido';
     if (l.state !== 'armed') return l.state === 'preparing' ? 'Aguarde o fim da preparação' : 'Lançamento não está aguardando autorização';
-    if (!this.sim.formalWar(slot, l.targetOwner)) return 'Sem estado de guerra com o dono do alvo: lançamento bloqueado';
-    if (!this.operational(this.building(l.siloId), 'missile_silo', slot)) return 'Silo inoperante';
+    if (l.targetOwner >= 0 && !this.sim.formalWar(slot, l.targetOwner)) return 'Sem estado de guerra com o dono do alvo: lançamento bloqueado';
+    if (!this.launcher(slot, l.siloId)) return 'Lançador inoperante';
     l.state = 'launching';
-    l.timer = missileSpec(l.gen ?? 1).launchSeconds * TICK_RATE;
+    l.timer = this.launchSpec(l).launchSeconds * TICK_RATE;
     this.missileEvent(l, 'Lançamento autorizado: contagem final');
     return null;
   }
@@ -782,11 +935,29 @@ export class AirSystem {
     if (l.state !== 'preparing' && l.state !== 'armed') return 'Não é mais possível abortar';
     l.state = 'aborted';
     l.endTick = this.sim.tick;
-    const st = this.silo(l.siloId);
-    st.missiles++;
-    if (l.nuclear) st.nuclear = (st.nuclear ?? 0) + 1;
+    if (l.cruise) {
+      const u = this.sim.entities.get(l.siloId);
+      if (u && u.kind === 'unit') u.missiles = (u.missiles ?? 0) + 1;
+    } else {
+      const st = this.silo(l.siloId);
+      st.missiles++;
+      if (l.nuclear) st.nuclear = (st.nuclear ?? 0) + 1;
+    }
     this.missileEvent(l, 'Lançamento abortado: míssil devolvido ao silo');
     return null;
+  }
+
+  /** Submarino Lançador parado junto a um Porto próprio: recebe um míssil de cruzeiro, pagando o do balístico. */
+  private reloadSubs(): void {
+    for (const u of this.sim.units) {
+      const max = UNITS[u.type].missiles;
+      if (!max || u.hp <= 0 || (u.missiles ?? 0) >= max || u.order.kind !== 'idle') continue;
+      const port = this.sim.buildings.some((b) => b.owner === u.owner && b.type === 'port' && b.progress >= 1 && b.hp > 0 && dist(b.pos, u.pos) <= CRUISE.reloadRange);
+      const p = this.sim.players[u.owner];
+      if (!port || !p || !canAfford(p.resources, MISSILE.cost)) continue;
+      this.sim.spendResources(u.owner, MISSILE.cost);
+      u.missiles = (u.missiles ?? 0) + 1;
+    }
   }
 
   /** Interceptadores da bateria (uma bateria nova já vem com o magazine cheio). */
@@ -853,13 +1024,36 @@ export class AirSystem {
     });
   }
 
+  /** Ficha do míssil de um lançamento (balístico pela geração, ou de cruzeiro). */
+  launchSpec(l: Pick<MissileLaunch, 'gen' | 'cruise'>): ReturnType<typeof missileSpec> {
+    return l.cruise
+      ? { prepareSeconds: CRUISE.prepareSeconds, launchSeconds: CRUISE.launchSeconds, speed: CRUISE.speed, damage: CRUISE.damage, radius: CRUISE.radius, interceptChance: CRUISE.interceptChance, maxIntercept: CRUISE.maxIntercept }
+      : missileSpec(l.gen ?? 1);
+  }
+
+  /**
+   * Lançador: silo pronto do jogador ou Submarino Lançador vivo. `pos` é de onde sai o míssil e `range`, até onde
+   * chega.
+   */
+  launcher(slot: Slot, id: EntityId): { kind: 'silo'; b: Building; pos: Vec2; range: number; gen: number } | { kind: 'sub'; u: Unit; pos: Vec2; range: number; gen: number } | null {
+    const e = this.sim.entities.get(id);
+    if (!e || e.owner !== slot || e.hp <= 0) return null;
+    if (e.kind === 'building') {
+      if (!this.operational(e, 'missile_silo', slot)) return null;
+      const gen = buildingEffects('missile_silo', e.level).missileGen;
+      return { kind: 'silo', b: e, pos: e.pos, range: launcherRange('silo', gen), gen };
+    }
+    if (e.type !== 'missile_submarine') return null;
+    return { kind: 'sub', u: e, pos: e.pos, range: launcherRange('sub'), gen: 1 };
+  }
+
   private missileEvent(l: MissileLaunch, text: string): void {
     const r = l.result && !l.result.intercepted ? { damage: l.result.damage, destroyed: l.result.destroyed, casualties: l.result.casualties } : {};
     this.sim.emitTrade({ type: 'missile', tick: this.sim.tick, owner: l.owner, launchId: l.id, state: l.state, text, from: { ...l.from }, target: { ...l.target }, targetOwner: l.targetOwner, gen: l.gen ?? 1, ...(l.nuclear ? { nuclear: true } : {}), ...r });
   }
 
   private impact(l: MissileLaunch): void {
-    const base = missileSpec(l.gen ?? 1);
+    const base = this.launchSpec(l);
     const spec = l.nuclear ? { ...base, damage: NUCLEAR.damage, radius: NUCLEAR.radius, interceptChance: base.interceptChance * NUCLEAR.interceptMul, maxIntercept: base.maxIntercept * NUCLEAR.interceptMul } : base;
     // interceptação pelas baterias antiaéreas perto do alvo
     let chance = 0;
@@ -880,7 +1074,8 @@ export class AirSystem {
     let destroyed = 0;
     let casualties = 0;
     for (const e of [...this.sim.entities.values()]) {
-      if (e.hp <= 0) continue;
+      // submarino submerso não sofre com a explosão; nações em paz com quem lançou também não (alvo em terra neutra)
+      if (e.hp <= 0 || !canHit(null, e) || (e.owner !== l.owner && !this.sim.hostile(l.owner, e.owner))) continue;
       const d = dist(e.pos, l.target);
       if (d > spec.radius + this.sim.entityRadius(e)) continue;
       const dmg = spec.damage * Math.max(0.25, 1 - d / (spec.radius + 1));
@@ -907,16 +1102,18 @@ export class AirSystem {
       this.upkeep();
     }
     for (const a of this.aircraft) {
+      const base = this.airBase(a.baseId);
+      // o porta-aviões anda: o pátio das aeronaves vai junto
+      if (base?.carrier) a.home = { ...base.pos };
       if (a.state === 'building' || a.state === 'maintenance') {
-        const base = this.building(a.baseId);
         // base sem energia: a linha de montagem e a manutenção param
-        if (!base || !this.sim.isPowered(base)) continue;
+        if (!base || !base.powered) continue;
         if (--a.timer <= 0) a.state = 'ready';
       }
     }
     // aeronaves de uma base destruída: as que estavam no hangar se perdem
     for (const a of [...this.aircraft])
-      if (a.state !== 'mission' && !this.building(a.baseId)) {
+      if (a.state !== 'mission' && !this.airBase(a.baseId)) {
         this.aircraft = this.aircraft.filter((x) => x.id !== a.id);
         this.sim.emitTrade({ type: 'aircraft_lost', tick, owner: a.owner, aircraftType: a.type, pos: { ...a.home } });
       }
@@ -927,7 +1124,7 @@ export class AirSystem {
       if (m.state === 'outbound' && t >= m.legTicks) this.resolve(m);
       else if (m.state === 'returning' && t >= m.legTicks * 2) {
         m.state = 'done';
-        const home = this.building(m.baseId);
+        const home = this.airBase(m.baseId);
         // base capturada pelo inimigo: não há onde pousar
         const base = home && home.owner === m.owner ? home : null;
         for (const id of m.aircraft) {
@@ -948,6 +1145,7 @@ export class AirSystem {
     if (tick % (TICK_RATE * 30) === 0) this.missions = this.missions.filter((m) => m.state !== 'done' || tick - m.launchTick < TICK_RATE * 120);
     this.drones.step();
     this.stepDomes();
+    if (tick % (CRUISE.reloadSeconds * TICK_RATE) === 0) this.reloadSubs();
     // silos: produção de mísseis
     for (const [id, s] of Object.entries(this.silos)) {
       const b = this.building(Number(id));
@@ -966,7 +1164,7 @@ export class AirSystem {
     }
     for (const l of this.launches) {
       if (l.state === 'preparing') {
-        if (!this.building(l.siloId)) {
+        if (!this.launcher(l.owner, l.siloId)) {
           l.state = 'aborted';
           l.endTick = tick;
           continue;
@@ -1122,6 +1320,11 @@ export class AirSystem {
       // esquadrilha inteira abatida no combate
       const pos = this.missionPos(m);
       m.state = 'done';
+      // C-5 derrubado por caças: os paraquedistas morrem junto
+      if (m.cargo?.length) {
+        this.sim.loseCarried(m.owner, m.cargo, pos);
+        m.cargo = [];
+      }
       m.result = { shotDown: 0, damage: 0, oilLost: 0, destroyed: false, revealed: 0, text: 'Esquadrilha abatida em combate aéreo' };
       this.sim.emitTrade({ type: 'air_mission', tick: this.sim.tick, owner: m.owner, missionId: m.id, kind: m.kind, phase: 'result', text: m.result.text, pos });
     }
@@ -1162,7 +1365,7 @@ export class AirSystem {
 }
 
 /** Combustível (cadeia produtiva) usado na montagem de cada aeronave, no lugar de parte do petróleo. */
-export const AIRCRAFT_FUEL: Record<AircraftType, number> = { fighter: 10, recon: 6, transport: 8, bomber: 20, drone: 3 };
+export const AIRCRAFT_FUEL: Record<AircraftType, number> = { fighter: 10, recon: 6, transport: 8, bomber: 20, drone: 3, airlifter: 22 };
 
 /**
  * Ficha da aeronave com o bônus do país aplicado ao custo e, com combustível em estoque, a troca de

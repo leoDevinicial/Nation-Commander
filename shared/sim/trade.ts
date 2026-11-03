@@ -304,11 +304,18 @@ export class TradeSystem {
     if (this.facilities(slot, 'market').length === 0) return 'Construa um Terminal Comercial para negociar';
     if (mode === 'air' && !this.airports(slot).length) return `Avião: construa uma Base Aérea ou melhore o Centro de Comando até o nível ${AIR_HQ_LEVEL} (heliponto de carga)`;
     if (mode === 'sea' && !this.facilities(slot, 'port').length) return 'Navio: construa um Porto na margem da água';
+    if (mode === 'sea' && !this.cargoShips(slot)) return 'Navio: produza um Cargueiro no Porto';
     return null;
   }
 
-  /** Veículos em trânsito ao mesmo tempo num modal (instalações × 2; no aéreo, mais um por cargueiro pronto). */
+  /** Cargueiros do jogador (03/11): cada um leva uma remessa por mar de cada vez. */
+  cargoShips(slot: Slot): number {
+    return this.sim.units.filter((u) => u.owner === slot && u.type === 'cargo_ship' && u.hp > 0).length;
+  }
+
+  /** Veículos em trânsito ao mesmo tempo num modal (instalações × 2; no aéreo, mais um por cargueiro pronto; no mar, um por Cargueiro). */
   convoyLimit(slot: Slot, mode: TransportMode): number {
+    if (mode === 'sea') return this.cargoShips(slot);
     const base = this.terminals(slot, mode).length * TRADE.vehiclesPerFacility;
     return mode === 'air' ? base + this.sim.air.transports(slot) : base;
   }

@@ -77,7 +77,12 @@ export const UNIT_ERA: Record<UnitType, Era> = {
   mbt: 4,
   engineer: 2,
   scout: 1,
-  transport_ship: 2,
+  transport_ship: 1,
+  frigate: 1,
+  submarine: 2,
+  missile_submarine: 3,
+  aircraft_carrier: 3,
+  cargo_ship: 1,
 };
 
 /** Era das construções (as ausentes existem desde a Guerra Fria). */
@@ -85,7 +90,7 @@ export const BUILDING_ERA: Partial<Record<BuildingType, Era>> = {
   research_center: 2,
   residential: 2,
   market: 2,
-  port: 2,
+  port: 1,
   aa_battery: 2,
   airbase: 3,
   missile_silo: 4,
@@ -108,7 +113,7 @@ export const BUILDING_ERA: Partial<Record<BuildingType, Era>> = {
 };
 
 /** Aeronaves: caças, reconhecimento e cargueiros na Era Digital; bombardeiros no Futuro Próximo. */
-export const AIRCRAFT_ERA: Record<AircraftType, Era> = { fighter: 3, recon: 3, transport: 3, bomber: 4, drone: 3 };
+export const AIRCRAFT_ERA: Record<AircraftType, Era> = { fighter: 3, recon: 3, transport: 3, bomber: 4, drone: 3, airlifter: 3 };
 
 export const buildingEra = (t: BuildingType): Era => BUILDING_ERA[t] ?? 1;
 

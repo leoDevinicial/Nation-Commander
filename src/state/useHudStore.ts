@@ -28,6 +28,8 @@ export interface SelectedUnitInfo {
   kills: number;
   /** Navio de transporte: tropas a bordo. */
   cargo?: UnitType[];
+  /** Submarino Lançador: mísseis a bordo. */
+  missiles?: number;
 }
 
 export interface SelectedBuildingInfo {
@@ -79,7 +81,7 @@ export type PointerMode =
    * Escolha de alvo da força aérea (Fase 7): ponto do reconhecimento, edifício inimigo descoberto
    * do ataque, ou ponto do míssil — este último fica marcado e só segue com "Confirmar alvo".
    */
-  | { kind: 'air_target'; purpose: 'recon' | 'strike' | 'missile' | 'drone'; sourceId: EntityId; aircraftIds: number[]; target: { x: number; y: number } | null; nuclear?: boolean }
+  | { kind: 'air_target'; purpose: 'recon' | 'strike' | 'missile' | 'drone' | 'paradrop'; sourceId: EntityId; aircraftIds: number[]; target: { x: number; y: number } | null; nuclear?: boolean }
   /** Engenheiros selecionados: o próximo clique no chão marca onde instalar a mina (lote 3). */
   | { kind: 'lay_mine' }
   /**

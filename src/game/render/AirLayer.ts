@@ -725,7 +725,8 @@ export class AirLayer {
     const perBase = new Map<number, number>();
     const keep = new Set<number>();
     for (const a of list) {
-      if (a.state === 'building' || a.state === 'mission') continue;
+      // os caças do porta-aviões já aparecem no convés do modelo do navio
+      if (a.state === 'building' || a.state === 'mission' || a.carrier) continue;
       const n = perBase.get(a.baseId) ?? 0;
       const slot = AIRBASE_SLOTS[n];
       const at = this.posOf(a.baseId);
@@ -733,7 +734,7 @@ export class AirLayer {
       perBase.set(a.baseId, n + 1);
       keep.add(a.id);
       // cargueiro: turboélice nas eras 1 e 2, o pesado de quatro motores a partir da Era Digital
-      const kind: Kind = a.type === 'fighter' ? (a.gen >= 2 ? 'gripen' : 'fighter') : a.type === 'transport' && this.era >= 3 ? 'transport2' : a.type;
+      const kind: Kind = a.type === 'fighter' ? (a.gen >= 2 ? 'gripen' : 'fighter') : a.type === 'airlifter' || (a.type === 'transport' && this.era >= 3) ? 'transport2' : a.type;
       let p = this.parked.get(a.id);
       if (p && p.kind !== kind) {
         p.group.removeFromParent();
@@ -767,7 +768,7 @@ export class AirLayer {
   private rebuildPlanes(t: TrackedFlight, f: Flight): void {
     for (const pl of t.planes) this.disposePlane(pl, true);
     t.planes = [];
-    const kind: Kind = f.kind === 'recon' ? 'recon' : f.plane === 'bomber' ? 'bomber' : f.gen >= 2 ? 'gripen' : 'fighter';
+    const kind: Kind = f.kind === 'recon' ? 'recon' : f.plane === 'airlifter' ? 'transport2' : f.plane === 'bomber' ? 'bomber' : f.gen >= 2 ? 'gripen' : 'fighter';
     const big = kind === 'bomber';
     const m = model(kind);
     if (!m.body.boundingBox) m.body.computeBoundingBox();

@@ -704,7 +704,7 @@ export class TacticalAI {
           ? barracksMix
           : b.type === 'factory'
             ? factoryMix
-            : b.type === 'port' && overseas && !preparing && fleet < Math.min(AI_MAX_SHIPS, Math.ceil((this.waveSize * 1.5) / (UNITS.transport_ship.capacity ?? 10)))
+            : b.type === 'port' && overseas && !preparing && fleet < Math.min(AI_MAX_SHIPS, Math.ceil((this.waveSize * 1.5) / 10))
               ? (['transport_ship'] as UnitType[])
               : null;
       if (!mix) continue;
@@ -1527,12 +1527,12 @@ export class TacticalAI {
     const groups: { shipId: number; ids: number[] }[] = [];
     let k = 0;
     for (const ship of free) {
-      let room = UNITS[ship.type].capacity ?? 0;
+      const room = { ...(UNITS[ship.type].cargo ?? { infantry: 0, vehicles: 0 }) };
       const group: number[] = [];
       for (; k < pool.length; k++) {
-        const slots = NAVAL.slots(pool[k]!.type);
-        if (slots > room) break;
-        room -= slots;
+        const cls = NAVAL.slotOf(pool[k]!.type);
+        if (room[cls] < 1) break;
+        room[cls]--;
         group.push(pool[k]!.id);
       }
       if (!group.length) break;

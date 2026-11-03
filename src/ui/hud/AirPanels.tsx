@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { canAfford, emptyStockpile } from '../../../shared/sim/config.ts';
+import { UNITS, canAfford, emptyStockpile } from '../../../shared/sim/config.ts';
 import { useMyBonus } from '../../state/myCountry.ts';
 import { DRONE } from '../../../shared/sim/drones.ts';
-import { AIR, AIRCRAFT_TYPES, aircraftFor, IRON_DOME, MISSILE, NUCLEAR, missileSpec, type AircraftState, type AircraftType, type LaunchState } from '../../../shared/sim/air.ts';
+import { AIR, AIRCRAFT_TYPES, AIRLIFT, aircraftFor, CRUISE, IRON_DOME, MISSILE, NUCLEAR, launcherRange, missileSpec, type AircraftState, type AircraftType, type LaunchState } from '../../../shared/sim/air.ts';
 import { TECHNOLOGIES } from '../../../shared/strategic/technologies.ts';
 import { buildingEffects, formatUsd } from '../../../shared/sim/upgrades.ts';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
@@ -14,8 +14,8 @@ import { audio } from '../../game/audio/AudioService.ts';
 import { effectiveEra, effectiveFund, effectiveTechs, timeText } from '../../state/sandbox.ts';
 import { AIRCRAFT_ERA } from '../../../shared/sim/eras.ts';
 
-const ICON: Record<AircraftType, string> = { fighter: '✈', bomber: '💣', recon: '🔭', transport: '📦', drone: '🛩' };
-const SHORT: Record<AircraftType, string> = { fighter: 'Caça', bomber: 'Bombardeiro', recon: 'Reconhecimento', transport: 'Cargueiro', drone: 'Drone' };
+const ICON: Record<AircraftType, string> = { fighter: '✈', bomber: '💣', recon: '🔭', transport: '📦', drone: '🛩', airlifter: '🪂' };
+const SHORT: Record<AircraftType, string> = { fighter: 'Caça', bomber: 'Bombardeiro', recon: 'Reconhecimento', transport: 'Cargueiro', drone: 'Drone', airlifter: 'C-5 Galaxy' };
 const STATE: Record<AircraftState, string> = {
   building: 'em produção',
   ready: 'pronta',
@@ -182,6 +182,52 @@ export function AirbaseButtons({ b, runtime }: { b: SelectedBuildingInfo; runtim
           title={`Bombardeio em tapete com os bombardeiros prontos (até 4): muito dano ao edifício-alvo e ${Math.round(AIR.carpetSplash * 100)}% aos edifícios inimigos num raio de ${AIR.carpetRadius}. Lentos e sem escolta: caças inimigos os derrubam com facilidade.`}
         />
       )}
+      {planes.some((a) => a.type === 'airlifter') && (
+        <CardButton
+          icon="🪂"
+          label="Paraquedistas"
+          blocked={ready('airlifter').length === 0}
+          short={ready('airlifter').length === 0 ? 'nenhum C-5 pronto' : null}
+          onClick={() => (ready('airlifter').length ? runtime.startAirTarget('paradrop', b.id, ready('airlifter').slice(0, 1)) : warn('Paraquedistas: nenhum C-5 pronto nesta base'))}
+          title={`C-5 Galaxy: embarca as suas tropas paradas a até ${AIRLIFT.pickupRadius} da base (até ${AIRLIFT.infantry} soldados e ${AIRLIFT.vehicles} veículos), voa até o ponto escolhido e as lança de paraquedas; depois volta. Antiaérea e caças inimigos podem derrubá-lo: aí todos a bordo morrem.`}
+        />
+      )}
+    </>
+  );
+}
+
+/** Porta-aviões (03/11): caças no convés, reposição pelo preço normal e ataque com os prontos. */
+export function CarrierButtons({ unitId, runtime }: { unitId: number; runtime: GameRuntime }) {
+  const air = useHudStore((s) => s.air);
+  const ctx = useMe();
+  const planes = air?.aircraft.filter((a) => a.baseId === unitId) ?? [];
+  const fighters = planes.filter((a) => a.type === 'fighter' && a.state === 'ready').map((a) => a.id);
+  const max = UNITS.aircraft_carrier.carrierFighters ?? 4;
+  const def = aircraftFor('fighter', ctx.bonus, ctx.goods);
+  const full = planes.length >= max;
+  const buildBlock = full ? 'convés cheio' : !canAfford(ctx.resources, def.cost) ? 'recursos insuficientes' : ctx.fund !== null && ctx.fund < def.usd ? 'verba insuficiente' : null;
+  const noTech = !ctx.techs.includes('guided_munitions') ? `exige ${TECHNOLOGIES.guided_munitions.label}` : null;
+  const strikeBlock = noTech ?? (fighters.length === 0 ? 'nenhum caça pronto' : null);
+  return (
+    <>
+      <CardButton
+        icon="✈"
+        label={`Repor caça (${planes.length}/${max})`}
+        blocked={buildBlock !== null}
+        short={buildBlock}
+        onClick={() => (buildBlock ? warn(`Caça: ${buildBlock}`) : runtime.send({ type: 'build_aircraft', buildingId: unitId, aircraftType: 'fighter' }))}
+        title={`Produz um caça no porta-aviões pelo preço normal (${formatUsd(def.usd)} + materiais e um recruta como piloto). Cabem ${max}.`}
+      >
+        <CostLabel cost={def.cost} have={ctx.resources} compact />
+      </CardButton>
+      <CardButton
+        icon="🎯"
+        label="Ataque aéreo"
+        blocked={strikeBlock !== null}
+        short={strikeBlock}
+        onClick={() => (strikeBlock ? warn(`Ataque aéreo: ${strikeBlock}`) : runtime.startAirTarget('strike', unitId, fighters.slice(0, 4)))}
+        title="Ataque com os caças prontos do convés contra um edifício inimigo já descoberto, em guerra e no alcance."
+      />
     </>
   );
 }
@@ -305,7 +351,7 @@ export function SiloButtons({ b, runtime }: { b: SelectedBuildingInfo; runtime: 
           blocked={prepBlock !== null}
           short={prepBlock}
           onClick={() => (prepBlock ? warn(`Lançamento: ${prepBlock}`) : runtime.startAirTarget('missile', b.id))}
-          title={`Escolha o alvo (território de um país em guerra, à vista ou junto de um edifício descoberto). A preparação leva ${spec.prepareSeconds}s e o lançamento ainda exige autorização.`}
+          title={`Escolha o alvo: qualquer ponto fora da sua fronteira, dentro do anel de alcance (${launcherRange('silo', gen)}); no território de outra nação, só em guerra. A preparação leva ${spec.prepareSeconds}s e o lançamento ainda exige autorização.`}
         />
       )}
       {hasNukeTech && (
@@ -422,12 +468,39 @@ export function HoldToConfirm({ label, onConfirm, ms = 1500 }: { label: string; 
 }
 
 /** Dica do modo de escolha de alvo (e confirmação do alvo do míssil). */
-export function airTargetText(purpose: 'recon' | 'strike' | 'missile' | 'drone', touch: boolean, hasTarget: boolean, missileGen = 1): { title: string; text: string } {
+export function airTargetText(purpose: 'recon' | 'strike' | 'missile' | 'drone' | 'paradrop', touch: boolean, hasTarget: boolean, missileGen = 1): { title: string; text: string } {
   const act = touch ? 'Toque' : 'Clique';
+  if (purpose === 'paradrop') return { title: 'Salto de paraquedistas', text: `${act} no ponto do salto, dentro do anel de alcance (fora da sua fronteira, só em guerra com o dono). As tropas paradas perto da base embarcam no C-5.` };
   if (purpose === 'drone') return { title: 'Drone de ataque', text: `${act} no ponto do ataque, dentro do anel de alcance. Depois, ${touch ? 'toque no drone' : 'clique no drone ou aperte T'} nos primeiros ${DRONE.takeoverSeconds}s para pilotar (opcional).` };
   if (purpose === 'recon') return { title: 'Reconhecimento aéreo', text: `${act} no ponto a reconhecer, dentro do anel de alcance. Botão direito ou Cancelar desiste.` };
   if (purpose === 'strike') return { title: 'Ataque aéreo', text: `${act} num edifício inimigo já descoberto, dentro do anel de alcance.` };
   return hasTarget
-    ? { title: 'Alvo do míssil marcado', text: `Confira o anel vermelho. Confirmar inicia a preparação (${missileSpec(missileGen).prepareSeconds}s de abastecimento); o lançamento ainda exige autorização no silo.` }
-    : { title: 'Alvo do míssil', text: `${act} no alvo: território de um país com quem você está em guerra, à vista ou junto de um edifício descoberto.` };
+    ? { title: 'Alvo do míssil marcado', text: `Confira o anel vermelho. Confirmar inicia a preparação (${missileSpec(missileGen).prepareSeconds}s de abastecimento); o lançamento ainda exige autorização.` }
+    : { title: 'Alvo do míssil', text: `${act} no alvo, dentro do anel de alcance: qualquer ponto fora da sua fronteira (no território de outra nação, só em guerra). Dano em área.` };
+}
+
+/** Submarino Lançador (03/11): mísseis a bordo, preparação, autorização e aborto, como no silo. */
+export function SubMissileButtons({ unitId, missiles, runtime }: { unitId: number; missiles: number; runtime: GameRuntime }) {
+  const air = useHudStore((s) => s.air);
+  const mySlot = useHudStore((s) => s.mySlot);
+  const active = (air?.launches ?? []).find((l) => l.siloId === unitId && l.owner === mySlot && (l.state === 'preparing' || l.state === 'armed' || l.state === 'launching'));
+  const block = missiles < 1 ? 'sem mísseis' : active ? 'em andamento' : null;
+  return (
+    <>
+      {!active && (
+        <CardButton
+          icon="⌖"
+          label={`Míssil de cruzeiro (${missiles})`}
+          blocked={block !== null}
+          short={block}
+          onClick={() => (block ? useHudStore.getState().pushEvent({ tick: useHudStore.getState().tick, text: `Míssil: ${block}`, tone: 'warn' }) : runtime.startAirTarget('missile', unitId))}
+          title={`Míssil de cruzeiro convencional: qualquer ponto fora da sua fronteira a até ${CRUISE.range} do submarino (anel no mapa); dano ${CRUISE.damage} em raio ${String(CRUISE.radius).replace('.', ',')}. Preparação de ${CRUISE.prepareSeconds}s e autorização. Recarrega junto a um Porto seu (um a cada ${CRUISE.reloadSeconds}s, pagando o míssil).`}
+        />
+      )}
+      {active && (active.state === 'preparing' || active.state === 'armed') && (
+        <CardButton icon="⏹" label="Abortar" onClick={() => runtime.send({ type: 'missile_abort', launchId: active.id })} title="Aborta o lançamento: o míssil volta ao submarino." />
+      )}
+      {active?.state === 'armed' && <HoldToConfirm label="Autorizar lançamento" onConfirm={() => runtime.send({ type: 'missile_authorize', launchId: active.id })} />}
+    </>
+  );
 }
