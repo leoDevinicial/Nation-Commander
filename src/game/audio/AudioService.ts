@@ -132,6 +132,38 @@ const PRIORITY: Record<CombatSound, number> = {
   missile_impact: 6,
 };
 
+/**
+ * Efeitos gravados (04/11, `public/sfx/`, preparados por `scripts/sfx-preparar.py`): quando o arquivo já carregou, o
+ * som de combate toca a gravação (variação sorteada, sem repetir a anterior, com leve variação de altura); enquanto
+ * não carregou, ou se falhar, toca o som sintetizado de sempre. `rounds` repete o tiro único em sequência (rajada
+ * curta de fuzil), com `interval` entre os disparos.
+ */
+interface SampleSet {
+  files: string[];
+  gain: number;
+  rate?: number;
+  rounds?: [number, number];
+  interval?: number;
+}
+const SFX = {
+  tank: ['tanque-tiro-1', 'tanque-tiro-2', 'tanque-tiro-3', 'tanque-tiro-4', 'tanque-tiro-5'],
+  explosion: ['explosao-grande-1', 'explosao-grande-2', 'explosao-grande-3'],
+  launch: ['missil-lancamento-1', 'missil-lancamento-2', 'missil-lancamento-3', 'missil-lancamento-4'],
+  impact: ['missil-impacto-1', 'missil-impacto-2', 'missil-impacto-3', 'missil-impacto-4'],
+  mg: ['metralhadora-tiro-1', 'metralhadora-tiro-2', 'metralhadora-tiro-3', 'metralhadora-tiro-4'],
+};
+/** Ganhos calibrados no navegador (04/11) para ficar no nível do sintetizado que substituem (média do canal de combate). */
+const SAMPLES: Partial<Record<CombatSound, SampleSet>> = {
+  mbt_gun: { files: SFX.tank, gain: 1.1, rate: 0.9 },
+  tank_gun: { files: SFX.tank, gain: 0.5 },
+  explosion_big: { files: SFX.explosion, gain: 1.35 },
+  bomb: { files: SFX.explosion, gain: 1.8 },
+  vehicle_explosion_heavy: { files: SFX.explosion, gain: 2.4, rate: 1.08 },
+  missile_launch: { files: SFX.launch, gain: 1.5 },
+  missile_impact: { files: SFX.impact, gain: 2.6 },
+  rifle: { files: SFX.mg, gain: 0.42, rounds: [3, 5], interval: 0.085 },
+};
+
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
 const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, bomber: 1.2, jet_cannon: 0.12, aam_launch: 0.25, drone_pass: 3, agm_launch: 0.2, air_mg: 0.18, bomb_whistle: 0.4, carpet_rumble: 1.5, bomb: 0.07, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, vehicle_explosion: 0.1, vehicle_explosion_heavy: 0.15, nuclear_blast: 1, space_prelaunch: 2, space_liftoff: 2, dome_launch: 0.2, dome_intercept: 0.3, tank_gun: 0.18, apc_gun: 0.25 };
 
@@ -188,6 +220,11 @@ export class AudioService {
   private ambient: { stop: () => void } | null = null;
   private ost: { deck: (id: TrackId) => Deck; current: TrackId | null; threat: Threat; calmNext: TrackId } | null = null;
   private alarm: { stop: () => void; id: number } | null = null;
+  /** Gravações decodificadas (nome → buffer); `null` = falhou (fica no sintetizado). */
+  private readonly sampleBufs = new Map<string, AudioBuffer | null>();
+  private readonly lastVariant = new Map<CombatSound, number>();
+  /** Desliga as gravações (comparação com o sintetizado em teste). */
+  useSamples = true;
 
   /** Celular: menos vozes simultâneas. */
   configure(opts: { mobile: boolean }): void {
@@ -225,6 +262,7 @@ export class AudioService {
         this.buses.set(c, g);
       }
       this.noise = this.makeNoise();
+      this.loadSamples();
       this.applyVolumes();
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
@@ -480,6 +518,59 @@ export class AudioService {
   }
 
   /** Reserva uma voz: respeita o limite, descartando a de menor prioridade. */
+  /** Baixa e decodifica as gravações em segundo plano (~0,8 MB); cada uma passa a valer assim que fica pronta. */
+  private loadSamples(): void {
+    const ctx = this.ctx;
+    if (!ctx || typeof fetch === 'undefined') return;
+    const names = new Set(Object.values(SAMPLES).flatMap((s) => s.files));
+    for (const name of names) {
+      if (this.sampleBufs.has(name)) continue;
+      fetch(`${import.meta.env.BASE_URL}sfx/${name}.mp3`)
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+        .then((data) => ctx.decodeAudioData(data))
+        .then((buf) => this.sampleBufs.set(name, buf))
+        .catch(() => this.sampleBufs.set(name, null));
+    }
+  }
+
+  /** Toca a gravação do som, se houver alguma pronta; devolve false para cair no sintetizado. */
+  private playSample(sound: CombatSound, gain: number, pan: number): boolean {
+    const set = SAMPLES[sound];
+    if (!set || !this.useSamples) return false;
+    const ready = set.files.map((f) => this.sampleBufs.get(f)).filter((b): b is AudioBuffer => !!b);
+    if (!ready.length) return false;
+    const ctx = this.ctx!;
+    const t = ctx.currentTime + 0.005;
+    const out = this.out('combat', gain * set.gain, pan);
+    const rounds = set.rounds ? set.rounds[0] + Math.floor(Math.random() * (set.rounds[1] - set.rounds[0] + 1)) : 1;
+    const nodes: AudioBufferSourceNode[] = [];
+    let end = t;
+    let last = this.lastVariant.get(sound) ?? -1;
+    for (let i = 0; i < rounds; i++) {
+      let pick = Math.floor(Math.random() * ready.length);
+      if (ready.length > 1 && pick === last) pick = (pick + 1) % ready.length;
+      last = pick;
+      const buf = ready[pick]!;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const rate = (set.rate ?? 1) * (1 + (Math.random() - 0.5) * 0.08);
+      src.playbackRate.value = rate;
+      const at = t + i * (set.interval ?? 0) + (i ? (Math.random() - 0.5) * 0.008 : 0);
+      if (i > 0) {
+        const g = ctx.createGain();
+        g.gain.value = 0.8 + Math.random() * 0.2;
+        src.connect(g).connect(out);
+      } else src.connect(out);
+      src.start(at);
+      end = Math.max(end, at + buf.duration / rate);
+      nodes.push(src);
+    }
+    this.lastVariant.set(sound, last);
+    const stop = () => nodes.forEach((n) => n.stop());
+    if (!this.claim(PRIORITY[sound], end, stop)) stop();
+    return true;
+  }
+
   private claim(priority: number, end: number, stop: () => void): boolean {
     const now = this.ctx!.currentTime;
     for (let i = this.voices.length - 1; i >= 0; i--) if (this.voices[i]!.end <= now) this.voices.splice(i, 1);
@@ -550,9 +641,10 @@ export class AudioService {
     const t = ctx.currentTime + 0.005;
     const vary = 1 + (Math.random() - 0.5) * 0.18;
     const nodes: AudioScheduledSourceNode[] = [];
-    const out = this.out('combat', gain, pan);
     const duck = DUCK[sound];
     if (duck) this.duckMusic(duck * Math.min(1, gain * 1.5));
+    if (this.playSample(sound, gain, pan)) return;
+    const out = this.out('combat', gain, pan);
     const burst = (type: BiquadFilterType, freq: number, q: number, attack: number, peak: number, decay: number, at = t, dest: AudioNode = out): number => {
       const n = this.noiseSource();
       const f = ctx.createBiquadFilter();

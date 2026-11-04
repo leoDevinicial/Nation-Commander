@@ -133,3 +133,20 @@ Uso provável: evento de prédio próprio que perde a luz (só para o dono e, de
 ou visível, para não tocar em cascata quando a rede inteira cai; nesse caso tocar uma vez só). Ao implementar: cortar
 para ~3 s com fade, subir o volume ~10–12 dB na normalização, converter para mono e tocar no canal de interface ou
 ambiente (não no de combate). Só há uma variação: dá para variar a altura (±5%) a cada vez.
+
+## Em uso no jogo (04/11)
+`scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
+~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
+áudio é liberado e, para cada som abaixo, toca a gravação (variação sorteada, sem repetir a anterior, altura ±4%);
+enquanto o arquivo não carregou, ou se falhar, toca o sintetizado de antes. Ganhos calibrados no navegador para ficar
+no nível do sintetizado substituído.
+
+| Som do jogo | Gravações | Observação |
+|---|---|---|
+| `tank_gun` (tanque) / `mbt_gun` (tanque moderno) | tanque-tiro 1–5 | o moderno toca 10% mais grave e mais alto |
+| `explosion_big`, `bomb`, `vehicle_explosion_heavy` | explosao-grande 1–3 | blindado pesado 8% mais agudo |
+| `missile_launch` | missil-lancamento 1–4 | |
+| `missile_impact` | missil-impacto 1–4 | |
+| `rifle` (infantaria) | metralhadora-tiro 1–4 | 3 a 5 tiros únicos em sequência (0,085 s) |
+
+Ainda não usados: rajadas (lote 7), artilharia distante (lote 5) e energia desligando (lote 8).
