@@ -558,6 +558,23 @@ torre atira muito). Sortear entre as duas com altura ±5% para não soar repetid
 cortar o silêncio da 3, cortar em ~0,6–0,8 s com fade (antes do eco tardio, senão o eco de vários tiros embola; ou
 manter o eco só a cada poucos tiros), normalizar com margem, converter para mono.
 
+## Lote 29 (04/11) — canhão rotativo do caça (2 arquivos)
+Pasta `originais/caca-canhao/`. MP3 48 kHz estéreo, 192 kbps, 5,0 s (≈ 122 KB). Dois arquivos de origens
+diferentes ("Create an ultra-real…" e "Authentic 20mm M61A2…"). Os dois são **saturados**: o disparo fica no limite
+por muitas amostras (107 e 116), som brilhante e áspero (centro ~4 kHz).
+
+| Arquivo | Origem | Rajada | Pico | Média | Observação |
+|---|---|---|---|---|---|
+| `caca-canhao-rajada-curta.mp3` | "Create an ultra-real" | **1,70–2,27 s** (~0,55 s), depois eco que some até ~4 s | +2,3 dB | −20,4 dB | **1,7 s de fundo baixo antes** (−49 dB, provavelmente o ronco do avião ao longe); rajada curta e grossa (40% de grave), com pulsar marcado de ~9 por segundo; bom eco "no céu" |
+| `caca-canhao-m61-rajada-longa.mp3` | "Authentic 20mm M61A2" | **0–2,0 s**, plana (−12 dB o tempo todo), corte limpo e cauda curta até ~2,6 s | +2,1 dB | −16,0 dB | o "BRRRT" contínuo do M61: rasgo liso (pulsar fraco, ~33/s), pouco grave (13%), começa direto em 0 s |
+
+Uso provável: `jet_cannon` (canhão do caça, hoje sintetizado como rajada de ~0,85–1,1 s a ~100 tiros/s com o ronco
+grave e o eco longo; toca no ataque do caça a alvo no chão e no combate aéreo). A M61 cortada em ~0,9–1,1 s com fade
+curto é a mais próxima do sintetizado; a rajada curta (recortada de 1,65 s em diante, sem o fundo) entra como
+variação mais grossa, com o eco dela. Com só 2 arquivos, cortar a M61 em pontos diferentes (0–1,0 s e 0,8–1,8 s) dá
+mais variações. Também pode servir à gatling do CIWS (lote 18), se as de lá soarem lentas. Ao implementar: normalizar
+com margem, converter para mono; a saturação gravada fica (combina com o rasgo do canhão).
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
