@@ -4,9 +4,8 @@ Este arquivo é o ponto de partida para quem pega o projeto numa conversa nova (
 antes de mexer em qualquer coisa. Depois leia `CLAUDE.md` (regras curtas) e
 `docs/BALANCEAMENTO_E_PROGRESSAO.md` (direção de design + tabela "Estado da implementação").
 
-Última atualização: **04/11/2026, noite**. A branch de publicação `claude/serene-bell-7cjnhp` está no commit `ddc8afc`
-(KAC-14); a de trabalho agora é `claude/friendly-maxwell-ssxv7n` (seção 0.1), com os efeitos gravados da segunda rodada
-(lotes 9–32) **ainda não publicados**. Não há pedido pela metade. O que mudou está no topo da seção 0.4; o que dá para
+Última atualização: **04/11/2026, noite**. **Tudo publicado:** a branch de publicação `claude/serene-bell-7cjnhp` está no
+commit `fd86870` (efeitos gravados, segunda rodada); a de trabalho agora é `claude/friendly-maxwell-ssxv7n` (seção 0.1). Não há pedido pela metade. O que mudou está no topo da seção 0.4; o que dá para
 fazer em seguida está na seção 0.45.
 
 ## 00. Checklist de chegada (faça nesta ordem, antes de qualquer pedido)
@@ -62,7 +61,7 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
   `265d772` da `claude/youthful-dijkstra-a45emp`; `npm ci`, 708 testes (78 arquivos), lint e typecheck limpos. A partir
   daqui a branch de trabalho é esta; a `claude/youthful-dijkstra-a45emp` fica parada em `265d772`.
 - **04/11/2026, noite — mesma conta:** 24 lotes de som recebidos e catalogados (lotes 9–32) e depois implementados de
-  uma vez (seção 0.4). 709 testes. Nada publicado depois de `ddc8afc`.
+  uma vez (seção 0.4). 709 testes. Publicado em `fd86870`.
 - Próxima conta: acrescente uma linha aqui (data, branch, commit de partida, testes).
 
 ## 0.2 Infraestrutura e coisas que só o usuário faz
