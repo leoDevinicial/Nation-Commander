@@ -1,3 +1,4 @@
+import { LanguagePicker } from '../components/LanguagePicker.tsx';
 import { useState } from 'react';
 import { gameClient } from '../../net/client.ts';
 import { localAdvisorStore, type Advice } from '../../game/perf/advisor.ts';
@@ -130,6 +131,7 @@ export function MenuScreen() {
       <div className="mt-6 flex items-center justify-between border-t border-ink-700 pt-4">
         <ConnectionBadge />
         <RegionPicker />
+        <LanguagePicker compact />
         <button className="btn px-3 py-1 text-xs" onClick={() => void signOut()}>
           Sair da Conta
         </button>

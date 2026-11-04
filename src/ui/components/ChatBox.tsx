@@ -16,8 +16,8 @@ export function ChatBox({ compact }: { compact?: boolean }) {
         {chat.length === 0 && <div className="text-ink-400">Sem mensagens.</div>}
         {chat.map((c) => (
           <div key={c.id} className={c.system ? 'text-ink-400 italic' : 'text-ink-200'}>
-            {!c.system && <span className="font-semibold text-brass-400">{c.from}: </span>}
-            {c.text}
+            {!c.system && <span className="font-semibold text-brass-400" translate="no">{c.from}: </span>}
+            {c.system ? c.text : <span translate="no">{c.text}</span>}
           </div>
         ))}
       </div>

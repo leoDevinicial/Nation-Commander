@@ -1,3 +1,4 @@
+import { LanguagePicker } from '../components/LanguagePicker.tsx';
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { fullscreenMode } from '../../lib/fullscreen.ts';
@@ -44,6 +45,10 @@ export function SettingsForm({ inGame = false }: { inGame?: boolean }) {
   return (
     <>
       <div className="space-y-4 text-sm">
+        <fieldset>
+          <legend className="label">Idioma</legend>
+          <LanguagePicker />
+        </fieldset>
         <fieldset>
           <legend className="label">Qualidade gráfica</legend>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-5" role="radiogroup">

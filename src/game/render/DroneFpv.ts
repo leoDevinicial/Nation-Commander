@@ -1,3 +1,4 @@
+import { t as tr } from '../../i18n/index.ts';
 import * as THREE from 'three';
 import { DRONE } from '../../../shared/sim/drones.ts';
 
@@ -598,7 +599,9 @@ export class DroneFpv {
   }
 
   /** Texto do OSD: branco com contorno preto, fonte monoespaçada. */
-  private text(t: string, x: number, y: number, size: number, align: CanvasTextAlign, color = '#fff'): void {
+  private text(raw: string, x: number, y: number, size: number, align: CanvasTextAlign, color = '#fff'): void {
+    // desenhado no canvas, fora do DOM: traduz aqui (04/11)
+    const t = tr(raw);
     const c = this.ctx;
     c.font = `bold ${Math.round(size)}px "Courier New", ui-monospace, monospace`;
     c.textAlign = align;

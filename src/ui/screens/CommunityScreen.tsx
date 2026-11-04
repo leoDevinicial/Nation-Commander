@@ -150,10 +150,10 @@ export function CommunityScreen() {
             return (
               <div key={m.id} className="group relative rounded px-1.5 py-1 text-sm leading-snug break-words hover:bg-ink-850">
                 <span className="mr-1.5 font-mono text-[10px] text-ink-400">{new Date(m.at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-                <span className={`font-semibold ${mine ? 'text-brass-400' : 'text-ink-100'}`}>{m.from}</span>
+                <span className={`font-semibold ${mine ? 'text-brass-400' : 'text-ink-100'}`} translate="no">{m.from}</span>
                 {m.guest && <span className="ml-1 rounded bg-ink-700 px-1 text-[9px] text-ink-300 uppercase">convidado</span>}
                 <span className="text-ink-400">: </span>
-                <span className="text-ink-200">{m.text}</span>
+                <span className="text-ink-200" translate="no">{m.text}</span>
                 {m.filtered && (
                   <span className="ml-1 text-[10px] text-ink-400" title="Parte da mensagem foi ocultada pelo filtro de ofensas">
                     (filtrada)
