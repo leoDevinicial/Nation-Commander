@@ -279,6 +279,24 @@ fileira (`AirLayer.dropBombs`), mas como o ronco é contínuo isso não deve inc
 inicial da 3, encurtar para ~5 s com fade, normalizar com margem, converter para mono; se ficar fraco no celular,
 somar um pouco do ronco sintetizado (que tem mais médios) ou subir os médios com um filtro.
 
+## Lote 16 (04/11) — Domo de Ferro, lançamento do interceptador (4 variações)
+Pasta `originais/domo-lancamento/`. Todos MP3 48 kHz estéreo, 192 kbps, 3,0 s (≈ 73 KB). Arquivo de origem:
+"18 - dome launch Dur N". As 4 são distintas. Estalo de ignição seguido do sopro do motor (whoosh) que dura ~1–2 s e
+some; terminam em silêncio (−55 a −69 dB). Centralizadas (sem movimento no estéreo). Nenhuma passa do limite.
+
+| Arquivo | Origem | Início | Pico | Média | Nível (a cada 0,25 s) | Observação |
+|---|---|---|---|---|---|---|
+| `domo-lancamento-1.mp3` | 1 | 0,07 s | −1,6 dB | −17,8 dB | −19, −13, −13, −13, −17, −21 … −49 | sopro forte e brilhante (3 kHz no começo) por ~1 s, tom descendo; um estalo menor em 1,65 s |
+| `domo-lancamento-2.mp3` | 2 | 0,15 s | −8,4 dB | −27,9 dB | −29, −21, −22, −27, −35 … −60 | a mais curta (~0,5 s de corpo) e a única **grave** (52% abaixo de 200 Hz): o baque da carga de expulsão; ~10 dB abaixo das outras; estalos menores em 0,83 e 1,58 s |
+| `domo-lancamento-3.mp3` | 3 | 0,13 s | −6,3 dB | −25,7 dB | −37, −25, −19, −19, −27 … −52 | o sopro **cresce** até ~0,5–1 s (o tom sobe até 2,7 kHz e depois cai): bom "subindo e se afastando" |
+| `domo-lancamento-4.mp3` | 4 | 0,03 s | −4,7 dB | −18,4 dB | −17, −18, −16, −16, −15, −16, −18, −19, −26 … −55 | a mais longa: motor contínuo por ~2 s antes de sumir |
+
+Uso provável: `dome_launch` (hoje sintetizado: estalo da ignição, baque grave e o motor sólido subindo de tom e
+sumindo), sorteando entre a 1, a 3 e a 4; a 2, sozinha, é fraca, mas serve como baque grave somado a uma das outras
+(o sintetizado tem esse baque). O Domo lança vários interceptadores seguidos: limitar quantos tocam juntos (`MIN_GAP`
+já tem 0,2 s). Ao implementar: cortar o silêncio inicial (0,03–0,15 s), cortar em ~2–2,5 s com fade, normalizar (subir
+a 2 e a 3), converter para mono.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
