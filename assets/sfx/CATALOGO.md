@@ -614,6 +614,24 @@ com as do lote 9 (que são mais rápidas). A 1a também serve para fogo antiaér
 atirando sem parar). **Ainda não cobre** a `aa_twin` (era 4: dois disparos pesados e separados) nem o estouro no ar
 (`flak`). Ao implementar: normalizar com margem, converter para mono.
 
+## Lote 32 (04/11) — antiaérea da era 4, disparo duplo (4 variações)
+Pasta `originais/antiaerea-era4-duplo/`. Todos MP3 48 kHz estéreo, 192 kbps, 3,0 s (≈ 73 KB). Arquivo de origem:
+"07 - aa era4 double N". As 4 são distintas. Dois disparos de canhão (um de cada cano) com cauda curta; o
+intervalo entre eles varia bastante:
+
+| Arquivo | Origem | Disparos (s) | Intervalo | Pico | Média | Até ~−40 dB | Observação |
+|---|---|---|---|---|---|---|---|
+| `antiaerea-era4-duplo-1.mp3` | 1 | 0,00 e 0,09 | 0,09 s | +2,1 dB | −23,3 dB | ~0,8 s | dois tiros fortes e iguais, quase colados; 17 amostras no limite |
+| `antiaerea-era4-duplo-2.mp3` | 2 | 0,12 e 0,32 | **0,20 s** | −5,4 dB | −30,3 dB | ~2,0 s | o intervalo **igual ao do sintetizado** (0,2 s); segundo tiro mais fraco; cauda de eco longa; ~7 dB mais baixo |
+| `antiaerea-era4-duplo-3.mp3` | 3 | não dá para separar | — | −7,6 dB | −33,4 dB | ~2,7 s | **sem ataque claro** (começa em −21 dB e só cai): soa como disparo distante e abafado; o mais fraco |
+| `antiaerea-era4-duplo-4.mp3` | 4 | 0,06 e 0,20 | 0,14 s | +1,9 dB | −26,9 dB | ~0,8 s | o mais pesado e brilhante (46% de grave, centro 3,3 kHz); primeiro tiro bem mais forte que o segundo (−6 e −20 dB); 36 amostras no limite |
+
+Uso provável: `aa_twin` (Antiaérea Móvel do Futuro Próximo, 30 mm gêmeos: hoje dois disparos sintetizados a ~0,2 s,
+cada um com estalo, sopro, soco grave e o ferrolho). A 2 encaixa como está; a 1 e a 4 dão o mesmo efeito com o
+intervalo mais curto (dá para afastar o segundo tiro ao recortar: cortar no meio e tocar o segundo 0,2 s depois do
+primeiro); a 3 serve como tiro distante. Ao implementar: cortar o início da 2, cortar em ~1 s com fade (a 2 em ~1,5 s,
+pelo eco), normalizar com margem (subir a 2 e a 3), converter para mono.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
