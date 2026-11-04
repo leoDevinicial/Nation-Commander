@@ -134,6 +134,29 @@ ou visível, para não tocar em cascata quando a rede inteira cai; nesse caso to
 para ~3 s com fade, subir o volume ~10–12 dB na normalização, converter para mono e tocar no canal de interface ou
 ambiente (não no de combate). Só há uma variação: dá para variar a altura (±5%) a cada vez.
 
+## Lote 9 (04/11) — antiaérea, rajada de canhão automático (4 variações)
+Primeiro lote da segunda rodada (depois da lista de sons que faltam). Pasta `originais/antiaerea-rajada/`. Todos MP3
+48 kHz estéreo, 192 kbps, 3,0 s (≈ 73 KB). Arquivo de origem: "Duration 2-3 seconds N". As 4 são distintas.
+
+Todas são **uma rajada só** de canhão automático, com o primeiro tiro logo em 0 s: tiros a cada ~45–50 ms (~1.200–1.300
+por minuto, medido pelo intervalo entre os picos do envelope), som brilhante (centro do espectro em 3,2–4,5 kHz). Não
+há estouro no ar (o "flak" explodindo perto do avião): é só o disparo.
+
+| Arquivo | Origem | Conteúdo | Pico | Média | Até ~−40 dB | Observação |
+|---|---|---|---|---|---|---|
+| `antiaerea-rajada-1.mp3` | 1 | ~10 tiros em ~0,45 s | +0,5 dB | −23,7 dB | ~0,7 s | a mais fraca no corpo (envelope em −25 a −30 dB), com mais grave (23% abaixo de 200 Hz); precisa de ~+4 dB na normalização |
+| `antiaerea-rajada-2.mp3` | 2 | ~10 tiros em ~0,45 s | +1,1 dB | −20,4 dB | ~0,8 s | a mais forte e encorpada no meio da rajada; pouco grave (8%) |
+| `antiaerea-rajada-3.mp3` | 3 | ~7 tiros em ~0,3 s | −0,7 dB | −23,5 dB | ~0,6 s | a mais curta e seca; boa para rajada rápida ou distante |
+| `antiaerea-rajada-4.mp3` | 4 | ~12 tiros em ~0,6 s | +0,7 dB | −18,8 dB | ~0,95 s | a mais longa e cheia, mais grave (24%, centro em 3,2 kHz) |
+
+Picos acima de 0 dB (o MP3 passa do limite): normalizar com margem. Depois de ~1 s só sobra ruído baixo (−55 a −80 dB).
+
+Uso provável: `aa_gun` (Antiaérea Móvel das eras 1–3, que hoje sintetiza uma rajada de 6–9 tiros a ~12 por segundo):
+encaixa direto, só um pouco mais rápida que a sintetizada; sortear entre as 4, altura ±4%. **Não** serve para
+`aa_twin` (a antiaérea da era 4 dá dois disparos pesados e separados de 30 mm; dá para testar a 1 ou a 4 tocadas ~15%
+mais graves, mas o ideal é outra gravação) nem para `flak` (estouro no ar quando um avião cai; falta gravação). Ao
+implementar: cortar em ~1,1 s com fade de ~0,15 s, normalizar o volume entre elas e converter para mono.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
