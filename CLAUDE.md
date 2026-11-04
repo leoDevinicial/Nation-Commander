@@ -6,10 +6,10 @@ Supabase para contas e histórico). O jogo é todo em português.
 > **Começando numa conversa nova?** Leia primeiro [`docs/HANDOFF.md`](docs/HANDOFF.md): branch de trabalho, como rodar e
 > verificar, mapa do código, o que já foi feito e de onde continuar.
 >
-> **Branch de trabalho atual: `claude/youthful-dijkstra-a45emp`** (criada de `claude/serene-bell-7cjnhp` no commit
-> `20bdcc5`; ver seção 0.1 do handoff). Commits e push só nela, sem merge nem PR sem pedido do usuário.
+> **Branch de trabalho atual: `claude/friendly-maxwell-ssxv7n`** (04/11, a partir de `265d772` da
+> `claude/youthful-dijkstra-a45emp`; ver seção 0.1 do handoff). Commits e push só nela, sem merge nem PR sem pedido do usuário.
 > **Outra conta assumindo?** Siga a seção "00. Checklist de chegada" do handoff: a branch nova parte da
-> `claude/youthful-dijkstra-a45emp` (a mais nova), nunca de uma branch antiga.
+> `claude/friendly-maxwell-ssxv7n` (a mais nova), nunca de uma branch antiga.
 > **Publicar** (só quando o usuário disser "publica"): fast-forward da `claude/serene-bell-7cjnhp` até a branch de
 > trabalho, seção 0.0 do handoff.
 

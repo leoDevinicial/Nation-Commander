@@ -59,6 +59,9 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 - **30/10/2026 — conta anterior:** branch `claude/serene-bell-7cjnhp` (hoje é a de publicação).
 - **02–04/11/2026 — mesma branch `claude/youthful-dijkstra-a45emp`:** 61 commits (seção 0.4), tudo publicado até
   `ddc8afc`; 708 testes. O usuário passou a outra conta (Claude Pro) por limite de uso em 04/11.
+- **04/11/2026 — conta nova (Claude Pro):** branch `claude/friendly-maxwell-ssxv7n`, avançada (fast-forward) até
+  `265d772` da `claude/youthful-dijkstra-a45emp`; `npm ci`, 708 testes (78 arquivos), lint e typecheck limpos. A partir
+  daqui a branch de trabalho é esta; a `claude/youthful-dijkstra-a45emp` fica parada em `265d772`.
 - Próxima conta: acrescente uma linha aqui (data, branch, commit de partida, testes).
 
 ## 0.2 Infraestrutura e coisas que só o usuário faz
