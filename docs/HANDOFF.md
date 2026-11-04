@@ -4,10 +4,11 @@ Este arquivo é o ponto de partida para quem pega o projeto numa conversa nova (
 antes de mexer em qualquer coisa. Depois leia `CLAUDE.md` (regras curtas) e
 `docs/BALANCEAMENTO_E_PROGRESSAO.md` (direção de design + tabela "Estado da implementação").
 
-Última atualização: **01/11/2026 (noite)**. **Tudo publicado:** a branch de publicação `claude/serene-bell-7cjnhp`
-está igual à de trabalho `claude/youthful-dijkstra-a45emp` (o commit deste handoff é o último; confira com
-`git log -1 origin/claude/serene-bell-7cjnhp`). Não há pedido pela metade. O que mudou desde a versão anterior deste
-arquivo está na seção 0.4 (redesenho de quase todos os edifícios, árvores, pedras, pássaros e a regra do porto).
+Última atualização: **04/11/2026**. **Tudo publicado:** a branch de publicação `claude/serene-bell-7cjnhp` está no
+commit `ddc8afc` (KAC-14); a de trabalho `claude/youthful-dijkstra-a45emp` tem só este handoff a mais (só documentação,
+não precisa publicar). Não há pedido pela metade. O que mudou de 02 a 04/11 está no topo da seção 0.4 (eras com
+zoneamento e comércio, Marinha, mapas oceânicos, água natural, idiomas, trilha sonora, efeitos gravados e KAC-14);
+o que dá para fazer em seguida está na seção 0.45.
 
 ## 00. Checklist de chegada (faça nesta ordem, antes de qualquer pedido)
 
@@ -23,7 +24,7 @@ arquivo está na seção 0.4 (redesenho de quase todos os edifícios, árvores, 
      `git merge-base --is-ancestor origin/claude/serene-bell-7cjnhp origin/claude/youthful-dijkstra-a45emp && echo ok`.
    - Se for a própria `claude/youthful-dijkstra-a45emp`, só `git pull`.
    - **Nunca** reescreva histórico, force push, merge ou PR sem o usuário pedir. Não use branches `ccr-…` nem as antigas.
-2. **Instalar e verificar:** `npm ci && npm test && npm run lint && npm run typecheck`. Em 01/11 (noite): **624 testes** (64
+2. **Instalar e verificar:** `npm ci && npm test && npm run lint && npm run typecheck`. Em 04/11: **708 testes** (78
    arquivos), lint e typecheck limpos. Se algo falhar logo na chegada, investigue antes de mudar qualquer coisa.
 3. **Anote aqui (seção 0.1)** a branch nova, o commit de partida e o resultado dos testes, e atualize o `CLAUDE.md`
    ("Branch de trabalho atual"). Commit pequeno só com isso.
@@ -56,6 +57,8 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 - **01/11/2026 — conta que fez as entregas de 30/10 a 01/11:** branch `claude/youthful-dijkstra-a45emp`, criada de
   `claude/serene-bell-7cjnhp` no commit `20bdcc5`. Tudo publicado até o commit deste handoff (01/11, noite).
 - **30/10/2026 — conta anterior:** branch `claude/serene-bell-7cjnhp` (hoje é a de publicação).
+- **02–04/11/2026 — mesma branch `claude/youthful-dijkstra-a45emp`:** 61 commits (seção 0.4), tudo publicado até
+  `ddc8afc`; 708 testes. O usuário passou a outra conta (Claude Pro) por limite de uso em 04/11.
 - Próxima conta: acrescente uma linha aqui (data, branch, commit de partida, testes).
 
 ## 0.2 Infraestrutura e coisas que só o usuário faz
@@ -112,6 +115,37 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 
 ## 0.4 O que mudou desde 31/10 (mais recente primeiro; detalhes no `git log` e nas docs citadas)
 
+**04/11 — áudio, idiomas e um vazamento de névoa:**
+
+- **KAC-14** (`ddc8afc`, `docs/kac/KAC_THREAT_MODEL.md`): estradas e rodovias de todas as nações iam para todos no
+  snapshot e no terreno do `match_start` (reconexão). Agora `FogMemory.roads` em `makeSnapshot`: as próprias sempre, as
+  alheias só depois de vistas e lembradas como estavam; `Room.terrainFor` tira do terreno as desconhecidas; o
+  `attack_road` checa a visão antes de dizer se há estrada. O cliente aplica `s.roads` sempre que vier (não só com o
+  território). Testes em `server/kac.test.ts` e `shared/test/engineering.test.ts`.
+- **Efeitos gravados** (`efc5d68` … `fcbf910`; `assets/sfx/CATALOGO.md`): o usuário manda lotes de MP3 (4 variações
+  por som). Os originais ficam em `assets/sfx/originais/` (fora do build), catalogados com análise de cada um;
+  `python3 scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume em `public/sfx/` (29 clipes,
+  ~1,2 MB). No `AudioService`, `SAMPLES` liga cada `CombatSound` às gravações (sorteio sem repetir, altura ±4%, ganhos
+  calibrados no navegador contra o sintetizado); sem o arquivo, toca o sintetizado. Já em uso: tanque, explosão
+  grande/bomba/blindado pesado, lançamento e impacto de míssil, fuzil (tiros únicos ou rajada), metralhadora do caça;
+  `warAt` (artilharia distante quando a câmera se afasta do combate do jogador) e `powerDown` (prédio sem energia).
+  Ao receber um lote novo: guardar + catalogar sem implementar (o usuário pede assim), depois implementar quando pedir.
+- **Trilha sonora** (`254cec2`, `3015a2a`, `3e9241c`; `docs/TRILHA_SONORA.md`): 4 faixas em `public/music/` trocadas
+  por `ThreatTracker` (`src/game/audio/threat.ts`: calma / combate / massivo, com histerese) e crossfade de 3–5 s. A
+  guerra fica acima da música: EQ por estado (`MUSIC_EQ`, corta graves e médios da música em combate) e ducking só em
+  eventos grandes (`DUCK`). O usuário recusou ducking a cada tiro ("bombeamento"); não volte a ele. Botão 🎵 na barra e
+  tecla M silenciam só a música (`musicMuted` nas configurações).
+- **Idiomas** (`db9569f`; `docs/IDIOMAS.md`): inglês e espanhol traduzindo o texto em português na tela
+  (`src/i18n/`), idioma pela região do IP (`api/geo.js` na Vercel) e seletor no menu. Texto novo na interface: chave
+  em `en.ts` e `es.ts`.
+- **Trailer em inglês** (≤45 s) entregue como arquivo; não está no git.
+
+**02–03/11 — sistemas grandes (cada um com doc próprio, citado no `CLAUDE.md`):** zoneamento R/C/I com lotes privados,
+conhecimento e cidades, caixa do país sem dívida pública, comércio entre nações e mercado mundial, rodovias e estradas
+como alvo, mapas oceânicos (Oceano Central, Arquipélago sem pontes), Marinha completa (transporte, fragata, submarinos,
+porta-aviões, cargueiro, L402, C-5 com paraquedas), combustível de veículos e navios, alertas mundiais, botão
+Construir/Demolir, água natural (mais escura quanto mais funda, rastro dos navios).
+
 **01/11, tarde e noite — redesenhos a pedido do usuário (um por mensagem, sempre com print do jogo):**
 
 - **Pedras do terreno** (`da296e7`): `src/game/render/Rocks.ts` (matacões com musgo, afloramento em camadas, penhasco,
@@ -166,6 +200,21 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 - **Visual e aviação** (31/10–01/11): APC 8×8 com rajada de 30 mm, árvores balançando, caças +11,5% e rajadas
   longas, caças com canhão/metralhadora/mísseis, bombardeiro novo, cargueiros por era, drone de reconhecimento, Base
   Aérea 5×5, usina solar com reflexo, clima ocasional, jazida de petróleo reservada, obras sem bloquear estradas/saídas.
+
+## 0.45 De onde continuar (04/11)
+
+- **Mais efeitos sonoros:** o usuário perguntou o que falta e recebeu a lista (ainda sintetizados): explosão
+  pequena/média (`explosion`, `vehicle_explosion`), canhão e obus, lança-foguetes, canhão do blindado, antiaérea, torre;
+  passagem de caça e bombardeiro, mísseis do caça, assobio de bomba e bombardeio em tapete, Domo de Ferro, drone, gatling
+  do CIWS; nuclear, Programa Espacial, sirene; interface, ambiente e produção dos prédios. Quando chegarem lotes: guardar
+  e catalogar como os anteriores, acrescentar em `scripts/sfx-preparar.py` e em `SAMPLES`, calibrar o ganho no
+  navegador (o teste de calibração usado foi tocar `audio.play(som)` com `useSamples` falso/verdadeiro e medir o canal
+  `combat` com um `AnalyserNode`).
+- **Não verificado de ouvido:** os níveis dos efeitos foram medidos, não ouvidos; a queda de energia foi testada
+  chamando `powerDown` direto. Se o usuário reclamar de volume, ajustar `gain` em `SAMPLES` ou o fator em
+  `warAt`/`powerDown`.
+- **Navegador sem GPU no contêiner:** com swiftshader cada quadro leva segundos e o `performance.now()` salta ~25 s
+  por avaliação; o relógio da trilha e da ameaça parece "pular". Confira o estado, não o tempo.
 
 ## 0. Transição anterior (30/10/2026) — histórico, o checklist atual é a seção 00
 

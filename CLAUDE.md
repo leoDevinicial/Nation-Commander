@@ -88,7 +88,7 @@ O Nation Commander é **low poly estilizado**, por decisão do responsável pelo
   Refinaria sai primeiro); sem nenhum, andam a 50%. Testes de regra antigos rodam sem ele (`shared/test/setup.ts`).
 - Efeitos gravados (`public/sfx/`, `assets/sfx/CATALOGO.md`, `SAMPLES` no `AudioService`): tiro de tanque, explosão grande, míssil, fuzil e metralhadora do caça tocam gravações (sem o arquivo, cai no sintetizado); guerra ao longe (`warAt`) e energia desligando (`powerDown`).
 - Trilha sonora (`public/music/`, `docs/TRILHA_SONORA.md`): 4 faixas trocadas por estado de ameaça (`threat.ts`) com crossfade de
-  3–5 s no `AudioService`; os efeitos continuam sintetizados.
+  3–5 s no `AudioService`; a guerra fica acima da música (EQ por estado e ducking só em eventos grandes); tecla M silencia só a música.
 - Idiomas (`src/i18n/`, `docs/IDIOMAS.md`): o código segue em português; `en.ts`/`es.ts` traduzem o texto da tela
   (escolha no menu, ou região pelo IP via `api/geo.js` da Vercel). Texto novo na interface: acrescente a tradução nos dois
   dicionários; `npx tsx scripts/i18n-faltando.ts` lista o que falta. Chat e nomes de jogadores ficam com `translate="no"`.
