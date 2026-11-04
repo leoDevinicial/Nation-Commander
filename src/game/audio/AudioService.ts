@@ -21,8 +21,8 @@ type TrackId = 'horizon' | 'perimeter' | 'war' | 'zero';
 const TRACKS: Record<TrackId, { file: string; calm: boolean; gain: number }> = {
   horizon: { file: 'architect-of-the-horizon.mp3', calm: true, gain: 0.85 },
   perimeter: { file: 'the-last-perimeter.mp3', calm: true, gain: 0.85 },
-  war: { file: 'the-war-board.mp3', calm: false, gain: 0.95 },
-  zero: { file: 'strike-at-zero.mp3', calm: false, gain: 1 },
+  war: { file: 'the-war-board.mp3', calm: false, gain: 0.7 },
+  zero: { file: 'strike-at-zero.mp3', calm: false, gain: 0.65 },
 };
 /** Duração dos crossfades (s): subir de tensão é mais rápido que voltar à calma; entre faixas calmas, o meio-termo. */
 const MUSIC_FADE = { up: 3, down: 5, calm: 4 };
@@ -38,6 +38,29 @@ export const DEFAULT_VOLUMES: Volumes = { master: 0.8, music: 0.35, ui: 0.7, amb
 
 export type UiSound = 'click' | 'confirm' | 'error' | 'alert' | 'success' | 'hold' | 'herald' | 'warning' | 'attack';
 export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'mbt_gun' | 'tank_gun' | 'vehicle_explosion' | 'vehicle_explosion_heavy' | 'nuclear_blast' | 'space_prelaunch' | 'space_liftoff' | 'dome_launch' | 'dome_intercept' | 'gatling' | 'bomber' | 'jet_cannon' | 'bomb_whistle' | 'carpet_rumble' | 'aam_launch' | 'agm_launch' | 'air_mg' | 'drone_pass' | 'apc_gun';
+/** Quanto cada som de combate abaixa a música (0..1); o resto abaixa 0,3. */
+const DUCK: Partial<Record<CombatSound, number>> = {
+  rifle: 0.25,
+  gatling: 0.3,
+  air_mg: 0.25,
+  apc_gun: 0.3,
+  explosion: 0.55,
+  explosion_big: 0.7,
+  vehicle_explosion: 0.55,
+  vehicle_explosion_heavy: 0.65,
+  bomb: 0.65,
+  carpet_rumble: 0.7,
+  howitzer: 0.5,
+  mbt_gun: 0.5,
+  tank_gun: 0.45,
+  cannon: 0.45,
+  missile_launch: 0.55,
+  missile_impact: 0.7,
+  intercept: 0.55,
+  dome_intercept: 0.55,
+  nuclear_blast: 0.75,
+  space_liftoff: 0.6,
+};
 export type MissileCue = 'prepare' | 'armed' | 'authorize';
 
 /** Som de trabalho de cada edifício (os demais usam o zumbido genérico). */
@@ -150,6 +173,9 @@ export class AudioService {
   private readonly buses = new Map<Channel, GainNode>();
   private volumes: Volumes = { ...DEFAULT_VOLUMES };
   private muted = false;
+  private musicMuted = false;
+  /** Abaixa a música sob tiros e explosões (a guerra sempre se ouve acima da trilha). */
+  private duck: GainNode | null = null;
   private noise: AudioBuffer | null = null;
   private readonly voices: Voice[] = [];
   private maxVoices = 24;
@@ -177,9 +203,11 @@ export class AudioService {
       comp.knee.value = 12;
       comp.ratio.value = 4;
       this.master.connect(comp).connect(this.ctx.destination);
+      this.duck = this.ctx.createGain();
+      this.duck.connect(this.master);
       for (const c of CHANNELS) {
         const g = this.ctx.createGain();
-        g.connect(this.master);
+        g.connect(c === 'music' ? this.duck : this.master);
         this.buses.set(c, g);
       }
       this.noise = this.makeNoise();
@@ -192,9 +220,10 @@ export class AudioService {
     return !!this.ctx && this.ctx.state === 'running';
   }
 
-  setVolumes(v: Volumes, muted: boolean): void {
+  setVolumes(v: Volumes, muted: boolean, musicMuted = false): void {
     this.volumes = { ...v };
     this.muted = muted;
+    this.musicMuted = musicMuted;
     this.applyVolumes();
   }
 
@@ -202,7 +231,23 @@ export class AudioService {
     if (!this.ctx || !this.master) return;
     const t = this.ctx.currentTime;
     this.master.gain.setTargetAtTime(this.muted ? 0 : this.volumes.master, t, 0.05);
-    for (const c of CHANNELS) this.buses.get(c)!.gain.setTargetAtTime(this.volumes[c], t, 0.05);
+    for (const c of CHANNELS) this.buses.get(c)!.gain.setTargetAtTime(c === 'music' && this.musicMuted ? 0 : this.volumes[c], t, 0.05);
+  }
+
+  /**
+   * Abaixa a música por um instante (`depth` 0..1 do volume dela): desce em 60 ms e volta em ~1,5 s. Sons seguidos
+   * mantêm a música baixa; tiro leve abaixa pouco, explosão e míssil abaixam bem mais.
+   */
+  private duckMusic(depth: number): void {
+    const g = this.duck;
+    if (!g || !this.ctx || depth <= 0.02) return;
+    const t = this.ctx.currentTime;
+    const now = g.gain.value;
+    const to = Math.min(now, 1 - Math.min(0.75, depth));
+    g.gain.cancelScheduledValues(t);
+    g.gain.setValueAtTime(now, t);
+    g.gain.linearRampToValueAtTime(to, t + 0.06);
+    g.gain.setTargetAtTime(1, t + 0.4, 0.5);
   }
 
   /** Ponto que a câmera olha, distância da câmera e giro (para atenuação e panorâmica). */
@@ -482,6 +527,7 @@ export class AudioService {
     const vary = 1 + (Math.random() - 0.5) * 0.18;
     const nodes: AudioScheduledSourceNode[] = [];
     const out = this.out('combat', gain, pan);
+    this.duckMusic((DUCK[sound] ?? 0.3) * Math.min(1, gain * 1.5));
     const burst = (type: BiquadFilterType, freq: number, q: number, attack: number, peak: number, decay: number, at = t, dest: AudioNode = out): number => {
       const n = this.noiseSource();
       const f = ctx.createBiquadFilter();

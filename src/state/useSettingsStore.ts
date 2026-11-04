@@ -27,6 +27,8 @@ export interface Settings {
   /** Volume (0..1) de cada canal de áudio e o geral. */
   volumes: Volumes;
   muted: boolean;
+  /** Silencia só a trilha sonora (efeitos, alertas e combate seguem tocando). */
+  musicMuted: boolean;
 }
 
 export type FpsTarget = 'auto' | 30 | 60;
@@ -42,7 +44,7 @@ function defaults(): Settings {
   } catch {
     // ambiente sem navigator/screen (testes): mantém equilibrado
   }
-  return { quality, shadows: true, adaptiveQuality: true, fpsTarget: 'auto', panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false, autoFullscreen: touch, lockLandscape: false, volumes: { ...DEFAULT_VOLUMES }, muted: false };
+  return { quality, shadows: true, adaptiveQuality: true, fpsTarget: 'auto', panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false, autoFullscreen: touch, lockLandscape: false, volumes: { ...DEFAULT_VOLUMES }, muted: false, musicMuted: false };
 }
 
 /** Lê configurações salvas; aceita o formato antigo ('low' | 'high'). */
@@ -63,6 +65,7 @@ export function parseSettings(raw: string | null, base: Settings): Settings {
       lockLandscape: typeof p.lockLandscape === 'boolean' ? p.lockLandscape : base.lockLandscape,
       volumes: parseVolumes(p.volumes, base.volumes),
       muted: Boolean(p.muted),
+      musicMuted: Boolean(p.musicMuted),
     };
   } catch {
     return base;
@@ -97,9 +100,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   ...load(),
   update: (patch) => {
     set(patch);
-    const { quality, shadows, adaptiveQuality, fpsTarget, panSpeed, edgeScroll, showFps, reducedMotion, autoFullscreen, lockLandscape, volumes, muted } = get();
+    const { quality, shadows, adaptiveQuality, fpsTarget, panSpeed, edgeScroll, showFps, reducedMotion, autoFullscreen, lockLandscape, volumes, muted, musicMuted } = get();
     try {
-      localStorage.setItem(KEY, JSON.stringify({ quality, shadows, adaptiveQuality, fpsTarget, panSpeed, edgeScroll, showFps, reducedMotion, autoFullscreen, lockLandscape, volumes, muted }));
+      localStorage.setItem(KEY, JSON.stringify({ quality, shadows, adaptiveQuality, fpsTarget, panSpeed, edgeScroll, showFps, reducedMotion, autoFullscreen, lockLandscape, volumes, muted, musicMuted }));
     } catch {
       // armazenamento indisponível: mantém apenas em memória
     }

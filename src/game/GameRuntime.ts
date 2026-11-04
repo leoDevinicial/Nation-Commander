@@ -3360,7 +3360,7 @@ export class GameRuntime {
     audio.configure({ mobile: isTouchDevice() || this.opts.profile.terrain === 'low' });
     const apply = () => {
       const s = useSettingsStore.getState();
-      audio.setVolumes(s.volumes, s.muted);
+      audio.setVolumes(s.volumes, s.muted, s.musicMuted);
     };
     apply();
     this.cleanup.push(useSettingsStore.subscribe(apply));

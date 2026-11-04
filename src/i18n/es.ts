@@ -2,7 +2,12 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → espanhol (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const ES: Dict = {
-  "Os efeitos são gerados no próprio aparelho; a música é a trilha sonora original, que acompanha a tensão da partida (construção, combate, ataque massivo e guerra nuclear). Combate soa mais alto perto do ponto que a câmera olha; a produção toca só para o edifício selecionado. Alertas importantes também aparecem sempre no painel de eventos.": "Los efectos se generan en el propio dispositivo; la música es la banda sonora original, que acompaña la tensión de la partida (construcción, combate, ataque masivo y guerra nuclear). El combate suena más alto cerca del punto al que mira la cámara; la producción suena solo para el edificio seleccionado. Las alertas importantes también aparecen siempre en el panel de eventos.",
+  "Os efeitos são gerados no próprio aparelho; a música é a trilha sonora original, que acompanha a tensão da partida (construção, combate, ataque massivo e guerra nuclear) e baixa sozinha sob tiros e explosões. Na partida, o botão 🎵 (ou a tecla M) liga e desliga a música. Combate soa mais alto perto do ponto que a câmera olha; a produção toca só para o edifício selecionado. Alertas importantes também aparecem sempre no painel de eventos.": "Los efectos se generan en el propio dispositivo; la música es la banda sonora original, que acompaña la tensión de la partida (construcción, combate, ataque masivo y guerra nuclear) y baja sola bajo disparos y explosiones. En la partida, el botón 🎵 (o la tecla M) activa y desactiva la música. El combate suena más alto cerca del punto al que mira la cámara; la producción suena solo para el edificio seleccionado. Las alertas importantes también aparecen siempre en el panel de eventos.",
+  "Silenciar só a música (M)": "Silenciar solo la música (M)",
+  "Ligar a música (M)": "Activar la música (M)",
+  "Silenciar a música (M); os sons da guerra continuam": "Silenciar la música (M); los sonidos de la guerra siguen sonando",
+  "Ligar a música": "Activar la música",
+  "Silenciar a música": "Silenciar la música",
   "Trilha sonora original do jogo: Architect of the Horizon e The Last Perimeter (construção), The War Board (combate) e Strike at Zero (ataque massivo e guerra nuclear).": "Banda sonora original del juego: Architect of the Horizon y The Last Perimeter (construcción), The War Board (combate) y Strike at Zero (ataque masivo y guerra nuclear).",
   "% (opera a 50% durante a obra)": "% (opera al 50% durante la obra)",
   "% (parada na instalação)": "% (detenida en la instalación)",

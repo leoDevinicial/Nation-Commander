@@ -251,6 +251,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
         >
           🏛<span className="hidden min-[2100px]:inline">Nação</span>
         </button>
+        <MusicButton />
         <FullscreenButton />
         <button className="btn min-h-8 px-2 py-1 text-xs whitespace-nowrap" onClick={onMenu} title="Menu (F10)" aria-label="Menu">
           ☰<span className="hidden min-[2100px]:inline">Menu</span>
@@ -324,5 +325,23 @@ function PowerChip({ power }: { power: { supply: number; demand: number; served:
         {power.served}/{power.supply}
       </span>
     </div>
+  );
+}
+
+/** Liga/desliga só a trilha sonora durante a partida (atalho M); volumes finos ficam em Menu → Áudio e Volumes. */
+function MusicButton() {
+  const musicMuted = useSettingsStore((s) => s.musicMuted);
+  const update = useSettingsStore((s) => s.update);
+  return (
+    <button
+      className={`btn min-h-8 px-2 py-1 text-xs whitespace-nowrap ${musicMuted ? 'opacity-60' : ''}`}
+      onClick={() => update({ musicMuted: !musicMuted })}
+      title={musicMuted ? 'Ligar a música (M)' : 'Silenciar a música (M); os sons da guerra continuam'}
+      aria-label={musicMuted ? 'Ligar a música' : 'Silenciar a música'}
+      aria-pressed={musicMuted}
+    >
+      {musicMuted ? '🔇' : '🎵'}
+      <span className="hidden min-[2100px]:inline">Música</span>
+    </button>
   );
 }

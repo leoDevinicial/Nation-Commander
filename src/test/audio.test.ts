@@ -50,6 +50,7 @@ describe('áudio contextual (Fase 7)', () => {
       lockLandscape: false,
       volumes: { ...DEFAULT_VOLUMES },
       muted: false,
+      musicMuted: false,
     } as Settings;
     const s = parseSettings(JSON.stringify({ volumes: { master: 0.3, combat: 2, music: 'x' }, muted: true }), base);
     expect(s.volumes.master).toBe(0.3);

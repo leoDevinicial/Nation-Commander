@@ -101,6 +101,7 @@ describe('preset Ultra+', () => {
       lockLandscape: false,
       volumes: { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 },
       muted: false,
+      musicMuted: false,
     });
     expect(parseSettings(JSON.stringify({ quality: 'ultraplus' }), base).quality).toBe('ultraplus');
   });

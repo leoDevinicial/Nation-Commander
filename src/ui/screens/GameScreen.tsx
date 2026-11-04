@@ -150,7 +150,7 @@ export function GameScreen() {
     };
   }, [match]);
 
-  // atalhos da tela: F10 menu, Enter chat, G painel nacional, Tab globo (Esc fica com a cena: cancela o modo ou a seleção)
+  // atalhos da tela: F10 menu, M liga/desliga a música, Enter chat, G painel nacional, Tab globo (Esc fica com a cena: cancela o modo ou a seleção)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'F10') {
@@ -158,6 +158,9 @@ export function GameScreen() {
         setMenuOpen((v) => !v);
       } else if (e.code === 'Enter' && !(e.target instanceof HTMLInputElement) && useHudStore.getState().mode.kind !== 'road') {
         setChatOpen(true);
+      } else if (e.code === 'KeyM' && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
+        const st = useSettingsStore.getState();
+        st.update({ musicMuted: !st.musicMuted });
       } else if (e.code === 'KeyG' && !(e.target instanceof HTMLInputElement)) {
         const st = useNationalStore.getState();
         st.setPanelOpen(!st.panelOpen);
