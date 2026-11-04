@@ -179,6 +179,29 @@ própria ainda: dá para testar a 1 e a 3 cortadas em ~1 s e ~15% mais agudas, m
 Ao implementar: cortar o silêncio inicial (2 e 4), encurtar a cauda para 2–3,5 s com fade, normalizar e converter para
 mono; limitar quantas tocam ao mesmo tempo (são longas).
 
+## Lote 11 (04/11) — jato voando (4 variações)
+Pasta `originais/jato-voando/`. Todos MP3 48 kHz estéreo, 192 kbps, 8,0 s (≈ 194 KB). Arquivo de origem:
+"11 - jet Duration 6 N". As 4 são distintas.
+
+**Não são passagens que vêm e vão:** as 4 começam e terminam com o volume cheio (sem fade nem no início nem no fim) e
+quase não mudam de lado no estéreo. São o **ronco contínuo de turbina**, rugido de banda larga com mais energia entre
+300 Hz e 1,1 kHz (pouco grave: 7–13% abaixo de 200 Hz). Servem como loop ou como "matéria-prima" de uma passagem: o
+jogo faz o vem-e-vai com volume, posição e altura (Doppler) por cima da gravação.
+
+| Arquivo | Origem | Conteúdo | Pico | Média | Nível ao longo do tempo (a cada 0,5 s) | Observação |
+|---|---|---|---|---|---|---|
+| `jato-voando-1.mp3` | 1 | jato se aproximando, longe | −13,2 dB | −34,9 dB | sobe de −43 a −30 dB, ainda subindo no fim | **muito baixo** (~15 dB abaixo dos outros) e corta no fim ainda crescendo; tem um assobio de turbina mais marcado (tonal); bom para avião distante ou começo de aproximação |
+| `jato-voando-2.mp3` | 2 | aproximação e passagem suave | −1,1 dB | −21,2 dB | −27 → máximo −18 em ~4,5–5,5 s → −22 | o único com movimento: vai da direita (+4 dB) para o centro; o tom sobe no fim (1,2 → 2,2 kHz) |
+| `jato-voando-3.mp3` | 3 | ronco constante, perto | −1,7 dB | −16,1 dB | −15 a −19 dB, cai um pouco depois de 6 s | o mais forte e brilhante; o tom desce no fim (1,7 → 1,2 kHz), como quem se afasta |
+| `jato-voando-4.mp3` | 4 | ronco constante | −0,3 dB | −17,7 dB | −17 a −18 dB, praticamente plano | o mais estável: o melhor candidato a loop |
+
+Uso provável: `jet` (passagem de caça, hoje sintetizada como sobrevoo de 4,8 s com Doppler): tocar a 3 ou a 4 (e a 2)
+com um envelope de volume de ~4–5 s (sobe, pico na passagem, desce) e altura caindo ~10–15% depois do pico; a 1
+para formações longe da câmera. `bomber` (bombardeiro): a 4 ou a 3 ~20–25% mais graves e com envelope mais longo
+(~7 s), até chegar um lote próprio de bombardeiro. Para loop (avião que fica circulando), emendar a 4 com cruzamento
+de ~0,3 s (não tem fade, mas o fim e o começo não casam exatamente). Ao implementar: normalizar (subir a 1 em ~15 dB
+se for usada), converter para mono.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
