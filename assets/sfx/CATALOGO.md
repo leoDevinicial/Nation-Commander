@@ -435,6 +435,27 @@ Uso provável:
   com fade) no primeiro aviso de um ataque e manter o sintetizado nos seguintes; ou deixar a gravada só para o nuclear.
 Ao implementar: normalizar com margem (a 1 passa do limite), converter para mono, tocar no canal de interface.
 
+## Lote 23 (04/11) — canhão, tiro único (4 variações)
+Pasta `originais/canhao-tiro/`. Todos MP3 48 kHz estéreo, 192 kbps, 3,0 s (≈ 73 KB). Arquivo de origem:
+"03 - cannon Duration N". As 4 são distintas. **Um disparo em 0 s** (sem silêncio antes), corpo forte de ~0,25–0,35 s
+e cauda com ecos do terreno até 1,3–2,3 s. Graves e pesados (47–71% abaixo de 200 Hz). Três vêm **saturadas**: o
+disparo encosta no limite por vários milissegundos (amostras no limite: 83, 79 e 42).
+
+| Arquivo | Origem | Pico | Média | Nível (a cada 0,25 s) | Ecos | Observação |
+|---|---|---|---|---|---|---|
+| `canhao-tiro-1.mp3` | 1 | +1,9 dB | −19,9 dB | −10, −21, −23, −30 … −47 | 0,68 · 1,0 · 1,2 · 1,4 s | o mais grave (71%) e o de cauda mais longa (~2,3 s), com eco que rola; 83 amostras no limite |
+| `canhao-tiro-2.mp3` | 2 | +1,4 dB | −19,8 dB | −9, −23, −30, −31 … −57 | — | o mais seco e curto (~1,3 s), menos grave (47%); 79 amostras no limite |
+| `canhao-tiro-3.mp3` | 3 | +1,0 dB | −22,3 dB | −12, −25, −33, −34 … −63 | 0,7 · 1,8 s | estalo mais brilhante; um eco tardio em 1,8 s; 42 amostras no limite |
+| `canhao-tiro-4.mp3` | 4 | −1,1 dB | −23,3 dB | −13, −24, −28, −35 … −60 | 0,5 · 1,2 · 1,9 s | o mais "redondo" (centro em 1,4 kHz) e o único sem saturação; vários ecos |
+
+**Onde o jogo usa `cannon` hoje:** só no disparo direto do Lança-Foguetes (`GameRuntime`, evento de ataque com
+`rocket_artillery`; a salva em si toca `rocket`). O sintetizado é um baque curto. A artilharia comum usa `howitzer`.
+
+Uso provável: `cannon` (sorteando entre as 4), e também `howitzer` (obus da artilharia, muito mais frequente) até
+chegar um lote próprio de obus: a 1 e a 4, que têm ecos longos, tocadas ~10% mais graves. Diferem do tanque
+(`tanque-tiro`, lote 1) por serem mais curtas e com menos corpo depois do disparo. Ao implementar: normalizar com
+margem (a saturação já gravada fica; em disparo quase não se nota), cortar em ~1,5–2 s com fade, converter para mono.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
