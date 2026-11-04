@@ -114,7 +114,12 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 - `npx tsx scripts/qa-fuzz.ts 20000 1` — fuzz de mensagens com valores maliciosos.
 - `npx tsx scripts/qa-salvamento.ts 1,2,3 8 4` — salvar e retomar no meio: a retomada tem que ser idêntica.
 - Navegador: `.audit/ui_sweep.cjs` (local, não versionado) foi o padrão; botão do menu é "Nova Partida".
-- Última rodada (01/11): 9 partidas longas sem invariante quebrada, fuzz sem exceção, retomada idêntica.
+- Última rodada (04/11, noite): 7 partidas longas (Brutal em mapas sorteados, Oceano Central, Arquipélago) sem
+  invariante quebrada; fuzz de mensagens e de ordens sem exceção (o fuzz de ordens passou a gerar os comandos de 02–04/11:
+  comércio, demolir, zoneamento, Marinha, construtores); retomada idêntica; navegador (contra a IA, Sandbox com combate
+  e em inglês) sem erro no cliente nem no servidor. Achado e corrigido: demolição de tanque de petróleo/armazém
+  (`926f440`). Na página, o menu sai no idioma do navegador: use `locale: 'pt-BR'` no Playwright e pule a apresentação
+  ("Pular por agora" → "Pular mesmo assim").
 
 ## 0.4 O que mudou desde 31/10 (mais recente primeiro; detalhes no `git log` e nas docs citadas)
 
