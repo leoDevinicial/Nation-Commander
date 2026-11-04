@@ -86,7 +86,11 @@ O Nation Commander é **low poly estilizado**, por decisão do responsável pelo
   posição; sob ataque toca sirene e pulsa no minimapa; botão Construir (B) e comando `demolish` (nunca QG/prefeitura).
 - Combustível (`FUEL`, `docs/COMBUSTIVEL_E_CORRECOES.md`): veículos e navios gastam petróleo ao andar (o Combustível da
   Refinaria sai primeiro); sem nenhum, andam a 50%. Testes de regra antigos rodam sem ele (`shared/test/setup.ts`).
-- Efeitos gravados (`public/sfx/`, `assets/sfx/CATALOGO.md`, `SAMPLES` no `AudioService`): tiro de tanque, explosão grande, míssil, fuzil e metralhadora do caça tocam gravações (sem o arquivo, cai no sintetizado); guerra ao longe (`warAt`) e energia desligando (`powerDown`).
+- Efeitos gravados (`public/sfx/`, `assets/sfx/CATALOGO.md`, `SAMPLES` e `LEVELS` no `AudioService`): quase todo o
+  combate toca gravações (sem o arquivo, cai no sintetizado), mais guerra ao longe (`warAt`), energia desligando
+  (`powerDown`), sirenes (aviso de ataque e silo armado), vento ambiente em loop e o ronco da salva (`rocketSalvo`).
+  Lote novo: guardar e catalogar, recortar em `scripts/sfx-preparar.py`, ligar no `SAMPLES` e calibrar o ganho contra o
+  sintetizado; o que ainda falta gravar está no fim do catálogo.
 - Trilha sonora (`public/music/`, `docs/TRILHA_SONORA.md`): 4 faixas trocadas por estado de ameaça (`threat.ts`) com crossfade de
   3–5 s no `AudioService`; a guerra fica acima da música (EQ por estado e ducking só em eventos grandes); tecla M silencia só a música.
 - Idiomas (`src/i18n/`, `docs/IDIOMAS.md`): o código segue em português; `en.ts`/`es.ts` traduzem o texto da tela

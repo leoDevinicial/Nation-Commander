@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AudioService, DEFAULT_VOLUMES, PRODUCTION_SOUND, pickVictim, spatialMix } from '../game/audio/AudioService.ts';
+import { AudioService, DEFAULT_VOLUMES, EXTRA_SAMPLES, PRODUCTION_SOUND, SAMPLES, pickVictim, spatialMix } from '../game/audio/AudioService.ts';
 import { parseSettings, type Settings } from '../state/useSettingsStore.ts';
 
 const L = { x: 50, y: 50, dist: 30, yaw: 0 };
@@ -26,12 +26,26 @@ describe('áudio contextual (Fase 7)', () => {
     expect(pickVictim(voices, 1, 3)).toBeNull(); // outro fuzil não corta nada
   });
 
+  it('toda gravação citada pelos sons existe em public/sfx (gerada por scripts/sfx-preparar.py)', () => {
+    const sets = Object.values(SAMPLES).flatMap((s) => (Array.isArray(s) ? s : [s]));
+    const names = new Set([...sets.flatMap((x) => [...x.files, ...(x.layer?.files ?? [])]), ...EXTRA_SAMPLES]);
+    expect(names.size).toBeGreaterThan(100);
+    const files = new Set(Object.keys(import.meta.glob('../../public/sfx/*.mp3')).map((f) => f.split('/').pop()!.replace('.mp3', '')));
+    const missing = [...names].filter((n) => !files.has(n));
+    expect(missing).toEqual([]);
+    // a contagem falada em inglês tem a versão sem voz para os outros idiomas
+    const space = SAMPLES.space_prelaunch;
+    expect(Array.isArray(space) && space.map((x) => x.lang).sort()).toEqual(['en', 'outros']);
+  });
+
   it('sem contexto de áudio (antes do primeiro gesto) nada quebra', () => {
     const a = new AudioService();
     expect(a.ready).toBe(false);
     a.playAt('rifle', 1, 1);
     a.ui('click');
     a.missileCue('armed', 1);
+    a.rocketSalvo(1, 1, 1);
+    a.startAmbient();
     a.setProduction('saw');
     a.stopAll();
   });

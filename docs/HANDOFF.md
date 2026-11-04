@@ -4,11 +4,10 @@ Este arquivo é o ponto de partida para quem pega o projeto numa conversa nova (
 antes de mexer em qualquer coisa. Depois leia `CLAUDE.md` (regras curtas) e
 `docs/BALANCEAMENTO_E_PROGRESSAO.md` (direção de design + tabela "Estado da implementação").
 
-Última atualização: **04/11/2026**. **Tudo publicado:** a branch de publicação `claude/serene-bell-7cjnhp` está no
-commit `ddc8afc` (KAC-14); a de trabalho `claude/youthful-dijkstra-a45emp` tem só este handoff a mais (só documentação,
-não precisa publicar). Não há pedido pela metade. O que mudou de 02 a 04/11 está no topo da seção 0.4 (eras com
-zoneamento e comércio, Marinha, mapas oceânicos, água natural, idiomas, trilha sonora, efeitos gravados e KAC-14);
-o que dá para fazer em seguida está na seção 0.45.
+Última atualização: **04/11/2026, noite**. A branch de publicação `claude/serene-bell-7cjnhp` está no commit `ddc8afc`
+(KAC-14); a de trabalho agora é `claude/friendly-maxwell-ssxv7n` (seção 0.1), com os efeitos gravados da segunda rodada
+(lotes 9–32) **ainda não publicados**. Não há pedido pela metade. O que mudou está no topo da seção 0.4; o que dá para
+fazer em seguida está na seção 0.45.
 
 ## 00. Checklist de chegada (faça nesta ordem, antes de qualquer pedido)
 
@@ -62,6 +61,8 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 - **04/11/2026 — conta nova (Claude Pro):** branch `claude/friendly-maxwell-ssxv7n`, avançada (fast-forward) até
   `265d772` da `claude/youthful-dijkstra-a45emp`; `npm ci`, 708 testes (78 arquivos), lint e typecheck limpos. A partir
   daqui a branch de trabalho é esta; a `claude/youthful-dijkstra-a45emp` fica parada em `265d772`.
+- **04/11/2026, noite — mesma conta:** 24 lotes de som recebidos e catalogados (lotes 9–32) e depois implementados de
+  uma vez (seção 0.4). 709 testes. Nada publicado depois de `ddc8afc`.
 - Próxima conta: acrescente uma linha aqui (data, branch, commit de partida, testes).
 
 ## 0.2 Infraestrutura e coisas que só o usuário faz
@@ -117,6 +118,25 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 - Última rodada (01/11): 9 partidas longas sem invariante quebrada, fuzz sem exceção, retomada idêntica.
 
 ## 0.4 O que mudou desde 31/10 (mais recente primeiro; detalhes no `git log` e nas docs citadas)
+
+**04/11, noite — efeitos gravados, segunda rodada** (`assets/sfx/CATALOGO.md`, seções "Em uso no jogo" e "O que falta"):
+
+- O usuário mandou 24 lotes (lotes 9–32 do catálogo); cada um foi guardado em `assets/sfx/originais/` e analisado
+  (início, cadência, pico, cauda, repetidos) num commit próprio, e depois tudo foi ligado de uma vez.
+- `scripts/sfx-preparar.py` ganhou `MORE` (com fade de entrada) e `LOOPS` (loop sem emenda com cruzamento; a sirene
+  mantém a subida como entrada). 121 clipes, ~4,3 MB em `public/sfx/` (antes 29, 1,2 MB); os antigos não mudaram.
+- `SampleSet` ganhou `pass` (passagem de avião sobre ronco gravado, com Doppler), `synth` (toca o sintetizado junto),
+  `layer` (eco do Domo), `delay` e `lang` (a contagem do Programa Espacial é falada em inglês: só toca com o jogo em
+  inglês; nos outros idiomas entra a partir da ignição). `audio.voiceLang` vem do `useLangStore` no `GameRuntime`.
+- Fora do `SAMPLES` (volumes em `LEVELS`): sirene no primeiro aviso de ataque a cada 25 s, sirene em loop no silo armado
+  (`armedSiren`), vento estéreo em loop no ambiente (`windAmbient`, troca o sintetizado quando carrega) e o ronco da
+  salva do Lança-Foguetes (`rocketSalvo`, chamado no primeiro foguete; `RIPPLE` exportado do `RocketLayer`).
+- Calibração: cada som renderizado em `OfflineAudioContext` no navegador (sintetizado × gravado, maior RMS em 300 ms);
+  quase todos a até ~1,5 dB do sintetizado, os mais fortes 2,5–3,7 dB abaixo no pico (compressor). **Nada foi ouvido.**
+  O jeito de medir está no catálogo; a página e o script de medição eram temporários (não versionados).
+- Bug corrigido junto: `gap()` começava com "último toque em −1 s" e descartava sons com intervalo > 1 s nos primeiros
+  segundos do áudio.
+- Teste novo em `src/test/audio.test.ts`: todo arquivo citado no `SAMPLES`/extras existe em `public/sfx/`.
 
 **04/11 — áudio, idiomas e um vazamento de névoa:**
 
@@ -204,15 +224,16 @@ Construir/Demolir, água natural (mais escura quanto mais funda, rastro dos navi
   longas, caças com canhão/metralhadora/mísseis, bombardeiro novo, cargueiros por era, drone de reconhecimento, Base
   Aérea 5×5, usina solar com reflexo, clima ocasional, jazida de petróleo reservada, obras sem bloquear estradas/saídas.
 
-## 0.45 De onde continuar (04/11)
+## 0.45 De onde continuar (04/11, noite)
 
-- **Mais efeitos sonoros:** o usuário perguntou o que falta e recebeu a lista (ainda sintetizados): explosão
-  pequena/média (`explosion`, `vehicle_explosion`), canhão e obus, lança-foguetes, canhão do blindado, antiaérea, torre;
-  passagem de caça e bombardeiro, mísseis do caça, assobio de bomba e bombardeio em tapete, Domo de Ferro, drone, gatling
-  do CIWS; nuclear, Programa Espacial, sirene; interface, ambiente e produção dos prédios. Quando chegarem lotes: guardar
-  e catalogar como os anteriores, acrescentar em `scripts/sfx-preparar.py` e em `SAMPLES`, calibrar o ganho no
-  navegador (o teste de calibração usado foi tocar `audio.play(som)` com `useSamples` falso/verdadeiro e medir o canal
-  `combat` com um `AnalyserNode`).
+- **Sons que ainda faltam gravar:** lista no fim de `assets/sfx/CATALOGO.md` ("O que falta"): estouro antiaéreo no ar,
+  míssil ar-terra próprio, drone (passagem e FPV), silo "preparando" e "autorizado", contagem em português e espanhol,
+  chuva, trovão, vento de neve, produção dos prédios e interface. Quando chegarem lotes: guardar e catalogar como os
+  anteriores (o usuário pede assim), depois acrescentar em `MORE`/`LOOPS` do `scripts/sfx-preparar.py` e no `SAMPLES`,
+  e calibrar o ganho no navegador (renderizar o som com `useSamples` falso e verdadeiro num `OfflineAudioContext` e
+  comparar o maior RMS de 300 ms; o compressor do fim achata os sons fortes, então ganhos altos são normais).
+- **Tamanho:** `public/sfx/` tem ~4,3 MB, baixados em segundo plano quando o áudio é liberado. Se pesar no celular,
+  baixar o bitrate dos longos (nuclear, aviões, decolagem) ou carregar sob demanda.
 - **Não verificado de ouvido:** os níveis dos efeitos foram medidos, não ouvidos; a queda de energia foi testada
   chamando `powerDown` direto. Se o usuário reclamar de volume, ajustar `gain` em `SAMPLES` ou o fator em
   `warAt`/`powerDown`.

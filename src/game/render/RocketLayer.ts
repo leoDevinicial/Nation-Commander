@@ -4,7 +4,8 @@ import type { Effects } from './Effects.ts';
 import { glowTexture, volumetricSmokeTexture } from './textures.ts';
 
 /** Intervalo entre os foguetes de uma salva (s). */
-const RIPPLE = 0.09;
+/** Intervalo entre a saída de um foguete e o próximo na salva (s); o áudio usa para o ronco da salva inteira. */
+export const RIPPLE = 0.09;
 /** Os impactos se espalham em volta do instante em que a simulação aplica o dano (s). */
 const IMPACT_EARLY = 0.22;
 const IMPACT_STEP = 0.045;

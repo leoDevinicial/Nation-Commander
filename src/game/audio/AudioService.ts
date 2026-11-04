@@ -138,7 +138,7 @@ const PRIORITY: Record<CombatSound, number> = {
  * não carregou, ou se falhar, toca o som sintetizado de sempre. `rounds` repete o tiro único em sequência (rajada
  * curta de fuzil), com `interval` entre os disparos.
  */
-interface SampleSet {
+export interface SampleSet {
   files: string[];
   gain: number;
   /** Peso no sorteio quando o som tem mais de um conjunto (padrão 1). */
@@ -146,6 +146,19 @@ interface SampleSet {
   rate?: number;
   rounds?: [number, number];
   interval?: number;
+  /**
+   * Passagem de avião sobre um ronco contínuo gravado (lotes 11 e 13): volume que sobe até `peak` s e some até `dur` s,
+   * e a altura que cai `drop` (fração) logo depois do pico (Doppler). O trecho do arquivo é sorteado.
+   */
+  pass?: { peak: number; dur: number; drop: number };
+  /** Toca também o sintetizado, com este fator de volume (o grave das gravações some em caixinha pequena). */
+  synth?: number;
+  /** Segunda gravação somada (eco no céu do Domo), `delay` s depois, com o próprio ganho relativo. */
+  layer?: { files: string[]; gain: number; delay: number };
+  /** Começa `delay` s depois do pedido (contagem do Programa Espacial, que é pedida 10 s antes da decolagem). */
+  delay?: number;
+  /** Só neste idioma da tela ('en') ou só fora dele ('outros'): a contagem gravada é falada em inglês. */
+  lang?: 'en' | 'outros';
 }
 const SFX = {
   tank: ['tanque-tiro-1', 'tanque-tiro-2', 'tanque-tiro-3', 'tanque-tiro-4', 'tanque-tiro-5'],
@@ -155,16 +168,53 @@ const SFX = {
   mg: ['metralhadora-tiro-1', 'metralhadora-tiro-2', 'metralhadora-tiro-3', 'metralhadora-tiro-4'],
   burstShort: ['metralhadora-rajada-1', 'metralhadora-rajada-3'],
   burstLong: ['metralhadora-rajada-2', 'metralhadora-rajada-4'],
-  distant: ['artilharia-distante-1', 'artilharia-distante-2', 'artilharia-distante-3', 'artilharia-distante-4'],
+  distant: ['artilharia-distante-1', 'artilharia-distante-2', 'artilharia-distante-3', 'artilharia-distante-4', 'obus-distante'],
   powerDown: ['energia-desligando'],
+  // lotes 9–32 (04/11)
+  aaFast: ['antiaerea-rajada-1', 'antiaerea-rajada-2', 'antiaerea-rajada-3', 'antiaerea-rajada-4'],
+  aaHeavy: ['antiaerea-continua-1', 'antiaerea-continua-2', 'antiaerea-continua-3', 'antiaerea-continua-4', 'antiaerea-continua-5', 'antiaerea-continua-6', 'antiaerea-continua-7'],
+  aaTwin: ['antiaerea-era4-1', 'antiaerea-era4-2', 'antiaerea-era4-3'],
+  vehicle: ['veiculo-explosao-1', 'veiculo-explosao-2', 'veiculo-explosao-3', 'veiculo-explosao-4'],
+  vehicleHeavy: ['veiculo-explosao-pesada-1', 'veiculo-explosao-pesada-2'],
+  jet: ['jato-voando-2', 'jato-voando-3', 'jato-voando-4'],
+  bomberPass: ['bombardeiro-passagem'],
+  bomber: ['bombardeiro-voando-2', 'bombardeiro-voando-3', 'bombardeiro-voando-4'],
+  domeHit: ['domo-interceptacao-1', 'domo-interceptacao-2'],
+  domeEcho: ['domo-eco-1', 'domo-eco-2'],
+  domeLaunch: ['domo-lancamento-1', 'domo-lancamento-2', 'domo-lancamento-3'],
+  intercept: ['interceptacao-no-ar-1', 'interceptacao-no-ar-2', 'interceptacao-no-ar-3', 'interceptacao-no-ar-4'],
+  whistle: ['bomba-assobio-1', 'bomba-assobio-2', 'bomba-assobio-3', 'bomba-assobio-4'],
+  carpet: ['bombardeio-tapete-1', 'bombardeio-tapete-2'],
+  gatling: ['ciws-gatling-1', 'ciws-gatling-2', 'ciws-gatling-3', 'ciws-gatling-4'],
+  nuclear: ['explosao-nuclear-1', 'explosao-nuclear-2', 'explosao-nuclear-3', 'explosao-nuclear-4'],
+  apcShot: ['blindado-canhao-1', 'blindado-canhao-2'],
+  apcBurst: ['blindado-canhao-3'],
+  cannon: ['canhao-tiro-1', 'canhao-tiro-2', 'canhao-tiro-3', 'canhao-tiro-4'],
+  howitzer: ['obus-tiro-1', 'obus-tiro-2', 'obus-tiro-3', 'obus-tiro-4'],
+  small: ['explosao-pequena-1', 'explosao-pequena-2', 'explosao-pequena-3', 'explosao-pequena-4'],
+  rocket: ['foguete-lancamento-1', 'foguete-lancamento-2', 'foguete-lancamento-3', 'foguete-lancamento-4'],
+  salvo: ['foguete-salva'],
+  tower: ['torre-defesa-1', 'torre-defesa-2'],
+  jetCannon: ['caca-canhao-1', 'caca-canhao-2', 'caca-canhao-3'],
+  aam: ['missil-ar-ar-1', 'missil-ar-ar-2', 'missil-ar-ar-3', 'missil-ar-ar-4'],
+  agm: ['missil-ar-ar-2', 'missil-ar-ar-4'],
+  // sirene: o aviso curto "sob ataque" e as sirenes em loop do silo armado (o loop começa em `SIREN_LOOP` s)
+  sirenAlert: ['sirene-aviso'],
+  siren: ['sirene-loop-1', 'sirene-loop-2'],
+  // vento (estéreo, em loop): brisas calmas de fundo e ventos mais fortes por cima
+  breeze: ['vento-3', 'vento-4'],
+  gust: ['vento-1', 'vento-2'],
 };
+/** Volumes das gravações fora do `SAMPLES` (vento: brisa e rajadas; ronco da salva; sirenes), calibrados no navegador. */
+export const LEVELS = { breeze: 3.2, gust: 0.95, salvo: 0.5, siren: 2.2, alert: 0.45 };
+/** Onde começa o loop de cada sirene (a parte antes é a subida do rotor; ver `LOOPS` em `scripts/sfx-preparar.py`). */
+const SIREN_LOOP: Record<string, number> = { 'sirene-loop-1': 3.0, 'sirene-loop-2': 1.5 };
 /** Ganhos calibrados no navegador (04/11) para ficar no nível do sintetizado que substituem (média do canal de combate). */
-const SAMPLES: Partial<Record<CombatSound, SampleSet | SampleSet[]>> = {
+export const SAMPLES: Partial<Record<CombatSound, SampleSet | SampleSet[]>> = {
   mbt_gun: { files: SFX.tank, gain: 1.1, rate: 0.9 },
   tank_gun: { files: SFX.tank, gain: 0.5 },
   explosion_big: { files: SFX.explosion, gain: 1.35 },
   bomb: { files: SFX.explosion, gain: 1.8 },
-  vehicle_explosion_heavy: { files: SFX.explosion, gain: 2.4, rate: 1.08 },
   missile_launch: { files: SFX.launch, gain: 1.5 },
   missile_impact: { files: SFX.impact, gain: 2.6 },
   // infantaria: às vezes tiros únicos em sequência, às vezes uma rajada curta gravada
@@ -174,9 +224,53 @@ const SAMPLES: Partial<Record<CombatSound, SampleSet | SampleSet[]>> = {
   ],
   // metralhadora do caça: rajada gravada, mais rápida e aguda (cadência ~750 tiros/min)
   air_mg: { files: [...SFX.burstShort, ...SFX.burstLong], gain: 0.5, rate: 1.25 },
+  // lotes 9–32 (04/11; `assets/sfx/CATALOGO.md`)
+  aa_gun: [
+    { files: SFX.aaFast, gain: 5.4, weight: 1 },
+    { files: SFX.aaHeavy, gain: 6.2, weight: 1.5 },
+  ],
+  aa_twin: { files: SFX.aaTwin, gain: 2.45 },
+  explosion: { files: SFX.small, gain: 0.8, rate: 1.02 },
+  vehicle_explosion: { files: SFX.vehicle, gain: 2.85 },
+  vehicle_explosion_heavy: [
+    { files: SFX.vehicleHeavy, gain: 2.05, weight: 1.5 },
+    { files: SFX.explosion, gain: 2.4, rate: 1.08, weight: 1 },
+  ],
+  jet: { files: SFX.jet, gain: 2.85, pass: { peak: 1.8, dur: 4.8, drop: 0.12 } },
+  bomber: [
+    { files: SFX.bomberPass, gain: 1.75, weight: 1.5 },
+    { files: SFX.bomber, gain: 3.4, rate: 0.9, pass: { peak: 3.2, dur: 7.5, drop: 0.1 }, weight: 1 },
+  ],
+  dome_intercept: { files: SFX.domeHit, gain: 8, layer: { files: SFX.domeEcho, gain: 0.35, delay: 0.05 } },
+  intercept: { files: SFX.intercept, gain: 0.25 },
+  dome_launch: { files: SFX.domeLaunch, gain: 0.93 },
+  bomb_whistle: { files: SFX.whistle, gain: 0.33 },
+  // o trovão gravado é quase todo subgrave: o sintetizado (mais médio) fica por cima, mais baixo
+  carpet_rumble: { files: SFX.carpet, gain: 1.25, synth: 0.5 },
+  gatling: { files: SFX.gatling, gain: 2.6 },
+  nuclear_blast: { files: SFX.nuclear, gain: 1.65, synth: 0.5 },
+  // contagem: pedida 10 s antes da decolagem; a ignição da gravação (2,5 s) cai na da animação (−2,2 s). Com o jogo em
+  // inglês vai a voz; nos outros idiomas, só a partir da ignição. As bombas e válvulas do sintetizado seguem por baixo.
+  space_prelaunch: [
+    { files: ['espaco-contagem-en'], gain: 1.15, delay: 5.3, synth: 0.7, lang: 'en' },
+    { files: ['espaco-ignicao'], gain: 1.2, delay: 7.6, synth: 0.7, lang: 'outros' },
+  ],
+  space_liftoff: { files: ['espaco-decolagem'], gain: 2.55 },
+  // blindado: rajada de 3 tiros a ~0,3 s montada com tiros únicos, ou a rajada embolada gravada
+  apc_gun: [
+    { files: SFX.apcShot, gain: 0.46, rounds: [3, 3], interval: 0.3, weight: 2 },
+    { files: SFX.apcBurst, gain: 0.41, weight: 1 },
+  ],
+  cannon: { files: SFX.cannon, gain: 0.35 },
+  howitzer: { files: SFX.howitzer, gain: 5 },
+  rocket: { files: SFX.rocket, gain: 0.1 },
+  tower: { files: SFX.tower, gain: 0.073, rate: 1.03 },
+  jet_cannon: { files: SFX.jetCannon, gain: 3.45 },
+  aam_launch: { files: SFX.aam, gain: 0.47 },
+  agm_launch: { files: SFX.agm, gain: 0.67, rate: 0.9 },
 };
-/** Gravações que não são sons de combate do `SAMPLES` (guerra ao longe, energia), carregadas junto. */
-const EXTRA_SAMPLES = [...SFX.distant, ...SFX.powerDown];
+/** Gravações que não são sons de combate do `SAMPLES` (guerra ao longe, energia, sirene, vento, salva), carregadas junto. */
+export const EXTRA_SAMPLES = [...SFX.distant, ...SFX.powerDown, ...SFX.sirenAlert, ...SFX.siren, ...SFX.breeze, ...SFX.gust, ...SFX.salvo];
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
 const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, bomber: 1.2, jet_cannon: 0.12, aam_launch: 0.25, drone_pass: 3, agm_launch: 0.2, air_mg: 0.18, bomb_whistle: 0.4, carpet_rumble: 1.5, bomb: 0.07, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, vehicle_explosion: 0.1, vehicle_explosion_heavy: 0.15, nuclear_blast: 1, space_prelaunch: 2, space_liftoff: 2, dome_launch: 0.2, dome_intercept: 0.3, tank_gun: 0.18, apc_gun: 0.25 };
@@ -231,12 +325,14 @@ export class AudioService {
   private readonly lastPlayed = new Map<string, number>();
   private listener = { x: 0, y: 0, dist: 40, yaw: 0 };
   private production: { kind: ProductionSound; gain: GainNode; stop: () => void } | null = null;
-  private ambient: { stop: () => void } | null = null;
+  private ambient: { stop: () => void; recorded?: boolean } | null = null;
   private ost: { deck: (id: TrackId) => Deck; current: TrackId | null; threat: Threat; calmNext: TrackId } | null = null;
   private alarm: { stop: () => void; id: number } | null = null;
   /** Gravações decodificadas (nome → buffer); `null` = falhou (fica no sintetizado). */
   private readonly sampleBufs = new Map<string, AudioBuffer | null>();
   private readonly lastVariant = new Map<CombatSound, number>();
+  /** Idioma da tela (a contagem gravada do Programa Espacial é em inglês). */
+  voiceLang = 'pt';
   /** Desliga as gravações (comparação com o sintetizado em teste). */
   useSamples = true;
 
@@ -542,52 +638,99 @@ export class AudioService {
       fetch(`${import.meta.env.BASE_URL}sfx/${name}.mp3`)
         .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
         .then((data) => ctx.decodeAudioData(data))
-        .then((buf) => this.sampleBufs.set(name, buf))
+        .then((buf) => {
+          this.sampleBufs.set(name, buf);
+          // o vento sintetizado já tocando dá lugar ao gravado assim que ele chega
+          if (this.ambient && !this.ambient.recorded && SFX.breeze.includes(name)) {
+            this.ambient.stop();
+            this.ambient = null;
+            this.startAmbient();
+          }
+        })
         .catch(() => this.sampleBufs.set(name, null));
     }
   }
 
-  /** Toca a gravação do som, se houver alguma pronta; devolve false para cair no sintetizado. */
-  private playSample(sound: CombatSound, gain: number, pan: number): boolean {
+  /**
+   * Toca a gravação do som, se houver alguma pronta. Devolve false para cair no sintetizado; com gravação, devolve o
+   * fator de volume com que o sintetizado também toca (0 = não toca).
+   */
+  private playSample(sound: CombatSound, gain: number, pan: number): false | number {
     const entry = SAMPLES[sound];
     if (!entry || !this.useSamples) return false;
+    const ready = (files: string[]) => files.map((f) => this.sampleBufs.get(f)).filter((b): b is AudioBuffer => !!b);
     const sets = (Array.isArray(entry) ? entry : [entry])
-      .map((set) => ({ set, ready: set.files.map((f) => this.sampleBufs.get(f)).filter((b): b is AudioBuffer => !!b) }))
+      .filter((set) => !set.lang || (set.lang === 'en') === (this.voiceLang === 'en'))
+      .map((set) => ({ set, ready: ready(set.files) }))
       .filter((x) => x.ready.length > 0);
     if (!sets.length) return false;
     let roll = Math.random() * sets.reduce((a, x) => a + (x.set.weight ?? 1), 0);
     const chosen = sets.find((x) => (roll -= x.set.weight ?? 1) < 0) ?? sets[0]!;
-    const { set, ready } = chosen;
+    const { set } = chosen;
+    const bufs = chosen.ready;
     const ctx = this.ctx!;
-    const t = ctx.currentTime + 0.005;
+    const t = ctx.currentTime + 0.005 + (set.delay ?? 0);
     const out = this.out('combat', gain * set.gain, pan);
     const rounds = set.rounds ? set.rounds[0] + Math.floor(Math.random() * (set.rounds[1] - set.rounds[0] + 1)) : 1;
     const nodes: AudioBufferSourceNode[] = [];
     let end = t;
     let last = this.lastVariant.get(sound) ?? -1;
     for (let i = 0; i < rounds; i++) {
-      let pick = Math.floor(Math.random() * ready.length);
-      if (ready.length > 1 && pick === last) pick = (pick + 1) % ready.length;
+      let pick = Math.floor(Math.random() * bufs.length);
+      if (bufs.length > 1 && pick === last) pick = (pick + 1) % bufs.length;
       last = pick;
-      const buf = ready[pick]!;
+      const buf = bufs[pick]!;
       const src = ctx.createBufferSource();
       src.buffer = buf;
       const rate = (set.rate ?? 1) * (1 + (Math.random() - 0.5) * 0.08);
       src.playbackRate.value = rate;
       const at = t + i * (set.interval ?? 0) + (i ? (Math.random() - 0.5) * 0.008 : 0);
-      if (i > 0) {
-        const g = ctx.createGain();
-        g.gain.value = 0.8 + Math.random() * 0.2;
-        src.connect(g).connect(out);
-      } else src.connect(out);
-      src.start(at);
-      end = Math.max(end, at + buf.duration / rate);
+      if (set.pass) {
+        // passagem: envelope de distância (chega, pico, vai embora) e o tom caindo depois do pico, sobre um trecho
+        // sorteado do ronco gravado
+        const { peak, dur, drop } = set.pass;
+        const env = ctx.createGain();
+        env.gain.setValueAtTime(0.02, at);
+        env.gain.exponentialRampToValueAtTime(1, at + peak);
+        env.gain.exponentialRampToValueAtTime(0.005, at + dur);
+        src.playbackRate.setValueAtTime(rate * (1 + drop * 0.4), at);
+        src.playbackRate.linearRampToValueAtTime(rate, at + peak);
+        src.playbackRate.linearRampToValueAtTime(rate * (1 - drop), at + peak + 0.9);
+        src.connect(env).connect(out);
+        const offset = Math.max(0, buf.duration - dur * 1.1) * Math.random();
+        src.start(at, offset);
+        src.stop(at + dur);
+        end = Math.max(end, at + dur);
+      } else {
+        if (i > 0) {
+          const g = ctx.createGain();
+          g.gain.value = 0.8 + Math.random() * 0.2;
+          src.connect(g).connect(out);
+        } else src.connect(out);
+        src.start(at);
+        end = Math.max(end, at + buf.duration / rate);
+      }
+      nodes.push(src);
+    }
+    const layer = set.layer ? ready(set.layer.files) : [];
+    if (set.layer && layer.length) {
+      const src = ctx.createBufferSource();
+      src.buffer = layer[Math.floor(Math.random() * layer.length)]!;
+      src.playbackRate.value = 1 + (Math.random() - 0.5) * 0.08;
+      const g = ctx.createGain();
+      g.gain.value = set.layer.gain;
+      src.connect(g).connect(out);
+      src.start(t + set.layer.delay);
+      end = Math.max(end, t + set.layer.delay + src.buffer.duration);
       nodes.push(src);
     }
     this.lastVariant.set(sound, last);
     const stop = () => nodes.forEach((n) => n.stop());
-    if (!this.claim(PRIORITY[sound], end, stop)) stop();
-    return true;
+    if (!this.claim(PRIORITY[sound], end, stop)) {
+      stop();
+      return 0;
+    }
+    return set.synth ?? 0;
   }
 
   /** Toca uma gravação avulsa (fora do `SAMPLES`) num canal; false se ainda não carregou. */
@@ -682,7 +825,7 @@ export class AudioService {
 
   private gap(key: string, seconds: number): boolean {
     const now = this.ctx!.currentTime;
-    const last = this.lastPlayed.get(key) ?? -1;
+    const last = this.lastPlayed.get(key) ?? -Infinity;
     if (now - last < seconds) return false;
     this.lastPlayed.set(key, now);
     return true;
@@ -723,7 +866,11 @@ export class AudioService {
     const nodes: AudioScheduledSourceNode[] = [];
     const duck = DUCK[sound];
     if (duck) this.duckMusic(duck * Math.min(1, gain * 1.5));
-    if (this.playSample(sound, gain, pan)) return;
+    const withSample = this.playSample(sound, gain, pan);
+    if (withSample !== false) {
+      if (withSample <= 0) return;
+      gain *= withSample;
+    }
     const out = this.out('combat', gain, pan);
     const burst = (type: BiquadFilterType, freq: number, q: number, attack: number, peak: number, decay: number, at = t, dest: AudioNode = out): number => {
       const n = this.noiseSource();
@@ -2003,6 +2150,11 @@ export class AudioService {
   ui(sound: UiSound): void {
     if (!this.ready) return;
     if (!this.gap(`ui:${sound}`, 0.04)) return;
+    // sob ataque: o primeiro aviso de uma leva toca a subida da sirene gravada; os seguintes, o toque curto de sempre
+    if (sound === 'attack' && this.useSamples && this.sampleBufs.get(SFX.sirenAlert[0]!) && this.gap('siren_alert', 25)) {
+      this.playExtra(SFX.sirenAlert, 'ui', LEVELS.alert, 0);
+      return;
+    }
     const ctx = this.ctx!;
     const t = ctx.currentTime + 0.003;
     const out = this.out('ui', 1);
@@ -2085,6 +2237,7 @@ export class AudioService {
       }
       return;
     }
+    if (cue === 'armed' && this.armedSiren(launchId, out)) return;
     if (cue === 'armed') {
       // armado: sirene mecânica de ataque (rotor) que sobe e desce sem parar até autorizar ou abortar. Dois rotores
       // um pouco desafinados entre si (o batimento dá o tremor de sirene de verdade), um pouco de saturação, o
@@ -2205,6 +2358,47 @@ export class AudioService {
         o.stop(at + 0.55);
       }
     }
+  }
+
+  /**
+   * Silo armado com a sirene gravada (lote 22): sobe do arranque do rotor e fica em loop sem emenda até autorizar ou
+   * abortar; ao desligar, o rotor perde giro (o tom cai) e some. false se a gravação ainda não carregou.
+   */
+  private armedSiren(launchId: number, out: GainNode): boolean {
+    if (!this.useSamples) return false;
+    const name = SFX.siren[Math.floor(Math.random() * SFX.siren.length)]!;
+    const buf = this.sampleBufs.get(name);
+    if (!buf) return false;
+    this.stopAlarm();
+    const ctx = this.ctx!;
+    const t = ctx.currentTime + 0.01;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    src.loopStart = SIREN_LOOP[name] ?? 0;
+    src.loopEnd = buf.duration;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(LEVELS.siren, t + 0.6);
+    const wet = ctx.createGain();
+    wet.gain.value = 0.25;
+    src.connect(g).connect(out);
+    g.connect(wet).connect(this.outdoorReverb());
+    src.start(t);
+    this.alarm = {
+      id: launchId,
+      stop: () => {
+        const now = ctx.currentTime;
+        src.playbackRate.cancelScheduledValues(now);
+        src.playbackRate.setValueAtTime(1, now);
+        src.playbackRate.exponentialRampToValueAtTime(0.4, now + 2.2);
+        g.gain.cancelScheduledValues(now);
+        g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), now);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + 2.4);
+        src.stop(now + 2.5);
+      },
+    };
+    return true;
   }
 
   /** Encerra o alarme de "armado" (de um lançamento, ou qualquer um). */
@@ -2363,9 +2557,11 @@ export class AudioService {
 
   // ------------------------------------------------------------------ ambiente e música
 
-  /** Vento e campo, sempre baixos, durante a partida. */
+  /** Vento e campo, sempre baixos, durante a partida: o vento gravado quando já carregou, senão o sintetizado. */
   startAmbient(): void {
     if (!this.ready || this.ambient) return;
+    this.ambient = this.windAmbient();
+    if (this.ambient) return;
     const ctx = this.ctx!;
     const out = this.out('ambient', 1);
     const n = this.noiseSource(true);
@@ -2388,6 +2584,76 @@ export class AudioService {
         lfo.stop();
       },
     };
+  }
+
+  /**
+   * Vento gravado (lote 24, estéreo, em loop sem emenda): uma brisa calma de fundo o tempo todo e um vento mais forte
+   * por cima que sobe e desce devagar (rajadas de ~20 s). Entra em 3 s. null se as gravações ainda não carregaram.
+   */
+  private windAmbient(): { stop: () => void; recorded: boolean } | null {
+    if (!this.useSamples || !this.ctx) return null;
+    const pick = (files: string[]) => {
+      const ready = files.map((f) => this.sampleBufs.get(f)).filter((b): b is AudioBuffer => !!b);
+      return ready.length ? ready[Math.floor(Math.random() * ready.length)]! : null;
+    };
+    const breeze = pick(SFX.breeze);
+    if (!breeze) return null;
+    const ctx = this.ctx;
+    const t = ctx.currentTime + 0.01;
+    const out = this.out('ambient', 1);
+    const fade = ctx.createGain();
+    fade.gain.setValueAtTime(0.0001, t);
+    fade.gain.exponentialRampToValueAtTime(1, t + 3);
+    fade.connect(out);
+    const stops: (() => void)[] = [];
+    const loop = (buf: AudioBuffer, gain: number) => {
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const g = ctx.createGain();
+      g.gain.value = gain;
+      src.connect(g).connect(fade);
+      src.start(t, Math.random() * buf.duration);
+      stops.push(() => src.stop());
+      return g;
+    };
+    loop(breeze, LEVELS.breeze);
+    const gust = pick(SFX.gust);
+    if (gust) {
+      const g = loop(gust, LEVELS.gust * 0.5);
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.05;
+      const depth = ctx.createGain();
+      depth.gain.value = LEVELS.gust * 0.5;
+      lfo.connect(depth).connect(g.gain);
+      lfo.start(t);
+      stops.push(() => lfo.stop());
+    }
+    return { recorded: true, stop: () => stops.forEach((f) => f()) };
+  }
+
+  /**
+   * Ronco da salva inteira do Lança-Foguetes (lote 27), por baixo dos lançamentos de cada foguete: dura `seconds` (o
+   * tempo que os foguetes levam para sair) e some em 0,6 s.
+   */
+  rocketSalvo(x: number, y: number, seconds: number): void {
+    if (!this.ready || !this.useSamples) return;
+    const buf = this.sampleBufs.get(SFX.salvo[0]!);
+    const sp = this.spatial(x, y);
+    if (!buf || !sp || sp.gain < 0.03) return;
+    const ctx = this.ctx!;
+    const t = ctx.currentTime + 0.005;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = 0.96 + Math.random() * 0.08;
+    const g = ctx.createGain();
+    const end = t + Math.min(buf.duration - 0.6, seconds);
+    g.gain.setValueAtTime(1, end);
+    g.gain.exponentialRampToValueAtTime(0.001, end + 0.6);
+    src.connect(g).connect(this.out('combat', sp.gain * LEVELS.salvo, sp.pan));
+    src.start(t);
+    src.stop(end + 0.65);
+    if (!this.claim(PRIORITY.rocket + 1, end + 0.65, () => src.stop())) src.stop();
   }
 
   /**

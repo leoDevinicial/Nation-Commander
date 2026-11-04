@@ -15,7 +15,8 @@ import { renderThumbnails } from './render/Thumbnails.ts';
 import { CameraController } from './render/CameraController.ts';
 import { Effects } from './render/Effects.ts';
 import { disposeSharedResources } from './render/palette.ts';
-import { RocketLayer } from './render/RocketLayer.ts';
+import { RIPPLE, RocketLayer } from './render/RocketLayer.ts';
+import { useLangStore } from '../i18n/index.ts';
 import { TrackMarks } from './render/TrackMarks.ts';
 import { Projectiles } from './render/Projectiles.ts';
 import { BIOME_TINT, buildTerrain, type TerrainHandle } from './render/TerrainFactory.ts';
@@ -1137,6 +1138,8 @@ export class GameRuntime {
           this.units.get(e.attackerId)?.visual.rocketKick(i);
           this.closeUpRecoilShake(e.from, 'rocket_artillery');
           audio.playAt('rocket', e.from.x, e.from.y);
+          // o ronco da salva inteira, por baixo dos lançamentos (gravado; sem a gravação, só os lançamentos)
+          if (i === 0) audio.rocketSalvo(e.from.x, e.from.y, (e.salvo ?? 1) * RIPPLE);
         },
       });
       attacker?.visual.onFire();
@@ -3381,9 +3384,11 @@ export class GameRuntime {
     const apply = () => {
       const s = useSettingsStore.getState();
       audio.setVolumes(s.volumes, s.muted, s.musicMuted);
+      audio.voiceLang = useLangStore.getState().lang;
     };
     apply();
     this.cleanup.push(useSettingsStore.subscribe(apply));
+    this.cleanup.push(useLangStore.subscribe(apply));
     const unlock = () => {
       audio.unlock();
       apply();

@@ -2,7 +2,12 @@
 """
 Prepara os efeitos sonoros do jogo (04/11): lê os originais em `assets/sfx/originais/` (ver `assets/sfx/CATALOGO.md`),
 recorta (início, fim e fade), converte para mono 44,1 kHz, iguala o volume médio do grupo e grava MP3 leve em
-`public/sfx/`. Precisa do ffmpeg. Rodar da raiz: `python3 scripts/sfx-preparar.py`.
+`public/sfx/`. Precisa do ffmpeg (e do numpy para os loops). Rodar da raiz: `python3 scripts/sfx-preparar.py`.
+
+`CLIPS` são os lotes 1–8; `MORE` (lotes 9–32, ver o catálogo) aceita também fade de entrada e estéreo. `LOOPS` monta
+clipes para tocar em loop sem emenda: o trecho [início, fim] com os últimos `cruz` segundos misturados ao que vem antes
+do início (assim o fim do loop continua no começo dele); `intro` mantém o que vem antes como entrada (a sirene sobe e
+depois o loop começa em `intro` segundos, valor usado no `AudioService`).
 """
 import os
 import re
@@ -45,6 +50,137 @@ CLIPS = [
 ]
 
 
+# lotes 9–32: (saída, original, início s, fim s, fade final s, média alvo dB, fade de entrada s)
+MORE = [
+    # antiaérea das eras 1–3: rajadas rápidas (lote 9) e recortes de 6–9 tiros do fogo contínuo (lote 31)
+    *[(f'antiaerea-rajada-{i}', f'antiaerea-rajada/antiaerea-rajada-{i}', 0.0, 1.1, 0.25, -20, 0) for i in range(1, 5)],
+    ('antiaerea-continua-1', 'antiaerea-continua/antiaerea-continua-1a', 0.15, 1.1, 0.25, -20, 0),
+    ('antiaerea-continua-2', 'antiaerea-continua/antiaerea-continua-1a', 2.0, 2.95, 0.25, -20, 0.01),
+    ('antiaerea-continua-3', 'antiaerea-continua/antiaerea-continua-1a', 3.5, 4.45, 0.25, -20, 0.01),
+    ('antiaerea-continua-4', 'antiaerea-continua/antiaerea-continua-1b', 0.0, 1.0, 0.4, -20, 0),
+    ('antiaerea-continua-5', 'antiaerea-continua/antiaerea-continua-1b', 5.05, 6.1, 0.4, -20, 0),
+    ('antiaerea-continua-6', 'antiaerea-continua/antiaerea-continua-4', 0.05, 1.0, 0.25, -20, 0),
+    ('antiaerea-continua-7', 'antiaerea-continua/antiaerea-continua-4', 4.5, 5.5, 0.3, -20, 0.01),
+    # antiaérea da era 4 (dois disparos; a 3, distante, ficou de fora)
+    ('antiaerea-era4-1', 'antiaerea-era4-duplo/antiaerea-era4-duplo-1', 0.0, 1.0, 0.4, -21, 0),
+    ('antiaerea-era4-2', 'antiaerea-era4-duplo/antiaerea-era4-duplo-2', 0.09, 1.6, 0.6, -21, 0),
+    ('antiaerea-era4-3', 'antiaerea-era4-duplo/antiaerea-era4-duplo-4', 0.04, 1.0, 0.4, -21, 0),
+    # veículo explodindo (lote 10): leves/médios e os pesados com munição cozinhando
+    ('veiculo-explosao-1', 'veiculo-explosao/veiculo-explosao-1', 0.0, 3.0, 1.2, -19, 0),
+    ('veiculo-explosao-2', 'veiculo-explosao/veiculo-explosao-3', 0.0, 2.8, 1.2, -19, 0),
+    ('veiculo-explosao-3', 'veiculo-explosao/veiculo-explosao-2', 0.06, 2.3, 0.8, -19, 0),
+    ('veiculo-explosao-4', 'veiculo-explosao/veiculo-explosao-4', 0.2, 2.4, 0.8, -19, 0),
+    ('veiculo-explosao-pesada-1', 'veiculo-explosao/veiculo-explosao-2', 0.06, 4.0, 1.3, -18, 0),
+    ('veiculo-explosao-pesada-2', 'veiculo-explosao/veiculo-explosao-4', 0.2, 3.6, 1.2, -18, 0),
+    # aviões (lotes 11 e 13): roncos inteiros; o vem-e-vai é feito no jogo (`pass` no AudioService)
+    *[(f'jato-voando-{i}', f'jato-voando/jato-voando-{i}', 0.0, 8.0, 0.3, -18, 0) for i in (2, 3, 4)],
+    ('bombardeiro-passagem', 'bombardeiro-voando/bombardeiro-voando-1', 0.0, 8.0, 1.0, -20, 0),
+    *[(f'bombardeiro-voando-{i}', f'bombardeiro-voando/bombardeiro-voando-{i}', 0.0, 8.0, 0.3, -18, 0) for i in (2, 3, 4)],
+    # Domo de Ferro (lotes 12 e 16) e interceptação no ar (lote 17)
+    ('domo-interceptacao-1', 'domo-interceptacao/domo-interceptacao-2', 0.0, 1.5, 0.6, -22, 0),
+    ('domo-interceptacao-2', 'domo-interceptacao/domo-interceptacao-3', 0.06, 1.5, 0.6, -22, 0),
+    ('domo-eco-1', 'domo-interceptacao/domo-interceptacao-1', 0.0, 2.0, 1.0, -22, 0.03),
+    ('domo-eco-2', 'domo-interceptacao/domo-interceptacao-4', 0.0, 2.2, 1.0, -22, 0.03),
+    ('domo-lancamento-1', 'domo-lancamento/domo-lancamento-1', 0.06, 2.3, 0.8, -19, 0),
+    ('domo-lancamento-2', 'domo-lancamento/domo-lancamento-3', 0.12, 2.3, 0.8, -19, 0),
+    ('domo-lancamento-3', 'domo-lancamento/domo-lancamento-4', 0.02, 2.6, 0.8, -19, 0),
+    *[(f'interceptacao-no-ar-{i}', f'interceptacao-no-ar/interceptacao-no-ar-{i}', 0.0, 1.5, 0.5, -20, 0) for i in range(1, 5)],
+    # bombas (lotes 14 e 15): só o fim do assobio (o jogo solta as bombas ~1 s depois) e o trovão do tapete
+    ('bomba-assobio-1', 'bomba-assobio/bomba-assobio-1', 2.0, 3.3, 0.15, -18, 0.25),
+    ('bomba-assobio-2', 'bomba-assobio/bomba-assobio-2', 1.3, 2.6, 0.15, -18, 0.25),
+    ('bomba-assobio-3', 'bomba-assobio/bomba-assobio-3', 1.3, 2.6, 0.15, -18, 0.25),
+    ('bomba-assobio-4', 'bomba-assobio/bomba-assobio-4', 1.4, 2.7, 0.15, -18, 0.25),
+    ('bombardeio-tapete-1', 'bombardeio-tapete/bombardeio-tapete-2', 0.0, 5.0, 2.0, -19, 0),
+    ('bombardeio-tapete-2', 'bombardeio-tapete/bombardeio-tapete-3', 0.2, 5.2, 2.0, -19, 0),
+    # CIWS (lote 18): rajada de ~1,8 s
+    ('ciws-gatling-1', 'ciws-gatling/ciws-gatling-1', 0.1, 1.9, 0.15, -19, 0),
+    *[(f'ciws-gatling-{i}', f'ciws-gatling/ciws-gatling-{i}', 0.0, 1.8, 0.15, -19, 0) for i in (2, 3, 4)],
+    # nuclear (lote 19)
+    ('explosao-nuclear-1', 'explosao-nuclear/explosao-nuclear-1', 0.04, 8.0, 3.0, -18, 0),
+    ('explosao-nuclear-2', 'explosao-nuclear/explosao-nuclear-2', 0.11, 8.1, 3.0, -18, 0),
+    ('explosao-nuclear-3', 'explosao-nuclear/explosao-nuclear-3', 0.13, 8.1, 3.0, -18, 0),
+    ('explosao-nuclear-4', 'explosao-nuclear/explosao-nuclear-4', 0.2, 8.2, 3.0, -18, 0),
+    # Programa Espacial (lote 20): contagem em inglês com a ignição em 2,5 s e a decolagem em 4,7 s; sem a voz a partir de 2,3 s
+    ('espaco-contagem-en', 'espaco-lancamento/espaco-contagem-e-lancamento', 0.0, 8.0, 3.3, -16, 0),
+    ('espaco-ignicao', 'espaco-lancamento/espaco-contagem-e-lancamento', 2.3, 8.0, 3.3, -16, 0.05),
+    ('espaco-decolagem', 'espaco-lancamento/espaco-decolagem-2', 0.0, 11.0, 4.0, -16, 0),
+    # blindado (lote 21): tiros únicos para a rajada de 3 e a rajada embolada
+    ('blindado-canhao-1', 'blindado-canhao/blindado-canhao-4', 0.07, 0.8, 0.3, -20, 0),
+    ('blindado-canhao-2', 'blindado-canhao/blindado-canhao-3', 0.0, 0.8, 0.3, -20, 0),
+    ('blindado-canhao-3', 'blindado-canhao/blindado-canhao-2', 0.0, 1.5, 0.6, -21, 0),
+    # sirene de ataque (lote 22): o começo da subida, para o aviso "sob ataque"
+    ('sirene-aviso', 'sirene-ataque-aereo/sirene-ataque-aereo-4', 0.0, 2.2, 0.8, -20, 0),
+    # canhão (lote 23), obus (lote 25), explosão pequena (lote 26)
+    *[(f'canhao-tiro-{i}', f'canhao-tiro/canhao-tiro-{i}', 0.0, 2.0, 0.8, -20, 0) for i in range(1, 5)],
+    ('obus-tiro-1', 'obus-tiro/obus-tiro-1', 0.05, 3.5, 1.2, -20, 0),
+    ('obus-tiro-2', 'obus-tiro/obus-tiro-2', 0.08, 3.0, 1.0, -20, 0),
+    ('obus-tiro-3', 'obus-tiro/obus-tiro-3', 2.03, 4.2, 0.8, -20, 0),
+    ('obus-tiro-4', 'obus-tiro/obus-tiro-3', 4.2, 6.0, 0.8, -20, 0),
+    ('obus-distante', 'obus-tiro/obus-tiro-4', 0.0, 4.0, 1.5, -24, 0),
+    *[(f'explosao-pequena-{i}', f'explosao-pequena/explosao-pequena-{i}', 0.0, 1.0, 0.35, -19, 0) for i in range(1, 5)],
+    # lança-foguetes (lote 27): um lançamento por foguete e o ronco da salva inteira
+    ('foguete-lancamento-1', 'lanca-foguetes/lanca-foguetes-lancamentos', 0.0, 2.6, 0.8, -20, 0),
+    ('foguete-lancamento-2', 'lanca-foguetes/lanca-foguetes-lancamentos', 2.78, 5.0, 0.8, -20, 0),
+    ('foguete-lancamento-3', 'lanca-foguetes/lanca-foguetes-lancamentos', 5.08, 7.5, 0.8, -20, 0),
+    ('foguete-lancamento-4', 'lanca-foguetes/lanca-foguetes-lancamentos', 9.88, 12.4, 0.8, -20, 0),
+    ('foguete-salva', 'lanca-foguetes/lanca-foguetes-salva-continua', 0.0, 2.2, 0.8, -18, 0),
+    # torre (lote 28): cortada antes do eco tardio
+    ('torre-defesa-1', 'torre-defesa/torre-defesa-2', 0.0, 0.8, 0.3, -20, 0),
+    ('torre-defesa-2', 'torre-defesa/torre-defesa-3', 0.2, 1.0, 0.3, -20, 0),
+    # canhão do caça (lote 29)
+    ('caca-canhao-1', 'caca-canhao/caca-canhao-m61-rajada-longa', 0.0, 1.0, 0.12, -18, 0),
+    ('caca-canhao-2', 'caca-canhao/caca-canhao-m61-rajada-longa', 0.85, 1.9, 0.12, -18, 0.01),
+    ('caca-canhao-3', 'caca-canhao/caca-canhao-rajada-curta', 1.66, 3.6, 1.2, -18, 0),
+    # míssil ar-ar (lote 30)
+    ('missil-ar-ar-1', 'missil-ar-ar/missil-ar-ar-1', 0.08, 2.0, 0.8, -19, 0),
+    ('missil-ar-ar-2', 'missil-ar-ar/missil-ar-ar-2', 0.1, 1.4, 0.5, -19, 0),
+    ('missil-ar-ar-3', 'missil-ar-ar/missil-ar-ar-3', 0.02, 2.4, 0.8, -19, 0),
+    ('missil-ar-ar-4', 'missil-ar-ar/missil-ar-ar-4', 0.1, 2.0, 0.8, -19, 0),
+]
+
+# loops sem emenda: (saída, original, início s, fim s, cruz s, média alvo dB, estéreo, intro)
+LOOPS = [
+    ('sirene-loop-1', 'sirene-ataque-aereo/sirene-ataque-aereo-2', 3.0, 9.0, 0.5, -19, False, True),
+    ('sirene-loop-2', 'sirene-ataque-aereo/sirene-ataque-aereo-4', 1.5, 9.0, 0.5, -19, False, True),
+    *[(f'vento-{i}', f'vento/vento-{i}', 1.0, 9.0, 0.8, None, True, False) for i in range(1, 5)],
+]
+
+
+def decode(path: str, stereo: bool) -> 'np.ndarray':
+    import numpy as np
+
+    ch = 2 if stereo else 1
+    raw = subprocess.run(['ffmpeg', '-v', 'error', '-i', path, '-ac', str(ch), '-ar', '44100', '-f', 'f32le', '-'], capture_output=True, check=True).stdout
+    return np.frombuffer(raw, np.float32).reshape(-1, ch).copy()
+
+
+def make_loop(name, src, start, end, cross, target, stereo, intro) -> None:
+    """Loop sem emenda: os últimos `cross` s do trecho viram uma mistura com o que vem antes de `start`."""
+    import numpy as np
+
+    sr = 44100
+    x = decode(os.path.normpath(os.path.join(SRC, src + '.mp3')), stereo)
+    a, b, n = int(start * sr), int(end * sr), int(cross * sr)
+    body = x[a:b].copy()
+    fade = np.linspace(0, 1, n, dtype=np.float32)[:, None]
+    body[-n:] = body[-n:] * (1 - fade) + x[a - n : a] * fade
+    out = np.concatenate([x[:a], body]) if intro else body
+    if target is not None:
+        rms = float(np.sqrt((body**2).mean()))
+        out = out * (10 ** (target / 20) / max(rms, 1e-6))
+    out = np.clip(out, -0.89, 0.89)
+    if intro:
+        k = int(0.004 * sr)
+        out[:k] *= np.linspace(0, 1, k, dtype=np.float32)[:, None]
+    dst = os.path.join(OUT, name + '.mp3')
+    subprocess.run(
+        ['ffmpeg', '-y', '-v', 'error', '-f', 'f32le', '-ar', str(sr), '-ac', str(out.shape[1]), '-i', '-', '-c:a', 'libmp3lame', '-b:a', '96k' if stereo else '80k', dst],
+        input=out.astype(np.float32).tobytes(),
+        check=True,
+    )
+    print(f'{dst}: loop {end - start:.1f} s{f", entrada {start:.1f} s" if intro else ""}, {os.path.getsize(dst) // 1024} KB')
+
+
 def mean_db(path: str, start: float, end: float) -> float:
     r = subprocess.run(
         ['ffmpeg', '-hide_banner', '-ss', str(start), '-to', str(end), '-i', path, '-ac', '1', '-af', 'volumedetect', '-f', 'null', '-'],
@@ -57,17 +193,20 @@ def mean_db(path: str, start: float, end: float) -> float:
 
 def main() -> None:
     os.makedirs(OUT, exist_ok=True)
-    for name, src, start, end, fade, target in CLIPS:
+    for name, src, start, end, fade, target, *rest in [*CLIPS, *MORE]:
+        fade_in = (rest[0] if rest else 0) or 0.004
         path = os.path.normpath(os.path.join(SRC, src + '.mp3'))
         gain = target - mean_db(path, start, end)
         dur = end - start
-        af = f'volume={gain:.2f}dB,alimiter=limit=0.89:level=false,afade=t=in:d=0.004,afade=t=out:st={dur - fade:.3f}:d={fade}'
+        af = f'volume={gain:.2f}dB,alimiter=limit=0.89:level=false,afade=t=in:d={fade_in},afade=t=out:st={dur - fade:.3f}:d={fade}'
         dst = os.path.join(OUT, name + '.mp3')
         subprocess.run(
             ['ffmpeg', '-y', '-v', 'error', '-ss', str(start), '-to', str(end), '-i', path, '-ac', '1', '-ar', '44100', '-af', af, '-c:a', 'libmp3lame', '-b:a', '80k', dst],
             check=True,
         )
         print(f'{dst}: {dur:.1f} s, ganho {gain:+.1f} dB, {os.path.getsize(dst) // 1024} KB')
+    for loop in LOOPS:
+        make_loop(*loop)
 
 
 if __name__ == '__main__':

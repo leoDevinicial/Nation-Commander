@@ -1,9 +1,9 @@
-# Catálogo de efeitos sonoros recebidos (ainda não usados no jogo)
+# Catálogo de efeitos sonoros recebidos
 
-Arquivos originais enviados pelo responsável do projeto, guardados como vieram (só renomeados). **Nada aqui está ligado
-ao jogo ainda**: os efeitos em jogo seguem sintetizados em `src/game/audio/AudioService.ts`. A pasta fica fora de
-`public/`, então não entra no build nem é baixada pelo jogador. Quando for implementar, a ideia é recortar, normalizar
-e converter cada um para `public/sfx/` e trocar o som sintetizado correspondente.
+Arquivos originais enviados pelo responsável do projeto, guardados como vieram (só renomeados), com a análise de cada
+um. A pasta fica fora de `public/`, então não entra no build nem é baixada pelo jogador. `scripts/sfx-preparar.py`
+recorta, normaliza e converte o que é usado para `public/sfx/`; o que está ligado a cada som do jogo fica na seção
+**Em uso no jogo** (no fim), e o que ainda falta gravar em **O que falta**.
 
 ## Lote 1 (04/11) — tiro de tanque de guerra (4 variações)
 Pasta `originais/tanque-tiro/`. Todos MP3 48 kHz estéreo, 192 kbps, 10,0 s (≈ 236 KB). Arquivo de origem:
@@ -633,28 +633,80 @@ primeiro); a 3 serve como tiro distante. Ao implementar: cortar o início da 2, 
 pelo eco), normalizar com margem (subir a 2 e a 3), converter para mono.
 
 ## Em uso no jogo (04/11)
-`scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
-~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
-áudio é liberado e, para cada som abaixo, toca a gravação (variação sorteada, sem repetir a anterior, altura ±4%);
-enquanto o arquivo não carregou, ou se falhar, toca o sintetizado de antes. Ganhos calibrados no navegador para ficar
-no nível do sintetizado substituído.
+`scripts/sfx-preparar.py` recorta, converte para mono 44,1 kHz (o vento fica estéreo) e iguala o volume dos clipes em
+`public/sfx/` (121 arquivos, ~4,3 MB). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o áudio é
+liberado e, para cada som abaixo, toca a gravação (variação sorteada, sem repetir a anterior, altura ±4%); enquanto o
+arquivo não carregou, ou se falhar, toca o sintetizado de antes. `src/test/audio.test.ts` confere que todo arquivo
+citado existe.
+
+**Calibração (04/11, lotes 9–32):** cada som renderizado num `OfflineAudioContext` no navegador (o mesmo caminho do jogo,
+com o compressor do fim), sintetizado e gravado, 4 vezes cada, comparando o maior RMS em janelas de 300 ms. O ganho
+de cada conjunto deixa a gravação no nível do sintetizado: quase todos a até ~1,5 dB. Os mais fortes (antiaérea,
+interceptação do Domo, obus, canhão do caça) ficaram 2,5–3,7 dB abaixo no pico, porque o compressor segura os picos;
+subir mais só comprimiria mais. **Nada foi ouvido**: se algum soar alto ou baixo, ajustar o `gain` no `SAMPLES` (ou em
+`LEVELS`, para vento, sirenes e ronco da salva).
 
 | Som do jogo | Gravações | Observação |
 |---|---|---|
 | `tank_gun` (tanque) / `mbt_gun` (tanque moderno) | tanque-tiro 1–5 | o moderno toca 10% mais grave e mais alto |
-| `explosion_big`, `bomb`, `vehicle_explosion_heavy` | explosao-grande 1–3 | blindado pesado 8% mais agudo |
-| `missile_launch` | missil-lancamento 1–4 | |
-| `missile_impact` | missil-impacto 1–4 | |
-| `rifle` (infantaria) | metralhadora-tiro 1–4 ou metralhadora-rajada 1 e 3 | metade das vezes 3 a 5 tiros únicos em sequência (0,085 s), metade uma rajada curta gravada |
-| `air_mg` (metralhadora do caça) | metralhadora-rajada 1–4 | 25% mais rápida e aguda (~750 tiros/min) |
-| Guerra ao longe (`AudioService.warAt`) | artilharia-distante 1–4 | ver abaixo |
-| Energia desligando (`AudioService.powerDown`) | energia-desligando | prédio próprio que acabou de ficar sem luz; no máximo 1 vez a cada 4 s (rede inteira caindo toca uma vez), canal de interface |
+| `explosion_big`, `bomb` | explosao-grande 1–3 | |
+| `vehicle_explosion_heavy` | veiculo-explosao-pesada 1–2 (lote 10, munição cozinhando) ou explosao-grande 1–3 | 60% / 40% |
+| `vehicle_explosion` | veiculo-explosao 1–4 (lote 10) | |
+| `explosion` | explosao-pequena 1–4 (lote 26) | o som de explosão mais comum |
+| `missile_launch` / `missile_impact` | missil-lancamento 1–4 / missil-impacto 1–4 | |
+| `rifle` (infantaria) | metralhadora-tiro 1–4 ou metralhadora-rajada 1 e 3 | metade das vezes 3 a 5 tiros únicos (0,085 s), metade uma rajada curta |
+| `air_mg` (metralhadora do caça) | metralhadora-rajada 1–4 | 25% mais rápida e aguda |
+| `aa_gun` (antiaérea das eras 1–3) | antiaerea-rajada 1–4 (lote 9, ~20 tiros/s) ou antiaerea-continua 1–7 (lote 31, recortes de 6–9 tiros a ~11/s) | 40% / 60% |
+| `aa_twin` (antiaérea da era 4) | antiaerea-era4 1–3 (lote 32) | dois disparos já na gravação |
+| `jet` (passagem de caça) | jato-voando 2–4 (lote 11) | ronco contínuo com o vem-e-vai feito no jogo (`pass`): volume até o pico em 1,8 s, some até 4,8 s, tom cai 12% depois do pico; trecho sorteado |
+| `bomber` | bombardeiro-passagem (lote 13-1, sobrevoo pronto) ou bombardeiro-voando 2–4 com `pass` (7,5 s, 10% mais grave) | 60% / 40% |
+| `dome_intercept` | domo-interceptacao 1–2 (lote 12) + eco domo-eco 1–2 (`layer`, 35%, 0,05 s depois) | |
+| `intercept` | interceptacao-no-ar 1–4 (lote 17) | |
+| `dome_launch` | domo-lancamento 1–3 (lote 16) | |
+| `bomb_whistle` | bomba-assobio 1–4 (lote 14) | só os últimos 1,3 s de cada assobio (as bombas caem ~1 s depois) |
+| `carpet_rumble` | bombardeio-tapete 1–2 (lote 15) + o sintetizado a 50% (`synth`) | a gravação é quase toda subgrave; o sintetizado dá os médios |
+| `gatling` (CIWS) | ciws-gatling 1–4 (lote 18), rajada de 1,8 s | o giro do motor dos canos do sintetizado saiu junto |
+| `nuclear_blast` | explosao-nuclear 1–4 (lote 19) + sintetizado a 50% | |
+| `space_prelaunch` | espaco-contagem-en (com a voz, jogo em inglês) ou espaco-ignicao (sem a voz, outros idiomas), lote 20 | começa 5,3 s (inglês) ou 7,6 s depois do pedido, para a ignição cair a −2,2 s da decolagem; o sintetizado (bombas, válvulas) segue a 70%. Idioma em `audio.voiceLang` (`GameRuntime` lê o `useLangStore`) |
+| `space_liftoff` | espaco-decolagem (lote 20-2), 11 s com fade longo | a contagem some nos 3 s depois da decolagem enquanto esta cresce |
+| `apc_gun` (blindado) | blindado-canhao 1–2 em 3 tiros a 0,3 s (`rounds`) ou a rajada embolada blindado-canhao-3 (lote 21) | 2/3 e 1/3 |
+| `cannon` | canhao-tiro 1–4 (lote 23) | |
+| `howitzer` (obus) | obus-tiro 1–4 (lote 25; a 3 virou dois tiros) | |
+| `rocket` (cada foguete da salva) | foguete-lancamento 1–4 (lote 27, quatro lançamentos recortados) | ganho calibrado pela salva inteira (12 foguetes) |
+| Ronco da salva (`AudioService.rocketSalvo`) | foguete-salva (lote 27, ronco contínuo) | toca uma vez por salva, pelo tempo dos lançamentos (`RIPPLE` × foguetes), e some em 0,6 s |
+| `tower` | torre-defesa 1–2 (lote 28), cortadas antes do eco tardio | altura +3% |
+| `jet_cannon` | caca-canhao 1–3 (lote 29: dois trechos da M61 e a rajada curta com eco) | |
+| `aam_launch` / `agm_launch` | missil-ar-ar 1–4 / missil-ar-ar 2 e 4 10% mais graves (lote 30) | o ar-terra usa o ar-ar até chegar um lote próprio |
+| Guerra ao longe (`AudioService.warAt`) | artilharia-distante 1–4 e obus-distante (lote 25-4) | ver abaixo |
+| Energia desligando (`AudioService.powerDown`) | energia-desligando | prédio próprio que acabou de ficar sem luz; no máximo 1 vez a cada 4 s, canal de interface |
+| Sob ataque (`ui('attack')`) | sirene-aviso (subida da sirene 22-4, 2,2 s) | só no primeiro aviso a cada 25 s; os seguintes, o toque curto sintetizado |
+| Silo armado (`missileCue('armed')`) | sirene-loop 1–2 (lote 22-2 e 22-4) | sobe do arranque do rotor e fica em loop sem emenda (`LOOPS` no script; o loop começa em 3,0 s e 1,5 s); ao parar, o tom cai e some em 2,4 s |
+| Ambiente (`startAmbient`) | vento-3 ou 4 (brisa de fundo) + vento-1 ou 2 (rajadas que sobem e descem a cada ~20 s), estéreo e em loop (lote 24) | se a partida começa antes de o vento carregar, o sintetizado toca e é trocado quando chega |
 
 **Guerra ao longe:** o `GameRuntime` guarda onde houve tiro envolvendo o jogador nos últimos 8 s e, a cada segundo,
 chama `warAt`. Quanto mais longe a câmera está do combate mais próximo (ou mais afastada no zoom), mais alto o fundo,
 com mais combate deixando mais forte; com a câmera em cima da luta, some. Toca uma artilharia distante sorteada a cada
 2–6 s (mais frequente quanto mais alto), vinda do lado do combate, no canal de combate. Em ataque massivo ou guerra
-nuclear fica sempre presente (nível mínimo 0,35). Medido no navegador: com a câmera longe, média ~−30 dB e pico ~−17 dB
-no canal de combate, bem abaixo dos tiros de perto (−7 a −15 dB).
+nuclear fica sempre presente (nível mínimo 0,35).
 
-Lote 7 (rajadas) só não substitui a gatling do CIWS (cadência muito maior, segue sintetizada; gravações próprias no lote 18, ainda não ligadas).
+**Correção junto (04/11):** o intervalo mínimo entre dois sons iguais (`gap`) começava como se o último tivesse tocado
+em −1 s; nos primeiros segundos de áudio, sons com intervalo maior que 1 s (bombardeiro, tapete, Programa Espacial,
+energia, sirene) eram descartados. Agora começa em "nunca tocou".
+
+**Ficaram de fora de propósito:** jato-voando-1 (muito baixo e cortado), antiaerea-era4-duplo-3 (distante, sem ataque),
+domo-lancamento-2 (baque fraco sozinho), sirene-ataque-aereo-1 (sem uso por enquanto), blindado-canhao-1 (sem ataque).
+
+## O que falta (04/11)
+Ainda sintetizados, sem gravação:
+- **Combate:** estouro antiaéreo no ar (`flak`, quando um avião cai); míssil ar-terra próprio (`agm_launch` usa o
+  ar-ar); drone passando (`drone_pass`) e o som de bordo do drone FPV (loop, sem fade).
+- **Silo nuclear:** "preparando" (`missileCue('prepare')`) e "autorizado" (`missileCue('authorize')`).
+- **Programa Espacial:** contagem falada em português e espanhol (só a voz, sem motor; hoje esses idiomas ouvem só a
+  ignição).
+- **Clima:** chuva (loop), trovão (estouros soltos) e vento de neve (a neve ainda usa o vento sintetizado do
+  `setWeather`; dá para testar os ventos do lote 24 ali).
+- **Produção dos prédios** (loops de 5–10 s sem fade): serraria, pedreira, mina, fábrica, bomba de petróleo, fazenda,
+  aeroporto, porto, escritório e o zumbido genérico.
+- **Interface** (opcional): clique, confirmar, erro, alerta, sucesso, anúncio.
+- **Variações que não vieram** (opcionais): explosão grande 1, sirene 3, bombardeio em tapete 1 e 4, decolagem 1, 3 e
+  4, torre 1 e 4.
