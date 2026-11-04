@@ -356,6 +356,41 @@ maior parte some: manter também um pouco do sintetizado por cima ou dar prefer�
 silêncio inicial (0,04–0,21 s), cortar em ~8 s com fade longo (2–3 s), normalizar, converter para mono. É raro, então
 o tamanho do arquivo não pesa.
 
+## Lote 20 (04/11) — Programa Espacial: contagem regressiva e lançamento (2 arquivos)
+Pasta `originais/espaco-lancamento/`. Dois arquivos diferentes:
+
+**`espaco-contagem-e-lancamento.mp3`** — composição pronta (origem: "ElevenLabs audio composition 2026-11-04"). MP3
+**44,1 kHz mono**, 103 kbps, 16,5 s (≈ 213 KB): formato diferente dos outros lotes.
+
+| Trecho | O que tem (pela análise; não ouvido) |
+|---|---|
+| 0,08–1,9 s | **voz**: três falas curtas (0,08–0,88 s, com uma pausa em 0,6 s; e 1,55–1,88 s), quase toda a energia na faixa da voz (300–3.400 Hz), sem grave: provavelmente o fim da contagem ("três, dois, um" ou parecido). **Idioma não conferido** (aqui não dá para transcrever áudio) |
+| ~2,5 s | ignição: o grave entra de uma vez (97% abaixo de 200 Hz em 3,0 s) |
+| 2,5–14,5 s | ronco do foguete crescendo de −20 a −3 dB (em 9–13 s), o tom sobe até ~8 s e desce depois |
+| 14,5–16,5 s | fade até o silêncio |
+
+Pico **+5,8 dB** e ~25 mil amostras no limite: o ronco está **saturado/clipado** (média de −4 dB em 9–13 s). Ao
+implementar, baixar ~8–10 dB; a distorção que já está na gravação fica (no ronco de foguete ela quase não se nota).
+
+**`espaco-decolagem-2.mp3`** — origem "26 - space liftoff D 2" (só a variação 2 veio). MP3 48 kHz estéreo, 192 kbps,
+13,0 s (≈ 313 KB). Pico −1,3 dB, média −14,1 dB, nada no limite. Ronco que **cresce** de −44 a −15 dB nos primeiros
+~2,5 s e depois fica **plano em −13 dB até o fim, sem fade** (o arquivo termina cortado em pleno ronco). O tom desce
+devagar (centro de 3,1 kHz em 3 s até ~1 kHz em 12 s) e o grave cresce (de ~10% a ~59%): soa como o foguete subindo e
+se afastando.
+
+**Como o jogo toca hoje** (`GameRuntime`, evento do Programa Espacial): `space_prelaunch` começa **10 s antes** da
+decolagem (bombas, válvulas, supressão acústica e ignição a −2,2 s, sincronizado com a animação) e `space_liftoff`
+começa na decolagem (força crescendo até ~4 s, depois abafando ao longe).
+
+Uso provável:
+- `space_prelaunch` + `space_liftoff`: a composição pode tocar **começando ~4,7 s antes da decolagem**, para a ignição
+  dela (2,5 s) cair na ignição da animação (−2,2 s); os primeiros ~5 s da contagem do jogo (bombas, válvulas) seguem
+  sintetizados por baixo. A voz só serve se o idioma combinar com o jogo (português, ou trocar conforme o idioma
+  escolhido; ver `docs/IDIOMAS.md`); se não combinar, usar a composição só a partir de ~2,4 s (sem a voz).
+- `space_liftoff`: a decolagem 2 como alternativa ao ronco da composição, cortada em ~10 s com fade longo (3–4 s),
+  porque o arquivo não tem fim.
+Converter tudo para mono 48 kHz e normalizar.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
