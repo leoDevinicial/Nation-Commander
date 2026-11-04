@@ -202,6 +202,24 @@ para formações longe da câmera. `bomber` (bombardeiro): a 4 ou a 3 ~20–25% 
 de ~0,3 s (não tem fade, mas o fim e o começo não casam exatamente). Ao implementar: normalizar (subir a 1 em ~15 dB
 se for usada), converter para mono.
 
+## Lote 12 (04/11) — Domo de Ferro, interceptação do míssil (4 variações)
+Pasta `originais/domo-interceptacao/`. Todos MP3 48 kHz estéreo, 192 kbps, 3,0 s (≈ 73 KB). Arquivo de origem:
+"19 - dome intercept N". As 4 são distintas. Estouros **no alto e longe**: curtos, sem soco grave (3–18% abaixo de
+200 Hz), mais baixos que as explosões de chão. Dois pares bem diferentes:
+
+| Arquivo | Origem | Conteúdo | Pico | Média | Até ~−40 dB | Observação |
+|---|---|---|---|---|---|---|
+| `domo-interceptacao-1.mp3` | 1 | estrondo distante, sem ataque | −14,2 dB | −37,3 dB | ~1,7 s | **começa já no meio do som** (−25 dB em 0 s, só cai depois): sem o estalo inicial, parece ter sido cortado no começo; bom como eco/ronco de uma interceptação longe |
+| `domo-interceptacao-2.mp3` | 2 | estalo seco em 0,04 s e chiado de fragmentos | +1,6 dB | −28,2 dB | ~0,7 s | o mais "estouro" dos quatro; estalo de ~20 ms, **saturado** (27 amostras no limite) |
+| `domo-interceptacao-3.mp3` | 3 | 0,07 s de silêncio, depois 3 estalos (0,08, 0,11 e 0,15 s) | +1,5 dB | −30,0 dB | ~0,7 s | estouro com fragmentação (crepitar); o mais grave no timbre (1,5 kHz); **saturado** (16 amostras no limite); cortar o silêncio inicial |
+| `domo-interceptacao-4.mp3` | 4 | estrondo distante, sem ataque | −16,8 dB | −39,2 dB | ~2,1 s | igual à 1 no formato (começa no meio, cauda longa e suave), a mais aguda e sem grave (3%) |
+
+Uso provável: `dome_intercept` (interceptador do Domo de Ferro acertando o míssil) com a 2 e a 3 como o estouro, e a
+1 ou a 4 como cauda tocada junto (~15 dB abaixo, 0,05 s depois), o que dá estouro + eco no céu. `intercept`
+(interceptação sem o domo, por exemplo pela antiaérea) pode usar as mesmas, um pouco mais agudas. Ao implementar:
+cortar o silêncio da 3, normalizar com margem (a 2 e a 3 estão saturadas no pico; as 1 e 4 precisam subir ~12–15 dB
+se forem usadas sozinhas), converter para mono, cortar em ~1,5–2 s com fade.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
