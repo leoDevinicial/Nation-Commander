@@ -3,6 +3,7 @@ import type { GameSpeed, MatchStartInfo, ServerMessage } from '../../shared/prot
 import type { Command, SandboxToggle } from '../../shared/sim/commands.ts';
 import { BUILDINGS, CITIZEN, CITY, MILITARY_RESEARCH, MILITARY_RESEARCH_IDS, RECRUIT, RESOURCE_TYPES, ROAD, HIGHWAY, SERVICES, TICK_RATE, UNITS, emptyStockpile, type BuildingType, type MilitaryResearchId, type Terrain, type UnitType } from '../../shared/sim/config.ts';
 import { WAKE_SHIPS, type WakeShip } from './render/Water.ts';
+import { THREAT, ThreatTracker } from './audio/threat.ts';
 import { MOD_IDS, MODS, checkModernize, pickRefitFacility, type FacilityInfo, type ModId, type ModernizeCheck } from '../../shared/sim/modernization.ts';
 import { anchorForCursor, placementError } from '../../shared/sim/placement.ts';
 import type { BuildingSnapshot, Snapshot, UnitSnapshot } from '../../shared/sim/snapshot.ts';
@@ -1023,7 +1024,74 @@ export class GameRuntime {
     for (const t of this.units.values()) yield t.visual.renderPos;
   }
 
+  /** Estado de ameaça para a trilha sonora (04/11): eventos que envolvem o jogador e inimigos perto das construções. */
+  private readonly threat = new ThreatTracker();
+  private threatSampleAt = 0;
+
+  private noteThreat(e: SimEvent): void {
+    const now = performance.now() / 1000;
+    const me = this.mySlot;
+    const ownerOf = (id: number) => this.units.get(id)?.snap.owner ?? this.buildings.get(id)?.snap.owner;
+    switch (e.type) {
+      case 'shot':
+        if (ownerOf(e.attackerId) === me || ownerOf(e.targetId) === me) this.threat.shot(now);
+        break;
+      case 'under_attack':
+      case 'attrition':
+        if (e.owner === me) this.threat.combat(now);
+        break;
+      case 'destroyed':
+        if (e.owner === me) this.threat.loss(now);
+        else if (e.killerOwner === me) this.threat.combat(now);
+        break;
+      case 'air_strike':
+        if (e.victim === me || e.owner === me) this.threat.combat(now);
+        break;
+      case 'border_incident':
+        if (e.victim === me || e.aggressor === me) this.threat.combat(now);
+        break;
+      case 'city_captured':
+        if (e.victim === me) this.threat.massive(now);
+        else if (e.owner === me) this.threat.combat(now);
+        break;
+      case 'world':
+        if (e.kind === 'nuclear') this.threat.massive(now, THREAT.nuclearHold);
+        break;
+      case 'missile':
+        if (e.nuclear && (e.state === 'flight' || e.state === 'impact')) this.threat.massive(now, THREAT.nuclearHold);
+        else if (e.state === 'flight' && (e.targetOwner === me || e.owner === me)) this.threat.combat(now);
+        break;
+      default:
+        break;
+    }
+  }
+
+  /** A cada segundo: inimigos à vista perto das nossas construções e o estado da música. */
+  private updateThreat(nowMs: number): void {
+    if (nowMs < this.threatSampleAt) return;
+    this.threatSampleAt = nowMs + 1000;
+    const now = nowMs / 1000;
+    const mineB: { x: number; y: number }[] = [];
+    for (const b of this.buildings.values()) {
+      if (b.snap.owner !== this.mySlot) continue;
+      const p = this.positionOf(b.snap.id);
+      if (p) mineB.push(p);
+    }
+    let near = 0;
+    if (mineB.length)
+      for (const u of this.units.values()) {
+        const s = u.snap;
+        // aliados são raros (times); a música trata qualquer outra nação perto da base como ameaça
+        if (s.owner === this.mySlot || s.hp <= 0) continue;
+        const p = u.visual.renderPos;
+        if (mineB.some((b) => (b.x - p.x) ** 2 + (b.y - p.y) ** 2 < 28 * 28)) near++;
+      }
+    this.threat.enemiesNear(near, now);
+    audio.setThreat(this.threat.level(now));
+  }
+
   private handleEvent(e: SimEvent): void {
+    this.noteThreat(e);
     // tiros fortes, explosões e bombas assustam os pássaros e as manadas por perto
     if (e.type === 'destroyed' || e.type === 'air_strike' || e.type === 'caravan_lost' || (e.type === 'mine' && e.state === 'blast')) this.ambient.disturb(e.pos.x, e.pos.y, e.type === 'air_strike' ? 22 : 14);
     else if (e.type === 'shot') this.ambient.disturb(e.from.x, e.from.y, 9);
@@ -1509,6 +1577,7 @@ export class GameRuntime {
       (this.sky.material as THREE.ShaderMaterial).uniforms.uTime!.value = now / 1000;
       this.terrain.update(now / 1000);
       this.feedWakes(now / 1000);
+      this.updateThreat(now);
       // vento das folhas (movimento reduzido: parado)
       windUniforms.uWindTime.value = useSettingsStore.getState().reducedMotion || prefersReducedMotion() ? 0 : now / 1000;
       this.shadowFollow?.update(this.cameraCtl.target, this.cameraCtl.distance);

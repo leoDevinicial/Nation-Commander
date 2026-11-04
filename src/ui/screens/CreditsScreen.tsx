@@ -16,6 +16,10 @@ export function CreditsScreen() {
           (ISC) — não são cartografia exata nem posição oficial sobre fronteiras disputadas.
         </p>
         <p>
+          Trilha sonora original do jogo: Architect of the Horizon e The Last Perimeter (construção), The War Board (combate) e Strike at Zero (ataque
+          massivo e guerra nuclear).
+        </p>
+        <p>
           Tecnologia: Three.js, React, Vite, Tailwind CSS, Zustand, Supabase e Node.js com <code>ws</code> — todos sob licenças de código
           aberto (MIT/Apache-2.0).
         </p>

@@ -45,8 +45,9 @@ export function AudioSettings({ compact = false }: { compact?: boolean }) {
       </div>
       {!compact && (
         <p className="text-[11px] text-ink-400">
-          Todos os sons são gerados no próprio aparelho (nada é baixado). Combate soa mais alto perto do ponto que a câmera olha; a produção toca só para o edifício selecionado. Alertas importantes
-          também aparecem sempre no painel de eventos.
+          Os efeitos são gerados no próprio aparelho; a música é a trilha sonora original, que acompanha a tensão da partida (construção, combate, ataque
+          massivo e guerra nuclear). Combate soa mais alto perto do ponto que a câmera olha; a produção toca só para o edifício selecionado. Alertas
+          importantes também aparecem sempre no painel de eventos.
         </p>
       )}
     </fieldset>

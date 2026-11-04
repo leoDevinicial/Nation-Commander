@@ -1,6 +1,6 @@
 /**
- * Serviço central de áudio (Fase 7). Todo som é sintetizado na hora com WebAudio — nenhum arquivo é
- * baixado em tempo de execução e não há material de terceiros a licenciar.
+ * Serviço central de áudio (Fase 7). Os efeitos são sintetizados na hora com WebAudio; a música é a trilha sonora
+ * original do jogo (04/11, `public/music/`), tocada em streaming pelo canal de música.
  *
  * - Canais com volume próprio: geral → música, interface, ambiente, combate e produção.
  * - Sons de combate posicionados: atenuação pela distância até o ponto que a câmera olha (e pelo
@@ -12,8 +12,25 @@
  *
  * O contexto de áudio só nasce no primeiro gesto do jogador (exigência dos navegadores).
  */
+import { threatRank, type Threat } from './threat.ts';
 
 export type Channel = 'music' | 'ui' | 'ambient' | 'combat' | 'production';
+
+/** Faixas da trilha sonora original (04/11) e o ganho de cada uma no canal de música. */
+type TrackId = 'horizon' | 'perimeter' | 'war' | 'zero';
+const TRACKS: Record<TrackId, { file: string; calm: boolean; gain: number }> = {
+  horizon: { file: 'architect-of-the-horizon.mp3', calm: true, gain: 0.85 },
+  perimeter: { file: 'the-last-perimeter.mp3', calm: true, gain: 0.85 },
+  war: { file: 'the-war-board.mp3', calm: false, gain: 0.95 },
+  zero: { file: 'strike-at-zero.mp3', calm: false, gain: 1 },
+};
+/** Duração dos crossfades (s): subir de tensão é mais rápido que voltar à calma; entre faixas calmas, o meio-termo. */
+const MUSIC_FADE = { up: 3, down: 5, calm: 4 };
+interface Deck {
+  el: HTMLAudioElement;
+  gain: GainNode;
+  stoppedAt: number;
+}
 export const CHANNELS: Channel[] = ['music', 'ui', 'ambient', 'combat', 'production'];
 export type Volumes = Record<Channel | 'master', number>;
 
@@ -140,8 +157,7 @@ export class AudioService {
   private listener = { x: 0, y: 0, dist: 40, yaw: 0 };
   private production: { kind: ProductionSound; gain: GainNode; stop: () => void } | null = null;
   private ambient: { stop: () => void } | null = null;
-  private music: { stop: () => void } | null = null;
-  private musicTimer = 0;
+  private ost: { deck: (id: TrackId) => Deck; current: TrackId | null; threat: Threat; calmNext: TrackId } | null = null;
   private alarm: { stop: () => void; id: number } | null = null;
 
   /** Celular: menos vozes simultâneas. */
@@ -2131,46 +2147,95 @@ export class AudioService {
     };
   }
 
-  /** Trilha ambiente procedural: acordes lentos e suaves (não compete com os efeitos). */
+  /**
+   * Trilha sonora original (04/11): faixas em `public/music/`, tocadas pelo canal de música (volume e mudo das
+   * configurações). Construção alterna Architect of the Horizon e The Last Perimeter; combate convencional toca The War
+   * Board; ataque massivo e guerra nuclear, Strike at Zero. A troca entre estados de ameaça (`setThreat`) é por
+   * crossfade de 3–5 s, nunca um corte seco.
+   */
   startMusic(): void {
-    if (!this.ready || this.music) return;
+    if (!this.ready || this.ost) return;
     const ctx = this.ctx!;
-    const out = this.out('music', 1);
-    const f = ctx.createBiquadFilter();
-    f.type = 'lowpass';
-    f.frequency.value = 1100;
-    f.connect(out);
-    // Lá menor → Fá → Dó → Sol (progressão modal, 8 s por acorde)
-    const chords = [
-      [220, 261.63, 329.63],
-      [174.61, 220, 261.63],
-      [130.81, 196, 261.63],
-      [196, 246.94, 293.66],
-    ];
-    let i = 0;
-    const play = () => {
-      const t = ctx.currentTime + 0.05;
-      for (const freq of chords[i % chords.length]!) {
-        for (const det of [-4, 4]) {
-          const o = ctx.createOscillator();
-          o.type = 'triangle';
-          o.frequency.value = freq;
-          o.detune.value = det;
-          const g = ctx.createGain();
-          g.gain.setValueAtTime(0.0001, t);
-          g.gain.exponentialRampToValueAtTime(0.05, t + 2.5);
-          g.gain.setValueAtTime(0.05, t + 6);
-          g.gain.exponentialRampToValueAtTime(0.0001, t + 8.8);
-          o.connect(g).connect(f);
-          o.start(t);
-          o.stop(t + 9);
-        }
+    const decks = new Map<TrackId, Deck>();
+    const deck = (id: TrackId): Deck => {
+      let d = decks.get(id);
+      if (d) return d;
+      const el = new Audio(`${import.meta.env.BASE_URL}music/${TRACKS[id].file}`);
+      el.preload = TRACKS[id].calm ? 'auto' : 'metadata';
+      el.loop = !TRACKS[id].calm;
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      try {
+        ctx.createMediaElementSource(el).connect(gain);
+        gain.connect(this.buses.get('music')!);
+      } catch {
+        // sem Web Audio para mídia: o volume vai direto no elemento (sem o canal de música)
       }
-      i++;
+      d = { el, gain, stoppedAt: 0 };
+      // faixa de construção acabando: emenda a outra com crossfade, sem silêncio
+      if (TRACKS[id].calm)
+        el.addEventListener('timeupdate', () => {
+          const o = this.ost;
+          if (o && o.current === id && o.threat === 'calm' && el.duration - el.currentTime < MUSIC_FADE.calm) this.musicTo(o.calmNext, MUSIC_FADE.calm, true);
+        });
+      decks.set(id, d);
+      return d;
     };
-    play();
-    this.musicTimer = window.setInterval(play, 8000);
-    this.music = { stop: () => window.clearInterval(this.musicTimer) };
+    this.ost = { deck, current: null, threat: 'calm', calmNext: 'horizon' };
+    this.musicTo('horizon', 2.5, true);
+  }
+
+  /** Estado de ameaça da partida (ver `threat.ts`); só troca a faixa quando o estado muda. */
+  setThreat(level: Threat): void {
+    const o = this.ost;
+    if (!o || o.threat === level) return;
+    const up = threatRank(level) > threatRank(o.threat);
+    o.threat = level;
+    if (level === 'calm') this.musicTo(o.calmNext, MUSIC_FADE.down, true);
+    else this.musicTo(level === 'combat' ? 'war' : 'zero', up ? MUSIC_FADE.up : MUSIC_FADE.down);
+  }
+
+  /** Crossfade para uma faixa: a nova sobe enquanto a atual desce (`fade` em segundos). */
+  private musicTo(id: TrackId, fade: number, calm = false): void {
+    const o = this.ost;
+    if (!o || !this.ctx || o.current === id) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const prevId = o.current;
+    const prev = prevId ? o.deck(prevId) : null;
+    if (prev) {
+      prev.gain.gain.cancelScheduledValues(t);
+      prev.gain.gain.setValueAtTime(prev.gain.gain.value, t);
+      prev.gain.gain.linearRampToValueAtTime(0, t + fade);
+      // pausa depois do fade, a menos que a faixa tenha voltado a tocar nesse meio-tempo
+      window.setTimeout(() => {
+        if (this.ost?.current === prevId) return;
+        prev.el.pause();
+        prev.stoppedAt = performance.now();
+      }, fade * 1000 + 100);
+    }
+    const next = o.deck(id);
+    // combate que volta em menos de 1 min continua de onde parou; depois disso, recomeça do início
+    if (!TRACKS[id].calm && next.el.paused && performance.now() - next.stoppedAt > 60_000) next.el.currentTime = 0;
+    if (TRACKS[id].calm && next.el.ended) next.el.currentTime = 0;
+    next.gain.gain.cancelScheduledValues(t);
+    next.gain.gain.setValueAtTime(next.gain.gain.value, t);
+    next.gain.gain.linearRampToValueAtTime(TRACKS[id].gain, t + fade);
+    void next.el.play().catch(() => undefined);
+    o.current = id;
+    if (calm) o.calmNext = id === 'horizon' ? 'perimeter' : 'horizon';
+  }
+
+  private stopMusic(fade = 1.5): void {
+    const o = this.ost;
+    if (!o || !this.ctx || !o.current) return;
+    const d = o.deck(o.current);
+    const t = this.ctx.currentTime;
+    d.gain.gain.cancelScheduledValues(t);
+    d.gain.gain.setValueAtTime(d.gain.gain.value, t);
+    d.gain.gain.linearRampToValueAtTime(0, t + fade);
+    window.setTimeout(() => d.el.pause(), fade * 1000 + 100);
+    this.ost = null;
   }
 
   private weatherLoop: { wash: GainNode; hiss: GainNode; roof: GainNode; snow: GainNode; stop: () => void } | null = null;
@@ -2498,8 +2563,7 @@ export class AudioService {
     this.weatherLoop = null;
     this.ambient?.stop();
     this.ambient = null;
-    this.music?.stop();
-    this.music = null;
+    this.stopMusic();
     this.stopAlarm();
     if (this.production) {
       this.production.stop();

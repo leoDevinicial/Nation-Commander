@@ -2,6 +2,8 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → inglês (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const EN: Dict = {
+  "Os efeitos são gerados no próprio aparelho; a música é a trilha sonora original, que acompanha a tensão da partida (construção, combate, ataque massivo e guerra nuclear). Combate soa mais alto perto do ponto que a câmera olha; a produção toca só para o edifício selecionado. Alertas importantes também aparecem sempre no painel de eventos.": "Effects are generated on the device itself; the music is the original soundtrack, which follows the tension of the match (building, combat, massive attack and nuclear war). Combat sounds louder near the point the camera looks at; production plays only for the selected building. Important alerts also always appear in the events panel.",
+  "Trilha sonora original do jogo: Architect of the Horizon e The Last Perimeter (construção), The War Board (combate) e Strike at Zero (ataque massivo e guerra nuclear).": "Original game soundtrack: Architect of the Horizon and The Last Perimeter (building), The War Board (combat) and Strike at Zero (massive attack and nuclear war).",
   "% (opera a 50% durante a obra)": "% (runs at 50% during construction)",
   "% (parada na instalação)": "% (stopped at the facility)",
   "% da economia do país": "% of the country's economy",
