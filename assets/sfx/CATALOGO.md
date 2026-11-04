@@ -256,6 +256,29 @@ Centralizados (sem movimento no estéreo).
 tocar mais rápido (playbackRate ~1,5–2, o que também sobe o tom). A opção (a) mantém o timbre; a (b) muda pouco o
 tempo do jogo. Uso: `bomb_whistle`. Normalizar (a 2 está ~5 dB abaixo das outras) e converter para mono.
 
+## Lote 15 (04/11) — bombardeio em tapete (2 variações)
+Pasta `originais/bombardeio-tapete/`. MP3 48 kHz estéreo, 192 kbps, 7,0 s (≈ 170 KB). Arquivo de origem:
+"17 - carpet rumble D N". Vieram só as variações **2 e 3** (a 1 e a 4 não vieram); as duas são distintas.
+
+Uma fileira de ~12–14 impactos graves em ~3 s, com o ronco que rola pelo terreno e some até ~6 s. **Quase tudo é
+grave**: 89–92% da energia abaixo de 200 Hz e 68–75% abaixo de 80 Hz (subgrave). Começam e terminam em silêncio
+(−60 dB), centralizadas.
+
+| Arquivo | Origem | Impactos (s) | Pico | Média | Nível (a cada 0,5 s) | Observação |
+|---|---|---|---|---|---|---|
+| `bombardeio-tapete-2.mp3` | 2 | 0,15 · 0,48 · 0,63 · **1,03** · 1,2 · 1,33 · 1,84 · 2,26 … 2,95 | −0,5 dB | −19,6 dB | −16, **−12**, −14, −18, −22 … −67 | impactos mais fortes cedo (0,5–1,3 s), depois mais espaçados e distantes |
+| `bombardeio-tapete-3.mp3` | 3 | 0,25 · 0,4 · **0,59** · 0,77 · 1,26 · 1,43 · 1,64 · 1,87 · 2,17 … 3,01 | −1,4 dB | −18,1 dB | −20, **−10**, −11, −16, −24 … −57 | a mais grave (75% abaixo de 80 Hz); começa com ~0,2 s quase em silêncio |
+
+**Cuidado com o grave:** em caixinha de celular ou notebook, que quase não reproduz abaixo de ~100–150 Hz, estas
+gravações podem soar muito baixas ou sumir. Por isso a ideia é usá-las **por baixo** dos impactos `bomb` (que já são
+gravações da explosão grande, mais médias), não no lugar deles.
+
+Uso provável: `carpet_rumble` (o trovão contínuo que acompanha a fileira de bombas, tocado na primeira bomba, hoje
+sintetizado), sorteando entre as duas. Os impactos gravados não vão bater exatamente com as explosões visuais da
+fileira (`AirLayer.dropBombs`), mas como o ronco é contínuo isso não deve incomodar. Ao implementar: cortar o silêncio
+inicial da 3, encurtar para ~5 s com fade, normalizar com margem, converter para mono; se ficar fraco no celular,
+somar um pouco do ronco sintetizado (que tem mais médios) ou subir os médios com um filtro.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
