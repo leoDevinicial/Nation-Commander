@@ -774,7 +774,14 @@ export class GameRuntime {
         this.scene.add(visual.group, visual.rallyObject);
         t = { visual, snap: b };
         this.buildings.set(b.id, t);
-      } else t.snap = b;
+      } else {
+        // construção nossa que acabou de ficar sem energia: som de desligando
+        if (b.owner === this.mySlot && b.unpowered === true && t.snap.unpowered !== true) {
+          const p = this.positionOf(b.id);
+          if (p) audio.powerDown(p.x, p.y);
+        }
+        t.snap = b;
+      }
       t.visual.remembered = b.remembered === true;
       t.visual.setCity(b.city);
       t.visual.setUnpowered(b.owner === this.mySlot && b.unpowered === true);
@@ -1027,6 +1034,8 @@ export class GameRuntime {
   /** Estado de ameaça para a trilha sonora (04/11): eventos que envolvem o jogador e inimigos perto das construções. */
   private readonly threat = new ThreatTracker();
   private threatSampleAt = 0;
+  /** Onde houve tiro envolvendo o jogador nos últimos segundos (fundo de guerra ao longe). */
+  private fights: { x: number; y: number; t: number }[] = [];
 
   private noteThreat(e: SimEvent): void {
     const now = performance.now() / 1000;
@@ -1034,7 +1043,14 @@ export class GameRuntime {
     const ownerOf = (id: number) => this.units.get(id)?.snap.owner ?? this.buildings.get(id)?.snap.owner;
     switch (e.type) {
       case 'shot':
-        if (ownerOf(e.attackerId) === me || ownerOf(e.targetId) === me) this.threat.shot(now);
+        if (ownerOf(e.attackerId) === me || ownerOf(e.targetId) === me) {
+          this.threat.shot(now);
+          const last = this.fights[this.fights.length - 1];
+          if (!last || now - last.t > 0.3) {
+            const p = this.positionOf(e.targetId) ?? this.positionOf(e.attackerId);
+            if (p) this.fights.push({ x: p.x, y: p.y, t: now });
+          }
+        }
         break;
       case 'under_attack':
       case 'attrition':
@@ -1087,7 +1103,10 @@ export class GameRuntime {
         if (mineB.some((b) => (b.x - p.x) ** 2 + (b.y - p.y) ** 2 < 28 * 28)) near++;
       }
     this.threat.enemiesNear(near, now);
-    audio.setThreat(this.threat.level(now));
+    const level = this.threat.level(now);
+    audio.setThreat(level);
+    this.fights = this.fights.filter((f) => now - f.t < 8);
+    audio.warAt(this.fights, level === 'massive');
   }
 
   private handleEvent(e: SimEvent): void {

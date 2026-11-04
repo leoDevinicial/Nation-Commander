@@ -147,6 +147,16 @@ no nível do sintetizado substituído.
 | `explosion_big`, `bomb`, `vehicle_explosion_heavy` | explosao-grande 1–3 | blindado pesado 8% mais agudo |
 | `missile_launch` | missil-lancamento 1–4 | |
 | `missile_impact` | missil-impacto 1–4 | |
-| `rifle` (infantaria) | metralhadora-tiro 1–4 | 3 a 5 tiros únicos em sequência (0,085 s) |
+| `rifle` (infantaria) | metralhadora-tiro 1–4 ou metralhadora-rajada 1 e 3 | metade das vezes 3 a 5 tiros únicos em sequência (0,085 s), metade uma rajada curta gravada |
+| `air_mg` (metralhadora do caça) | metralhadora-rajada 1–4 | 25% mais rápida e aguda (~750 tiros/min) |
+| Guerra ao longe (`AudioService.warAt`) | artilharia-distante 1–4 | ver abaixo |
+| Energia desligando (`AudioService.powerDown`) | energia-desligando | prédio próprio que acabou de ficar sem luz; no máximo 1 vez a cada 4 s (rede inteira caindo toca uma vez), canal de interface |
 
-Ainda não usados: rajadas (lote 7), artilharia distante (lote 5) e energia desligando (lote 8).
+**Guerra ao longe:** o `GameRuntime` guarda onde houve tiro envolvendo o jogador nos últimos 8 s e, a cada segundo,
+chama `warAt`. Quanto mais longe a câmera está do combate mais próximo (ou mais afastada no zoom), mais alto o fundo,
+com mais combate deixando mais forte; com a câmera em cima da luta, some. Toca uma artilharia distante sorteada a cada
+2–6 s (mais frequente quanto mais alto), vinda do lado do combate, no canal de combate. Em ataque massivo ou guerra
+nuclear fica sempre presente (nível mínimo 0,35). Medido no navegador: com a câmera longe, média ~−30 dB e pico ~−17 dB
+no canal de combate, bem abaixo dos tiros de perto (−7 a −15 dB).
+
+Lote 7 (rajadas) só não substitui a gatling do CIWS (cadência muito maior, segue sintetizada).

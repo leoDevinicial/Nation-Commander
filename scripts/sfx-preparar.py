@@ -33,6 +33,15 @@ CLIPS = [
     ('metralhadora-tiro-2', 'metralhadora-tiro/metralhadora-tiro-2', 0.0, 0.9, 0.35, -20),
     ('metralhadora-tiro-3', 'metralhadora-tiro/metralhadora-tiro-3', 0.0, 0.9, 0.35, -20),
     ('metralhadora-tiro-4', 'metralhadora-tiro/metralhadora-tiro-4', 0.0, 0.9, 0.35, -20),
+    ('metralhadora-rajada-1', 'metralhadora-rajada/metralhadora-rajada-1', 0.0, 1.5, 0.6, -20),
+    ('metralhadora-rajada-2', 'metralhadora-rajada/metralhadora-rajada-2', 0.0, 2.1, 0.6, -20),
+    ('metralhadora-rajada-3', 'metralhadora-rajada/metralhadora-rajada-3', 0.0, 1.4, 0.6, -20),
+    ('metralhadora-rajada-4', 'metralhadora-rajada/metralhadora-rajada-4', 0.0, 2.5, 0.6, -20),
+    ('artilharia-distante-1', 'artilharia-distante/artilharia-distante-1', 0.0, 7.0, 2.0, -24),
+    ('artilharia-distante-2', 'artilharia-distante/artilharia-distante-2', 0.0, 7.0, 2.0, -24),
+    ('artilharia-distante-3', 'artilharia-distante/artilharia-distante-3', 0.0, 7.0, 2.0, -24),
+    ('artilharia-distante-4', 'artilharia-distante/artilharia-distante-4', 0.0, 7.0, 2.0, -24),
+    ('energia-desligando', 'energia-desligando/energia-desligando-1', 0.0, 3.2, 1.0, -22),
 ]
 
 

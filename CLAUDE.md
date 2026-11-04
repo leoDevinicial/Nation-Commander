@@ -86,7 +86,7 @@ O Nation Commander é **low poly estilizado**, por decisão do responsável pelo
   posição; sob ataque toca sirene e pulsa no minimapa; botão Construir (B) e comando `demolish` (nunca QG/prefeitura).
 - Combustível (`FUEL`, `docs/COMBUSTIVEL_E_CORRECOES.md`): veículos e navios gastam petróleo ao andar (o Combustível da
   Refinaria sai primeiro); sem nenhum, andam a 50%. Testes de regra antigos rodam sem ele (`shared/test/setup.ts`).
-- Efeitos gravados (`public/sfx/`, `assets/sfx/CATALOGO.md`, `SAMPLES` no `AudioService`): tiro de tanque, explosão grande, míssil e fuzil tocam gravações; sem o arquivo, cai no sintetizado.
+- Efeitos gravados (`public/sfx/`, `assets/sfx/CATALOGO.md`, `SAMPLES` no `AudioService`): tiro de tanque, explosão grande, míssil, fuzil e metralhadora do caça tocam gravações (sem o arquivo, cai no sintetizado); guerra ao longe (`warAt`) e energia desligando (`powerDown`).
 - Trilha sonora (`public/music/`, `docs/TRILHA_SONORA.md`): 4 faixas trocadas por estado de ameaça (`threat.ts`) com crossfade de
   3–5 s no `AudioService`; os efeitos continuam sintetizados.
 - Idiomas (`src/i18n/`, `docs/IDIOMAS.md`): o código segue em português; `en.ts`/`es.ts` traduzem o texto da tela

@@ -141,6 +141,8 @@ const PRIORITY: Record<CombatSound, number> = {
 interface SampleSet {
   files: string[];
   gain: number;
+  /** Peso no sorteio quando o som tem mais de um conjunto (padrão 1). */
+  weight?: number;
   rate?: number;
   rounds?: [number, number];
   interval?: number;
@@ -151,9 +153,13 @@ const SFX = {
   launch: ['missil-lancamento-1', 'missil-lancamento-2', 'missil-lancamento-3', 'missil-lancamento-4'],
   impact: ['missil-impacto-1', 'missil-impacto-2', 'missil-impacto-3', 'missil-impacto-4'],
   mg: ['metralhadora-tiro-1', 'metralhadora-tiro-2', 'metralhadora-tiro-3', 'metralhadora-tiro-4'],
+  burstShort: ['metralhadora-rajada-1', 'metralhadora-rajada-3'],
+  burstLong: ['metralhadora-rajada-2', 'metralhadora-rajada-4'],
+  distant: ['artilharia-distante-1', 'artilharia-distante-2', 'artilharia-distante-3', 'artilharia-distante-4'],
+  powerDown: ['energia-desligando'],
 };
 /** Ganhos calibrados no navegador (04/11) para ficar no nível do sintetizado que substituem (média do canal de combate). */
-const SAMPLES: Partial<Record<CombatSound, SampleSet>> = {
+const SAMPLES: Partial<Record<CombatSound, SampleSet | SampleSet[]>> = {
   mbt_gun: { files: SFX.tank, gain: 1.1, rate: 0.9 },
   tank_gun: { files: SFX.tank, gain: 0.5 },
   explosion_big: { files: SFX.explosion, gain: 1.35 },
@@ -161,8 +167,16 @@ const SAMPLES: Partial<Record<CombatSound, SampleSet>> = {
   vehicle_explosion_heavy: { files: SFX.explosion, gain: 2.4, rate: 1.08 },
   missile_launch: { files: SFX.launch, gain: 1.5 },
   missile_impact: { files: SFX.impact, gain: 2.6 },
-  rifle: { files: SFX.mg, gain: 0.42, rounds: [3, 5], interval: 0.085 },
+  // infantaria: às vezes tiros únicos em sequência, às vezes uma rajada curta gravada
+  rifle: [
+    { files: SFX.mg, gain: 0.42, rounds: [3, 5], interval: 0.085, weight: 1 },
+    { files: SFX.burstShort, gain: 0.45, weight: 1 },
+  ],
+  // metralhadora do caça: rajada gravada, mais rápida e aguda (cadência ~750 tiros/min)
+  air_mg: { files: [...SFX.burstShort, ...SFX.burstLong], gain: 0.5, rate: 1.25 },
 };
+/** Gravações que não são sons de combate do `SAMPLES` (guerra ao longe, energia), carregadas junto. */
+const EXTRA_SAMPLES = [...SFX.distant, ...SFX.powerDown];
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
 const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, bomber: 1.2, jet_cannon: 0.12, aam_launch: 0.25, drone_pass: 3, agm_launch: 0.2, air_mg: 0.18, bomb_whistle: 0.4, carpet_rumble: 1.5, bomb: 0.07, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, vehicle_explosion: 0.1, vehicle_explosion_heavy: 0.15, nuclear_blast: 1, space_prelaunch: 2, space_liftoff: 2, dome_launch: 0.2, dome_intercept: 0.3, tank_gun: 0.18, apc_gun: 0.25 };
@@ -522,7 +536,7 @@ export class AudioService {
   private loadSamples(): void {
     const ctx = this.ctx;
     if (!ctx || typeof fetch === 'undefined') return;
-    const names = new Set(Object.values(SAMPLES).flatMap((s) => s.files));
+    const names = new Set([...Object.values(SAMPLES).flatMap((s) => (Array.isArray(s) ? s : [s]).flatMap((x) => x.files)), ...EXTRA_SAMPLES]);
     for (const name of names) {
       if (this.sampleBufs.has(name)) continue;
       fetch(`${import.meta.env.BASE_URL}sfx/${name}.mp3`)
@@ -535,10 +549,15 @@ export class AudioService {
 
   /** Toca a gravação do som, se houver alguma pronta; devolve false para cair no sintetizado. */
   private playSample(sound: CombatSound, gain: number, pan: number): boolean {
-    const set = SAMPLES[sound];
-    if (!set || !this.useSamples) return false;
-    const ready = set.files.map((f) => this.sampleBufs.get(f)).filter((b): b is AudioBuffer => !!b);
-    if (!ready.length) return false;
+    const entry = SAMPLES[sound];
+    if (!entry || !this.useSamples) return false;
+    const sets = (Array.isArray(entry) ? entry : [entry])
+      .map((set) => ({ set, ready: set.files.map((f) => this.sampleBufs.get(f)).filter((b): b is AudioBuffer => !!b) }))
+      .filter((x) => x.ready.length > 0);
+    if (!sets.length) return false;
+    let roll = Math.random() * sets.reduce((a, x) => a + (x.set.weight ?? 1), 0);
+    const chosen = sets.find((x) => (roll -= x.set.weight ?? 1) < 0) ?? sets[0]!;
+    const { set, ready } = chosen;
     const ctx = this.ctx!;
     const t = ctx.currentTime + 0.005;
     const out = this.out('combat', gain * set.gain, pan);
@@ -569,6 +588,67 @@ export class AudioService {
     const stop = () => nodes.forEach((n) => n.stop());
     if (!this.claim(PRIORITY[sound], end, stop)) stop();
     return true;
+  }
+
+  /** Toca uma gravação avulsa (fora do `SAMPLES`) num canal; false se ainda não carregou. */
+  private playExtra(files: string[], channel: Channel, gain: number, pan: number, rate = 1): boolean {
+    const ready = files.map((f) => this.sampleBufs.get(f)).filter((b): b is AudioBuffer => !!b);
+    if (!ready.length || !this.ctx) return false;
+    const buf = ready[Math.floor(Math.random() * ready.length)]!;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = rate;
+    src.connect(this.out(channel, gain, pan));
+    src.start();
+    return true;
+  }
+
+  private distant = { level: 0, pan: 0, next: 0 };
+
+  /**
+   * Guerra ao longe (04/11): com combate recente do jogador (`fights`, posições dos últimos segundos), quanto mais
+   * longe a câmera estiver dele (ou mais afastada no zoom), mais se ouve artilharia distante, sorteada a cada 2–6 s,
+   * vinda do lado do combate. Com a câmera em cima da luta, some (ali tocam os tiros de cada unidade). `massive`
+   * (ataque massivo ou guerra nuclear) deixa o fundo sempre presente. Chamado uma vez por segundo.
+   */
+  warAt(fights: readonly { x: number; y: number }[], massive: boolean): void {
+    if (!this.ready) return;
+    const L = this.listener;
+    let level = 0;
+    let pan = 0;
+    if (fights.length) {
+      let near = fights[0]!;
+      let best = Infinity;
+      for (const f of fights) {
+        const d = Math.hypot(f.x - L.x, f.y - L.y);
+        if (d < best) {
+          best = d;
+          near = f;
+        }
+      }
+      const far = Math.max(0, Math.min(1, (best - (18 + L.dist * 0.4)) / (40 + L.dist)));
+      const zoomOut = Math.max(0, Math.min(1, (L.dist - 45) / 90));
+      level = Math.min(1, Math.max(far, zoomOut * 0.7) * (0.45 + Math.min(1, fights.length / 12) * 0.55));
+      const right = { x: Math.cos(L.yaw), y: -Math.sin(L.yaw) };
+      const dx = near.x - L.x;
+      const dy = near.y - L.y;
+      pan = Math.max(-0.7, Math.min(0.7, (dx * right.x + dy * right.y) / Math.max(1, best)));
+    }
+    if (massive) level = Math.max(level, 0.35);
+    const d = this.distant;
+    d.level = level;
+    d.pan = pan;
+    const now = this.ctx!.currentTime;
+    if (level < 0.05 || now < d.next) return;
+    if (this.playExtra(SFX.distant, 'combat', level * (0.55 + Math.random() * 0.45) * 0.9, pan + (Math.random() - 0.5) * 0.3, 0.92 + Math.random() * 0.16))
+      d.next = now + (2 + Math.random() * 4) / (0.6 + level * 0.6);
+  }
+
+  /** Construção própria ficou sem energia: zumbido que desce e apaga (só uma vez a cada 4 s, mesmo se a rede inteira cair). */
+  powerDown(x: number, y: number): void {
+    if (!this.ready || !this.gap('power_down', 4)) return;
+    const sp = this.spatial(x, y);
+    this.playExtra(SFX.powerDown, 'ui', Math.max(0.35, sp?.gain ?? 0) * 0.7, sp?.pan ?? 0, 0.96 + Math.random() * 0.08);
   }
 
   private claim(priority: number, end: number, stop: () => void): boolean {
