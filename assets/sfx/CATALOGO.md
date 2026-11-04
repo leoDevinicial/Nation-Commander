@@ -593,6 +593,27 @@ também servem para `agm_launch` (míssil ar-terra) até chegar um lote próprio
 implementar: cortar o silêncio inicial (0,04–0,13 s), cortar em ~1,5–2 s com fade, normalizar (a 2 e a 4 estão ~8–10 dB
 abaixo), converter para mono.
 
+## Lote 31 (04/11) — antiaérea, fogo contínuo (3 arquivos)
+Pasta `originais/antiaerea-continua/`. MP3 48 kHz estéreo, 192 kbps, 8,0 s (≈ 194 KB). Arquivo de origem:
+"Continuous burst of… N". Vieram dois arquivos diferentes com o mesmo número 1 (guardados como `1a` e `1b`) e a 4;
+o quarto anexo era o `05 - air to air miss 4`, idêntico byte a byte ao `missil-ar-ar-4.mp3` do lote 30 (não guardado
+de novo). Todos **saturados** no disparo (amostras no limite: 116, 106 e 59).
+
+Cadência de **~10–12 tiros por segundo** (picos a cada ~80–100 ms), mais lenta e mais pesada que a do lote 9 (~20/s):
+bate com a rajada sintetizada da Antiaérea Móvel (`aa_gun`, ~12 por segundo).
+
+| Arquivo | Conteúdo | Pico | Média | Nível (a cada 0,25 s) | Observação |
+|---|---|---|---|---|---|
+| `antiaerea-continua-1a.mp3` | **fogo contínuo de 0,15 a 6,3 s** e cauda até 8 s | +2,0 dB | −17,9 dB | −14 a −22 o tempo todo, depois −29 a −36 | o mais pesado (43% de grave); ~57 tiros; ótimo para recortar várias rajadas de 0,6–1 s |
+| `antiaerea-continua-1b.mp3` | rajada curta 0–0,35 s (5 tiros), trecho baixo 1,25–4,8 s (−32 a −45 dB), rajada 5,1–5,9 s (6 tiros) | +2,5 dB | −23,4 dB | −11, −23, −27, −38, −45, −32 … −16, −18 … −60 | duas rajadas curtas e secas (centro 3,3 kHz, pouco grave); o trecho do meio, baixo, parece eco/estouros distantes (não ouvido) |
+| `antiaerea-continua-4.mp3` | rajada 0,06–2,5 s, pausa 2,5–4,5 s (−31 a −45 dB), rajada 4,5–6 s | +1,8 dB | −20,1 dB | −16 … −14, −27 … −45, −24 … −21, −39 … −56 | duas rajadas longas separadas por eco; ~51 tiros |
+
+Uso provável: `aa_gun` (Antiaérea Móvel das eras 1–3; hoje rajada sintetizada de 6–9 tiros a ~12 por segundo, ~0,5–0,75
+s): recortar rajadas de **6–9 tiros (0,6–0,9 s)** da 1a, da 4 e as duas da 1b, com a cauda de cada uma, e sortear junto
+com as do lote 9 (que são mais rápidas). A 1a também serve para fogo antiaéreo sustentado, se um dia houver (bateria
+atirando sem parar). **Ainda não cobre** a `aa_twin` (era 4: dois disparos pesados e separados) nem o estouro no ar
+(`flak`). Ao implementar: normalizar com margem, converter para mono.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
