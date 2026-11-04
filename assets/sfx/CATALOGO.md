@@ -451,8 +451,7 @@ disparo encosta no limite por vários milissegundos (amostras no limite: 83, 79 
 **Onde o jogo usa `cannon` hoje:** só no disparo direto do Lança-Foguetes (`GameRuntime`, evento de ataque com
 `rocket_artillery`; a salva em si toca `rocket`). O sintetizado é um baque curto. A artilharia comum usa `howitzer`.
 
-Uso provável: `cannon` (sorteando entre as 4), e também `howitzer` (obus da artilharia, muito mais frequente) até
-chegar um lote próprio de obus: a 1 e a 4, que têm ecos longos, tocadas ~10% mais graves. Diferem do tanque
+Uso provável: `cannon` (sorteando entre as 4), (`howitzer`, o obus, ganhou lote próprio: lote 25). Diferem do tanque
 (`tanque-tiro`, lote 1) por serem mais curtas e com menos corpo depois do disparo. Ao implementar: normalizar com
 margem (a saturação já gravada fica; em disparo quase não se nota), cortar em ~1,5–2 s com fade, converter para mono.
 
@@ -476,6 +475,24 @@ fundo constante (são as brisas calmas), a 1 e a 2 por cima com volume que sobe 
 em tempestade e neve (`shared/sim/climate.ts`). Para emendar sem corte: cruzamento de ~0,5–1 s entre o fim e o começo
 (o volume casa, mas o ruído não). Ao implementar: normalizar o nível entre elas só se forem tocadas sozinhas (a
 diferença de volume das 3 e 4 é útil como "calmo"), manter estéreo, canal ambiente.
+
+## Lote 25 (04/11) — obus da artilharia (4 variações)
+Pasta `originais/obus-tiro/`. Todos MP3 48 kHz estéreo, 192 kbps, 6,0 s (≈ 145 KB). Arquivo de origem:
+"howitzer fire Durati N". As 4 são distintas. Disparo pesado e **muito grave** (50–94% abaixo de 200 Hz) com o
+estrondo rolando pelo terreno por vários segundos; mais longo e mais grave que o canhão (lote 23). Formatos diferentes:
+
+| Arquivo | Origem | Disparos (s) | Pico | Média | Nível (a cada 0,25 s) | Observação |
+|---|---|---|---|---|---|---|
+| `obus-tiro-1.mp3` | 1 | 0,09 (com repiques em 0,26 e 0,55) | +0,5 dB | −24,5 dB | −12, −20, −22, −25, −31 … −42, sobe a −35 em ~3,5–4,3 s, −45 | o mais grave (94%, 42% abaixo de 80 Hz); o eco volta forte em ~4 s (estrondo distante rolando); 13 amostras no limite |
+| `obus-tiro-2.mp3` | 2 | 0,11 e 0,28 | +1,0 dB | −23,6 dB | −13, −15, −21, −23, −28 … −54 | o mais "limpo": disparo e cauda que some até ~3 s; 37 amostras no limite |
+| `obus-tiro-3.mp3` | 3 | **2,08 e 4,26** (dois disparos) | +1,7 dB | −25,5 dB | −50 (2 s de chiado baixo), −14, −22 … −44, −18, −30 … −42 | **dois tiros separados**: 2 s de ruído baixo antes do primeiro; dá **duas variações** ao recortar (2,0–4,2 s e 4,2–6,0 s); 47 amostras no limite |
+| `obus-tiro-4.mp3` | 4 | sem ataque claro | −7,6 dB | −32,2 dB | −20, −29, −31, −30, −31 … −45 | **sem o estalo inicial** (começa em −22 dB e só cai, como os lotes 12-1/4 e 21-1) e ~8 dB abaixo: soa como um tiro distante; ronco médio, sem subgrave |
+
+Uso provável: `howitzer` (obus da artilharia, hoje sintetizado), sorteando entre a 1, a 2 e os dois tiros da 3; a 4
+para artilharia longe da câmera (ou como mais uma variação de `warAt`, a guerra ao longe). Substitui a ideia de usar o
+canhão do lote 23 para o obus. O `MIN_GAP` do obus já é 0,35 s; com caudas de 3–5 s, limitar quantos tocam juntos.
+Ao implementar: recortar a 3 em duas, cortar cada uma em ~3 s com fade, normalizar com margem, converter para mono.
+Em caixinha pequena o grave some: a 2 (menos grave) deve ser a que mais se ouve no celular.
 
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
