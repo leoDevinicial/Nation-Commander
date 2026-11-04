@@ -337,6 +337,25 @@ jogo dispara em rajadas de 8 tiros com pausa de 2,5 s (`docs/CIWS.md`) e o som t
 gravação em ~1,5–1,8 s com fade de ~0,1 s (ou usar de 0 a ~2 s inteiro, se soar melhor), normalizar e converter para
 mono. O giro do motor dos canos não vem nas gravações: dá para manter o do sintetizado por baixo.
 
+## Lote 19 (04/11) — explosão nuclear (4 variações)
+Pasta `originais/explosao-nuclear/`. Todos MP3 48 kHz estéreo, 192 kbps, 12,0 s (≈ 289 KB). Arquivo de origem:
+"24 - nuclear blast D N". As 4 são distintas. Estrondo enorme e **muito grave** (74–91% da energia abaixo de 200 Hz e
+34–61% abaixo de 60 Hz), com uma sequência de ondas/estouros nos primeiros ~2–3 s e o ronco que vai sumindo até o
+fim do arquivo (audível até ~6 s, depois só um fundo baixo que chega a −64 a −93 dB em 12 s). Nenhuma passa do limite.
+
+| Arquivo | Origem | Início | Pico | Média | Nível (a cada 1 s) | Observação |
+|---|---|---|---|---|---|---|
+| `explosao-nuclear-1.mp3` | 1 | 0,04 s | −1,3 dB | −22,3 dB | −13, −17, −25, −36, −42 … −82 | ondas em 0,7 · 1,0 · 1,3 · 1,8 · 2,1 s; 54% abaixo de 60 Hz |
+| `explosao-nuclear-2.mp3` | 2 | 0,11 s | −1,3 dB | −23,3 dB | −14, −18, −27, −30, −41 … −93 | a menos grave (78%): o estrondo tem mais "corpo" médio, deve soar melhor em caixinha pequena |
+| `explosao-nuclear-3.mp3` | 3 | 0,13 s | −1,1 dB | −20,0 dB | −11, −15, −25, −33, −41 … −64 | a mais forte e a mais grave (91%, 61% abaixo de 60 Hz); ondas até ~3,3 s |
+| `explosao-nuclear-4.mp3` | 4 | **0,21 s** | −1,5 dB | −21,4 dB | −14, −15, −19, −24, −32 … −64 | a que mais demora a cair (sustenta ~3 s) e tem um **segundo estrondo em ~3,3 s** (a onda de choque chegando / bola de fogo subindo) |
+
+Uso provável: `nuclear_blast` (hoje sintetizado: estrondo abafado, ronco que incha e ondula, ouvido de longe, chegando
+depois do clarão). As 4 servem; a 4 combina com a "onda que chega depois". Por ser muito grave, em celular/notebook a
+maior parte some: manter também um pouco do sintetizado por cima ou dar preferência à 2. Ao implementar: cortar o
+silêncio inicial (0,04–0,21 s), cortar em ~8 s com fade longo (2–3 s), normalizar, converter para mono. É raro, então
+o tamanho do arquivo não pesa.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
