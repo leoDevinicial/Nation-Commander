@@ -451,7 +451,7 @@ disparo encosta no limite por vários milissegundos (amostras no limite: 83, 79 
 **Onde o jogo usa `cannon` hoje:** só no disparo direto do Lança-Foguetes (`GameRuntime`, evento de ataque com
 `rocket_artillery`; a salva em si toca `rocket`). O sintetizado é um baque curto. A artilharia comum usa `howitzer`.
 
-Uso provável: `cannon` (sorteando entre as 4), (`howitzer`, o obus, ganhou lote próprio: lote 25). Diferem do tanque
+Uso provável: `cannon` (sorteando entre as 4); o obus (`howitzer`) tem lote próprio (lote 25). Diferem do tanque
 (`tanque-tiro`, lote 1) por serem mais curtas e com menos corpo depois do disparo. Ao implementar: normalizar com
 margem (a saturação já gravada fica; em disparo quase não se nota), cortar em ~1,5–2 s com fade, converter para mono.
 
