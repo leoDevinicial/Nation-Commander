@@ -34,33 +34,34 @@ interface Deck {
 export const CHANNELS: Channel[] = ['music', 'ui', 'ambient', 'combat', 'production'];
 export type Volumes = Record<Channel | 'master', number>;
 
-export const DEFAULT_VOLUMES: Volumes = { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.75, production: 0.6 };
+export const DEFAULT_VOLUMES: Volumes = { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.8, production: 0.6 };
 
 export type UiSound = 'click' | 'confirm' | 'error' | 'alert' | 'success' | 'hold' | 'herald' | 'warning' | 'attack';
 export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'mbt_gun' | 'tank_gun' | 'vehicle_explosion' | 'vehicle_explosion_heavy' | 'nuclear_blast' | 'space_prelaunch' | 'space_liftoff' | 'dome_launch' | 'dome_intercept' | 'gatling' | 'bomber' | 'jet_cannon' | 'bomb_whistle' | 'carpet_rumble' | 'aam_launch' | 'agm_launch' | 'air_mg' | 'drone_pass' | 'apc_gun';
-/** Quanto cada som de combate abaixa a música (0..1); o resto abaixa 0,3. */
+/**
+ * Só os sons grandes abaixam a música, e pouco (fração do volume dela). Tiro de fuzil, metralhadora e canhão leve não
+ * mexem nela: quem faz o tiro aparecer é o filtro de combate (`MUSIC_EQ`), não o volume.
+ */
 const DUCK: Partial<Record<CombatSound, number>> = {
-  rifle: 0.25,
-  gatling: 0.3,
-  air_mg: 0.25,
-  apc_gun: 0.3,
-  explosion: 0.55,
-  explosion_big: 0.7,
-  vehicle_explosion: 0.55,
-  vehicle_explosion_heavy: 0.65,
-  bomb: 0.65,
-  carpet_rumble: 0.7,
-  howitzer: 0.5,
-  mbt_gun: 0.5,
-  tank_gun: 0.45,
-  cannon: 0.45,
-  missile_launch: 0.55,
-  missile_impact: 0.7,
-  intercept: 0.55,
-  dome_intercept: 0.55,
-  nuclear_blast: 0.75,
-  space_liftoff: 0.6,
+  explosion_big: 0.3,
+  vehicle_explosion_heavy: 0.25,
+  bomb: 0.3,
+  carpet_rumble: 0.3,
+  missile_impact: 0.35,
+  nuclear_blast: 0.4,
+  space_liftoff: 0.3,
 };
+
+/**
+ * Espaço para a guerra na frequência (por estado de ameaça): em combate a música perde graves e médios, a região dos
+ * tiros e explosões, sem mudar o volume aparente. Muda devagar, junto com o crossfade.
+ */
+const MUSIC_EQ: Record<Threat, { low: number; mid: number }> = {
+  calm: { low: 0, mid: 0 },
+  combat: { low: -4, mid: -5 },
+  massive: { low: -6, mid: -7 },
+};
+
 export type MissileCue = 'prepare' | 'armed' | 'authorize';
 
 /** Som de trabalho de cada edifício (os demais usam o zumbido genérico). */
@@ -176,6 +177,8 @@ export class AudioService {
   private musicMuted = false;
   /** Abaixa a música sob tiros e explosões (a guerra sempre se ouve acima da trilha). */
   private duck: GainNode | null = null;
+  /** Filtros da música: grave (shelf) e médio (peaking), abertos na calma e cortados em combate. */
+  private musicEq: { low: BiquadFilterNode; mid: BiquadFilterNode } | null = null;
   private noise: AudioBuffer | null = null;
   private readonly voices: Voice[] = [];
   private maxVoices = 24;
@@ -205,9 +208,20 @@ export class AudioService {
       this.master.connect(comp).connect(this.ctx.destination);
       this.duck = this.ctx.createGain();
       this.duck.connect(this.master);
+      const low = this.ctx.createBiquadFilter();
+      low.type = 'lowshelf';
+      low.frequency.value = 180;
+      low.gain.value = 0;
+      const mid = this.ctx.createBiquadFilter();
+      mid.type = 'peaking';
+      mid.frequency.value = 1400;
+      mid.Q.value = 0.7;
+      mid.gain.value = 0;
+      low.connect(mid).connect(this.duck);
+      this.musicEq = { low, mid };
       for (const c of CHANNELS) {
         const g = this.ctx.createGain();
-        g.connect(c === 'music' ? this.duck : this.master);
+        g.connect(c === 'music' ? low : this.master);
         this.buses.set(c, g);
       }
       this.noise = this.makeNoise();
@@ -235,19 +249,29 @@ export class AudioService {
   }
 
   /**
-   * Abaixa a música por um instante (`depth` 0..1 do volume dela): desce em 60 ms e volta em ~1,5 s. Sons seguidos
-   * mantêm a música baixa; tiro leve abaixa pouco, explosão e míssil abaixam bem mais.
+   * Abaixa um pouco a música num evento grande (`depth` 0..1 do volume dela, no máximo 40%): desce em ~150 ms e volta
+   * devagar (~2,5 s), sem o "bombeamento" de um ducking rápido. Eventos seguidos não somam: vale o mais forte.
    */
   private duckMusic(depth: number): void {
     const g = this.duck;
-    if (!g || !this.ctx || depth <= 0.02) return;
+    if (!g || !this.ctx || depth <= 0.05) return;
     const t = this.ctx.currentTime;
     const now = g.gain.value;
-    const to = Math.min(now, 1 - Math.min(0.75, depth));
+    const to = 1 - Math.min(0.4, depth);
+    if (to >= now - 0.02) return;
     g.gain.cancelScheduledValues(t);
     g.gain.setValueAtTime(now, t);
-    g.gain.linearRampToValueAtTime(to, t + 0.06);
-    g.gain.setTargetAtTime(1, t + 0.4, 0.5);
+    g.gain.linearRampToValueAtTime(to, t + 0.15);
+    g.gain.setTargetAtTime(1, t + 0.6, 0.8);
+  }
+
+  /** Filtro da música para o estado de ameaça (constante de ~1,2 s: chega ao alvo em 3–5 s). */
+  private applyMusicEq(level: Threat): void {
+    const eq = this.musicEq;
+    if (!eq || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    eq.low.gain.setTargetAtTime(MUSIC_EQ[level].low, t, 1.2);
+    eq.mid.gain.setTargetAtTime(MUSIC_EQ[level].mid, t, 1.2);
   }
 
   /** Ponto que a câmera olha, distância da câmera e giro (para atenuação e panorâmica). */
@@ -527,7 +551,8 @@ export class AudioService {
     const vary = 1 + (Math.random() - 0.5) * 0.18;
     const nodes: AudioScheduledSourceNode[] = [];
     const out = this.out('combat', gain, pan);
-    this.duckMusic((DUCK[sound] ?? 0.3) * Math.min(1, gain * 1.5));
+    const duck = DUCK[sound];
+    if (duck) this.duckMusic(duck * Math.min(1, gain * 1.5));
     const burst = (type: BiquadFilterType, freq: number, q: number, attack: number, peak: number, decay: number, at = t, dest: AudioNode = out): number => {
       const n = this.noiseSource();
       const f = ctx.createBiquadFilter();
@@ -2237,6 +2262,7 @@ export class AudioService {
     if (!o || o.threat === level) return;
     const up = threatRank(level) > threatRank(o.threat);
     o.threat = level;
+    this.applyMusicEq(level);
     if (level === 'calm') this.musicTo(o.calmNext, MUSIC_FADE.down, true);
     else this.musicTo(level === 'combat' ? 'war' : 'zero', up ? MUSIC_FADE.up : MUSIC_FADE.down);
   }
@@ -2275,6 +2301,7 @@ export class AudioService {
   private stopMusic(fade = 1.5): void {
     const o = this.ost;
     if (!o || !this.ctx || !o.current) return;
+    this.applyMusicEq('calm');
     const d = o.deck(o.current);
     const t = this.ctx.currentTime;
     d.gain.gain.cancelScheduledValues(t);
