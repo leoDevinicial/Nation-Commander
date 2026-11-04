@@ -494,6 +494,25 @@ canhão do lote 23 para o obus. O `MIN_GAP` do obus já é 0,35 s; com caudas de
 Ao implementar: recortar a 3 em duas, cortar cada uma em ~3 s com fade, normalizar com margem, converter para mono.
 Em caixinha pequena o grave some: a 2 (menos grave) deve ser a que mais se ouve no celular.
 
+## Lote 26 (04/11) — explosão pequena (4 variações)
+Pasta `originais/explosao-pequena/`. Todos MP3 48 kHz estéreo, 192 kbps, 1,5 s (≈ 37 KB). Arquivo de origem:
+"01 - small explosion N". As 4 são distintas. **Estouro curto e seco começando em 0 s** (sem silêncio), corpo de
+0,15–0,5 s e cauda que some até 0,5–1 s: exatamente o formato pedido. Graves (80–85% abaixo de 200 Hz) com estalo
+brilhante por cima (centro do espectro 2,9–3,6 kHz). Todas encostam no limite no estalo (amostras no limite: 79, 3, 10
+e 8).
+
+| Arquivo | Origem | Pico | Média | Acima de −20 dB | Até ~−40 dB | Observação |
+|---|---|---|---|---|---|---|
+| `explosao-pequena-1.mp3` | 1 | +1,2 dB | −13,8 dB | 0,53 s | ~1,0 s | a mais forte e longa, com um **segundo estouro em 0,48 s**; a mais saturada (79 amostras no limite) |
+| `explosao-pequena-2.mp3` | 2 | +0,5 dB | −16,8 dB | 0,30 s | ~0,6 s | estouro médio, um pouco "rasgado" (vários picos nos primeiros 0,2 s) |
+| `explosao-pequena-3.mp3` | 3 | +1,3 dB | −19,9 dB | 0,14 s | ~0,5 s | a mais curta e seca |
+| `explosao-pequena-4.mp3` | 4 | +2,0 dB | −19,0 dB | 0,15 s | ~0,7 s | curta, a mais brilhante (centro 3,6 kHz) |
+
+Uso provável: `explosion` (soldado morto, alvo leve, minas, estruturas pequenas; o som de explosão mais frequente,
+hoje sintetizado), sorteando entre as 4, altura ±6%. A 1, com o segundo estouro, também cabe em `vehicle_explosion`
+como variação mais leve. Como toca muito, limitar a 3–4 simultâneas (o `MIN_GAP` já é 0,06 s). Ao implementar:
+normalizar com margem, cortar em ~0,8–1 s com fade, converter para mono.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
