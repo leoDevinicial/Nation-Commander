@@ -61,6 +61,8 @@ const coordW = () => (rnd() < 0.6 && hq ? near(hq.cell.cx) * CS + rnd() * 30 : p
 const id = () => pick([...mine(), ...mine(), ...enemy(), 0, -1, 1e9, 999_999]);
 const bid = () => pick([...mine('building'), ...mine('building'), ...enemy(), -1, 1e9]);
 const uids = () => Array.from({ length: Math.floor(rnd() * 6) }, () => (rnd() < 0.8 ? (pick([...mine('unit'), ...enemy()]) ?? 0) : id()));
+const mode = () => pick(['road', 'rail', 'sea', 'air', 'highway', 'port', 'airport', 'x']);
+const cellsIdx = () => Array.from({ length: pick([1, 4, 30, 61]) }, () => (rnd() < 0.8 && hq ? near(hq.cell.cy) * W + near(hq.cell.cx) : pick([-1, W * H, 1e9, 0.5])));
 const res = () => pick(['food', 'wood', 'stone', 'iron', 'oil', 'coal', 'supplies', 'gold', '__proto__', 'x']);
 const GEN: Record<string, () => object> = {
   move: () => ({ unitIds: uids(), x: coordW(), y: coordW() }),
@@ -100,18 +102,27 @@ const GEN: Record<string, () => object> = {
   cancel_upgrade: () => ({ buildingId: bid() }),
   modernize: () => ({ unitIds: uids(), mod: pick(['armor', 'optics', 'era_kit', 'x']) }),
   cancel_modernize: () => ({ unitIds: uids() }),
-  trade_offer: () => ({
-    partner: pick([0, 1, 2, -1, 9]),
-    side: pick(['buy', 'sell']),
-    resource: res(),
-    quantity: num(),
-    price: num(),
-    mode: pick(['road', 'rail', 'sea', 'air', 'x']),
-    days: num(),
+  // comércio (02/11): anúncios, compra de anúncio (próprio, alheio e inexistente), mercado mundial, contratos
+  trade_list: () => ({
+    kind: pick(['sale', 'contract', 'x']),
+    items: Array.from({ length: pick([1, 1, 2, 3, 4]) }, () => ({ resource: res(), quantity: num() })),
+    priceUsd: pick([num(), 1e6, 5e7, 2e8]),
+    ...(rnd() < 0.6 ? { everyDays: pick([1, 7, 15, 30, 31, 365, -3, 0.5]) } : {}),
   }),
-  trade_respond: () => ({ offerId: num(), accept: rnd() < 0.5 }),
-  trade_withdraw: () => ({ offerId: num() }),
-  trade_cancel: () => ({ contractId: num() }),
+  trade_buy: () => ({ listingId: pick([...sim.trade.listings.map((l) => l.id), num()]), mode: mode() }),
+  trade_withdraw: () => ({ listingId: pick([...sim.trade.listings.map((l) => l.id), num()]) }),
+  trade_world: () => ({ side: pick(['buy', 'sell', 'x']), resource: res(), quantity: num(), mode: mode() }),
+  trade_cancel: () => ({ contractId: pick([...sim.trade.contracts.map((c) => c.id), num()]) }),
+  // demolição, zoneamento e obras (02–03/11)
+  demolish: () => (rnd() < 0.6 ? { buildingId: bid() } : { cells: cellsIdx() }),
+  zone_paint: () => ({ cells: cellsIdx(), kind: pick(['res', 'com', 'ind', null, 'x']) }),
+  zone_demolish: () => ({ cells: cellsIdx() }),
+  zone_tax: () => ({ kind: pick(['res', 'com', 'ind', 'x']), pct: num() }),
+  set_builders: () => ({ buildingId: bid(), count: num() }),
+  // marinha e estradas como alvo (03/11)
+  embark: () => ({ unitIds: uids(), shipId: id() }),
+  unload: () => ({ shipId: id(), x: coordW(), y: coordW() }),
+  attack_road: () => ({ unitIds: uids(), cx: cell(), cy: cell() }),
   build_aircraft: () => ({ buildingId: bid(), aircraftType: pick(['fighter', 'bomber', 'recon', 'transport', 'drone', 'x']) }),
   air_mission: () => ({ buildingId: bid(), aircraftIds: Array.from({ length: 3 }, () => num()), mission: pick(['strike', 'recon']), targetId: id(), x: coordW(), y: coordW() }),
   build_missile: () => ({ buildingId: bid(), nuclear: rnd() < 0.5 }),

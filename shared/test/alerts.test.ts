@@ -74,6 +74,40 @@ describe('Demolir (03/11)', () => {
     expect(s.drainEvents().some((e) => e.type === 'demolished' && e.buildingType === 'house')).toBe(true);
   });
 
+  it('demolir tanque de petróleo e armazém tira do estoque o que estava neles (como na destruição)', () => {
+    const s = sim();
+    const p = s.players[0]!;
+    const tank = s.addBuilding('oil_tank', 0, { cx: 8, cy: 3 }, 1);
+    tank.stored = 40;
+    p.oilReserve = 60;
+    p.resources.oil = 100;
+    s.drainEvents();
+    expect(s.applyCommand(0, { type: 'demolish', buildingId: tank.id })).toBeNull();
+    // sem o tanque, o petróleo dele some: o estoque volta a ser só a reserva do QG
+    expect(p.resources.oil).toBe(60);
+    expect(s.drainEvents().some((e) => e.type === 'storage_lost' && e.resource === 'oil' && e.amount === 40)).toBe(true);
+    const wh = s.addBuilding('warehouse', 0, { cx: 14, cy: 3 }, 1);
+    p.resources.wood = s.capacity(0).wood;
+    const withWh = p.resources.wood;
+    expect(s.applyCommand(0, { type: 'demolish', buildingId: wh.id })).toBeNull();
+    expect(p.resources.wood).toBe(s.capacity(0).wood);
+    expect(p.resources.wood).toBeLessThan(withWh);
+  });
+
+  it('não demole base aérea com aeronaves nem silo com mísseis', () => {
+    const s = sim();
+    const base = s.addBuilding('airbase', 0, { cx: 8, cy: 3 }, 1);
+    s.air.aircraft.push({ id: 77, type: 'fighter', owner: 0, baseId: base.id, home: { ...base.pos }, state: 'ready', timer: 0, missionId: null });
+    expect(s.applyCommand(0, { type: 'demolish', buildingId: base.id })).toMatch(/aeronaves/);
+    s.air.aircraft = [];
+    expect(s.applyCommand(0, { type: 'demolish', buildingId: base.id })).toBeNull();
+    const silo = s.addBuilding('missile_silo', 0, { cx: 20, cy: 3 }, 1);
+    s.air.silos[silo.id] = { missiles: 1, building: 0, paid: {}, usd: 0 };
+    expect(s.applyCommand(0, { type: 'demolish', buildingId: silo.id })).toMatch(/mísseis/);
+    s.air.silos[silo.id] = { missiles: 0, building: 0, paid: {}, usd: 0 };
+    expect(s.applyCommand(0, { type: 'demolish', buildingId: silo.id })).toBeNull();
+  });
+
   it('derruba estrada própria e deixa a dos outros', () => {
     const s = sim();
     s.roads.push({ i: 5 * 40 + 10, owner: 0 }, { i: 5 * 40 + 11, owner: 1 });

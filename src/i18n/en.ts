@@ -1557,6 +1557,8 @@ export const EN: Dict = {
   "Nível {0} de {1}": "Level {0} of {1}",
   "Nível {0}: especialização": "Level {0}: specialization",
   "O Centro de Comando caiu e as forças restantes da sua nação se renderam. A partida continua entre as outras nações; o resultado final aparece quando ela terminar.": "The Command Center fell and your nation's remaining forces surrendered. The match goes on between the other nations; the final result appears when it ends.",
+  "Base aérea com aeronaves: use-as ou espere voltarem antes de demolir": "Air base with aircraft: use them or wait for them to return before demolishing",
+  "Silo com mísseis: lance-os ou espere antes de demolir": "Silo with missiles: launch them or wait before demolishing",
   "O Centro de Comando e as prefeituras não podem ser demolidos": "The Command Center and city halls cannot be demolished",
   "O Centro de Pesquisa ainda está em obra": "The Research Center is still under construction",
   "O Nation Commander é feito com a comunidade. Cada mensagem é lida pela equipe e ajuda a decidir o que vem na próxima versão.": "Nation Commander is made with the community. Every message is read by the team and helps decide what comes in the next version.",

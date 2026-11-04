@@ -2445,6 +2445,13 @@ export class Simulation {
     const b = this.entities.get(id);
     if (!b || b.kind !== 'building' || b.owner !== slot || b.hp <= 0) return 'Construção inválida';
     if (b.type === 'hq' || b.type === 'city_hall') return 'O Centro de Comando e as prefeituras não podem ser demolidos';
+    // aeronaves e mísseis não têm para onde ir: sem esta trava, sumiriam como se a base tivesse sido destruída
+    if (b.type === 'airbase' && this.air.aircraftAt(b.id).length) return 'Base aérea com aeronaves: use-as ou espere voltarem antes de demolir';
+    if (b.type === 'missile_silo') {
+      const silo = this.air.silos[b.id];
+      const busy = this.air.launches.some((l) => l.siloId === b.id && (l.state === 'preparing' || l.state === 'armed' || l.state === 'launching'));
+      if (busy || (silo && (silo.missiles > 0 || silo.building > 0))) return 'Silo com mísseis: lance-os ou espere antes de demolir';
+    }
     const p = this.players[slot]!;
     for (const q of b.queue) {
       if (q.paid) this.refund(slot, q.paid);
@@ -2453,6 +2460,13 @@ export class Simulation {
     }
     b.queue = [];
     this.removeEntity(b);
+    // o que estava guardado nele vai junto, como na destruição: o petróleo do tanque e o que passar da capacidade
+    if (b.type === 'oil_tank' && b.stored > 0) {
+      p.resources.oil -= b.stored;
+      this.emit({ type: 'storage_lost', tick: this.tick, owner: slot, resource: 'oil', amount: Math.round(b.stored), reason: 'destroyed' });
+      b.stored = 0;
+    }
+    if (b.progress >= 1 && Object.keys(this.fx(b).storage).length) this.clampToCapacity(slot, 'destroyed');
     this.staff(slot);
     this.emit({ type: 'demolished', tick: this.tick, owner: slot, buildingType: b.type, pos: { ...b.pos } });
     return null;
