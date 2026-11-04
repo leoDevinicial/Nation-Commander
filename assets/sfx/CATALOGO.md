@@ -364,7 +364,7 @@ Pasta `originais/espaco-lancamento/`. Dois arquivos diferentes:
 
 | Trecho | O que tem (pela análise; não ouvido) |
 |---|---|
-| 0,08–1,9 s | **voz**: três falas curtas (0,08–0,88 s, com uma pausa em 0,6 s; e 1,55–1,88 s), quase toda a energia na faixa da voz (300–3.400 Hz), sem grave: provavelmente o fim da contagem ("três, dois, um" ou parecido). **Idioma não conferido** (aqui não dá para transcrever áudio) |
+| 0,08–1,9 s | **voz**: três falas curtas (0,08–0,88 s, com uma pausa em 0,6 s; e 1,55–1,88 s), quase toda a energia na faixa da voz (300–3.400 Hz), sem grave: provavelmente o fim da contagem. **Em inglês** (confirmado pelo responsável em 04/11; segundo ele, o motor alto abafa a voz) |
 | ~2,5 s | ignição: o grave entra de uma vez (97% abaixo de 200 Hz em 3,0 s) |
 | 2,5–14,5 s | ronco do foguete crescendo de −20 a −3 dB (em 9–13 s), o tom sobe até ~8 s e desce depois |
 | 14,5–16,5 s | fade até o silêncio |
@@ -385,8 +385,10 @@ começa na decolagem (força crescendo até ~4 s, depois abafando ao longe).
 Uso provável:
 - `space_prelaunch` + `space_liftoff`: a composição pode tocar **começando ~4,7 s antes da decolagem**, para a ignição
   dela (2,5 s) cair na ignição da animação (−2,2 s); os primeiros ~5 s da contagem do jogo (bombas, válvulas) seguem
-  sintetizados por baixo. A voz só serve se o idioma combinar com o jogo (português, ou trocar conforme o idioma
-  escolhido; ver `docs/IDIOMAS.md`); se não combinar, usar a composição só a partir de ~2,4 s (sem a voz).
+  sintetizados por baixo. A voz é em inglês: **com o jogo em inglês**, tocar a composição inteira; **em português e
+  espanhol**, só a partir de ~2,4 s (sem a voz), até chegar uma contagem gravada nesses idiomas. O idioma vem de
+  `src/i18n/` (`docs/IDIOMAS.md`). Como a voz fica abafada pelo motor, vale baixar o ronco nos primeiros segundos ou
+  tocar a voz um pouco mais alta quando for usada.
 - `space_liftoff`: a decolagem 2 como alternativa ao ronco da composição, cortada em ~10 s com fade longo (3–4 s),
   porque o arquivo não tem fim.
 Converter tudo para mono 48 kHz e normalizar.
