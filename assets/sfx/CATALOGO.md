@@ -120,3 +120,16 @@ Uso provável: `gatling`, `air_mg`, `apc_gun` e infantaria em fogo contínuo; qu
 tocar uma rajada (curta ou longa conforme o tempo de fogo) no lugar de vários tiros únicos. Ao implementar: cortar a
 cauda para ~1 s depois do último disparo (o resto é silêncio, −60 a −75 dB), normalizar (a 4 é ~3 dB mais alta) e
 converter para mono.
+
+## Lote 8 (04/11) — energia desligando (1 variação)
+Pasta `originais/energia-desligando/`. MP3 48 kHz estéreo, 192 kbps, 4,0 s (≈ 97 KB). Arquivo de origem:
+"Sfx for shutind down 1". Para quando uma construção fica sem energia (rede elétrica, `shared/sim/power.ts`).
+
+| Arquivo | Conteúdo | Pico | Média | Observação |
+|---|---|---|---|---|
+| `energia-desligando-1.mp3` | zumbido elétrico que perde força e desce de tom (centro do espectro cai de ~1,2 kHz para ~460 Hz em 3,5 s), com um estalo leve em ~2,9 s | −13,5 dB | −33,4 dB | bem mais baixo que os outros lotes (~12 dB abaixo); som contínuo, sem ataque forte |
+
+Uso provável: evento de prédio próprio que perde a luz (só para o dono e, de preferência, só para o prédio selecionado
+ou visível, para não tocar em cascata quando a rede inteira cai; nesse caso tocar uma vez só). Ao implementar: cortar
+para ~3 s com fade, subir o volume ~10–12 dB na normalização, converter para mono e tocar no canal de interface ou
+ambiente (não no de combate). Só há uma variação: dá para variar a altura (±5%) a cada vez.
