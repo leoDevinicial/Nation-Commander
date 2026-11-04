@@ -456,6 +456,27 @@ chegar um lote próprio de obus: a 1 e a 4, que têm ecos longos, tocadas ~10% m
 (`tanque-tiro`, lote 1) por serem mais curtas e com menos corpo depois do disparo. Ao implementar: normalizar com
 margem (a saturação já gravada fica; em disparo quase não se nota), cortar em ~1,5–2 s com fade, converter para mono.
 
+## Lote 24 (04/11) — vento (4 variações, para loop)
+Pasta `originais/vento/`. Todos MP3 48 kHz estéreo, 192 kbps, 9,0 s (≈ 217 KB). Arquivo de origem:
+"38 - wind Duration 8 N". As 4 são distintas. **Prontas para loop:** volume quase constante do começo ao fim (varia
+1–4 dB), sem fade, e o nível do início igual ao do fim. **Estéreo largo de verdade** (os dois canais quase sem
+correlação, −0,14 a 0,07): para o ambiente, que não tem posição no mapa, vale **manter em estéreo** (diferente dos
+efeitos de combate, que vão a mono).
+
+| Arquivo | Origem | Pico | Média | Nível (a cada 0,5 s) | Timbre | Observação |
+|---|---|---|---|---|---|---|
+| `vento-1.mp3` | 1 | −2,4 dB | −26,4 dB | −25 a −28, bem plano | médio (centro ~2 kHz), pouco grave (10%) | vento contínuo moderado |
+| `vento-2.mp3` | 2 | −0,1 dB | −21,6 dB | −24 → −20 (em 2–4 s) → −23 | médio (~1,9 kHz), 16% de grave | o mais forte: uma rajada lenta no meio; 2 amostras no limite |
+| `vento-3.mp3` | 3 | −25,7 dB | −44,3 dB | −44 a −45, plano | o mais agudo (~3 kHz), chiado fino | **brisa muito baixa** (~20 dB abaixo das 1 e 2) |
+| `vento-4.mp3` | 4 | −23,2 dB | −41,7 dB | −40 a −44 | grave (52% abaixo de 200 Hz) com chiado | **brisa baixa e grave**, ~18 dB abaixo das 1 e 2 |
+
+Uso provável: o ambiente da partida (`AudioService.startAmbient`, hoje ruído rosa abafado a 520 Hz com variação lenta,
+"vento e campo, sempre baixos") e a neve (`setWeather`: "só o vento frio, grave e lento"). Sugestão: a 3 ou a 4 como
+fundo constante (são as brisas calmas), a 1 e a 2 por cima com volume que sobe e desce devagar (rajadas), mais fortes
+em tempestade e neve (`shared/sim/climate.ts`). Para emendar sem corte: cruzamento de ~0,5–1 s entre o fim e o começo
+(o volume casa, mas o ruído não). Ao implementar: normalizar o nível entre elas só se forem tocadas sozinhas (a
+diferença de volume das 3 e 4 é útil como "calmo"), manter estéreo, canal ambiente.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
