@@ -315,6 +315,28 @@ evento `salvo_intercepted`), sorteando entre as 4. Também servem para `dome_int
 perto da câmera (as do lote 12 ficam como estouro alto e longe). Ao implementar: cortar em ~1,2–1,5 s com fade,
 normalizar, converter para mono.
 
+## Lote 18 (04/11) — gatling do CIWS (4 variações)
+Pasta `originais/ciws-gatling/`. Todos MP3 48 kHz estéreo, 192 kbps, 4,0 s (≈ 97 KB). Arquivo de origem:
+"23 - ciws gatling Du N". As 4 são distintas. Cada uma é **uma rajada contínua** ("brrrt") com volume plano do começo
+ao fim da rajada e corte limpo, seguida de cauda curta e silêncio. Brilhantes (centro do espectro 2,6–3,2 kHz).
+Nenhuma passa do limite.
+
+Os tiros se fundem num rasgo contínuo; o que se ouve como "pulsar" fica em 13–21 vezes por segundo (medido pela
+modulação do envelope), mais lento que os ~75 tiros/s do sintetizado e do Phalanx real. Pode ser a textura do gerador
+e não os tiros em si: **conferir de ouvido** ao implementar.
+
+| Arquivo | Origem | Rajada | Pico | Média | Pulsar | Observação |
+|---|---|---|---|---|---|---|
+| `ciws-gatling-1.mp3` | 1 | 0,10–2,9 s (~2,8 s) | −0,4 dB | −18,7 dB | ~17/s | a mais longa; começa com 0,1 s de silêncio |
+| `ciws-gatling-2.mp3` | 2 | 0–2,1 s | −1,2 dB | −17,6 dB | ~13/s | a mais curta e grossa |
+| `ciws-gatling-3.mp3` | 3 | 0–2,2 s | −0,8 dB | −18,9 dB | ~21/s (o mais marcado) | a mais aguda e sem grave (5% abaixo de 200 Hz) |
+| `ciws-gatling-4.mp3` | 4 | 0–2,5 s | −1,1 dB | −17,4 dB | difuso (~15/s) | a mais encorpada (37% de grave): o rasgo mais "liso" |
+
+Uso provável: `gatling` (CIWS; hoje sintetizado como rajada de ~1,8 s com o motor girando os canos antes e depois). O
+jogo dispara em rajadas de 8 tiros com pausa de 2,5 s (`docs/CIWS.md`) e o som toca uma vez por rajada: cortar cada
+gravação em ~1,5–1,8 s com fade de ~0,1 s (ou usar de 0 a ~2 s inteiro, se soar melhor), normalizar e converter para
+mono. O giro do motor dos canos não vem nas gravações: dá para manter o do sintetizado por baixo.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
@@ -340,4 +362,4 @@ com mais combate deixando mais forte; com a câmera em cima da luta, some. Toca 
 nuclear fica sempre presente (nível mínimo 0,35). Medido no navegador: com a câmera longe, média ~−30 dB e pico ~−17 dB
 no canal de combate, bem abaixo dos tiros de perto (−7 a −15 dB).
 
-Lote 7 (rajadas) só não substitui a gatling do CIWS (cadência muito maior, segue sintetizada).
+Lote 7 (rajadas) só não substitui a gatling do CIWS (cadência muito maior, segue sintetizada; gravações próprias no lote 18, ainda não ligadas).
