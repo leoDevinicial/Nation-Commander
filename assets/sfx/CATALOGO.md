@@ -297,6 +297,24 @@ sumindo), sorteando entre a 1, a 3 e a 4; a 2, sozinha, é fraca, mas serve como
 já tem 0,2 s). Ao implementar: cortar o silêncio inicial (0,03–0,15 s), cortar em ~2–2,5 s com fade, normalizar (subir
 a 2 e a 3), converter para mono.
 
+## Lote 17 (04/11) — míssil interceptado no ar (4 variações)
+Pasta `originais/interceptacao-no-ar/`. Todos MP3 48 kHz estéreo, 192 kbps, 2,0 s (≈ 49 KB). Arquivo de origem:
+"20 - intercept Durat N". As 4 são distintas entre si e diferentes das do lote 12 (Domo). Estouro que começa já em
+0 s (sem silêncio), corpo de ~0,2–0,5 s e cauda que some até ~1,5 s. **Mais encorpadas e graves** que as do lote 12
+(48–79% da energia abaixo de 200 Hz): soam como uma explosão de verdade no ar, mais perto. Nenhuma passa do limite.
+
+| Arquivo | Origem | Pico | Média | Nível (a cada 0,25 s) | Observação |
+|---|---|---|---|---|---|
+| `interceptacao-no-ar-1.mp3` | 1 | −0,4 dB | −23,6 dB | −15, −29, −36, −41 … −60 | estouro curto e cheio (~0,1 s acima de −15 dB) e queda rápida |
+| `interceptacao-no-ar-2.mp3` | 2 | −1,1 dB | −23,1 dB | −17, −22, −24, −21, −33 … −57 | a mais longa: corpo de ~0,8 s com **estouros secundários** em 0,66 e 0,86 s (fragmentos/ogiva); a mais grave (79%) |
+| `interceptacao-no-ar-3.mp3` | 3 | −1,4 dB | −26,5 dB | −18, −27, −33, −38 … −69 | parecida com a 1, um pouco mais baixa e com cauda mais "chiada" |
+| `interceptacao-no-ar-4.mp3` | 4 | −1,4 dB | −22,6 dB | −14, −26, −35, −41 … −69 | a mais brilhante (centro em ~2,3 kHz o tempo todo, 48% de grave): corpo plano de ~0,2 s |
+
+Uso provável: `intercept` (míssil derrubado sem o Domo: antiaérea, CIWS, salva do Lança-Foguetes interceptada,
+evento `salvo_intercepted`), sorteando entre as 4. Também servem para `dome_intercept` quando a interceptação for
+perto da câmera (as do lote 12 ficam como estouro alto e longe). Ao implementar: cortar em ~1,2–1,5 s com fade,
+normalizar, converter para mono.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
