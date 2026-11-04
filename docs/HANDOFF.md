@@ -5,7 +5,7 @@ antes de mexer em qualquer coisa. Depois leia `CLAUDE.md` (regras curtas) e
 `docs/BALANCEAMENTO_E_PROGRESSAO.md` (direção de design + tabela "Estado da implementação").
 
 Última atualização: **04/11/2026, noite**. **Tudo publicado:** a branch de publicação `claude/serene-bell-7cjnhp` está no
-commit `fd86870` (efeitos gravados, segunda rodada); a de trabalho agora é `claude/friendly-maxwell-ssxv7n` (seção 0.1). Não há pedido pela metade. O que mudou está no topo da seção 0.4; o que dá para
+commit `39d7ace` (efeitos gravados, correção da demolição e ajustes de áudio do feedback de 04/11); a de trabalho agora é `claude/friendly-maxwell-ssxv7n` (seção 0.1). Não há pedido pela metade. O que mudou está no topo da seção 0.4; o que dá para
 fazer em seguida está na seção 0.45.
 
 ## 00. Checklist de chegada (faça nesta ordem, antes de qualquer pedido)
@@ -61,7 +61,8 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
   `265d772` da `claude/youthful-dijkstra-a45emp`; `npm ci`, 708 testes (78 arquivos), lint e typecheck limpos. A partir
   daqui a branch de trabalho é esta; a `claude/youthful-dijkstra-a45emp` fica parada em `265d772`.
 - **04/11/2026, noite — mesma conta:** 24 lotes de som recebidos e catalogados (lotes 9–32) e depois implementados de
-  uma vez (seção 0.4). 709 testes. Publicado em `fd86870`.
+  uma vez (seção 0.4). Publicado em `fd86870`; depois, caça a bugs (demolição, `926f440`) e ajustes de áudio do
+  feedback (contagem, música de guerra, +3 dB nos efeitos, aviso de ataque), publicados em `39d7ace`. 711 testes.
 - Próxima conta: acrescente uma linha aqui (data, branch, commit de partida, testes).
 
 ## 0.2 Infraestrutura e coisas que só o usuário faz
