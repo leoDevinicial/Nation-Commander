@@ -237,6 +237,25 @@ Uso provável: `bomber` (sobrevoo do bombardeiro, hoje sintetizado com 7,5 s e p
 pode também reforçar o grave de `carpet_rumble` (bombardeio em tapete) por baixo dos impactos. Ao implementar:
 normalizar, converter para mono, sortear entre a passagem pronta e os roncos com envelope.
 
+## Lote 14 (04/11) — assobio de bomba caindo (4 variações)
+Pasta `originais/bomba-assobio/`. Todos MP3 48 kHz estéreo, 192 kbps, 4,0 s (≈ 97 KB). Arquivo de origem:
+"16 - bomb whistle Du N". As 4 são distintas. Assobio tonal puro que **desce** de tom do começo ao fim, entrando com
+um sopro curto (0,1–0,25 s) e sumindo em fade, **sem a explosão no fim** (o impacto continua sendo o `bomb` do jogo).
+Centralizados (sem movimento no estéreo).
+
+| Arquivo | Origem | Tom (início → fim) | Pico | Média | Assobio audível | Observação |
+|---|---|---|---|---|---|---|
+| `bomba-assobio-1.mp3` | 1 | 2,3 → 1,3 kHz | −0,3 dB | −13,6 dB | ~0,25–3,4 s, quase plano (−11 a −15 dB) | o mais forte e longo; some só nos últimos 0,5 s |
+| `bomba-assobio-2.mp3` | 2 | 2,1 → 1,3 kHz (para de descer em ~2,5 s) | −2,9 dB | −19,3 dB | cresce de −26 até −14 em ~2,4 s, some até 3,7 s | o único que **cresce** (bomba se aproximando), mais trêmulo no fim |
+| `bomba-assobio-3.mp3` | 3 | 2,5 → 1,0 kHz | −1,7 dB | −17,7 dB | ~0,25–2,8 s | a maior descida de tom e a mais curta; some mais cedo |
+| `bomba-assobio-4.mp3` | 4 | 2,8 → 1,7 kHz | −0,2 dB | −14,7 dB | ~0,25–2,9 s | o mais agudo; 2 amostras no limite (normalizar com margem) |
+
+**Tempo:** no jogo o assobio sintetizado dura ~1,05 s e as bombas do tapete explodem logo depois (`GameRuntime`, evento
+`air_strike`). As gravações têm 2,5–3,5 s de assobio. Ao implementar, escolher entre: (a) usar só o trecho final
+(~1,2–1,5 s antes do fade, onde o tom já está mais baixo, que é o som de "bomba chegando") com fade-in curto; ou (b)
+tocar mais rápido (playbackRate ~1,5–2, o que também sobe o tom). A opção (a) mantém o timbre; a (b) muda pouco o
+tempo do jogo. Uso: `bomb_whistle`. Normalizar (a 2 está ~5 dB abaixo das outras) e converter para mono.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
