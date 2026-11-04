@@ -102,3 +102,21 @@ Uso provável: `rifle`, `air_mg`, `apc_gun`, `gatling` em disparo isolado (sorte
 variação de altura). Ao implementar: cortar para ~0,6–1 s (do segundo 1 em diante é quase silêncio, −60 a −88 dB),
 normalizar e converter para mono. Como é o som mais repetido do jogo, vale limitar o número de vozes simultâneas e
 usar a rajada (lote seguinte) quando a arma dispara em sequência.
+
+## Lote 7 (04/11) — metralhadora, rajada (4 variações)
+Pasta `originais/metralhadora-rajada/`. Todos MP3 48 kHz estéreo, 192 kbps, 4,0 s (≈ 97 KB). Arquivo de origem:
+"Modern military auto… N". As 4 são distintas. Cadência medida ~600–670 tiros/min (um disparo a cada 0,09–0,10 s),
+sem pausas dentro da rajada. Complementa o tiro único do lote 6. Contagem de disparos aproximada (detecção pelo
+envelope; disparos colados podem somar).
+
+| Arquivo | Origem | Rajada | Disparos (aprox.) | Cauda audível (até ~−40 dB) | Pico | Média | Observação |
+|---|---|---|---|---|---|---|---|
+| `metralhadora-rajada-1.mp3` | auto 1 | curta, ~0,45 s | ~5 | ~2,5 s | −1,2 dB | −23,6 dB | rajada curta de controle |
+| `metralhadora-rajada-2.mp3` | auto 2 | média, ~1,1 s | ~11 | ~2 s depois do fim | −1,4 dB | −22,1 dB | rajada média, bem uniforme |
+| `metralhadora-rajada-3.mp3` | auto 3 | curta, ~0,4 s | ~4 | ~2,5 s | −1,0 dB | −22,6 dB | a mais curta; ataque forte no primeiro disparo |
+| `metralhadora-rajada-4.mp3` | auto 4 | longa, ~1,5 s | ~15 | ~1,5 s depois do fim | −0,4 dB | −20,3 dB | a mais longa e alta; boa para metralhadora pesada |
+
+Uso provável: `gatling`, `air_mg`, `apc_gun` e infantaria em fogo contínuo; quando a unidade dispara em sequência,
+tocar uma rajada (curta ou longa conforme o tempo de fogo) no lugar de vários tiros únicos. Ao implementar: cortar a
+cauda para ~1 s depois do último disparo (o resto é silêncio, −60 a −75 dB), normalizar (a 4 é ~3 dB mais alta) e
+converter para mono.
