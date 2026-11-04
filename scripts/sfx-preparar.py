@@ -100,9 +100,10 @@ MORE = [
     ('explosao-nuclear-2', 'explosao-nuclear/explosao-nuclear-2', 0.11, 8.1, 3.0, -18, 0),
     ('explosao-nuclear-3', 'explosao-nuclear/explosao-nuclear-3', 0.13, 8.1, 3.0, -18, 0),
     ('explosao-nuclear-4', 'explosao-nuclear/explosao-nuclear-4', 0.2, 8.2, 3.0, -18, 0),
-    # Programa Espacial (lote 20): contagem em inglês com a ignição em 2,5 s e a decolagem em 4,7 s; sem a voz a partir de 2,3 s
-    ('espaco-contagem-en', 'espaco-lancamento/espaco-contagem-e-lancamento', 0.0, 8.0, 3.3, -16, 0),
-    ('espaco-ignicao', 'espaco-lancamento/espaco-contagem-e-lancamento', 2.3, 8.0, 3.3, -16, 0.05),
+    # Programa Espacial (lote 20): contagem em inglês com a ignição em 2,5 s e o "zero" em ~9,7 s (o usuário ouviu o "cinco"
+    # na decolagem quando ela caía em 4,7 s); sem a voz a partir de 2,3 s
+    ('espaco-contagem-en', 'espaco-lancamento/espaco-contagem-e-lancamento', 0.0, 13.0, 2.5, -16, 0),
+    ('espaco-ignicao', 'espaco-lancamento/espaco-contagem-e-lancamento', 2.3, 13.0, 2.5, -16, 0.05),
     ('espaco-decolagem', 'espaco-lancamento/espaco-decolagem-2', 0.0, 11.0, 4.0, -16, 0),
     # blindado (lote 21): tiros únicos para a rajada de 3 e a rajada embolada
     ('blindado-canhao-1', 'blindado-canhao/blindado-canhao-4', 0.07, 0.8, 0.3, -20, 0),

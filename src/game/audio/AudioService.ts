@@ -21,8 +21,8 @@ type TrackId = 'horizon' | 'perimeter' | 'war' | 'zero';
 const TRACKS: Record<TrackId, { file: string; calm: boolean; gain: number }> = {
   horizon: { file: 'architect-of-the-horizon.mp3', calm: true, gain: 0.85 },
   perimeter: { file: 'the-last-perimeter.mp3', calm: true, gain: 0.85 },
-  war: { file: 'the-war-board.mp3', calm: false, gain: 0.7 },
-  zero: { file: 'strike-at-zero.mp3', calm: false, gain: 0.65 },
+  war: { file: 'the-war-board.mp3', calm: false, gain: 0.85 },
+  zero: { file: 'strike-at-zero.mp3', calm: false, gain: 0.8 },
 };
 /** Duração dos crossfades (s): subir de tensão é mais rápido que voltar à calma; entre faixas calmas, o meio-termo. */
 const MUSIC_FADE = { up: 3, down: 5, calm: 4 };
@@ -54,12 +54,16 @@ const DUCK: Partial<Record<CombatSound, number>> = {
 
 /**
  * Espaço para a guerra na frequência (por estado de ameaça): em combate a música perde graves e médios, a região dos
- * tiros e explosões, sem mudar o volume aparente. Muda devagar, junto com o crossfade.
+ * tiros e explosões, sem mudar o volume aparente. Muda devagar, junto com o crossfade. Corte leve desde 04/11 (noite):
+ * com −4/−5 dB, mais a faixa de guerra mais baixa, a música de combate sumia na caixinha do celular.
  */
+/** Tiros e explosões mais à frente da música (04/11, noite, pedido do usuário): +3 dB no canal de combate. */
+const COMBAT_BOOST = 1.4;
+
 const MUSIC_EQ: Record<Threat, { low: number; mid: number }> = {
   calm: { low: 0, mid: 0 },
-  combat: { low: -4, mid: -5 },
-  massive: { low: -6, mid: -7 },
+  combat: { low: -2, mid: -1.5 },
+  massive: { low: -3, mid: -2.5 },
 };
 
 export type MissileCue = 'prepare' | 'armed' | 'authorize';
@@ -249,11 +253,11 @@ export const SAMPLES: Partial<Record<CombatSound, SampleSet | SampleSet[]>> = {
   carpet_rumble: { files: SFX.carpet, gain: 1.25, synth: 0.5 },
   gatling: { files: SFX.gatling, gain: 2.6 },
   nuclear_blast: { files: SFX.nuclear, gain: 1.65, synth: 0.5 },
-  // contagem: pedida 10 s antes da decolagem; a ignição da gravação (2,5 s) cai na da animação (−2,2 s). Com o jogo em
-  // inglês vai a voz; nos outros idiomas, só a partir da ignição. As bombas e válvulas do sintetizado seguem por baixo.
+  // contagem: pedida 10 s antes da decolagem; o "zero" da gravação (~9,7 s) cai na decolagem da animação. Com o jogo
+  // em inglês vai a voz; nos outros idiomas, só a partir da ignição. As bombas e válvulas do sintetizado seguem por baixo.
   space_prelaunch: [
-    { files: ['espaco-contagem-en'], gain: 1.15, delay: 5.3, synth: 0.7, lang: 'en' },
-    { files: ['espaco-ignicao'], gain: 1.2, delay: 7.6, synth: 0.7, lang: 'outros' },
+    { files: ['espaco-contagem-en'], gain: 1.15, delay: 0.3, synth: 0.7, lang: 'en' },
+    { files: ['espaco-ignicao'], gain: 1.2, delay: 2.6, synth: 0.7, lang: 'outros' },
   ],
   space_liftoff: { files: ['espaco-decolagem'], gain: 2.55 },
   // blindado: rajada de 3 tiros a ~0,3 s montada com tiros únicos, ou a rajada embolada gravada
@@ -393,7 +397,7 @@ export class AudioService {
     if (!this.ctx || !this.master) return;
     const t = this.ctx.currentTime;
     this.master.gain.setTargetAtTime(this.muted ? 0 : this.volumes.master, t, 0.05);
-    for (const c of CHANNELS) this.buses.get(c)!.gain.setTargetAtTime(c === 'music' && this.musicMuted ? 0 : this.volumes[c], t, 0.05);
+    for (const c of CHANNELS) this.buses.get(c)!.gain.setTargetAtTime(c === 'music' && this.musicMuted ? 0 : this.volumes[c] * (c === 'combat' ? COMBAT_BOOST : 1), t, 0.05);
   }
 
   /**
@@ -2150,10 +2154,11 @@ export class AudioService {
   ui(sound: UiSound): void {
     if (!this.ready) return;
     if (!this.gap(`ui:${sound}`, 0.04)) return;
-    // sob ataque: o primeiro aviso de uma leva toca a subida da sirene gravada; os seguintes, o toque curto de sempre
-    if (sound === 'attack' && this.useSamples && this.sampleBufs.get(SFX.sirenAlert[0]!) && this.gap('siren_alert', 25)) {
-      this.playExtra(SFX.sirenAlert, 'ui', LEVELS.alert, 0);
-      return;
+    // sob ataque: no máximo um aviso a cada 30 s (o evento chega a cada 6 s enquanto o ataque dura e o toque repetido
+    // irritava): a subida da sirene gravada, ou o toque curto sintetizado se ela ainda não carregou
+    if (sound === 'attack') {
+      if (!this.gap('attack_alert', 30)) return;
+      if (this.useSamples && this.playExtra(SFX.sirenAlert, 'ui', LEVELS.alert, 0)) return;
     }
     const ctx = this.ctx!;
     const t = ctx.currentTime + 0.003;
@@ -2189,8 +2194,10 @@ export class AudioService {
         tone(220, t, 0.14, 0.25, 'sawtooth', 170);
         break;
       case 'alert':
-        tone(880, t, 0.12, 0.25, 'square');
-        tone(660, t + 0.16, 0.16, 0.25, 'square');
+        // perda (unidade, avião, caravana): duas notas suaves, no máximo a cada 3 s (a onda quadrada soava "8 bits")
+        if (!this.gap('ui:alert_soft', 3)) return;
+        tone(880, t, 0.12, 0.22, 'triangle');
+        tone(660, t + 0.16, 0.16, 0.22, 'triangle');
         break;
       case 'herald':
         // anúncio mundial (03/11): três notas de clarim subindo
@@ -2205,11 +2212,9 @@ export class AudioService {
         tone(415, t + 0.4, 0.5, 0.26, 'sawtooth');
         break;
       case 'attack':
-        // sob ataque (03/11): sirene curta de dois tons, duas vezes
-        for (const k of [0, 0.42]) {
-          tone(520, t + k, 0.2, 0.28, 'square', 760);
-          tone(760, t + k + 0.2, 0.2, 0.28, 'square', 520);
-        }
+        // sob ataque, enquanto a sirene gravada não carregou: dois tons que sobem e descem, uma vez (sem a onda quadrada)
+        tone(520, t, 0.3, 0.26, 'triangle', 760);
+        tone(760, t + 0.3, 0.3, 0.26, 'triangle', 520);
         break;
     }
   }
@@ -2731,9 +2736,24 @@ export class AudioService {
     next.gain.gain.cancelScheduledValues(t);
     next.gain.gain.setValueAtTime(next.gain.gain.value, t);
     next.gain.gain.linearRampToValueAtTime(TRACKS[id].gain, t + fade);
-    void next.el.play().catch(() => undefined);
+    void next.el.play().catch(() => this.retryOnGesture(next.el, id));
     o.current = id;
     if (calm) o.calmNext = id === 'horizon' ? 'perimeter' : 'horizon';
+  }
+
+  /**
+   * O navegador recusou tocar a faixa (no celular, mídia nova fora de um toque pode ser barrada): tenta de novo no
+   * próximo toque ou tecla, se ela ainda for a faixa atual.
+   */
+  private retryOnGesture(el: HTMLAudioElement, id: TrackId): void {
+    if (typeof window === 'undefined') return;
+    const retry = () => {
+      window.removeEventListener('pointerdown', retry, true);
+      window.removeEventListener('keydown', retry, true);
+      if (this.ost?.current === id && el.paused) void el.play().catch(() => undefined);
+    };
+    window.addEventListener('pointerdown', retry, true);
+    window.addEventListener('keydown', retry, true);
   }
 
   private stopMusic(fade = 1.5): void {

@@ -667,8 +667,8 @@ subir mais só comprimiria mais. **Nada foi ouvido**: se algum soar alto ou baix
 | `carpet_rumble` | bombardeio-tapete 1–2 (lote 15) + o sintetizado a 50% (`synth`) | a gravação é quase toda subgrave; o sintetizado dá os médios |
 | `gatling` (CIWS) | ciws-gatling 1–4 (lote 18), rajada de 1,8 s | o giro do motor dos canos do sintetizado saiu junto |
 | `nuclear_blast` | explosao-nuclear 1–4 (lote 19) + sintetizado a 50% | |
-| `space_prelaunch` | espaco-contagem-en (com a voz, jogo em inglês) ou espaco-ignicao (sem a voz, outros idiomas), lote 20 | começa 5,3 s (inglês) ou 7,6 s depois do pedido, para a ignição cair a −2,2 s da decolagem; o sintetizado (bombas, válvulas) segue a 70%. Idioma em `audio.voiceLang` (`GameRuntime` lê o `useLangStore`) |
-| `space_liftoff` | espaco-decolagem (lote 20-2), 11 s com fade longo | a contagem some nos 3 s depois da decolagem enquanto esta cresce |
+| `space_prelaunch` | espaco-contagem-en (com a voz, jogo em inglês) ou espaco-ignicao (sem a voz, outros idiomas), lote 20 | começa 0,3 s (inglês) ou 2,6 s depois do pedido, para o "zero" da gravação (~9,7 s) cair na decolagem (ajuste de 04/11, noite: na primeira versão o foguete subia quando a voz dizia "cinco"; a contagem a 1 número por segundo foi suposta, não ouvida); o sintetizado (bombas, válvulas) segue a 70%. Idioma em `audio.voiceLang` (`GameRuntime` lê o `useLangStore`) |
+| `space_liftoff` | espaco-decolagem (lote 20-2), 11 s com fade longo | a contagem some entre 0,8 e 3,3 s depois da decolagem enquanto esta cresce |
 | `apc_gun` (blindado) | blindado-canhao 1–2 em 3 tiros a 0,3 s (`rounds`) ou a rajada embolada blindado-canhao-3 (lote 21) | 2/3 e 1/3 |
 | `cannon` | canhao-tiro 1–4 (lote 23) | |
 | `howitzer` (obus) | obus-tiro 1–4 (lote 25; a 3 virou dois tiros) | |
@@ -679,7 +679,7 @@ subir mais só comprimiria mais. **Nada foi ouvido**: se algum soar alto ou baix
 | `aam_launch` / `agm_launch` | missil-ar-ar 1–4 / missil-ar-ar 2 e 4 10% mais graves (lote 30) | o ar-terra usa o ar-ar até chegar um lote próprio |
 | Guerra ao longe (`AudioService.warAt`) | artilharia-distante 1–4 e obus-distante (lote 25-4) | ver abaixo |
 | Energia desligando (`AudioService.powerDown`) | energia-desligando | prédio próprio que acabou de ficar sem luz; no máximo 1 vez a cada 4 s, canal de interface |
-| Sob ataque (`ui('attack')`) | sirene-aviso (subida da sirene 22-4, 2,2 s) | só no primeiro aviso a cada 25 s; os seguintes, o toque curto sintetizado |
+| Sob ataque (`ui('attack')`) | sirene-aviso (subida da sirene 22-4, 2,2 s) | no máximo um aviso a cada 30 s (o evento chega a cada 6 s; o toque quadrado repetido irritava); sem a gravação, dois tons suaves |
 | Silo armado (`missileCue('armed')`) | sirene-loop 1–2 (lote 22-2 e 22-4) | sobe do arranque do rotor e fica em loop sem emenda (`LOOPS` no script; o loop começa em 3,0 s e 1,5 s); ao parar, o tom cai e some em 2,4 s |
 | Ambiente (`startAmbient`) | vento-3 ou 4 (brisa de fundo) + vento-1 ou 2 (rajadas que sobem e descem a cada ~20 s), estéreo e em loop (lote 24) | se a partida começa antes de o vento carregar, o sintetizado toca e é trocado quando chega |
 

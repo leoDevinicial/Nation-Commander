@@ -16,20 +16,22 @@ parou; depois disso, recomeça.
 
 ## A guerra acima da música
 O som da guerra tem prioridade sobre a trilha, sem a música ficar "bombeando" a cada tiro:
-- **Mixagem por estado:** as faixas de combate tocam mais baixo (The War Board 0,7 e Strike at Zero 0,65 do canal;
-  construção 0,85), e a troca acompanha o crossfade de 3–5 s.
-- **Espaço na frequência (`MUSIC_EQ`):** em combate a música perde graves (shelf em 180 Hz, −4 dB; −6 no ataque
-  massivo) e médios (pico em 1,4 kHz, −5 dB; −7 no massivo), a região dos tiros e explosões. O filtro muda devagar
-  (constante de 1,2 s) e volta a zero na calma. O tiro aparece sem a música soar mais baixa.
+- **Mixagem por estado:** as faixas de combate tocam quase no nível das de construção (The War Board 0,85 e Strike at
+  Zero 0,8 do canal; construção 0,85), e a troca acompanha o crossfade de 3–5 s.
+- **Espaço na frequência (`MUSIC_EQ`):** em combate a música perde um pouco de graves (shelf em 180 Hz, −2 dB; −3 no
+  ataque massivo) e de médios (pico em 1,4 kHz, −1,5 dB; −2,5 no massivo). O filtro muda devagar (constante de 1,2 s)
+  e volta a zero na calma.
 - **Ducking só em eventos grandes (`DUCK`):** explosão grande, explosão de blindado pesado, bomba, bombardeio em tapete,
   impacto de míssil, nuclear e decolagem espacial abaixam a música 25–40% (proporcional à distância), descendo em
   ~150 ms e voltando em ~2,5 s; eventos seguidos não somam. Fuzil, metralhadora e canhões não mexem no volume da
   música.
-- Combate com volume padrão um pouco maior (0,8; antes 0,75), com moderação por causa do compressor final e dos
-  alto-falantes de celular.
-- Medido no navegador (04/11, tanques em combate perto do QG, volumes padrão): canal de combate em torno de −7 dB,
-  música entre −33 e −40 dB com o filtro em −4/−5 dB; ducking só na explosão de blindado (−25%). Na calma, a música
-  volta a cerca de −20 a −25 dB com o filtro aberto.
+- **Combate +3 dB (`COMBAT_BOOST` = 1,4 no canal de combate)** sobre o volume das configurações (padrão 0,8).
+- **Ajuste de 04/11 (noite), feedback de partida no celular:** "nenhuma música de guerra tocou" e "tiros e explosões
+  podem ser mais proeminentes". Medido antes (04/11, tanques perto do QG): música de combate entre −33 e −40 dB, contra
+  −20 a −25 na calma; com a faixa de guerra mais baixa (0,7) e o corte de −4/−5 dB, ela sumia na caixinha do celular.
+  Agora a música de guerra fica perto do nível da calma e quem ganha espaço são os efeitos (+3 dB). No navegador do
+  computador a troca para The War Board foi confirmada durante o combate no Sandbox. Se o navegador recusar tocar a
+  faixa nova (mídia barrada fora de um toque, no celular), ela é tentada de novo no próximo toque ou tecla.
 
 ## Controle do jogador
 - **Menu → Áudio e Volumes** (na partida) ou **Configurações**: volume geral, música, interface, ambiente, combate e
