@@ -157,6 +157,28 @@ encaixa direto, só um pouco mais rápida que a sintetizada; sortear entre as 4,
 mais graves, mas o ideal é outra gravação) nem para `flak` (estouro no ar quando um avião cai; falta gravação). Ao
 implementar: cortar em ~1,1 s com fade de ~0,15 s, normalizar o volume entre elas e converter para mono.
 
+## Lote 10 (04/11) — veículo explodindo (4 variações)
+Pasta `originais/veiculo-explosao/`. Todos MP3 48 kHz estéreo, 192 kbps, 5,0 s (≈ 122 KB). Arquivo de origem:
+"Duration 4-6 seconds N". As 4 são distintas. Muito grave em todas (40–74% da energia abaixo de 200 Hz). Dois tipos:
+**estouro curto** (1 e 3: um soco e a cauda de fogo/destroços) e **explosão com estouros secundários** (2 e 4: a
+munição cozinhando, estouros que vêm depois do principal).
+
+| Arquivo | Origem | Conteúdo | Pico | Média | Acima de −20 dB | Até ~−40 dB | Observação |
+|---|---|---|---|---|---|---|---|
+| `veiculo-explosao-1.mp3` | 1 | 1 estouro em 0 s | +0,6 dB | −24,9 dB | 0,3 s | ~3,2 s | soco seco e cauda de crepitar/destroços que cai devagar |
+| `veiculo-explosao-2.mp3` | 2 | estouro em 0,07 s + secundários em 0,9 s e 1,4 s (e menores até 3,8 s) | −0,7 dB | −19,6 dB | 1,4 s | ~4,1 s | a mais longa e cheia; corpo forte por ~2 s; menos grave (40%), mais "fogo" |
+| `veiculo-explosao-3.mp3` | 3 | 1 estouro em 0 s (+ um baque baixo em 1,4 s) | −0,3 dB | −24,7 dB | 0,3 s | ~2,9 s | parecida com a 1, um pouco mais curta |
+| `veiculo-explosao-4.mp3` | 4 | estouro em ~0,4 s (pré-estalo fraco em 0,22 s) + secundários em 1,2 s e 1,7 s e estalos até 4,2 s | +0,9 dB | −20,5 dB | 0,85 s | ~3,4 s | a mais grave (74%); **começa com 0,22 s de silêncio**: cortar o início ao preparar |
+
+Picos acima de 0 dB nas 1 e 4: normalizar com margem.
+
+Uso provável: `vehicle_explosion` (veículo leve/médio destruído, hoje sintetizado) com a 1 e a 3, e também a 2 e a 4
+encurtadas (~2 s); `vehicle_explosion_heavy` (blindado pesado, hoje toca a explosão grande) pode ganhar a 2 e a 4
+inteiras, pelos estouros secundários de munição. `explosion` (soldado/alvo pequeno, o som mais comum) não tem gravação
+própria ainda: dá para testar a 1 e a 3 cortadas em ~1 s e ~15% mais agudas, mas o ideal é um lote de explosão pequena.
+Ao implementar: cortar o silêncio inicial (2 e 4), encurtar a cauda para 2–3,5 s com fade, normalizar e converter para
+mono; limitar quantas tocam ao mesmo tempo (são longas).
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
