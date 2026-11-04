@@ -541,6 +541,23 @@ fade) e sortear entre eles em cada `rocket`; tocar o ronco contínuo **uma vez p
 quando a salva acaba (se as saídas embolarem demais, usar só o ronco e um clipe de lançamento a cada 3 foguetes).
 Normalizar (subir os lançamentos ~15–18 dB) e converter para mono.
 
+## Lote 28 (04/11) — torre de defesa, tiro (2 variações)
+Pasta `originais/torre-defesa/`. MP3 48 kHz estéreo, 192 kbps, 3,0 s (≈ 73 KB). Arquivo de origem:
+"03 - defense tower D N". Vieram só as variações **2 e 3** (a 1 e a 4 não vieram); as duas são distintas.
+
+Cada uma é **um disparo** (dois picos a ~50 ms: o estampido e o estalo/mecanismo logo depois), corpo de ~0,2 s e
+cauda que some até ~1,1–1,8 s, com **um eco tardio** bem marcado. Brilhantes (centro ~2,9 kHz).
+
+| Arquivo | Origem | Disparo | Pico | Média | Eco | Observação |
+|---|---|---|---|---|---|---|
+| `torre-defesa-2.mp3` | 2 | 0 s (picos em 0,13 e 0,18 s) | +1,2 dB | −22,2 dB | ~1,1 s (−32 dB) | mais seco e menos grave (37%); 13 amostras no limite |
+| `torre-defesa-3.mp3` | 3 | **0,22 s** (picos em 0,23 e 0,29 s) | +1,1 dB | −25,0 dB | ~1,7 s (−35 dB) | mais encorpado (65% de grave); **0,22 s de silêncio antes**; 6 amostras no limite |
+
+Uso provável: `tower` (tiro da torre de defesa; hoje sintetizado, curto e seco, com `MIN_GAP` de 0,06 s porque a
+torre atira muito). Sortear entre as duas com altura ±5% para não soar repetido com só 2 variações. Ao implementar:
+cortar o silêncio da 3, cortar em ~0,6–0,8 s com fade (antes do eco tardio, senão o eco de vários tiros embola; ou
+manter o eco só a cada poucos tiros), normalizar com margem, converter para mono.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
