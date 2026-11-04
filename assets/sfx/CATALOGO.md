@@ -220,6 +220,23 @@ Uso provável: `dome_intercept` (interceptador do Domo de Ferro acertando o mís
 cortar o silêncio da 3, normalizar com margem (a 2 e a 3 estão saturadas no pico; as 1 e 4 precisam subir ~12–15 dB
 se forem usadas sozinhas), converter para mono, cortar em ~1,5–2 s com fade.
 
+## Lote 13 (04/11) — bombardeiro voando (4 variações)
+Pasta `originais/bombardeiro-voando/`. Todos MP3 48 kHz estéreo, 192 kbps, 8,0 s (≈ 194 KB). Arquivo de origem:
+"Duration 7-10 second N". As 4 são distintas. Uma passagem completa (1) e três roncos contínuos (2–4) que começam e
+terminam no volume cheio, sem fade (servem de loop ou de base para o vem-e-vai feito pelo jogo, como o lote 11).
+
+| Arquivo | Origem | Conteúdo | Pico | Média | Nível (a cada 0,5 s) | Observação |
+|---|---|---|---|---|---|---|
+| `bombardeiro-voando-1.mp3` | 1 | **passagem completa**: chega, passa, vai embora | −0,5 dB | −20,5 dB | −38 → pico −13 em ~2,5–3,5 s → −37 | o único sobrevoo pronto: o tom sobe na chegada e cai na passagem (centro do espectro 0,85 → 3,1 → 0,85 kHz, Doppler); começa e termina baixo (−37 dB); centralizado |
+| `bombardeiro-voando-2.mp3` | 2 | ronco contínuo, o mais pesado | −1,3 dB | −17,1 dB | −19 a −14, cresce um pouco em 3–4,5 s | o mais grave (38% abaixo de 200 Hz e 9% abaixo de 80 Hz): o "peso" de motores grandes; leve à direita |
+| `bombardeiro-voando-3.mp3` | 3 | ronco contínuo, plano | −1,2 dB | −14,8 dB | −14 a −15 o tempo todo | o mais forte e estável; tem um pulsar de ~14 Hz (batida de hélice/motor a pistão): bom para bombardeiro das eras antigas e para loop |
+| `bombardeiro-voando-4.mp3` | 4 | ronco contínuo, plano | −1,5 dB | −17,0 dB | −16 a −19 | mais brilhante e menos grave (15%), pulsar lento (~2,8 Hz): mais "jato" que hélice |
+
+Uso provável: `bomber` (sobrevoo do bombardeiro, hoje sintetizado com 7,5 s e pico em 3,2 s): a 1 serve **como está**
+(o pico em ~3 s bate com o sintetizado); a 2, a 3 e a 4 com o envelope de volume e o Doppler do jogo, para variar. A 2
+pode também reforçar o grave de `carpet_rumble` (bombardeio em tapete) por baixo dos impactos. Ao implementar:
+normalizar, converter para mono, sortear entre a passagem pronta e os roncos com envelope.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
