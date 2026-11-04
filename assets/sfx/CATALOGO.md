@@ -575,6 +575,24 @@ variação mais grossa, com o eco dela. Com só 2 arquivos, cortar a M61 em pont
 mais variações. Também pode servir à gatling do CIWS (lote 18), se as de lá soarem lentas. Ao implementar: normalizar
 com margem, converter para mono; a saturação gravada fica (combina com o rasgo do canhão).
 
+## Lote 30 (04/11) — míssil ar-ar, disparo do caça (4 variações)
+Pasta `originais/missil-ar-ar/`. Todos MP3 48 kHz estéreo, 192 kbps, 3,0 s (≈ 73 KB). Arquivo de origem:
+"05 - air to air miss N". As 4 são distintas. Sopro do motor do míssil que nasce em 0,04–0,13 s e se afasta (o tom
+cai de 3,5–7 kHz para ~1,5–2 kHz); **quase sem grave** (1–4% abaixo de 200 Hz), bem mais leve que o lançamento de
+míssil de chão (lote 3). Nenhuma passa do limite.
+
+| Arquivo | Origem | Início | Pico | Média | Nível (a cada 0,25 s) | Observação |
+|---|---|---|---|---|---|---|
+| `missil-ar-ar-1.mp3` | 1 | 0,10 s | −1,1 dB | −18,5 dB | −22, −15, −13, −12, −19, −27 … −59 | motor forte por ~1 s, depois some até ~2 s |
+| `missil-ar-ar-2.mp3` | 2 | 0,13 s | −0,4 dB | −25,0 dB | −23, −16, −25, −35 … −70 | o mais curto (~0,4 s de corpo) e o mais agudo no começo (7 kHz): um "fsssh" rápido; leve movimento no estéreo |
+| `missil-ar-ar-3.mp3` | 3 | 0,04 s | −1,3 dB | −16,5 dB | −16, −13, −13, −12, −13, −17, −21 … −51 | o mais longo e cheio: motor por ~1,3 s e queda lenta até ~2,7 s |
+| `missil-ar-ar-4.mp3` | 4 | 0,12 s | −1,9 dB | −27,9 dB | −25, −18, −29, −37 … −58 | curto e mais baixo, com o tom caindo mais (até 1,1 kHz); **puxado para a direita** (+4 dB): converter para mono ao preparar |
+
+Uso provável: `aam_launch` (míssil ar-ar do caça, hoje sintetizado), sorteando entre as 4; a 2 e a 4, mais curtas,
+também servem para `agm_launch` (míssil ar-terra) até chegar um lote próprio, tocadas ~10% mais graves. Ao
+implementar: cortar o silêncio inicial (0,04–0,13 s), cortar em ~1,5–2 s com fade, normalizar (a 2 e a 4 estão ~8–10 dB
+abaixo), converter para mono.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
