@@ -18,6 +18,7 @@ import { KacEventStore, STORE_POLICY, type KacEventRow, type KacStoreBackend } f
 import { ADMIN_POLICY, KacAdmin, tokenMatches } from './kac/admin.ts';
 import { idCipher, newIdKey } from './kac/entityIds.ts';
 import { Room } from './Room.ts';
+import { Terrain } from '../shared/sim/config.ts';
 import { KacJournal, type KacEvent } from './kac/journal.ts';
 
 /**
@@ -682,5 +683,30 @@ describe('KAC — drone em primeira pessoa', () => {
     }
     expect(kacJournal.count('behavior.automation_suspected')).toBe(before);
     expect(code).toBeTruthy();
+  });
+});
+
+describe('KAC — estradas na névoa de guerra (04/11)', () => {
+  it('ataque: o mapa enviado ao (re)conectar não mostra estrada inimiga nunca vista', async () => {
+    const { send, rooms } = setup();
+    const a = fakeConn();
+    await send(a.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-alice' });
+    await send(a.conn, { t: 'create_room', mode: 'vs_ai', countryId: 'BRA' });
+    const code = a.last('room')!.room!.code;
+    await send(a.conn, { t: 'start' });
+    const room = rooms.get(code)!;
+    const sim = room.sim!;
+    // estrada da IA (slot 1) num canto longe de tudo o que o jogador vê
+    const vis = sim.visibilityOf(0);
+    const i = [...sim.map.terrain.keys()].find((k) => !vis[k] && sim.map.terrain[k] === Terrain.Plains)!;
+    sim.roads.push({ i, owner: 1 });
+    sim.map.terrain[i] = Terrain.Road;
+    sim.territoryVersion++;
+    const terrain = (room as unknown as { terrainFor: (s: number) => string }).terrainFor(0);
+    expect(Number(terrain[i])).toBe(Terrain.Plains);
+    // e o snapshot também não cita a célula
+    (room as unknown as { broadcastSnapshot: () => void }).broadcastSnapshot();
+    const snap = a.last('snapshot')!.s;
+    expect(snap.roads ?? []).not.toContain(i);
   });
 });

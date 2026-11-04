@@ -686,8 +686,9 @@ export class GameRuntime {
     if (s.territory) {
       this.territory = decodeTerritory(s.territory);
       this.bordersDirty = true;
-      this.applyRoads(s.roads ?? [], s.highways ?? []);
     }
+    // estradas conhecidas (as alheias só depois de vistas): chegam com o território ou quando mudam
+    if (s.territory || s.roads) this.applyRoads(s.roads ?? [], s.highways ?? []);
     this.snapshotAt = performance.now();
     this.paused = msg.paused;
     this.pausedBy = msg.pausedBy;

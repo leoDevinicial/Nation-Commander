@@ -222,7 +222,10 @@ export interface Snapshot {
   events: SimEvent[];
   /** Vitórias alternativas em curso (domínio territorial, colapso político), de 0 a 1. */
   victory?: { kind: 'territory' | 'political'; slot: Slot; progress: number }[];
-  /** Estradas construídas pelos jogadores (índices de célula), junto com o território. */
+  /**
+   * Estradas que o observador conhece (índices de célula): as próprias e as alheias já vistas (névoa de guerra).
+   * Enviadas junto com o território e sempre que mudam; quando presentes, são a lista completa.
+   */
   roads?: number[];
   /** Quais dessas células são rodovia (02/11). */
   highways?: number[];
@@ -250,6 +253,36 @@ export interface Snapshot {
 /** Memória de um jogador sobre edifícios inimigos já avistados (névoa de guerra). */
 export class FogMemory {
   readonly known = new Map<EntityId, BuildingSnapshot>();
+  /**
+   * Estradas que o jogador conhece (célula → rodovia?, própria?): as próprias sempre; as alheias só depois de vistas,
+   * e ficam como estavam da última vez que a célula esteve à vista (como os edifícios lembrados).
+   */
+  readonly roads = new Map<number, { hw: boolean; own: boolean }>();
+  roadsDirty = true;
+}
+
+/** Atualiza as estradas conhecidas pelo jogador (névoa de guerra: nada de estrada inimiga em área nunca vista). */
+function updateKnownRoads(sim: Simulation, viewer: Viewer): void {
+  const mem = viewer.memory;
+  const vis = sim.visibilityOf(viewer.slot);
+  const now = new Set<number>();
+  for (const r of sim.roads) {
+    now.add(r.i);
+    const own = r.owner === viewer.slot;
+    if (!own && !vis[r.i]) continue;
+    const hw = sim.highways.has(r.i);
+    const old = mem.roads.get(r.i);
+    if (!old || old.hw !== hw || old.own !== own) {
+      mem.roads.set(r.i, { hw, own });
+      mem.roadsDirty = true;
+    }
+  }
+  // sumiu (destruída): o jogador só fica sabendo se vê a célula ou se a estrada era dele
+  for (const [i, k] of mem.roads)
+    if (!now.has(i) && (k.own || vis[i])) {
+      mem.roads.delete(i);
+      mem.roadsDirty = true;
+    }
 }
 
 export interface Viewer {
@@ -384,8 +417,18 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
     ...(viewer ? { zoning: zoningFor(sim, viewer.slot) } : {}),
     // fronteiras são conhecidas por todos (como no mapa político de Rise of Nations)
     ...(includeTerritory ? { territory: encodeTerritory(sim.territory) } : {}),
-    ...(includeTerritory && sim.roads.length ? { roads: sim.roads.map((r) => r.i) } : {}),
-    ...(includeTerritory && sim.highways.size ? { highways: [...sim.highways] } : {}),
+    ...(viewer
+      ? (() => {
+          updateKnownRoads(sim, viewer);
+          if (!includeTerritory && !viewer.memory.roadsDirty) return {};
+          viewer.memory.roadsDirty = false;
+          const roads = [...viewer.memory.roads.keys()];
+          return { roads, highways: roads.filter((i) => viewer.memory.roads.get(i)!.hw) };
+        })()
+      : {
+          ...(includeTerritory && sim.roads.length ? { roads: sim.roads.map((r) => r.i) } : {}),
+          ...(includeTerritory && sim.highways.size ? { highways: [...sim.highways] } : {}),
+        }),
     ...(() => {
       const v = sim.victoryPressure().map((x) => ({ ...x, progress: r2(x.progress) }));
       return v.length ? { victory: v } : {};

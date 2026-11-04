@@ -16,7 +16,7 @@ import type {
 } from '../shared/protocol.ts';
 import { GAME_VERSION } from '../shared/version.ts';
 import type { Command } from '../shared/sim/commands.ts';
-import { BUILDINGS, TICK_RATE, UNITS } from '../shared/sim/config.ts';
+import { BUILDINGS, TICK_RATE, Terrain, UNITS } from '../shared/sim/config.ts';
 import { MAP_TYPE_INFO, MAP_TYPES, MAX_NATIONS_FREE, MAX_NATIONS_SUBSCRIBER, generateMatchMap, type MapType } from '../shared/sim/matchMap.ts';
 import { Simulation } from '../shared/sim/Simulation.ts';
 import { FogMemory, makeSnapshot } from '../shared/sim/snapshot.ts';
@@ -644,13 +644,26 @@ export class Room {
     return room;
   }
 
+  /**
+   * Terreno do mapa para um jogador (névoa de guerra): estrada alheia que ele ainda não viu volta ao terreno de antes
+   * (importa ao reconectar ou retomar, quando o mapa já tem estradas). As que ele conhece chegam pelo snapshot.
+   */
+  private terrainFor(slot: Slot): string {
+    const sim = this.sim!;
+    if (sim.ended || !sim.roads.length) return sim.map.terrain.join('');
+    const known = this.fogMemory.get(slot)?.roads;
+    const t = [...sim.map.terrain];
+    for (const r of sim.roads) if (r.owner !== slot && !known?.has(r.i)) t[r.i] = r.prev ?? Terrain.Plains;
+    return t.join('');
+  }
+
   private sendMatchStart(p: RoomPlayer): void {
     const sim = this.sim!;
     const match: MatchStartInfo = {
       seed: this.seed,
       yourSlot: p.slot,
       players: this.players.map(publicPlayer),
-      terrain: sim.map.terrain.join(''),
+      terrain: this.terrainFor(p.slot),
       width: sim.map.width,
       height: sim.map.height,
       cellSize: sim.map.cellSize,

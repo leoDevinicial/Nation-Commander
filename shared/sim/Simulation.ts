@@ -1300,10 +1300,11 @@ export class Simulation {
         if (!this.grid.inBounds(cmd.cx, cmd.cy)) return 'Fora do mapa';
         const i = cmd.cy * this.map.width + cmd.cx;
         const road = this.roads.find((r) => r.i === i);
+        // visão antes de tudo: a resposta não pode dizer se há estrada numa célula que o jogador não vê
+        if (road?.owner !== slot && !this.isVisibleTo(slot, this.grid.cellCenter({ cx: cmd.cx, cy: cmd.cy }))) return 'Estrada fora de visão';
         if (!road) return 'Escolha uma célula de estrada ou rodovia construída por uma nação';
         if (road.owner === slot) return 'Essa estrada é sua';
         if (!this.hostile(slot, road.owner)) return 'Sem estado de guerra com o dono dessa estrada';
-        if (!this.isVisibleTo(slot, this.grid.cellCenter({ cx: cmd.cx, cy: cmd.cy }))) return 'Estrada fora de visão';
         for (const u of units) {
           u.order = { kind: 'attackRoad', cell: i };
           u.engageId = null;

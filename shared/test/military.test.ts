@@ -4,7 +4,7 @@ import { parseCommand } from '../sim/commands.ts';
 import { RESEARCH_CANCEL_REFUND, SPLASH_FRACTION, Simulation, targetMultiplier, type NationalLink } from '../sim/Simulation.ts';
 import { MISSILE, missileSpec } from '../sim/air.ts';
 import { UNIT_ERA } from '../sim/eras.ts';
-import { makeSnapshot } from '../sim/snapshot.ts';
+import { FogMemory, makeSnapshot } from '../sim/snapshot.ts';
 import type { Building, SimEvent, Unit } from '../sim/types.ts';
 import { militaryResearchSpeed } from '../strategic/params.ts';
 import { TEST_START, flatMap, BUILDING_TECHS } from './helpers.ts';
@@ -139,7 +139,7 @@ describe('progressão militar — pesquisa no Centro de Pesquisa', () => {
     const { sim, center } = withCenter();
     research(sim, center, 'antitank_weapons');
     run(sim, 10);
-    const mine = makeSnapshot(sim, [], { slot: 0, memory: { known: new Map() } as never });
+    const mine = makeSnapshot(sim, [], { slot: 0, memory: new FogMemory() });
     expect(mine.buildings.find((b) => b.id === center.id)!.research?.id).toBe('antitank_weapons');
     expect(mine.buildings.find((b) => b.id === center.id)!.research!.progress).toBeGreaterThan(0.2);
     expect(mine.players.find((p) => p.slot === 0)!.militaryResearch).toEqual([]);

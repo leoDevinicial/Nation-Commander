@@ -65,6 +65,31 @@ describe('Estradas do jogador', () => {
     expect(copy.grid.terrain[12 * 40 + 6]).toBe(Terrain.Road);
   });
 
+  it('névoa de guerra: estrada inimiga só aparece depois de vista e fica lembrada como estava', () => {
+    const { sim, cell } = setup();
+    expect(sim.applyCommand(0, { type: 'build_road', cells: line(12, 4, 8) })).toBeNull();
+    sim.step();
+    const mem1 = new FogMemory();
+    // o dono vê as suas; o inimigo, que nunca olhou para lá, não recebe nada
+    expect(makeSnapshot(sim, [], { slot: 0, memory: new FogMemory() }).roads).toHaveLength(5);
+    expect(makeSnapshot(sim, [], { slot: 1, memory: mem1 }).roads ?? []).toHaveLength(0);
+    // um soldado inimigo chega perto: passa a conhecer a estrada
+    const scout = sim.addUnit('infantry', 1, cell(6, 13));
+    sim.step();
+    expect(makeSnapshot(sim, [], { slot: 1, memory: mem1 }, false).roads).toHaveLength(5);
+    // sem mudança, não reenvia (só com o território ou quando muda)
+    sim.step();
+    expect(makeSnapshot(sim, [], { slot: 1, memory: mem1 }, false).roads).toBeUndefined();
+    // o soldado vai embora e a estrada some fora da vista: continua lembrada
+    scout.pos = cell(35, 35);
+    sim.step();
+    sim.roads = sim.roads.filter((r) => r.i !== 12 * 40 + 4);
+    sim.step();
+    expect(makeSnapshot(sim, [], { slot: 1, memory: mem1 }).roads).toHaveLength(5);
+    // o dono fica sabendo na hora
+    expect(makeSnapshot(sim, [], { slot: 0, memory: new FogMemory() }).roads).toHaveLength(4);
+  });
+
   it('aceita células soltas (marcadas uma a uma), sem exigir traçado contínuo', () => {
     const { sim } = setup();
     const cells = [
