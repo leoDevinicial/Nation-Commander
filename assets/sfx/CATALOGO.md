@@ -393,6 +393,25 @@ Uso provável:
   porque o arquivo não tem fim.
 Converter tudo para mono 48 kHz e normalizar.
 
+## Lote 21 (04/11) — canhão automático do blindado (APC, 4 variações)
+Pasta `originais/blindado-canhao/`. Todos MP3 48 kHz estéreo, 192 kbps, 3,0 s (≈ 73 KB). Arquivo de origem:
+"06 - apc gun Duratio N". As 4 são distintas. Disparos curtos (1 ou 2–3 tiros muito próximos), com cauda de eco que
+some em 0,7–2,2 s. Bem diferentes entre si em força e formato:
+
+| Arquivo | Origem | Tiros (s) | Pico | Média | Até ~−40 dB | Observação |
+|---|---|---|---|---|---|---|
+| `blindado-canhao-1.mp3` | 1 | 1, sem ataque | −10,7 dB | −36,8 dB | ~2,2 s | **sem o estalo inicial** (começa em −19 dB e só cai, como os lotes 12-1 e 12-4) e ~15 dB abaixo das outras: soa como um tiro abafado/distante; o mais fraco do lote |
+| `blindado-canhao-2.mp3` | 2 | 0 · ~0,05 · ~0,21 | −3,7 dB | −30,2 dB | ~1,7 s | 2–3 tiros rápidos e embolados no começo, mais grave (46%); cauda longa |
+| `blindado-canhao-3.mp3` | 3 | 0,02 · 0,07 (e um fraco em ~0,19) | +1,9 dB | −27,5 dB | ~0,7 s | **dois tiros a 50 ms**, secos e fortes; a cauda mais curta; 17 amostras no limite |
+| `blindado-canhao-4.mp3` | 4 | 0,08 | +1,3 dB | −30,2 dB | ~1,1 s | **um tiro limpo e forte** (estalo brilhante + grave, 73% abaixo de 200 Hz); 0,08 s de ruído antes do tiro; 6 amostras no limite |
+
+Uso provável: `apc_gun` (canhão de 30 mm do blindado, hoje sintetizado como rajada de **3 tiros a ~0,3 s**, ~200 por
+minuto). As gravações não trazem essa rajada pronta: montar no jogo tocando **tiros únicos em sequência** (a 4, e a 3
+cortada no primeiro tiro, ~0,05 s) três vezes a ~0,3 s, com altura ±4% e o eco só no último, como já é feito com o
+fuzil (`rifle`). A 2 pode entrar inteira como variação "embolada". A 1 serve só como tiro distante. Ao implementar:
+cortar o início da 4 (0,08 s), cortar cada tiro em ~0,6–0,8 s com fade, normalizar com margem (a 3 e a 4 estão no
+limite; a 1 precisa de ~+12 dB se for usada), converter para mono.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
