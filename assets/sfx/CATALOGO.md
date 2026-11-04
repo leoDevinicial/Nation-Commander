@@ -412,6 +412,29 @@ fuzil (`rifle`). A 2 pode entrar inteira como variação "embolada". A 1 serve s
 cortar o início da 4 (0,08 s), cortar cada tiro em ~0,6–0,8 s com fade, normalizar com margem (a 3 e a 4 estão no
 limite; a 1 precisa de ~+12 dB se for usada), converter para mono.
 
+## Lote 22 (04/11) — sirene de ataque aéreo (3 variações)
+Pasta `originais/sirene-ataque-aereo/`. MP3 48 kHz estéreo, 192 kbps, 9,0 s (≈ 217 KB). Arquivo de origem:
+"27 - air raid siren N". Vieram as variações **1, 2 e 4**: no lugar da 3 veio por engano o `06 - apc gun 1`, idêntico
+byte a byte ao `blindado-canhao-1.mp3` do lote 21 (não guardado de novo). As 3 sirenes são distintas.
+
+Sirene mecânica (rotor) que **sobe de tom e depois se sustenta**; nenhuma termina em fade (o som continua até o fim
+do arquivo, em −16 a −18 dB). Tom medido a cada 0,25 s:
+
+| Arquivo | Origem | Tom | Pico | Média | Observação |
+|---|---|---|---|---|---|
+| `sirene-ataque-aereo-1.mp3` | 1 | sobe até ~1,17 kHz em ~1,2 s, fica até ~4,8 s, depois **desce devagar** até ~0,85 kHz em 9 s | +0,8 dB | −17,1 dB | a mais completa: subida, patamar e o lamento descendo (o "uuuuóóó" típico); 13 amostras no limite |
+| `sirene-ataque-aereo-2.mp3` | 2 | começa do silêncio (−55 dB), sobe de ~640 a ~805 Hz em 1–2,5 s e **fica plana** até o fim | −0,2 dB | −16,3 dB | a única com o arranque do zero; o patamar plano (2,5–9 s) dá loop |
+| `sirene-ataque-aereo-4.mp3` | 4 | sobe de ~430 a ~865 Hz em ~0,5 s e fica plana, com uma queda de volume em ~4–5 s | −1,2 dB | −14,5 dB | a mais grave e a mais forte; o patamar dá loop |
+
+Uso provável:
+- **Aviso nuclear "armado"** (`AudioService`, cue `armed`: hoje uma sirene mecânica sintetizada que sobe e desce sem
+  parar até autorizar ou abortar): a 2 ou a 4 em loop no patamar (emendando com cruzamento de ~0,3 s), ou a 1
+  inteira repetida; parar com fade curto ao autorizar/abortar.
+- **Sob ataque** (`ui('attack')`, hoje dois toques curtos de dois tons, ~0,8 s, que tocam a cada ataque): a sirene
+  longa não cabe aí, porque o aviso se repete muito. Dá para usar um trecho curto (~1,5–2 s da subida da 2 ou da 4,
+  com fade) no primeiro aviso de um ataque e manter o sintetizado nos seguintes; ou deixar a gravada só para o nuclear.
+Ao implementar: normalizar com margem (a 1 passa do limite), converter para mono, tocar no canal de interface.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
