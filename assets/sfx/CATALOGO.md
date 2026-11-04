@@ -513,6 +513,34 @@ hoje sintetizado), sorteando entre as 4, altura ±6%. A 1, com o segundo estouro
 como variação mais leve. Como toca muito, limitar a 3–4 simultâneas (o `MIN_GAP` já é 0,06 s). Ao implementar:
 normalizar com margem, cortar em ~0,8–1 s com fade, converter para mono.
 
+## Lote 27 (04/11) — lança-foguetes, salva (2 arquivos)
+Pasta `originais/lanca-foguetes/`. MP3 48 kHz estéreo, 192 kbps. Dois arquivos de origens diferentes, bem distintos:
+
+**`lanca-foguetes-salva-continua.mp3`** (origem "02 - rocket salvo Du 2", 5,0 s, ≈ 122 KB). Pico −0,2 dB, média
+−17,3 dB, nada no limite. **Ronco contínuo e plano** (−13 a −17 dB a cada 0,1 s do começo ao fim), sem saídas
+individuais que se destaquem, sem fade nem no começo nem no fim; brilhante (centro ~2,3 kHz, 10% de grave),
+centralizado. Soa como os foguetes saindo em sequência tão rápido que viram um rasgo só. Serve de **leito da salva
+inteira** ou de loop (cruzamento de ~0,3 s).
+
+**`lanca-foguetes-lancamentos.mp3`** (origem "Millitary multiple r 1", 15,0 s, ≈ 361 KB). Pico −16,4 dB, média
+−36,2 dB (**~19 dB abaixo do outro**). **Quatro lançamentos separados**, cada um um sopro que nasce forte e some em
+~2–2,5 s (o foguete saindo e se afastando):
+
+| Lançamento | Começa em | Nível no início | Some até |
+|---|---|---|---|
+| 1 | 0,0 s | −24 dB | ~2,7 s |
+| 2 | 2,8 s | −25 dB | ~5,0 s |
+| 3 | 5,1 s | −27 dB | ~9,8 s (cauda mais longa) |
+| 4 | 9,9 s | −26 dB | ~13 s, depois silêncio até 15 s |
+
+**Como o jogo toca hoje:** `rocket` uma vez **por foguete** que sai do Lança-Foguetes (`GameRuntime`, `onLaunch` da
+salva, com `MIN_GAP` de 0,05 s), e a cada 3 mísseis da antiaérea móvel do Futuro Próximo. O sintetizado é curto.
+
+Uso provável: recortar o segundo arquivo em **4 clipes de lançamento** (0–2,7 · 2,8–5,0 · 5,1–7,5 · 9,9–12,5 s, com
+fade) e sortear entre eles em cada `rocket`; tocar o ronco contínuo **uma vez por salva**, por baixo, com fade no fim
+quando a salva acaba (se as saídas embolarem demais, usar só o ronco e um clipe de lançamento a cada 3 foguetes).
+Normalizar (subir os lançamentos ~15–18 dB) e converter para mono.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono e iguala o volume dos clipes em `public/sfx/` (20 arquivos,
 ~0,8 MB; o tiro de tanque 2 virou dois clipes). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o
