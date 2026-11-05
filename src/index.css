@@ -215,6 +215,10 @@ select {
   background: linear-gradient(180deg, #f0c766, var(--color-brass-400));
   box-shadow: 0 0 12px rgb(226 181 77 / 0.35);
 }
+/* camada ligável (Globo): ligada fica em latão discreto, desligada apagada; o latão cheio fica para comando */
+.nc-icon-btn.nc-layer { height: 28px; padding: 0 8px; font-size: 10.5px; gap: 4px; }
+.nc-icon-btn.nc-layer[aria-pressed="true"] { color: var(--color-brass-400); border-color: rgb(226 181 77 / 0.45); background: rgb(226 181 77 / 0.08); box-shadow: none; }
+.nc-icon-btn.nc-layer[aria-pressed="false"] { color: var(--color-ink-400); }
 /* grupo segmentado (pausa e velocidade) */
 .nc-seg { display: inline-flex; border: 1px solid rgb(200 212 226 / 0.13); border-radius: var(--radius-ctl); overflow: hidden; }
 .nc-seg .nc-icon-btn { border: 0; border-radius: 0; border-right: 1px solid rgb(200 212 226 / 0.13); height: 30px; min-width: 32px; font-family: var(--font-mono); background: transparent; }

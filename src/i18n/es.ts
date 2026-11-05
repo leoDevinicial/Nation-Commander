@@ -2902,4 +2902,5 @@ export const ES: Dict = {
   "Sala de Situação": "Sala de Situación",
   "Criar sala pública": "Crear sala pública",
   "Canal da sala": "Canal de la sala",
+  "Ficha do país": "Ficha del país",
 };

@@ -1,4 +1,4 @@
-import { Map } from 'lucide-react';
+import { Ban, Gavel, Handshake, HeartHandshake, Landmark, Map, RadioTower, Swords, Truck, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import type { DiplomacyView, ForeignView, NationView } from '../../../shared/protocol.ts';
 import { DIPLO, type DiplomaticAction, type NationId, type Treaty } from '../../../shared/strategic/Diplomacy.ts';
@@ -60,7 +60,7 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
           </p>
         ) : (
           <button className="btn btn-primary px-3 py-1.5 text-xs" onClick={() => onAction({ type: 'establish_contact', partner: f.id })}>
-            Estabelecer Contato{' '}
+            <RadioTower size={14} aria-hidden /> Estabelecer Contato{' '}
             <span className="font-normal opacity-80">
               ({formatUsd(cost)} · {DIPLO.contactDays} dias)
             </span>
@@ -74,9 +74,10 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
     <div className="space-y-2.5 text-xs">
       <div>
         <div className="mb-1 flex items-center justify-between">
-          <span className="text-ink-400">Relação com seu país</span>
-          <span className="font-mono text-ink-100">{formatSigned(relation?.value ?? 0, 0)}</span>
+          <span className="nc-kicker">Relação com seu país</span>
+          <span className={`nc-num ${(relation?.value ?? 0) > 0 ? 'text-signal-green' : (relation?.value ?? 0) < 0 ? 'text-red-300' : 'text-ink-100'}`}>{formatSigned(relation?.value ?? 0, 0)}</span>
         </div>
+        <RelationBar value={relation?.value ?? 0} />
         <ul className="space-y-0.5">
           {(relation?.factors ?? []).length === 0 && <li className="text-ink-400">Relação neutra: nenhum fator ativo.</li>}
           {(relation?.factors ?? []).map((x) => (
@@ -88,8 +89,8 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
         </ul>
       </div>
 
-      <div className="rounded border border-ink-700 bg-ink-950/60 p-2">
-        <div className="mb-1 text-[11px] font-semibold text-ink-200">Situação atual</div>
+      <div className="rounded-[3px] border border-ink-700 bg-ink-950/60 p-2">
+        <div className="nc-kicker mb-1.5">Situação atual</div>
         {f.intel ? (
           <dl className="grid grid-cols-2 gap-x-3 gap-y-0.5">
             <dt className="text-ink-400">PIB</dt>
@@ -118,7 +119,7 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
               onClick={() => onAction({ type: 'propose', treaty: 'trade', partner: f.id })}
               title={`Duração ${DIPLO.tradeDays} dias. Aumenta o crescimento das duas partes.`}
             >
-              Propor Comércio
+              <Truck size={14} aria-hidden /> Propor Comércio
             </button>
             <button
               className="btn px-2 py-1 text-xs"
@@ -126,7 +127,7 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
               onClick={() => onAction({ type: 'propose', treaty: 'alliance', partner: f.id })}
               title={`Duração ${DIPLO.allianceDays} dias. O aliado envia ajuda militar ao teatro; custa ${DIPLO.allianceCostPct}% do PIB/ano. Exige relação alta.`}
             >
-              Propor Aliança
+              <Handshake size={14} aria-hidden /> Propor Aliança
             </button>
             {enemies.map((e) => (
               <button
@@ -136,7 +137,7 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
                 onClick={() => onAction({ type: 'request_sanctions', partner: f.id, target: e })}
                 title="O governo avalia sua relação com você, com o alvo e o custo de sancionar."
               >
-                Pedir Sanções contra {nameOf(e)}
+                <Gavel size={14} aria-hidden /> Pedir Sanções contra {nameOf(e)}
               </button>
             ))}
           </>
@@ -147,7 +148,7 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
             onClick={() => onAction({ type: 'set_mission', partner: f.id, active: !mission })}
             title={`Melhora a relação gradualmente (até +${DIPLO.missionCap}) e fornece dados atualizados; custa ${DIPLO.missionCostPct}% do PIB/ano.`}
           >
-            {mission ? 'Encerrar Missão' : 'Abrir Missão Diplomática'}
+            <Landmark size={14} aria-hidden /> {mission ? 'Encerrar Missão' : 'Abrir Missão Diplomática'}
           </button>
         )}
         {!f.isPlayer &&
@@ -169,12 +170,12 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
             </span>
           ) : (
             <button className="btn px-2 py-1 text-xs" onClick={() => setConfirmAid(true)} title="Pago com endividamento. O efeito sobre a relação decai com o tempo.">
-              Enviar Ajuda
+              <HeartHandshake size={14} aria-hidden /> Enviar Ajuda
             </button>
           ))}
         {has('sanctions', mine) ? (
           <button className="btn px-2 py-1 text-xs" onClick={() => onAction({ type: 'lift_sanctions', target: f.id })}>
-            Retirar Sanções
+            <Undo2 size={14} aria-hidden /> Retirar Sanções
           </button>
         ) : (
           <button
@@ -182,7 +183,7 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
             onClick={() => onAction({ type: 'impose_sanctions', target: f.id })}
             title="Reduz o crescimento do alvo, custa um pouco ao seu e encerra o comércio entre as partes."
           >
-            Impor Sanções
+            <Ban size={14} aria-hidden /> Impor Sanções
           </button>
         )}
       </div>
@@ -195,7 +196,7 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
             <>
               <p className="mb-1.5 text-ink-200">As forças de {nameOf(f.id)} estão no mesmo teatro de operações, mas sem guerra formal nenhum dos lados pode atacar.</p>
               <button className="btn btn-danger px-3 py-1.5 text-xs" onClick={() => onDeclareWar(f.id)}>
-                Declarar Guerra…
+                <Swords size={14} aria-hidden /> Declarar Guerra…
               </button>
             </>
           )}
@@ -216,12 +217,24 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
                 {nameOf(f.id)} está fora do teatro. Em guerra, suas tropas do teatro podem ser enviadas em operações contra as regiões do país (viagem, batalha local e volta).
               </p>
               <button className="btn btn-danger px-3 py-1.5 text-xs" onClick={() => onDeclareWar(f.id)}>
-                Declarar Guerra…
+                <Swords size={14} aria-hidden /> Declarar Guerra…
               </button>
             </>
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Relação de −100 a +100 numa barra com o zero no meio: verde para a direita, vermelho para a esquerda. */
+function RelationBar({ value }: { value: number }) {
+  const v = Math.max(-100, Math.min(100, value));
+  const w = Math.abs(v) / 2;
+  return (
+    <div className="relative mb-1.5 h-1.5 overflow-hidden rounded-sm bg-ink-800" role="meter" aria-valuemin={-100} aria-valuemax={100} aria-valuenow={Math.round(v)} aria-label="Relação">
+      <span className="absolute inset-y-0 left-1/2 w-px bg-ink-500" aria-hidden />
+      <span className="absolute inset-y-0" style={{ left: v >= 0 ? '50%' : `${50 - w}%`, width: `${w}%`, background: v >= 0 ? 'var(--color-signal-green)' : 'var(--color-signal-red)' }} aria-hidden />
     </div>
   );
 }

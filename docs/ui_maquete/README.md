@@ -84,6 +84,10 @@ node shot.cjs hud.html ../1-tela-computador.png 1600 900 2
    aguardando), ping em barras de sinal; vagas no seletor segmentado; mapa, regra e dificuldade em cartões de escolha
    (`ChoiceCard`: ícone, borda e marca de latão, rádio escondido mas acessível); código da sala em números de
    instrumento; chat com título "Canal da sala"; botões com ícone. Salas públicas: criar, entrar e lista vazia com ícone.
-10. Restam de propósito: setas de tendência (▲▼) nos números do painel nacional, `producibleIcon` (só aparece sem
-   miniatura) e símbolos matemáticos em textos (√, ≈, →). Próximo passo: miolo do Globo (ficha do país, legenda e
-   ações) no estilo da moldura.
+10. **Globo (05/11, noite):** barra de camadas na moldura com colchetes, título e data no estilo do painel; camadas
+   ligáveis (`.nc-layer`: latão discreto ligado, apagado desligado; o latão cheio fica para comando) com ícones.
+   Ficha do país com sigla, rótulo "Ficha do país" e título; relação em barra de −100 a +100 (`RelationBar`, verde
+   para a direita, vermelho para a esquerda); "Situação atual" como rótulo; ações diplomáticas com ícones (comércio,
+   aliança, sanções, missão, ajuda, guerra) — valem também na aba Diplomacia do painel nacional.
+11. Restam de propósito: setas de tendência (▲▼) nos números do painel nacional, `producibleIcon` (só aparece sem
+   miniatura) e símbolos matemáticos em textos (√, ≈, →).

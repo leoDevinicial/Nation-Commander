@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Swords, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Flag, Globe, type LucideIcon, Spline, Swords, Type, Waypoints, X } from 'lucide-react';
 import { COUNTRY_GEO, REGION_LABELS, geoOf } from '../../../shared/data/geography.ts';
 import { countryName } from '../../../shared/data/countries.ts';
 import type { DiplomaticAction } from '../../../shared/strategic/Diplomacy.ts';
@@ -18,11 +18,11 @@ import { POLITICAL_COLORS, POLITICAL_LABELS, politicalArcs, politicalSatellites,
 import { MAIN_ROWS, ReferenceRow } from '../components/CountryCard.tsx';
 import { Chip, NationActions } from './NationActions.tsx';
 
-const LAYERS: { id: GlobeLayer; label: string; short: string }[] = [
-  { id: 'political', label: 'Política', short: 'Política' },
-  { id: 'arcs', label: 'Tratados e Conflitos', short: 'Tratados' },
-  { id: 'borders', label: 'Fronteiras', short: 'Fronteiras' },
-  { id: 'labels', label: 'Nomes', short: 'Nomes' },
+const LAYERS: { id: GlobeLayer; label: string; short: string; icon: LucideIcon }[] = [
+  { id: 'political', label: 'Política', short: 'Política', icon: Flag },
+  { id: 'arcs', label: 'Tratados e Conflitos', short: 'Tratados', icon: Waypoints },
+  { id: 'borders', label: 'Fronteiras', short: 'Fronteiras', icon: Spline },
+  { id: 'labels', label: 'Nomes', short: 'Nomes', icon: Type },
 ];
 
 const LEGEND_KEY = 'nc.globe.legend';
@@ -213,28 +213,32 @@ export function GlobePanel({ visible, onClose }: { visible: boolean; onClose: ()
 
       {/* cabeçalho compacto: título e data, camadas, legenda recolhível e volta ao teatro */}
       <div className="pointer-events-none absolute top-15 left-2 flex max-w-[calc(100vw-16px)] flex-col items-start gap-1.5 sm:top-16 sm:left-3">
-        <div className="panel pointer-events-auto flex max-w-full flex-wrap items-center gap-1 px-2 py-1">
-          <div className="mr-1 leading-tight">
-            <div className="font-display text-[11px] font-bold tracking-wide uppercase">Globo</div>
-            <div className="text-[10px] text-ink-400">{date ? formatDate(date) : '—'}</div>
+        <div className="panel panel-frame pointer-events-auto flex max-w-full flex-wrap items-center gap-1.5 px-2.5 py-1.5">
+          <div className="mr-1 flex items-center gap-2 leading-tight">
+            <Globe size={18} className="text-brass-400" aria-hidden />
+            <div>
+              <div className="nc-title text-[12px]">Globo</div>
+              <div className="nc-num text-[10px] text-ink-400">{date ? formatDate(date) : '—'}</div>
+            </div>
           </div>
           <div className="flex flex-wrap gap-1" role="group" aria-label="Camadas do globo">
             {LAYERS.map((l) => (
               <button
                 key={l.id}
-                className={`btn min-h-6 px-1.5 py-0 text-[10px] ${layers[l.id] ? 'btn-primary' : ''}`}
+                className="nc-icon-btn nc-layer"
                 aria-pressed={layers[l.id]}
                 title={`Camada: ${l.label}`}
                 onClick={() => setLayers((s) => ({ ...s, [l.id]: !s[l.id] }))}
               >
+                <l.icon size={13} aria-hidden />
                 {l.short}
               </button>
             ))}
           </div>
-          <button className="btn min-h-6 px-1.5 py-0 text-[10px]" aria-expanded={legend} onClick={() => toggleLegend(!legend)} title="Mostrar ou ocultar a legenda das cores">
+          <button className="nc-icon-btn nc-layer" aria-pressed={legend} aria-expanded={legend} onClick={() => toggleLegend(!legend)} title="Mostrar ou ocultar a legenda das cores">
             Legenda {legend ? <ChevronUp size={12} className="inline-block" aria-hidden /> : <ChevronDown size={12} className="inline-block" aria-hidden />}
           </button>
-          <button className="btn min-h-6 px-1.5 py-0 text-[10px]" onClick={onClose} title="Voltar ao teatro de operações (Tab)">
+          <button className="btn min-h-7 px-2 py-0 text-[11px]" onClick={onClose} title="Voltar ao teatro de operações (Tab)">
             <Swords size={14} className="inline-block align-[-2px]" aria-hidden /> Teatro
           </button>
         </div>
@@ -268,8 +272,18 @@ export function GlobePanel({ visible, onClose }: { visible: boolean; onClose: ()
         >
           <div className="mb-2 flex items-start justify-between gap-2">
             {selection.kind === 'scenario' ? (
-              <div>
-                <h2 className="font-display text-lg font-bold tracking-wide">{countryName(selection.countryId)}</h2>
+              <div className="flex min-w-0 items-start gap-2.5">
+                <span
+                  className="nc-num mt-0.5 grid h-8 w-12 shrink-0 place-items-center bg-ink-700 text-xs font-bold text-ink-100"
+                  style={{ clipPath: 'polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px)' }}
+                  translate="no"
+                  aria-hidden
+                >
+                  {selection.countryId}
+                </span>
+                <div className="min-w-0">
+                <div className="nc-kicker">Ficha do país</div>
+                <h2 className="nc-title truncate text-lg">{countryName(selection.countryId)}</h2>
                 <div className="flex flex-wrap items-center gap-1 text-[11px] text-ink-400">
                   {REGION_LABELS[geoOf(selection.countryId)!.region]} · capital {geoOf(selection.countryId)!.capital.name}
                   {selectedState && (
@@ -279,6 +293,7 @@ export function GlobePanel({ visible, onClose }: { visible: boolean; onClose: ()
                       {POLITICAL_LABELS[selectedState]}
                     </Chip>
                   )}
+                </div>
                 </div>
               </div>
             ) : (

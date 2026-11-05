@@ -3164,4 +3164,5 @@ export const EN: Dict = {
   "Criar sala pública": "Create public room",
   "Bot (IA)": "Bot (AI)",
   "Canal da sala": "Room channel",
+  "Ficha do país": "Country file",
 };
