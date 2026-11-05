@@ -63,5 +63,9 @@ node shot.cjs hud.html ../1-tela-computador.png 1600 900 2
    latão, sem o recorte chanfrado (nada que abre para fora é cortado); menu principal com ícones no lugar dos emojis.
    Barra de recursos: petróleo como gota cheia, carvão como pedras (`OilIcon`, `CoalIcon`) e um toque num item mostra
    no feed o nome e a quantidade (no celular não há dica ao passar o dedo).
-6. Ainda no estilo antigo: os painéis grandes da camada nacional (Nação, Globo, Pesquisa, Diplomacia, Orçamento) e o
-   lobby por dentro (já com fontes, botões e colchetes novos).
+6. **Painel nacional (05/11):** moldura `<Frame>` com fundo quase opaco (por cima de outros painéis), insígnia do país,
+   nome em título, data em rótulo, botão de fechar com ícone e as 8 abas com ícone e sublinhado de latão; base subida
+   para não cobrir o painel de comando. Peças compartilhadas pelas abas: `Meter` em 10 segmentos com ícone de estado e
+   `StatTile` com canto chanfrado e números de instrumento. Ficha de país do Globo com os colchetes e o fechar novo.
+7. Ainda com o miolo antigo (já com fontes, botões, cores e colchetes novos): o conteúdo de cada aba nacional, o Globo
+   e o lobby.

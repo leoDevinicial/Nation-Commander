@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { ChartColumn, FlaskConical, Handshake, LayoutDashboard, Scale, Ship, Stethoscope, Wallet, X } from 'lucide-react';
+import { Frame } from '../components/Frame.tsx';
+import { factionColor } from '../../game/render/palette.ts';
 import { countryName } from '../../../shared/data/countries.ts';
 import type { Budget } from '../../../shared/strategic/NationalSimulation.ts';
 import type { TechId } from '../../../shared/strategic/technologies.ts';
@@ -18,14 +21,14 @@ import { makeNameOf } from '../../game/nationalText.ts';
 import type { DiplomaticAction } from '../../../shared/strategic/Diplomacy.ts';
 
 const TABS = [
-  { id: 'overview', label: 'Visão Geral' },
-  { id: 'budget', label: 'Orçamento' },
-  { id: 'research', label: 'Pesquisa' },
-  { id: 'policy', label: 'Política' },
-  { id: 'diplomacy', label: 'Diplomacia' },
-  { id: 'trade', label: 'Comércio' },
-  { id: 'diagnosis', label: 'Diagnóstico' },
-  { id: 'data', label: 'Dados' },
+  { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
+  { id: 'budget', label: 'Orçamento', icon: Wallet },
+  { id: 'research', label: 'Pesquisa', icon: FlaskConical },
+  { id: 'policy', label: 'Política', icon: Scale },
+  { id: 'diplomacy', label: 'Diplomacia', icon: Handshake },
+  { id: 'trade', label: 'Comércio', icon: Ship },
+  { id: 'diagnosis', label: 'Diagnóstico', icon: Stethoscope },
+  { id: 'data', label: 'Dados', icon: ChartColumn },
 ] as const;
 
 type Tab = (typeof TABS)[number]['id'];
@@ -48,32 +51,40 @@ export function NationalPanel({ onClose }: { onClose: () => void }) {
   const nameOf = makeNameOf(players, diplomacy?.nations ?? []);
 
   return (
-    <div
-      className="panel pointer-events-auto absolute top-16 right-3 bottom-[200px] z-30 flex w-[520px] max-w-[calc(100vw-24px)] flex-col max-sm:inset-x-2 max-sm:top-15 max-sm:bottom-2 max-sm:w-auto max-sm:max-w-none [@media(max-height:520px)]:top-14 [@media(max-height:520px)]:bottom-2"
+    // Sala de Situação (05/11): moldura de comando, insígnia do país na cor da nação e abas com ícone e sublinhado de latão
+    <Frame
+      className="pointer-events-auto absolute top-16 right-3 bottom-[246px] z-30 w-[520px] max-w-[calc(100vw-24px)] max-sm:inset-x-2 max-sm:top-15 max-sm:bottom-2 max-sm:w-auto max-sm:max-w-none [@media(max-height:520px)]:top-14 [@media(max-height:520px)]:bottom-2"
+      innerClassName="flex flex-col ![background:linear-gradient(180deg,rgb(16_22_31/0.97),rgb(10_14_20/0.96))]"
       onPointerDown={(e) => e.stopPropagation()}
-      onWheel={(e) => e.stopPropagation()}
-      role="dialog"
-      aria-label="Painel nacional"
     >
-      <div className="flex items-center justify-between border-b border-ink-700 px-3 py-2">
-        <div>
-          <div className="text-sm font-semibold">{nation ? countryName(nation.countryId) : 'Nação'}</div>
-          <div className="text-[11px] text-ink-400">{date ? `${formatDate(date)} · dia ${day} do cenário` : 'Aguardando dados…'}</div>
+     <div className="flex min-h-0 flex-1 flex-col" onWheel={(e) => e.stopPropagation()} role="dialog" aria-label="Painel nacional">
+      <div className="flex items-center justify-between gap-3 border-b border-white/10 px-3 py-2.5">
+        <div className="flex min-w-0 items-center gap-2.5">
+          {nation && (
+            <span
+              className="nc-num grid h-8 w-11 shrink-0 place-items-center text-xs font-bold text-white"
+              style={{ background: factionColor(mySlot), clipPath: 'polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px)', textShadow: '0 1px 2px rgb(0 0 0 / 0.5)' }}
+              aria-hidden
+            >
+              {nation.countryId}
+            </span>
+          )}
+          <div className="min-w-0">
+            <div className="nc-title truncate text-lg leading-none" translate="no">
+              {nation ? countryName(nation.countryId) : 'Nação'}
+            </div>
+            <div className="nc-kicker mt-1">{date ? `${formatDate(date)} · dia ${day} do cenário` : 'Aguardando dados…'}</div>
+          </div>
         </div>
-        <button className="btn px-2 py-1 text-xs" onClick={onClose} title="Fechar (G)" aria-label="Fechar painel nacional">
-          ✖
+        <button className="nc-icon-btn shrink-0" onClick={onClose} title="Fechar (G)" aria-label="Fechar painel nacional">
+          <X size={17} aria-hidden />
         </button>
       </div>
-      <div className="no-scrollbar flex gap-1 overflow-x-auto border-b border-ink-700 px-2 pt-2" role="tablist">
+      <div className="no-scrollbar flex overflow-x-auto px-2 pt-1" role="tablist">
         {TABS.map((t) => (
-          <button
-            key={t.id}
-            role="tab"
-            aria-selected={tab === t.id}
-            className={`shrink-0 rounded-t px-2.5 py-2 text-xs font-semibold sm:py-1.5 ${tab === t.id ? 'bg-ink-700 text-ink-100' : 'text-ink-400 hover:text-ink-200'}`}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
+          <button key={t.id} role="tab" aria-selected={tab === t.id} className="nc-tab !flex-none px-2.5" onClick={() => setTab(t.id)} title={t.label}>
+            <t.icon size={13} aria-hidden />
+            <span>{t.label}</span>
           </button>
         ))}
       </div>
@@ -120,6 +131,7 @@ export function NationalPanel({ onClose }: { onClose: () => void }) {
           <DataTab nation={nation} />
         )}
       </div>
-    </div>
+     </div>
+    </Frame>
   );
 }

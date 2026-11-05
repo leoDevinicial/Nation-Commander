@@ -42,10 +42,10 @@ export function StatTile({ label, value, delta, series, format, baseline }: Prop
   const hp = hover !== null ? series[hover] : null;
 
   return (
-    <div className="relative rounded border border-ink-700 bg-ink-900 p-2.5">
-      <div className="text-[11px] text-ink-400">{label}</div>
-      <div>
-        <div className="text-lg leading-tight font-semibold whitespace-nowrap text-ink-100">{value}</div>
+    <div className="relative border border-white/10 bg-white/[0.03] p-2.5" style={{ clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}>
+      <div className="nc-kicker">{label}</div>
+      <div className="mt-1">
+        <div className="nc-num text-lg leading-tight font-bold whitespace-nowrap text-ink-100">{value}</div>
         {delta && (
           <div className={`text-[11px] ${delta.good === null ? 'text-ink-400' : delta.good ? 'text-signal-green' : 'text-red-300'}`}>
             {delta.good === null ? '' : delta.good ? '▲ ' : '▼ '}
@@ -89,7 +89,7 @@ export function StatTile({ label, value, delta, series, format, baseline }: Prop
         </svg>
       )}
       {hp && (
-        <div className="pointer-events-none absolute top-1 right-2 rounded bg-ink-950/95 px-1.5 py-0.5 text-[11px] text-ink-100 shadow">
+        <div className="nc-num pointer-events-none absolute top-1 right-2 border border-white/10 bg-[rgb(10_14_20/0.95)] px-1.5 py-0.5 text-[11px] text-ink-100 shadow">
           {formatDate(hp.date)} · {format(hp.value)}
         </div>
       )}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 import { COUNTRY_GEO, REGION_LABELS, geoOf } from '../../../shared/data/geography.ts';
 import { countryName } from '../../../shared/data/countries.ts';
 import type { DiplomaticAction } from '../../../shared/strategic/Diplomacy.ts';
@@ -259,7 +260,7 @@ export function GlobePanel({ visible, onClose }: { visible: boolean; onClose: ()
       {/* país selecionado: painel lateral no desktop, folha inferior no celular */}
       {selection && sheetOpen && diplomacy && me && (
         <div
-          className="panel scroll-thin pointer-events-auto absolute right-2 bottom-2 left-2 max-h-[55%] overflow-y-auto p-3 sm:top-16 sm:right-3 sm:bottom-3 sm:left-auto sm:max-h-none sm:w-[400px]"
+          className="panel panel-frame scroll-thin pointer-events-auto absolute right-2 bottom-2 left-2 max-h-[55%] overflow-y-auto p-3 sm:top-16 sm:right-3 sm:bottom-3 sm:left-auto sm:max-h-none sm:w-[400px]"
           onPointerDown={(e) => e.stopPropagation()}
           onWheel={(e) => e.stopPropagation()}
           role="dialog"
@@ -286,8 +287,8 @@ export function GlobePanel({ visible, onClose }: { visible: boolean; onClose: ()
                 <div className="text-[11px] text-ink-400">Nome conforme o Natural Earth</div>
               </div>
             )}
-            <button className="btn px-2 py-1 text-xs" onClick={() => setSheetOpen(false)} aria-label="Fechar painel do país">
-              ✖
+            <button className="nc-icon-btn shrink-0" onClick={() => setSheetOpen(false)} aria-label="Fechar painel do país">
+              <X size={17} aria-hidden />
             </button>
           </div>
           {selection.kind === 'outside' ? (
