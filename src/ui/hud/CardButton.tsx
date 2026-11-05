@@ -1,5 +1,11 @@
 import { audio } from '../../game/audio/AudioService.ts';
 
+/** US$ por dia curto para o cartão: "21 mil", "1,2 mi". */
+export function usdDay(v: number): string {
+  const a = Math.abs(v);
+  return a >= 1e6 ? `${(a / 1e6).toFixed(1).replace('.', ',')} mi` : `${a >= 1e4 ? Math.round(a / 1e3) : (a / 1e3).toFixed(1).replace('.', ',')} mil`;
+}
+
 /**
  * Cartão de ação: miniatura 3D (ou ícone), nome, conteúdo extra (custo) e motivo de bloqueio.
  * `blocked` deixa o cartão clicável (o toque explica o motivo), `disabled` não.
@@ -16,6 +22,8 @@ export function CardButton({
   short,
   badge,
   count,
+  net,
+  locked,
   children,
 }: {
   thumb?: string;
@@ -31,11 +39,18 @@ export function CardButton({
   badge?: string;
   /** Quantos já estão na fila. */
   count?: number;
+  /**
+   * Saldo por dia no caixa do país se for construído (05/11): verde se rende mais do que custa, vermelho se só custa.
+   * `null`/ausente: não mostra.
+   */
+  net?: number | null;
+  /** Falta era, pesquisa ou nível do QG (hachurado); só recurso faltando não tranca o cartão (o custo fica vermelho). */
+  locked?: boolean;
   children?: React.ReactNode;
 }) {
   return (
     <button
-      className={`cmd-btn cmd-card shrink-0 ${blocked ? 'is-blocked' : ''}`}
+      className={`cmd-btn cmd-card shrink-0 ${blocked ? 'is-blocked' : ''} ${locked ? 'is-locked' : ''}`}
       aria-disabled={blocked || undefined}
       disabled={disabled}
       onClick={() => {
@@ -57,7 +72,14 @@ export function CardButton({
       </span>
       <span className="cmd-card-label">{label}</span>
       {children}
-      {short && <span className="text-[9px] leading-tight font-semibold text-red-300">{short}</span>}
+      {short && <span className="cmd-card-short">{short}</span>}
+      {net !== undefined && net !== null && (
+        <span className={`cmd-card-net ${net >= 0 ? 'is-pos' : 'is-neg'}`} aria-label={`${net >= 0 ? 'Rende' : 'Custa'} ${usdDay(net)} por dia`}>
+          <b>$</b>
+          {net >= 0 ? '+' : '−'}
+          {usdDay(net)}/dia
+        </span>
+      )}
     </button>
   );
 }

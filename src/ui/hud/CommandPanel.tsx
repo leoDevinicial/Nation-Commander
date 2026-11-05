@@ -4,6 +4,7 @@ import { policyEffects } from '../../../shared/strategic/policies.ts';
 import { useMyBonus } from '../../state/myCountry.ts';
 import {
   BUILDINGS,
+  RESOURCE_TYPES,
   CITIZEN,
   MILITARY_RESEARCH,
   MILITARY_RESEARCH_IDS,
@@ -44,7 +45,10 @@ import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { factionColor } from '../../game/render/palette.ts';
 import { useHudStore, type ZoneBrush } from '../../state/useHudStore.ts';
 import { ZONING, type ZoneKind } from '../../../shared/sim/zoning.ts';
-import { CardButton } from './CardButton.tsx';
+import { CardButton, usdDay } from './CardButton.tsx';
+import { Frame } from '../components/Frame.tsx';
+import { buildingDayUsd } from '../../../shared/strategic/treasury.ts';
+import { Factory, Landmark, Star, Swords, TriangleAlert, Undo2, Zap, type LucideIcon } from 'lucide-react';
 import { AirbaseButtons, AirbaseInfo, CarrierButtons, DomeInfo, HoldToConfirm, SiloButtons, SiloInfo, SubMissileButtons, airTargetText } from './AirPanels.tsx';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
@@ -62,14 +66,14 @@ const EMPTY_TECHS: readonly string[] = [];
  * Projetos Nacionais. Os atalhos de teclado continuam valendo em qualquer aba.
  */
 type BuildTab = 'production' | 'energy' | 'civic' | 'military' | 'projects';
-const BUILD_TABS: { id: BuildTab; label: string; icon: string; types: BuildingType[] }[] = [
-  { id: 'production', label: 'Produção', icon: '⚒', types: ['farm', 'sawmill', 'quarry', 'mine', 'oil_well', 'oil_tank', 'warehouse', 'silo', 'refinery', 'steel_mill', 'eucalyptus_forest', 'charcoal_kiln', 'underground_mine'] },
+const BUILD_TABS: { id: BuildTab; label: string; icon: LucideIcon; types: BuildingType[] }[] = [
+  { id: 'production', label: 'Produção', icon: Factory, types: ['farm', 'sawmill', 'quarry', 'mine', 'oil_well', 'oil_tank', 'warehouse', 'silo', 'refinery', 'steel_mill', 'eucalyptus_forest', 'charcoal_kiln', 'underground_mine'] },
   // rede elétrica: as usinas (a nuclear e a hidrelétrica continuam nos Grandes Projetos)
-  { id: 'energy', label: 'Energia', icon: '⚡', types: ['coal_plant', 'wind_farm', 'solar_farm'] },
-  { id: 'civic', label: 'Cívicas', icon: '🏛', types: ['house', 'residential', 'city_hall', 'school', 'university', 'hospital', 'police_station', 'market', 'port'] },
-  { id: 'military', label: 'Militares', icon: '⚔', types: ['barracks', 'factory', 'research_center', 'tower', 'tank_trap', 'aa_battery', 'airbase', 'missile_silo', 'iron_dome'] },
+  { id: 'energy', label: 'Energia', icon: Zap, types: ['coal_plant', 'wind_farm', 'solar_farm'] },
+  { id: 'civic', label: 'Cívicas', icon: Landmark, types: ['house', 'residential', 'city_hall', 'school', 'university', 'hospital', 'police_station', 'market', 'port'] },
+  { id: 'military', label: 'Militares', icon: Swords, types: ['barracks', 'factory', 'research_center', 'tower', 'tank_trap', 'aa_battery', 'airbase', 'missile_silo', 'iron_dome'] },
   // Grandes Projetos Nacionais (Futuro Próximo)
-  { id: 'projects', label: 'Projetos', icon: '★', types: ['nuclear_plant', 'network_5g', 'hydro_dam', 'financial_center', 'space_center'] },
+  { id: 'projects', label: 'Projetos', icon: Star, types: ['nuclear_plant', 'network_5g', 'hydro_dam', 'financial_center', 'space_center'] },
 ];
 const EMPTY: Stockpile = emptyStockpile();
 
@@ -129,6 +133,8 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
   const myNation = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot));
   const worksCap = myNation?.works.capUsd ?? 0;
   const fund = myNation ? myNation.works.fundUsd : null;
+  // escala do PIB do caixa do país (saldo por dia de cada construção, 05/11)
+  const usdScale = myNation?.research.usdScale ?? null;
   const ownTypes = useHudStore((s) => s.ownBuildingTypes);
   const ownCounts = useHudStore((s) => s.ownBuildingCounts);
   // Centro de Comando ou Prefeitura pronta (QG secundário da cidade): constrói e forma cidadãos
@@ -136,8 +142,9 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
   const hqLevel = building?.type === 'hq' ? building.level : command ? runtime.upgradeWorld().hqLevel : 0;
 
   return (
-    <div
-      className="panel pointer-events-auto flex min-w-0 flex-1 flex-col gap-2 p-2 sm:h-[212px] sm:flex-row sm:gap-3 sm:p-3 [@media(max-height:520px)]:h-auto [@media(max-height:520px)]:max-h-[140px] [@media(max-height:520px)]:flex-row [@media(max-height:520px)]:gap-2 [@media(max-height:520px)]:p-2"
+    <Frame
+      className="pointer-events-auto min-w-0 flex-1 sm:h-[222px] [@media(max-height:520px)]:h-auto [@media(max-height:520px)]:max-h-[150px]"
+      innerClassName="flex min-w-0 flex-col gap-2 p-2 sm:flex-row sm:gap-3 sm:p-3 [@media(max-height:520px)]:flex-row [@media(max-height:520px)]:gap-2 [@media(max-height:520px)]:p-2"
       onPointerDown={(e) => e.stopPropagation()}
     >
       <div className="flex min-w-0 flex-1 gap-2 sm:gap-3">
@@ -248,7 +255,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           )}
         </div>
       </div>
-      <div className="scroll-thin flex shrink-0 gap-1.5 overflow-x-auto pt-1 sm:grid sm:grid-cols-4 sm:content-start sm:overflow-x-visible sm:overflow-y-auto [@media(max-height:520px)]:grid [@media(max-height:520px)]:grid-cols-4 [@media(max-height:520px)]:content-start [@media(max-height:520px)]:overflow-y-auto">
+      <div className="scroll-thin flex shrink-0 gap-1.5 overflow-x-auto pt-1 sm:grid sm:grid-cols-4 sm:content-start sm:overflow-x-visible sm:overflow-y-auto xl:grid-cols-6 [@media(max-height:520px)]:grid [@media(max-height:520px)]:grid-cols-4 [@media(max-height:520px)]:content-start [@media(max-height:520px)]:overflow-y-auto">
         {units.length > 0 && mode.kind === 'normal' && (
           <>
             <CardButton icon="⚔" hotkey="F" label="Avançar atacando" onClick={() => runtime.startAttackMove()} title="Avançar atacando (F)" />
@@ -296,17 +303,18 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           ))}
         {mode.kind !== 'normal' && <CardButton icon="✖" hotkey="Esc" label="Cancelar" onClick={() => runtime.cancelMode()} title="Cancelar (Esc)" />}
         {command && mode.kind === 'normal' && runtime.battleOp === null && (
-          <div className="flex shrink-0 flex-col gap-1 sm:col-span-4 sm:flex-row [@media(max-height:520px)]:col-span-4 [@media(max-height:520px)]:flex-row" role="tablist" aria-label="Categorias de construção">
+          <div className="flex shrink-0 flex-col gap-0 sm:col-span-4 sm:flex-row xl:col-span-6 [@media(max-height:520px)]:col-span-4 [@media(max-height:520px)]:flex-row" role="tablist" aria-label="Categorias de construção">
             {BUILD_TABS.map((t) => (
               <button
                 key={t.id}
                 role="tab"
                 aria-selected={buildTab === t.id}
-                className={`btn min-h-7 flex-1 px-2 py-0.5 text-[11px] whitespace-nowrap ${buildTab === t.id ? 'btn-primary' : ''}`}
+                className="nc-tab"
                 onClick={() => setBuildTab(t.id)}
                 title={`Construções ${t.label.toLowerCase()}`}
               >
-                <span aria-hidden>{t.icon}</span> {t.label}
+                <t.icon size={13} aria-hidden />
+                <span className="hidden min-[1100px]:inline">{t.label}</span>
               </button>
             ))}
           </div>
@@ -335,6 +343,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             icon="🛣"
             label="Rodovia"
             blocked={!techs.includes('road_engineering')}
+            locked={!techs.includes('road_engineering')}
             short={techs.includes('road_engineering') ? null : 'exige pesquisa'}
             onClick={() =>
               techs.includes('road_engineering')
@@ -379,6 +388,10 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             const cost = buildingCost(type, owned);
             const next = ESCALATING_BUILDINGS.has(type) ? buildingCost(type, owned + 1) : null;
             const ok = canAfford(resources, cost) && !techMissing && !eraMissing && !other;
+            const locked = !!(eraMissing || techMissing || other);
+            const lack = RESOURCE_TYPES.find((r) => (cost[r] ?? 0) > resources[r]);
+            const day0 = usdScale !== null ? buildingDayUsd(type, { era: myEra, scale: usdScale }) : null;
+            const day = day0 && Math.abs(day0.net) >= 50 ? day0 : null;
             return (
               <CardButton
                 key={type}
@@ -386,7 +399,9 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
                 hotkey={def.hotkey}
                 label={def.label}
                 blocked={!ok}
-                short={eraMissing ? `era ${eraMissing}` : techMissing ? 'exige pesquisa' : other}
+                locked={locked}
+                net={day?.net ?? null}
+                short={eraMissing ? `era ${eraMissing}` : techMissing ? 'exige pesquisa' : other ?? (lack ? `Faltam ${Math.ceil((cost[lack] ?? 0) - resources[lack])} de ${RESOURCE_LABELS[lack].toLowerCase()}` : null)}
                 onClick={() =>
                   ok
                     ? runtime.startPlacement(type)
@@ -396,7 +411,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
                         tone: 'warn',
                       })
                 }
-                title={`${def.label} — ${def.description}\nTempo: ${timeText(def.buildSeconds)} · Vida: ${def.maxHp}${def.workers ? ` · Trabalhadores: ${def.workers}` : ''}${def.territoryRadius ? ` · Fronteira: ${def.territoryRadius} células` : ''}${def.project ? `\nGrande Projeto: ${def.project.effect} · ${usdShort(projectUsd)} do caixa do país` : ''}${next ? `\nCusto crescente (+${Math.round(ESCALATING_COST_STEP * 100)}% por edifício do tipo): você tem ${owned}; depois deste, o próximo custará ${costText(next)}` : ''}`}
+                title={`${def.label} — ${def.description}\nTempo: ${timeText(def.buildSeconds)} · Vida: ${def.maxHp}${def.workers ? ` · Trabalhadores: ${def.workers}` : ''}${def.territoryRadius ? ` · Fronteira: ${def.territoryRadius} células` : ''}${def.project ? `\nGrande Projeto: ${def.project.effect} · ${usdShort(projectUsd)} do caixa do país` : ''}${next ? `\nCusto crescente (+${Math.round(ESCALATING_COST_STEP * 100)}% por edifício do tipo): você tem ${owned}; depois deste, o próximo custará ${costText(next)}` : ''}${day ? `\n${dayText(day)}` : ''}`}
               >
                 <CostLabel cost={cost} have={resources} compact />
               </CardButton>
@@ -409,7 +424,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
         {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'missile_silo' && <SiloButtons runtime={runtime} b={building} />}
         {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'space_center' && <SpaceButtons runtime={runtime} b={building} />}
       </div>
-    </div>
+    </Frame>
   );
 }
 
@@ -911,25 +926,25 @@ function QueueColumn({ b, runtime }: { b: SelectedBuilding; runtime: GameRuntime
   const thumbs = useHudStore((s) => s.thumbs);
   const [first, ...rest] = b.queue;
   return (
-    <div className="flex w-[84px] shrink-0 flex-col gap-1 border-r border-ink-700 pr-2 sm:w-[96px]" aria-label="Fila de produção">
-      <div className="flex items-center justify-between text-[10px] text-ink-400">
+    <div className="flex w-[84px] shrink-0 flex-col gap-1 border-r border-white/10 pr-2 sm:w-[96px]" aria-label="Fila de produção">
+      <div className="nc-kicker flex items-center justify-between">
         <span>Fila</span>
         <span className="font-mono">
           {b.queue.length}/{PRODUCTION_QUEUE_LIMIT}
         </span>
       </div>
       {first ? (
-        <div className="rounded border border-brass-400/50 bg-ink-900/80 p-1" title={`Produzindo: ${producibleLabel(first.unitType)}`}>
+        <div className="border border-brass-400/50 bg-white/[0.04] p-1" title={`Produzindo: ${producibleLabel(first.unitType)}`}>
           <div className="cmd-card-view !h-[40px] [@media(max-height:520px)]:!h-[26px]">
             {thumbs[first.unitType] ? <img src={thumbs[first.unitType]} alt="" /> : <span className="text-lg">{producibleIcon(first.unitType)}</span>}
           </div>
           <div className="mt-0.5 truncate text-[10px] font-semibold text-ink-100">{producibleLabel(first.unitType)}</div>
-          <div className="mt-0.5 h-1.5 overflow-hidden rounded bg-ink-950">
-            <div className="h-full bg-brass-400 transition-[width] duration-300" style={{ width: `${first.progress * 100}%` }} />
+          <div className="mt-0.5 h-1 overflow-hidden bg-white/10">
+            <div className="h-full bg-brass-400 shadow-[0_0_6px_rgb(226_181_77/0.5)] transition-[width] duration-300" style={{ width: `${first.progress * 100}%` }} />
           </div>
         </div>
       ) : (
-        <div className="flex h-[70px] items-center justify-center rounded border border-dashed border-ink-700 text-center text-[10px] text-ink-400">Fila vazia</div>
+        <div className="flex h-[70px] items-center justify-center border border-dashed border-white/15 text-center text-[10px] text-ink-400">Fila vazia</div>
       )}
       <div className="grid grid-cols-4 gap-0.5 [@media(max-height:520px)]:hidden">
         {Array.from({ length: PRODUCTION_QUEUE_LIMIT - 1 }, (_, i) => {
@@ -937,7 +952,7 @@ function QueueColumn({ b, runtime }: { b: SelectedBuilding; runtime: GameRuntime
           return (
             <div
               key={i}
-              className={`flex aspect-square items-center justify-center overflow-hidden rounded border ${q ? 'border-ink-600 bg-ink-850' : 'border-dashed border-ink-700'}`}
+              className={`flex aspect-square items-center justify-center overflow-hidden border ${q ? 'border-white/20 bg-white/[0.04]' : 'border-dashed border-white/15'}`}
               title={q ? producibleLabel(q.unitType) : 'vazio'}
             >
               {q &&
@@ -952,7 +967,7 @@ function QueueColumn({ b, runtime }: { b: SelectedBuilding; runtime: GameRuntime
           onClick={() => runtime.cancelProduction()}
           title="Cancelar o último item da fila — reembolso integral"
         >
-          ↶ Cancelar
+          <Undo2 size={12} aria-hidden /> Cancelar
         </button>
       )}
     </div>
@@ -970,22 +985,50 @@ function ModeHint({ title, text, bad }: { title: string; text: string; bad?: boo
 
 function HpLine({ hp, max }: { hp: number; max: number }) {
   const f = Math.max(0, Math.min(1, hp / max));
+  const color = f > 0.6 ? '#5cc47a' : f > 0.3 ? '#e0b44c' : '#e05a4c';
+  // vida em 10 segmentos (Sala de Situação): lê de longe quanto falta
   return (
     <div className="mt-1.5 flex items-center gap-2 text-xs">
-      <div className="h-2 w-40 overflow-hidden rounded bg-ink-950" role="meter" aria-valuenow={hp} aria-valuemin={0} aria-valuemax={max} aria-label="Vida">
-        <div
-          className="h-full"
-          style={{
-            width: `${f * 100}%`,
-            background: f > 0.6 ? '#5cc47a' : f > 0.3 ? '#e0b44c' : '#e05a4c',
-          }}
-        />
+      <div className="flex h-2 w-40 gap-[2px]" role="meter" aria-valuenow={hp} aria-valuemin={0} aria-valuemax={max} aria-label="Vida">
+        {Array.from({ length: 10 }, (_, i) => {
+          const part = Math.max(0, Math.min(1, f * 10 - i));
+          return (
+            <span key={i} className="relative flex-1 bg-white/[0.08]">
+              <span className="absolute inset-y-0 left-0" style={{ width: `${part * 100}%`, background: color }} />
+            </span>
+          );
+        })}
       </div>
-      <span className="font-mono text-ink-200">
+      <span className="nc-num text-ink-200">
         {Math.ceil(hp)}/{max}
       </span>
     </div>
   );
+}
+
+/** Nível da construção em marcadores (um por nível, os alcançados em latão) e a especialização. */
+function LevelPips({ level, max, spec, specLabel }: { level: number; max: number; spec: string | null; specLabel: string | null }) {
+  return (
+    <div className="mt-1.5 flex items-center gap-[3px]" title={`Nível ${level} de ${max}${spec ? ` · ${spec}` : ''}`} aria-label={`Nível ${level} de ${max}`}>
+      {Array.from({ length: max }, (_, i) => (
+        <span
+          key={i}
+          className={`h-1.5 w-3 ${i < level ? 'bg-brass-400 shadow-[0_0_6px_rgb(226_181_77/0.4)]' : 'bg-white/10'}`}
+          style={{ clipPath: 'polygon(2px 0, 100% 0, calc(100% - 2px) 100%, 0 100%)' }}
+        />
+      ))}
+      <span className="nc-kicker ml-1.5 whitespace-nowrap text-brass-400/90">
+        Nv {level}/{max}
+        {specLabel ? ` · ${specLabel}` : ''}
+      </span>
+    </div>
+  );
+}
+
+/** Detalhe do saldo por dia (dica do cartão e do prédio): produção menos área, serviço e energia. */
+function dayText(d: { produce: number; area: number; service: number; energy: number; net: number }): string {
+  const parts = [d.produce > 0 ? `produção +$${usdDay(d.produce)}` : null, d.service > 0 ? `serviço público −$${usdDay(d.service)}` : null, d.energy > 0 ? `energia −$${usdDay(d.energy)}` : null, d.area > 0 ? `área −$${usdDay(d.area)}` : null].filter(Boolean);
+  return `Saldo no caixa do país: ${d.net >= 0 ? '+' : '−'}$${usdDay(d.net)}/dia (${parts.join(' · ')})${d.produce > 0 ? ' — produção estimada' : ''}`;
 }
 
 const AREA_ICON: Record<string, string> = { Blindagem: '🛡', Precisão: '🎯', Comunicações: '📡', Detecção: '🔭', 'Mobilidade e logística': '⚙' };
@@ -1332,21 +1375,46 @@ function BuildingInfo({ b, runtime }: { b: NonNullable<ReturnType<typeof useHudS
   const spec = specDef(b.type, b.spec);
   // valores do nível e da especialização atuais (os de base valem só no nível 1)
   const fx = buildingEffects(b.type, b.level, b.spec);
+  const thumbs = useHudStore((s) => s.thumbs);
+  const mySlot = useHudStore((s) => s.mySlot);
+  const myEra = effectiveEra(useHudStore((s) => s.players.find((p) => p.slot === mySlot)));
+  const usdScale = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot)?.research.usdScale ?? null);
+  // saldo real por dia (com o rendimento atual da coleta), como no cartão de construção
+  const day0 = done && usdScale !== null ? buildingDayUsd(b.type, { era: myEra, scale: usdScale, rate: b.rate }) : null;
+  // saldo praticamente zero (o QG não paga área): não mostra a linha
+  const day = day0 && Math.abs(day0.net) >= 50 ? day0 : null;
   return (
     <div>
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-semibold">
-          {def.label}
-          {track && done && (
-            <span className="ml-1.5 text-xs font-normal text-brass-400" title={spec ? `${spec.label}: ${spec.summary}` : undefined}>
-              Nv {b.level}/{track.maxLevel}
-              {spec ? ` · ${spec.label}` : ''}
-            </span>
-          )}
-        </span>
-        {done && b.status !== 'ok' && <span className="text-[11px] font-semibold text-brass-400">⚠ {STATUS_TEXT[b.status].split(':')[0]}</span>}
+      {/* cabeçalho (Sala de Situação, 05/11): retrato 3D, nome, nível em marcadores e vida segmentada */}
+      <div className="flex gap-2.5">
+        {thumbs[b.type] && (
+          <div className="cmd-card-view !h-[54px] !w-[72px] shrink-0 border border-white/10 [@media(max-height:520px)]:hidden" aria-hidden>
+            <img src={thumbs[b.type]} alt="" />
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <span className="nc-title truncate text-[17px] leading-none">{def.label}</span>
+            {done && b.status !== 'ok' && (
+              <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-brass-400">
+                <TriangleAlert size={12} aria-hidden />
+                {STATUS_TEXT[b.status].split(':')[0]}
+              </span>
+            )}
+          </div>
+          {track && done && <LevelPips level={b.level} max={track.maxLevel} spec={spec ? `${spec.label}: ${spec.summary}` : null} specLabel={spec?.label ?? null} />}
+          <HpLine hp={b.hp} max={b.maxHp} />
+        </div>
       </div>
-      <HpLine hp={b.hp} max={b.maxHp} />
+      {day && (
+        <div className="mt-1 text-[11px]" title={dayText(day)}>
+          <span className="nc-kicker mr-1.5">Saldo</span>
+          <span className={`nc-num font-bold ${day.net >= 0 ? 'text-signal-green' : 'text-red-300'}`}>
+            $ {day.net >= 0 ? '+' : '−'}
+            {usdDay(day.net)}/dia
+          </span>
+        </div>
+      )}
       {b.upgrade && (
         <div className="mt-1 flex items-center gap-2 text-xs text-brass-400">
           Obra para o nível {b.upgrade.toLevel}: {Math.round(b.upgrade.progress * 100)}% (opera a 50% durante a obra)

@@ -1,4 +1,6 @@
-import type { ResourceType } from '../sim/config.ts';
+import { BUILDINGS, type BuildingType, type ResourceType } from '../sim/config.ts';
+import { gatherRate } from '../sim/gathering.ts';
+import { powerUse } from '../sim/power.ts';
 import type { ZoneKind } from '../sim/zoning.ts';
 
 /**
@@ -100,4 +102,28 @@ export function treasuryDay(
   const inc = income.map(round);
   const exp = expense.map(round);
   return { income: inc, expense: exp, net: inc.reduce((a, l) => a + l.usd, 0) - exp.reduce((a, l) => a + l.usd, 0) };
+}
+
+/** Construções que pagam serviço público por dia (as mesmas que o servidor conta em `treasuryInputs`). */
+export const SERVICE_BUILDINGS: ReadonlySet<BuildingType> = new Set(['hospital', 'school', 'university', 'police_station', 'city_hall']);
+
+/** Parte das células de coleta que uma construção costuma alcançar (estimativa do cartão; ao posicionar, o valor exato). */
+export const TYPICAL_CLAIM_SHARE = 0.75;
+
+/**
+ * Quanto uma construção pronta soma ao caixa do país por dia (05/11, cartão de construção: "verde se rende, vermelho se
+ * custa"), pelas mesmas contas de `treasuryDay`: a produção que ela coleta (estimada com 75% das células ao alcance,
+ * ou `rate` quando já se sabe) menos a manutenção da área, o serviço público e a energia na era da nação. `scale` é a
+ * escala do PIB (`research.usdScale`). Bônus e produtividade ficam de fora (estimativa conservadora).
+ */
+export function buildingDayUsd(type: BuildingType, opts: { era: number; scale: number; rate?: number }): { produce: number; area: number; service: number; energy: number; net: number } {
+  const def = BUILDINGS[type];
+  const k = opts.scale;
+  const g = def.gather;
+  const rate = g ? (opts.rate ?? gatherRate(type, Math.max(g.minCells, Math.round(g.maxCells * TYPICAL_CLAIM_SHARE)))) : 0;
+  const produce = g ? rate * TREASURY.price[g.resource] * k : 0;
+  const area = type === 'hq' ? 0 : def.size * def.size * TREASURY.buildingPerCell * k;
+  const service = SERVICE_BUILDINGS.has(type) ? TREASURY.service * k : 0;
+  const energy = powerUse(type, opts.era) * TREASURY.energy * k;
+  return { produce, area, service, energy, net: produce - area - service - energy };
 }

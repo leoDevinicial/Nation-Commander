@@ -40,5 +40,12 @@ node shot.cjs hud.html ../1-tela-computador.png 1600 900 2
    esmaecido na borda); relógio, hora do dia, pausa e velocidade (botões 1×/2×/4× a partir de 1800 px, um botão que
    alterna abaixo); menus só com ícone e a conexão como um ponto. Abaixo de 1024 px saem o nome do país, o saldo diário
    do caixa, a visão de perto e a música (seguem no extrato, no menu e na tecla M).
-2. Próximas etapas: painel de comando (cartões com estados e saldo líquido), avisos e faixa cinematográfica, minimapa
-   e menus.
+2. **Painel de comando (05/11):** moldura `<Frame>`; abas com ícone e sublinhado de latão (`.nc-tab`; só o ícone abaixo
+   de 1100 px); cartões (`CardButton`, CSS `.cmd-card`) com canto chanfrado, miniatura 3D, custo nas cores dos recursos,
+   "Faltam N de X" em vermelho quando falta recurso (o cartão não apaga), hachurado e aviso em âmbar quando falta era,
+   pesquisa ou nível do QG (`locked`), e o **saldo por dia** (`net`, verde rende, vermelho custa) calculado por
+   `buildingDayUsd` em `shared/strategic/treasury.ts` (as mesmas contas do caixa: produção estimada com 75% das
+   células, área, serviço público e energia da era, na escala do PIB `research.usdScale`); grade de 6 colunas a partir
+   de 1280 px. Cabeçalho do prédio: retrato 3D, nome em título, nível em marcadores (`LevelPips`), vida em 10 segmentos
+   e o saldo real (com o rendimento atual). Fila restilizada.
+3. Próximas etapas: avisos e faixa cinematográfica, minimapa e menus.
