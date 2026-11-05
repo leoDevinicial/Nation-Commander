@@ -1,3 +1,4 @@
+import { ArrowLeft } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { FullscreenButton } from './FullscreenButton.tsx';
 
@@ -36,11 +37,16 @@ export function Shell({
       />
       <div className={`panel panel-frame relative my-auto w-full ${wide === 'xl' ? 'max-w-6xl' : wide ? 'max-w-4xl' : 'max-w-lg'} p-4 sm:p-6 ${enter ? 'shell-enter' : ''}`}>
         {(title || back) && (
-          <div className="mb-5 flex items-center justify-between gap-4">
-            {title && <h1 className="font-display text-lg font-bold tracking-wide text-ink-100 uppercase">{title}</h1>}
+          <div className="mb-5 flex items-end justify-between gap-4 border-b border-brass-400/25 pb-3">
+            {title && (
+              <div className="min-w-0">
+                <div className="nc-kicker">Sala de Situação</div>
+                <h1 className="nc-title truncate text-xl text-ink-100">{title}</h1>
+              </div>
+            )}
             {back && (
-              <button className="btn" onClick={back}>
-                ← Voltar
+              <button className="btn shrink-0" onClick={back}>
+                <ArrowLeft size={15} aria-hidden /> Voltar
               </button>
             )}
           </div>

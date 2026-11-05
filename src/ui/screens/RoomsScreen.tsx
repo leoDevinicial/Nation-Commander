@@ -1,4 +1,4 @@
-import { RefreshCw, Star } from 'lucide-react';
+import { LogIn, Plus, Radar, RefreshCw, Star } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { PublicRoomSummary } from '../../../shared/protocol.ts';
 import { countryName } from '../../../shared/data/countries.ts';
@@ -96,7 +96,7 @@ export function RoomsScreen() {
     <Shell title="Salas Públicas" back={() => setScreen('menu')} wide="xl">
       <div className="flex flex-wrap items-center gap-2">
         <button className="btn btn-primary" disabled={!online} onClick={() => void create()} title="Cria uma sala multijogador aberta: aparece nesta lista para qualquer comandante entrar">
-          + Criar sala pública
+          <Plus size={15} aria-hidden /> Criar sala pública
         </button>
         <button className="btn" disabled={!online} onClick={ask} title="Atualiza a lista agora (ela também se atualiza sozinha a cada 5 s)">
           <RefreshCw size={14} className="inline-block align-[-2px]" aria-hidden /> Atualizar
@@ -108,8 +108,8 @@ export function RoomsScreen() {
         </label>
       </div>
 
-      <div className="mt-3 overflow-hidden rounded border border-ink-700">
-        <div className="hidden grid-cols-[1.4fr_1fr_2fr_auto_auto] gap-3 bg-ink-850 px-3 py-2 text-[11px] font-semibold tracking-wider text-ink-400 uppercase sm:grid">
+      <div className="mt-3 overflow-hidden rounded-[3px] border border-ink-700">
+        <div className="hidden grid-cols-[1.4fr_1fr_2fr_auto_auto] gap-3 border-b border-brass-400/20 bg-ink-850 px-3 py-2 text-[10px] font-semibold tracking-[0.14em] text-ink-400 uppercase sm:grid">
           <span>Sala</span>
           <span>Mapa</span>
           <span>Nações</span>
@@ -122,7 +122,8 @@ export function RoomsScreen() {
           ) : rooms === null ? (
             <li className="px-3 py-6 text-center text-sm text-ink-400">Procurando salas…</li>
           ) : shown.length === 0 ? (
-            <li className="px-3 py-6 text-center text-sm text-ink-400">
+            <li className="flex flex-col items-center gap-2 px-3 py-8 text-center text-sm text-ink-400">
+              <Radar size={26} className="text-ink-500" aria-hidden />
               {all!.length === 0 ? 'Nenhuma sala aberta agora. Crie uma e aguarde outros comandantes.' : 'Nenhuma sala com esse filtro.'}
             </li>
           ) : (
@@ -184,7 +185,7 @@ export function RoomsScreen() {
           onChange={(e) => setCode(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))}
         />
         <button className="btn shrink-0" disabled={!online || code.length !== 5}>
-          Entrar com código
+          <LogIn size={15} aria-hidden /> Entrar com código
         </button>
       </form>
     </Shell>

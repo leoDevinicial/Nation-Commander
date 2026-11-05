@@ -78,5 +78,12 @@ node shot.cjs hud.html ../1-tela-computador.png 1600 900 2
    dicas de energia no posicionamento, ligação por estrada, bens (aço e combustível), botões de fechar, lobby, salas,
    comunidade, feedback (estrelas preenchidas), manual, opções, login e resultados — tudo com ícones Lucide.
    Textos traduzidos ganharam a chave sem o símbolo em `en.ts`/`es.ts`.
-9. Restam de propósito: setas de tendência (▲▼) nos números do painel nacional, `producibleIcon` (só aparece sem
-   miniatura) e símbolos matemáticos em textos (√, ≈, →). Próximo passo: miolo do Globo e do lobby no estilo da moldura.
+9. **Lobby e salas (05/11, noite):** o `Shell` (moldura de todas as telas fora da partida) ganhou cabeçalho com o
+   rótulo "Sala de Situação", título no estilo do painel, linha de latão e Voltar com ícone. Lobby: cada vaga com a
+   insígnia da nação (`NationBadge`, sigla na cor da vaga), faixa lateral acesa, selo de estado (anfitrião, pronto,
+   aguardando), ping em barras de sinal; vagas no seletor segmentado; mapa, regra e dificuldade em cartões de escolha
+   (`ChoiceCard`: ícone, borda e marca de latão, rádio escondido mas acessível); código da sala em números de
+   instrumento; chat com título "Canal da sala"; botões com ícone. Salas públicas: criar, entrar e lista vazia com ícone.
+10. Restam de propósito: setas de tendência (▲▼) nos números do painel nacional, `producibleIcon` (só aparece sem
+   miniatura) e símbolos matemáticos em textos (√, ≈, →). Próximo passo: miolo do Globo (ficha do país, legenda e
+   ações) no estilo da moldura.

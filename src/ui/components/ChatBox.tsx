@@ -1,3 +1,4 @@
+import { MessageSquare } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { MAX_CHAT_LENGTH } from '../../../shared/protocol.ts';
 import { gameClient } from '../../net/client.ts';
@@ -11,7 +12,13 @@ export function ChatBox({ compact }: { compact?: boolean }) {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [chat]);
   return (
-    <div className={`flex flex-col rounded border border-ink-700 bg-ink-950 ${compact ? 'h-40' : 'h-72'}`}>
+    <div className={`flex flex-col rounded-[3px] border border-ink-700 bg-ink-950 ${compact ? 'h-40' : 'h-72'}`}>
+      {!compact && (
+        <div className="flex items-center gap-1.5 border-b border-ink-700 px-2 py-1.5">
+          <MessageSquare size={12} className="text-brass-400" aria-hidden />
+          <span className="nc-kicker">Canal da sala</span>
+        </div>
+      )}
       <div ref={listRef} className="flex-1 space-y-1 overflow-y-auto p-2 text-xs" aria-live="polite">
         {chat.length === 0 && <div className="text-ink-400">Sem mensagens.</div>}
         {chat.map((c) => (

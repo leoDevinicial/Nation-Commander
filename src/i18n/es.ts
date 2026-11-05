@@ -2898,4 +2898,8 @@ export const ES: Dict = {
   "Aguardando…": "Esperando…",
   "Entendi, começar": "Entendido, empezar",
   "Sortear outro país": "Sortear otro país",
+  "Voltar": "Volver",
+  "Sala de Situação": "Sala de Situación",
+  "Criar sala pública": "Crear sala pública",
+  "Canal da sala": "Canal de la sala",
 };

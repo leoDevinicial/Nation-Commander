@@ -3159,4 +3159,9 @@ export const EN: Dict = {
   "Aguardando…": "Waiting…",
   "Entendi, começar": "Got it, let's start",
   "Sortear outro país": "Draw another country",
+  "Voltar": "Back",
+  "Sala de Situação": "Situation Room",
+  "Criar sala pública": "Create public room",
+  "Bot (IA)": "Bot (AI)",
+  "Canal da sala": "Room channel",
 };
