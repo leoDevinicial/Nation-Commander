@@ -367,7 +367,13 @@ function BarItem({
   children: ReactNode;
 }) {
   return (
-    <div className="flex h-full shrink-0 items-center gap-1 border-r border-white/[0.07] px-1.5 last:border-r-0 min-[1800px]:gap-1.5 min-[1800px]:px-2.5" title={title} aria-label={ariaLabel}>
+    // no toque não há dica ao passar o dedo: um toque mostra no feed o nome e a quantidade (05/11)
+    <div
+      className="flex h-full shrink-0 cursor-help items-center gap-1 border-r border-white/[0.07] px-1.5 last:border-r-0 min-[1800px]:gap-1.5 min-[1800px]:px-2.5"
+      title={title}
+      aria-label={ariaLabel}
+      onClick={() => useHudStore.getState().pushEvent({ tick: useHudStore.getState().tick, text: title.split('\n')[0]!.split(' (')[0]!, tone: 'info' })}
+    >
       {icon}
       <div className="flex flex-col justify-center">
         <span className="nc-kicker mb-0.5 hidden text-[8.5px] min-[1800px]:block">{label}</span>
