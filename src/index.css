@@ -133,6 +133,9 @@ select {
 .nc-frame {
   --cut: 10px;
   position: relative;
+  /* a parte de dentro acompanha a altura de fora (com altura máxima, o conteúdo rola em vez de ser cortado) */
+  display: flex;
+  flex-direction: column;
   padding: 1px;
   background: linear-gradient(160deg, rgb(200 212 226 / 0.24), rgb(200 212 226 / 0.1) 40%, rgb(226 181 77 / 0.3));
   clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut));
@@ -140,7 +143,8 @@ select {
 }
 .nc-frame-in {
   position: relative;
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   background: linear-gradient(180deg, rgb(18 24 33 / 0.92), rgb(10 14 20 / 0.86));
   backdrop-filter: blur(10px) saturate(1.15);
   clip-path: polygon(calc(var(--cut) - 0.5px) 0, 100% 0, 100% calc(100% - var(--cut) + 0.5px), calc(100% - var(--cut) + 0.5px) 100%, 0 100%, 0 calc(var(--cut) - 0.5px));
@@ -521,6 +525,51 @@ select {
   filter: grayscale(0.85) brightness(0.8);
 }
 .cmd-card.is-locked .cmd-card-short { color: var(--color-signal-amber); }
+/* aviso do feed e dos alertas mundiais: grafite com desfoque, faixa colorida à esquerda e canto inferior direito chanfrado */
+.nc-event {
+  border-left: 3px solid transparent;
+  background: linear-gradient(90deg, rgb(10 14 20 / 0.9), rgb(10 14 20 / 0.62));
+  backdrop-filter: blur(6px);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%);
+  animation: nc-event-in 200ms var(--ease-out-quick) both;
+}
+@keyframes nc-event-in { from { opacity: 0; transform: translateX(-8px); } }
+/* faixa cinematográfica dos grandes momentos: entra, fica e sai sozinha (WorldAlerts) */
+.nc-cine-band {
+  position: relative;
+  background: linear-gradient(90deg, transparent, rgb(6 10 15 / 0.9) 18%, rgb(6 10 15 / 0.9) 82%, transparent);
+  animation: nc-cine 5.5s var(--ease-out-quick) both;
+}
+.nc-cine-band::before, .nc-cine-band::after {
+  content: "";
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cine), transparent);
+}
+.nc-cine-band::before { top: 0; }
+.nc-cine-band::after { bottom: 0; }
+.nc-cine-kicker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+.nc-cine-kicker::before, .nc-cine-kicker::after { content: ""; width: 36px; height: 1px; background: currentColor; opacity: 0.6; }
+@keyframes nc-cine {
+  0% { opacity: 0; transform: scaleY(0.6); }
+  8% { opacity: 1; transform: scaleY(1); }
+  85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nc-event, .nc-cine-band { animation: none; }
+}
+
 /* abas do menu de construção: sublinhado de latão na ativa (Sala de Situação) */
 .nc-tab {
   position: relative;
@@ -556,6 +605,9 @@ select {
   .cmd-btn.cmd-card {
     width: 80px;
     min-height: 90px;
+  }
+  .cmd-card-net-unit {
+    display: none;
   }
   .cmd-card-view {
     height: 34px;

@@ -33,8 +33,11 @@ export function PerfChip({ open, onToggle }: { open: boolean; onToggle: () => vo
       aria-expanded={open}
     >
       <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden />
-      {fps} qps{perf?.window ? <span className="hidden lg:inline"> · p95 {fmt(perf.window.p95)} ms</span> : null}
-      {adapted ? <span className="hidden text-brass-400 md:inline"> · adaptado</span> : null}
+      {/* compacto (05/11): no celular os recursos precisam do espaço; o detalhe fica no painel */}
+      {fps}
+      <span className="hidden xl:inline"> qps</span>
+      {perf?.window ? <span className="hidden min-[1800px]:inline"> · p95 {fmt(perf.window.p95)} ms</span> : null}
+      {adapted ? <span className="hidden text-brass-400 min-[1800px]:inline"> · adaptado</span> : null}
       {perf?.fieldTest && (perf.fieldTest.phase === 'parado' || perf.fieldTest.phase === 'combate') ? (
         <span className="text-signal-blue"> · teste {formatClock(perf.fieldTest.remainingS)}</span>
       ) : null}

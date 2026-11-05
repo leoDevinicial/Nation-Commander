@@ -1,3 +1,4 @@
+import type { WorldAlert } from '../state/useHudStore.ts';
 import { MODS } from '../../shared/sim/modernization.ts';
 import { AIRCRAFT, type AircraftType } from '../../shared/sim/air.ts';
 import { BUILDINGS, CARAVAN, MILITARY_RESEARCH, RESOURCE_LABELS, TICK_RATE, UNITS, VICTORY, type BuildingType, type UnitType } from '../../shared/sim/config.ts';
@@ -242,24 +243,40 @@ export function worldAlertText(
   e: Extract<SimEvent, { type: 'world' }>,
   mySlot: number,
   nameOf: (slot: number) => string,
-): { icon: string; title: string; text: string; tone: 'info' | 'warn' | 'bad' } {
-  const who = e.slot === mySlot ? 'Nosso país' : nameOf(e.slot);
+): Omit<WorldAlert, 'id' | 'at'> {
+  const mine = e.slot === mySlot;
+  const who = mine ? 'Nosso país' : nameOf(e.slot);
   switch (e.kind) {
     case 'war': {
       const target = e.other === mySlot ? 'nós' : nameOf(e.other ?? -1);
-      return { icon: '⚔', title: 'Declaração de guerra', text: `${who} declarou guerra a ${target}`, tone: e.other === mySlot ? 'bad' : 'warn' };
+      const againstUs = e.other === mySlot;
+      return {
+        icon: 'war',
+        title: 'Declaração de guerra',
+        text: againstUs ? `${nameOf(e.slot)} declarou guerra a nós` : `${who} declarou guerra a ${target}`,
+        tone: againstUs ? 'bad' : 'warn',
+        ...(againstUs ? { big: true, sub: 'Prepare as defesas: a partir de agora as tropas deles podem entrar no nosso território.' } : {}),
+      };
     }
-    case 'era':
-      return { icon: '⏫', title: 'Nova era', text: `${who} entrou na era ${ERAS[(e.era ?? 1) as keyof typeof ERAS]?.label ?? e.era}`, tone: e.slot === mySlot ? 'info' : 'warn' };
+    case 'era': {
+      const label = ERAS[(e.era ?? 1) as keyof typeof ERAS]?.label ?? String(e.era);
+      return mine
+        ? { icon: 'era', title: 'Nova era', text: label, tone: 'info', big: true, sub: 'Novas tropas e construções liberadas; as construções ganham a aparência da era.' }
+        : { icon: 'era', title: 'Nova era', text: `${who} entrou na era ${label}`, tone: 'warn' };
+    }
     case 'nuclear':
       return e.phase === 'started'
-        ? { icon: '☢', title: 'Programa nuclear', text: `${who} começou a pesquisar armas nucleares`, tone: e.slot === mySlot ? 'info' : 'bad' }
-        : { icon: '☢', title: 'Potência nuclear', text: `${who} agora tem armas nucleares`, tone: e.slot === mySlot ? 'info' : 'bad' };
+        ? { icon: 'nuclear', title: 'Programa nuclear', text: `${who} começou a pesquisar armas nucleares`, tone: mine ? 'info' : 'bad' }
+        : mine
+          ? { icon: 'nuclear', title: 'Potência nuclear', text: 'Armas nucleares prontas', tone: 'info', big: true, sub: 'O lançamento abala a economia de todos os países, inclusive a nossa.' }
+          : { icon: 'nuclear', title: 'Potência nuclear', text: `${who} agora tem armas nucleares`, tone: 'bad' };
     case 'project': {
       const label = e.buildingType ? BUILDINGS[e.buildingType].label : 'Grande Projeto';
       return e.phase === 'started'
-        ? { icon: '🏛', title: 'Grande Projeto', text: `${who} começou a construir: ${label}`, tone: e.slot === mySlot ? 'info' : 'warn' }
-        : { icon: '🏛', title: 'Grande Projeto concluído', text: `${who} concluiu: ${label}`, tone: e.slot === mySlot ? 'info' : 'warn' };
+        ? { icon: 'project', title: 'Grande Projeto', text: `${who} começou a construir: ${label}`, tone: mine ? 'info' : 'warn' }
+        : mine
+          ? { icon: 'project', title: 'Grande Projeto concluído', text: label, tone: 'info', big: true, sub: 'O projeto já vale para o país inteiro.' }
+          : { icon: 'project', title: 'Grande Projeto concluído', text: `${who} concluiu: ${label}`, tone: 'warn' };
     }
   }
 }

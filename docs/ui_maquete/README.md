@@ -48,4 +48,14 @@ node shot.cjs hud.html ../1-tela-computador.png 1600 900 2
    células, área, serviço público e energia da era, na escala do PIB `research.usdScale`); grade de 6 colunas a partir
    de 1280 px. Cabeçalho do prédio: retrato 3D, nome em título, nível em marcadores (`LevelPips`), vida em 10 segmentos
    e o saldo real (com o rendimento atual). Fila restilizada.
-3. Próximas etapas: avisos e faixa cinematográfica, minimapa e menus.
+3. **Avisos, faixa cinematográfica e minimapa (05/11):** feed (`EventLog`, classe `.nc-event`) com faixa e ícone por
+   tipo e o emoji inicial dos textos antigos removido; alertas mundiais com ícone em hexágono (`WorldAlertIcon`); os
+   grandes momentos do próprio jogador (`big`: nova era, Grande Projeto concluído, armas nucleares, guerra declarada
+   contra nós, satélite em órbita) viram a faixa cinematográfica no centro por 5,5 s (`.nc-cine-band`, mais compacta em
+   telas baixas). Minimapa na moldura nova, com bússola.
+4. **Celular (05/11, feedback com prints):** a barra de recursos fica sozinha no topo (todos os recursos visíveis) e
+   nação, relógio e menus abrem por um botão ao lado (seta; mostra o ícone de pausa quando o jogo está pausado), numa
+   linha opaca por cima dos avisos. O contador de desempenho ficou compacto. Corrigido: com altura máxima, a moldura
+   cortava os cartões de construção em vez de rolar (`.nc-frame` em coluna e `.nc-frame-in` com `flex: 1; min-height:
+   0`). Cartões estreitos: "Faltam N" com o ícone do recurso e o saldo sem "/dia".
+5. Próxima etapa: menus (pausa, configurações) e painéis nacionais.

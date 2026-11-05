@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react';
+import { Compass, Hammer } from 'lucide-react';
+import { Frame } from '../components/Frame.tsx';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { factionColor } from '../../game/render/palette.ts';
 import { MINIMAP_COLORS } from '../../game/render/TerrainFactory.ts';
@@ -108,16 +110,18 @@ export function Minimap({ runtime }: { runtime: GameRuntime }) {
   };
 
   return (
-    <div className="panel pointer-events-auto shrink-0 self-end p-1 sm:p-1.5" onPointerDown={(e) => e.stopPropagation()}>
+    <Frame className="pointer-events-auto shrink-0 self-end" innerClassName="p-1 sm:p-1.5" onPointerDown={(e) => e.stopPropagation()}>
       {/* Construir (03/11): abre o menu de construção de qualquer lugar, sem ir até o QG */}
       <button
-        className="btn btn-primary mb-1 flex w-full items-center justify-center gap-1 px-1 py-1 text-xs"
+        className="btn btn-primary mb-1 flex w-full items-center justify-center gap-1.5 px-1 py-1 text-xs"
         onClick={() => runtime.openBuildMenu()}
         title="Construir (B): abre o menu de construção do Centro de Comando sem mover a câmera"
       >
-        🏗 <span>Construir</span>
-        <span className="hidden text-[10px] opacity-70 sm:inline">(B)</span>
+        <Hammer size={14} aria-hidden />
+        <span>Construir</span>
+        <span className="hidden rounded-[2px] border border-current px-1 font-mono text-[9px] leading-[1.4] opacity-70 sm:inline">B</span>
       </button>
+      <div className="relative border border-white/10">
       <canvas
         ref={canvasRef}
         width={SIZE}
@@ -140,6 +144,11 @@ export function Minimap({ runtime }: { runtime: GameRuntime }) {
           }
         }}
       />
-    </div>
+        {/* bússola: o norte do mapa (a câmera gira; o minimapa não) */}
+        <span className="nc-kicker pointer-events-none absolute bottom-1 left-1 flex items-center gap-0.5 text-[9px] text-ink-300" aria-hidden>
+          <Compass size={11} />N
+        </span>
+      </div>
+    </Frame>
   );
 }

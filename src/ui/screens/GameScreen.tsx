@@ -115,6 +115,16 @@ export function GameScreen() {
       for (const l of fresh) {
         const d = describeNationalEvent(l.event, match.yourSlot, nameOf);
         if (d) useHudStore.getState().pushEvent({ tick: 0, text: d.text, tone: d.tone });
+        // satélite próprio em órbita: grande momento na faixa cinematográfica (Sala de Situação, 05/11)
+        if (l.event.type === 'satellite' && l.event.slot === match.yourSlot)
+          useHudStore.getState().pushWorldAlert({
+            icon: 'satellite',
+            title: 'Programa Espacial',
+            text: 'Satélite em órbita',
+            tone: 'info',
+            big: true,
+            sub: 'O mapa inteiro fica visível em tempo real — só as minas continuam escondidas. Aprovação em alta.',
+          });
       }
     });
   }, []);

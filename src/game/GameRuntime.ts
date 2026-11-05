@@ -1376,7 +1376,7 @@ export class GameRuntime {
       });
       useHudStore.getState().pushWorldAlert(a);
       // a declaração de guerra já entra no registro pela camada nacional; os outros, aqui
-      if (e.kind !== 'war') useHudStore.getState().pushEvent({ tick: e.tick, text: a.text, tone: a.tone });
+      if (e.kind !== 'war') useHudStore.getState().pushEvent({ tick: e.tick, text: a.big ? `${a.title}: ${a.text}` : a.text, tone: a.tone });
       audio.ui(a.tone === 'bad' ? 'warning' : 'herald');
       return;
     }

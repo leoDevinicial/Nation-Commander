@@ -34,7 +34,7 @@ export function CardButton({
   onClick: () => void;
   blocked?: boolean;
   disabled?: boolean;
-  short?: string | null;
+  short?: React.ReactNode;
   /** Selo no canto superior direito (nível, progresso). */
   badge?: string;
   /** Quantos já estão na fila. */
@@ -77,7 +77,8 @@ export function CardButton({
         <span className={`cmd-card-net ${net >= 0 ? 'is-pos' : 'is-neg'}`} aria-label={`${net >= 0 ? 'Rende' : 'Custa'} ${usdDay(net)} por dia`}>
           <b>$</b>
           {net >= 0 ? '+' : '−'}
-          {usdDay(net)}/dia
+          {usdDay(net)}
+          <span className="cmd-card-net-unit">/dia</span>
         </span>
       )}
     </button>

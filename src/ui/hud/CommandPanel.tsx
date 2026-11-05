@@ -401,7 +401,13 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
                 blocked={!ok}
                 locked={locked}
                 net={day?.net ?? null}
-                short={eraMissing ? `era ${eraMissing}` : techMissing ? 'exige pesquisa' : other ?? (lack ? `Faltam ${Math.ceil((cost[lack] ?? 0) - resources[lack])} de ${RESOURCE_LABELS[lack].toLowerCase()}` : null)}
+                short={eraMissing ? `era ${eraMissing}` : techMissing ? 'exige pesquisa' : other ??
+                  (lack ? (
+                    <span className="inline-flex items-center gap-0.5" title={`Faltam ${Math.ceil((cost[lack] ?? 0) - resources[lack])} de ${RESOURCE_LABELS[lack].toLowerCase()}`}>
+                      Faltam {Math.ceil((cost[lack] ?? 0) - resources[lack])}
+                      <ResourceIcon type={lack} size={10} color="#f08a7e" />
+                    </span>
+                  ) : null)}
                 onClick={() =>
                   ok
                     ? runtime.startPlacement(type)

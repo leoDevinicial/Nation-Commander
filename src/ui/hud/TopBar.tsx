@@ -5,7 +5,7 @@ import { GOODS, VICTORY, POP_ABSOLUTE_CAP, RESOURCE_LABELS, RESOURCE_TYPES, STOR
 import { RESOURCE_STYLE, ResourceIcon } from '../components/Resources.tsx';
 import { Frame } from '../components/Frame.tsx';
 import { countryName } from '../../../shared/data/countries.ts';
-import { Brain, ChevronsUp, CloudLightning, CloudRain, Fuel, Globe, Landmark, Map, Menu as MenuIcon, Moon, Music, Pause, Play, Scale, ShieldCheck, Snowflake, Sun, TriangleAlert, Users, Video, VolumeX, Zap } from 'lucide-react';
+import { Brain, ChevronDown, ChevronUp, ChevronsUp, CloudLightning, CloudRain, Fuel, Globe, Landmark, Map, Menu as MenuIcon, Moon, Music, Pause, Play, Scale, ShieldCheck, Snowflake, Sun, TriangleAlert, Users, Video, VolumeX, Zap } from 'lucide-react';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { factionColor } from '../../game/render/palette.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
@@ -47,6 +47,8 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
   const closeGlobe = useNationalStore((s) => s.closeGlobe);
   const nextSpeed = GAME_SPEEDS[(GAME_SPEEDS.indexOf(speed) + 1) % GAME_SPEEDS.length]!;
   const [pop, setPop] = useState<TopBarPopover>(null);
+  // celular (< 1024 px, 05/11): só a barra de recursos fica no topo; nação, relógio e menus abrem por um botão
+  const [more, setMore] = useState(false);
   const toggle = (p: Exclude<TopBarPopover, null>) => setPop((cur) => (cur === p ? null : p));
 
   const myCountry = roster.find((p) => p.slot === mySlot)?.countryId ?? '';
@@ -58,7 +60,10 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
     // menus. Os menus que abrem para baixo ficam fora das molduras (o recorte delas cortaria).
     <div className="pointer-events-none absolute top-2 right-2 left-2 z-40 flex h-11 items-stretch gap-1.5 text-xs sm:top-2.5 sm:right-3 sm:left-3 sm:gap-2 sm:text-sm">
       {/* nação: insígnia na cor da nação com a sigla do país, nome, era e aprovação */}
-      <Frame className="pointer-events-auto shrink-0" innerClassName="flex items-center gap-2 pr-2.5 pl-2 sm:gap-2.5 sm:pr-3">
+      {/* nação, relógio e menus: no computador ficam na barra; no celular, numa linha que abre e fecha pelo botão ao lado
+          dos recursos (fica por cima dos avisos enquanto aberta) */}
+      <div className={`lg:contents ${more ? 'max-lg:absolute max-lg:top-[calc(100%+5px)] max-lg:left-0 max-lg:z-10 max-lg:flex max-lg:h-11 max-lg:gap-1.5' : 'max-lg:hidden'}`}>
+      <Frame className="pointer-events-auto shrink-0 lg:order-1" innerClassName="flex items-center gap-2 pr-2.5 pl-2 max-lg:![background:rgb(12_17_24)] sm:gap-2.5 sm:pr-3">
         <span
           className="absolute top-2 bottom-0 left-0 w-[3px]"
           style={{ background: factionColor(mySlot), boxShadow: `0 0 10px ${factionColor(mySlot)}` }}
@@ -94,10 +99,15 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
         )}
       </Frame>
 
+      </div>
+
       {/* recursos e indicadores: rolam na horizontal em telas estreitas em vez de cortar */}
       {/* prioridade por largura: os valores cabem sempre; rótulos, capacidade, saldo e nomes aparecem conforme sobra espaço
           (o detalhe completo fica na dica de cada item) */}
-      <Frame className="pointer-events-auto min-w-0 flex-1" innerClassName="no-scrollbar flex items-center gap-0 overflow-x-auto pr-3 pl-1.5 [mask-image:linear-gradient(90deg,#000_calc(100%-28px),transparent)]">
+      <Frame
+        className="pointer-events-auto min-w-0 flex-1 lg:order-2"
+        innerClassName="no-scrollbar flex items-center gap-0 overflow-x-auto pr-3 pl-1.5 [mask-image:linear-gradient(90deg,#000_calc(100%-28px),transparent)]"
+      >
         {sandbox && (
           <span className="shrink-0 pr-2">
             <SandboxChip open={pop === 'sandbox'} onToggle={() => toggle('sandbox')} />
@@ -211,8 +221,15 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
         </div>
       </Frame>
 
+      <Frame className="pointer-events-auto shrink-0 lg:hidden" innerClassName="flex items-center px-1.5">
+        <button className={`nc-icon-btn ${more ? 'is-on' : ''}`} onClick={() => setMore(!more)} aria-expanded={more} aria-label={more ? 'Fechar a barra' : 'Nação, relógio e menus'} title={more ? 'Fechar a barra' : 'Nação, relógio e menus'}>
+          {paused && !more ? <Pause size={17} aria-hidden /> : more ? <ChevronUp size={18} aria-hidden /> : <ChevronDown size={18} aria-hidden />}
+        </button>
+      </Frame>
+
+      <div className={`lg:contents ${more ? 'max-lg:absolute max-lg:top-[calc(100%+5px)] max-lg:right-0 max-lg:z-10 max-lg:flex max-lg:h-11 max-lg:gap-1.5' : 'max-lg:hidden'}`}>
       {/* tempo: relógio da operação, hora do dia, pausa e velocidade */}
-      <Frame className="pointer-events-auto shrink-0" innerClassName="flex items-center gap-2 pr-2 pl-2.5 sm:gap-2.5">
+      <Frame className="pointer-events-auto shrink-0 lg:order-3" innerClassName="flex items-center gap-2 pr-2 pl-2.5 max-lg:![background:rgb(12_17_24)] sm:gap-2.5">
         <div className="flex flex-col justify-center" title={date ? `Tempo de operação · data do cenário ${formatDate(date)} (1 dia de jogo por segundo a 1×)` : 'Tempo de operação'}>
           <span className="nc-num text-base leading-none font-bold sm:text-lg">{formatDuration(Math.floor(tick / TICK_RATE))}</span>
           {sky && <SkyChip sky={sky} />}
@@ -246,7 +263,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
       </Frame>
 
       {/* menus: conexão (só o ponto), visão de perto, globo, nação, música, tela cheia e menu */}
-      <Frame className="pointer-events-auto shrink-0" innerClassName="flex items-center gap-1 px-1.5 sm:gap-1.5 sm:px-2">
+      <Frame className="pointer-events-auto shrink-0 lg:order-4" innerClassName="flex items-center gap-1 px-1.5 max-lg:![background:rgb(12_17_24)] sm:gap-1.5 sm:px-2">
         {connStatus !== 'connected' && (
           <span className="flex items-center gap-1 text-xs text-brass-400" title={connDetail ?? 'Reconectando ao servidor'}>
             <TriangleAlert size={15} aria-hidden />
@@ -282,6 +299,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
           <MenuIcon size={17} aria-hidden />
         </button>
       </Frame>
+      </div>
 
       {pop && (
         <>

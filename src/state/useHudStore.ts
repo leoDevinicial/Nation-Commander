@@ -206,13 +206,21 @@ export interface HudState {
 }
 
 /** Alerta mundial na faixa do topo (guerra, era, nuclear, Grande Projeto). */
+export type WorldAlertIcon = 'war' | 'era' | 'nuclear' | 'project' | 'satellite';
 export interface WorldAlert {
   id: number;
   at: number;
-  icon: string;
+  icon: WorldAlertIcon;
   title: string;
   text: string;
   tone: 'info' | 'warn' | 'bad';
+  /**
+   * Grande momento do próprio jogador (Sala de Situação, 05/11): vira a faixa cinematográfica no centro da tela
+   * (nova era, Grande Projeto concluído, armas nucleares, satélite, guerra declarada contra nós).
+   */
+  big?: boolean;
+  /** Linha de explicação embaixo do título da faixa cinematográfica. */
+  sub?: string;
 }
 
 let seq = 1;
