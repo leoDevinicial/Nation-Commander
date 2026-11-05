@@ -13,6 +13,11 @@ Ideia central: painéis de console sobre o mapa, com canto chanfrado (eco das fo
 de latão nos outros cantos, faixa na cor da nação, números em fonte de instrumento; ícones de um conjunto só (Lucide,
 ISC) no lugar dos emojis; fontes livres (Barlow Condensed / Barlow Semi Condensed / JetBrains Mono, OFL) embutidas.
 
+**Revisão de 05/11:** o ferro virou lingote (a bigorna não era reconhecida) e cada recurso tem a sua cor também nos
+custos; o cartão diz quanto falta ("Faltam 100 de ferro") e mostra a manutenção por dia com o $ verde; a dica detalha
+a manutenção (serviço público, energia, área, como no caixa do país: `shared/strategic/treasury.ts`) e o saldo do
+caixa antes → depois de construir. Valores da maquete: país com PIB de ~US$ 2,2 tri na Era IV (energia ×2).
+
 O fundo é uma cena real do jogo (Sandbox) capturada sem o HUD. Para refazer as imagens:
 
 ```bash

@@ -55,7 +55,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 .ev.old { opacity: .55; }
 
 /* ---------- minimapa ---------- */
-.mini { position: absolute; left: 14px; bottom: 14px; width: 232px; height: 250px; }
+.mini { position: absolute; left: 14px; bottom: 14px; width: 232px; height: 266px; } .mini .map { height: 196px !important; }
 .mini .in { padding: 8px; }
 .mini .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; }
 .mini .map { position: relative; height: 180px; background: #0b2233; overflow: hidden; border: 1px solid var(--line); }
@@ -69,7 +69,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 .kbd { font: 600 10px var(--mono); padding: 1px 4px; border: 1px solid currentColor; border-radius: 2px; opacity: .7; }
 
 /* ---------- painel de comando ---------- */
-.cmd { position: absolute; left: 258px; right: 14px; bottom: 14px; height: 250px; }
+.cmd { position: absolute; left: 258px; right: 14px; bottom: 14px; height: 266px; }
 .cmd > .in { display: grid; grid-template-columns: 262px 1fr 132px; }
 .sel { padding: 14px 16px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 9px; }
 .portrait { height: 92px; background: url(cena-1.jpg) no-repeat; background-size: 1600px 900px; background-position: -696px -588px; border: 1px solid var(--line); position: relative; }
@@ -98,14 +98,18 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 .tab.on::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px; background: var(--brass); box-shadow: 0 0 10px var(--brass-glow); }
 .tab .n { font: 500 10px var(--mono); color: var(--ink-400); }
 .grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
-.card { position: relative; height: 150px; display: flex; flex-direction: column; background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015)); border: 1px solid var(--line);
+.card { position: relative; height: 166px; display: flex; flex-direction: column; background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015)); border: 1px solid var(--line);
   clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%); }
 .card .art { height: 64px; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 90%, rgba(59,155,227,.20), transparent 70%), linear-gradient(180deg, rgba(255,255,255,.03), transparent); border-bottom: 1px solid var(--line); color: var(--ink-100); }
 .card .art svg.i { width: 30px; height: 30px; stroke-width: 1.5; }
 .card .nm { font: 600 14px/1.15 var(--font); padding: 8px 9px 0; }
-.card .cost { display: flex; gap: 8px; padding: 6px 9px 0; margin-top: auto; padding-bottom: 9px; flex-wrap: wrap; }
+.card .cost { display: flex; gap: 8px; padding: 6px 9px 0; margin-top: auto; padding-bottom: 6px; flex-wrap: wrap; }
 .card .cost span { display: inline-flex; align-items: center; gap: 3px; font: 500 12px var(--mono); color: var(--ink-200); }
 .card .cost svg.i { width: 13px; height: 13px; }
+.card .up { display: flex; align-items: center; gap: 4px; padding: 0 9px 8px; font: 500 11.5px var(--mono); color: var(--ink-300); }
+.card .up b { color: var(--ok); font: 700 12px var(--mono); }
+.card .up.zero { color: var(--ink-400); }
+.card .missline { font: 600 11px var(--font); color: var(--bad); padding: 0 9px 7px; margin-top: -3px; }
 .card .key { position: absolute; top: 6px; left: 7px; font: 600 10px var(--mono); color: var(--ink-400); border: 1px solid var(--line-2); padding: 0 4px; border-radius: 2px; background: rgba(0,0,0,.3); }
 .card .eff { font: 500 11.5px/1.2 var(--font); color: var(--ink-300); padding: 3px 9px 0; }
 .card.hover { border-color: rgba(226,181,77,.6); background: linear-gradient(180deg, rgba(226,181,77,.12), rgba(255,255,255,.02)); box-shadow: inset 0 0 0 1px rgba(226,181,77,.25); }
@@ -125,12 +129,20 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 .q svg.i { width: 20px; height: 20px; }
 
 /* dica (tooltip) */
-.tip { position: absolute; width: 270px; padding: 12px 14px; z-index: 5; }
+.tip { position: absolute; width: 300px; padding: 12px 14px; z-index: 5; }
 .tip .in { padding: 12px 14px; }
 .tip h4 { font: 700 16px var(--title); letter-spacing: .05em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
 .tip p { font: 500 12.5px/1.4 var(--font); color: var(--ink-300); margin-top: 6px; }
 .tip .row { display: flex; justify-content: space-between; font: 500 12px var(--font); color: var(--ink-200); padding: 5px 0; border-top: 1px solid var(--line); }
 .tip .row b { font: 500 12px var(--mono); color: var(--ok); }
+.tip .row .num { font-size: 12px; }
+.tip .tsub { font: 600 10px var(--font); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-400); margin: 10px 0 2px; }
+.tip .row.sub { color: var(--ink-300); padding: 3px 0; border-top: 0; }
+.tip .row.tot { font-weight: 700; color: var(--ink-100); }
+.tip .row.tot .num { color: var(--ink-100); font-weight: 700; }
+.tip .usd { color: var(--ok); font: 700 13px var(--mono); }
+.tip .bal { margin-top: 8px; padding: 8px 10px; background: rgba(92,196,122,.08); border: 1px solid rgba(92,196,122,.25); display: flex; flex-direction: column; gap: 4px; font: 600 12px var(--font); color: var(--ink-200); }
+.tip .bal .num { font-size: 12px; color: var(--ok); } .tip .bal i { color: var(--ink-400); font-style: normal; }
 
 /* ---------- momento cinematográfico ---------- */
 .cine { position: absolute; left: 0; right: 0; top: 34%; display: none; flex-direction: column; align-items: center; z-index: 6; }
@@ -160,12 +172,16 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
   .tools .btn.hide-m, .net, .tools .sep { display: none; }
   .feed { top: 62px; width: 250px; } .ev { padding: 6px 9px; } .ev .t { font-size: 12.5px; } .ev .s, .ev.old { display: none; }
   .mini { width: 150px; height: 168px; left: 8px; bottom: 8px; } .mini .in { padding: 6px; } .mini .head { margin-bottom: 4px; } .mini .map { height: 96px; } .mini .build { margin-top: 6px; } .mini .head .kicker { font-size: 9px; } .mini .build .btn { height: 28px; font-size: 12px; }
-  .cmd { left: 166px; right: 8px; bottom: 8px; height: 168px; }
+  .cmd { left: 166px; right: 8px; bottom: 8px; height: 182px; } .mini { height: 182px !important; } .mini .map { height: 110px !important; }
   .cmd > .in { grid-template-columns: 170px 1fr; } .queue { display: none; }
   .sel { padding: 9px 11px; gap: 6px; } .portrait { height: 48px; background-size: 1000px 562px; background-position: -432px -376px; } .selname { font-size: 16px; } .chips, .portrait .owner { display: none; } .pips i { width: 10px; height: 5px; }
   .acts { padding: 0 10px 8px; } .tab { padding: 8px 8px 7px; font-size: 11px; } .tab span.l { display: none; } .tabs { margin-bottom: 8px; }
   .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; } .grid .card:nth-child(n+5) { display: none; }
-  .card { height: 106px; } .card .art { height: 42px; } .card .art svg.i { width: 22px; height: 22px; } .card .nm { font-size: 12.5px; padding: 5px 7px 0; } .card .eff { display: none; } .card .cost { padding: 4px 7px 7px; } .card .key { display: none; }
+  .card { height: 120px; } .card .missline, .card .eff { display: none; } .card .up { padding: 0 7px 6px; font-size: 10.5px; } .card .art { height: 42px; } .card .art svg.i { width: 22px; height: 22px; } .card .nm { font-size: 12.5px; padding: 5px 7px 0; } .card .eff { display: none; } .card .cost { padding: 4px 7px 7px; } .card .up { display: flex; align-items: center; gap: 4px; padding: 0 9px 8px; font: 500 11.5px var(--mono); color: var(--ink-300); }
+.card .up b { color: var(--ok); font: 700 12px var(--mono); }
+.card .up.zero { color: var(--ink-400); }
+.card .missline { font: 600 11px var(--font); color: var(--bad); padding: 0 9px 7px; margin-top: -3px; }
+.card .key { display: none; }
   .tip { display: none; }
   .btn { height: 34px; min-width: 38px; }
 }
@@ -185,7 +201,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
       <div class="r"><span style="color:#d9b45a">{{i:wheat}}</span><div><div class="lbl">Comida</div><div class="v">1.240</div><div class="cap"><i style="width:62%;background:#d9b45a"></i></div></div></div>
       <div class="r"><span style="color:#7fbf6a">{{i:tree-pine}}</span><div><div class="lbl">Madeira</div><div class="v">860</div><div class="cap"><i style="width:43%;background:#7fbf6a"></i></div></div></div>
       <div class="r"><span style="color:#a9b3bd">{{i:mountain}}</span><div><div class="lbl">Pedra</div><div class="v">540</div><div class="cap"><i style="width:27%;background:#a9b3bd"></i></div></div></div>
-      <div class="r hide-m"><span style="color:#c98a63">{{i:anvil}}</span><div><div class="lbl">Ferro</div><div class="v">320</div><div class="cap"><i style="width:32%;background:#c98a63"></i></div></div></div>
+      <div class="r hide-m"><span style="color:#c98a63">{{i:ingot}}</span><div><div class="lbl">Ferro</div><div class="v">320</div><div class="cap"><i style="width:32%;background:#c98a63"></i></div></div></div>
       <div class="r full hide-m"><span style="color:#8f8cff">{{i:droplet}}</span><div><div class="lbl">Petróleo</div><div class="v">198</div><div class="cap"><i style="width:99%;background:var(--warn)"></i></div></div></div>
       <div class="r hide-m"><span style="color:#8a8f99">{{i:flame}}</span><div><div class="lbl">Carvão</div><div class="v">180</div><div class="cap"><i style="width:18%;background:#8a8f99"></i></div></div></div>
       <div class="r"><span style="color:#e2c48a">{{i:package}}</span><div><div class="lbl">Suprimentos</div><div class="v">2.150</div><div class="cap"><i style="width:72%;background:#e2c48a"></i></div></div></div>
@@ -247,11 +263,11 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
         <span class="tab">{{i:star}}<span class="l">Projetos</span></span>
       </div>
       <div class="grid">
-        <div class="card"><span class="key">Q</span><span class="qcount">2</span><div class="art">{{i:user}}</div><div class="nm">Cidadão</div><div class="eff">Trabalha e constrói</div><div class="cost"><span>{{i:wheat}}50</span></div></div>
-        <div class="card hover"><span class="key">H</span><div class="art">{{i:house}}</div><div class="nm">Casa</div><div class="eff">+6 moradia</div><div class="cost"><span>{{i:tree-pine}}65</span><span>{{i:mountain}}30</span></div></div>
-        <div class="card"><span class="key">R</span><div class="art">{{i:route}}</div><div class="nm">Estrada</div><div class="eff">Leva energia e acelera</div><div class="cost"><span>{{i:mountain}}2/célula</span></div></div>
-        <div class="card short"><span class="key">E</span><div class="art">{{i:graduation-cap}}</div><div class="nm">Escola</div><div class="eff">+conhecimento</div><div class="cost"><span>{{i:tree-pine}}180</span><span class="miss">{{i:anvil}}420</span></div></div>
-        <div class="card"><span class="key">T</span><div class="art">{{i:hospital}}</div><div class="nm">Hospital</div><div class="eff">Cobertura de saúde</div><div class="cost"><span>{{i:mountain}}220</span><span>{{i:anvil}}90</span></div></div>
+        <div class="card"><span class="key">Q</span><span class="qcount">2</span><div class="art">{{i:user}}</div><div class="nm">Cidadão</div><div class="eff">Trabalha e constrói</div><div class="cost"><span>{{i:wheat}}50</span></div><div class="up zero"><b style="color:var(--ink-400)">$</b>sem manutenção</div></div>
+        <div class="card"><span class="key">H</span><div class="art">{{i:house}}</div><div class="nm">Casa</div><div class="eff">+6 moradia</div><div class="cost"><span>{{i:tree-pine}}65</span><span>{{i:mountain}}30</span></div><div class="up"><b>$</b>−7,5 mil/dia</div></div>
+        <div class="card"><span class="key">R</span><div class="art">{{i:route}}</div><div class="nm">Estrada</div><div class="eff">Leva energia e acelera</div><div class="cost"><span>{{i:mountain}}2/célula</span></div><div class="up"><b>$</b>−1,3 mil/célula</div></div>
+        <div class="card short hover"><span class="key">E</span><div class="art">{{i:graduation-cap}}</div><div class="nm">Escola</div><div class="eff">+conhecimento</div><div class="cost"><span>{{i:tree-pine}}180</span><span class="miss">{{i:ingot}}420</span></div><div class="missline">Faltam 100 de ferro</div><div class="up"><b>$</b>−83 mil/dia</div></div>
+        <div class="card"><span class="key">T</span><div class="art">{{i:hospital}}</div><div class="nm">Hospital</div><div class="eff">Cobertura de saúde</div><div class="cost"><span>{{i:mountain}}220</span><span>{{i:ingot}}90</span></div><div class="up"><b>$</b>−89 mil/dia</div></div>
         <div class="card lock"><div class="art">{{i:lock}}</div><div class="nm">Programa Espacial</div><div class="lockinfo">{{i:triangle-alert}}QG nível 9</div></div>
       </div>
     </div>
@@ -262,12 +278,17 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
     </div>
   </div><span class="brk tr"></span><span class="brk bl"></span></div>
 
-  <div class="frame tip" style="left:{{TIPX}}px; bottom:272px; padding:0"><div class="in">
-    <h4>Casa <span class="kbd" style="color:var(--ink-300)">H</span></h4>
-    <p>Moradia para os cidadãos. Com energia, aumenta a aprovação da cidade.</p>
-    <div class="row" style="margin-top:8px"><span>Moradia</span><b>+6</b></div>
-    <div class="row"><span>Energia</span><b style="color:var(--warn)">−1</b></div>
-    <div class="row"><span>Custo do próximo</span><span class="num" style="font-size:12px">{{i:tree-pine}} 77 · 35</span></div>
+  <div class="frame tip" style="left:{{TIPX}}px; bottom:288px; padding:0"><div class="in">
+    <h4>Escola <span class="kbd" style="color:var(--ink-300)">E</span></h4>
+    <p>Forma conhecimento para as pesquisas. Uma por cidade.</p>
+    <div class="row" style="margin-top:8px"><span>Custo</span><span class="num" style="font-size:12px">{{i:tree-pine}} 180 · <span class="miss" style="color:var(--bad)">{{i:ingot}} 420</span></span></div>
+    <div class="row" style="color:var(--bad)"><span>Falta</span><span class="num" style="font-size:12px">100 de ferro</span></div>
+    <div class="tsub">Manutenção por dia</div>
+    <div class="row sub"><span>Serviço público</span><span class="num">$66 mil</span></div>
+    <div class="row sub"><span>Energia (2 un., Era IV ×2)</span><span class="num">$13,2 mil</span></div>
+    <div class="row sub"><span>Área (2×2)</span><span class="num">$3,5 mil</span></div>
+    <div class="row tot"><span><b class="usd">$</b> Total</span><span class="num">−$83 mil/dia</span></div>
+    <div class="bal"><span>Saldo do caixa</span><span class="num">+$1,24 mi <i>→</i> +$1,16 mi/dia</span></div>
   </div><span class="brk tr"></span><span class="brk bl"></span></div>
 
   <div class="cine">

@@ -55,3 +55,8 @@ svg.i { width: 18px; height: 18px; stroke-width: 1.75; flex: none; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
 .seg .btn { border: 0; border-radius: 0; border-right: 1px solid var(--line); height: 30px; min-width: 36px; font-family: var(--mono); font-size: 12px; }
 .seg .btn:last-child { border-right: 0; }
+
+/* cada recurso com a sua cor também nos custos (o que falta fica vermelho) */
+.cost [data-n=wheat], .tip [data-n=wheat] { color: #d9b45a; } .cost [data-n=tree-pine], .tip [data-n=tree-pine] { color: #7fbf6a; } .cost [data-n=mountain], .tip [data-n=mountain] { color: #a9b3bd; }
+.cost [data-n=ingot], .tip [data-n=ingot] { color: #c98a63; } .cost [data-n=droplet] { color: #8f8cff; } .cost [data-n=package] { color: #e2c48a; }
+.cost .miss [data-n], .tip .miss [data-n], .miss svg.i { color: var(--bad) !important; }
