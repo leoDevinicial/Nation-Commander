@@ -51,7 +51,8 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
 - Custos: os valores-base ficam nas definições (`UNITS`, `BUILDINGS`, `AIRCRAFT`...), mas o bloco `ECONOMY` no fim de
   `shared/sim/config.ts` (e em `air.ts`) os multiplica ao carregar. O valor que o jogo usa é o escalado; ver
   `docs/ECONOMIA.md`. Testes de regra usam `TEST_START` (`shared/test/helpers.ts`) como estoque inicial.
-- Custo crescente: construir usa `buildingCost(type, existentes)` (+18% por edifício do tipo), não `BUILDINGS[t].cost`.
+- Custo crescente: construir usa `buildingCost(type, existentes)` (+18% por edifício do tipo), não `BUILDINGS[t].cost`,
+  e paga uma taxa de obra em US$ que também cresce (`buildingUsd`, do 2º edifício do tipo em diante; `docs/PESQUEIRO_E_CUSTO_CRESCENTE.md`).
   Ao mexer em economia ou na IA, rodar `npx tsx scripts/sim-economia.ts 1,2,3,4,5,6,7 25` e conferir os critérios de
   `docs/RECALIBRAGEM_RECURSOS.md` (seção 5).
 - Rede elétrica (`shared/sim/power.ts`, `docs/REDE_ELETRICA.md`): carvão é recurso (sai das minas); a energia anda
@@ -83,7 +84,8 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
 - Zoneamento (`shared/sim/zoning.ts`, `docs/ZONEAMENTO.md`): zonas R/C/I junto às estradas; lotes privados não são
   entidades (ocupam a grade com `LOT_OCCUPANT`), crescem pela demanda de cada cidade, pagam imposto e gastam energia.
 - Clima e dia/noite (`shared/sim/climate.ts`, `docs/CLIMA_DIA_NOITE.md`) são só visuais, exceto a usina solar.
-- Marinha (`docs/PARTIDAS_MAIORES_E_MAPAS.md`): L402, fragata, cargueiro, submarinos e porta-aviões saem do Porto,
+- Marinha (`docs/PARTIDAS_MAIORES_E_MAPAS.md`): L402, fragata, cargueiro, submarinos, porta-aviões e pesqueiro saem do Porto
+  (o pesqueiro é civil e automático: pesca e traz comida, até 3 por porto; `FISHING`),
   só andam na água (`Grid.naval`), têm tripulação (`crew`), pesquisa nacional (`requiresTech`) e carga por classe
   (`cargo`). Quem atinge quem fica em `shared/sim/targeting.ts` (submarino só por submarino). A carga sai do mapa e
   só o dono a vê no snapshot. Mísseis têm alcance por lançador e miram qualquer ponto fora da própria fronteira que o país já tenha explorado (`Simulation.explored`).

@@ -1499,7 +1499,7 @@ export class TacticalAI {
   /**
    * Produção do Porto (03/11): navios de desembarque para a onda além-mar, até 2 fragatas de escolta (com a pesquisa),
    * submarinos de ataque (1 além-mar, 2 se já viu submarino inimigo; só submarino acerta submarino) e um cargueiro
-   * para o comércio por mar (com Terminal Comercial).
+   * para o comércio por mar (com Terminal Comercial) e, por fim, 2 pesqueiros por porto (05/11).
    */
   private portMix(sim: Simulation, own: Unit[], mine: Building[], overseas: boolean, preparing: boolean, fleet: number, techs: readonly string[]): UnitType[] | null {
     const queued = (t: UnitType) => own.filter((u) => u.type === t).length + mine.reduce((a, x) => a + x.queue.filter((q) => q.unitType === t).length, 0);
@@ -1509,6 +1509,9 @@ export class TacticalAI {
     const enemySubs = sim.units.some((u) => u.owner !== this.slot && UNITS[u.type].submarine && sim.isVisibleTo(this.slot, u.pos));
     if ((overseas || enemySubs) && !preparing && has('submarine') && queued('submarine') < (enemySubs ? 2 : 1)) return ['submarine'];
     if (mine.some((b) => b.type === 'market' && b.progress >= 1) && has('cargo_ship') && queued('cargo_ship') < 1) return ['cargo_ship'];
+    // pesqueiros (05/11): 2 por porto, comida que não depende de solo fértil
+    const ports = mine.filter((b) => b.type === 'port' && b.progress >= 1).length;
+    if (queued('fishing_boat') < 2 * ports) return ['fishing_boat'];
     return null;
   }
 

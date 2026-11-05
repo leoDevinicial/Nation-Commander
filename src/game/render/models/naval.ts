@@ -683,3 +683,69 @@ export function buildCargoShip(): ShipModel {
   deckRails(b, H, -2.2, 1.4, '#e9e9e4');
   return { hull: l.build(), turret: null, turretPivot: [0, 0, 0], muzzle: [2.3, d, 0] };
 }
+
+/**
+ * Pesqueiro (05/11): barco de pesca costeiro, bem menor que o cargueiro. Casco verde-escuro com fundo vermelho e
+ * faixa na cor da nação, convés de madeira, timoneira branca com janelas azuis na frente, mastro com antenas e luz,
+ * pórtico de popa com o cabo e o tambor da rede, boias laranja e caixas de peixe. Referência de forma: traineiras e
+ * arrastões costeiros; o desenho é próprio.
+ */
+export function buildFishingBoat(): ShipModel {
+  const l = layers();
+  const { body: b, accent: a, glass: g } = l;
+  const H = hull(b, 2.6, 0.86, 0.34, '#1f5a46', '#9a7451', 0.24, 0.18, 0.1);
+  const d = H.deck;
+  // faixa da nação abaixo da borda e borda clara (amurada)
+  for (const z of [-0.432, 0.432]) a.box(2.0, 0.04, 0.008, '#ffffff', [-0.1, d - 0.07, z]);
+  for (const z of [-0.41, 0.41]) b.box(2.1, 0.06, 0.03, '#e8e4da', [-0.12, d + 0.04, z]);
+  // timoneira à frente do meio: bloco branco, teto com beiral, janelas azuis em volta
+  b.box(0.62, 0.4, 0.56, '#eeeee8', [0.32, d + 0.2, 0]);
+  b.box(0.72, 0.04, 0.64, '#dcdcd4', [0.32, d + 0.42, 0]);
+  for (const x of [0.12, 0.32, 0.52]) for (const z of [-0.284, 0.284]) g.box(0.13, 0.12, 0.008, '#3f6fb3', [x, d + 0.27, z]);
+  for (const z of [-0.17, 0, 0.17]) g.box(0.008, 0.12, 0.13, '#3f6fb3', [0.635, d + 0.27, z]);
+  g.box(0.008, 0.16, 0.1, '#3f6fb3', [0.005, d + 0.22, 0.12]);
+  // teto: domo do radar, luz e mastro com antenas e a bandeira da nação
+  b.cyl(0.07, 0.07, 0.05, '#f2f2ee', [0.42, d + 0.47, 0.1], undefined, 8);
+  b.box(0.18, 0.03, 0.08, '#f2f2ee', [0.18, d + 0.46, -0.12]);
+  b.cyl(0.012, 0.014, 0.5, DARK, [0.25, d + 0.69, 0.18], undefined, 4);
+  b.cyl(0.008, 0.008, 0.36, DARK, [0.3, d + 0.62, -0.16], undefined, 3);
+  mast(b, a, 0.05, d + 0.44, 0.62);
+  b.sphere(0.025, '#f2e6a0', [0.05, d + 1.07, 0], undefined, 5);
+  // escapamento atrás da timoneira
+  b.cyl(0.04, 0.045, 0.32, '#2f3236', [-0.05, d + 0.36, -0.2], undefined, 6);
+  // convés de trabalho na popa: pórtico em A, cabos, tambor da rede, boias e caixas de peixe
+  for (const z of [-0.3, 0.3]) {
+    b.box(0.05, 0.7, 0.05, '#c9cbc8', [-1.08, d + 0.35, z], [0, 0, -0.12]);
+  }
+  b.box(0.06, 0.06, 0.66, '#c9cbc8', [-1.12, d + 0.7, 0]);
+  b.box(0.06, 0.05, 0.05, '#c9cbc8', [-1.3, d + 0.66, 0], [0, 0, 0.4]);
+  strutLine(b, [-1.12, d + 0.7, 0], [0.05, d + 0.98, 0]);
+  strutLine(b, [-1.3, d + 0.62, 0], [-1.33, d + 0.1, 0]);
+  b.cyl(0.12, 0.12, 0.4, '#5a5f66', [-0.55, d + 0.14, 0], [Math.PI / 2, 0, 0], 10);
+  b.cyl(0.125, 0.125, 0.3, '#2e7d6b', [-0.55, d + 0.14, 0], [Math.PI / 2, 0, 0], 10);
+  for (const z of [-0.36, 0.36]) b.sphere(0.07, '#e0752a', [-1.18, d + 0.05, z], undefined, 7);
+  b.sphere(0.06, '#e0752a', [-0.82, d + 0.06, -0.33], undefined, 7);
+  for (const [x, z] of [
+    [-0.82, 0.18],
+    [-0.82, 0.32],
+    [-0.98, 0.25],
+  ] as const) b.box(0.13, 0.07, 0.12, '#3d82b8', [x, d + 0.04 + (x < -0.9 ? 0.07 : 0), z]);
+  // rede recolhida sobre o tambor (malha escura)
+  b.box(0.18, 0.05, 0.36, '#3a4a3a', [-0.55, d + 0.28, 0]);
+  anchors(b, 0.95, 0.24, H.W);
+  return { hull: l.build(), turret: null, turretPivot: [0, 0, 0], muzzle: [1.3, d, 0] };
+}
+
+/** Cabo fino entre dois pontos. */
+function strutLine(b: PartBuilder, p: V3, q: V3): void {
+  const dx = q[0] - p[0];
+  const dy = q[1] - p[1];
+  const dz = q[2] - p[2];
+  const len = Math.hypot(dx, dy, dz);
+  const mid: V3 = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2];
+  const geo = new THREE.CylinderGeometry(0.008, 0.008, len, 3);
+  const dir = new THREE.Vector3(dx, dy, dz).normalize();
+  const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  const e = new THREE.Euler().setFromQuaternion(quat);
+  b.add(geo, '#202224', { pos: mid, rot: [e.x, e.y, e.z] });
+}

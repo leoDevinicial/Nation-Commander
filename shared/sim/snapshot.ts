@@ -42,6 +42,8 @@ export interface UnitSnapshot {
   cargo?: UnitType[];
   /** Mísseis a bordo do Submarino Lançador (só para o dono). */
   missiles?: number;
+  /** Pesqueiro (05/11): etapa do ciclo — pescando aparece para quem vê o barco (rede na água). */
+  fish?: 'out' | 'fishing' | 'back';
   /** Paraquedas: fração da descida que falta (1 → 0) e duração total em segundos. */
   descent?: number;
   descentSecs?: number;
@@ -117,6 +119,8 @@ export interface PlayerSnapshot {
   satellite?: true;
   /** Bens industriais (só para o próprio jogador) e o teto do estoque. */
   goods?: { fuel: number; steel: number; cap: number };
+  /** Pesqueiros (05/11, só para o dono): total do jogador (prontos e na fila) e quantos cada Porto tem, para o limite e o custo crescente no botão. */
+  fishing?: { owned: number; ports: [EntityId, number][] };
   /** Pressão do mercado interno por recurso (só para o próprio jogador; baixa o preço de venda). */
   market?: Partial<Record<MarketResource, number>>;
   /** Demanda acumulada das compras no mercado interno (só para o dono). */
@@ -336,6 +340,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         ...(UNITS[e.type].weapon.salvo && e.cooldown > 0 ? { reload: r2(Math.max(0, 1 - e.cooldown / Math.max(1, UNITS[e.type].weapon.cooldown * combineMods(e.mods).cooldownMul * TICK_RATE))) } : {}),
         ...(e.cargo?.length && (!viewer || e.owner === viewer.slot) ? { cargo: e.cargo.map((c) => c.type) } : {}),
         ...(e.missiles !== undefined && (!viewer || e.owner === viewer.slot) ? { missiles: e.missiles } : {}),
+        ...(e.fishing ? { fish: e.fishing.state } : {}),
         // descida de paraquedas (visível a quem vê a tropa): 1 = acabou de sair do avião, 0 = no chão
         ...(e.descent ? { descent: r2(e.descent.left / e.descent.total), descentSecs: r2(e.descent.total / TICK_RATE) } : {}),
         ...(e.refit && (!viewer || e.owner === viewer.slot) ? { refit: { mod: e.refit.mod, progress: r2(1 - e.refit.remainingTicks / e.refit.totalTicks), facility: e.refit.facilityId } } : {}),
@@ -407,6 +412,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         ...(p.satellite ? { satellite: true as const } : {}),
         ...(mine && p.marketPressure && Object.keys(p.marketPressure).length ? { market: Object.fromEntries(Object.entries(p.marketPressure).map(([k, v]) => [k, Math.round(v)])) } : {}),
         ...(mine && p.marketDemand && Object.keys(p.marketDemand).length ? { marketDemand: Object.fromEntries(Object.entries(p.marketDemand).map(([k, v]) => [k, Math.round(v)])) } : {}),
+        ...(mine ? fishingSnapshot(sim, p.slot) : {}),
         ...(mine && p.goods ? { goods: { fuel: Math.floor(p.goods.fuel), steel: Math.floor(p.goods.steel), cap: sim.goodsCap(p.slot) } } : {}),
       };
     }),
@@ -652,8 +658,23 @@ export function airView(sim: Simulation, slot: Slot): AirView {
   };
 }
 
+/** Pesqueiros do jogador por porto (só entra no snapshot quando há algum Porto). */
+function fishingSnapshot(sim: Simulation, slot: Slot): { fishing?: { owned: number; ports: [EntityId, number][] } } {
+  const ports = sim.buildings.filter((b) => b.owner === slot && b.type === 'port' && b.hp > 0);
+  if (!ports.length) return {};
+  let owned = 0;
+  const list: [EntityId, number][] = ports.map((b) => {
+    const f = sim.fishingFleet(slot, b);
+    owned = f.owned;
+    return [b.id, f.atPort];
+  });
+  return { fishing: { owned, ports: list } };
+}
+
 function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
   switch (e.type) {
+    case 'fish_landed':
+      return e.owner === slot;
     case 'demolished':
       return e.owner === slot || sim.isVisibleTo(slot, e.pos);
     case 'world':

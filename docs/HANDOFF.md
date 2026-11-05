@@ -124,6 +124,11 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 
 ## 0.4 O que mudou desde 31/10 (mais recente primeiro; detalhes no `git log` e nas docs citadas)
 
+**05/11, noite — pesqueiro e custo crescente em US$** (`docs/PESQUEIRO_E_CUSTO_CRESCENTE.md`): unidade `fishing_boat`
+no Porto (civil, automática, 3 por porto, +18% por barco, 80 de comida por viagem); taxa de obra em US$ crescente do 2º
+edifício do tipo em diante e Porto, Refinaria, Siderúrgica, usinas, hospital e delegacia no custo crescente. Interface
+"Sala de Situação" fechada (lobby, salas, Globo e emojis), ver `docs/ui_maquete/README.md` itens 7–11.
+
 **05/11, noite — rodada de feedback de jogadores (6 prints):**
 
 - Fazenda: raio de cultivo 3 → 2 (os campos ficavam longe da sede) e, ao posicionar qualquer coleta, as células que

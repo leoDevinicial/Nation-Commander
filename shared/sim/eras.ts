@@ -83,6 +83,7 @@ export const UNIT_ERA: Record<UnitType, Era> = {
   missile_submarine: 3,
   aircraft_carrier: 3,
   cargo_ship: 1,
+  fishing_boat: 1,
 };
 
 /** Era das construções (as ausentes existem desde a Guerra Fria). */

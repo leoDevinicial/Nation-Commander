@@ -25,6 +25,7 @@ import {
   militaryResearchKnowledge,
   canAfford,
   buildingCost,
+  buildingUsd,
   costText,
   emptyStockpile,
   ESCALATING_BUILDINGS,
@@ -166,8 +167,16 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
               />
               <div className="mt-1.5 text-xs text-ink-400">
                 Custo: <CostLabel cost={buildingCost(mode.buildingType, ownCounts[mode.buildingType] ?? 0)} have={resources} />
+                {!isSandboxMatch() && buildingUsd(mode.buildingType, ownCounts[mode.buildingType] ?? 0, worksCap) > 0 && (
+                  <span className={`ml-1 font-mono ${fund !== null && fund < buildingUsd(mode.buildingType, ownCounts[mode.buildingType] ?? 0, worksCap) ? 'text-red-300' : 'text-brass-400'}`}>
+                    + {usdShort(buildingUsd(mode.buildingType, ownCounts[mode.buildingType] ?? 0, worksCap))} de taxa de obra
+                  </span>
+                )}
                 {ESCALATING_BUILDINGS.has(mode.buildingType) && (
-                  <span className="ml-1 text-ink-500">· o próximo: {costText(buildingCost(mode.buildingType, (ownCounts[mode.buildingType] ?? 0) + 1))}</span>
+                  <span className="ml-1 text-ink-500">
+                    · o próximo: {costText(buildingCost(mode.buildingType, (ownCounts[mode.buildingType] ?? 0) + 1))}
+                    {!isSandboxMatch() && worksCap > 0 && ` + ${usdShort(buildingUsd(mode.buildingType, (ownCounts[mode.buildingType] ?? 0) + 1, worksCap))}`}
+                  </span>
                 )}
               </div>
               {mode.power && (
@@ -390,7 +399,9 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             const owned = ownCounts[type] ?? 0;
             const cost = buildingCost(type, owned);
             const next = ESCALATING_BUILDINGS.has(type) ? buildingCost(type, owned + 1) : null;
-            const ok = canAfford(resources, cost) && !techMissing && !eraMissing && !other;
+            const feeUsd = sandbox ? 0 : buildingUsd(type, owned, worksCap);
+            const feeShort = feeUsd > 0 && fund !== null && fund < feeUsd;
+            const ok = canAfford(resources, cost) && !techMissing && !eraMissing && !other && !feeShort;
             const locked = !!(eraMissing || techMissing || other);
             const lack = RESOURCE_TYPES.find((r) => (cost[r] ?? 0) > resources[r]);
             const day0 = usdScale !== null ? buildingDayUsd(type, { era: myEra, scale: usdScale }) : null;
@@ -404,7 +415,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
                 blocked={!ok}
                 locked={locked}
                 net={day?.net ?? null}
-                short={eraMissing ? `era ${eraMissing}` : techMissing ? 'exige pesquisa' : other ??
+                short={eraMissing ? `era ${eraMissing}` : techMissing ? 'exige pesquisa' : other ?? (feeShort ? 'sem caixa' : null) ??
                   (lack ? (
                     <span className="inline-flex items-center gap-0.5" title={`Faltam ${Math.ceil((cost[lack] ?? 0) - resources[lack])} de ${RESOURCE_LABELS[lack].toLowerCase()}`}>
                       Faltam {Math.ceil((cost[lack] ?? 0) - resources[lack])}
@@ -416,13 +427,14 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
                     ? runtime.startPlacement(type)
                     : useHudStore.getState().pushEvent({
                         tick: useHudStore.getState().tick,
-                        text: `${def.label}: ${eraMissing ? `requer ${eraPhrase(eraMissing)} (avance de era no Centro de Comando)` : techMissing ? `exige a pesquisa ${TECHNOLOGIES[techMissing as keyof typeof TECHNOLOGIES]?.label ?? techMissing}` : hqMissing ? `requer o Centro de Comando no nível ${hqMissing}` : hasOne ? 'Grande Projeto: só um por nação' : fundShort ? `caixa do país sem saldo (${usdShort(projectUsd)})` : 'recursos insuficientes'}`,
+                        text: `${def.label}: ${eraMissing ? `requer ${eraPhrase(eraMissing)} (avance de era no Centro de Comando)` : techMissing ? `exige a pesquisa ${TECHNOLOGIES[techMissing as keyof typeof TECHNOLOGIES]?.label ?? techMissing}` : hqMissing ? `requer o Centro de Comando no nível ${hqMissing}` : hasOne ? 'Grande Projeto: só um por nação' : fundShort ? `caixa do país sem saldo (${usdShort(projectUsd)})` : feeShort ? `caixa do país sem saldo para a taxa de obra (${usdShort(feeUsd)})` : 'recursos insuficientes'}`,
                         tone: 'warn',
                       })
                 }
-                title={`${def.label} — ${def.description}\nTempo: ${timeText(def.buildSeconds)} · Vida: ${def.maxHp}${def.workers ? ` · Trabalhadores: ${def.workers}` : ''}${def.territoryRadius ? ` · Fronteira: ${def.territoryRadius} células` : ''}${def.project ? `\nGrande Projeto: ${def.project.effect} · ${usdShort(projectUsd)} do caixa do país` : ''}${next ? `\nCusto crescente (+${Math.round(ESCALATING_COST_STEP * 100)}% por edifício do tipo): você tem ${owned}; depois deste, o próximo custará ${costText(next)}` : ''}${day ? `\n${dayText(day)}` : ''}`}
+                title={`${def.label} — ${def.description}\nTempo: ${timeText(def.buildSeconds)} · Vida: ${def.maxHp}${def.workers ? ` · Trabalhadores: ${def.workers}` : ''}${def.territoryRadius ? ` · Fronteira: ${def.territoryRadius} células` : ''}${def.project ? `\nGrande Projeto: ${def.project.effect} · ${usdShort(projectUsd)} do caixa do país` : ''}${feeUsd > 0 ? `\nTaxa de obra: ${usdShort(feeUsd)} do caixa do país` : ''}${next ? `\nCusto crescente (+${Math.round(ESCALATING_COST_STEP * 100)}% por edifício do tipo, em recursos e em US$): você tem ${owned}; depois deste, o próximo custará ${costText(next)}${sandbox ? '' : ` + ${usdShort(buildingUsd(type, owned + 1, worksCap))}`}` : ''}${day ? `\n${dayText(day)}` : ''}`}
               >
                 <CostLabel cost={cost} have={resources} compact />
+                {feeUsd > 0 && <span className={`nc-num text-[9px] leading-tight ${feeShort ? 'text-red-300' : 'text-brass-400'}`}>+{usdShort(feeUsd)}</span>}
               </CardButton>
             );
           })}
@@ -739,6 +751,7 @@ function ProduceButton({ b, unit, hotkey, label, title, onRun }: { b: SelectedBu
     bonus,
     era: effectiveEra(me),
     ...(me?.goods ? { goods: me.goods } : {}),
+    ...(unit === 'fishing_boat' ? { fishing: { owned: me?.fishing?.owned ?? 0, atPort: me?.fishing?.ports.find(([id]) => id === b.id)?.[1] ?? 0 } } : {}),
   });
   const queued = b.queue.filter((q) => q.unitType === unit).length;
   const thumb = useHudStore((s) => s.thumbs[unit]);

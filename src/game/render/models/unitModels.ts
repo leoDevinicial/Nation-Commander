@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { UnitType } from '../../../../shared/sim/config.ts';
 import { C, layers, PartBuilder, type ModelLayers } from './kit.ts';
-import { buildCarrier, buildCargoShip, buildFrigateEra1, buildFrigateEra2, buildFrigateEra4, buildL402, buildMissileSubmarine, buildSubmarine } from './naval.ts';
+import { buildCarrier, buildCargoShip, buildFishingBoat, buildFrigateEra1, buildFrigateEra2, buildFrigateEra4, buildL402, buildMissileSubmarine, buildSubmarine } from './naval.ts';
 
 /**
  * Modelos de unidades (frente = +x). Cada unidade tem chassi fixo e, quando aplicável, uma torre
@@ -260,6 +260,7 @@ const BUILDERS: Record<UnitType, () => BuiltUnit> = {
   missile_submarine: buildMissileSubmarine,
   aircraft_carrier: buildCarrier,
   cargo_ship: buildCargoShip,
+  fishing_boat: buildFishingBoat,
 };
 
 // ------------------------------------------------------------------ infantaria

@@ -1,5 +1,6 @@
 import {
   BUILDINGS,
+  FISHING,
   MILITARY_RESEARCH,
   CITIZEN,
   GOODS,
@@ -52,6 +53,8 @@ export interface ProduceContext {
   era?: number;
   /** Bens industriais em estoque: substituem parte do custo quando bastam (ausente = sem bens). */
   goods?: Goods;
+  /** Pesqueiros (05/11): deste porto (prontos e na fila) e do jogador inteiro (custo crescente). */
+  fishing?: { atPort: number; owned: number };
 }
 
 export interface ProduceCheck {
@@ -108,7 +111,7 @@ export function checkProduce(unit: ProducibleType, c: ProduceContext): ProduceCh
   const std = civil ? { mods: [] as ModId[], extra: {} as Cost } : productionStandard(unit, c.techs);
   const base = unit === 'citizen' ? CITIZEN.cost : unit === 'recruit'
         ? scaledCost(RECRUIT.cost, fx.recruitCostMul * (c.recruitCostMul ?? 1) * (c.bonus?.recruitCostMul ?? 1))
-        : scaledCost(UNITS[unit].cost, fx.unitCostMul * (c.bonus?.unitCostMul?.[unit] ?? 1), fx.unitOilMul);
+        : scaledCost(UNITS[unit].cost, fx.unitCostMul * (c.bonus?.unitCostMul?.[unit] ?? 1) * (unit === 'fishing_boat' ? (1 + FISHING.costStep) ** (c.fishing?.owned ?? 0) : 1), fx.unitOilMul);
   let cost = addCost(base, std.extra);
   let eq = { mods: std.mods, equipmentCost: std.extra };
   let basic = false;
@@ -143,6 +146,7 @@ export function checkProduce(unit: ProducibleType, c: ProduceContext): ProduceCh
       const label = TECHNOLOGIES[def.requiresTech as TechId]?.label ?? def.requiresTech;
       return no(`Requer a pesquisa nacional "${label}"`, 'pesquisar');
     }
+    if (unit === 'fishing_boat' && (c.fishing?.atPort ?? 0) >= FISHING.perPort) return no(`Este Porto já tem ${FISHING.perPort} pesqueiros (o máximo por porto)`, `máx. ${FISHING.perPort}`);
     // cada unidade militar precisa de recrutas da reserva como tripulação (navios: vários)
     const crew = recruitsFor(unit);
     if (c.recruits < crew)

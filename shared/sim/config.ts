@@ -228,7 +228,7 @@ export const OIL_DEPOSIT_AMOUNT = 15000;
 
 // ------------------------------------------------------------------ unidades
 
-export type UnitType = 'infantry' | 'apc' | 'tank' | 'artillery' | 'at_infantry' | 'special_forces' | 'mbt' | 'rocket_artillery' | 'mobile_aa' | 'ciws' | 'engineer' | 'scout' | 'transport_ship' | 'frigate' | 'submarine' | 'missile_submarine' | 'aircraft_carrier' | 'cargo_ship';
+export type UnitType = 'infantry' | 'apc' | 'tank' | 'artillery' | 'at_infantry' | 'special_forces' | 'mbt' | 'rocket_artillery' | 'mobile_aa' | 'ciws' | 'engineer' | 'scout' | 'transport_ship' | 'frigate' | 'submarine' | 'missile_submarine' | 'aircraft_carrier' | 'cargo_ship' | 'fishing_boat';
 
 /** Classe de blindagem do alvo: define os bônus das armas (antitanque contra veículos, etc.). */
 export type ArmorClass = 'infantry' | 'vehicle';
@@ -350,6 +350,7 @@ export const FUEL = { light: 0.025, heavy: 0.04, ship: 0.05, carrier: 0.1, empty
 const HEAVY_VEHICLES: ReadonlySet<string> = new Set(['tank', 'mbt', 'artillery', 'rocket_artillery', 'ciws']);
 export function fuelPerWorld(t: UnitType): number {
   const d = UNITS[t];
+  if (t === 'fishing_boat') return FUEL.ship * 0.4; // barco pequeno: gasta pouco
   if (d.naval) return t === 'aircraft_carrier' ? FUEL.carrier : FUEL.ship;
   if (d.armor !== 'vehicle') return 0;
   return HEAVY_VEHICLES.has(t) ? FUEL.heavy : FUEL.light;
@@ -359,6 +360,22 @@ export function fuelPerWorld(t: UnitType): number {
 export function recruitsFor(t: UnitType): number {
   return (UNITS[t].crew ?? 1) + (UNITS[t].carrierFighters ?? 0);
 }
+
+/**
+ * Pesqueiro (05/11): ciclo automático Porto → área de pesca → Porto. A área é uma célula de água a `minCells`–`maxCells`
+ * do porto, no próprio território ou em água neutra. Cada viagem rende `foodPerTrip` de comida na chegada ao porto.
+ */
+export const FISHING = {
+  perPort: 3,
+  minCells: 6,
+  maxCells: 14,
+  fishSeconds: 12,
+  foodPerTrip: 80,
+  /** Distância (mundo) do porto para descarregar. */
+  dockRange: 5,
+  /** Custo crescente por pesqueiro do jogador (o mesmo passo das construções). */
+  costStep: 0.18,
+};
 
 /** Navio de transporte (03/11): vagas, alcance para embarcar e desembarcar, e onde a carga desce. */
 export const NAVAL = {
@@ -621,6 +638,23 @@ export const UNITS: Record<UnitType, UnitDef> = {
     naval: true,
     crew: 5,
     requiresTech: 'logistics',
+  },
+  fishing_boat: {
+    label: 'Pesqueiro',
+    cost: { wood: 90, supplies: 30, oil: 10 },
+    buildSeconds: 18,
+    maxHp: 220,
+    speed: 3.2,
+    radius: 1.3,
+    sight: 7,
+    weapon: { damage: 0, range: 0, cooldown: 99 },
+    producedBy: 'port',
+    description:
+      'Barco de pesca civil: sai sozinho do Porto, pesca no mar perto da costa e volta para descarregar comida (precisa de silo com espaço). Até 3 por Porto; cada pesqueiro novo custa 18% a mais. Sem arma: em guerra, o inimigo pode afundá-lo.',
+    hotkey: 'R',
+    armor: 'vehicle',
+    naval: true,
+    crew: 0,
   },
   scout: {
     label: 'Explorador',
@@ -1715,7 +1749,10 @@ MINE.cost = scaleCostBy(MINE.cost, 2);
 /**
  * Custo crescente (estilo Rise of Nations, docs/RECALIBRAGEM_RECURSOS.md §2.2): cada edifício novo destes tipos custa
  * +18% por edifício do mesmo tipo que o jogador já tem (pronto ou em obra). Destruídos deixam de contar. Ficam de fora
- * o QG, o Centro de Pesquisa, a base aérea, o silo de mísseis e os Grandes Projetos, que já são caros ou únicos.
+ * o QG, o Centro de Pesquisa, a base aérea, o silo de mísseis e os Grandes Projetos, que já são caros ou únicos, os
+ * limitados por cidade (escola, universidade, produções da era 3), a Prefeitura (expansão) e o obstáculo antitanque.
+ * 05/11: entram o Porto, a Refinaria, a Siderúrgica, as usinas, o hospital e a delegacia, e o custo passa a ter uma
+ * taxa de obra em US$ (`buildingUsd`) que também cresce — senão daria para encher o mapa de portos e pesqueiros.
  */
 export const ESCALATING_COST_STEP = 0.18;
 export const ESCALATING_BUILDINGS: ReadonlySet<BuildingType> = new Set<BuildingType>([
@@ -1734,7 +1771,27 @@ export const ESCALATING_BUILDINGS: ReadonlySet<BuildingType> = new Set<BuildingT
   'tower',
   'market',
   'aa_battery',
+  'port',
+  'refinery',
+  'steel_mill',
+  'coal_plant',
+  'wind_farm',
+  'solar_farm',
+  'hospital',
+  'police_station',
 ]);
+
+/**
+ * Taxa de obra em US$ (05/11), paga do caixa do país ao começar: o primeiro edifício de cada tipo não paga; a partir do
+ * segundo, `capUsd × ESCALATING_USD_SHARE × ((1 + passo)^n − 1) / passo`, com n = edifícios do tipo que o jogador já
+ * tem. Com o repasse típico de ~US$ 75 mi: o 2º sai por ~US$ 0,3 mi, o 6º por ~US$ 2 mi e o 11º por ~US$ 8 mi.
+ */
+export const ESCALATING_USD_SHARE = 0.004;
+export function buildingUsd(type: BuildingType, existing: number, capUsd: number): number {
+  if (existing <= 0 || !ESCALATING_BUILDINGS.has(type) || capUsd <= 0) return 0;
+  const k = ((1 + ESCALATING_COST_STEP) ** existing - 1) / ESCALATING_COST_STEP;
+  return Math.round((capUsd * ESCALATING_USD_SHARE * k) / 10_000) * 10_000;
+}
 
 /** Custo do próximo edifício do tipo, com `existing` edifícios do mesmo tipo já erguidos pelo jogador. */
 export function buildingCost(type: BuildingType, existing: number): Cost {

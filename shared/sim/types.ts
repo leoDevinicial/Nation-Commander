@@ -80,6 +80,11 @@ export interface Unit {
   missiles?: number;
   /** Descida de paraquedas (C-5): ticks que faltam e total. No ar, a tropa não anda nem atira, mas pode ser atingida. */
   descent?: { left: number; total: number };
+  /**
+   * Pesqueiro (05/11): porto de origem e etapa do ciclo (indo à área de pesca, pescando, voltando). `ground` é a área
+   * da viagem atual; `timer`, os ticks de pesca que faltam; `trips`, viagens feitas (espalha as áreas entre os barcos).
+   */
+  fishing?: { portId: EntityId; state: 'out' | 'fishing' | 'back'; ground: Vec2 | null; timer: number; trips: number };
 }
 
 export interface Refit {
@@ -364,6 +369,8 @@ export type SimEvent =
   | { type: 'unloaded'; tick: number; owner: Slot; shipId: EntityId; count: number; pos: Vec2 }
   /** Célula de estrada ou rodovia destruída por tropas (02/11). */
   /** Demolição pelo próprio dono (03/11): construção (`buildingType`) ou células de estrada (`roads`). */
+  /** Pesqueiro descarregou comida no porto (05/11). */
+  | { type: 'fish_landed'; tick: number; owner: Slot; unitId: EntityId; food: number; pos: Vec2 }
   | { type: 'demolished'; tick: number; owner: Slot; buildingType?: BuildingType; roads?: number; pos: Vec2 }
   | { type: 'road_destroyed'; tick: number; owner: Slot; by: Slot; cell: number; highway: boolean; pos: Vec2 }
   /**

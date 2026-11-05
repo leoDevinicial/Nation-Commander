@@ -41,6 +41,7 @@ import {
   OIL_TANK_RANGE,
   canAfford,
   buildingCost,
+  buildingUsd,
   ownedOfType,
   emptyStockpile,
   emptyGoods,
@@ -63,6 +64,7 @@ import {
   type Goods,
   type UnitType,
   recruitsFor,
+  FISHING,
   FUEL,
   fuelPerWorld,
 } from './config.ts';
@@ -1352,6 +1354,9 @@ export class Simulation {
         const def = BUILDINGS[cmd.buildingType];
         if (def.project && !this.isSandbox(slot) && this.national && !this.national.chargeWorks(slot, this.projectUsd(slot, cmd.buildingType), def.label))
           return 'Caixa do país sem saldo para o Grande Projeto';
+        // taxa de obra crescente (05/11): do segundo edifício do tipo em diante
+        const feeUsd = this.buildingUsdFor(slot, cmd.buildingType);
+        if (feeUsd > 0 && this.national && !this.national.chargeWorks(slot, feeUsd, `${def.label} (taxa de obra)`)) return `Caixa do país sem saldo para a taxa de obra (US$ ${(feeUsd / 1e6).toFixed(1).replace('.', ',')} mi)`;
         this.spend(player, this.buildingCostFor(slot, cmd.buildingType));
         const b = this.addBuilding(cmd.buildingType, slot, cell, 0);
         if (b.type === 'city_hall') b.city = this.nextCity(slot);
@@ -1382,6 +1387,7 @@ export class Simulation {
           bonus: this.bonusOf(slot),
           era: this.eraOf(slot),
           ...(player.goods ? { goods: player.goods } : {}),
+          ...(cmd.unitType === 'fishing_boat' ? { fishing: this.fishingFleet(slot, b) } : {}),
         });
         if (check.blocker) return check.blocker;
         const cost = check.cost;
@@ -2143,6 +2149,12 @@ export class Simulation {
     return buildingCost(type, ownedOfType(this.buildings, slot, type));
   }
 
+  /** Taxa de obra em US$ do próximo edifício do tipo (0 no Sandbox e sem a camada nacional). */
+  buildingUsdFor(slot: Slot, type: BuildingType): number {
+    if (this.isSandbox(slot) || !this.national) return 0;
+    return buildingUsd(type, ownedOfType(this.buildings, slot, type), this.national.worksCapUsd?.(slot) ?? 0);
+  }
+
   /** Motivo pelo qual não se pode construir, ou null se a posição é válida. */
   placementError(slot: Slot, type: BuildingType, cell: Cell): string | null {
     const player = this.players[slot];
@@ -2157,6 +2169,8 @@ export class Simulation {
     if (!this.isSandbox(slot)) {
       if (bdef.minHqLevel && this.hqLevel(slot) < bdef.minHqLevel) return `Requer o Centro de Comando no nível ${bdef.minHqLevel}`;
       if (bdef.project && this.national && this.national.worksFundUsd(slot) + 1e-6 < this.projectUsd(slot, type)) return 'Caixa do país sem saldo para o Grande Projeto';
+      const fee = this.buildingUsdFor(slot, type);
+      if (fee > 0 && this.national && this.national.worksFundUsd(slot) + 1e-6 < fee) return `Caixa do país sem saldo para a taxa de obra (US$ ${(fee / 1e6).toFixed(1).replace('.', ',')} mi)`;
     }
     return placementError(
       {
@@ -2987,6 +3001,7 @@ export class Simulation {
         item.remainingTicks = TICK_RATE; // sem espaço: tenta de novo em 1 s
         continue;
       }
+      if (u.type === 'fishing_boat') u.fishing = { portId: b.id, state: 'out', ground: null, timer: 0, trips: 0 };
       b.queue.shift();
       // Escola cobrindo o quartel ou a fábrica: a tropa sai como Veterana
       if ((u.rank ?? 0) < 1 && this.serviceCovers(b.owner, 'education', b.pos)) {
@@ -3158,6 +3173,11 @@ export class Simulation {
 
     // navios (03/11): o de transporte e o cargueiro só andam e desembarcam; os de guerra (fragata, submarinos) lutam
     // como as tropas, na grade naval (o caminho até um alvo em terra para na água mais perto)
+    // pesqueiro (05/11): rotina própria; uma ordem de mover do jogador vale até chegar, depois ele volta à pesca
+    if (u.fishing && u.order.kind === 'idle') {
+      this.updateFishing(u, u.fishing);
+      return;
+    }
     if (def.naval && (def.weapon.damage <= 0 || u.order.kind === 'unload')) {
       this.updateShip(u);
       return;
@@ -3443,6 +3463,156 @@ export class Simulation {
   }
 
   /** Navio: anda pela água; com ordem de desembarque, encosta na costa e solta a carga em terra. */
+  /** Multiplicador de coleta de comida do jogador (decretos e bônus do país), usado pela pesca. */
+  private gatherMulOf(slot: Slot): number {
+    const p = this.players[slot]!;
+    return (p.modifiers.gatherMul ?? 1) * (this.bonusOf(slot).gatherMul?.food ?? 1);
+  }
+
+  /** Pesqueiros (05/11): deste porto (prontos e na fila) e do jogador inteiro, para o limite e o custo crescente. */
+  fishingFleet(slot: Slot, port: Building): { atPort: number; owned: number } {
+    let atPort = 0;
+    let owned = 0;
+    for (const u of this.units) {
+      if (u.owner !== slot || u.type !== 'fishing_boat' || u.hp <= 0) continue;
+      owned++;
+      if (u.fishing?.portId === port.id) atPort++;
+    }
+    for (const b of this.buildings) {
+      if (b.owner !== slot) continue;
+      const n = b.queue.filter((q) => q.unitType === 'fishing_boat').length;
+      owned += n;
+      if (b === port) atPort += n;
+    }
+    return { atPort, owned };
+  }
+
+  /**
+   * Ciclo do pesqueiro: vai à área de pesca, pesca `FISHING.fishSeconds`, volta ao porto e descarrega a comida (até o
+   * espaço dos silos). Sem o porto de origem, adota o Porto próprio mais perto; sem nenhum, fica parado.
+   */
+  private updateFishing(u: Unit, f: NonNullable<Unit['fishing']>): void {
+    let port = this.entities.get(f.portId);
+    if (!port || port.kind !== 'building' || port.hp <= 0 || port.owner !== u.owner || port.type !== 'port') {
+      const next = this.buildings
+        .filter((b) => b.owner === u.owner && b.type === 'port' && b.hp > 0 && b.progress >= 1)
+        .sort((a, b) => dist(a.pos, u.pos) - dist(b.pos, u.pos))[0];
+      if (!next) {
+        u.activity = 'idle';
+        u.path = [];
+        return;
+      }
+      f.portId = next.id;
+      if (f.state !== 'fishing') f.state = 'back';
+      u.path = [];
+      port = next;
+    }
+    const naval = this.grid.naval;
+    this.grid.naval = true;
+    try {
+      if (f.state === 'fishing') {
+        u.activity = 'idle';
+        if (--f.timer > 0) return;
+        f.state = 'back';
+        u.path = [];
+      }
+      if (f.state === 'out') {
+        if (!f.ground) {
+          f.ground = this.fishingGround(u, port);
+          if (!f.ground || !this.planPath(u, f.ground)) {
+            f.ground = null;
+            u.activity = 'idle';
+            return;
+          }
+        }
+        u.activity = 'moving';
+        if (this.followPath(u) || dist(u.pos, f.ground) < this.map.cellSize * 1.2) {
+          f.state = 'fishing';
+          f.timer = Math.round(FISHING.fishSeconds * TICK_RATE);
+          u.path = [];
+          u.activity = 'idle';
+        }
+        return;
+      }
+      // voltando: descarrega ao encostar no porto
+      if (this.distanceToEdge(u.pos, port) <= FISHING.dockRange) {
+        const caught = Math.round(FISHING.foodPerTrip * this.gatherMulOf(u.owner));
+        const stored = this.store(u.owner, 'food', caught);
+        if (stored > 0) {
+          this.players[u.owner]!.stats.resourcesGathered += stored;
+          this.emit({ type: 'fish_landed', tick: this.tick, owner: u.owner, unitId: u.id, food: stored, pos: { ...port.pos } });
+        }
+        f.trips++;
+        f.state = 'out';
+        f.ground = null;
+        u.path = [];
+        u.activity = 'idle';
+        return;
+      }
+      if (!u.path.length || u.pathIndex >= u.path.length) {
+        if (!this.planPath(u, port.pos, port)) {
+          u.activity = 'idle';
+          return;
+        }
+      }
+      u.activity = 'moving';
+      this.followPath(u);
+    } finally {
+      this.grid.naval = naval;
+    }
+  }
+
+  /**
+   * Área de pesca: célula de água entre `FISHING.minCells` e `maxCells` do porto, alcançável pela água a partir dele, no
+   * próprio território ou em água neutra. A escolha gira com o id do barco e as viagens, para os barcos se espalharem.
+   */
+  private fishingGround(u: Unit, port: Building): Vec2 | null {
+    const W = this.map.width;
+    const H = this.map.height;
+    const g = this.grid;
+    const start = new Set<number>();
+    const size = BUILDINGS.port.size;
+    for (let y = port.cell.cy - 2; y < port.cell.cy + size + 2; y++)
+      for (let x = port.cell.cx - 2; x < port.cell.cx + size + 2; x++) if (g.inBounds(x, y) && g.terrainAt(x, y) === Terrain.Water) start.add(y * W + x);
+    if (!start.size) return null;
+    const pc = { x: port.cell.cx + size / 2, y: port.cell.cy + size / 2 };
+    const seen = new Uint8Array(W * H);
+    const queue = [...start];
+    for (const i of queue) seen[i] = 1;
+    const options: number[] = [];
+    for (let qi = 0; qi < queue.length; qi++) {
+      const i = queue[qi]!;
+      const x = i % W;
+      const y = (i - x) / W;
+      const d = Math.hypot(x + 0.5 - pc.x, y + 0.5 - pc.y);
+      const owner = this.territory[i] ?? NO_OWNER;
+      if (d >= FISHING.minCells && (owner === u.owner || owner === NO_OWNER)) options.push(i);
+      if (d > FISHING.maxCells) continue;
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ] as const) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const n = ny * W + nx;
+        if (seen[n] || g.terrainAt(nx, ny) !== Terrain.Water) continue;
+        seen[n] = 1;
+        queue.push(n);
+      }
+    }
+    const inRange = options.filter((i) => {
+      const x = i % W;
+      return Math.hypot(x + 0.5 - pc.x, (i - x) / W + 0.5 - pc.y) <= FISHING.maxCells;
+    });
+    if (!inRange.length) return null;
+    const k = Math.imul(u.id + 1, 0x9e3779b1) + Math.imul(u.fishing?.trips ?? 0, 0x85ebca6b);
+    const pick = inRange[(k >>> 0) % inRange.length]!;
+    return g.cellCenter({ cx: pick % W, cy: Math.floor(pick / W) });
+  }
+
   private updateShip(u: Unit): void {
     const o = u.order;
     if (o.kind === 'move') {
