@@ -466,6 +466,9 @@ describe('Rodovia (02/11)', () => {
     const { sim } = setup({ players: 2 });
     const ai = new TacticalAI(0);
     expect(typeof sim.trade.route(0, 1, 'road')).toBe('string');
+    // sem explorar, a IA só leva a rodovia até a borda do que conhece; com a terra neutra explorada, chega lá
+    const W0 = sim.map.width;
+    for (const p of sim.players) sim.explored[p.slot] = new Uint8Array(W0 * sim.map.height).fill(1);
     let built = 0;
     for (let k = 0; k < 8 && typeof sim.trade.route(0, 1, 'road') === 'string'; k++) {
       sim.players[0]!.resources.stone = 3000;
@@ -485,6 +488,7 @@ describe('Rodovia (02/11)', () => {
     s3.addBuilding('market', 1, { cx: hq1.cell.cx - 5, cy: hq1.cell.cy }, 1);
     const ais = [new TacticalAI(0), new TacticalAI(1)];
     const W = s3.map.width;
+    for (const p of s3.players) s3.explored[p.slot] = new Uint8Array(W * s3.map.height).fill(1);
     for (let k = 0; k < 14 && typeof s3.trade.route(0, 1, 'road') === 'string'; k++) {
       for (const a of ais) {
         s3.players[a.slot]!.resources.stone = 3000;
@@ -518,6 +522,10 @@ describe('Rodovia (02/11)', () => {
     // terra neutra no meio do mapa: estrada comum precisa de engenheiro; rodovia, não
     const cells = [20, 21, 22].map((cx) => ({ cx, cy: 24 }));
     expect(sim.territoryOwner(20, 24)).toBe(-1);
+    // nunca explorada (05/11): recusa com o mesmo motivo, haja o que houver lá
+    expect(sim.highwayPlan(0, cells).error).toMatch(/nunca explorada/);
+    expect(sim.highwayPlan(0, cells).usd).toBe(0);
+    for (const p of sim.players) sim.explored[p.slot] = new Uint8Array(W * sim.map.height).fill(1);
     expect(sim.roadPlan(0, cells).error).toMatch(/Engenheiro/);
     expect(sim.highwayPlan(0, cells).error).toBeNull();
     expect(sim.applyCommand(0, { type: 'build_road', cells, highway: true })).toBeNull();

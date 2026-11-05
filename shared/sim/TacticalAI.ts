@@ -1325,7 +1325,9 @@ export class TacticalAI {
     for (const target of theirs.slice(0, 2)) {
       const route = this.roadRoute(sim, market, target, true);
       if (!route) continue;
-      const fresh = route.filter((c) => sim.map.terrain[c.cy * W + c.cx] !== Terrain.Road).slice(0, HIGHWAY.maxCells);
+      // só até a borda do que o país já conhece (05/11): a regra do jogador vale para a IA
+      const known = route.findIndex((c) => !sim.knownCell(this.slot, c.cx, c.cy));
+      const fresh = (known < 0 ? route : route.slice(0, known)).filter((c) => sim.map.terrain[c.cy * W + c.cx] !== Terrain.Road).slice(0, HIGHWAY.maxCells);
       if (!fresh.length) continue;
       const stone = fresh.length * HIGHWAY.stonePerCell;
       const cells = budget.stone - stone < AI_HIGHWAY_STONE_RESERVE ? fresh.slice(0, Math.floor((budget.stone - AI_HIGHWAY_STONE_RESERVE) / HIGHWAY.stonePerCell)) : fresh;

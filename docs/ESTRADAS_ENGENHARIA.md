@@ -41,6 +41,7 @@ As passagens que o mapa gera sobre rios e serras contam como vizinhas: o asfalto
 
 | Regra | Valor |
 |---|---|
+| Exploração | fora do próprio território, só em célula que o país já viu alguma vez (05/11, KAC-15): a recusa vem antes de qualquer outra checagem, com o mesmo motivo, para não revelar o que há lá. Vale para estrada e rodovia, e para a IA |
 | Terreno | planície, solo fértil ou mata, sem construção. Na mata (05/11) a árvore é derrubada: a célula vira planície, a floresta perde a madeira daquela célula e a serraria procura outra |
 | Onde | no próprio território; fora dele (terra neutra ou de país em guerra), com um Engenheiro de Combate a até 6 células |
 | Custo | 10 de pedra por célula e 0,2% do teto anual da verba de obras por célula |

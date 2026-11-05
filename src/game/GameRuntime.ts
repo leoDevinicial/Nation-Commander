@@ -2685,6 +2685,8 @@ export class GameRuntime {
   private roadCellProblem(c: { cx: number; cy: number }, occupied: Set<number>, engineers: { x: number; y: number }[]): string | null {
     const i = c.cy * this.map.width + c.cx;
     const t = this.map.terrain[i];
+    // só onde o país já explorou (o servidor confere; aqui é a prévia em vermelho)
+    if (!this.snapshot?.sandbox && this.fogState[i] === 0) return this.roadHighway ? 'Área nunca explorada: mande uma tropa ou explorador antes de traçar a rodovia' : 'Área nunca explorada: mande uma tropa ou explorador antes de traçar a estrada';
     if (this.roadHighway) {
       // rodovia: só terra própria ou neutra (as dos vizinhos se encontram no neutro)
       if (t === T.Road) return null;

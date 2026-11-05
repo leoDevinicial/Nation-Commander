@@ -2915,4 +2915,6 @@ export const ES: Dict = {
   "caixa do país sem saldo para a taxa de obra ({0})": "caja del país sin saldo para la tasa de obra ({0})",
   "Custo crescente (+{0}% por edifício do tipo, em recursos e em US$): você tem {1}; depois deste, o próximo custará {2}": "Costo creciente (+{0}% por edificio del tipo, en recursos y en US$): tienes {1}; después de este, el próximo costará {2}",
   "{0} (taxa de obra)": "{0} (tasa de obra)",
+  "Área nunca explorada: mande uma tropa ou explorador antes de traçar a rodovia": "Zona nunca explorada: envía una tropa o explorador antes de trazar la autopista",
+  "Área nunca explorada: mande uma tropa ou explorador antes de traçar a estrada": "Zona nunca explorada: envía una tropa o explorador antes de trazar la carretera",
 };

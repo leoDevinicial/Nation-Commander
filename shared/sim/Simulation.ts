@@ -1146,6 +1146,11 @@ export class Simulation {
     return !!this.explored[slot]?.[i] || !!this.visibilityOf(slot)[i];
   }
 
+  /** O jogador conhece a célula: já a explorou ou ela é do próprio território (as obras de estrada usam isto). */
+  knownCell(slot: Slot, cx: number, cy: number): boolean {
+    return this.territory[cy * this.map.width + cx] === slot || this.isExplored(slot, cx, cy);
+  }
+
   /** Soma a visão atual ao que cada jogador já explorou (a cada segundo). */
   private updateExplored(): void {
     const n = this.map.width * this.map.height;
@@ -1924,6 +1929,8 @@ export class Simulation {
     // células soltas valem (o jogador marca célula por célula ou arrasta um caminho)
     for (const c of cells) {
       if (!this.grid.inBounds(c.cx, c.cy)) return fail('Fora do mapa');
+      // KAC (05/11): como na rodovia, nada de traçar onde o país nunca viu (e antes de qualquer outra checagem)
+      if (!this.isSandbox(slot) && !this.knownCell(slot, c.cx, c.cy)) return fail('Área nunca explorada: mande uma tropa ou explorador antes de traçar a estrada');
       const i = c.cy * this.map.width + c.cx;
       const t = this.map.terrain[i]!;
       if (t === Terrain.Road || out.includes(i)) continue;
@@ -1962,6 +1969,9 @@ export class Simulation {
     for (const r of this.roads) builtBy.set(r.i, r.owner);
     for (const c of cells) {
       if (!this.grid.inBounds(c.cx, c.cy)) return fail('Fora do mapa');
+      // KAC (05/11): só onde o país já explorou, e antes de qualquer outra checagem — a resposta (motivo ou custo) não
+      // pode contar o que existe numa área que o jogador nunca viu
+      if (!this.isSandbox(slot) && !this.knownCell(slot, c.cx, c.cy)) return fail('Área nunca explorada: mande uma tropa ou explorador antes de traçar a rodovia');
       const i = c.cy * this.map.width + c.cx;
       if (out.includes(i) || this.highways.has(i)) continue;
       const owner = this.territory[i] ?? NO_OWNER;

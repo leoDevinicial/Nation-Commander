@@ -126,6 +126,9 @@ describe('Estradas do jogador', () => {
 
   it('fora do território só com Engenheiro de Combate por perto; nunca em território de nação em paz', () => {
     const { sim, cell } = setup();
+    // terra neutra nunca vista: recusada antes de qualquer outra checagem (não revela o que há lá)
+    expect(sim.applyCommand(0, { type: 'build_road', cells: line(20, 16, 20) })).toMatch(/nunca explorada/);
+    sim.explored[0] = new Uint8Array(40 * 40).fill(1);
     expect(sim.applyCommand(0, { type: 'build_road', cells: line(20, 16, 20) })).toMatch(/Engenheiro/);
     sim.addUnit('engineer', 0, cell(17, 20));
     expect(sim.applyCommand(0, { type: 'build_road', cells: line(20, 16, 20) })).toBeNull();
