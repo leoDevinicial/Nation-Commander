@@ -48,7 +48,7 @@ import { ZONING, type ZoneKind } from '../../../shared/sim/zoning.ts';
 import { CardButton, usdDay } from './CardButton.tsx';
 import { Frame } from '../components/Frame.tsx';
 import { buildingDayUsd } from '../../../shared/strategic/treasury.ts';
-import { Factory, Landmark, Star, Swords, TriangleAlert, Undo2, Zap, type LucideIcon } from 'lucide-react';
+import { ArrowBigUp, Brain, Check, CircleDot, Cog, Construction, Crosshair, Eraser, Factory, Globe, GraduationCap, Grid3x3, HardHat, Hospital, Hourglass, House, Landmark, type LucideIcon, Milestone, Pickaxe, RadioTower, Rocket, Route, RouteOff, Satellite, Shield, Siren, Square, Star, Store, Swords, Target, Telescope, TriangleAlert, Truck, Undo2, X, Zap } from 'lucide-react';
 import { AirbaseButtons, AirbaseInfo, CarrierButtons, DomeInfo, HoldToConfirm, SiloButtons, SiloInfo, SubMissileButtons, airTargetText } from './AirPanels.tsx';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
@@ -258,10 +258,10 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
       <div className="scroll-thin flex shrink-0 gap-1.5 overflow-x-auto pt-1 sm:grid sm:grid-cols-4 sm:content-start sm:overflow-x-visible sm:overflow-y-auto xl:grid-cols-6 [@media(max-height:520px)]:grid [@media(max-height:520px)]:grid-cols-4 [@media(max-height:520px)]:content-start [@media(max-height:520px)]:overflow-y-auto">
         {units.length > 0 && mode.kind === 'normal' && (
           <>
-            <CardButton icon="⚔" hotkey="F" label="Avançar atacando" onClick={() => runtime.startAttackMove()} title="Avançar atacando (F)" />
-            <CardButton icon="■" hotkey="X" label="Parar" onClick={() => runtime.stopSelected()} title="Parar (X)" />
+            <CardButton icon={<Swords size={20} />} hotkey="F" label="Avançar atacando" onClick={() => runtime.startAttackMove()} title="Avançar atacando (F)" />
+            <CardButton icon={<Square size={20} />} hotkey="X" label="Parar" onClick={() => runtime.stopSelected()} title="Parar (X)" />
             <CardButton
-              icon="⛌"
+              icon={<RouteOff size={20} />}
               label="Atacar estrada"
               onClick={() => runtime.startAttackRoad()}
               title="Atacar uma célula de estrada ou rodovia de quem está em guerra com você. As tropas nunca fazem isso sozinhas. Destruída, a célula some: corta a energia que passava por ela, as caravanas e a rota dos caminhões de carga."
@@ -273,11 +273,11 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           </>
         )}
         {mode.kind === 'place' && touch && (
-          <CardButton thumb={thumbs[mode.buildingType]} icon="✔" label="Confirmar" disabled={!mode.valid} onClick={() => runtime.confirmPlacement()} title="Construir na posição marcada" />
+          <CardButton thumb={thumbs[mode.buildingType]} icon={<Check size={20} />} label="Confirmar" disabled={!mode.valid} onClick={() => runtime.confirmPlacement()} title="Construir na posição marcada" />
         )}
         {mode.kind === 'air_target' && mode.purpose === 'missile' && (
           <CardButton
-            icon="⌖"
+            icon={<Crosshair size={20} />}
             label="Confirmar alvo"
             disabled={!mode.target}
             onClick={() => runtime.confirmAirTarget()}
@@ -286,22 +286,22 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
         )}
         {mode.kind === 'road' && (
           <>
-            <CardButton icon="✔" hotkey="Enter" label="Construir" disabled={mode.cells === 0} onClick={() => runtime.confirmRoad()} title="Pavimenta as células marcadas em verde (Enter)" />
-            <CardButton icon="⌫" label="Limpar" disabled={mode.marked === 0} onClick={() => runtime.clearRoad()} title="Desmarca todas as células sem sair da ferramenta" />
+            <CardButton icon={<Check size={20} />} hotkey="Enter" label="Construir" disabled={mode.cells === 0} onClick={() => runtime.confirmRoad()} title="Pavimenta as células marcadas em verde (Enter)" />
+            <CardButton icon={<Eraser size={20} />} label="Limpar" disabled={mode.marked === 0} onClick={() => runtime.clearRoad()} title="Desmarca todas as células sem sair da ferramenta" />
           </>
         )}
         {mode.kind === 'zone' &&
           ZONE_BRUSHES.map((z) => (
             <CardButton
               key={z.id}
-              icon={z.icon}
+              icon={<z.icon size={20} />}
               label={z.label}
               badge={mode.brush === z.id ? '●' : undefined}
               onClick={() => runtime.startZone(z.id)}
               title={z.title}
             />
           ))}
-        {mode.kind !== 'normal' && <CardButton icon="✖" hotkey="Esc" label="Cancelar" onClick={() => runtime.cancelMode()} title="Cancelar (Esc)" />}
+        {mode.kind !== 'normal' && <CardButton icon={<X size={20} />} hotkey="Esc" label="Cancelar" onClick={() => runtime.cancelMode()} title="Cancelar (Esc)" />}
         {command && mode.kind === 'normal' && runtime.battleOp === null && (
           <div className="flex shrink-0 flex-col gap-0 sm:col-span-4 sm:flex-row xl:col-span-6 [@media(max-height:520px)]:col-span-4 [@media(max-height:520px)]:flex-row" role="tablist" aria-label="Categorias de construção">
             {BUILD_TABS.map((t) => (
@@ -332,7 +332,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
         {building?.type === 'hq' && mode.kind === 'normal' && runtime.battleOp === null && <EraButton runtime={runtime} />}
         {command && mode.kind === 'normal' && runtime.battleOp === null && buildTab === 'civic' && (
           <CardButton
-            icon="▤"
+            icon={<Route size={20} />}
             label="Estrada"
             onClick={() => runtime.startRoad()}
             title={`Estrada: arraste na grade para pavimentar até ${ROAD.maxCells} células por vez, dentro do território (fora dele, só com um Engenheiro de Combate por perto).\nCusto: ${ROAD.stonePerCell} de pedra por célula e verba de obras; manutenção pequena em suprimentos.\nTropas e comboios andam ${Math.round((ROAD.convoyMul - 1) * 100)}% mais rápido; moradias ligadas à estrada dão aprovação (bairro pavimentado).`}
@@ -340,7 +340,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
         )}
         {command && mode.kind === 'normal' && runtime.battleOp === null && buildTab === 'civic' && (
           <CardButton
-            icon="🛣"
+            icon={<Milestone size={20} />}
             label="Rodovia"
             blocked={!techs.includes('road_engineering')}
             locked={!techs.includes('road_engineering')}
@@ -355,7 +355,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
         )}
         {command && mode.kind === 'normal' && runtime.battleOp === null && buildTab === 'civic' && (
           <CardButton
-            icon="▦"
+            icon={<Grid3x3 size={20} />}
             label="Zoneamento"
             onClick={() => runtime.startZone('res')}
             title={`Zoneamento: pinte células a até ${ZONING.reach} das suas estradas como residenciais, comerciais ou industriais. Nada é construído na hora: casas, lojas e indústrias privadas aparecem aos poucos conforme a demanda de cada cidade, pagam imposto ao caixa do país e gastam ${String(ZONING.lotPower).replace('.', ',')} de energia cada.`}
@@ -363,7 +363,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
         )}
         {command && mode.kind === 'normal' && runtime.battleOp === null && (
           <CardButton
-            icon="⛏"
+            icon={<Pickaxe size={20} />}
             label="Demolir"
             onClick={() => runtime.startDemolish()}
             title="Demolir: clique numa construção sua ou numa célula de estrada/rodovia sua para derrubar na hora (sem devolver o custo da obra; a fila de produção é devolvida). O Centro de Comando e as prefeituras não podem ser demolidos. Botão direito ou Esc sai do modo."
@@ -434,12 +434,12 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
   );
 }
 
-const ZONE_BRUSHES: { id: ZoneBrush; icon: string; label: string; title: string }[] = [
-  { id: 'res', icon: '🏠', label: 'Residencial', title: 'Casas (+1 cidadão cada) e, raramente, prédios (+5). Crescem com a cidade desenvolvida, emprego por perto, serviços, luz e imposto baixo.' },
-  { id: 'com', icon: '🏪', label: 'Comercial', title: 'Lojas, postos e escritórios. Crescem com moradores, indústrias e imposto baixo.' },
-  { id: 'ind', icon: '🏭', label: 'Industrial', title: 'Indústrias privadas. Vêm com economia boa, aprovação alta e imposto industrial baixo.' },
-  { id: 'erase', icon: '⌫', label: 'Apagar', title: 'Tira a zona das células sem lote.' },
-  { id: 'demolish', icon: '🧨', label: 'Demolir', title: 'Demole lotes seus (os abandonados precisam ser demolidos para a zona voltar a crescer).' },
+const ZONE_BRUSHES: { id: ZoneBrush; icon: LucideIcon; label: string; title: string }[] = [
+  { id: 'res', icon: House, label: 'Residencial', title: 'Casas (+1 cidadão cada) e, raramente, prédios (+5). Crescem com a cidade desenvolvida, emprego por perto, serviços, luz e imposto baixo.' },
+  { id: 'com', icon: Store, label: 'Comercial', title: 'Lojas, postos e escritórios. Crescem com moradores, indústrias e imposto baixo.' },
+  { id: 'ind', icon: Factory, label: 'Industrial', title: 'Indústrias privadas. Vêm com economia boa, aprovação alta e imposto industrial baixo.' },
+  { id: 'erase', icon: Eraser, label: 'Apagar', title: 'Tira a zona das células sem lote.' },
+  { id: 'demolish', icon: Pickaxe, label: 'Demolir', title: 'Demole lotes seus (os abandonados precisam ser demolidos para a zona voltar a crescer).' },
 ];
 
 /** Ferramenta de zoneamento: como usar, impostos por setor e a demanda de cada cidade (barras R, C e I). */
@@ -454,7 +454,7 @@ function ZoneInfo({ mode, touch, runtime }: { mode: Extract<ReturnType<typeof us
   ];
   return (
     <div className="text-xs">
-      <ModeHint title={`Zoneamento · ${brush.icon} ${brush.label}`} text={`${brush.title} ${how}`} bad={false} />
+      <ModeHint title={`Zoneamento · ${brush.label}`} text={`${brush.title} ${how}`} bad={false} />
       {mode.bad > 0 && mode.reason && <div className="mt-1 text-signal-red">{mode.reason}</div>}
       {zoning && (
         <>
@@ -491,9 +491,9 @@ function ZoneInfo({ mode, touch, runtime }: { mode: Extract<ReturnType<typeof us
                   </span>
                 ))}
                 <span className="text-[10px] text-ink-400" title="Delegacia · escola/universidade · hospital na cidade">
-                  {c.services.police ? '👮' : '·'}
-                  {c.services.school ? '🎓' : '·'}
-                  {c.services.hospital ? '🏥' : '·'}
+                  {c.services.police ? <Siren size={11} className="inline-block align-[-2px]" aria-hidden /> : '·'}
+                  {c.services.school ? <GraduationCap size={11} className="inline-block align-[-2px]" aria-hidden /> : '·'}
+                  {c.services.hospital ? <Hospital size={11} className="inline-block align-[-2px]" aria-hidden /> : '·'}
                 </span>
                 {c.abandoned > 0 && <span className="text-[10px] text-signal-red">{c.abandoned} abandonado(s)</span>}
               </div>
@@ -548,7 +548,7 @@ function EngineerButtons({ runtime }: { runtime: GameRuntime }) {
   return (
     <>
       <CardButton
-        icon="✸"
+        icon={<CircleDot size={20} />}
         label="Instalar mina"
         blocked={full || !afford}
         short={full ? 'limite' : !afford ? 'recursos' : null}
@@ -563,7 +563,7 @@ function EngineerButtons({ runtime }: { runtime: GameRuntime }) {
         <CostLabel cost={MINE.cost} have={resources} compact />
       </CardButton>
       <CardButton
-        icon="▤"
+        icon={<Route size={20} />}
         label="Estrada"
         onClick={() => runtime.startRoad()}
         title={`Estrada: com o engenheiro por perto (${ROAD.engineerRange} células), dá para pavimentar fora do território — terra neutra ou de um país em guerra.\nCusto: ${ROAD.stonePerCell} de pedra por célula e verba de obras.`}
@@ -595,7 +595,7 @@ function EraButton({ runtime }: { runtime: GameRuntime }) {
   if (me.eraAdvance)
     return (
       <CardButton
-        icon="⏳"
+        icon={<Hourglass size={20} />}
         label={eraTitle(me.eraAdvance.to)}
         badge={`${Math.round(me.eraAdvance.progress * 100)}%`}
         onClick={() => runtime.send({ type: 'cancel_era' })}
@@ -624,7 +624,7 @@ function EraButton({ runtime }: { runtime: GameRuntime }) {
   ];
   return (
     <CardButton
-      icon="🏛"
+      icon={<Landmark size={20} />}
       label={eraTitle(to)}
       blocked={blocker !== null}
       short={blocker}
@@ -642,11 +642,11 @@ function EraButton({ runtime }: { runtime: GameRuntime }) {
 function SpaceButtons({ runtime, b }: { runtime: GameRuntime; b: SelectedBuilding }) {
   const sat = useHudStore((s) => !!s.players.find((p) => p.slot === s.mySlot)?.satellite);
   const launch = useHudStore((s) => s.spaceLaunch);
-  if (sat) return <CardButton icon="🛰" label="Satélite em órbita" disabled onClick={() => {}} title="O satélite já está em órbita: o mapa inteiro fica visível em tempo real." />;
+  if (sat) return <CardButton icon={<Satellite size={20} />} label="Satélite em órbita" disabled onClick={() => {}} title="O satélite já está em órbita: o mapa inteiro fica visível em tempo real." />;
   if (launch && launch.id === b.id)
     return (
       <CardButton
-        icon="🚀"
+        icon={<Rocket size={20} />}
         label={launch.phase === 'countdown' ? `Contagem ${Math.max(0, Math.ceil(SPACE.countdownSeconds * (1 - launch.progress)))}` : 'Subindo'}
         disabled
         onClick={() => {}}
@@ -666,7 +666,7 @@ function WarStatus({ owner, mySlot }: { owner: number; mySlot: number }) {
     <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-ink-400">
       Sem guerra declarada: nenhum dos lados pode atacar.
       <button className="btn min-h-7 px-2 py-0.5 text-[11px]" onClick={() => useNationalStore.getState().openGlobe(country ?? null)}>
-        🌐 Abrir no Globo
+        <Globe size={12} className="inline-block align-[-2px]" aria-hidden /> Abrir no Globo
       </button>
     </div>
   );
@@ -681,7 +681,7 @@ function UpgradeButton({ runtime, b }: { runtime: GameRuntime; b: NonNullable<Re
     return (
       <CardButton
         thumb={thumb}
-        icon="🏗"
+        icon={<Construction size={20} />}
         label={`Obra Nv ${b.upgrade.toLevel}`}
         onClick={open}
         title="Obra de melhoria em andamento — abrir detalhes ou cancelar"
@@ -695,8 +695,8 @@ function UpgradeButton({ runtime, b }: { runtime: GameRuntime; b: NonNullable<Re
   return (
     <CardButton
       thumb={thumb}
-      icon="⬆"
-      label={max ? 'Nível máximo' : `⬆ Nível ${b.level + 1}`}
+      icon={<ArrowBigUp size={20} />}
+      label={max ? 'Nível máximo' : `Nível ${b.level + 1}`}
       onClick={open}
       title={max ? 'Nível máximo atingido' : `Melhorar para o nível ${b.level + 1}${plan?.blocker ? `\n${plan.blocker}` : ''}`}
       badge={`Nv ${b.level}`}
@@ -813,7 +813,7 @@ function ProduceButtons({ runtime, b }: { runtime: GameRuntime; b: SelectedBuild
         );
       })}
       <CardButton
-        icon="↶"
+        icon={<Undo2 size={20} />}
         hotkey="Del"
         label="Cancelar último"
         disabled={b.queue.length === 0}
@@ -887,7 +887,7 @@ function ResearchButtons({ runtime, b }: { runtime: GameRuntime; b: SelectedBuil
             {!isDone && !current && <CostLabel cost={def.cost} have={resources} compact />}
             {!isDone && !current && !sandbox && (
               <span className="text-[10px] text-ink-300">
-                <span className={kpShort ? 'text-red-300' : ''}>🧠 {kp}</span> · <span className={noUsd ? 'text-red-300' : ''}>{usdShort(usd)}</span>
+                <span className={kpShort ? 'text-red-300' : ''}><Brain size={11} className="inline-block align-[-1px] text-[#b9a4f2]" aria-hidden /> {kp}</span> · <span className={noUsd ? 'text-red-300' : ''}>{usdShort(usd)}</span>
               </span>
             )}
             {current && <span className="text-[10px] text-brass-400">cancelar</span>}
@@ -1037,7 +1037,12 @@ function dayText(d: { produce: number; area: number; service: number; energy: nu
   return `Saldo no caixa do país: ${d.net >= 0 ? '+' : '−'}$${usdDay(d.net)}/dia (${parts.join(' · ')})${d.produce > 0 ? ' — produção estimada' : ''}`;
 }
 
-const AREA_ICON: Record<string, string> = { Blindagem: '🛡', Precisão: '🎯', Comunicações: '📡', Detecção: '🔭', 'Mobilidade e logística': '⚙' };
+const AREA_ICON: Record<string, LucideIcon> = { Blindagem: Shield, Precisão: Target, Comunicações: RadioTower, Detecção: Telescope, 'Mobilidade e logística': Cog };
+
+function AreaIcon({ area, size }: { area: string; size: number }) {
+  const Icon = AREA_ICON[area] ?? ArrowBigUp;
+  return <Icon size={size} className="inline-block align-[-2px]" aria-hidden />;
+}
 
 /**
  * Botões de modernização da seleção (Fase 5): um por pacote liberado que alguma unidade ainda não
@@ -1059,7 +1064,7 @@ function ModernizeButtons({ runtime }: { runtime: GameRuntime }) {
         return (
           <CardButton
             key={o.mod}
-            icon={AREA_ICON[def.area] ?? '⬆'}
+            icon={<AreaIcon area={def.area} size={20} />}
             label={def.label}
             blocked={blocked}
             short={o.short}
@@ -1080,7 +1085,7 @@ function ModernizeButtons({ runtime }: { runtime: GameRuntime }) {
       })}
       {refitting > 0 && (
         <CardButton
-          icon="↶"
+          icon={<Undo2 size={20} />}
           label="Cancelar moderniz."
           onClick={() => runtime.cancelModernize()}
           title={`Cancelar a modernização de ${refitting} unidade(s) — devolve metade dos materiais e da verba`}
@@ -1096,7 +1101,7 @@ function ModChip({ mod }: { mod: ModId }) {
   const def = MODS[mod];
   return (
     <span className="rounded border border-signal-blue/40 bg-signal-blue/10 px-1 text-[10px] text-ink-100" title={`${def.label} (${def.area}) — pesquisa: ${TECHNOLOGIES[def.tech].label}`}>
-      {AREA_ICON[def.area]} {def.label}
+      <AreaIcon area={def.area} size={11} /> {def.label}
     </span>
   );
 }
@@ -1326,7 +1331,9 @@ function BuildersLine({ b, runtime }: { b: { id: number; builders?: number; buil
   return (
     <div className="mt-1.5 text-xs">
       <div className="flex items-center gap-2">
-        <span className="text-ink-400">👷 Construtores</span>
+        <span className="text-ink-400">
+          <HardHat size={12} className="inline-block align-[-2px]" aria-hidden /> Construtores
+        </span>
         <button className="btn min-h-7 px-2 py-0 text-xs" aria-label="Menos construtores" disabled={target <= 1} onClick={() => runtime.send({ type: 'set_builders', buildingId: b.id, count: target - 1 })}>
           −
         </button>
@@ -1350,14 +1357,16 @@ function PowerUseLine({ b }: { b: { type: BuildingType; owner: number; unpowered
   const dark = rule.stops ? 'para sem luz' : rule.slows ? 'rende metade sem luz' : 'fica no escuro sem luz';
   return (
     <div className={`text-[11px] ${b.unpowered ? 'text-red-300' : 'text-ink-400'}`} title="O consumo cresce a cada era. Ligue a construção à rede (estradas, usinas e QG) e mantenha a geração acima da demanda.">
-      ⚡ Consome {powerUse(b.type, effectiveEra(me))} de energia · {b.unpowered ? 'SEM LUZ agora' : dark}
+      <Zap size={12} className="inline-block align-[-2px]" aria-hidden /> Consome {powerUse(b.type, effectiveEra(me))} de energia · {b.unpowered ? 'SEM LUZ agora' : dark}
     </div>
   );
 }
 
 function CaravanInfo({ cityId }: { cityId: number }) {
   const c = useHudStore((s) => s.caravans.find((x) => x.cityId === cityId));
-  if (!c) return <div className="text-[11px] text-ink-400">🚚 Caravana: saindo do Centro de Comando…</div>;
+  if (!c) return <div className="text-[11px] text-ink-400">
+        <Truck size={12} className="inline-block align-[-2px]" aria-hidden /> Caravana: saindo do Centro de Comando…
+      </div>;
   const income = c.income ? ` · +${c.income} suprimentos por chegada` : '';
   const text =
     c.state === 'moving'
@@ -1369,7 +1378,7 @@ function CaravanInfo({ cityId }: { cityId: number }) {
           : `destruída por forças inimigas; outra sai do Centro de Comando em ${c.waitSeconds ?? 0} s`;
   return (
     <div className={`text-[11px] ${c.state === 'destroyed' || c.state === 'no_road' ? 'text-amber-300' : 'text-ink-400'}`} title="A caravana só anda por estrada: ligue a prefeitura ao Centro de Comando com uma estrada contínua (ferramenta Estrada). Rende mais com rota longa. Tropas e torres inimigas destroem a caravana no caminho.">
-      🚚 Caravana: {text}
+      <Truck size={12} className="inline-block align-[-2px]" aria-hidden /> Caravana: {text}
     </div>
   );
 }

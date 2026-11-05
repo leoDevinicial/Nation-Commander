@@ -2855,4 +2855,8 @@ export const ES: Dict = {
   "🚚 Caravana: saindo do Centro de Comando…": "🚚 Caravana: saliendo del Centro de Mando…",
   "🛰 Satélite em órbita! O mapa inteiro está visível em tempo real (só as minas continuam escondidas). Orgulho nacional: aprovação em alta.": "🛰 ¡Satélite en órbita! Todo el mapa está visible en tiempo real (solo las minas siguen ocultas). Orgullo nacional: aprobación en alza.",
   "🛰 {0} pôs um satélite em órbita: vê todo o teatro de operações em tempo real.": "🛰 {0} puso un satélite en órbita: ve todo el teatro de operaciones en tiempo real.",
+  "Abrir no Globo": "Abrir en el Globo",
+  "Consome": "Consume",
+  "Caravana: saindo do Centro de Comando…": "Caravana: saliendo del Centro de Mando…",
+  "Construtores": "Constructores",
 };

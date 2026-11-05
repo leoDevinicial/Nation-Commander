@@ -27,7 +27,7 @@ export function CardButton({
   children,
 }: {
   thumb?: string;
-  icon?: string;
+  icon?: React.ReactNode;
   hotkey?: string;
   label: string;
   title: string;
@@ -68,7 +68,7 @@ export function CardButton({
         </span>
       )}
       <span className="cmd-card-view" aria-hidden>
-        {thumb ? <img src={thumb} alt="" draggable={false} /> : <span className="text-xl text-ink-200">{icon}</span>}
+        {thumb ? <img src={thumb} alt="" draggable={false} /> : <span className="cmd-card-icon">{icon}</span>}
       </span>
       <span className="cmd-card-label">{label}</span>
       {children}

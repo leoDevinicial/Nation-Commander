@@ -60,7 +60,7 @@ export function BudgetTab({ nation, onApply, balanceMode }: { nation: NationView
                 value={v}
                 onChange={(e) => set(r.key, Number(e.target.value))}
                 onKeyDown={(e) => e.stopPropagation()}
-                className="w-full accent-[#4ca3e0]"
+                className="w-full accent-[#e2b54d]"
               />
               <div className="flex justify-between text-[10px] text-ink-400">
                 <span>{r.hint}</span>

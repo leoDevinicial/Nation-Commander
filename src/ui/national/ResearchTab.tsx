@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Brain, Factory, Landmark, Pickaxe, Swords } from 'lucide-react';
 import type { NationView } from '../../../shared/protocol.ts';
 import {
   TECH_CATEGORIES,
@@ -26,6 +27,9 @@ const CATEGORY_ORDER: TechCategory[] = ['military', 'state', 'industry', 'resour
  * pesquisa libera. Pesquisas militares liberam pacotes de modernização: as tropas só ganham o
  * benefício depois de modernizadas numa instalação (painel de comando das unidades).
  */
+/** Ícone de cada área de pesquisa (Sala de Situação: sem emojis). */
+const CATEGORY_ICON = { military: Swords, industry: Factory, resources: Pickaxe, state: Landmark } as const;
+
 export function ResearchTab({ nation, onSelect }: { nation: NationView; onSelect: (id: TechId | null) => void }) {
   const r = nation.research;
   const scale = r.usdScale ?? 1;
@@ -105,11 +109,16 @@ function AreaTree({ nation, onSelect }: { nation: NationView; onSelect: (id: Tec
               key={cat}
               role="tab"
               aria-selected={area === cat}
-              className={`rounded border px-2 py-1.5 text-left ${area === cat ? 'border-signal-blue bg-ink-850' : 'border-ink-700 bg-ink-900 hover:border-ink-600'}`}
+              className={`border px-2 py-1.5 text-left ${area === cat ? 'border-brass-400/70 bg-brass-400/10 shadow-[inset_0_0_0_1px_rgb(226_181_77/0.2)]' : 'border-white/10 bg-white/[0.03] hover:border-white/25'}`}
+              style={{ clipPath: 'polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)' }}
               onClick={() => setArea(cat)}
             >
-              <div className="font-semibold text-ink-100">
-                {TECH_CATEGORIES[cat].icon} {TECH_CATEGORIES[cat].label}
+              <div className="flex items-center gap-1.5 font-semibold text-ink-100">
+                {(() => {
+                  const Icon = CATEGORY_ICON[cat as keyof typeof CATEGORY_ICON] ?? Landmark;
+                  return <Icon size={14} className={area === cat ? 'text-brass-400' : 'text-ink-300'} aria-hidden />;
+                })()}
+                {TECH_CATEGORIES[cat].label}
               </div>
               <div className="text-[10px] text-ink-400">
                 {done}/{all.length} concluídas{running ? ' · ▶ em andamento' : open ? ` · ${open} disponíve${open > 1 ? 'is' : 'l'}` : ''}
@@ -168,7 +177,7 @@ function AreaTree({ nation, onSelect }: { nation: NationView; onSelect: (id: Tec
                 <div className="line-clamp-2 text-[10px] leading-tight text-ink-400">{t.unlocks[0] ?? t.description}</div>
                 {state !== 'done' && (
                   <div className="truncate text-[9px] text-ink-300">
-                    🧠 {techKnowledge(id)}
+                    <Brain size={11} className="inline-block align-[-1px] text-[#b9a4f2]" aria-hidden /> {techKnowledge(id)}
                     {t.minEra ? ` · era ${t.minEra}` : ''}
                   </div>
                 )}
@@ -272,7 +281,7 @@ function TechCard({ id, nation, onSelect }: { id: TechId; nation: NationView; on
           </div>
           <div className="mt-1 grid grid-cols-2 gap-x-3 text-[10px] text-ink-400 sm:grid-cols-4">
             <span>Custo: {formatUsd(dailyUsd)}/dia do caixa</span>
-            <span>Conhecimento: 🧠 {techKnowledge(id)}{kpPaid ? ' (pago)' : ''}</span>
+            <span>Conhecimento: <Brain size={11} className="inline-block align-[-1px] text-[#b9a4f2]" aria-hidden /> {techKnowledge(id)}{kpPaid ? ' (pago)' : ''}</span>
             <span>Investido: {formatUsd(invested)}</span>
             <span>Falta: {formatUsd(totalUsd * (1 - progress))}</span>
             <span>Prazo: {t.minDays} dias (total {formatUsd(totalUsd)})</span>

@@ -3118,4 +3118,9 @@ export const EN: Dict = {
   "🛰 Satélite em órbita! O mapa inteiro está visível em tempo real (só as minas continuam escondidas). Orgulho nacional: aprovação em alta.": "🛰 Satellite in orbit! The whole map is visible in real time (only mines stay hidden). National pride: approval rising.",
   "🛰 {0} pôs um satélite em órbita: vê todo o teatro de operações em tempo real.": "🛰 {0} put a satellite in orbit: it sees the whole theater of operations in real time.",
   "🧪 Modo Sandbox": "🧪 Sandbox Mode",
+  "Abrir no Globo": "Open on the Globe",
+  "Consome": "Consumes",
+  "Caravana:": "Caravan:",
+  "Caravana: saindo do Centro de Comando…": "Caravan: leaving the Command Center…",
+  "Construtores": "Builders",
 };

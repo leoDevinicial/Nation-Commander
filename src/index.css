@@ -493,6 +493,9 @@ select {
   -webkit-box-orient: vertical;
 }
 .cmd-card > .font-mono, .cmd-card > span:not([class]) { padding: 0 5px; }
+.cmd-card-icon { display: flex; align-items: center; justify-content: center; color: var(--color-brass-400); }
+.cmd-card:disabled .cmd-card-icon, .cmd-card.is-locked .cmd-card-icon { color: var(--color-ink-400); }
+
 .cmd-card-short {
   padding: 0 5px;
   font-size: 0.58rem;
@@ -568,6 +571,9 @@ select {
 @media (prefers-reduced-motion: reduce) {
   .nc-event, .nc-cine-band { animation: none; }
 }
+
+/* controles deslizantes e caixas de marcar no latão de comando */
+input[type="range"], input[type="checkbox"], input[type="radio"] { accent-color: var(--color-brass-400); }
 
 /* abas do menu de construção: sublinhado de latão na ativa (Sala de Situação) */
 .nc-tab {

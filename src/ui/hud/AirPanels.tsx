@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Bomb, Crosshair, OctagonX, Package, PersonStanding, Plane, Radiation, Rocket, Send, Target, Telescope, type LucideIcon } from 'lucide-react';
 import { UNITS, canAfford, emptyStockpile } from '../../../shared/sim/config.ts';
 import { useMyBonus } from '../../state/myCountry.ts';
 import { DRONE } from '../../../shared/sim/drones.ts';
@@ -14,7 +15,12 @@ import { audio } from '../../game/audio/AudioService.ts';
 import { effectiveEra, effectiveFund, effectiveTechs, timeText } from '../../state/sandbox.ts';
 import { AIRCRAFT_ERA } from '../../../shared/sim/eras.ts';
 
-const ICON: Record<AircraftType, string> = { fighter: '✈', bomber: '💣', recon: '🔭', transport: '📦', drone: '🛩', airlifter: '🪂' };
+const ICON: Record<AircraftType, LucideIcon> = { fighter: Plane, bomber: Bomb, recon: Telescope, transport: Package, drone: Send, airlifter: PersonStanding };
+
+function CraftIcon({ type, size }: { type: AircraftType; size: number }) {
+  const Icon = ICON[type];
+  return <Icon size={size} className="inline-block align-[-2px]" aria-hidden />;
+}
 const SHORT: Record<AircraftType, string> = { fighter: 'Caça', bomber: 'Bombardeiro', recon: 'Reconhecimento', transport: 'Cargueiro', drone: 'Drone', airlifter: 'C-5 Galaxy' };
 const STATE: Record<AircraftState, string> = {
   building: 'em produção',
@@ -82,7 +88,7 @@ export function AirbaseInfo({ b }: { b: SelectedBuildingInfo }) {
               key={a.id}
               className={`rounded border px-1.5 py-0.5 text-[11px] ${a.state === 'ready' ? 'border-signal-green/50 text-ink-100' : a.state === 'grounded' ? 'border-red-400/60 text-red-300' : 'border-ink-600 text-ink-300'}`}
             >
-              {ICON[a.type]} {SHORT[a.type]} · {STATE[a.state]} {(a.state === 'building' || a.state === 'maintenance') && <Bar value={a.progress} />}
+              <CraftIcon type={a.type} size={11} /> {SHORT[a.type]} · {STATE[a.state]} {(a.state === 'building' || a.state === 'maintenance') && <Bar value={a.progress} />}
             </li>
           ))}
         </ul>
@@ -132,7 +138,7 @@ export function AirbaseButtons({ b, runtime }: { b: SelectedBuildingInfo; runtim
         return (
           <CardButton
             key={t}
-            icon={ICON[t]}
+            icon={<CraftIcon type={t} size={20} />}
             label={SHORT[t]}
             blocked={blocker !== null}
             short={blocker}
@@ -147,7 +153,7 @@ export function AirbaseButtons({ b, runtime }: { b: SelectedBuildingInfo; runtim
         );
       })}
       <CardButton
-        icon="🔭"
+        icon={<Telescope size={20} />}
         label="Reconhecer área"
         blocked={recon.length === 0}
         short={recon.length === 0 ? 'nenhum pronto' : null}
@@ -155,7 +161,7 @@ export function AirbaseButtons({ b, runtime }: { b: SelectedBuildingInfo; runtim
         title={`Reconhecimento: escolha um ponto no alcance. Revela a área por ${AIR.reconSeconds}s e registra os edifícios inimigos vistos (alvos de ataque).`}
       />
       <CardButton
-        icon="🎯"
+        icon={<Target size={20} />}
         label="Ataque aéreo"
         blocked={strikeBlock !== null}
         short={strikeBlock}
@@ -164,7 +170,7 @@ export function AirbaseButtons({ b, runtime }: { b: SelectedBuildingInfo; runtim
       />
       {hasDrones && (
         <CardButton
-          icon="🛩"
+          icon={<Send size={20} />}
           label="Lançar drone"
           blocked={drones.length === 0}
           short={drones.length === 0 ? 'nenhum pronto' : null}
@@ -174,7 +180,7 @@ export function AirbaseButtons({ b, runtime }: { b: SelectedBuildingInfo; runtim
       )}
       {hasBombers && (
         <CardButton
-          icon="💣"
+          icon={<Bomb size={20} />}
           label="Bombardeio"
           blocked={bombBlock !== null}
           short={bombBlock}
@@ -184,7 +190,7 @@ export function AirbaseButtons({ b, runtime }: { b: SelectedBuildingInfo; runtim
       )}
       {planes.some((a) => a.type === 'airlifter') && (
         <CardButton
-          icon="🪂"
+          icon={<PersonStanding size={20} />}
           label="Paraquedistas"
           blocked={ready('airlifter').length === 0}
           short={ready('airlifter').length === 0 ? 'nenhum C-5 pronto' : null}
@@ -211,7 +217,7 @@ export function CarrierButtons({ unitId, runtime }: { unitId: number; runtime: G
   return (
     <>
       <CardButton
-        icon="✈"
+        icon={<Plane size={20} />}
         label={`Repor caça (${planes.length}/${max})`}
         blocked={buildBlock !== null}
         short={buildBlock}
@@ -221,7 +227,7 @@ export function CarrierButtons({ unitId, runtime }: { unitId: number; runtime: G
         <CostLabel cost={def.cost} have={ctx.resources} compact />
       </CardButton>
       <CardButton
-        icon="🎯"
+        icon={<Target size={20} />}
         label="Ataque aéreo"
         blocked={strikeBlock !== null}
         short={strikeBlock}
@@ -335,7 +341,7 @@ export function SiloButtons({ b, runtime }: { b: SelectedBuildingInfo; runtime: 
   return (
     <>
       <CardButton
-        icon="🚀"
+        icon={<Rocket size={20} />}
         label="Produzir míssil"
         blocked={buildBlock !== null}
         short={buildBlock}
@@ -346,7 +352,7 @@ export function SiloButtons({ b, runtime }: { b: SelectedBuildingInfo; runtime: 
       </CardButton>
       {!active && (
         <CardButton
-          icon="⌖"
+          icon={<Crosshair size={20} />}
           label="Preparar lançamento"
           blocked={prepBlock !== null}
           short={prepBlock}
@@ -356,7 +362,7 @@ export function SiloButtons({ b, runtime }: { b: SelectedBuildingInfo; runtime: 
       )}
       {hasNukeTech && (
         <CardButton
-          icon="☢"
+          icon={<Radiation size={20} />}
           label="Ogiva nuclear"
           blocked={nukeBuildBlock !== null}
           short={nukeBuildBlock}
@@ -368,7 +374,7 @@ export function SiloButtons({ b, runtime }: { b: SelectedBuildingInfo; runtime: 
       )}
       {!active && nukes > 0 && (
         <CardButton
-          icon="☢"
+          icon={<Radiation size={20} />}
           label="Lançamento nuclear"
           blocked={nukePrepBlock !== null}
           short={nukePrepBlock}
@@ -377,7 +383,7 @@ export function SiloButtons({ b, runtime }: { b: SelectedBuildingInfo; runtime: 
         />
       )}
       {active && (active.state === 'preparing' || active.state === 'armed') && (
-        <CardButton icon="⏹" label="Abortar" onClick={() => runtime.send({ type: 'missile_abort', launchId: active.id })} title="Aborta o lançamento: o míssil volta ao silo." />
+        <CardButton icon={<OctagonX size={20} />} label="Abortar" onClick={() => runtime.send({ type: 'missile_abort', launchId: active.id })} title="Aborta o lançamento: o míssil volta ao silo." />
       )}
       {active?.state === 'armed' && <HoldToConfirm label="Autorizar lançamento" onConfirm={() => runtime.send({ type: 'missile_authorize', launchId: active.id })} />}
     </>
@@ -460,7 +466,7 @@ export function HoldToConfirm({ label, onConfirm, ms = 1500 }: { label: string; 
     >
       <span className="absolute inset-x-0 bottom-0 bg-red-600/60" style={{ height: `${p * 100}%` }} aria-hidden />
       <span className="cmd-card-view relative" aria-hidden>
-        <span className="text-xl">☢</span>
+        <Radiation size={22} />
       </span>
       <span className="cmd-card-label relative">{p >= 1 ? 'Autorizado' : 'Segure para autorizar'}</span>
     </button>
@@ -489,7 +495,7 @@ export function SubMissileButtons({ unitId, missiles, runtime }: { unitId: numbe
     <>
       {!active && (
         <CardButton
-          icon="⌖"
+          icon={<Crosshair size={20} />}
           label={`Míssil de cruzeiro (${missiles})`}
           blocked={block !== null}
           short={block}
@@ -498,7 +504,7 @@ export function SubMissileButtons({ unitId, missiles, runtime }: { unitId: numbe
         />
       )}
       {active && (active.state === 'preparing' || active.state === 'armed') && (
-        <CardButton icon="⏹" label="Abortar" onClick={() => runtime.send({ type: 'missile_abort', launchId: active.id })} title="Aborta o lançamento: o míssil volta ao submarino." />
+        <CardButton icon={<OctagonX size={20} />} label="Abortar" onClick={() => runtime.send({ type: 'missile_abort', launchId: active.id })} title="Aborta o lançamento: o míssil volta ao submarino." />
       )}
       {active?.state === 'armed' && <HoldToConfirm label="Autorizar lançamento" onConfirm={() => runtime.send({ type: 'missile_authorize', launchId: active.id })} />}
     </>

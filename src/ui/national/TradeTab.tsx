@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Plane, Ship, Truck, type LucideIcon } from 'lucide-react';
 import type { NationView } from '../../../shared/protocol.ts';
 import type { Command } from '../../../shared/sim/commands.ts';
 import type { ListingView, ShipmentView, TradeView } from '../../../shared/sim/snapshot.ts';
@@ -22,11 +23,16 @@ import { useHudStore } from '../../state/useHudStore.ts';
 
 const send = (cmd: Command) => gameClient.send({ t: 'cmd', cmd });
 const RES = (r: TradeResource) => RESOURCE_LABELS[r] ?? r;
-const MODE_ICON: Record<TransportMode, string> = {
-  road: '🚚',
-  sea: '🚢',
-  air: '✈️',
+const MODE_ICON: Record<TransportMode, LucideIcon> = {
+  road: Truck,
+  sea: Ship,
+  air: Plane,
 };
+/** Ícone do meio de transporte (Sala de Situação: sem emojis). */
+function ModeIcon({ mode }: { mode: TransportMode }) {
+  const Icon = MODE_ICON[mode];
+  return <Icon size={13} className="inline-block shrink-0 align-[-2px]" aria-hidden />;
+}
 const items = (list: readonly TradeItem[]) => list.map((i) => `${Math.round(i.quantity)} ${RES(i.resource)}`).join(' + ');
 
 const SHIP_STATE: Record<string, string> = {
@@ -79,7 +85,7 @@ export function TradeTab({ nation, mySlot, partners }: { nation: NationView; myS
               title={trade.modes[m].blocker ?? `${TRANSPORT[m].needs}. ${TRANSPORT[m].risk}`}
             >
               <div className="font-semibold">
-                {MODE_ICON[m]} {TRANSPORT[m].label}
+                <ModeIcon mode={m} /> {TRANSPORT[m].label}
               </div>
               <div className="text-[10px]">{trade.modes[m].blocker ? 'indisponível' : `${TRANSPORT[m].capacity}/viagem · ${trade.modes[m].limit} ao mesmo tempo`}</div>
             </div>
@@ -102,7 +108,7 @@ export function TradeTab({ nation, mySlot, partners }: { nation: NationView; myS
                   title={why ?? `Comprar e receber por ${TRANSPORT[m].label.toLowerCase()}`}
                   onClick={() => send({ type: 'trade_buy', listingId: l.id, mode: m })}
                 >
-                  {MODE_ICON[m]} {l.kind === 'sale' ? 'Comprar' : 'Assinar'}
+                  <ModeIcon mode={m} /> {l.kind === 'sale' ? 'Comprar' : 'Assinar'}
                 </button>
               );
             })}
@@ -326,7 +332,7 @@ function ContractCard({ c, mySlot, nameOf, tick }: { c: TradeContract; mySlot: n
           {formatUsd(c.monthlyUsd)}/mês · a cada {c.everyDays} dias
         </span>
         <span>
-          {MODE_ICON[c.mode]} {TRANSPORT[c.mode].label}
+          <ModeIcon mode={c.mode} /> {TRANSPORT[c.mode].label}
         </span>
         <span>
           Entregas: {c.deliveries}
@@ -354,7 +360,7 @@ function ShipmentRow({ s, mySlot, nameOf }: { s: ShipmentView; mySlot: number; n
   return (
     <div className="flex items-center justify-between gap-2 rounded border border-ink-800 bg-ink-900 px-2 py-1 text-[11px]">
       <span className="text-ink-200">
-        {MODE_ICON[s.mode]} {items(s.items ?? [])} {out ? '→' : '←'} {nameOf(out ? s.buyer : s.seller)} · {SHIP_STATE[s.state] ?? s.state}
+        <ModeIcon mode={s.mode} /> {items(s.items ?? [])} {out ? '→' : '←'} {nameOf(out ? s.buyer : s.seller)} · {SHIP_STATE[s.state] ?? s.state}
         {s.etaSeconds !== undefined && s.etaSeconds >= 0 && s.state !== 'waiting_capacity' ? ` · ~${s.etaSeconds} dias` : ''}
         {s.payUsd ? ` · ${formatUsd(s.payUsd)} na entrega` : ''}
         {s.reason ? <span className="text-brass-400"> · {s.reason}</span> : null}
@@ -390,7 +396,7 @@ function WorldMarket({ trade, disabled }: { trade: TradeView; disabled: string |
         <span className="ml-2 text-ink-400">Por</span>
         {TRANSPORT_MODES.map((m) => (
           <button key={m} className={`btn px-2 py-0.5 text-[11px] ${mode === m ? 'btn-primary' : ''}`} onClick={() => setMode(m)} title={trade.modes[m].world ?? TRANSPORT[m].label}>
-            {MODE_ICON[m]}
+            <ModeIcon mode={m} />
           </button>
         ))}
       </div>

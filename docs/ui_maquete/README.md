@@ -67,5 +67,10 @@ node shot.cjs hud.html ../1-tela-computador.png 1600 900 2
    nome em título, data em rótulo, botão de fechar com ícone e as 8 abas com ícone e sublinhado de latão; base subida
    para não cobrir o painel de comando. Peças compartilhadas pelas abas: `Meter` em 10 segmentos com ícone de estado e
    `StatTile` com canto chanfrado e números de instrumento. Ficha de país do Globo com os colchetes e o fechar novo.
-7. Ainda com o miolo antigo (já com fontes, botões, cores e colchetes novos): o conteúdo de cada aba nacional, o Globo
-   e o lobby.
+7. **Ícones no lugar de emojis (05/11):** os cartões de comando (avançar, parar, construir, estrada, rodovia,
+   zoneamento, demolir, mina, satélite, foguete, aviões, mísseis, abortar), os pincéis de zona, as áreas de melhoria e
+   os tipos de aeronave usam ícones Lucide em latão (`.cmd-card-icon`; cinza quando bloqueado). Áreas de pesquisa,
+   modos de rota do comércio e os textos do painel do prédio (serviços da cidade, caravana, energia, construtores,
+   Globo) também. Controles deslizantes e caixas de marcar em latão.
+8. Ainda com emojis ou miolo antigo: os ícones de reserva da fila (`producibleIcon`, só sem miniatura), dicas de
+   posicionamento, Globo, lobby, comunidade, feedback e manual.
