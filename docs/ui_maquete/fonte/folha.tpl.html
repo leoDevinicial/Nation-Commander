@@ -17,7 +17,7 @@ h3 { font: 700 18px var(--title); letter-spacing: .08em; text-transform: upperca
 .type span.l { width: 120px; font: 500 11px var(--mono); color: var(--ink-400); flex: none; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .st { font: 500 11px var(--mono); color: var(--ink-400); text-align: center; margin-top: 6px; }
-.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
 .card { position: relative; height: 172px; display: flex; flex-direction: column; background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015)); border: 1px solid var(--line); clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%); }
 .card .art { height: 64px; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 90%, rgba(59,155,227,.20), transparent 70%); border-bottom: 1px solid var(--line); }
 .card .art svg.i { width: 30px; height: 30px; stroke-width: 1.5; }
@@ -26,7 +26,7 @@ h3 { font: 700 18px var(--title); letter-spacing: .08em; text-transform: upperca
 .card.hover { border-color: rgba(226,181,77,.6); background: linear-gradient(180deg, rgba(226,181,77,.12), rgba(255,255,255,.02)); } .card.hover .art { color: var(--brass); }
 .card .miss { color: var(--bad); } .card.lock { opacity: .55; } .card.lock .art { background: repeating-linear-gradient(135deg, rgba(255,255,255,.03) 0 6px, transparent 6px 12px); color: var(--ink-400); }
 .card .li { display: flex; gap: 5px; align-items: center; font: 600 11px var(--font); color: var(--warn); padding: 0 9px 9px; margin-top: auto; } .card .li svg.i { width: 13px; height: 13px; }
-.card .up { display: flex; gap: 4px; align-items: center; padding: 0 9px 8px; font: 500 11.5px var(--mono); color: var(--ink-300); } .card .up b { color: var(--ok); font: 700 12px var(--mono); }
+.card .up { display: flex; gap: 4px; align-items: center; padding: 0 9px 8px; font: 500 11.5px var(--mono); color: var(--ink-300); } .card .up b { font: 700 12px var(--mono); } .card .up.neg { color: var(--bad); } .card .up.pos { color: var(--ok); }
 .card .ml { font: 600 11px var(--font); color: var(--bad); padding: 0 9px 6px; }
 .res { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 12px; } .res div { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 0 8px; border: 1px solid var(--line); background: rgba(255,255,255,.03); font: 600 12px var(--font); color: var(--ink-200); } .res svg.i { width: 24px; height: 24px; }
 .card .q { position: absolute; right: 7px; top: 6px; font: 700 11px var(--mono); color: #17130a; background: var(--brass); padding: 0 5px; }
@@ -94,11 +94,12 @@ h3 { font: 700 18px var(--title); letter-spacing: .08em; text-transform: upperca
     <p class="note" style="margin-top:14px">Área de toque de 34–40 px. Todo botão de ícone tem dica com o nome e a tecla.</p>
   </div><span class="brk tr"></span><span class="brk bl"></span></div>
 
-  <div class="frame box"><div class="in"><h3>Cartões de ação — os quatro estados · <span style="color:var(--ok)">$</span> manutenção por dia</h3>
+  <div class="frame box"><div class="in"><h3>Cartões de ação — estados e saldo por dia (<span style="color:var(--ok)">$ verde</span> rende · <span style="color:var(--bad)">$ vermelho</span> custa)</h3>
     <div class="cards">
-      <div><div class="card"><div class="art">{{i:house}}</div><div class="nm">Casa</div><div class="cost"><span>{{i:tree-pine}}65</span><span>{{i:mountain}}30</span></div><div class="up"><b>$</b>−7,5 mil/dia</div></div><div class="st">disponível</div></div>
-      <div><div class="card hover"><div class="art">{{i:house}}</div><div class="nm">Casa</div><div class="cost"><span>{{i:tree-pine}}65</span><span>{{i:mountain}}30</span></div><div class="up"><b>$</b>−7,5 mil/dia</div></div><div class="st">foco (mostra a dica)</div></div>
-      <div><div class="card"><div class="art">{{i:graduation-cap}}</div><div class="nm">Escola</div><div class="cost"><span>{{i:tree-pine}}180</span><span class="miss">{{i:ingot}}420</span></div><div class="ml">Faltam 100 de ferro</div><div class="up"><b>$</b>−83 mil/dia</div></div><div class="st">falta recurso (diz quanto falta)</div></div>
+      <div><div class="card"><div class="art">{{i:house}}</div><div class="nm">Casa</div><div class="cost"><span>{{i:tree-pine}}65</span><span>{{i:mountain}}30</span></div><div class="up neg"><b>$</b>−7,5 mil/dia</div></div><div class="st">disponível</div></div>
+      <div><div class="card hover"><div class="art">{{i:house}}</div><div class="nm">Casa</div><div class="cost"><span>{{i:tree-pine}}65</span><span>{{i:mountain}}30</span></div><div class="up neg"><b>$</b>−7,5 mil/dia</div></div><div class="st">foco (mostra a dica)</div></div>
+      <div><div class="card"><div class="art">{{i:graduation-cap}}</div><div class="nm">Escola</div><div class="cost"><span>{{i:tree-pine}}180</span><span class="miss">{{i:ingot}}420</span></div><div class="ml">Faltam 100 de ferro</div><div class="up neg"><b>$</b>−83 mil/dia</div></div><div class="st">falta recurso (diz quanto falta)</div></div>
+      <div><div class="card"><div class="art">{{i:wheat}}</div><div class="nm">Fazenda</div><div class="cost"><span>{{i:tree-pine}}90</span><span>{{i:mountain}}40</span></div><div class="up pos"><b>$</b>+21 mil/dia</div></div><div class="st">produtor: rende mais do que custa</div></div>
       <div><div class="card lock"><div class="art">{{i:lock}}</div><div class="nm">Programa Espacial</div><div class="li">{{i:triangle-alert}}QG nível 9</div></div><div class="st">bloqueado (diz o que pede)</div></div>
     </div>
   </div><span class="brk tr"></span><span class="brk bl"></span></div>

@@ -107,7 +107,8 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 .card .cost span { display: inline-flex; align-items: center; gap: 3px; font: 500 12px var(--mono); color: var(--ink-200); }
 .card .cost svg.i { width: 13px; height: 13px; }
 .card .up { display: flex; align-items: center; gap: 4px; padding: 0 9px 8px; font: 500 11.5px var(--mono); color: var(--ink-300); }
-.card .up b { color: var(--ok); font: 700 12px var(--mono); }
+.card .up b { font: 700 12px var(--mono); }
+.card .up.neg { color: var(--bad); } .card .up.pos { color: var(--ok); }
 .card .up.zero { color: var(--ink-400); }
 .card .missline { font: 600 11px var(--font); color: var(--bad); padding: 0 9px 7px; margin-top: -3px; }
 .card .key { position: absolute; top: 6px; left: 7px; font: 600 10px var(--mono); color: var(--ink-400); border: 1px solid var(--line-2); padding: 0 4px; border-radius: 2px; background: rgba(0,0,0,.3); }
@@ -178,7 +179,8 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
   .acts { padding: 0 10px 8px; } .tab { padding: 8px 8px 7px; font-size: 11px; } .tab span.l { display: none; } .tabs { margin-bottom: 8px; }
   .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; } .grid .card:nth-child(n+5) { display: none; }
   .card { height: 120px; } .card .missline, .card .eff { display: none; } .card .up { padding: 0 7px 6px; font-size: 10.5px; } .card .art { height: 42px; } .card .art svg.i { width: 22px; height: 22px; } .card .nm { font-size: 12.5px; padding: 5px 7px 0; } .card .eff { display: none; } .card .cost { padding: 4px 7px 7px; } .card .up { display: flex; align-items: center; gap: 4px; padding: 0 9px 8px; font: 500 11.5px var(--mono); color: var(--ink-300); }
-.card .up b { color: var(--ok); font: 700 12px var(--mono); }
+.card .up b { font: 700 12px var(--mono); }
+.card .up.neg { color: var(--bad); } .card .up.pos { color: var(--ok); }
 .card .up.zero { color: var(--ink-400); }
 .card .missline { font: 600 11px var(--font); color: var(--bad); padding: 0 9px 7px; margin-top: -3px; }
 .card .key { display: none; }
@@ -264,10 +266,10 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
       </div>
       <div class="grid">
         <div class="card"><span class="key">Q</span><span class="qcount">2</span><div class="art">{{i:user}}</div><div class="nm">Cidadão</div><div class="eff">Trabalha e constrói</div><div class="cost"><span>{{i:wheat}}50</span></div><div class="up zero"><b style="color:var(--ink-400)">$</b>sem manutenção</div></div>
-        <div class="card"><span class="key">H</span><div class="art">{{i:house}}</div><div class="nm">Casa</div><div class="eff">+6 moradia</div><div class="cost"><span>{{i:tree-pine}}65</span><span>{{i:mountain}}30</span></div><div class="up"><b>$</b>−7,5 mil/dia</div></div>
-        <div class="card"><span class="key">R</span><div class="art">{{i:route}}</div><div class="nm">Estrada</div><div class="eff">Leva energia e acelera</div><div class="cost"><span>{{i:mountain}}2/célula</span></div><div class="up"><b>$</b>−1,3 mil/célula</div></div>
-        <div class="card short hover"><span class="key">E</span><div class="art">{{i:graduation-cap}}</div><div class="nm">Escola</div><div class="eff">+conhecimento</div><div class="cost"><span>{{i:tree-pine}}180</span><span class="miss">{{i:ingot}}420</span></div><div class="missline">Faltam 100 de ferro</div><div class="up"><b>$</b>−83 mil/dia</div></div>
-        <div class="card"><span class="key">T</span><div class="art">{{i:hospital}}</div><div class="nm">Hospital</div><div class="eff">Cobertura de saúde</div><div class="cost"><span>{{i:mountain}}220</span><span>{{i:ingot}}90</span></div><div class="up"><b>$</b>−89 mil/dia</div></div>
+        <div class="card"><span class="key">H</span><div class="art">{{i:house}}</div><div class="nm">Casa</div><div class="eff">+6 moradia</div><div class="cost"><span>{{i:tree-pine}}65</span><span>{{i:mountain}}30</span></div><div class="up neg"><b>$</b>−7,5 mil/dia</div></div>
+        <div class="card"><span class="key">R</span><div class="art">{{i:route}}</div><div class="nm">Estrada</div><div class="eff">Leva energia e acelera</div><div class="cost"><span>{{i:mountain}}2/célula</span></div><div class="up neg"><b>$</b>−1,3 mil/célula</div></div>
+        <div class="card short hover"><span class="key">E</span><div class="art">{{i:graduation-cap}}</div><div class="nm">Escola</div><div class="eff">+conhecimento</div><div class="cost"><span>{{i:tree-pine}}180</span><span class="miss">{{i:ingot}}420</span></div><div class="missline">Faltam 100 de ferro</div><div class="up neg"><b>$</b>−83 mil/dia</div></div>
+        <div class="card"><span class="key">T</span><div class="art">{{i:hospital}}</div><div class="nm">Hospital</div><div class="eff">Cobertura de saúde</div><div class="cost"><span>{{i:mountain}}220</span><span>{{i:ingot}}90</span></div><div class="up neg"><b>$</b>−89 mil/dia</div></div>
         <div class="card lock"><div class="art">{{i:lock}}</div><div class="nm">Programa Espacial</div><div class="lockinfo">{{i:triangle-alert}}QG nível 9</div></div>
       </div>
     </div>
@@ -283,11 +285,12 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
     <p>Forma conhecimento para as pesquisas. Uma por cidade.</p>
     <div class="row" style="margin-top:8px"><span>Custo</span><span class="num" style="font-size:12px">{{i:tree-pine}} 180 · <span class="miss" style="color:var(--bad)">{{i:ingot}} 420</span></span></div>
     <div class="row" style="color:var(--bad)"><span>Falta</span><span class="num" style="font-size:12px">100 de ferro</span></div>
-    <div class="tsub">Manutenção por dia</div>
-    <div class="row sub"><span>Serviço público</span><span class="num">$66 mil</span></div>
-    <div class="row sub"><span>Energia (2 un., Era IV ×2)</span><span class="num">$13,2 mil</span></div>
-    <div class="row sub"><span>Área (2×2)</span><span class="num">$3,5 mil</span></div>
-    <div class="row tot"><span><b class="usd">$</b> Total</span><span class="num">−$83 mil/dia</span></div>
+    <div class="tsub">Saldo do prédio por dia</div>
+    <div class="row sub"><span>Produção</span><span class="num">$0</span></div>
+    <div class="row sub"><span>Serviço público</span><span class="num">−$66 mil</span></div>
+    <div class="row sub"><span>Energia (2 un., Era IV ×2)</span><span class="num">−$13,2 mil</span></div>
+    <div class="row sub"><span>Área (2×2)</span><span class="num">−$3,5 mil</span></div>
+    <div class="row tot"><span><b class="usd" style="color:var(--bad)">$</b> Saldo</span><span class="num" style="color:var(--bad)">−$83 mil/dia</span></div>
     <div class="bal"><span>Saldo do caixa</span><span class="num">+$1,24 mi <i>→</i> +$1,16 mi/dia</span></div>
   </div><span class="brk tr"></span><span class="brk bl"></span></div>
 

@@ -16,7 +16,9 @@ ISC) no lugar dos emojis; fontes livres (Barlow Condensed / Barlow Semi Condense
 **Revisão de 05/11:** o ferro virou lingote (a bigorna não era reconhecida) e cada recurso tem a sua cor também nos
 custos; o cartão diz quanto falta ("Faltam 100 de ferro") e mostra a manutenção por dia com o $ verde; a dica detalha
 a manutenção (serviço público, energia, área, como no caixa do país: `shared/strategic/treasury.ts`) e o saldo do
-caixa antes → depois de construir. Valores da maquete: país com PIB de ~US$ 2,2 tri na Era IV (energia ×2).
+caixa antes → depois de construir. **Regra aprovada (05/11):** o cartão mostra o saldo líquido do prédio por dia
+(produção que entra no caixa menos manutenção, serviço e energia): verde se positivo, vermelho se negativo (ex.: Fazenda
++$21 mil/dia, Escola −$83 mil/dia). Design aprovado pelo responsável em 05/11. Valores da maquete: país com PIB de ~US$ 2,2 tri na Era IV (energia ×2).
 
 O fundo é uma cena real do jogo (Sandbox) capturada sem o HUD. Para refazer as imagens:
 
