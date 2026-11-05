@@ -58,4 +58,10 @@ node shot.cjs hud.html ../1-tela-computador.png 1600 900 2
    linha opaca por cima dos avisos. O contador de desempenho ficou compacto. Corrigido: com altura máxima, a moldura
    cortava os cartões de construção em vez de rolar (`.nc-frame` em coluna e `.nc-frame-in` com `flex: 1; min-height:
    0`). Cartões estreitos: "Faltam N" com o ícone do recurso e o saldo sem "/dia".
-5. Próxima etapa: menus (pausa, configurações) e painéis nacionais.
+5. **Menus (05/11):** menu de pausa e Opções na moldura `<Frame>`, com título, rótulo "Sala de Situação" e ícones;
+   as cantoneiras antigas (`.panel-frame`, telas fora da partida e diálogos como o de guerra) viraram os colchetes de
+   latão, sem o recorte chanfrado (nada que abre para fora é cortado); menu principal com ícones no lugar dos emojis.
+   Barra de recursos: petróleo como gota cheia, carvão como pedras (`OilIcon`, `CoalIcon`) e um toque num item mostra
+   no feed o nome e a quantidade (no celular não há dica ao passar o dedo).
+6. Ainda no estilo antigo: os painéis grandes da camada nacional (Nação, Globo, Pesquisa, Diplomacia, Orçamento) e o
+   lobby por dentro (já com fontes, botões e colchetes novos).

@@ -1,4 +1,5 @@
 import { LanguagePicker } from '../components/LanguagePicker.tsx';
+import { Flag, FlaskConical, Globe, MessageSquare, MessagesSquare, Play } from 'lucide-react';
 import { useState } from 'react';
 import { gameClient } from '../../net/client.ts';
 import { localAdvisorStore, type Advice } from '../../game/perf/advisor.ts';
@@ -54,28 +55,28 @@ export function MenuScreen() {
 
       <div className="space-y-2">
         <button className="btn btn-primary btn-hero w-full" disabled={!online} title={offlineHint} onClick={() => void create('vs_ai')}>
-          <span aria-hidden>▶</span>
+          <Play size={18} aria-hidden className="shrink-0" />
           <span className="flex flex-col">
             <span>Nova Partida</span>
             <span className="font-sans text-[11px] font-medium tracking-normal opacity-75">Contra um governo controlado pela IA</span>
           </span>
         </button>
         <button className="btn btn-hero w-full" disabled={!online} title={offlineHint} onClick={() => void create('sandbox')}>
-          <span aria-hidden>🧪</span>
+          <FlaskConical size={18} aria-hidden className="shrink-0 text-brass-400" />
           <span className="flex flex-col">
             <span>Modo Sandbox</span>
             <span className="font-sans text-[11px] font-medium tracking-normal text-ink-400">Livre: recursos ilimitados, tudo liberado, crie tropas e teste o jogo</span>
           </span>
         </button>
         <button className="btn btn-hero w-full" disabled={!online} title={offlineHint} onClick={() => setScreen('rooms')}>
-          <span aria-hidden>🌐</span>
+          <Globe size={18} aria-hidden className="shrink-0 text-signal-blue" />
           <span className="flex flex-col">
             <span>Salas Públicas</span>
             <span className="font-sans text-[11px] font-medium tracking-normal text-ink-400">Navegue pelas salas abertas, entre em uma ou crie a sua</span>
           </span>
         </button>
         <button className="btn btn-hero w-full" disabled={!online} title={offlineHint} onClick={() => void create('pvp')}>
-          <span aria-hidden>⚑</span>
+          <Flag size={18} aria-hidden className="shrink-0 text-ink-200" />
           <span className="flex flex-col">
             <span>Criar Sala Privada</span>
             <span className="font-sans text-[11px] font-medium tracking-normal text-ink-400">Gera um código para convidar outro comandante</span>
@@ -108,10 +109,10 @@ export function MenuScreen() {
 
       <div className="mt-4 grid grid-cols-2 gap-2">
         <button className="btn" disabled={!online} title={online ? 'Converse com outros comandantes que gostam do jogo' : offlineHint} onClick={() => setScreen('community')}>
-          <span aria-hidden>🗨</span> Comunidade
+          <MessagesSquare size={16} aria-hidden /> Comunidade
         </button>
         <button className="btn" onClick={() => setScreen('feedback')} title="Mande sua opinião para a equipe e veja as novidades">
-          <span aria-hidden>💬</span> Feedback
+          <MessageSquare size={16} aria-hidden /> Feedback
         </button>
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
