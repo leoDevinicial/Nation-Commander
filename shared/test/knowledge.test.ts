@@ -57,8 +57,8 @@ describe('conhecimento e cidades', () => {
     force(s, 'university', spot(s, 'university'));
     run(s, TICK_RATE * 10);
     const gained = s.players[0]!.knowledge! - start;
-    expect(gained).toBeGreaterThan((KNOWLEDGE.school + KNOWLEDGE.university) * 10 * 0.8);
-    expect(gained).toBeLessThan((KNOWLEDGE.school + KNOWLEDGE.university) * 10 * 1.1);
+    expect(gained).toBeGreaterThan((KNOWLEDGE.hq + KNOWLEDGE.school + KNOWLEDGE.university) * 10 * 0.8);
+    expect(gained).toBeLessThan((KNOWLEDGE.hq + KNOWLEDGE.school + KNOWLEDGE.university) * 10 * 1.1);
   });
 
   it('uma escola por cidade: a segunda perto do QG é recusada; perto de outra prefeitura, aceita', () => {

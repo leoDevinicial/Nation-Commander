@@ -88,6 +88,64 @@ export class Effects {
     }
   }
 
+  /**
+   * Tiro de fuzil ou metralhadora (05/11): um traçante curto que viaja do cano ao alvo (antes era uma linha inteira,
+   * acesa de uma vez), com clarão na boca na hora da saída e um pouco de poeira ou faísca no impacto. `delay` atrasa
+   * a saída (rajadas e pelotões não disparam todos no mesmo quadro).
+   */
+  bullet(from: THREE.Vector3, to: THREE.Vector3, o: { heavy?: boolean; delay?: number; speed?: number } = {}): void {
+    if (this.items.length >= this.cap) return;
+    const heavy = !!o.heavy;
+    const delay = o.delay ?? 0;
+    const dist = from.distanceTo(to);
+    const flight = Math.max(0.05, dist / (o.speed ?? (heavy ? 70 : 55)));
+    const life = delay + flight;
+    const len = Math.min(dist, heavy ? 1.8 : 1.1);
+    const dir = new THREE.Vector3().subVectors(to, from).normalize();
+    const pos = new Float32Array(6);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const material = (heavy ? this.lineMatHeavy : this.lineMatLight).clone();
+    material.opacity = 0;
+    const line = new THREE.Line(geo, material);
+    line.frustumCulled = false;
+    const head = new THREE.Vector3();
+    let fired = false;
+    this.add(
+      line,
+      life,
+      (t) => {
+        const el = t * life - delay;
+        if (el < 0) return;
+        if (!fired) {
+          fired = true;
+          this.muzzleFlash(from, dir, heavy ? 0.42 : 0.22);
+          if (heavy) this.glow(from, '#ffd59a', 22, 8, 0.1);
+        }
+        const k = Math.min(1, el / flight);
+        head.lerpVectors(from, to, k);
+        const tailK = Math.max(0, k - len / Math.max(dist, 1e-3));
+        pos[0] = from.x + (to.x - from.x) * tailK;
+        pos[1] = from.y + (to.y - from.y) * tailK;
+        pos[2] = from.z + (to.z - from.z) * tailK;
+        pos[3] = head.x;
+        pos[4] = head.y;
+        pos[5] = head.z;
+        geo.attributes.position!.needsUpdate = true;
+        material.opacity = 0.95;
+        if (t >= 1) {
+          // impacto: faísca curta e um sopro de poeira
+          this.flash(to, heavy ? 0.32 : 0.16, heavy ? '#ffb36b' : '#ffe2a0', 0.1);
+          this.flash(new THREE.Vector3(to.x, Math.max(0.15, to.y - 0.4), to.z), heavy ? 0.45 : 0.28, '#b9ab8e', 0.35);
+        }
+      },
+      () => {
+        geo.dispose();
+        material.dispose();
+      },
+    );
+  }
+
   flash(at: THREE.Vector3, size: number, color: string, life: number): void {
     if (this.items.length >= this.cap) return;
     const material = new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false });

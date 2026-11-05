@@ -20,12 +20,12 @@ import { useLangStore } from '../i18n/index.ts';
 import { TrackMarks } from './render/TrackMarks.ts';
 import { Projectiles } from './render/Projectiles.ts';
 import { BIOME_TINT, buildTerrain, type TerrainHandle } from './render/TerrainFactory.ts';
-import { cloudUniforms, disposeMaterials, fogUniforms, setCloudShadows, weatherUniforms, windUniforms } from './render/materials.ts';
+import { climateUniforms, cloudUniforms, disposeMaterials, fogUniforms, setCloudShadows, weatherUniforms, windUniforms } from './render/materials.ts';
 import { disposeBuildingModels } from './render/models/buildingModels.ts';
 import { disposeCitizenModel, disposeUnitModels, unitModel, unitModelKey } from './render/models/unitModels.ts';
 import { NuclearBlast } from './render/NuclearBlast.ts';
 import { setModelDetail } from './render/models/kit.ts';
-import { chooseClaims, claimedBy, gatherRate, sitesByDeposit } from '../../shared/sim/gathering.ts';
+import { chooseClaims, claimableCells, claimedBy, gatherRate, sitesByDeposit } from '../../shared/sim/gathering.ts';
 import { findDeposits, type DepositIndex } from '../../shared/sim/deposits.ts';
 import { decodeTerritory } from '../../shared/sim/territory.ts';
 import { buildingEffects, planUpgrade, type SpecId, type UpgradePlan, type UpgradeWorld } from '../../shared/sim/upgrades.ts';
@@ -235,6 +235,9 @@ export class GameRuntime {
   private weatherAudioAcc = 0;
   private mineLayer!: MineLayer;
   private roadPreview!: RoadPreview;
+  /** Células que a coleta vai explorar, mostradas no chão durante o posicionamento (05/11: a fazenda parecia solta dos campos). */
+  private claimPreview!: RoadPreview;
+  private claimKey = '';
   private roadLayer!: RoadLayer;
   /** Carros dos cidadãos nas estradas (02/11, só visual). */
   private traffic!: CityTraffic;
@@ -242,6 +245,8 @@ export class GameRuntime {
   private zoneOverlay!: ZoneOverlay;
   private lotLayer!: LotLayer;
   private readonly lotCells = new Set<number>();
+  /** Mata derrubada por estrada (05/11): as árvores não voltam se a estrada cair. */
+  private readonly clearedCells = new Set<number>();
   private readonly myLotCells = new Set<number>();
   private readonly myZones = new Map<number, number>();
   private readonly rocketLayer: RocketLayer;
@@ -407,10 +412,13 @@ export class GameRuntime {
     this.scene.add(this.mineLayer.group);
     this.roadPreview = new RoadPreview(this.map.cellSize, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.roadPreview.mesh);
+    this.claimPreview = new RoadPreview(this.map.cellSize, (x, z) => this.groundHeight(x, z));
+    this.scene.add(this.claimPreview.mesh);
     // a estrada deita sobre a mesma malha do chão (subdivisões por célula da qualidade do terreno, ver buildTerrain)
     const terrainSub = this.opts.profile.cinematic ? 4 : this.opts.profile.terrain === 'high' ? 2 : 1;
     this.roadLayer = new RoadLayer(this.map.cellSize, this.map.width, this.map.height, (x, z) => this.groundHeight(x, z), terrainSub);
     this.scene.add(this.roadLayer.mesh);
+    this.scene.add(this.roadLayer.lights);
     this.traffic = new CityTraffic(this.map.cellSize, this.map.width, this.map.height, (x, z) => this.groundHeight(x, z), opts.profile.terrain === 'low' ? 30 : 70);
     this.scene.add(this.traffic.group);
     this.zoneOverlay = new ZoneOverlay(this.map.cellSize, this.map.width, (x, z) => this.groundHeight(x, z));
@@ -995,6 +1003,7 @@ export class GameRuntime {
     const hwGone = [...this.highwayCells].filter((i) => !hwNow.has(i));
     if (!fresh.length && !freshHw.length && !gone.length && !hwGone.length) return;
     for (const i of fresh) {
+      if (this.map.terrain[i] === T.Forest) this.clearedCells.add(i);
       this.roadCells.add(i);
       this.map.terrain[i] = T.Road;
     }
@@ -1021,7 +1030,7 @@ export class GameRuntime {
       const size = BUILDINGS[b.type].size;
       return { x0: b.cx * cs, z0: b.cy * cs, x1: (b.cx + size) * cs, z1: (b.cy + size) * cs };
     });
-    for (const i of [...this.roadCells, ...this.lotCells]) {
+    for (const i of [...this.roadCells, ...this.lotCells, ...this.clearedCells]) {
       const cx = i % this.map.width;
       const cy = Math.floor(i / this.map.width);
       rects.push({ x0: cx * cs, z0: cy * cs, x1: (cx + 1) * cs, z1: (cy + 1) * cs });
@@ -1213,7 +1222,17 @@ export class GameRuntime {
       const target = this.units.get(e.targetId);
       const tp = target ? target.visual.renderPos : new THREE.Vector2(e.to.x, e.to.y);
       const from = attacker ? attacker.visual.muzzleWorld() : new THREE.Vector3(e.from.x, 2, e.from.y);
-      this.effects.tracer(from, new THREE.Vector3(tp.x, target ? 0.7 : 1.4, tp.y), heavy);
+      const to = new THREE.Vector3(tp.x, target ? 0.7 : 1.4, tp.y);
+      if (heavy) this.effects.tracer(from, to, true);
+      else {
+        // rajada curta de 2 a 3 tiros, com atraso inicial próprio e um pouco de dispersão no alvo
+        const n = 2 + (Math.random() < 0.4 ? 1 : 0);
+        const start = Math.random() * 0.12;
+        for (let k = 0; k < n; k++) {
+          const spread = new THREE.Vector3((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.3, (Math.random() - 0.5) * 0.5);
+          this.effects.bullet(from, to.clone().add(spread), { delay: start + k * (0.08 + Math.random() * 0.04) });
+        }
+      }
     } else if (e.type === 'destroyed') {
       this.gatlingAt.delete(e.id);
       const heavy = e.entity === 'building' || e.entityType === 'tank' || e.entityType === 'mbt';
@@ -1583,6 +1602,7 @@ export class GameRuntime {
       this.clockSeconds += (this.simSeconds - this.clockSeconds) * Math.min(1, dt * 0.5);
       if (this.weather) {
         this.weather.update(this.clockSeconds, dt, this.cameraCtl.target, this.cameraCtl.distance, this.renderer.domElement.height);
+        this.roadLayer.setNight(climateUniforms.uNight.value);
         this.weatherAudioAcc += dt;
         if (this.weatherAudioAcc > 0.5) {
           this.weatherAudioAcc = 0;
@@ -2668,13 +2688,13 @@ export class GameRuntime {
     if (this.roadHighway) {
       // rodovia: só terra própria ou neutra (as dos vizinhos se encontram no neutro)
       if (t === T.Road) return null;
-      if (t !== T.Plains && t !== T.Fertile) return 'Rodovias só em planície ou solo fértil';
+      if (t !== T.Plains && t !== T.Fertile && t !== T.Forest) return 'Rodovias só em planície, solo fértil ou mata (a mata é derrubada)';
       if (occupied.has(i)) return 'Há uma construção no lugar';
       const owner = this.territory[i];
       if (owner !== undefined && owner >= 0 && owner !== this.mySlot) return 'Território de outra nação: a rodovia vai só até a terra neutra';
       return null;
     }
-    if (t !== T.Plains && t !== T.Fertile) return 'Estradas só em planície ou solo fértil';
+    if (t !== T.Plains && t !== T.Fertile && t !== T.Forest) return 'Estradas só em planície, solo fértil ou mata (a mata é derrubada)';
     if (occupied.has(i)) return 'Há uma construção no lugar';
     if (this.territory[i] !== this.mySlot) {
       const x = (c.cx + 0.5) * this.map.cellSize;
@@ -3118,6 +3138,8 @@ export class GameRuntime {
     this.roadStroke = null;
     this.roadHover = null;
     this.roadPreview.set([]);
+    this.claimPreview.set([]);
+    this.claimKey = '';
     if (this.ghost) {
       this.ghost.dispose();
       this.ghost = null;
@@ -4301,12 +4323,27 @@ export class GameRuntime {
   /** Prévia de rendimento de um edifício de coleta (células livres ao alcance → renda/s com todos os trabalhadores). */
   private previewYield(type: BuildingType, cell: Cell): { cells: number; rate: number } | null {
     const g = BUILDINGS[type].gather;
-    if (!g || !this.snapshot) return null;
+    if (!g || !this.snapshot) {
+      this.showClaims(type, cell, []);
+      return null;
+    }
     if (g.terrain === null) return { cells: 1, rate: gatherRate(type, 1) };
     const list = this.placementBuildings();
-    const choice = chooseClaims(this.map, this.deposits, type, cell, claimedBy(list, type), sitesByDeposit(list), (i) => this.territory[i] === this.mySlot);
+    const mine = (i: number) => this.territory[i] === this.mySlot;
+    const choice = chooseClaims(this.map, this.deposits, type, cell, claimedBy(list, type), sitesByDeposit(list), mine);
+    // sem escolha válida, mostra em vermelho as poucas células que haveria ao alcance
+    this.showClaims(type, cell, choice.claims.length ? choice.claims : claimableCells(this.map, type, cell, claimedBy(list, type), mine).slice(0, g.maxCells), !choice.claims.length);
     const cells = choice.claims.length;
     return { cells, rate: gatherRate(type, cells) };
+  }
+
+  /** Pinta no chão as células da lavoura, mata ou pedreira que o edifício vai explorar nesta posição. */
+  private showClaims(type: BuildingType, cell: Cell, claims: readonly number[], bad = false): void {
+    const key = `${type}:${cell.cx},${cell.cy}:${claims.length}:${bad ? 1 : 0}`;
+    if (key === this.claimKey) return;
+    this.claimKey = key;
+    const w = this.map.width;
+    this.claimPreview.set(claims.map((i) => ({ cx: i % w, cy: Math.floor(i / w), state: bad ? 'bad' : 'ok' })));
   }
 
   setWorkers(buildingId: number, count: number): void {
@@ -4428,6 +4465,7 @@ export class GameRuntime {
       this.territoryLayer.dispose();
       this.mineLayer.dispose();
       this.roadPreview.dispose();
+      this.claimPreview.dispose();
       this.roadLayer.dispose();
       this.traffic.dispose();
       this.zoneOverlay.dispose();
@@ -4472,6 +4510,7 @@ export class GameRuntime {
     this.territoryLayer.dispose();
     this.mineLayer.dispose();
     this.roadPreview.dispose();
+    this.claimPreview.dispose();
     this.roadLayer.dispose();
     this.zoneOverlay.dispose();
     this.lotLayer.dispose();

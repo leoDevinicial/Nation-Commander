@@ -20,8 +20,9 @@ Pedido do usuário:
 ## Conhecimento (`KNOWLEDGE` em `config.ts`)
 | Fonte | Por segundo | Condição |
 |---|---|---|
-| Escola (2 professores) | 0,1 | 1 por cidade; também segue como serviço com raio |
-| Universidade (era 2, 3×3, 4 pesquisadores) | 0,3 | 1 por cidade |
+| Centro de Comando | 0,05 | sempre (feedback 05/11: sem escola a pesquisa travava) |
+| Escola (2 professores) | 0,15 | 1 por cidade; também segue como serviço com raio |
+| Universidade (era 2, 3×3, 4 pesquisadores) | 0,4 | 1 por cidade |
 
 - Começo com 60 pontos. Sem luz, escola e universidade formam metade. Contador 🧠 na barra de cima.
 - **Pesquisa militar** (Centro de Pesquisa): recursos (como antes) + conhecimento (15, 30 ou 50 pelo nível do centro) +

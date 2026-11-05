@@ -35,7 +35,8 @@ export const BUILDERS = { max: 4 };
  * Pontos de conhecimento (02/11): formados por Escolas e Universidades (uma de cada por cidade), pagam as pesquisas
  * junto com o US$ do caixa do país. Sem luz, a formação cai pela metade.
  */
-export const KNOWLEDGE = { start: 60, school: 0.1, university: 0.3, darkMul: 0.5 };
+/** Conhecimento por segundo. `hq`: o Centro de Comando forma um pouco sozinho (feedback 05/11: sem escola a pesquisa travava). */
+export const KNOWLEDGE = { start: 60, hq: 0.05, school: 0.15, university: 0.4, darkMul: 0.5 };
 
 export const CITIZEN = { label: 'Cidadão', cost: { food: 40 } as Cost, buildSeconds: 10, hotkey: 'Z' };
 /**
@@ -1058,7 +1059,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     maxHp: 300,
     size: 2,
     income: {},
-    gather: { resource: 'food', terrain: Terrain.Fertile, radius: 3, maxCells: 8, minCells: 3, ratePerCell: 0.53 },
+    gather: { resource: 'food', terrain: Terrain.Fertile, radius: 2, maxCells: 8, minCells: 3, ratePerCell: 0.53 }, // raio 2 (05/11): com 3 os campos ficavam longe da sede
     sight: 7,
     workers: 6,
     buildable: true,

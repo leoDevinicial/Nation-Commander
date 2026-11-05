@@ -25,7 +25,9 @@ Ela revoga o que pesa quando a aprovação cai.
 ## Facções
 
 Forças Armadas, Indústria, Agro, Sindicatos e Opinião Pública têm uma satisfação de 0 a 100 e, de tempos em
-tempos, uma exigência com prazo de 90 dias. Por exemplo:
+tempos, uma exigência com prazo de 180 dias (1 dia = 1 s em 1×). A primeira vem no dia 150, as facções seguintes a
+cada 75 dias, depois 120 dias entre uma e outra, e no máximo 2 ficam abertas ao mesmo tempo (feedback 05/11: eram 5
+exigências no primeiro minuto). O primeiro pedido de superpotência vem no dia 240. Por exemplo:
 - "ter 2 fábricas de veículos prontas";
 - "manter 16 unidades militares";
 - "ter 400 de comida em estoque";

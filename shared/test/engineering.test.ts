@@ -44,9 +44,30 @@ function setup(opts: { fund?: number } = {}) {
 const line = (y: number, x0: number, x1: number) => Array.from({ length: x1 - x0 + 1 }, (_, k) => ({ cx: x0 + k, cy: y }));
 
 describe('Estradas do jogador', () => {
+  it('estrada sobre mata derruba as árvores e tira madeira da floresta; o salvamento preserva os depósitos', () => {
+    const map = flatMap(40);
+    for (let y = 8; y <= 12; y++) for (let x = 4; x <= 10; x++) map.terrain[y * 40 + x] = Terrain.Forest;
+    const sim = new Simulation({ map, playerCount: 2, startingUnits: [] });
+    for (let cy = 0; cy < 40; cy++) for (let cx = 0; cx < 40; cx++) sim.territory[cy * 40 + cx] = cx < 18 ? 0 : 1;
+    sim.players[0]!.resources.stone = 500;
+    const forest = sim.deposits.deposits.find((d) => d.terrain === Terrain.Forest)!;
+    const before = forest.remaining;
+    const n = sim.deposits.deposits.length;
+    expect(sim.applyCommand(0, { type: 'build_road', cells: line(10, 2, 12) })).toBeNull();
+    for (let x = 4; x <= 10; x++) expect(sim.map.terrain[10 * 40 + x]).toBe(Terrain.Road);
+    expect(forest.remaining).toBeCloseTo(before - (7 * forest.initial) / forest.cells.length, 5);
+    // a estrada partiu a mata em duas, mas o salvamento continua com os mesmos depósitos
+    const loaded = Simulation.fromSave(sim.toSave());
+    expect(loaded.deposits.deposits.length).toBe(n);
+    expect(loaded.deposits.deposits[forest.id]!.remaining).toBeCloseTo(forest.remaining, 5);
+    expect(loaded.map.terrain[10 * 40 + 5]).toBe(Terrain.Road);
+    expect(loaded.deposits.cellDeposit[10 * 40 + 5]).toBe(-1);
+  });
+
+
   it('pavimenta no próprio território com pedra e verba de obras; recusa terreno ruim', () => {
     const { sim, st } = setup();
-    sim.map.terrain[10 * 40 + 9] = Terrain.Forest;
+    sim.map.terrain[10 * 40 + 9] = Terrain.Rock;
     expect(sim.applyCommand(0, { type: 'build_road', cells: line(10, 6, 9) })).toMatch(/planície/);
     const stone = sim.players[0]!.resources.stone;
     expect(sim.applyCommand(0, { type: 'build_road', cells: line(12, 4, 8) })).toBeNull();

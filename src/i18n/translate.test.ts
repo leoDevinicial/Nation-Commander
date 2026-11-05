@@ -5,7 +5,7 @@ import { ES } from './es.ts';
 import { langForBrowser, langForCountry } from './index.ts';
 
 describe('tradução da interface (04/11)', () => {
-  const t = new Translator({ Construir: 'Build', 'Nível {0}: especialização': 'Level {0}: specialization', 'Tempo:': 'Time:', Fazenda: 'Farm', 'Pesquisa: {0}': 'Research: {0}', 'Exige a pesquisa {0}': 'Requires the {0} research', Siderurgia: 'Steelmaking' });
+  const t = new Translator({ Construir: 'Build', 'Nível {0}: especialização': 'Level {0}: specialization', 'Tempo:': 'Time:', Fazenda: 'Farm', 'armazenamento cheio, produção pausada': 'storage full, production paused', 'Pesquisa: {0}': 'Research: {0}', 'Exige a pesquisa {0}': 'Requires the {0} research', Siderurgia: 'Steelmaking' });
   it('texto exato, com espaços nas pontas preservados', () => {
     expect(t.t('Construir')).toBe('Build');
     expect(t.t('  Construir ')).toBe('  Build ');
@@ -17,6 +17,9 @@ describe('tradução da interface (04/11)', () => {
   });
   it('prefixo conhecido seguido de número', () => {
     expect(t.t('Tempo: 12 s')).toBe('Time: 12 s');
+  });
+  it('prefixo com dois-pontos e o resto traduzido (aviso de prédio parado, 05/11)', () => {
+    expect(t.t('Fazenda: armazenamento cheio, produção pausada')).toBe('Farm: storage full, production paused');
   });
   it('sem tradução, fica o original; números puros não mudam', () => {
     expect(t.t('Texto desconhecido')).toBe('Texto desconhecido');

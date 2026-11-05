@@ -124,6 +124,27 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 
 ## 0.4 O que mudou desde 31/10 (mais recente primeiro; detalhes no `git log` e nas docs citadas)
 
+**05/11, noite — rodada de feedback de jogadores (6 prints):**
+
+- Fazenda: raio de cultivo 3 → 2 (os campos ficavam longe da sede) e, ao posicionar qualquer coleta, as células que
+  ela vai explorar aparecem no chão (verde; vermelho quando não bastam). `claimPreview` no `GameRuntime`.
+- Exigências das facções: 1 dia = 1 s, e as 5 pediam no primeiro minuto com 90 s de prazo. Agora a 1ª vem no dia 150,
+  as outras a cada 75, prazo 180, intervalo 120 e no máximo 2 abertas (`FACTION` em `policies.ts`); pedido de
+  superpotência no dia 240. Ver `docs/POLITICA_DECRETOS_FACCOES.md`.
+- Estrada/rodovia sobre mata: a árvore é derrubada, a célula vira planície e a floresta perde a madeira da célula
+  (`clearForestCell`); `clearedForest` vai no salvamento para os depósitos não mudarem de ordem ao carregar. No
+  cliente, as árvores da célula não voltam se a estrada cair (`clearedCells`).
+- Energia na barra com uma casa decimal (aparecia 28.800000000000008). Conhecimento: QG forma 0,05/s, escola 0,15,
+  universidade 0,4 (antes 0 / 0,1 / 0,3).
+- Tiros: variação de ±2 ticks no intervalo de cada disparo (`fireJitter`, determinística, média zero; rajadas do CIWS
+  não variam) para o pelotão não atirar em uníssono; infantaria com rajada de 2–3 traçantes curtos que viajam
+  (`Effects.bullet`), clarão no cano e faísca/poeira no impacto (antes uma linha inteira acesa de uma vez).
+- Iluminação pública: cada poste de rua ganhou luminária sobre a pista; à noite a lâmpada brilha e deixa uma poça de
+  luz no asfalto (brilho aditivo, sem luz real; `RoadLayer.lights`/`setNight`).
+- Tradutor: "Fazenda: armazenamento cheio…" ficava meio em português (prefixo seguido de dois-pontos).
+- `sim-economia` 1–7 × 25 min: os mesmos 4 critérios falham antes e depois (armazém cheio, 1ª pesquisa militar, 1ª
+  ofensiva, era 3); nada piorou.
+
 **04/11, noite — efeitos gravados, segunda rodada** (`assets/sfx/CATALOGO.md`, seções "Em uso no jogo" e "O que falta"):
 
 - O usuário mandou 24 lotes (lotes 9–32 do catálogo); cada um foi guardado em `assets/sfx/originais/` e analisado

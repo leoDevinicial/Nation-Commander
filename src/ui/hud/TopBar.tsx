@@ -407,6 +407,9 @@ function SkyChip({ sky }: { sky: { hour: number; weather: 'clear' | 'rain' | 'st
 }
 
 /** Rede elétrica: geração e consumo; vermelho quando há construções paradas sem luz. */
+/** Energia com no máximo uma casa decimal (a soma de consumos fracionados deixava 28.800000000000008). */
+const kw = (n: number) => String(Math.round(n * 10) / 10);
+
 function PowerChip({ power }: { power: { supply: number; demand: number; served: number; dark: number; isolated: number; coalPerMin: number } }) {
   const short = power.dark > 0;
   const why = power.isolated > 0 ? `${power.isolated} longe da rede (ligue com estrada a até 4 células de uma usina, do QG ou de outra estrada)` : 'falta geração: construa outra usina';
@@ -414,13 +417,13 @@ function PowerChip({ power }: { power: { supply: number; demand: number; served:
     <BarItem
       label="Energia"
       icon={<Zap size={15} className={short ? 'text-red-300' : 'text-brass-400'} aria-hidden />}
-      title={`Energia: geração ${power.supply}, consumo ${power.demand}${power.coalPerMin > 0 ? ` · termelétricas queimam ${power.coalPerMin} de carvão/min` : ''}${short ? ` — ${power.dark} construção(ões) PARADA(S) sem luz: ${why}` : ''}`}
-      ariaLabel={`Energia ${power.supply} de geração, ${power.demand} de consumo`}
+      title={`Energia: geração ${kw(power.supply)}, consumo ${kw(power.demand)}${power.coalPerMin > 0 ? ` · termelétricas queimam ${kw(power.coalPerMin)} de carvão/min` : ''}${short ? ` — ${power.dark} construção(ões) PARADA(S) sem luz: ${why}` : ''}`}
+      ariaLabel={`Energia ${kw(power.supply)} de geração, ${kw(power.demand)} de consumo`}
       fill={power.supply > 0 ? power.demand / power.supply : undefined}
       fillColor={short ? 'var(--color-signal-red)' : 'var(--color-brass-400)'}
       valueClass={short ? 'text-red-300' : ''}
     >
-      {power.served}/{power.supply}
+      {kw(power.served)}/{kw(power.supply)}
     </BarItem>
   );
 }

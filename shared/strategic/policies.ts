@@ -193,11 +193,19 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
 };
 
 export const FACTION = {
-  /** Prazo de cada exigência e intervalo até a próxima (dias). */
-  deadlineDays: 90,
-  gapDays: 20,
-  /** Primeira exigência de cada facção (dias), escalonada. */
-  firstDay: 15,
+  /**
+   * Prazo de cada exigência e intervalo até a próxima (dias; 1 dia = 1 s em 1×). Feedback 05/11: as 5 facções pediam
+   * tudo no primeiro minuto, ao mesmo tempo, com 90 s de prazo. Agora a primeira vem aos 2,5 min, as outras a cada
+   * 75 dias, com 3 min de prazo e no máximo `maxActive` abertas ao mesmo tempo.
+   */
+  deadlineDays: 180,
+  gapDays: 120,
+  /** Primeira exigência (dias) e espaço entre as facções no começo. */
+  firstDay: 150,
+  staggerDays: 75,
+  /** Exigências abertas ao mesmo tempo; a próxima espera `waitDays` e tenta de novo. */
+  maxActive: 2,
+  waitDays: 30,
   /** Satisfação: inicial, ganho ao cumprir, perda ao falhar, limiar de protesto e retorno diário a 50. */
   start: 60,
   win: 25,
@@ -232,7 +240,7 @@ export interface RequestState {
 }
 
 export const REQUEST = {
-  firstDay: 40,
+  firstDay: 240,
   gapDays: 45,
   deadlineDays: 90,
   /** Meta de exportação do pedido (US$ em 90 dias). */
@@ -257,7 +265,7 @@ export interface PolicyState {
 
 export function createPolicies(): PolicyState {
   const factions = {} as Record<FactionId, FactionState>;
-  FACTION_IDS.forEach((id, i) => (factions[id] = { satisfaction: FACTION.start, demand: null, nextDay: FACTION.firstDay + i * 9 }));
+  FACTION_IDS.forEach((id, i) => (factions[id] = { satisfaction: FACTION.start, demand: null, nextDay: FACTION.firstDay + i * FACTION.staggerDays }));
   return { decrees: [], factions, request: null, nextRequestDay: REQUEST.firstDay, favor: 0 };
 }
 

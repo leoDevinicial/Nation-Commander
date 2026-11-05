@@ -41,7 +41,7 @@ As passagens que o mapa gera sobre rios e serras contam como vizinhas: o asfalto
 
 | Regra | Valor |
 |---|---|
-| Terreno | planície ou solo fértil, sem construção |
+| Terreno | planície, solo fértil ou mata, sem construção. Na mata (05/11) a árvore é derrubada: a célula vira planície, a floresta perde a madeira daquela célula e a serraria procura outra |
 | Onde | no próprio território; fora dele (terra neutra ou de país em guerra), com um Engenheiro de Combate a até 6 células |
 | Custo | 10 de pedra por célula e 0,2% do teto anual da verba de obras por célula |
 | Manutenção | 0,004 suprimento/s por célula |

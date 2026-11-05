@@ -191,6 +191,8 @@ export interface SimulationSave {
   roads?: { i: number; owner: Slot; hw?: true; prev?: Terrain }[];
   /** Vida das células de estrada já atingidas (02/11). */
   roadHp?: [number, number][];
+  /** Células de mata derrubadas por estradas (05/11): os depósitos são recalculados como se ainda fossem mata. */
+  clearedForest?: number[];
   victory?: VictoryKind | null;
   territoryHold?: number[];
   collapseDays?: number[];
@@ -284,6 +286,16 @@ export const ROCKET_INTERCEPT = { era: 4, range: 9, share: 0.5, cooldownTicks: 4
 export const CIWS_INTERCEPT = { range: 8, share: 0.4, cooldownTicks: 3 * TICK_RATE, minProgress: 0.3 } as const;
 
 /** Regra de interceptação da unidade (antiaérea do Futuro Próximo ou CIWS), ou null. */
+/**
+ * Variação do intervalo entre tiros (05/11): ±2 ticks, média zero, determinística (id e tick). Sem ela, um pelotão que
+ * abria fogo junto atirava em uníssono para sempre. Intervalos curtos e rajadas (CIWS) não variam.
+ */
+export function fireJitter(id: number, tick: number, ticks: number): number {
+  if (ticks < 10) return 0;
+  const h = Math.imul(id ^ Math.imul(tick, 0x9e3779b1), 0x85ebca6b) >>> 0;
+  return ((h >>> 13) % 5) - 2;
+}
+
 function interceptSpec(u: Unit): { range: number; share: number; cooldownTicks: number; minProgress: number } | null {
   if (u.type === 'ciws') return CIWS_INTERCEPT;
   if (u.type === 'mobile_aa' && (u.era ?? 1) >= ROCKET_INTERCEPT.era) return ROCKET_INTERCEPT;
@@ -353,6 +365,8 @@ export class Simulation {
   /** Estradas construídas pelos jogadores (célula e dono, para a manutenção). */
   /** Estradas dos jogadores. `prev`: o terreno embaixo (solo fértil volta a ser fértil se a estrada sair; 03/11). */
   roads: { i: number; owner: Slot; hw?: true; prev?: Terrain }[] = [];
+  /** Células de mata derrubadas por estradas (mantém a ordem dos depósitos ao carregar um salvamento). */
+  clearedForest: number[] = [];
   /** Células de rodovia (02/11): mais rápidas, sem energia, podem sair do território. A grade usa o mesmo conjunto. */
   readonly highways = new Set<number>();
   /** Vida das células de estrada e rodovia já atingidas por tropas (as intactas não entram). */
@@ -589,6 +603,7 @@ export class Simulation {
       ...(this.power ? { power: true, powerState: { powered: [...this.powered], load: [...this.powerLoad], coalDebt: [...this.coalDebt], info: this.powerInfo.map((p) => ({ ...p })), homes: this.litHomes.map((h) => ({ ...h })) } } : {}),
       ...(this.roads.length ? { roads: this.roads.map((r) => ({ ...r })) } : {}),
       ...(this.roadHp.size ? { roadHp: [...this.roadHp] } : {}),
+      ...(this.clearedForest.length ? { clearedForest: [...this.clearedForest] } : {}),
       ...(this.explored.length ? { explored: this.explored.map(packBits) } : {}),
       ...(this.victory ? { victory: this.victory } : {}),
       ...(this.territoryHold.some((v) => v > 0) ? { territoryHold: [...this.territoryHold] } : {}),
@@ -624,7 +639,17 @@ export class Simulation {
   static fromSave(saved: SimulationSave): Simulation {
     if (saved.version !== 1) throw new Error(`Versão de salvamento não suportada: ${String(saved.version)}`);
     const data = JSON.parse(JSON.stringify(saved, encodeNonFinite), decodeNonFinite) as SimulationSave;
+    // os depósitos saem do mapa: as células de mata derrubadas contam como mata, como no começo da partida
+    const cleared = data.clearedForest ?? [];
+    const now = cleared.map((i) => data.map.terrain[i]!);
+    for (const i of cleared) data.map.terrain[i] = Terrain.Forest;
     const sim = new Simulation({ map: data.map, playerCount: data.players.length, startingUnits: [], power: false });
+    cleared.forEach((i, k) => {
+      sim.map.terrain[i] = now[k]!;
+      sim.grid.terrain[i] = now[k]!;
+      sim.deposits.cellDeposit[i] = -1;
+    });
+    sim.clearedForest = [...cleared];
     // descarta o estado inicial criado pelo construtor e aplica o salvo
     for (const b of sim.buildings) sim.grid.setOccupied(b.cell, BUILDINGS[b.type].size, 0);
     sim.entities.clear();
@@ -1430,6 +1455,7 @@ export class Simulation {
           if (!freeHw) this.spend(player, { stone: hp.stone });
           for (const i of hp.cells) {
             this.zones.clearCell(i);
+            this.clearForestCell(i);
             const prev = this.map.terrain[i]!;
             this.map.terrain[i] = Terrain.Road;
             this.grid.terrain[i] = Terrain.Road;
@@ -1448,6 +1474,7 @@ export class Simulation {
         if (!free) this.spend(player, { stone: plan.stone });
         for (const i of plan.cells) {
           this.zones.clearCell(i);
+          this.clearForestCell(i);
           const prev = this.map.terrain[i]!;
           this.map.terrain[i] = Terrain.Road;
           this.grid.terrain[i] = Terrain.Road;
@@ -1894,7 +1921,7 @@ export class Simulation {
       const i = c.cy * this.map.width + c.cx;
       const t = this.map.terrain[i]!;
       if (t === Terrain.Road || out.includes(i)) continue;
-      if (t !== Terrain.Plains && t !== Terrain.Fertile) return fail('Estradas só em planície ou solo fértil');
+      if (t !== Terrain.Plains && t !== Terrain.Fertile && t !== Terrain.Forest) return fail('Estradas só em planície, solo fértil ou mata (a mata é derrubada)');
       if (this.grid.occupant(c.cx, c.cy) !== 0) return fail('Há uma construção no traçado');
       const owner = this.territory[i] ?? NO_OWNER;
       if (owner !== slot) {
@@ -1938,7 +1965,7 @@ export class Simulation {
         if (builtBy.get(i) === slot) out.push(i); // estrada própria vira rodovia
         continue;
       }
-      if (t !== Terrain.Plains && t !== Terrain.Fertile) return fail('Rodovias só em planície ou solo fértil');
+      if (t !== Terrain.Plains && t !== Terrain.Fertile && t !== Terrain.Forest) return fail('Rodovias só em planície, solo fértil ou mata (a mata é derrubada)');
       if (this.grid.occupant(c.cx, c.cy) !== 0) return fail('Há uma construção no traçado');
       out.push(i);
     }
@@ -2662,6 +2689,11 @@ export class Simulation {
    * forno param; escola e universidade formam metade).
    */
   private updateWorkshops(): void {
+    for (const b of this.buildings) {
+      if (b.type !== 'hq' || b.progress < 1 || b.hp <= 0) continue;
+      const p = this.players[b.owner]!;
+      if (!p.defeated) p.knowledge = (p.knowledge ?? 0) + KNOWLEDGE.hq * TICK_SECONDS;
+    }
     for (const b of this.buildings) {
       const def = BUILDINGS[b.type];
       if ((!def.knowledge && !def.output && !def.convert) || b.progress < 1 || b.hp <= 0) continue;
@@ -3723,7 +3755,8 @@ export class Simulation {
         cooldown = burst.pause;
       }
     }
-    attacker.cooldown = Math.round(cooldown * TICK_RATE);
+    const baseTicks = Math.round(cooldown * TICK_RATE);
+    attacker.cooldown = burst ? baseTicks : baseTicks + fireJitter(attacker.id, this.tick, baseTicks);
     this.noteUnseenFire(target, attacker.owner, attacker.pos);
     const dealt = Math.min(damage, target.hp);
     target.hp -= damage;
@@ -4066,8 +4099,24 @@ export class Simulation {
     return b;
   }
 
+  /**
+   * Estrada ou rodovia sobre mata (feedback 05/11): a árvore é derrubada. A célula vira planície (se a estrada cair, não
+   * volta a ser mata), a floresta perde a madeira que cabia a ela e a serraria que a explorava procura outra célula.
+   */
+  private clearForestCell(i: number): void {
+    if (this.map.terrain[i] !== Terrain.Forest) return;
+    const d = this.deposits.deposits[this.deposits.cellDeposit[i] ?? -1];
+    if (d && d.cells.length) d.remaining = Math.max(0, d.remaining - d.initial / d.cells.length);
+    this.deposits.cellDeposit[i] = -1;
+    this.clearedForest.push(i);
+    this.map.terrain[i] = Terrain.Plains;
+    this.grid.terrain[i] = Terrain.Plains;
+    const x = i % this.map.width;
+    this.releaseClaimsUnder({ cx: x, cy: (i - x) / this.map.width }, 1);
+  }
+
   /** Um edifício novo ocupa células que outra coleta explorava (lavoura, mata): elas saem da lista daquela coleta. */
-  private releaseClaimsUnder(cell: Cell, size: number, except: Building): void {
+  private releaseClaimsUnder(cell: Cell, size: number, except?: Building): void {
     const w = this.map.width;
     for (const o of this.buildings) {
       const g = BUILDINGS[o.type].gather;

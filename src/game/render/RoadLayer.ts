@@ -37,8 +37,20 @@ const PLATE_SEG = 4;
  * contínua, sem placas flutuando nem enterradas. O asfalto é uma placa subdividida para acompanhar a curva dentro
  * da célula.
  */
+/** Até quantas luminárias acendem à noite (instâncias). */
+const MAX_LAMPS = 600;
+
 export class RoadLayer {
   readonly mesh: THREE.Mesh;
+  /**
+   * Iluminação pública (05/11): cada poste da rua tem uma luminária sobre a pista; à noite a lâmpada brilha e deixa uma
+   * poça de luz quente no asfalto. Sem luz de verdade (seria pesado demais): brilho aditivo que acompanha a noite.
+   */
+  readonly lights = new THREE.Group();
+  private readonly bulbs: THREE.InstancedMesh;
+  private readonly pools: THREE.InstancedMesh;
+  private lampAt: { head: THREE.Vector3; ground: THREE.Vector3 }[] = [];
+  private nightLevel = -1;
 
   constructor(
     private readonly cellSize: number,
@@ -52,6 +64,46 @@ export class RoadLayer {
     this.mesh = new THREE.Mesh(new THREE.BufferGeometry(), withFog(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0, envMapIntensity: 0.4 }), { weather: 0.25 }));
     this.mesh.receiveShadow = true;
     this.mesh.name = 'player-roads';
+    const bulbMat = new THREE.MeshBasicMaterial({ color: '#ffe2a4', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
+    this.bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.16, 8, 6), bulbMat, MAX_LAMPS);
+    const poolMat = new THREE.MeshBasicMaterial({ color: '#ffb45c', map: poolTexture(), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+    this.pools = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), poolMat, MAX_LAMPS);
+    for (const m of [this.bulbs, this.pools]) {
+      m.count = 0;
+      m.frustumCulled = false;
+      m.renderOrder = 2;
+    }
+    this.lights.add(this.pools, this.bulbs);
+    this.lights.name = 'street-lights';
+    this.lights.visible = false;
+  }
+
+  /** Acompanha a noite (0 de dia, 1 de noite): as lâmpadas acendem no entardecer e apagam no amanhecer. */
+  setNight(night: number): void {
+    const on = THREE.MathUtils.smoothstep(night, 0.15, 0.6);
+    const q = Math.round(on * 40) / 40;
+    if (q === this.nightLevel) return;
+    this.nightLevel = q;
+    this.lights.visible = q > 0;
+    (this.bulbs.material as THREE.MeshBasicMaterial).opacity = q;
+    (this.pools.material as THREE.MeshBasicMaterial).opacity = q * 0.4;
+  }
+
+  private placeLights(): void {
+    const n = Math.min(MAX_LAMPS, this.lampAt.length);
+    const m = new THREE.Matrix4();
+    const scale = new THREE.Vector3();
+    const q = new THREE.Quaternion();
+    const r = this.cellSize * 1.15;
+    for (let k = 0; k < n; k++) {
+      const l = this.lampAt[k]!;
+      this.bulbs.setMatrixAt(k, m.makeTranslation(l.head.x, l.head.y, l.head.z));
+      this.pools.setMatrixAt(k, m.compose(l.ground, q, scale.set(r * 2, 1, r * 2)));
+    }
+    this.bulbs.count = n;
+    this.pools.count = n;
+    this.bulbs.instanceMatrix.needsUpdate = true;
+    this.pools.instanceMatrix.needsUpdate = true;
   }
 
   /**
@@ -78,11 +130,13 @@ export class RoadLayer {
       });
     }
     // a rodovia não leva energia: sem postes nas células dela
+    this.lampAt = [];
     this.poles(b, highways.size ? new Set([...paved].filter((i) => !highways.has(i))) : paved, road);
     const geo = l.build().body;
     this.drape(geo);
     this.mesh.geometry.dispose();
     this.mesh.geometry = geo;
+    this.placeLights();
   }
 
   /** Altura da malha do terreno em (x, z): interpolação bilinear dos vértices da grade (passo célula / `sub`). */
@@ -145,6 +199,16 @@ export class RoadLayer {
       b.box(horizontal ? 0.04 : 0.5, 0.04, horizontal ? 0.5 : 0.04, '#5a432f', [x, g + H - 0.08, z]);
       for (const k of [-0.2, 0, 0.2]) b.cyl(0.018, 0.022, 0.07, '#cfd6d8', [x + arm[0] * k, g + H - 0.02, z + arm[1] * k], undefined, 5);
       tops.set(i, new THREE.Vector3(x, g + H - 0.01, z));
+      // luminária: braço curvo do poste para cima da pista e a cúpula com a lâmpada embaixo
+      const reach = cs * 0.3;
+      const hx = horizontal ? x : x - side * reach;
+      const hz = horizontal ? z - side * reach : z;
+      strut(b, [x, g + H - 0.2, z], [(x + hx) / 2, g + H + 0.08, (z + hz) / 2], 0.018, '#3a3d42');
+      strut(b, [(x + hx) / 2, g + H + 0.08, (z + hz) / 2], [hx, g + H + 0.02, hz], 0.018, '#3a3d42');
+      b.box(horizontal ? 0.14 : 0.22, 0.06, horizontal ? 0.22 : 0.14, '#2f3236', [hx, g + H, hz]);
+      b.box(horizontal ? 0.1 : 0.16, 0.02, horizontal ? 0.16 : 0.1, '#f3e6c2', [hx, g + H - 0.035, hz]);
+      const ground = this.meshHeight(hx, hz) + LIFT;
+      this.lampAt.push({ head: new THREE.Vector3(hx, ground + H - 0.06, hz), ground: new THREE.Vector3(hx, ground + 0.03, hz) });
     }
     // fios: liga cada poste ao próximo da mesma linha ou coluna (3 células adiante), se a estrada segue entre eles
     for (const [i, p] of tops) {
@@ -309,6 +373,28 @@ export class RoadLayer {
   dispose(): void {
     this.mesh.geometry.dispose();
     (this.mesh.material as THREE.Material).dispose();
+    for (const m of [this.bulbs, this.pools]) {
+      m.geometry.dispose();
+      (m.material as THREE.Material).dispose();
+    }
     this.mesh.removeFromParent();
   }
+}
+
+let poolTex: THREE.Texture | null = null;
+/** Mancha radial macia para a poça de luz no chão (gerada uma vez). */
+function poolTexture(): THREE.Texture {
+  if (poolTex) return poolTex;
+  const size = 64;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.45, 'rgba(255,255,255,0.45)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, size, size);
+  poolTex = new THREE.CanvasTexture(c);
+  return poolTex;
 }

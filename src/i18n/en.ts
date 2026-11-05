@@ -3123,4 +3123,6 @@ export const EN: Dict = {
   "Caravana:": "Caravan:",
   "Caravana: saindo do Centro de Comando…": "Caravan: leaving the Command Center…",
   "Construtores": "Builders",
+  "Estradas só em planície, solo fértil ou mata (a mata é derrubada)": "Roads only on plains, fertile soil or woods (the woods are cut down)",
+  "Rodovias só em planície, solo fértil ou mata (a mata é derrubada)": "Highways only on plains, fertile soil or woods (the woods are cut down)",
 };

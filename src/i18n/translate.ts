@@ -119,8 +119,11 @@ export class Translator {
       const next = s.charAt(k.length);
       if (/[A-Za-zÀ-ÿ]/.test(next) && !/[:.·—–(]$/.test(k)) continue;
       const rest = s.slice(k.length);
-      const tr = this.core(rest.trim(), depth + 1);
-      return v + (tr !== null ? spaced(rest, tr) : rest);
+      // "Fazenda: armazenamento cheio" — a pontuação logo depois do prefixo fica e o resto é traduzido à parte
+      const lp = /^\s*[:·—–]\s*/.exec(rest)?.[0] ?? '';
+      const body = rest.slice(lp.length);
+      const tr = this.core(body.trim(), depth + 1);
+      return v + lp + (tr !== null ? spaced(body, tr) : body);
     }
     return null;
   }

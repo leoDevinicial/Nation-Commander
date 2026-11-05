@@ -2859,4 +2859,6 @@ export const ES: Dict = {
   "Consome": "Consume",
   "Caravana: saindo do Centro de Comando…": "Caravana: saliendo del Centro de Mando…",
   "Construtores": "Constructores",
+  "Estradas só em planície, solo fértil ou mata (a mata é derrubada)": "Carreteras solo en llanura, suelo fértil o bosque (el bosque se tala)",
+  "Rodovias só em planície, solo fértil ou mata (a mata é derrubada)": "Autopistas solo en llanura, suelo fértil o bosque (el bosque se tala)",
 };

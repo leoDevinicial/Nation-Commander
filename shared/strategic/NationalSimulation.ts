@@ -947,6 +947,10 @@ export class NationalSimulation {
           f.nextDay = day + FACTION.gapDays;
         }
       } else if (day >= f.nextDay) {
+        if (FACTION_IDS.filter((o) => p.factions[o].demand).length >= FACTION.maxActive) {
+          f.nextDay = day + FACTION.waitDays;
+          continue;
+        }
         const options = FACTIONS[id].demands({ refDefensePct: n.referenceBudget.defensePct, naturalUnemploymentPct: n.naturalUnemploymentPct }).filter((d) => this.demandStatus(n, d, stats) !== 'met' && (stats || !needsTheater(d)));
         if (options.length) {
           const demand = options[Math.floor(this.rng.next() * options.length)]!;
