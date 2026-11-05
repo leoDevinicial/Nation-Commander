@@ -1,3 +1,4 @@
+import { TriangleAlert } from 'lucide-react';
 import { LanguagePicker } from '../components/LanguagePicker.tsx';
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../../state/useAppStore.ts';
@@ -55,7 +56,7 @@ export function SettingsForm({ inGame = false }: { inGame?: boolean }) {
             {GRAPHICS_PRESETS.map((q) => (
               <button key={q} role="radio" aria-checked={s.quality === q} className={`btn px-2 ${s.quality === q ? 'btn-primary' : ''}`} onClick={() => choose(q)}>
                 {PRESET_LABELS[q]}
-                {warns(q) && <span className="ml-1 text-[10px] text-red-300">⚠</span>}
+                {warns(q) && <TriangleAlert size={11} className="ml-1 inline-block align-[-1px] text-red-300" aria-label="aviso de desempenho" />}
               </button>
             ))}
           </div>
@@ -162,7 +163,7 @@ function PerformanceWarning({ preset, onCancel, onConfirm }: { preset: GraphicsP
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink-950/70 p-3 sm:items-center" onPointerDown={(e) => e.target === e.currentTarget && onCancel()}>
       <div className="panel scroll-thin max-h-[92%] w-full max-w-lg overflow-y-auto p-4 text-sm" role="alertdialog" aria-modal="true" aria-labelledby="perf-title" aria-describedby="perf-body">
         <div id="perf-title" className="text-base font-semibold text-brass-400">
-          ⚠ Aviso de desempenho — {PRESET_LABELS[preset]}
+          <TriangleAlert size={16} className="inline-block align-[-2px]" aria-hidden /> Aviso de desempenho — {PRESET_LABELS[preset]}
         </div>
         <div id="perf-body" className="mt-2 space-y-2 text-ink-200">
           {preset === 'ultraplus' ? (

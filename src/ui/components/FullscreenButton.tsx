@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { enterFullscreen, fullscreenMode, isFullscreen, toggleFullscreen, useFullscreen } from '../../lib/fullscreen.ts';
 import { isTouchDevice } from '../../lib/graphics.ts';
@@ -145,7 +146,7 @@ export function FullscreenPrompt() {
           {mode === 'install' ? 'Como?' : 'Tela cheia'}
         </button>
         <button className="btn min-h-9 px-2.5" aria-label="Dispensar" onClick={dismiss}>
-          ✕
+          <X size={14} aria-hidden />
         </button>
       </div>
       {tip && (

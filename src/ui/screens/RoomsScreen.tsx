@@ -1,3 +1,4 @@
+import { RefreshCw, Star } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { PublicRoomSummary } from '../../../shared/protocol.ts';
 import { countryName } from '../../../shared/data/countries.ts';
@@ -98,7 +99,7 @@ export function RoomsScreen() {
           + Criar sala pública
         </button>
         <button className="btn" disabled={!online} onClick={ask} title="Atualiza a lista agora (ela também se atualiza sozinha a cada 5 s)">
-          ⟳ Atualizar
+          <RefreshCw size={14} className="inline-block align-[-2px]" aria-hidden /> Atualizar
         </button>
         <input className="field min-w-0 flex-1" placeholder="Filtrar por nome, anfitrião, país ou código" aria-label="Filtrar salas" value={filter} onChange={(e) => setFilter(e.target.value)} />
         <label className="flex cursor-pointer items-center gap-1.5 text-xs text-ink-300">
@@ -137,7 +138,7 @@ export function RoomsScreen() {
                 <span className="min-w-0">
                   <span className="block truncate font-semibold text-ink-100">{r.name}</span>
                   <span className="text-[11px] text-ink-400">
-                    ★ {r.hostName} · <span className="font-mono">{r.code}</span>
+                    <Star size={11} className="inline-block align-[-2px]" aria-hidden /> {r.hostName} · <span className="font-mono">{r.code}</span>
                     {multiRegion && regionForCode(REGIONS, r.code) ? ` · ${regionForCode(REGIONS, r.code)!.label}` : ''}
                   </span>
                 </span>

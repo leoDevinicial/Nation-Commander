@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { gameClient } from '../../net/client.ts';
 import type { NetSummary } from '../../net/netStats.ts';
@@ -50,7 +51,7 @@ export function NetPopover({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <button className="btn min-h-8 px-2" onClick={onClose} aria-label="Fechar">
-          ✕
+          <X size={14} aria-hidden />
         </button>
       </div>
       <dl className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1">

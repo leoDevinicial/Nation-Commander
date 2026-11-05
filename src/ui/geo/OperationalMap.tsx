@@ -1,3 +1,4 @@
+import { Swords, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { UNITS, type UnitType } from '../../../shared/sim/config.ts';
 import { countryName } from '../../../shared/data/countries.ts';
@@ -173,7 +174,7 @@ export function OperationalMap({ runtime, target }: { runtime: GameRuntime; targ
             <div className="text-[10px] text-ink-400">Regiões e contornos aproximados — não é cartografia exata</div>
           </div>
           <button className="btn min-h-7 px-2 py-0.5 text-[11px]" onClick={close} title="Fechar (Esc)">
-            ✖ Fechar
+            <X size={14} className="inline-block align-[-2px]" aria-hidden /> Fechar
           </button>
         </div>
         {!war ? (
@@ -322,7 +323,7 @@ function ActiveOperation({ op, runtime }: { op: OperationView; runtime: GameRunt
       <div className="mt-1.5 flex flex-wrap gap-1.5">
         {op.state === 'battle' && battle?.opId === op.id && (
           <button className="btn btn-primary px-2 py-1 text-xs" onClick={() => enterBattle()}>
-            ⚔ Entrar na batalha
+            <Swords size={14} className="inline-block align-[-2px]" aria-hidden /> Entrar na batalha
           </button>
         )}
         {(op.state === 'battle' || op.state === 'transit') &&

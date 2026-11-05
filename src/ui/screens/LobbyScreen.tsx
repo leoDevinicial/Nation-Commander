@@ -1,3 +1,4 @@
+import { Star, X } from 'lucide-react';
 import { useState } from 'react';
 import { countryName } from '../../../shared/data/countries.ts';
 import { DIFFICULTIES, DIFFICULTY } from '../../../shared/sim/difficulty.ts';
@@ -62,7 +63,7 @@ export function LobbyScreen() {
                     <>
                       <div className="min-w-0 flex-1">
                         <div className="truncate font-semibold">
-                          {p.name} {p.userId === room.hostUserId && <span className="text-xs text-brass-400">★ anfitrião</span>}
+                          {p.name} {p.userId === room.hostUserId && <span className="text-xs text-brass-400"><Star size={11} className="inline-block align-[-2px]" aria-hidden /> anfitrião</span>}
                           {p.isAI && <span className="ml-1 text-xs text-ink-400">(IA)</span>}
                           {p.ping !== undefined && (
                             <span
@@ -109,12 +110,12 @@ export function LobbyScreen() {
                         </select>
                       )}
                       {p.isAI && isHost && !sandbox && (room.mode === 'pvp' || room.players.filter((x) => x.isAI).length > 1) && (
-                        <button className="btn min-h-7 px-2 py-0.5 text-xs" onClick={() => gameClient.send({ t: 'remove_bot', slot: p.slot })} title="Remover este bot">
-                          ✖
+                        <button className="btn min-h-7 px-2 py-0.5 text-xs" onClick={() => gameClient.send({ t: 'remove_bot', slot: p.slot })} title="Remover este bot" aria-label="Remover este bot">
+                          <X size={14} aria-hidden />
                         </button>
                       )}
                       <span className={`text-xs font-semibold ${p.ready || p.userId === room.hostUserId ? 'text-signal-green' : 'text-ink-400'}`}>
-                        {p.userId === room.hostUserId ? 'Anfitrião' : p.ready ? '✔ Pronto' : '… Aguardando'}
+                        {p.userId === room.hostUserId ? 'Anfitrião' : p.ready ? 'Pronto' : 'Aguardando…'}
                       </span>
                     </>
                   ) : (

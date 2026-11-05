@@ -1,3 +1,4 @@
+import { TriangleAlert, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useHudStore, type PerfHud } from '../../state/useHudStore.ts';
 import { useSettingsStore } from '../../state/useSettingsStore.ts';
@@ -99,7 +100,7 @@ export function PerfPopover({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <button className="btn min-h-8 px-2" onClick={onClose} aria-label="Fechar">
-          ✕
+          <X size={14} aria-hidden />
         </button>
       </div>
       <label className="mt-2 flex min-h-8 cursor-pointer items-center justify-between gap-3 rounded bg-ink-800/60 px-2">
@@ -236,7 +237,7 @@ export function PerfPopover({ onClose }: { onClose: () => void }) {
           </div>
           {perf.incidents.map((m) => (
             <div key={m} className="text-red-300">
-              ⚠ {m}
+              <TriangleAlert size={12} className="inline-block align-[-2px]" aria-hidden /> {m}
             </div>
           ))}
         </div>
@@ -360,7 +361,7 @@ function ReportBox({ perf }: { perf: PerfHud }) {
           />
           <div className="flex flex-wrap gap-2">
             <button className="btn min-h-8 flex-1 px-2" onClick={() => void copy()}>
-              {copied === 'ok' ? 'Copiado ✓' : 'Copiar'}
+              {copied === 'ok' ? 'Copiado' : 'Copiar'}
             </button>
             {canShare && (
               <button

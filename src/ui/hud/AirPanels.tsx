@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bomb, Crosshair, OctagonX, Package, PersonStanding, Plane, Radiation, Rocket, Send, Target, Telescope, type LucideIcon } from 'lucide-react';
+import { Bomb, Crosshair, Fuel, type LucideIcon, OctagonX, Package, PersonStanding, Plane, Radiation, Rocket, Send, Target, Telescope } from 'lucide-react';
 import { UNITS, canAfford, emptyStockpile } from '../../../shared/sim/config.ts';
 import { useMyBonus } from '../../state/myCountry.ts';
 import { DRONE } from '../../../shared/sim/drones.ts';
@@ -147,7 +147,12 @@ export function AirbaseButtons({ b, runtime }: { b: SelectedBuildingInfo; runtim
             title={`${def.label} — ${def.role}\nCusto: ${formatUsd(def.usd)} do caixa do país + materiais + 1 piloto · ${timeText(def.buildSeconds)}${def.range ? `\nAlcance ${def.range} · manutenção ${def.maintenanceSeconds}s após cada missão` : ''}`}
           >
             <CostLabel cost={def.cost} have={ctx.resources} compact />
-            {def.goods?.fuel && <span className="text-[9px] text-signal-blue">⛽{def.goods.fuel}</span>}
+            {def.goods?.fuel && (
+              <span className="inline-flex items-center gap-0.5 text-[9px] text-signal-blue">
+                <Fuel size={10} aria-hidden />
+                {def.goods.fuel}
+              </span>
+            )}
             <span className="text-[9px] text-ink-400">{formatUsd(def.usd)}</span>
           </CardButton>
         );

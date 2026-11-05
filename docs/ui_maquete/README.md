@@ -72,5 +72,11 @@ node shot.cjs hud.html ../1-tela-computador.png 1600 900 2
    os tipos de aeronave usam ícones Lucide em latão (`.cmd-card-icon`; cinza quando bloqueado). Áreas de pesquisa,
    modos de rota do comércio e os textos do painel do prédio (serviços da cidade, caravana, energia, construtores,
    Globo) também. Controles deslizantes e caixas de marcar em latão.
-8. Ainda com emojis ou miolo antigo: os ícones de reserva da fila (`producibleIcon`, só sem miniatura), dicas de
-   posicionamento, Globo, lobby, comunidade, feedback e manual.
+8. **Fim dos emojis na interface (05/11, noite):** barra de toque do celular (mão, seta, área, zoom, girar, QG,
+   desmarcar), botão do chat, drone, painéis de batalha, Globo, mapa operacional, Sandbox, melhoria de prédio, avisos
+   (`Toasts`), estados da árvore de pesquisa (`StateIcon`: concluída, em andamento, bloqueada, pausada, disponível),
+   dicas de energia no posicionamento, ligação por estrada, bens (aço e combustível), botões de fechar, lobby, salas,
+   comunidade, feedback (estrelas preenchidas), manual, opções, login e resultados — tudo com ícones Lucide.
+   Textos traduzidos ganharam a chave sem o símbolo em `en.ts`/`es.ts`.
+9. Restam de propósito: setas de tendência (▲▼) nos números do painel nacional, `producibleIcon` (só aparece sem
+   miniatura) e símbolos matemáticos em textos (√, ≈, →). Próximo passo: miolo do Globo e do lobby no estilo da moldura.

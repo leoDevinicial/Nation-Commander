@@ -4,7 +4,7 @@ import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { producibleIcon, producibleLabel } from './CommandPanel.tsx';
-import { Factory, Landmark, Swords } from 'lucide-react';
+import { Factory, Landmark, Swords, X } from 'lucide-react';
 
 export type TopBarPopover = 'money' | 'production' | 'perf' | 'net' | 'sandbox' | null;
 
@@ -77,7 +77,7 @@ export function MoneyPopover({ onClose }: { onClose: () => void }) {
           )}
         </div>
         <button className="btn min-h-8 px-2" onClick={onClose} aria-label="Fechar">
-          ✕
+          <X size={14} aria-hidden />
         </button>
       </div>
       {day ? (
@@ -169,7 +169,7 @@ export function ProductionPopover({ runtime, onClose }: { runtime: GameRuntime; 
       <div className="flex items-center justify-between gap-2">
         <div className="text-sm font-semibold text-ink-100">Em produção</div>
         <button className="btn min-h-8 px-2" onClick={onClose} aria-label="Fechar">
-          ✕
+          <X size={14} aria-hidden />
         </button>
       </div>
       {production.length === 0 ? (

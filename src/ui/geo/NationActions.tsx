@@ -1,3 +1,4 @@
+import { Map } from 'lucide-react';
 import { useState } from 'react';
 import type { DiplomacyView, ForeignView, NationView } from '../../../shared/protocol.ts';
 import { DIPLO, type DiplomaticAction, type NationId, type Treaty } from '../../../shared/strategic/Diplomacy.ts';
@@ -206,7 +207,7 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
             <>
               <p className="mb-1.5 text-red-300">Em guerra. O país está fora do teatro: o combate é por operações expedicionárias nas regiões dele.</p>
               <button className="btn btn-primary px-3 py-1.5 text-xs" onClick={() => onOpenOperations?.(f.id)}>
-                🗺 Abrir Mapa Operacional
+                <Map size={14} className="inline-block align-[-2px]" aria-hidden /> Abrir Mapa Operacional
               </button>
             </>
           ) : (

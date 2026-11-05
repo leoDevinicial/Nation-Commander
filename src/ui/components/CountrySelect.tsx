@@ -21,7 +21,7 @@ export function CountrySelect({
 }) {
   return (
     <select id={id} className="field" value={value} disabled={disabled} aria-label={label} onChange={(e) => onChange(e.target.value)}>
-      {random && <option value="random">🎲 Sortear outro país</option>}
+      {random && <option value="random">Sortear outro país</option>}
       {COUNTRIES.map((c) => (
         <option key={c.id} value={c.id} disabled={taken?.includes(c.id)}>
           {c.name} ({c.id})

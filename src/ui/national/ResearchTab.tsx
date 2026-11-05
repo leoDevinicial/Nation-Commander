@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Brain, Factory, Landmark, Pickaxe, Swords } from 'lucide-react';
+import { Brain, Check, Circle, Factory, Landmark, Lock, Pause, Pickaxe, Play, Swords, X } from 'lucide-react';
 import type { NationView } from '../../../shared/protocol.ts';
 import {
   TECH_CATEGORIES,
@@ -172,7 +172,7 @@ function AreaTree({ nation, onSelect }: { nation: NationView; onSelect: (id: Tec
                 title={t.description}
               >
                 <div className="truncate text-[11px] font-semibold text-ink-100">
-                  {{ done: '✔', active: '▶', locked: '🔒', paused: '⏸', ready: '○' }[state]} {t.label}
+                  <StateIcon state={state} /> {t.label}
                 </div>
                 <div className="line-clamp-2 text-[10px] leading-tight text-ink-400">{t.unlocks[0] ?? t.description}</div>
                 {state !== 'done' && (
@@ -226,8 +226,7 @@ function TechCard({ id, nation, onSelect }: { id: TechId; nation: NationView; on
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="font-semibold text-ink-100">
-            {done ? '✔ ' : active ? '▶ ' : locked ? '🔒 ' : ''}
-            {t.label}
+            {done ? <StateIcon state="done" /> : active ? <StateIcon state="active" /> : locked ? <StateIcon state="locked" /> : null} {t.label}
           </div>
           <div className="text-[11px] text-ink-400">{t.description}</div>
         </div>
@@ -251,7 +250,7 @@ function TechCard({ id, nation, onSelect }: { id: TechId; nation: NationView; on
             const ok = r.done.includes(p);
             return (
               <span key={p} className={`rounded border px-1 ${ok ? 'border-signal-green/40 text-signal-green' : 'border-red-400/40 text-red-300'}`}>
-                {ok ? '✔' : '✖'} {TECHNOLOGIES[p].label}
+                {ok ? <Check size={11} className="inline-block align-[-2px]" aria-hidden /> : <X size={11} className="inline-block align-[-2px]" aria-hidden />} {TECHNOLOGIES[p].label}
               </span>
             );
           })}
@@ -290,4 +289,14 @@ function TechCard({ id, nation, onSelect }: { id: TechId; nation: NationView; on
       )}
     </div>
   );
+}
+
+/** Estado de um nó da árvore: concluída, em andamento, bloqueada, pausada ou disponível. */
+function StateIcon({ state }: { state: 'done' | 'active' | 'locked' | 'paused' | 'ready' }) {
+  const cls = 'inline-block align-[-2px]';
+  if (state === 'done') return <Check size={12} className={`${cls} text-signal-green`} aria-hidden />;
+  if (state === 'active') return <Play size={11} className={`${cls} text-brass-400`} aria-hidden />;
+  if (state === 'locked') return <Lock size={11} className={`${cls} text-ink-400`} aria-hidden />;
+  if (state === 'paused') return <Pause size={11} className={`${cls} text-signal-amber`} aria-hidden />;
+  return <Circle size={10} className={`${cls} text-ink-400`} aria-hidden />;
 }

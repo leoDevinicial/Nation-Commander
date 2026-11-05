@@ -1,3 +1,4 @@
+import { Ellipsis, Flag, Trash2, VolumeX, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { MAX_COMMUNITY_LENGTH, type CommunityMessage, type ReportReason } from '../../../shared/protocol.ts';
 import { gameClient } from '../../net/client.ts';
@@ -108,7 +109,7 @@ export function CommunityScreen() {
         <span className="flex shrink-0 items-center gap-3">
           {mutedCount > 0 && (
             <button className="underline decoration-dotted hover:text-ink-200" onClick={() => setShowMuted((v) => !v)}>
-              🔇 Silenciados ({mutedCount})
+              <VolumeX size={14} className="inline-block align-[-2px]" aria-hidden /> Silenciados ({mutedCount})
             </button>
           )}
           {moderator && <span className="rounded bg-brass-400/20 px-1.5 py-0.5 font-semibold text-brass-400">Moderador</span>}
@@ -123,7 +124,7 @@ export function CommunityScreen() {
           <div className="flex flex-wrap gap-1.5">
             {Object.entries(muted).map(([uid, name]) => (
               <button key={uid} className="btn min-h-7 px-2 py-0.5 text-xs" onClick={() => unmute(uid)} title="Voltar a ver as mensagens">
-                {name} ✕
+                {name} <X size={11} className="inline-block align-[-2px]" aria-hidden />
               </button>
             ))}
           </div>
@@ -169,7 +170,7 @@ export function CommunityScreen() {
                       setReporting(null);
                     }}
                   >
-                    ⋯
+                    <Ellipsis size={16} aria-hidden />
                   </button>
                 )}
                 {open && (
@@ -194,10 +195,10 @@ export function CommunityScreen() {
                     ) : (
                       <>
                         <button className="btn min-h-7 px-2 py-0.5 text-xs" onClick={() => setReporting(m.id)} title="Avise a equipe; com 3 denúncias a mensagem sai do chat">
-                          ⚑ Denunciar
+                          <Flag size={14} className="inline-block align-[-2px]" aria-hidden /> Denunciar
                         </button>
                         <button className="btn min-h-7 px-2 py-0.5 text-xs" onClick={() => mute(m)} title="Esconde as mensagens desta pessoa só para você">
-                          🔇 Silenciar para mim
+                          <VolumeX size={14} className="inline-block align-[-2px]" aria-hidden /> Silenciar para mim
                         </button>
                         {moderator && (
                           <>
@@ -208,7 +209,7 @@ export function CommunityScreen() {
                                 setMenu(null);
                               }}
                             >
-                              🗑 Apagar
+                              <Trash2 size={14} className="inline-block align-[-2px]" aria-hidden /> Apagar
                             </button>
                             {[
                               [60, '1 h'],

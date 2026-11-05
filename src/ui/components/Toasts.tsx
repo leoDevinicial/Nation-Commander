@@ -1,3 +1,4 @@
+import { Info, TriangleAlert } from 'lucide-react';
 import { useAppStore } from '../../state/useAppStore.ts';
 
 export function Toasts() {
@@ -11,7 +12,7 @@ export function Toasts() {
           onClick={() => dismiss(t.id)}
           className={`panel pointer-events-auto max-w-md px-4 py-2 text-sm ${t.kind === 'error' ? 'border-signal-red text-red-100' : 'text-ink-100'}`}
         >
-          {t.kind === 'error' ? '⚠ ' : 'ℹ '}
+          {t.kind === 'error' ? <TriangleAlert size={15} className="mr-1.5 inline-block align-[-3px] text-red-300" aria-hidden /> : <Info size={15} className="mr-1.5 inline-block align-[-3px] text-ink-300" aria-hidden />}
           {t.text}
         </button>
       ))}

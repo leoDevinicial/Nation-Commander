@@ -1,3 +1,4 @@
+import { Lightbulb, Play, TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { MANUAL, manualRead, markManualRead } from '../manual.ts';
@@ -87,7 +88,10 @@ export function ManualScreen() {
               </li>
             ))}
           </ul>
-          {card.tip && <p className="mt-3 rounded border border-brass-400/40 bg-brass-400/10 px-3 py-2 text-xs leading-snug text-ink-100">💡 {card.tip}</p>}
+          {card.tip && <p className="mt-3 rounded border border-brass-400/40 bg-brass-400/10 px-3 py-2 text-xs leading-snug text-ink-100">
+              <Lightbulb size={13} className="mr-1 inline-block align-[-2px] text-brass-400" aria-hidden />
+              {card.tip}
+            </p>}
         </section>
 
         <div className="manual-stagger mt-4 flex justify-center gap-1.5" style={{ animationDelay: '560ms' }} role="tablist" aria-label="Cartões do manual">
@@ -113,7 +117,7 @@ export function ManualScreen() {
             </button>
           ) : (
             <button className="btn btn-primary min-h-11 flex-[2]" onClick={finish}>
-              Entendi, começar ▶
+              Entendi, começar <Play size={12} className="inline-block align-[-1px]" aria-hidden />
             </button>
           )}
         </div>
@@ -138,7 +142,7 @@ function SkipWarning({ card, onRead, onSkip }: { card: number; onRead: () => voi
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink-950/75 p-3 sm:items-center" onPointerDown={(e) => e.target === e.currentTarget && onRead()}>
       <div className="manual-pop panel w-full max-w-md p-4 text-sm" role="alertdialog" aria-modal="true" aria-labelledby="skip-title" aria-describedby="skip-body">
         <div id="skip-title" className="text-base font-semibold text-brass-400">
-          ⚠ Pular o manual?
+          <TriangleAlert size={16} className="inline-block align-[-2px]" aria-hidden /> Pular o manual?
         </div>
         <div id="skip-body" className="mt-2 space-y-2 text-ink-200">
           <p>Leva só uns 2 minutos e explica regras que não são óbvias — quem pula costuma travar nos primeiros minutos:</p>

@@ -1,3 +1,4 @@
+import { Map, Swords, Undo2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { countryName } from '../../../shared/data/countries.ts';
 import { BIOME_LABELS } from '../../../shared/data/sectors.ts';
@@ -32,7 +33,7 @@ export function BattleBar({ runtime }: { runtime: GameRuntime }) {
     <div className="pointer-events-none absolute top-2 right-2 left-2 z-20 flex flex-wrap items-start gap-2 sm:top-3 sm:right-3 sm:left-3">
       <div className="panel pointer-events-auto max-w-full px-2.5 py-1.5 text-xs">
         <div className="font-display font-bold tracking-wide uppercase">
-          ⚔ {battle.sector.name.split(' (')[0]} · {countryName(battle.targetCountryId)}
+          <Swords size={14} className="inline-block align-[-2px]" aria-hidden /> {battle.sector.name.split(' (')[0]} · {countryName(battle.targetCountryId)}
         </div>
         <div className="text-[11px] text-ink-300">Objetivo: destruir o posto de comando inimigo. Proteja sua base avançada.</div>
         <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-ink-400">
@@ -46,7 +47,7 @@ export function BattleBar({ runtime }: { runtime: GameRuntime }) {
       </div>
       <div className="pointer-events-auto ml-auto flex gap-1.5">
         <button className="btn px-2 py-1 text-xs" onClick={() => useOpsStore.getState().set({ inBattle: false })} title="A batalha continua; volte pelo indicador da operação">
-          ⤺ Teatro
+          <Undo2 size={14} className="inline-block align-[-2px]" aria-hidden /> Teatro
         </button>
         {confirm ? (
           <>
@@ -86,11 +87,11 @@ export function OperationChip() {
       </span>
       {op.state === 'battle' && battle?.opId === op.id ? (
         <button className="btn btn-primary min-h-6 px-2 py-0 text-[11px]" onClick={() => enterBattle()}>
-          ⚔ Entrar
+          <Swords size={14} className="inline-block align-[-2px]" aria-hidden /> Entrar
         </button>
       ) : (
         <button className="btn min-h-6 px-2 py-0 text-[11px]" onClick={() => useOpsStore.getState().set({ opMap: op.target })}>
-          🗺 Mapa
+          <Map size={14} className="inline-block align-[-2px]" aria-hidden /> Mapa
         </button>
       )}
     </div>
@@ -110,7 +111,7 @@ export function BattlePrompt() {
         <p className="mt-1 text-ink-300">A guarnição de {countryName(battle.targetCountryId)} defende a região. Assuma o comando da batalha local.</p>
         <div className="mt-2 flex gap-1.5">
           <button className="btn btn-primary px-3 py-1 text-xs" onClick={() => enterBattle()}>
-            ⚔ Entrar na batalha
+            <Swords size={14} className="inline-block align-[-2px]" aria-hidden /> Entrar na batalha
           </button>
           <button className="btn px-3 py-1 text-xs" onClick={() => setDismissed(battle.opId)}>
             Depois
@@ -168,7 +169,7 @@ export function OutcomeDialog() {
               useOpsStore.getState().set({ outcome: null, opMap: op?.target ?? null });
             }}
           >
-            🗺 Mapa operacional
+            <Map size={14} className="inline-block align-[-2px]" aria-hidden /> Mapa operacional
           </button>
         </div>
       </div>
@@ -197,7 +198,7 @@ export function BattleLoading({ runtime }: { runtime: GameRuntime | null }) {
   return (
     <div className="absolute inset-0 z-[36] flex items-center justify-center bg-ink-950" role="status" aria-live="polite">
       <div className="scene-enter max-w-sm p-4 text-center">
-        <div className="font-display text-sm font-bold tracking-wide uppercase">⚔ {battle.sector.name.split(' (')[0]}</div>
+        <div className="font-display text-sm font-bold tracking-wide uppercase"><Swords size={14} className="inline-block align-[-2px]" aria-hidden /> {battle.sector.name.split(' (')[0]}</div>
         <div className="mt-1 text-xs text-ink-300">
           {countryName(battle.targetCountryId)} · {BIOME_LABELS[battle.sector.biome]}
         </div>

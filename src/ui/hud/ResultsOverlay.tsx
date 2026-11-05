@@ -120,7 +120,7 @@ export function ResultsOverlay() {
           </>
         )}
         <p className="mt-4 text-center text-xs text-ink-400">
-          {end.recorded ? '✔ Partida registrada no seu perfil.' : guest ? 'Partida de convidado: estatísticas não são salvas.' : '⚠ Não foi possível registrar esta partida.'}
+          {end.recorded ? 'Partida registrada no seu perfil.' : guest ? 'Partida de convidado: estatísticas não são salvas.' : 'Não foi possível registrar esta partida.'}
         </p>
         <div className="mt-4 text-center">
           <button className="btn btn-primary" onClick={back}>

@@ -1,3 +1,4 @@
+import { Star } from 'lucide-react';
 import { countryName } from '../../../shared/data/countries.ts';
 import { countryBonus } from '../../../shared/sim/countryBonus.ts';
 import { COEF, theaterSupply } from '../../../shared/strategic/params.ts';
@@ -89,7 +90,9 @@ export function CountryCard({ id, balanceMode }: { id: string; balanceMode: 'par
       )}
       {bonus.title && (
         <p className="mb-2 rounded border border-brass-400/40 bg-brass-400/10 px-2 py-1 text-ink-200">
-          <span className="font-semibold text-brass-400">★ {bonus.title}:</span> {bonus.description}
+          <span className="font-semibold text-brass-400">
+            <Star size={12} className="inline-block align-[-2px]" aria-hidden /> {bonus.title}:
+          </span> {bonus.description}
         </p>
       )}
       <table className="w-full">

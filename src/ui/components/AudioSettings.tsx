@@ -51,7 +51,7 @@ export function AudioSettings({ compact = false }: { compact?: boolean }) {
       {!compact && (
         <p className="text-[11px] text-ink-400">
           Os efeitos são gerados no próprio aparelho; a música é a trilha sonora original, que acompanha a tensão da partida (construção, combate, ataque
-          massivo e guerra nuclear) e baixa sozinha sob tiros e explosões. Na partida, o botão 🎵 (ou a tecla M) liga e desliga a música. Combate soa mais alto perto do ponto que a câmera olha; a produção toca só para o edifício selecionado. Alertas
+          massivo e guerra nuclear) e baixa sozinha sob tiros e explosões. Na partida, o botão de música (ou a tecla M) liga e desliga a música. Combate soa mais alto perto do ponto que a câmera olha; a produção toca só para o edifício selecionado. Alertas
           importantes também aparecem sempre no painel de eventos.
         </p>
       )}

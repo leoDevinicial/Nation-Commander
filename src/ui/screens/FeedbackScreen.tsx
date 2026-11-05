@@ -1,3 +1,4 @@
+import { CircleCheck, ExternalLink, Globe, Star } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { FeedbackCategory } from '../../../shared/protocol.ts';
 import { GAME_VERSION } from '../../../shared/version.ts';
@@ -7,11 +8,11 @@ import { CHANGELOG } from '../changelog.ts';
 import { Shell } from '../components/Shell.tsx';
 
 const CATEGORIES: { id: FeedbackCategory; label: string; hint: string }[] = [
-  { id: 'bug', label: '🐞 Problema', hint: 'O que aconteceu, o que você esperava e como repetir (tela, prédio, tropa, celular ou computador).' },
-  { id: 'suggestion', label: '💡 Sugestão', hint: 'Uma ideia de tropa, prédio, mapa, modo de jogo ou melhoria na interface.' },
-  { id: 'balance', label: '⚖ Balanceamento', hint: 'Algo forte ou fraco demais: custo, dano, tempo de obra, IA, economia, energia.' },
-  { id: 'praise', label: '⭐ Elogio', hint: 'O que você mais gostou de jogar.' },
-  { id: 'other', label: '💬 Outro', hint: 'Qualquer outro recado para a equipe.' },
+  { id: 'bug', label: 'Problema', hint: 'O que aconteceu, o que você esperava e como repetir (tela, prédio, tropa, celular ou computador).' },
+  { id: 'suggestion', label: 'Sugestão', hint: 'Uma ideia de tropa, prédio, mapa, modo de jogo ou melhoria na interface.' },
+  { id: 'balance', label: 'Balanceamento', hint: 'Algo forte ou fraco demais: custo, dano, tempo de obra, IA, economia, energia.' },
+  { id: 'praise', label: 'Elogio', hint: 'O que você mais gostou de jogar.' },
+  { id: 'other', label: 'Outro', hint: 'Qualquer outro recado para a equipe.' },
 ];
 
 /** Links da comunidade (configurados no deploy por variáveis de ambiente; sem eles, a seção mostra só o que há no jogo). */
@@ -62,7 +63,9 @@ export function FeedbackScreen() {
           <p className="mb-3 text-sm text-ink-300">O Nation Commander é feito com a comunidade. Cada mensagem é lida pela equipe e ajuda a decidir o que vem na próxima versão.</p>
           {state === 'sent' ? (
             <div className="rounded border border-signal-green/50 bg-ink-850 p-4 text-sm" role="status">
-              <div className="font-semibold text-signal-green">✔ Feedback enviado. Obrigado, comandante!</div>
+              <div className="font-semibold text-signal-green">
+                <CircleCheck size={16} className="inline-block align-[-2px]" aria-hidden /> Feedback enviado. Obrigado, comandante!
+              </div>
               <p className="mt-1 text-ink-300">Você pode mandar outro daqui a um minuto.</p>
               <button className="btn mt-3" onClick={() => setState('idle')}>
                 Enviar outro
@@ -105,7 +108,7 @@ export function FeedbackScreen() {
                     aria-pressed={rating === n}
                     onClick={() => setRating(rating === n ? null : n)}
                   >
-                    ★
+                    <Star size={18} fill={rating !== null && n <= rating ? 'currentColor' : 'none'} aria-hidden />
                   </button>
                 ))}
               </div>
@@ -125,7 +128,7 @@ export function FeedbackScreen() {
             <h2 className="label">Comunidade</h2>
             <div className="grid gap-2">
               <button className="btn btn-hero w-full justify-start" onClick={() => setScreen('rooms')}>
-                <span aria-hidden>🌐</span>
+                <Globe size={15} aria-hidden />
                 <span className="flex flex-col text-left">
                   <span>Salas Públicas</span>
                   <span className="font-sans text-[11px] font-medium tracking-normal text-ink-400">Jogue com outros comandantes agora</span>
@@ -135,7 +138,7 @@ export function FeedbackScreen() {
                 <div className="flex flex-wrap gap-2">
                   {LINKS.map((l) => (
                     <a key={l.label} className="btn" href={l.url} target="_blank" rel="noreferrer noopener">
-                      {l.label} ↗
+                      {l.label} <ExternalLink size={12} className="inline-block align-[-1px]" aria-hidden />
                     </a>
                   ))}
                 </div>

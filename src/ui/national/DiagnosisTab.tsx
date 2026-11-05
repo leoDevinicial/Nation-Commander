@@ -1,3 +1,4 @@
+import { TriangleAlert } from 'lucide-react';
 import type { NationView } from '../../../shared/protocol.ts';
 import type { Factor } from '../../../shared/strategic/NationalSimulation.ts';
 import { COEF } from '../../../shared/strategic/params.ts';
@@ -60,7 +61,7 @@ export function DiagnosisTab({ nation }: { nation: NationView }) {
         <div className="mb-1 text-[11px] text-ink-400">Risco de protestos</div>
         {protestRisk > 0 ? (
           <p className="text-ink-200">
-            <span aria-hidden>▲ </span>Aprovação abaixo de {COEF.protestApprovalThreshold}: chance estimada de {formatPct(protestRisk * 100, 2)} por dia. Protestos reduzem
+            <TriangleAlert size={12} className="inline-block align-[-2px]" aria-hidden /> Aprovação abaixo de {COEF.protestApprovalThreshold}: chance estimada de {formatPct(protestRisk * 100, 2)} por dia. Protestos reduzem
             aprovação e estabilidade. Principais causas: os fatores negativos acima.
           </p>
         ) : (

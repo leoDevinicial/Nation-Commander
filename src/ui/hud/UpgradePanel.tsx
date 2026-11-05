@@ -1,3 +1,4 @@
+import { ArrowBigUp, Check, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { BUILDINGS, RESOURCE_LABELS, RESOURCE_TYPES, emptyStockpile, type Cost } from '../../../shared/sim/config.ts';
 import {
@@ -102,7 +103,7 @@ export function UpgradePanel({ runtime }: { runtime: GameRuntime }) {
             <LevelPips level={b.level} max={track.maxLevel} target={b.upgrade?.toLevel ?? null} specLevel={track.specLevel ?? null} />
           </div>
           <button className="btn min-h-9 px-3" onClick={close} aria-label="Fechar">
-            ✕
+            <X size={14} aria-hidden />
           </button>
         </div>
 
@@ -166,12 +167,12 @@ export function UpgradePanel({ runtime }: { runtime: GameRuntime }) {
                       <ul className="mt-1.5 space-y-0.5">
                         {s.pros.map((p) => (
                           <li key={p} className="text-signal-green">
-                            ✔ {p}
+                            <Check size={12} className="inline-block align-[-2px]" aria-hidden /> {p}
                           </li>
                         ))}
                         {s.cons.map((c) => (
                           <li key={c} className="text-red-300">
-                            ✖ {c}
+                            <X size={12} className="inline-block align-[-2px]" aria-hidden /> {c}
                           </li>
                         ))}
                       </ul>
@@ -187,7 +188,7 @@ export function UpgradePanel({ runtime }: { runtime: GameRuntime }) {
                 <ul className="space-y-0.5">
                   {plan.requirements.map((r) => (
                     <li key={r.key} className={r.met ? 'text-ink-200' : 'text-red-300'}>
-                      {r.met ? '✔' : '✖'} {r.label}
+                      {r.met ? <Check size={12} className="inline-block align-[-2px]" aria-hidden /> : <X size={12} className="inline-block align-[-2px]" aria-hidden />} {r.label}
                     </li>
                   ))}
                 </ul>
@@ -235,7 +236,7 @@ export function UpgradePanel({ runtime }: { runtime: GameRuntime }) {
                   close();
                 }}
               >
-                ⬆ Iniciar obra · nível {plan.toLevel}
+                <ArrowBigUp size={14} className="inline-block align-[-2px]" aria-hidden /> Iniciar obra · nível {plan.toLevel}
               </button>
             </div>
           </>

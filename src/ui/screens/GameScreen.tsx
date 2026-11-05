@@ -1,3 +1,4 @@
+import { Gamepad2, MessageSquare } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { GameRuntime } from '../../game/GameRuntime.ts';
 import { gameClient, snapshotBuffer } from '../../net/client.ts';
@@ -226,7 +227,7 @@ export function GameScreen() {
           onClick={() => runtime.takeDrone(droneTakeover.id)}
           title="Pilote o drone em primeira pessoa até o alvo"
         >
-          🎮 Assumir o drone (T) · {droneTakeover.left}s
+          <Gamepad2 size={16} className="inline-block align-[-3px]" aria-hidden /> Assumir o drone (T) · {droneTakeover.left}s
         </button>
       )}
       {runtime && active && !fpv && (
@@ -272,7 +273,8 @@ export function GameScreen() {
           )}
           {!chatOpen && !nationalOpen && !globeOpen && (
             <button className="btn absolute top-15 right-2 px-2 py-1 text-xs sm:top-14 sm:right-3" onClick={() => setChatOpen(true)} title="Chat (Enter)" aria-label="Chat">
-              💬<span className="hidden sm:inline">Chat</span>
+              <MessageSquare size={15} aria-hidden />
+              <span className="hidden sm:inline">Chat</span>
             </button>
           )}
           {menuOpen && !matchEnd && <PauseMenu runtime={runtime} onClose={() => setMenuOpen(false)} />}

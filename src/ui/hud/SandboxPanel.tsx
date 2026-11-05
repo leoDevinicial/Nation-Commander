@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FlaskConical } from 'lucide-react';
+import { ArrowBigUp, ChevronDown, ChevronRight, FlaskConical, Star, X } from 'lucide-react';
 import { BUILDINGS, UNITS, type UnitType } from '../../../shared/sim/config.ts';
 import { SANDBOX_MAX_SPAWN, type SandboxToggle } from '../../../shared/sim/commands.ts';
 import { upgradeTrack, type SpecId } from '../../../shared/sim/upgrades.ts';
@@ -65,11 +65,13 @@ export function SandboxPanel({ runtime, onClose }: { runtime: GameRuntime; onClo
     >
       <div className="flex items-start justify-between gap-2">
         <div>
-          <div className="text-sm font-semibold text-brass-400">🧪 Modo Sandbox</div>
+          <div className="text-sm font-semibold text-brass-400">
+          <FlaskConical size={14} className="inline-block align-[-2px]" aria-hidden /> Modo Sandbox
+        </div>
           <div className="text-ink-400">Recursos ilimitados, tudo pesquisado e liberado. Nada aqui conta no seu histórico.</div>
         </div>
         <button className="btn min-h-8 px-2" onClick={onClose} aria-label="Fechar">
-          ✕
+          <X size={14} aria-hidden />
         </button>
       </div>
 
@@ -156,7 +158,7 @@ export function SandboxPanel({ runtime, onClose }: { runtime: GameRuntime; onClo
               </div>
             )}
             <button className="btn btn-primary mt-2 w-full" onClick={() => runtime.sandboxLevel(track.maxLevel, spec ?? undefined)}>
-              ⬆ Nível máximo
+              <ArrowBigUp size={14} className="inline-block align-[-2px]" aria-hidden /> Nível máximo
             </button>
           </div>
         ) : building ? (
@@ -164,7 +166,7 @@ export function SandboxPanel({ runtime, onClose }: { runtime: GameRuntime; onClo
         ) : null}
         {units.length > 0 && (
           <button className="btn mt-2 w-full" onClick={() => runtime.sandboxMaxout()}>
-            ★ Modernizar tudo e curar ({units.length} {units.length === 1 ? 'unidade' : 'unidades'})
+            <Star size={14} className="inline-block align-[-2px]" aria-hidden /> Modernizar tudo e curar ({units.length} {units.length === 1 ? 'unidade' : 'unidades'})
           </button>
         )}
         {(building || units.length > 0) && (
@@ -188,7 +190,7 @@ export function SandboxPanel({ runtime, onClose }: { runtime: GameRuntime; onClo
 
       <div className="mt-3 border-t border-ink-700 pt-2">
         <button className="text-left font-semibold text-ink-100" onClick={() => setTips(!tips)} aria-expanded={tips}>
-          {tips ? '▾' : '▸'} Como testar
+          {tips ? <ChevronDown size={14} className="inline-block align-[-2px]" aria-hidden /> : <ChevronRight size={14} className="inline-block align-[-2px]" aria-hidden />} Como testar
         </button>
         {tips && (
           <ul className="mt-1 list-disc space-y-1 pl-4 text-ink-200">

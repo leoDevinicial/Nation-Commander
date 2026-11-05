@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { countryName } from '../../../shared/data/countries.ts';
 import { RESOURCE_LABELS } from '../../../shared/sim/config.ts';
 import { TRANSPORT, WORLD } from '../../../shared/sim/trade.ts';
@@ -33,7 +34,7 @@ export function RouteInspector() {
         <div className="flex justify-between">
           <span className="text-ink-300">Carga entregue ou fora do mapa.</span>
           <button className="btn px-1.5 py-0.5 text-[10px]" onClick={close} aria-label="Fechar inspeção de rota">
-            ✖
+            <X size={14} aria-hidden />
           </button>
         </div>
       </div>
@@ -52,7 +53,7 @@ export function RouteInspector() {
           </div>
         </div>
         <button className="btn px-1.5 py-0.5 text-[10px]" onClick={close} aria-label="Fechar inspeção de rota">
-          ✖
+          <X size={14} aria-hidden />
         </button>
       </div>
       <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11px]">

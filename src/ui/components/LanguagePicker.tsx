@@ -1,3 +1,4 @@
+import { Languages } from 'lucide-react';
 import { LANGS, LANG_LABEL, useLangStore, type Lang } from '../../i18n/index.ts';
 
 const FLAG: Record<Lang, string> = { pt: '🇧🇷', en: '🇺🇸', es: '🇪🇸' };
@@ -11,7 +12,7 @@ export function LanguagePicker({ compact = false }: { compact?: boolean }) {
   const setLang = useLangStore((s) => s.setLang);
   return (
     <label className={`flex items-center gap-1.5 ${compact ? 'text-xs' : 'text-sm'}`} translate="no" title="Idioma · Language · Idioma">
-      <span aria-hidden>🌐</span>
+      <Languages size={compact ? 14 : 16} className="text-ink-300" aria-hidden />
       <select
         className="rounded-md border border-ink-700 bg-ink-900 px-2 py-1 text-ink-100"
         value={lang}

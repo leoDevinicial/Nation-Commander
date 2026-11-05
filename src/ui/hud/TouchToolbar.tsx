@@ -1,23 +1,24 @@
 import { useState } from 'react';
+import { ChevronUp, CirclePlus, Hand, House, Navigation, RotateCw, SquareDashed, X, ZoomIn, ZoomOut, type LucideIcon } from 'lucide-react';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { useHudStore, type TouchTool } from '../../state/useHudStore.ts';
 
-const TOOLS: { tool: TouchTool; icon: string; label: string; hint: string }[] = [
+const TOOLS: { tool: TouchTool; icon: LucideIcon; label: string; hint: string }[] = [
   {
     tool: 'select',
-    icon: '☝',
+    icon: Hand,
     label: 'Selecionar',
     hint: 'Toque seleciona; dois toques selecionam o tipo; toque longo dá ordem',
   },
   {
     tool: 'order',
-    icon: '➤',
+    icon: Navigation,
     label: 'Ordem',
     hint: 'O próximo toque move ou ataca com a seleção',
   },
   {
     tool: 'box',
-    icon: '▢',
+    icon: SquareDashed,
     label: 'Área',
     hint: 'Arraste um dedo para selecionar várias unidades',
   },
@@ -59,10 +60,8 @@ export function TouchToolbar({ runtime }: { runtime: GameRuntime }) {
         title={open ? 'Recolher os controles de toque' : `Controles de toque (ferramenta: ${current.label})`}
         onClick={() => setManual({ busy, open: !open })}
       >
-        <span className="text-base leading-none" aria-hidden>
-          {open ? '▴' : current.icon}
-        </span>
-        <span>{open ? 'Recolher' : 'Menu ▾'}</span>
+        {open ? <ChevronUp size={18} aria-hidden /> : <current.icon size={18} aria-hidden />}
+        <span>{open ? 'Recolher' : 'Menu'}</span>
       </button>
       {open && (
         <div className="touch-list contents">
@@ -75,46 +74,32 @@ export function TouchToolbar({ runtime }: { runtime: GameRuntime }) {
               title={t.hint}
               onClick={() => runtime.setTouchTool(tool === t.tool && t.tool !== 'select' ? 'select' : t.tool)}
             >
-              <span className="text-base leading-none" aria-hidden>
-                {t.icon}
-              </span>
+              <t.icon size={18} aria-hidden />
               <span>{t.label}</span>
             </button>
           ))}
           <button aria-label="Somar" className="cmd-btn touch-btn" aria-pressed={additive} title="Somar à seleção atual em vez de substituí-la" onClick={() => runtime.toggleTouchAdditive()}>
-            <span className="text-base leading-none" aria-hidden>
-              ⊕
-            </span>
+            <CirclePlus size={18} aria-hidden />
             <span>Somar</span>
           </button>
           <button aria-label="Aproximar" className="cmd-btn touch-btn" title="Aproximar (ou pinça com dois dedos)" onClick={() => runtime.zoomBy(1 / 1.25)}>
-            <span className="text-base leading-none" aria-hidden>
-              ＋
-            </span>
+            <ZoomIn size={18} aria-hidden />
             <span>Aproximar</span>
           </button>
           <button aria-label="Afastar" className="cmd-btn touch-btn" title="Afastar (ou pinça com dois dedos)" onClick={() => runtime.zoomBy(1.25)}>
-            <span className="text-base leading-none" aria-hidden>
-              －
-            </span>
+            <ZoomOut size={18} aria-hidden />
             <span>Afastar</span>
           </button>
           <button aria-label="Girar" className="cmd-btn touch-btn" title="Girar a câmera (ou gire dois dedos)" onClick={() => runtime.rotateBy(Math.PI / 8)}>
-            <span className="text-base leading-none" aria-hidden>
-              ⟳
-            </span>
+            <RotateCw size={18} aria-hidden />
             <span>Girar</span>
           </button>
           <button aria-label="Centro de Comando" className="cmd-btn touch-btn" title="Centralizar a câmera no Centro de Comando" onClick={() => runtime.centerOnHQ()}>
-            <span className="text-base leading-none" aria-hidden>
-              ⌂
-            </span>
+            <House size={18} aria-hidden />
             <span>QG</span>
           </button>
           <button aria-label="Desmarcar" className="cmd-btn touch-btn" disabled={!hasSelection} title="Limpar a seleção" onClick={() => runtime.clearSelection()}>
-            <span className="text-base leading-none" aria-hidden>
-              ✕
-            </span>
+            <X size={18} aria-hidden />
             <span>Desmarcar</span>
           </button>
         </div>

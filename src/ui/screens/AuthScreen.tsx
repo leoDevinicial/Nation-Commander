@@ -1,3 +1,4 @@
+import { TriangleAlert } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { env } from '../../lib/env.ts';
 import { supabase, USERNAME_RE } from '../../lib/supabase.ts';
@@ -112,7 +113,9 @@ export function AuthScreen() {
             minLength={6}
           />
         </div>
-        {error && <p className="text-sm text-red-300">⚠ {error}</p>}
+        {error && <p className="text-sm text-red-300">
+            <TriangleAlert size={14} className="inline-block align-[-2px]" aria-hidden /> {error}
+          </p>}
         {info && <p className="text-sm text-ink-200">ℹ {info}</p>}
         <button className="btn btn-primary w-full" disabled={busy}>
           {busy ? 'Aguarde…' : tab === 'login' ? 'Entrar' : 'Criar Conta e Entrar'}

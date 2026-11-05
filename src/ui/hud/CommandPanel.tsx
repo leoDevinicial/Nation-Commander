@@ -48,7 +48,7 @@ import { ZONING, type ZoneKind } from '../../../shared/sim/zoning.ts';
 import { CardButton, usdDay } from './CardButton.tsx';
 import { Frame } from '../components/Frame.tsx';
 import { buildingDayUsd } from '../../../shared/strategic/treasury.ts';
-import { ArrowBigUp, Brain, Check, CircleDot, Cog, Construction, Crosshair, Eraser, Factory, Globe, GraduationCap, Grid3x3, HardHat, Hospital, Hourglass, House, Landmark, type LucideIcon, Milestone, Pickaxe, RadioTower, Rocket, Route, RouteOff, Satellite, Shield, Siren, Square, Star, Store, Swords, Target, Telescope, TriangleAlert, Truck, Undo2, X, Zap } from 'lucide-react';
+import { ArrowBigUp, Brain, Check, CircleDot, Cog, Construction, Crosshair, Eraser, Factory, Fuel, Globe, GraduationCap, Grid3x3, HardHat, Hospital, Hourglass, House, Landmark, type LucideIcon, Milestone, Pickaxe, RadioTower, Rocket, Route, RouteOff, Satellite, Shield, Siren, Square, Star, Store, Swords, Target, Telescope, TriangleAlert, Truck, Undo2, X, Zap } from 'lucide-react';
 import { AirbaseButtons, AirbaseInfo, CarrierButtons, DomeInfo, HoldToConfirm, SiloButtons, SiloInfo, SubMissileButtons, airTargetText } from './AirPanels.tsx';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
@@ -171,16 +171,19 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
                 )}
               </div>
               {mode.power && (
-                <div className={`mt-1 text-xs font-semibold ${mode.power === 'on' ? 'text-brass-400' : 'text-red-300'}`}>
-                  {mode.power === 'on'
-                    ? '⚡ Com energia aqui (área amarela no chão)'
-                    : POWER_GEN[mode.buildingType]
-                      ? '⚠ Longe da rede: a usina ficará isolada — ligue-a com estrada'
-                      : POWER_USE[mode.buildingType]?.stops
-                        ? '⚠ Sem energia aqui: ficará parada. Construa na área amarela ou leve estrada até aqui'
-                        : POWER_USE[mode.buildingType]?.slows
-                          ? '⚠ Sem energia aqui: vai render metade. Construa na área amarela ou leve estrada até aqui'
-                          : '⚠ Sem energia aqui: fica no escuro. Construa na área amarela ou leve estrada até aqui'}
+                <div className={`mt-1 flex items-start gap-1.5 text-xs font-semibold ${mode.power === 'on' ? 'text-brass-400' : 'text-red-300'}`}>
+                  {mode.power === 'on' ? <Zap size={14} className="mt-px shrink-0" aria-hidden /> : <TriangleAlert size={14} className="mt-px shrink-0" aria-hidden />}
+                  <span>
+                    {mode.power === 'on'
+                      ? 'Com energia aqui (área amarela no chão)'
+                      : POWER_GEN[mode.buildingType]
+                        ? 'Longe da rede: a usina ficará isolada — ligue-a com estrada'
+                        : POWER_USE[mode.buildingType]?.stops
+                          ? 'Sem energia aqui: ficará parada. Construa na área amarela ou leve estrada até aqui'
+                          : POWER_USE[mode.buildingType]?.slows
+                            ? 'Sem energia aqui: vai render metade. Construa na área amarela ou leve estrada até aqui'
+                            : 'Sem energia aqui: fica no escuro. Construa na área amarela ou leve estrada até aqui'}
+                  </span>
                 </div>
               )}
               {mode.yield && BUILDINGS[mode.buildingType].gather && (
@@ -777,8 +780,18 @@ export function GoodsLabel({ goods }: { goods: Partial<Record<'fuel' | 'steel', 
   if (!goods || (!goods.fuel && !goods.steel)) return null;
   return (
     <span className="text-[9px] leading-tight text-signal-blue" title="Bens industriais da Refinaria e da Siderúrgica usados no lugar de parte do petróleo e do ferro">
-      {goods.steel ? `🔩${goods.steel} ` : ''}
-      {goods.fuel ? `⛽${goods.fuel}` : ''}
+      {goods.steel ? (
+        <span className="mr-1 inline-flex items-center gap-0.5">
+          <Cog size={10} aria-hidden />
+          {goods.steel}
+        </span>
+      ) : null}
+      {goods.fuel ? (
+        <span className="inline-flex items-center gap-0.5">
+          <Fuel size={10} aria-hidden />
+          {goods.fuel}
+        </span>
+      ) : null}
     </span>
   );
 }
@@ -1481,9 +1494,10 @@ function BuildingInfo({ b, runtime }: { b: NonNullable<ReturnType<typeof useHudS
           className={`text-[11px] ${b.roadLinked ? 'text-signal-green' : 'text-ink-400'}`}
           title={`Coletas, Refinaria e Siderúrgica ligadas por estrada contínua ao Centro de Comando ou a uma prefeitura produzem ${Math.round((ROAD.productionMul - 1) * 100)}% a mais.`}
         >
+          <Route size={12} className="mr-1 inline-block align-[-2px]" aria-hidden />
           {b.roadLinked
-            ? `▤ Ligada por estrada: +${Math.round((ROAD.productionMul - 1) * 100)}% de produção`
-            : `▤ Sem estrada até o QG ou uma prefeitura: pavimente para +${Math.round((ROAD.productionMul - 1) * 100)}% de produção`}
+            ? `Ligada por estrada: +${Math.round((ROAD.productionMul - 1) * 100)}% de produção`
+            : `Sem estrada até o QG ou uma prefeitura: pavimente para +${Math.round((ROAD.productionMul - 1) * 100)}% de produção`}
         </div>
       )}
       {b.deposit && (

@@ -1,3 +1,4 @@
+import { TriangleAlert } from 'lucide-react';
 import type { NationView } from '../../../shared/protocol.ts';
 import { countryReference } from '../../../shared/strategic/reference.ts';
 import { ALL_ROWS, ReferenceRow } from '../components/CountryCard.tsx';
@@ -19,7 +20,7 @@ export function DataTab({ nation }: { nation: NationView }) {
       </table>
       {nation.estimatedFields.length > 0 && (
         <p className="rounded border border-brass-500/50 p-2 text-ink-200">
-          <span aria-hidden>▲ </span>Sem dado confiável para: {nation.estimatedFields.join(', ')}. A simulação usa valores de jogo declarados em{' '}
+          <TriangleAlert size={12} className="inline-block align-[-2px]" aria-hidden /> Sem dado confiável para: {nation.estimatedFields.join(', ')}. A simulação usa valores de jogo declarados em{' '}
           <code>shared/strategic/params.ts</code> (FALLBACKS) para esses campos.
         </p>
       )}

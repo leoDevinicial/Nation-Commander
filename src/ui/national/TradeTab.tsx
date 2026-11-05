@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plane, Ship, Truck, type LucideIcon } from 'lucide-react';
+import { type LucideIcon, Plane, Ship, Truck, X } from 'lucide-react';
 import type { NationView } from '../../../shared/protocol.ts';
 import type { Command } from '../../../shared/sim/commands.ts';
 import type { ListingView, ShipmentView, TradeView } from '../../../shared/sim/snapshot.ts';
@@ -251,7 +251,7 @@ function ListingForm({ trade, disabled }: { trade: TradeView; disabled: string |
           />
           {kind === 'contract' && list.length > 1 && (
             <button className="btn px-1.5 py-1 text-[10px]" onClick={() => setRows(rows.filter((_, k) => k !== i))} aria-label="Tirar recurso">
-              ✖
+              <X size={14} aria-hidden />
             </button>
           )}
         </div>

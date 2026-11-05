@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Swords, X } from 'lucide-react';
 import { COUNTRY_GEO, REGION_LABELS, geoOf } from '../../../shared/data/geography.ts';
 import { countryName } from '../../../shared/data/countries.ts';
 import type { DiplomaticAction } from '../../../shared/strategic/Diplomacy.ts';
@@ -207,7 +207,7 @@ export function GlobePanel({ visible, onClose }: { visible: boolean; onClose: ()
       <div ref={labelRef} className="pointer-events-none absolute inset-0 overflow-hidden" />
       {failed && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-ink-400">
-          Não foi possível iniciar o globo (WebGL indisponível). A diplomacia continua disponível no painel 🏛 Nação.
+          Não foi possível iniciar o globo (WebGL indisponível). A diplomacia continua disponível no painel Nação.
         </div>
       )}
 
@@ -232,10 +232,10 @@ export function GlobePanel({ visible, onClose }: { visible: boolean; onClose: ()
             ))}
           </div>
           <button className="btn min-h-6 px-1.5 py-0 text-[10px]" aria-expanded={legend} onClick={() => toggleLegend(!legend)} title="Mostrar ou ocultar a legenda das cores">
-            Legenda {legend ? '▴' : '▾'}
+            Legenda {legend ? <ChevronUp size={12} className="inline-block" aria-hidden /> : <ChevronDown size={12} className="inline-block" aria-hidden />}
           </button>
           <button className="btn min-h-6 px-1.5 py-0 text-[10px]" onClick={onClose} title="Voltar ao teatro de operações (Tab)">
-            ⚔ Teatro
+            <Swords size={14} className="inline-block align-[-2px]" aria-hidden /> Teatro
           </button>
         </div>
         {legend && (
@@ -353,7 +353,7 @@ function OwnSummary({ me }: { me: NonNullable<ReturnType<typeof useNationalStore
       <dd className="text-right font-mono">{formatPct(me.approval, 0)}</dd>
       <dt className="text-ink-400">Caixa do país</dt>
       <dd className="text-right font-mono">{formatUsd(me.works.fundUsd)}</dd>
-      <dd className="col-span-2 mt-1 text-[11px] text-ink-400">Economia, orçamento e pesquisa no painel 🏛 Nação; construções e tropas no teatro de operações.</dd>
+      <dd className="col-span-2 mt-1 text-[11px] text-ink-400">Economia, orçamento e pesquisa no painel Nação; construções e tropas no teatro de operações.</dd>
     </dl>
   );
 }
