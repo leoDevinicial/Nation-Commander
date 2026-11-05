@@ -1,0 +1,123 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Identidade visual — folha</title>
+<link rel="stylesheet" href="estilo.css">
+<style>
+body { width: 1600px; padding: 48px 56px 56px; background: radial-gradient(ellipse at 20% 0%, #142130, #06090d 60%); }
+h1 { font: 700 44px/1 var(--title); letter-spacing: .08em; text-transform: uppercase; }
+.lead { font: 500 17px/1.5 var(--font); color: var(--ink-300); max-width: 980px; margin-top: 12px; }
+.lead b { color: var(--brass); font-weight: 600; }
+section { margin-top: 40px; }
+.cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 14px; }
+.box .in { padding: 18px 20px; }
+h3 { font: 700 18px var(--title); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 12px; }
+.note { font: 500 13.5px/1.45 var(--font); color: var(--ink-300); }
+.sw { display: flex; gap: 10px; flex-wrap: wrap; }
+.sw div { width: 104px; } .sw i { display: block; height: 52px; border: 1px solid var(--line); clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%); }
+.sw b { display: block; font: 600 12px var(--font); margin-top: 6px; } .sw span { font: 500 11px var(--mono); color: var(--ink-400); }
+.type div { display: flex; align-items: baseline; gap: 16px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.type span.l { width: 120px; font: 500 11px var(--mono); color: var(--ink-400); flex: none; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.st { font: 500 11px var(--mono); color: var(--ink-400); text-align: center; margin-top: 6px; }
+.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.card { position: relative; height: 150px; display: flex; flex-direction: column; background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015)); border: 1px solid var(--line); clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%); }
+.card .art { height: 64px; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 90%, rgba(59,155,227,.20), transparent 70%); border-bottom: 1px solid var(--line); }
+.card .art svg.i { width: 30px; height: 30px; stroke-width: 1.5; }
+.card .nm { font: 600 14px var(--font); padding: 8px 9px 0; }
+.card .cost { display: flex; gap: 8px; padding: 0 9px 9px; margin-top: auto; } .card .cost span { display: inline-flex; gap: 3px; align-items: center; font: 500 12px var(--mono); } .card .cost svg.i { width: 13px; height: 13px; }
+.card.hover { border-color: rgba(226,181,77,.6); background: linear-gradient(180deg, rgba(226,181,77,.12), rgba(255,255,255,.02)); } .card.hover .art { color: var(--brass); }
+.card .miss { color: var(--bad); } .card.lock { opacity: .55; } .card.lock .art { background: repeating-linear-gradient(135deg, rgba(255,255,255,.03) 0 6px, transparent 6px 12px); color: var(--ink-400); }
+.card .li { display: flex; gap: 5px; align-items: center; font: 600 11px var(--font); color: var(--warn); padding: 0 9px 9px; margin-top: auto; } .card .li svg.i { width: 13px; height: 13px; }
+.card .q { position: absolute; right: 7px; top: 6px; font: 700 11px var(--mono); color: #17130a; background: var(--brass); padding: 0 5px; }
+.icons { display: grid; grid-template-columns: repeat(12, 1fr); gap: 8px; }
+.icons div { height: 54px; display: grid; place-items: center; border: 1px solid var(--line); background: rgba(255,255,255,.03); color: var(--ink-200); }
+.icons svg.i { width: 22px; height: 22px; }
+.rules li { font: 500 14px/1.5 var(--font); color: var(--ink-200); margin: 0 0 8px 18px; } .rules li b { color: var(--ink-100); }
+.anat { position: relative; height: 150px; margin-top: 4px; }
+.anat .frame { position: absolute; left: 30px; top: 22px; width: 300px; height: 104px; }
+.callout { position: absolute; font: 500 12px var(--font); color: var(--ink-300); display: flex; align-items: center; gap: 6px; }
+.callout::before { content: ''; width: 22px; height: 1px; background: var(--brass); }
+</style></head><body>
+<div class="kicker">Nation Commander · proposta de interface · 05/11/2026</div>
+<h1 style="margin-top:10px">Sala de Situação</h1>
+<p class="lead">A identidade parte do lugar onde um chefe de Estado comanda uma guerra: <b>painéis de console</b> sobre o mapa, com o <b>canto chanfrado</b> que ecoa as formas facetadas do low poly, <b>colchetes de mira em latão</b> nos outros cantos, a <b>cor da nação</b> como faixa de identidade e números em fonte de instrumento. Tudo em CSS: não pesa no celular.</p>
+
+<section><div class="cols">
+  <div class="frame box"><div class="in"><h3>Cores</h3>
+    <div class="sw">
+      <div><i style="background:#0a0e14"></i><b>Grafite</b><span>painel 80%</span></div>
+      <div><i style="background:#1c242f"></i><b>Aço</b><span>controle</span></div>
+      <div><i style="background:#e2b54d"></i><b>Latão</b><span>comando</span></div>
+      <div><i style="background:#3b9be3"></i><b>Nação</b><span>a do jogador</span></div>
+      <div><i style="background:#5cc47a"></i><b>Bom</b><span>#5cc47a</span></div>
+      <div><i style="background:#e6a53c"></i><b>Atenção</b><span>#e6a53c</span></div>
+      <div><i style="background:#e85c4e"></i><b>Perigo</b><span>#e85c4e</span></div>
+      <div><i style="background:#eef1f4"></i><b>Texto</b><span>3 níveis</span></div>
+    </div>
+    <p class="note" style="margin-top:12px">O latão marca só o que é comando (aba ativa, botão principal, foco). Vermelho e verde nunca são decorativos: só estado.</p>
+  </div><span class="brk tr"></span><span class="brk bl"></span></div>
+
+  <div class="frame box"><div class="in"><h3>Tipografia</h3>
+    <div class="type">
+      <div><span class="l">Título · Barlow Condensed 700</span><span style="font:700 30px var(--title);letter-spacing:.06em;text-transform:uppercase">Centro de Comando</span></div>
+      <div><span class="l">Rótulo · 600 maiúsc.</span><span class="kicker">Aprovação</span></div>
+      <div><span class="l">Texto · Barlow Semi Cond.</span><span style="font:500 15px var(--font);color:var(--ink-200)">Moradia para os cidadãos.</span></div>
+      <div><span class="l">Números · JetBrains Mono</span><span class="num" style="font-size:20px">1.380/1.500 · 14:59</span></div>
+    </div>
+    <p class="note" style="margin-top:12px">Fontes livres (OFL), embutidas no jogo, sem depender do sistema. Condensadas: cabem mais palavras no celular. Números em largura fixa não "tremem".</p>
+  </div><span class="brk tr"></span><span class="brk bl"></span></div>
+
+  <div class="frame box"><div class="in"><h3>Moldura</h3>
+    <div class="anat">
+      <div class="frame"><div class="in" style="padding:14px 16px"><div class="kicker">Rótulo</div><div style="font:700 20px var(--title);letter-spacing:.05em;text-transform:uppercase;margin-top:8px">Título do painel</div></div><span class="brk tr"></span><span class="brk bl"></span></div>
+      <span class="callout" style="left:340px;top:16px">colchete de latão</span>
+      <span class="callout" style="left:340px;top:58px">grafite translúcido + desfoque</span>
+      <span class="callout" style="left:340px;top:100px">canto chanfrado (low poly)</span>
+    </div>
+    <p class="note">Um só componente para todos os painéis. O chanfro fica sempre no canto superior esquerdo e no inferior direito.</p>
+  </div><span class="brk tr"></span><span class="brk bl"></span></div>
+</div></section>
+
+<section><div class="cols" style="grid-template-columns: 1fr 2fr">
+  <div class="frame box"><div class="in"><h3>Botões</h3>
+    <div class="row">
+      <div><span class="btn">{{i:globe}}Diplomacia</span><div class="st">normal</div></div>
+      <div><span class="btn hover">{{i:globe}}Diplomacia</span><div class="st">foco</div></div>
+      <div><span class="btn on">{{i:hammer}}Construir</span><div class="st">principal</div></div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <div><span class="btn press">{{i:globe}}Diplomacia</span><div class="st">pressionado</div></div>
+      <div><span class="btn off">{{i:globe}}Diplomacia</span><div class="st">indisponível</div></div>
+      <div><span class="seg"><span class="btn">{{i:pause}}</span><span class="btn on">1×</span><span class="btn">2×</span></span><div class="st">segmentado</div></div>
+    </div>
+    <p class="note" style="margin-top:14px">Área de toque de 34–40 px. Todo botão de ícone tem dica com o nome e a tecla.</p>
+  </div><span class="brk tr"></span><span class="brk bl"></span></div>
+
+  <div class="frame box"><div class="in"><h3>Cartões de ação — os quatro estados</h3>
+    <div class="cards">
+      <div><div class="card"><div class="art">{{i:house}}</div><div class="nm">Casa</div><div class="cost"><span>{{i:tree-pine}}65</span><span>{{i:mountain}}30</span></div></div><div class="st">disponível</div></div>
+      <div><div class="card hover"><div class="art">{{i:house}}</div><div class="nm">Casa</div><div class="cost"><span>{{i:tree-pine}}65</span><span>{{i:mountain}}30</span></div></div><div class="st">foco (mostra a dica)</div></div>
+      <div><div class="card"><div class="art">{{i:graduation-cap}}</div><div class="nm">Escola</div><div class="cost"><span>{{i:tree-pine}}180</span><span class="miss">{{i:anvil}}420</span></div></div><div class="st">falta recurso (em vermelho o que falta)</div></div>
+      <div><div class="card lock"><div class="art">{{i:lock}}</div><div class="nm">Programa Espacial</div><div class="li">{{i:triangle-alert}}QG nível 9</div></div><div class="st">bloqueado (diz o que pede)</div></div>
+    </div>
+  </div><span class="brk tr"></span><span class="brk bl"></span></div>
+</div></section>
+
+<section><div class="cols" style="grid-template-columns: 2fr 1fr">
+  <div class="frame box"><div class="in"><h3>Ícones — um conjunto só, mesmo traço (Lucide, licença ISC)</h3>
+    <div class="icons">
+      <div>{{i:wheat}}</div><div>{{i:tree-pine}}</div><div>{{i:mountain}}</div><div>{{i:anvil}}</div><div>{{i:droplet}}</div><div>{{i:flame}}</div><div>{{i:package}}</div><div>{{i:landmark}}</div><div>{{i:users}}</div><div>{{i:zap}}</div><div>{{i:factory}}</div><div>{{i:swords}}</div>
+      <div>{{i:globe}}</div><div>{{i:music}}</div><div>{{i:menu}}</div><div>{{i:hammer}}</div><div>{{i:crosshair}}</div><div>{{i:satellite}}</div><div>{{i:rocket}}</div><div>{{i:shield}}</div><div>{{i:hard-hat}}</div><div>{{i:route}}</div><div>{{i:house}}</div><div>{{i:hospital}}</div>
+    </div>
+    <p class="note" style="margin-top:12px">Substituem os emojis, que mudam de desenho em cada celular. Recursos ganham uma cor fixa cada (comida dourada, madeira verde, pedra cinza, ferro cobre…), igual em todo o jogo.</p>
+  </div><span class="brk tr"></span><span class="brk bl"></span></div>
+  <div class="frame box"><div class="in"><h3>Regras de UX</h3>
+    <ul class="rules">
+      <li><b>Hierarquia:</b> nação → recursos → tempo → menus. Técnico (ping, quadros) só num ponto discreto.</li>
+      <li><b>Nada cortado:</b> descrição longa vai para a dica, não para o painel.</li>
+      <li><b>Estados visíveis</b> antes do clique: pode, falta recurso, bloqueado.</li>
+      <li><b>Avisos em camadas:</b> feed discreto no dia a dia, faixa cinematográfica só nos grandes momentos.</li>
+      <li><b>Celular primeiro:</b> o mesmo layout, com menos itens (o resto num toque).</li>
+      <li><b>Movimento curto</b> (120–200 ms) em foco, abertura e números.</li>
+    </ul>
+  </div><span class="brk tr"></span><span class="brk bl"></span></div>
+</div></section>
+</body></html>

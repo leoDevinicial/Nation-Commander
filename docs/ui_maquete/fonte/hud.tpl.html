@@ -1,0 +1,283 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>HUD — maquete</title>
+<link rel="stylesheet" href="estilo.css">
+<style>
+html, body { width: 100%; height: 100%; overflow: hidden; }
+.stage { position: fixed; inset: 0; background: url(cena-1.jpg) center / cover; }
+.stage::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(0,0,0,0.45)); }
+.hud { position: fixed; inset: 0; padding: 14px; z-index: 2; }
+
+/* ---------- barra superior em três blocos ---------- */
+.top { display: flex; gap: 10px; align-items: stretch; }
+.nation { width: 300px; flex: none; }
+.nation .in { display: flex; gap: 12px; align-items: center; padding: 9px 20px 9px 12px; }
+.nation .in::after { content: ''; position: absolute; left: 0; top: 10px; bottom: 0; width: 3px; background: var(--nation); box-shadow: 0 0 12px var(--nation-glow); }
+.flag { width: 46px; height: 32px; border-radius: 2px; overflow: hidden; box-shadow: 0 0 0 1px rgba(255,255,255,.18); flex: none; }
+.nname { font: 700 21px/1 var(--title); letter-spacing: .06em; text-transform: uppercase; }
+.nsub { font: 500 12px/1.2 var(--font); color: var(--ink-300); margin-top: 5px; display: flex; gap: 6px; align-items: center; white-space: nowrap; }
+.era { white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; height: 18px; padding: 0 7px 0 5px; border: 1px solid var(--brass-2); color: var(--brass);
+  font: 700 11px var(--font); letter-spacing: .1em; clip-path: polygon(5px 0, 100% 0, 100% 100%, 0 100%, 0 5px); background: rgba(226,181,77,.08); }
+.approval { margin-left: auto; text-align: right; }
+.approval .v { font: 700 16px var(--mono); color: var(--ok); }
+.approval .kicker { font-size: 9.5px; letter-spacing: .12em; } .approval .kicker::before { display: none; }
+.meter { width: 64px; height: 4px; background: rgba(255,255,255,.08); margin-top: 5px; position: relative; }
+.meter i { position: absolute; inset: 0 auto 0 0; background: var(--ok); }
+.meter b { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--ink-300); left: 50%; }
+
+.res { flex: 1; min-width: 0; }
+.res .in { display: flex; align-items: center; padding: 0 14px 0 6px; height: 100%; }
+.r { flex: 1 1 auto; justify-content: center; display: flex; align-items: center; gap: 6px; padding: 6px 7px; border-right: 1px solid var(--line); height: 100%; white-space: nowrap; }
+.r:last-child { border-right: 0; }
+.r svg.i { width: 17px; height: 17px; }
+.r .v { font: 500 14px/1 var(--mono); color: var(--ink-100); }
+.r .cap { height: 2px; background: rgba(255,255,255,.08); margin-top: 5px; width: 100%; min-width: 40px; }
+.r .cap i { display: block; height: 100%; }
+.r .lbl { font: 600 9px/1 var(--font); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-400); margin-bottom: 4px; }
+.r.full .v { color: var(--warn); }
+.cash .v { color: var(--brass); }
+
+.clock, .tools { flex: none; }
+.clock .in { display: flex; align-items: center; gap: 12px; padding: 0 12px 0 14px; height: 100%; }
+.time { font: 700 22px/1 var(--mono); letter-spacing: .02em; }
+.daytime { font: 500 11px var(--font); color: var(--ink-400); display: flex; gap: 4px; align-items: center; margin-top: 3px; letter-spacing: .06em; }
+.tools .in { display: flex; align-items: center; gap: 4px; padding: 0 8px; height: 100%; }
+.net { display: flex; align-items: center; gap: 5px; padding: 0 6px 0 2px; color: var(--ink-400); font: 500 11px var(--mono); }
+.net i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
+
+/* ---------- feed de eventos ---------- */
+.feed { position: absolute; left: 14px; top: 84px; width: 340px; display: flex; flex-direction: column; gap: 6px; }
+.ev { display: flex; gap: 10px; align-items: flex-start; padding: 9px 12px 9px 10px; background: linear-gradient(90deg, rgba(10,14,20,.88), rgba(10,14,20,.55)); border-left: 3px solid var(--c);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%); backdrop-filter: blur(6px); }
+.ev svg.i { color: var(--c); margin-top: 1px; }
+.ev .t { font: 600 14px/1.25 var(--font); }
+.ev .s { font: 500 12px/1.3 var(--font); color: var(--ink-300); margin-top: 2px; }
+.ev .when { margin-left: auto; font: 500 11px var(--mono); color: var(--ink-400); }
+.ev.old { opacity: .55; }
+
+/* ---------- minimapa ---------- */
+.mini { position: absolute; left: 14px; bottom: 14px; width: 232px; height: 250px; }
+.mini .in { padding: 8px; }
+.mini .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; }
+.mini .map { position: relative; height: 180px; background: #0b2233; overflow: hidden; border: 1px solid var(--line); }
+.mini .zoom { position: absolute; right: 6px; top: 6px; display: flex; flex-direction: column; gap: 4px; }
+.mini .zoom .btn { height: 24px; min-width: 24px; padding: 0; background: rgba(8,12,18,.75); }
+.mini .zoom svg.i { width: 14px; height: 14px; }
+.ping { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: var(--bad); box-shadow: 0 0 0 4px rgba(232,92,78,.35), 0 0 0 9px rgba(232,92,78,.15); }
+.compass { position: absolute; left: 7px; bottom: 6px; font: 700 10px var(--font); color: var(--ink-300); display: flex; align-items: center; gap: 3px; letter-spacing: .1em; }
+.build { margin-top: 8px; display: flex; gap: 6px; }
+.build .btn { flex: 1; height: 30px; }
+.kbd { font: 600 10px var(--mono); padding: 1px 4px; border: 1px solid currentColor; border-radius: 2px; opacity: .7; }
+
+/* ---------- painel de comando ---------- */
+.cmd { position: absolute; left: 258px; right: 14px; bottom: 14px; height: 250px; }
+.cmd > .in { display: grid; grid-template-columns: 262px 1fr 132px; }
+.sel { padding: 14px 16px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 9px; }
+.portrait { height: 92px; background: url(cena-1.jpg) no-repeat; background-size: 1600px 900px; background-position: -696px -588px; border: 1px solid var(--line); position: relative; }
+.portrait::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 55%, rgba(5,8,12,.75)); }
+.portrait .owner { position: absolute; left: 8px; bottom: 6px; z-index: 1; font: 600 11px var(--font); letter-spacing: .12em; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
+.portrait .owner i { width: 8px; height: 8px; background: var(--nation); box-shadow: 0 0 8px var(--nation-glow); }
+.selname { font: 700 22px/1 var(--title); letter-spacing: .04em; text-transform: uppercase; }
+.pips { display: flex; gap: 3px; align-items: center; }
+.pips i { width: 14px; height: 6px; background: rgba(255,255,255,.10); clip-path: polygon(2px 0, 100% 0, calc(100% - 2px) 100%, 0 100%); }
+.pips i.on { background: var(--brass); box-shadow: 0 0 6px var(--brass-glow); }
+.pips span { white-space: nowrap; margin-left: 8px; font: 600 11px var(--font); letter-spacing: .12em; color: var(--ink-300); }
+.hp { display: flex; align-items: center; gap: 8px; }
+.hpbar { flex: 1; height: 8px; display: flex; gap: 2px; }
+.hpbar i { flex: 1; background: var(--ok); opacity: .9; }
+.hp .num { font-size: 12px; color: var(--ink-300); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; font: 600 11.5px var(--font); color: var(--ink-200); background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 2px; }
+.chip svg.i { width: 13px; height: 13px; }
+.chip.ok svg.i { color: var(--ok); }
+
+.acts { padding: 0 16px 12px; display: flex; flex-direction: column; min-width: 0; }
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+.tab { display: flex; align-items: center; gap: 7px; padding: 12px 14px 10px; font: 600 13px var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-400); position: relative; }
+.tab svg.i { width: 15px; height: 15px; }
+.tab.on { color: var(--ink-100); }
+.tab.on::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px; background: var(--brass); box-shadow: 0 0 10px var(--brass-glow); }
+.tab .n { font: 500 10px var(--mono); color: var(--ink-400); }
+.grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.card { position: relative; height: 150px; display: flex; flex-direction: column; background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015)); border: 1px solid var(--line);
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%); }
+.card .art { height: 64px; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 90%, rgba(59,155,227,.20), transparent 70%), linear-gradient(180deg, rgba(255,255,255,.03), transparent); border-bottom: 1px solid var(--line); color: var(--ink-100); }
+.card .art svg.i { width: 30px; height: 30px; stroke-width: 1.5; }
+.card .nm { font: 600 14px/1.15 var(--font); padding: 8px 9px 0; }
+.card .cost { display: flex; gap: 8px; padding: 6px 9px 0; margin-top: auto; padding-bottom: 9px; flex-wrap: wrap; }
+.card .cost span { display: inline-flex; align-items: center; gap: 3px; font: 500 12px var(--mono); color: var(--ink-200); }
+.card .cost svg.i { width: 13px; height: 13px; }
+.card .key { position: absolute; top: 6px; left: 7px; font: 600 10px var(--mono); color: var(--ink-400); border: 1px solid var(--line-2); padding: 0 4px; border-radius: 2px; background: rgba(0,0,0,.3); }
+.card .eff { font: 500 11.5px/1.2 var(--font); color: var(--ink-300); padding: 3px 9px 0; }
+.card.hover { border-color: rgba(226,181,77,.6); background: linear-gradient(180deg, rgba(226,181,77,.12), rgba(255,255,255,.02)); box-shadow: inset 0 0 0 1px rgba(226,181,77,.25); }
+.card.hover .art { color: var(--brass); }
+.card.short .cost span.miss { color: var(--bad); }
+.card.lock { opacity: .55; }
+.card.lock .art { color: var(--ink-400); background: repeating-linear-gradient(135deg, rgba(255,255,255,.03) 0 6px, transparent 6px 12px); }
+.card .lockinfo { display: flex; gap: 5px; align-items: center; font: 600 11px var(--font); color: var(--warn); padding: 6px 9px 9px; margin-top: auto; }
+.card .lockinfo svg.i { width: 13px; height: 13px; }
+.card .qcount { position: absolute; right: 7px; top: 6px; font: 700 11px var(--mono); color: #17130a; background: var(--brass); padding: 0 5px; border-radius: 2px; }
+
+.queue { border-left: 1px solid var(--line); padding: 14px 12px; display: flex; flex-direction: column; gap: 8px; }
+.qslots { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.q { height: 46px; border: 1px dashed var(--line-2); display: grid; place-items: center; color: var(--ink-600); position: relative; }
+.q.f { border: 1px solid var(--line-2); color: var(--ink-100); background: rgba(255,255,255,.04); }
+.q.f::after { content: ''; position: absolute; left: 0; bottom: 0; height: 3px; width: var(--p); background: var(--brass); }
+.q svg.i { width: 20px; height: 20px; }
+
+/* dica (tooltip) */
+.tip { position: absolute; width: 270px; padding: 12px 14px; z-index: 5; }
+.tip .in { padding: 12px 14px; }
+.tip h4 { font: 700 16px var(--title); letter-spacing: .05em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
+.tip p { font: 500 12.5px/1.4 var(--font); color: var(--ink-300); margin-top: 6px; }
+.tip .row { display: flex; justify-content: space-between; font: 500 12px var(--font); color: var(--ink-200); padding: 5px 0; border-top: 1px solid var(--line); }
+.tip .row b { font: 500 12px var(--mono); color: var(--ok); }
+
+/* ---------- momento cinematográfico ---------- */
+.cine { position: absolute; left: 0; right: 0; top: 34%; display: none; flex-direction: column; align-items: center; z-index: 6; }
+.show-cine .cine { display: flex; }
+.show-cine .stage::after { background: radial-gradient(ellipse at 50% 42%, rgba(0,0,0,.15), rgba(0,0,0,.62)); }
+.cine .band { width: 100%; padding: 22px 0 24px; background: linear-gradient(90deg, transparent, rgba(6,10,15,.88) 20%, rgba(6,10,15,.88) 80%, transparent); display: flex; flex-direction: column; align-items: center; position: relative; }
+.cine .band::before, .cine .band::after { content: ''; position: absolute; left: 15%; right: 15%; height: 1px; background: linear-gradient(90deg, transparent, var(--brass), transparent); }
+.cine .band::before { top: 0; } .cine .band::after { bottom: 0; }
+.cine .k { font: 600 12px var(--font); letter-spacing: .32em; text-transform: uppercase; color: var(--brass); display: flex; align-items: center; gap: 12px; }
+.cine .k::before, .cine .k::after { content: ''; width: 40px; height: 1px; background: var(--brass); opacity: .6; }
+.cine .h { font: 700 64px/1 var(--title); letter-spacing: .08em; text-transform: uppercase; margin-top: 10px; text-shadow: 0 0 30px rgba(226,181,77,.25); }
+.cine .s { font: 500 16px var(--font); color: var(--ink-200); margin-top: 10px; }
+.cine .hex { width: 56px; height: 56px; display: grid; place-items: center; color: var(--brass); background: rgba(226,181,77,.10); border: 1px solid var(--brass-2); clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); margin-bottom: 12px; }
+.cine .hex svg.i { width: 28px; height: 28px; }
+.cine .eff { display: flex; gap: 18px; margin-top: 14px; }
+.cine .eff span { display: inline-flex; gap: 6px; align-items: center; font: 600 13px var(--font); color: var(--ink-100); }
+.cine .eff svg.i { width: 15px; height: 15px; color: var(--ok); }
+.show-cine .hudfade { filter: brightness(.42) saturate(.5); }
+
+/* ---------- celular (paisagem) ---------- */
+@media (max-width: 1000px) {
+  .hud { padding: 8px; }
+  .nation { width: 236px; } .nname { font-size: 16px; } .nsub > span:last-child { display: none; } .approval .kicker { font-size: 8.5px; } .flag { width: 34px; height: 24px; } .nation .in { padding: 6px 10px 6px 10px; gap: 9px; }
+  .approval .v { font-size: 14px; } .meter { width: 44px; }
+  .r .lbl, .r .cap { display: none; } .r { padding: 4px 7px; gap: 5px; } .r .v { font-size: 13px; } .r.hide-m, .r.cash, .r.pop { display: none; } .r.more { display: flex; color: var(--ink-300); }
+  .time { font-size: 17px; } .daytime { display: none; } .clock .seg .btn:nth-child(n+3) { display: none; }
+  .tools .btn.hide-m, .net, .tools .sep { display: none; }
+  .feed { top: 62px; width: 250px; } .ev { padding: 6px 9px; } .ev .t { font-size: 12.5px; } .ev .s, .ev.old { display: none; }
+  .mini { width: 150px; height: 168px; left: 8px; bottom: 8px; } .mini .in { padding: 6px; } .mini .head { margin-bottom: 4px; } .mini .map { height: 96px; } .mini .build { margin-top: 6px; } .mini .head .kicker { font-size: 9px; } .mini .build .btn { height: 28px; font-size: 12px; }
+  .cmd { left: 166px; right: 8px; bottom: 8px; height: 168px; }
+  .cmd > .in { grid-template-columns: 170px 1fr; } .queue { display: none; }
+  .sel { padding: 9px 11px; gap: 6px; } .portrait { height: 48px; background-size: 1000px 562px; background-position: -432px -376px; } .selname { font-size: 16px; } .chips, .portrait .owner { display: none; } .pips i { width: 10px; height: 5px; }
+  .acts { padding: 0 10px 8px; } .tab { padding: 8px 8px 7px; font-size: 11px; } .tab span.l { display: none; } .tabs { margin-bottom: 8px; }
+  .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; } .grid .card:nth-child(n+5) { display: none; }
+  .card { height: 106px; } .card .art { height: 42px; } .card .art svg.i { width: 22px; height: 22px; } .card .nm { font-size: 12.5px; padding: 5px 7px 0; } .card .eff { display: none; } .card .cost { padding: 4px 7px 7px; } .card .key { display: none; }
+  .tip { display: none; }
+  .btn { height: 34px; min-width: 38px; }
+}
+</style></head>
+<body class="{{BODY}}">
+<div class="stage"></div>
+<div class="hud">
+  <div class="top hudfade">
+    <div class="frame nation"><div class="in">
+      <svg class="flag" viewBox="0 0 46 32"><rect width="46" height="32" fill="#1f9a4a"/><polygon points="23,3 43,16 23,29 3,16" fill="#f2c318"/><circle cx="23" cy="16" r="7.2" fill="#1d3f8f"/><path d="M16.2 14.6 q7 -2.6 13.6 1.4" stroke="#fff" stroke-width="1.2" fill="none"/></svg>
+      <div><div class="nname">Brasil</div><div class="nsub"><span class="era">{{i:chevrons-up}}ERA IV</span><span>Futuro Próximo</span></div></div>
+      <div class="approval"><div class="kicker" style="justify-content:flex-end">Aprovação</div><div class="v num">49%</div><div class="meter"><i style="width:49%"></i><b></b></div></div>
+    </div><span class="brk tr"></span><span class="brk bl"></span></div>
+
+    <div class="frame res"><div class="in">
+      <div class="r cash"><span style="color:var(--brass)">{{i:landmark}}</span><div><div class="lbl">Caixa</div><div class="v">$4,8 bi</div></div></div>
+      <div class="r"><span style="color:#d9b45a">{{i:wheat}}</span><div><div class="lbl">Comida</div><div class="v">1.240</div><div class="cap"><i style="width:62%;background:#d9b45a"></i></div></div></div>
+      <div class="r"><span style="color:#7fbf6a">{{i:tree-pine}}</span><div><div class="lbl">Madeira</div><div class="v">860</div><div class="cap"><i style="width:43%;background:#7fbf6a"></i></div></div></div>
+      <div class="r"><span style="color:#a9b3bd">{{i:mountain}}</span><div><div class="lbl">Pedra</div><div class="v">540</div><div class="cap"><i style="width:27%;background:#a9b3bd"></i></div></div></div>
+      <div class="r hide-m"><span style="color:#c98a63">{{i:anvil}}</span><div><div class="lbl">Ferro</div><div class="v">320</div><div class="cap"><i style="width:32%;background:#c98a63"></i></div></div></div>
+      <div class="r full hide-m"><span style="color:#8f8cff">{{i:droplet}}</span><div><div class="lbl">Petróleo</div><div class="v">198</div><div class="cap"><i style="width:99%;background:var(--warn)"></i></div></div></div>
+      <div class="r hide-m"><span style="color:#8a8f99">{{i:flame}}</span><div><div class="lbl">Carvão</div><div class="v">180</div><div class="cap"><i style="width:18%;background:#8a8f99"></i></div></div></div>
+      <div class="r"><span style="color:#e2c48a">{{i:package}}</span><div><div class="lbl">Suprimentos</div><div class="v">2.150</div><div class="cap"><i style="width:72%;background:#e2c48a"></i></div></div></div>
+      <div class="r more" style="display:none">{{i:chevron-down}}</div>
+      <div class="r pop"><span style="color:var(--ink-300)">{{i:users}}</span><div><div class="lbl">População</div><div class="v">42<span style="color:var(--ink-400)">/60</span></div></div></div>
+    </div><span class="brk tr"></span><span class="brk bl"></span></div>
+
+    <div class="frame clock"><div class="in">
+      <div><div class="time num">14:59</div><div class="daytime">{{i:sun}} DIA · 11:15</div></div>
+      <div class="seg"><span class="btn">{{i:pause}}</span><span class="btn on">1×</span><span class="btn">2×</span><span class="btn">4×</span></div>
+    </div><span class="brk tr"></span><span class="brk bl"></span></div>
+
+    <div class="frame tools"><div class="in">
+      <span class="net" title="Conexão boa · 42 ms"><i></i></span><span class="sep"></span>
+      <span class="btn hide-m">{{i:globe}}</span><span class="btn hide-m">{{i:landmark}}</span><span class="btn">{{i:music}}</span><span class="btn">{{i:menu}}</span>
+    </div><span class="brk tr"></span><span class="brk bl"></span></div>
+  </div>
+
+  <div class="feed hudfade">
+    <div class="ev" style="--c:var(--bad)">{{i:crosshair}}<div><div class="t">Base sob ataque</div><div class="s">Fronteira leste, perto da Refinaria</div></div><span class="when">agora</span></div>
+    <div class="ev" style="--c:var(--ok)">{{i:circle-check}}<div><div class="t">Fábrica concluída</div><div class="s">Brasília</div></div><span class="when">0:12</span></div>
+    <div class="ev old" style="--c:var(--info)">{{i:info}}<div><div class="t">Contrato de ferro entregue</div></div><span class="when">0:40</span></div>
+  </div>
+
+  <div class="frame mini hudfade"><div class="in">
+    <div class="head"><span class="kicker">Teatro</span><span style="font:500 11px var(--mono);color:var(--ink-400)">96×96</span></div>
+    <div class="map">
+      <svg viewBox="0 0 200 160" width="100%" height="100%" preserveAspectRatio="none">
+        <path d="M0 40 C30 20 70 30 90 10 L200 0 L200 160 L0 160Z" fill="#26402c"/>
+        <path d="M0 90 C40 80 60 120 110 112 C150 106 170 140 200 128 L200 160 L0 160Z" fill="#2e4a2f"/>
+        <path d="M120 0 C130 40 150 50 200 46 L200 0Z" fill="#3b4a3d"/>
+        <path d="M0 62 C30 70 60 58 82 66 C100 72 98 92 120 96" stroke="#2f6b8a" stroke-width="5" fill="none"/>
+        <polygon points="18,30 70,24 84,62 60,92 22,84" fill="rgba(59,155,227,.20)" stroke="#3b9be3" stroke-width="1.6"/>
+        <polygon points="132,96 182,90 192,140 140,148" fill="rgba(232,92,78,.18)" stroke="#e85c4e" stroke-width="1.6"/>
+        <rect x="40" y="48" width="6" height="6" fill="#3b9be3"/><rect x="158" y="114" width="6" height="6" fill="#e85c4e"/>
+        <polygon points="30,38 76,38 86,74 22,74" fill="none" stroke="#fff" stroke-width="1" opacity=".8"/>
+      </svg>
+      <span class="ping" style="left:116px;top:70px"></span>
+      <div class="zoom"><span class="btn">{{i:plus}}</span><span class="btn">{{i:minus}}</span><span class="btn">{{i:locate}}</span></div>
+      <div class="compass">{{i:compass}}N</div>
+    </div>
+    <div class="build"><span class="btn on">{{i:hammer}}Construir <span class="kbd">B</span></span></div>
+  </div><span class="brk tr"></span><span class="brk bl"></span></div>
+
+  <div class="frame cmd hudfade"><div class="in">
+    <div class="sel">
+      <div class="portrait"><div class="owner"><i></i>Brasil · Capital</div></div>
+      <div class="selname">Centro de Comando</div>
+      <div class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><span>NÍVEL 3/10</span></div>
+      <div class="hp"><div class="hpbar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i style="opacity:.35"></i></div><span class="num">1.380/1.500</span></div>
+      <div class="chips"><span class="chip ok">{{i:zap}}Com energia</span><span class="chip">{{i:hard-hat}}4 construtores</span></div>
+    </div>
+    <div class="acts">
+      <div class="tabs">
+        <span class="tab">{{i:factory}}<span class="l">Produção</span></span>
+        <span class="tab">{{i:zap}}<span class="l">Energia</span></span>
+        <span class="tab on">{{i:landmark}}<span class="l">Cívicas</span><span class="n">6</span></span>
+        <span class="tab">{{i:swords}}<span class="l">Militares</span></span>
+        <span class="tab">{{i:star}}<span class="l">Projetos</span></span>
+      </div>
+      <div class="grid">
+        <div class="card"><span class="key">Q</span><span class="qcount">2</span><div class="art">{{i:user}}</div><div class="nm">Cidadão</div><div class="eff">Trabalha e constrói</div><div class="cost"><span>{{i:wheat}}50</span></div></div>
+        <div class="card hover"><span class="key">H</span><div class="art">{{i:house}}</div><div class="nm">Casa</div><div class="eff">+6 moradia</div><div class="cost"><span>{{i:tree-pine}}65</span><span>{{i:mountain}}30</span></div></div>
+        <div class="card"><span class="key">R</span><div class="art">{{i:route}}</div><div class="nm">Estrada</div><div class="eff">Leva energia e acelera</div><div class="cost"><span>{{i:mountain}}2/célula</span></div></div>
+        <div class="card short"><span class="key">E</span><div class="art">{{i:graduation-cap}}</div><div class="nm">Escola</div><div class="eff">+conhecimento</div><div class="cost"><span>{{i:tree-pine}}180</span><span class="miss">{{i:anvil}}420</span></div></div>
+        <div class="card"><span class="key">T</span><div class="art">{{i:hospital}}</div><div class="nm">Hospital</div><div class="eff">Cobertura de saúde</div><div class="cost"><span>{{i:mountain}}220</span><span>{{i:anvil}}90</span></div></div>
+        <div class="card lock"><div class="art">{{i:lock}}</div><div class="nm">Programa Espacial</div><div class="lockinfo">{{i:triangle-alert}}QG nível 9</div></div>
+      </div>
+    </div>
+    <div class="queue">
+      <div class="kicker">Fila 2/5</div>
+      <div class="qslots"><div class="q f" style="--p:64%">{{i:user}}</div><div class="q f" style="--p:0%">{{i:user}}</div><div class="q"></div><div class="q"></div></div>
+      <span class="btn" style="height:28px">{{i:crosshair}}Reunião</span>
+    </div>
+  </div><span class="brk tr"></span><span class="brk bl"></span></div>
+
+  <div class="frame tip" style="left:{{TIPX}}px; bottom:272px; padding:0"><div class="in">
+    <h4>Casa <span class="kbd" style="color:var(--ink-300)">H</span></h4>
+    <p>Moradia para os cidadãos. Com energia, aumenta a aprovação da cidade.</p>
+    <div class="row" style="margin-top:8px"><span>Moradia</span><b>+6</b></div>
+    <div class="row"><span>Energia</span><b style="color:var(--warn)">−1</b></div>
+    <div class="row"><span>Custo do próximo</span><span class="num" style="font-size:12px">{{i:tree-pine}} 77 · 35</span></div>
+  </div><span class="brk tr"></span><span class="brk bl"></span></div>
+
+  <div class="cine">
+    <div class="band">
+      <div class="hex">{{i:satellite}}</div>
+      <div class="k">Programa Espacial · Brasil</div>
+      <div class="h">Satélite em órbita</div>
+      <div class="s">O mapa inteiro fica visível em tempo real — só as minas continuam escondidas.</div>
+      <div class="eff"><span>{{i:globe}}Névoa de guerra removida</span><span>{{i:smile}}Aprovação em alta</span></div>
+    </div>
+  </div>
+</div>
+</body></html>
