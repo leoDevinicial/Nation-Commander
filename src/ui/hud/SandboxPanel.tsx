@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { FlaskConical } from 'lucide-react';
 import { BUILDINGS, UNITS, type UnitType } from '../../../shared/sim/config.ts';
 import { SANDBOX_MAX_SPAWN, type SandboxToggle } from '../../../shared/sim/commands.ts';
 import { upgradeTrack, type SpecId } from '../../../shared/sim/upgrades.ts';
@@ -9,13 +10,14 @@ import { useHudStore } from '../../state/useHudStore.ts';
 export function SandboxChip({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
     <button
-      className={`flex min-h-8 shrink-0 items-center gap-1.5 rounded border border-brass-400/60 px-2 font-semibold tracking-wide text-brass-400 ${open ? 'bg-brass-400/15' : ''}`}
+      className={`nc-title flex h-8 shrink-0 items-center gap-1.5 border border-brass-400/60 px-2 text-[13px] tracking-[0.12em] text-brass-400 ${open ? 'bg-brass-400/15' : 'bg-brass-400/[0.06]'}`}
+      style={{ clipPath: 'polygon(5px 0, 100% 0, 100% 100%, 0 100%, 0 5px)' }}
       onClick={onToggle}
       aria-expanded={open}
       title="Modo Sandbox: recursos ilimitados, tudo liberado e ferramentas de teste"
     >
-      <span aria-hidden>🧪</span>
-      SANDBOX
+      <FlaskConical size={15} aria-hidden />
+      Sandbox
     </button>
   );
 }

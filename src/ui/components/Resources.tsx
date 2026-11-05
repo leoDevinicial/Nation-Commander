@@ -1,29 +1,36 @@
 import { RESOURCE_LABELS, RESOURCE_TYPES, type Cost, type ResourceType, type Stockpile } from '../../../shared/sim/config.ts';
 
-const PATHS: Record<ResourceType, { d: string; color: string }> = {
-  // caixote de suprimentos
-  supplies: { d: 'M2 5l6-3 6 3v6l-6 3-6-3z M2 5l6 3 6-3 M8 8v6', color: '#e0b44c' },
-  // espiga
-  food: { d: 'M8 15V6 M8 6c-2-1-3-3-2-5 2 1 3 3 2 5z M8 9c-2-.5-3.5-2-3.5-3.5 2 0 3.5 1.5 3.5 3.5z M8 9c2-.5 3.5-2 3.5-3.5-2 0-3.5 1.5-3.5 3.5z', color: '#d8c35a' },
-  // tora
-  wood: { d: 'M3 6h9a2.5 2.5 0 010 5H3a2.5 2.5 0 010-5z M3 6a2.5 2.5 0 000 5', color: '#b0844f' },
-  // pedra
-  stone: { d: 'M3 12l2-6 4-2 4 3 1 5-4 2z', color: '#a9a49a' },
-  // lingote de ferro
-  iron: { d: 'M2 11l3-5h6l3 5z M5 6l1 2h4l1-2', color: '#9aa5b1' },
-  // gota de petróleo
-  oil: { d: 'M8 2c3 4 4.5 6 4.5 8a4.5 4.5 0 01-9 0C3.5 8 5 6 8 2z', color: '#8fa0b4' },
-  // pedras de carvão
-  coal: { d: 'M3 12l2-4 3 1 2-4 3 3-1 5H4z M6 9l1 3 M10 8l1 4', color: '#5a5e63' },
-};
+import { Droplet, Flame, Mountain, Package, TreePine, Wheat, type LucideIcon } from 'lucide-react';
+import type { SVGProps } from 'react';
 
-export function ResourceIcon({ type, size = 14 }: { type: ResourceType; size?: number }) {
-  const p = PATHS[type];
+/** Lingote de ferro no mesmo traço do Lucide (a bigorna não era reconhecida como ferro; 05/11). */
+export function IngotIcon({ size = 24, strokeWidth = 2, ...rest }: SVGProps<SVGSVGElement> & { size?: number; strokeWidth?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden className="inline-block shrink-0">
-      <path d={p.d} fill={type === 'oil' || type === 'stone' ? p.color : 'none'} stroke={p.color} strokeWidth={1.4} strokeLinejoin="round" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" {...rest}>
+      <path d="M3 18h18l-3.5-7h-11z" />
+      <path d="M6.5 11 8.5 7h7l2 4" />
+      <path d="M8.5 7 7 11" />
     </svg>
   );
+}
+
+/**
+ * Ícone e cor fixa de cada recurso, iguais em todo o jogo (identidade "Sala de Situação", 05/11): comida dourada,
+ * madeira verde, pedra cinza, ferro cobre, petróleo azul-violeta, carvão grafite, suprimentos areia.
+ */
+export const RESOURCE_STYLE: Record<ResourceType, { icon: LucideIcon | typeof IngotIcon; color: string }> = {
+  food: { icon: Wheat, color: '#d9b45a' },
+  wood: { icon: TreePine, color: '#7fbf6a' },
+  stone: { icon: Mountain, color: '#a9b3bd' },
+  iron: { icon: IngotIcon, color: '#c98a63' },
+  oil: { icon: Droplet, color: '#8f8cff' },
+  coal: { icon: Flame, color: '#8a8f99' },
+  supplies: { icon: Package, color: '#e2c48a' },
+};
+
+export function ResourceIcon({ type, size = 14, color }: { type: ResourceType; size?: number; color?: string }) {
+  const { icon: Icon, color: c } = RESOURCE_STYLE[type];
+  return <Icon size={size} strokeWidth={size <= 12 ? 2.25 : 2} color={color ?? c} aria-hidden className="inline-block shrink-0" />;
 }
 
 /** Custo em vários recursos; itens que faltam aparecem em vermelho com o déficit no título. */
@@ -36,7 +43,7 @@ export function CostLabel({ cost, have, compact }: { cost: Cost; have?: Stockpil
         const short = have ? have[r] < (cost[r] ?? 0) : false;
         return (
           <span key={r} className={`inline-flex items-center gap-0.5 ${short ? 'text-red-300' : 'text-ink-100'}`} title={`${RESOURCE_LABELS[r]}: ${cost[r]}`}>
-            <ResourceIcon type={r} size={compact ? 10 : 12} />
+            <ResourceIcon type={r} size={compact ? 10 : 12} color={short ? '#e85c4e' : undefined} />
             {cost[r]}
           </span>
         );

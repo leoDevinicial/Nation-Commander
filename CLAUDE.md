@@ -36,6 +36,12 @@ O Nation Commander é **low poly estilizado**, por decisão do responsável pelo
 - Pedidos para "melhorar o gráfico" viram polimento dentro da estética: luz, efeitos, animação, legibilidade, variantes
   de era, biomas e interface.
 
+## Identidade da interface ("Sala de Situação", aprovada em 05/11)
+Painéis de console sobre o mapa: moldura `<Frame>` (canto chanfrado + colchetes de latão), grafite translúcido, latão só
+para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi Condensed / JetBrains Mono embutidas e
+ícones Lucide (sem emojis). Cada recurso tem cor fixa (`RESOURCE_STYLE`). Maquete, regras e andamento em
+`docs/ui_maquete/README.md`; cartão de construção mostra o saldo líquido por dia (verde rende, vermelho custa).
+
 ## Onde está cada coisa
 - `shared/sim/` — simulação tática determinística (config, IA, combate, comércio, melhorias). `shared/strategic/` —
   camada nacional (economia, orçamento, diplomacia).

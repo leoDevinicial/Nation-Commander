@@ -4,6 +4,7 @@ import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { producibleIcon, producibleLabel } from './CommandPanel.tsx';
+import { Factory, Landmark, Swords } from 'lucide-react';
 
 export type TopBarPopover = 'money' | 'production' | 'perf' | 'net' | 'sandbox' | null;
 
@@ -25,19 +26,22 @@ export function MoneyChip({ open, onToggle }: { open: boolean; onToggle: () => v
   const negative = works.fundUsd < 0;
   return (
     <button
-      className={`flex shrink-0 items-center gap-1 rounded px-1 py-0.5 ${open ? 'bg-ink-700' : 'hover:bg-ink-800'}`}
+      className={`flex h-full shrink-0 items-center gap-1 border-r border-white/[0.07] px-1.5 min-[1800px]:gap-1.5 min-[1800px]:px-2.5 ${open ? 'bg-white/[0.07]' : 'hover:bg-white/[0.04]'}`}
       onClick={onToggle}
       aria-expanded={open}
       aria-label={`Caixa do país: ${formatUsd(works.fundUsd)}, ${net >= 0 ? 'ganhando' : 'perdendo'} US$ ${perDay(net)} por dia`}
       title="Caixa do país — toque para ver de onde vem e para onde vai o dinheiro"
     >
-      <span className="font-bold text-emerald-300" aria-hidden>
-        US$
-      </span>
-      <span className={`font-mono font-bold ${negative ? 'text-red-400' : ''}`}>{formatUsd(works.fundUsd).replace('US$ ', '')}</span>
-      <span className={`font-mono text-[11px] ${net >= 0 ? 'text-signal-green' : 'text-red-400'}`}>
-        {net >= 0 ? '+' : '−'}
-        {perDay(net)}/dia
+      <Landmark size={15} className="text-brass-400" aria-hidden />
+      <span className="flex flex-col items-start justify-center">
+        <span className="nc-kicker mb-0.5 hidden text-[8.5px] min-[1800px]:block">Caixa</span>
+        <span className="nc-num flex items-baseline gap-1.5 text-[13px] leading-none font-bold sm:text-sm">
+          <span className={negative ? 'text-red-400' : 'text-brass-400'}>{formatUsd(works.fundUsd).replace('US$ ', '$')}</span>
+          <span className={`hidden text-[10px] lg:inline ${net >= 0 ? 'text-signal-green' : 'text-red-400'}`}>
+            {net >= 0 ? '+' : '−'}
+            {perDay(net)}/dia
+          </span>
+        </span>
       </span>
     </button>
   );
@@ -135,15 +139,25 @@ export function ProductionChip({ open, onToggle }: { open: boolean; onToggle: ()
   const military = production.reduce((n, p) => n + p.queue.filter((q) => q.unitType !== 'citizen' && q.unitType !== 'recruit').length, 0);
   return (
     <button
-      className={`flex shrink-0 items-center gap-1 rounded px-1 py-0.5 ${open ? 'bg-ink-700' : 'hover:bg-ink-800'} ${total === 0 ? 'text-ink-400' : ''}`}
+      className={`flex h-full shrink-0 items-center gap-1 border-r border-white/[0.07] px-1.5 min-[1800px]:gap-1.5 min-[1800px]:px-2.5 ${open ? 'bg-white/[0.07]' : 'hover:bg-white/[0.04]'} ${total === 0 ? 'text-ink-400' : ''}`}
       onClick={onToggle}
       aria-expanded={open}
       aria-label={`Produção: ${total} na fila`}
       title="Fila de produção de todos os edifícios — toque para ver"
     >
-      <span aria-hidden>🏭</span>
-      <span className="font-mono font-bold">{total}</span>
-      {military > 0 && <span className="hidden text-[11px] text-brass-400 sm:inline">⚔{military}</span>}
+      <Factory size={15} className={total === 0 ? 'text-ink-400' : 'text-ink-200'} aria-hidden />
+      <span className="flex flex-col items-start justify-center">
+        <span className="nc-kicker mb-0.5 hidden text-[8.5px] min-[1800px]:block">Produção</span>
+        <span className="nc-num flex items-baseline gap-1.5 text-[13px] leading-none font-bold sm:text-sm">
+          {total}
+          {military > 0 && (
+            <span className="hidden items-center gap-0.5 text-[10px] text-brass-400 sm:inline-flex">
+              <Swords size={10} aria-hidden />
+              {military}
+            </span>
+          )}
+        </span>
+      </span>
     </button>
   );
 }

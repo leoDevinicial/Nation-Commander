@@ -2,7 +2,10 @@ import { GAME_SPEEDS } from '../../../shared/protocol.ts';
 import { DIFFICULTY, prepTicks } from '../../../shared/sim/difficulty.ts';
 import { ERAS, type Era } from '../../../shared/sim/eras.ts';
 import { GOODS, VICTORY, POP_ABSOLUTE_CAP, RESOURCE_LABELS, RESOURCE_TYPES, STORAGE_LABEL, TICK_RATE } from '../../../shared/sim/config.ts';
-import { ResourceIcon } from '../components/Resources.tsx';
+import { RESOURCE_STYLE, ResourceIcon } from '../components/Resources.tsx';
+import { Frame } from '../components/Frame.tsx';
+import { countryName } from '../../../shared/data/countries.ts';
+import { Brain, ChevronsUp, CloudLightning, CloudRain, Fuel, Globe, Landmark, Map, Menu as MenuIcon, Moon, Music, Pause, Play, Scale, ShieldCheck, Snowflake, Sun, TriangleAlert, Users, Video, VolumeX, Zap } from 'lucide-react';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { factionColor } from '../../game/render/palette.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
@@ -11,7 +14,7 @@ import { useSettingsStore } from '../../state/useSettingsStore.ts';
 import { formatDate, formatDuration, formatPct } from '../../lib/format.ts';
 import { FullscreenButton } from '../components/FullscreenButton.tsx';
 import { useNationalStore } from '../../state/useNationalStore.ts';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { MoneyChip, MoneyPopover, ProductionChip, ProductionPopover, type TopBarPopover } from './TopBarExtras.tsx';
 import { PerfChip, PerfPopover } from './PerfPanel.tsx';
 import { NetChip, NetPopover } from './NetPanel.tsx';
@@ -46,142 +49,159 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
   const [pop, setPop] = useState<TopBarPopover>(null);
   const toggle = (p: Exclude<TopBarPopover, null>) => setPop((cur) => (cur === p ? null : p));
 
+  const myCountry = roster.find((p) => p.slot === mySlot)?.countryId ?? '';
+  const era = (me?.era ?? 1) as Era;
+  const approval = nation?.approval;
+
   return (
-    <div className="panel absolute top-2 right-2 left-2 z-40 flex h-11 items-center gap-2 px-2 text-xs sm:top-3 sm:right-3 sm:left-3 sm:h-10 sm:gap-4 sm:px-3 sm:text-sm">
-      {/* indicadores: rolam na horizontal em telas estreitas em vez de cortar */}
-      {/* prioridade por largura: os valores (recursos, população, era, tempo, aprovação) cabem sempre; capacidade, saldo,
-          data, nomes e o texto dos botões aparecem conforme sobra espaço (o detalhe completo fica na dica de cada item) */}
-      <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto xl:gap-2.5 2xl:gap-4">
-        {/* dinheiro e produção primeiro: ficam visíveis mesmo na tela estreita do celular */}
-        {sandbox && <SandboxChip open={pop === 'sandbox'} onToggle={() => toggle('sandbox')} />}
-        {/* Sandbox: sem economia na tela (recursos ilimitados) */}
-        {!sandbox && <MoneyChip open={pop === 'money'} onToggle={() => toggle('money')} />}
-        {!sandbox && me?.knowledge !== undefined && (
-          <span
-            className="flex shrink-0 items-center gap-1 font-mono font-bold"
-            title={`Pontos de conhecimento: ${me.knowledge}. Formados por Escolas e Universidades (uma de cada por cidade, com trabalhadores e luz); pagam as pesquisas militares e nacionais junto com o US$ do caixa.`}
-            aria-label={`Conhecimento: ${me.knowledge} pontos`}
-          >
-            <span aria-hidden>🧠</span>
-            {me.knowledge}
+    // Sala de Situação (05/11, docs/ui_maquete): quatro blocos com a moldura de comando — nação, recursos, tempo e
+    // menus. Os menus que abrem para baixo ficam fora das molduras (o recorte delas cortaria).
+    <div className="pointer-events-none absolute top-2 right-2 left-2 z-40 flex h-11 items-stretch gap-1.5 text-xs sm:top-2.5 sm:right-3 sm:left-3 sm:gap-2 sm:text-sm">
+      {/* nação: insígnia na cor da nação com a sigla do país, nome, era e aprovação */}
+      <Frame className="pointer-events-auto shrink-0" innerClassName="flex items-center gap-2 pr-2.5 pl-2 sm:gap-2.5 sm:pr-3">
+        <span
+          className="absolute top-2 bottom-0 left-0 w-[3px]"
+          style={{ background: factionColor(mySlot), boxShadow: `0 0 10px ${factionColor(mySlot)}` }}
+          aria-hidden
+        />
+        <span
+          className="nc-num ml-1 grid h-7 w-10 shrink-0 place-items-center text-[11px] font-bold text-white"
+          style={{ background: factionColor(mySlot), clipPath: 'polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px)', textShadow: '0 1px 2px rgb(0 0 0 / 0.5)' }}
+          title={countryName(myCountry)}
+          aria-hidden
+        >
+          {myCountry}
+        </span>
+        <div className="hidden min-w-0 flex-col justify-center lg:flex">
+          <span className="nc-title hidden max-w-[9rem] truncate text-base leading-none min-[1800px]:block" translate="no">
+            {countryName(myCountry)}
+          </span>
+          {me?.eras && <EraChip era={era} advance={me.eraAdvance} />}
+        </div>
+        {me?.eras && (
+          <span className="lg:hidden">
+            <EraChip era={era} advance={me.eraAdvance} />
           </span>
         )}
-        <ProductionChip open={pop === 'production'} onToggle={() => toggle('production')} />
+        {approval !== undefined && (
+          <div className="flex flex-col items-end justify-center gap-0.5 pl-1" title="Aprovação do governo (abaixo de 35% é crise; ver o painel da Nação)">
+            <span className="nc-kicker hidden text-[9px] min-[1800px]:block">Aprovação</span>
+            <span className={`nc-num text-sm leading-none font-bold ${approval < 35 ? 'text-red-300' : approval < 50 ? 'text-brass-400' : 'text-signal-green'}`}>{formatPct(approval, 0)}</span>
+            <span className="relative hidden h-1 w-12 bg-white/10 lg:block" aria-hidden>
+              <span className={`absolute inset-y-0 left-0 ${approval < 35 ? 'bg-red-400' : approval < 50 ? 'bg-brass-400' : 'bg-signal-green'}`} style={{ width: `${Math.max(0, Math.min(100, approval))}%` }} />
+            </span>
+          </div>
+        )}
+      </Frame>
+
+      {/* recursos e indicadores: rolam na horizontal em telas estreitas em vez de cortar */}
+      {/* prioridade por largura: os valores cabem sempre; rótulos, capacidade, saldo e nomes aparecem conforme sobra espaço
+          (o detalhe completo fica na dica de cada item) */}
+      <Frame className="pointer-events-auto min-w-0 flex-1" innerClassName="no-scrollbar flex items-center gap-0 overflow-x-auto pr-3 pl-1.5 [mask-image:linear-gradient(90deg,#000_calc(100%-28px),transparent)]">
+        {sandbox && (
+          <span className="shrink-0 pr-2">
+            <SandboxChip open={pop === 'sandbox'} onToggle={() => toggle('sandbox')} />
+          </span>
+        )}
+        {/* Sandbox: sem economia na tela (recursos ilimitados) */}
+        {!sandbox && <MoneyChip open={pop === 'money'} onToggle={() => toggle('money')} />}
         {!sandbox &&
           RESOURCE_TYPES.map((r) => {
             const have = Math.floor(me?.resources?.[r] ?? 0);
             const cap = me?.capacity?.[r] ?? 0;
             const net = me?.income?.[r] ?? 0;
             const full = cap > 0 && have >= cap;
+            const alarm = (r === 'food' && me?.hungry) || (r === 'oil' && me?.noFuel);
             return (
-              <div
+              <BarItem
                 key={r}
-                className="flex shrink-0 items-center gap-1"
+                label={RESOURCE_LABELS[r]}
+                icon={<ResourceIcon type={r} size={15} />}
                 title={`${RESOURCE_LABELS[r]}: ${have} de ${cap} (guardado em: ${STORAGE_LABEL[r]}). Saldo: ${net >= 0 ? '+' : ''}${net.toFixed(2)}/s${full ? ' — CHEIO: a produção pausa' : ''}${r === 'oil' ? `\nVeículos e navios gastam petróleo ao andar (o Combustível da Refinaria sai primeiro)${me?.noFuel ? ' — SEM COMBUSTÍVEL: andam a meia velocidade' : ''}` : ''}`}
+                fill={cap > 0 ? have / cap : undefined}
+                fillColor={full ? 'var(--color-signal-amber)' : RESOURCE_STYLE[r].color}
+                valueClass={full ? 'text-signal-amber' : alarm ? 'text-red-300' : ''}
+                extra={
+                  <span className={`hidden text-[10px] min-[1800px]:inline ${net < 0 ? 'text-red-300' : 'text-signal-green'}`}>
+                    {net >= 0 ? '+' : ''}
+                    {net.toFixed(1)}
+                  </span>
+                }
               >
-                <ResourceIcon type={r} />
-                <span className={`font-mono font-bold ${full ? 'text-brass-400' : (r === 'food' && me?.hungry) || (r === 'oil' && me?.noFuel) ? 'text-red-300' : ''}`}>{have}</span>
-                <span className="hidden font-mono text-[10px] text-ink-400 2xl:inline">/{cap}</span>
-                <span className={`hidden text-[11px] min-[1800px]:inline ${net < 0 ? 'text-red-300' : 'text-signal-green'}`}>
-                  {net >= 0 ? '+' : ''}
-                  {net.toFixed(1)}
-                </span>
-              </div>
+                {have}
+              </BarItem>
             );
           })}
         {!sandbox && me?.power && <PowerChip power={me.power} />}
         {!sandbox && me?.goods && (me.goods.fuel > 0 || me.goods.steel > 0 || me.goods.cap > GOODS.baseCap) && (
-          <div
-            className="flex shrink-0 items-center gap-1.5"
+          <BarItem
+            label="Bens"
+            icon={<Fuel size={15} color="#c9a26b" aria-hidden />}
             title={`Bens industriais (cadeias produtivas), até ${me.goods.cap} de cada: ${GOODS.label.fuel} ${me.goods.fuel} (Refinaria, substitui petróleo) · ${GOODS.label.steel} ${me.goods.steel} (Siderúrgica, substitui ferro). Cada unidade poupa ${GOODS.saves} do recurso bruto na produção de veículos e aeronaves, nas missões aéreas e no deslocamento de veículos e navios.`}
           >
-            <span aria-hidden>⛽</span>
-            <span className="font-mono">{me.goods.fuel}</span>
-            <span aria-hidden>🔩</span>
-            <span className="font-mono">{me.goods.steel}</span>
-          </div>
+            {me.goods.fuel}
+            <span className="px-1 text-ink-600">·</span>
+            {me.goods.steel}
+          </BarItem>
         )}
         {!sandbox && me?.population && (
-          <div
-            className="flex shrink-0 items-center gap-1.5"
+          <BarItem
+            label="População"
+            icon={<Users size={15} className="text-ink-300" aria-hidden />}
             title={`População ${me.population.total}/${me.population.cap} (teto nacional ${POP_ABSOLUTE_CAP}). Cidadãos: ${me.population.citizens} (${me.population.employed} empregados${me.population.builders ? `, ${me.population.builders} em obras` : ''}, ${me.population.idle} ociosos) · Recrutas na reserva: ${me.population.recruits} (+${me.population.queuedRecruits} em alistamento no quartel) · Militares: ${me.population.military} em campo, ${me.population.queuedMilitary} em formação · Cidadãos em formação: ${me.population.queuedCitizens}`}
+            valueClass={me.population.total >= me.population.cap ? 'text-brass-400' : ''}
           >
-            <span className="text-ink-400" aria-hidden>
-              👥
-            </span>
-            <span className={`font-mono ${me.population.total >= me.population.cap ? 'text-brass-400' : ''}`}>
-              {me.population.total}/{me.population.cap}
-            </span>
-            <span className="hidden text-[11px] text-ink-400 min-[2000px]:inline">
-              · {me.population.idle} ociosos · 🎖{me.population.recruits} recrutas · ⚔{me.population.military}
-            </span>
-          </div>
+            {me.population.total}
+            <span className="text-ink-400">/{me.population.cap}</span>
+          </BarItem>
         )}
-        {me?.eras && (
-          <div
-            className="flex shrink-0 items-center gap-1.5"
-            title={`Era atual: ${ERAS[(me.era ?? 1) as Era].label} — ${ERAS[(me.era ?? 1) as Era].look}.${me.eraAdvance ? ` Avançando para ${ERAS[me.eraAdvance.to as Era].label}: ${Math.round(me.eraAdvance.progress * 100)}%.` : ' Avance de era no Centro de Comando.'}`}
+        {!sandbox && me?.knowledge !== undefined && (
+          <BarItem
+            label="Conhecimento"
+            icon={<Brain size={15} color="#b9a4f2" aria-hidden />}
+            title={`Pontos de conhecimento: ${me.knowledge}. Formados por Escolas e Universidades (uma de cada por cidade, com trabalhadores e luz); pagam as pesquisas militares e nacionais junto com o US$ do caixa.`}
+            ariaLabel={`Conhecimento: ${me.knowledge} pontos`}
           >
-            <span aria-hidden>🏛</span>
-            <span className="hidden xl:inline">{ERAS[(me.era ?? 1) as Era].label}</span>
-            <span className="xl:hidden font-mono">E{me.era ?? 1}</span>
-            {me.eraAdvance && <span className="font-mono text-brass-400">→ {Math.round(me.eraAdvance.progress * 100)}%</span>}
-          </div>
+            {me.knowledge}
+          </BarItem>
         )}
+        <ProductionChip open={pop === 'production'} onToggle={() => toggle('production')} />
         {victory.map((v) => {
           const mine = v.slot === mySlot;
           const pct = Math.round(v.progress * 100);
+          const good = mine === (v.kind === 'territory');
           const text =
             v.kind === 'territory'
               ? `${mine ? 'Nosso' : 'Inimigo:'} domínio territorial — ${pct}% dos ${VICTORY.territorySeconds / 60} min para a vitória (controle ≥ ${Math.round(VICTORY.territoryShare * 100)}% do território reivindicado)`
               : `${mine ? 'Nossa' : 'Inimigo:'} crise política — ${pct}% dos ${VICTORY.politicalDays} dias até a queda do governo (estabilidade abaixo de ${VICTORY.politicalStability})`;
           return (
-            <div key={`${v.kind}-${v.slot}`} className={`flex shrink-0 items-center gap-1 font-mono ${mine === (v.kind === 'territory') ? 'text-signal-green' : 'text-red-300'}`} title={text}>
-              <span aria-hidden>{v.kind === 'territory' ? '🗺' : '⚖'}</span>
-              <span className="inline-block h-1.5 w-12 overflow-hidden rounded bg-ink-700 align-middle" aria-hidden>
-                <span className={`block h-full ${mine === (v.kind === 'territory') ? 'bg-signal-green' : 'bg-red-400'}`} style={{ width: `${pct}%` }} />
-              </span>
-              <span>{pct}%</span>
-            </div>
+            <BarItem
+              key={`${v.kind}-${v.slot}`}
+              label={v.kind === 'territory' ? 'Domínio' : 'Crise'}
+              icon={v.kind === 'territory' ? <Map size={15} aria-hidden /> : <Scale size={15} aria-hidden />}
+              title={text}
+              fill={v.progress}
+              fillColor={good ? 'var(--color-signal-green)' : 'var(--color-signal-red)'}
+              valueClass={good ? 'text-signal-green' : 'text-red-300'}
+            >
+              {pct}%
+            </BarItem>
           );
         })}
-        <div className="flex shrink-0 items-center gap-1.5" title="Tempo de operação">
-          <span className="text-ink-400" aria-hidden>
-            ⏱
-          </span>
-          <span className="font-mono">{formatDuration(Math.floor(tick / TICK_RATE))}</span>
-        </div>
         {!sandbox && tick < prep && (
-          <div
-            className="flex shrink-0 items-center gap-1.5 text-emerald-300"
+          <BarItem
+            label="Preparo"
+            icon={<ShieldCheck size={15} className="text-emerald-300" aria-hidden />}
             title={`Período de preparo (${DIFFICULTY[difficulty].label}): os governos de IA não declaram guerra nem lançam ofensivas.${DIFFICULTY[difficulty].harassment ? ' Podem provocar incidentes de fronteira com poucas tropas.' : ''} Use para montar a economia e as defesas.`}
+            valueClass="text-emerald-300"
           >
-            <span aria-hidden>🛡</span>
-            <span className="hidden xl:inline">Preparo</span>
-            <span className="font-mono">{formatDuration(Math.ceil((prep - tick) / TICK_RATE))}</span>
-          </div>
+            {formatDuration(Math.ceil((prep - tick) / TICK_RATE))}
+          </BarItem>
         )}
-        {date && (
-          <div className="hidden shrink-0 items-center gap-2 min-[1700px]:flex" title="Data do cenário (1 dia de jogo por segundo a 1×)">
-            <span className="text-ink-400" aria-hidden>
-              📅
-            </span>
-            <span className="font-mono">{formatDate(date)}</span>
-          </div>
-        )}
-        {nation && (
-          <div className="flex shrink-0 items-center gap-1.5" title="Aprovação do governo">
-            <span className="hidden text-ink-400 2xl:inline">Aprovação</span>
-            <span className="text-ink-400 2xl:hidden" aria-hidden>
-              ☺
-            </span>
-            <span className={`font-mono ${nation.approval < 35 ? 'text-red-300' : 'text-ink-100'}`}>{formatPct(nation.approval, 0)}</span>
-          </div>
-        )}
-        <div className="hidden items-center gap-3 min-[2200px]:flex">
+        <div className="ml-auto hidden items-center gap-3 pl-3 min-[2200px]:flex">
           {roster.map((p) => (
-            <span key={p.slot} className="flex items-center gap-1.5 text-xs">
-              <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: factionColor(p.slot) }} aria-hidden />
+            <span key={p.slot} className="flex items-center gap-1.5 text-xs" translate="no">
+              <span className="inline-block h-2.5 w-2.5" style={{ background: factionColor(p.slot) }} aria-hidden />
               <span className={players.find((x) => x.slot === p.slot)?.defeated ? 'text-ink-400 line-through' : ''}>
                 {p.name}
                 {p.slot === mySlot && ' (você)'}
@@ -189,26 +209,23 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
             </span>
           ))}
         </div>
-      </div>
-      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-        {connStatus !== 'connected' && (
-          <span className="text-xs text-brass-400" title={connDetail ?? 'Reconectando ao servidor'}>
-            ⚠<span className="hidden sm:inline"> {connDetail ? 'Servidor atualizando… a partida será retomada' : 'Reconectando…'}</span>
-          </span>
-        )}
-        <NetChip open={pop === 'net'} onToggle={() => toggle('net')} />
-        {showFps && <PerfChip open={pop === 'perf'} onToggle={() => toggle('perf')} />}
-        {sky && <SkyChip sky={sky} />}
-        {paused && <span className="hidden text-xs font-semibold text-brass-400 md:inline">PAUSADO{pausedBy ? ` por ${pausedBy}` : ''}</span>}
-        <button className="btn min-h-8 px-2 py-1 text-xs whitespace-nowrap" onClick={() => runtime.togglePause()} title="Pausar/retomar (Espaço)" aria-label={paused ? 'Retomar' : 'Pausar'}>
-          <PlayPauseIcon playing={!paused} />
-          <span className="hidden min-[2100px]:inline">{paused ? 'Retomar' : 'Pausar'}</span>
-        </button>
-        <div className="hidden gap-1 xl:flex">
+      </Frame>
+
+      {/* tempo: relógio da operação, hora do dia, pausa e velocidade */}
+      <Frame className="pointer-events-auto shrink-0" innerClassName="flex items-center gap-2 pr-2 pl-2.5 sm:gap-2.5">
+        <div className="flex flex-col justify-center" title={date ? `Tempo de operação · data do cenário ${formatDate(date)} (1 dia de jogo por segundo a 1×)` : 'Tempo de operação'}>
+          <span className="nc-num text-base leading-none font-bold sm:text-lg">{formatDuration(Math.floor(tick / TICK_RATE))}</span>
+          {sky && <SkyChip sky={sky} />}
+        </div>
+        {paused && <span className="hidden text-[11px] font-semibold tracking-wider text-brass-400 uppercase md:inline">Pausado{pausedBy ? ` · ${pausedBy}` : ''}</span>}
+        <div className="nc-seg">
+          <button className="nc-icon-btn" onClick={() => runtime.togglePause()} title="Pausar/retomar (Espaço)" aria-label={paused ? 'Retomar' : 'Pausar'}>
+            {paused ? <Play size={14} aria-hidden /> : <Pause size={14} aria-hidden />}
+          </button>
           {GAME_SPEEDS.map((s) => (
             <button
               key={s}
-              className={`btn min-h-8 px-2 py-1 font-mono text-xs ${speed === s ? 'btn-primary' : ''}`}
+              className={`nc-icon-btn hidden text-[11px] min-[1800px]:inline-flex ${speed === s ? 'is-on' : ''}`}
               disabled={!canControlSpeed}
               title={canControlSpeed ? `Velocidade ${s}×` : 'Velocidade fixa em partidas entre jogadores'}
               onClick={() => runtime.setSpeed(s)}
@@ -216,51 +233,60 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
               {s}×
             </button>
           ))}
+          <button
+            className="nc-icon-btn is-on text-[11px] min-[1800px]:hidden"
+            disabled={!canControlSpeed}
+            title={canControlSpeed ? `Velocidade atual ${speed}× — tocar alterna para ${nextSpeed}×` : 'Velocidade fixa em partidas entre jogadores'}
+            aria-label={`Velocidade ${speed}×`}
+            onClick={() => runtime.setSpeed(nextSpeed)}
+          >
+            {speed}×
+          </button>
         </div>
+      </Frame>
+
+      {/* menus: conexão (só o ponto), visão de perto, globo, nação, música, tela cheia e menu */}
+      <Frame className="pointer-events-auto shrink-0" innerClassName="flex items-center gap-1 px-1.5 sm:gap-1.5 sm:px-2">
+        {connStatus !== 'connected' && (
+          <span className="flex items-center gap-1 text-xs text-brass-400" title={connDetail ?? 'Reconectando ao servidor'}>
+            <TriangleAlert size={15} aria-hidden />
+            <span className="hidden sm:inline">{connDetail ? 'Servidor atualizando… a partida será retomada' : 'Reconectando…'}</span>
+          </span>
+        )}
+        <NetChip open={pop === 'net'} onToggle={() => toggle('net')} />
+        {showFps && <PerfChip open={pop === 'perf'} onToggle={() => toggle('perf')} />}
+        <span className="mx-0.5 hidden h-5 w-px bg-white/10 sm:block" aria-hidden />
         <button
-          className="btn min-h-8 px-2 py-1 font-mono text-xs xl:hidden"
-          disabled={!canControlSpeed}
-          title={canControlSpeed ? `Velocidade atual ${speed}× — tocar alterna para ${nextSpeed}×` : 'Velocidade fixa em partidas entre jogadores'}
-          aria-label={`Velocidade ${speed}×`}
-          onClick={() => runtime.setSpeed(nextSpeed)}
-        >
-          {speed}×
-        </button>
-        <button
-          className={`btn min-h-8 px-2 py-1 text-xs whitespace-nowrap ${closeUp ? 'btn-primary' : ''}`}
+          className={`nc-icon-btn hidden lg:inline-flex ${closeUp ? 'is-on' : ''}`}
           onClick={() => runtime.toggleCloseUp()}
           title="Visão aproximada: a câmera desce perto das tropas e acompanha a seleção; role para chegar mais perto e use Q/E para girar (V; Esc sai)"
           aria-label="Visão aproximada"
           aria-pressed={closeUp}
         >
-          🎥<span className="hidden min-[2100px]:inline">De perto</span>
+          <Video size={17} aria-hidden />
         </button>
         <button
-          className={`btn min-h-8 px-2 py-1 text-xs whitespace-nowrap ${globeOpen ? 'btn-primary' : ''}`}
+          className={`nc-icon-btn ${globeOpen ? 'is-on' : ''}`}
           onClick={() => (globeOpen ? closeGlobe() : openGlobe())}
           title="Globo diplomático: países, contatos, relações, tratados e guerras (Tab)"
           aria-label="Globo"
         >
-          🌐<span className="hidden min-[2100px]:inline">Globo</span>
+          <Globe size={17} aria-hidden />
         </button>
-        <button
-          className={`btn min-h-8 px-2 py-1 text-xs whitespace-nowrap ${panelOpen ? 'btn-primary' : ''}`}
-          onClick={() => togglePanel(!panelOpen)}
-          title="Painel nacional: economia, orçamento, pesquisa e diplomacia (G)"
-          aria-label="Nação"
-        >
-          🏛<span className="hidden min-[2100px]:inline">Nação</span>
+        <button className={`nc-icon-btn ${panelOpen ? 'is-on' : ''}`} onClick={() => togglePanel(!panelOpen)} title="Painel nacional: economia, orçamento, pesquisa e diplomacia (G)" aria-label="Nação">
+          <Landmark size={17} aria-hidden />
         </button>
         <MusicButton />
-        <FullscreenButton />
-        <button className="btn min-h-8 px-2 py-1 text-xs whitespace-nowrap" onClick={onMenu} title="Menu (F10)" aria-label="Menu">
-          ☰<span className="hidden min-[2100px]:inline">Menu</span>
+        <FullscreenButton variant="bar" />
+        <button className="nc-icon-btn" onClick={onMenu} title="Menu (F10)" aria-label="Menu">
+          <MenuIcon size={17} aria-hidden />
         </button>
-      </div>
+      </Frame>
+
       {pop && (
         <>
-          <div className="fixed inset-0 z-40" onPointerDown={() => setPop(null)} aria-hidden />
-          <div className={`absolute top-full z-50 mt-1 ${pop === 'perf' || pop === 'net' ? 'right-0' : 'left-0'}`}>
+          <div className="pointer-events-auto fixed inset-0 z-40" onPointerDown={() => setPop(null)} aria-hidden />
+          <div className={`pointer-events-auto absolute top-full z-50 mt-1.5 ${pop === 'perf' || pop === 'net' ? 'right-0' : 'left-0'}`}>
             {pop === 'money' ? (
               <MoneyPopover onClose={() => setPop(null)} />
             ) : pop === 'sandbox' ? (
@@ -279,32 +305,78 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
   );
 }
 
-/** Ícone desenhado em SVG: glifos ⏸/▶ variam (ou faltam) entre fontes de sistemas móveis. */
-function PlayPauseIcon({ playing }: { playing: boolean }) {
+const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V'];
+
+/** Selo da era: algarismo romano em latão e o nome quando cabe; mostra o avanço em andamento. */
+function EraChip({ era, advance }: { era: Era; advance?: { to: number; progress: number } }) {
   return (
-    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden fill="currentColor">
-      {playing ? (
-        <>
-          <rect x="2" y="1.5" width="3" height="9" rx="0.5" />
-          <rect x="7" y="1.5" width="3" height="9" rx="0.5" />
-        </>
-      ) : (
-        <path d="M3 1.5v9l7.5-4.5z" />
-      )}
-    </svg>
+    <span
+      className="mt-1 inline-flex h-[18px] items-center gap-1 border border-brass-500/70 bg-brass-400/10 pr-1.5 pl-1 text-[10px] font-bold tracking-[0.1em] whitespace-nowrap text-brass-400"
+      style={{ clipPath: 'polygon(4px 0, 100% 0, 100% 100%, 0 100%, 0 4px)' }}
+      title={`Era atual: ${ERAS[era].label} — ${ERAS[era].look}.${advance ? ` Avançando para ${ERAS[advance.to as Era].label}: ${Math.round(advance.progress * 100)}%.` : ' Avance de era no Centro de Comando.'}`}
+    >
+      <ChevronsUp size={11} aria-hidden />
+      ERA {ROMAN[era]}
+      <span className="hidden font-medium tracking-normal text-ink-300 min-[1800px]:inline">· {ERAS[era].label}</span>
+      {advance && <span className="nc-num font-medium tracking-normal">→ {Math.round(advance.progress * 100)}%</span>}
+    </span>
+  );
+}
+
+/**
+ * Item da barra de recursos: ícone na cor do recurso, rótulo pequeno (telas largas), valor em fonte de instrumento e
+ * a barra fina de capacidade embaixo (`fill`, 0..1).
+ */
+function BarItem({
+  label,
+  icon,
+  title,
+  ariaLabel,
+  fill,
+  fillColor,
+  valueClass = '',
+  extra,
+  children,
+}: {
+  label: string;
+  icon: ReactNode;
+  title: string;
+  ariaLabel?: string;
+  fill?: number;
+  fillColor?: string;
+  valueClass?: string;
+  extra?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex h-full shrink-0 items-center gap-1 border-r border-white/[0.07] px-1.5 last:border-r-0 min-[1800px]:gap-1.5 min-[1800px]:px-2.5" title={title} aria-label={ariaLabel}>
+      {icon}
+      <div className="flex flex-col justify-center">
+        <span className="nc-kicker mb-0.5 hidden text-[8.5px] min-[1800px]:block">{label}</span>
+        <span className={`nc-num flex items-baseline gap-1 text-[13px] leading-none font-bold sm:text-sm ${valueClass}`}>
+          <span>{children}</span>
+          {extra}
+        </span>
+        {fill !== undefined && (
+          <span className="mt-1 hidden h-0.5 w-full min-w-9 bg-white/[0.08] lg:block" aria-hidden>
+            <span className="block h-full" style={{ width: `${Math.max(0, Math.min(1, fill)) * 100}%`, background: fillColor }} />
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 
 /** Hora do dia e clima (visual): ícone e hora; o título explica o clima da partida. */
 function SkyChip({ sky }: { sky: { hour: number; weather: 'clear' | 'rain' | 'storm' | 'snow'; climate: string } }) {
   const night = sky.hour >= 19.5 || sky.hour < 5.5;
-  const icon = sky.weather === 'snow' ? '❄' : sky.weather === 'storm' ? '⛈' : sky.weather === 'rain' ? '🌧' : night ? '🌙' : '☀';
+  const Icon = sky.weather === 'snow' ? Snowflake : sky.weather === 'storm' ? CloudLightning : sky.weather === 'rain' ? CloudRain : night ? Moon : Sun;
   const label = sky.weather === 'snow' ? 'Nevando' : sky.weather === 'storm' ? 'Tempestade' : sky.weather === 'rain' ? 'Chovendo' : night ? 'Noite' : 'Tempo bom';
   const hh = String(Math.floor(sky.hour)).padStart(2, '0');
   const mm = String(Math.floor((sky.hour % 1) * 4) * 15).padStart(2, '0');
   return (
-    <span className="hidden items-center gap-1 font-mono text-xs text-ink-100 lg:inline-flex" title={`${label} · clima ${sky.climate} (só visual)`} aria-label={`${label}, ${hh}:${mm}`}>
-      <span aria-hidden>{icon}</span>
+    <span className="nc-num mt-0.5 hidden items-center gap-1 text-[10px] text-ink-400 lg:inline-flex" title={`${label} · clima ${sky.climate} (só visual)`} aria-label={`${label}, ${hh}:${mm}`}>
+      <Icon size={11} aria-hidden />
       {hh}:{mm}
     </span>
   );
@@ -315,16 +387,17 @@ function PowerChip({ power }: { power: { supply: number; demand: number; served:
   const short = power.dark > 0;
   const why = power.isolated > 0 ? `${power.isolated} longe da rede (ligue com estrada a até 4 células de uma usina, do QG ou de outra estrada)` : 'falta geração: construa outra usina';
   return (
-    <div
-      className="flex shrink-0 items-center gap-1"
+    <BarItem
+      label="Energia"
+      icon={<Zap size={15} className={short ? 'text-red-300' : 'text-brass-400'} aria-hidden />}
       title={`Energia: geração ${power.supply}, consumo ${power.demand}${power.coalPerMin > 0 ? ` · termelétricas queimam ${power.coalPerMin} de carvão/min` : ''}${short ? ` — ${power.dark} construção(ões) PARADA(S) sem luz: ${why}` : ''}`}
-      aria-label={`Energia ${power.supply} de geração, ${power.demand} de consumo`}
+      ariaLabel={`Energia ${power.supply} de geração, ${power.demand} de consumo`}
+      fill={power.supply > 0 ? power.demand / power.supply : undefined}
+      fillColor={short ? 'var(--color-signal-red)' : 'var(--color-brass-400)'}
+      valueClass={short ? 'text-red-300' : ''}
     >
-      <span aria-hidden className={short ? 'text-red-300' : 'text-brass-400'}>⚡</span>
-      <span className={`font-mono font-bold ${short ? 'text-red-300' : ''}`}>
-        {power.served}/{power.supply}
-      </span>
-    </div>
+      {power.served}/{power.supply}
+    </BarItem>
   );
 }
 
@@ -334,14 +407,13 @@ function MusicButton() {
   const update = useSettingsStore((s) => s.update);
   return (
     <button
-      className={`btn min-h-8 px-2 py-1 text-xs whitespace-nowrap ${musicMuted ? 'opacity-60' : ''}`}
+      className={`nc-icon-btn hidden lg:inline-flex ${musicMuted ? 'text-ink-400' : ''}`}
       onClick={() => update({ musicMuted: !musicMuted })}
       title={musicMuted ? 'Ligar a música (M)' : 'Silenciar a música (M); os sons da guerra continuam'}
       aria-label={musicMuted ? 'Ligar a música' : 'Silenciar a música'}
       aria-pressed={musicMuted}
     >
-      {musicMuted ? '🔇' : '🎵'}
-      <span className="hidden min-[2100px]:inline">Música</span>
+      {musicMuted ? <VolumeX size={17} aria-hidden /> : <Music size={17} aria-hidden />}
     </button>
   );
 }

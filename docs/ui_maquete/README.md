@@ -28,3 +28,17 @@ npm i --no-save @fontsource/barlow-semi-condensed @fontsource/barlow-condensed @
 node build.cjs            # monta hud.html, hud-cine.html e folha.html (ícones embutidos)
 node shot.cjs hud.html ../1-tela-computador.png 1600 900 2
 ```
+
+## Implementação no jogo
+
+1. **Base + barra de cima (05/11):** fontes embutidas (`src/main.tsx`), tokens e classes `nc-*` em `src/index.css`
+   (moldura `.nc-frame` → componente `src/ui/components/Frame.tsx`, `.nc-icon-btn`, `.nc-seg`, `.nc-kicker`,
+   `.nc-title`, `.nc-num`); `.panel` e `.btn` do jogo todo passaram ao grafite liso; ícones Lucide (`lucide-react`) e o
+   lingote próprio (`IngotIcon`); `ResourceIcon`/`RESOURCE_STYLE` com a cor fixa de cada recurso (custo que falta: ícone
+   vermelho). `TopBar` em quatro blocos: insígnia com a sigla do país na cor da nação (não há bandeiras no jogo), era em
+   algarismo romano e aprovação com medidor; recursos com barra de capacidade (rótulos a partir de 1800 px, rolagem com
+   esmaecido na borda); relógio, hora do dia, pausa e velocidade (botões 1×/2×/4× a partir de 1800 px, um botão que
+   alterna abaixo); menus só com ícone e a conexão como um ponto. Abaixo de 1024 px saem o nome do país, o saldo diário
+   do caixa, a visão de perto e a música (seguem no extrato, no menu e na tecla M).
+2. Próximas etapas: painel de comando (cartões com estados e saldo líquido), avisos e faixa cinematográfica, minimapa
+   e menus.

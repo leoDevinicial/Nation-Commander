@@ -51,7 +51,7 @@ export function InstallTip({ onClose }: { onClose: () => void }) {
  * direito das telas de menu. Some quando o jogo já roda como aplicativo instalado ou o navegador
  * não oferece nenhuma forma de tela cheia.
  */
-export function FullscreenButton({ variant = 'hud' }: { variant?: 'hud' | 'floating' }) {
+export function FullscreenButton({ variant = 'hud' }: { variant?: 'hud' | 'floating' | 'bar' }) {
   const active = useFullscreen();
   const lockLandscape = useSettingsStore((s) => s.lockLandscape);
   const [tip, setTip] = useState(false);
@@ -59,9 +59,11 @@ export function FullscreenButton({ variant = 'hud' }: { variant?: 'hud' | 'float
   if (mode === 'none') return null;
   const label = mode === 'install' ? 'Como jogar em tela cheia' : active ? 'Sair da tela cheia' : 'Tela cheia';
   const cls =
-    variant === 'hud'
-      ? `btn min-h-8 px-2 py-1 text-xs whitespace-nowrap ${active ? 'btn-primary' : ''}`
-      : `btn min-h-10 min-w-10 justify-center px-2.5 ${active ? 'btn-primary' : ''}`;
+    variant === 'bar'
+      ? `nc-icon-btn ${active ? 'is-on' : ''}`
+      : variant === 'hud'
+        ? `btn min-h-8 px-2 py-1 text-xs whitespace-nowrap ${active ? 'btn-primary' : ''}`
+        : `btn min-h-10 min-w-10 justify-center px-2.5 ${active ? 'btn-primary' : ''}`;
   return (
     <div className={variant === 'floating' ? 'fixed right-[max(0.75rem,env(safe-area-inset-right))] bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30' : 'relative'}>
       <button
