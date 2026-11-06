@@ -4,6 +4,9 @@ Página só por link direto com contas registradas, jogadores online, partidas d
 
 ## Como acessar
 
+**Provisório (06/11):** enquanto `STATS_TOKEN` não existir no Render, vale a chave `PROVISIONAL_STATS_TOKEN` de
+`server/stats.ts` (pedido do responsável; os números são só agregados). Ao criar `STATS_TOKEN`, ela para de valer.
+
 1. No servidor de jogo (cada região), defina `STATS_TOKEN` com um segredo de pelo menos 24 caracteres
    (`openssl rand -hex 24`) e reinicie. Sem ele, o endpoint não existe (404).
 2. Abra `https://<site do jogo>/painel#<STATS_TOKEN>`.

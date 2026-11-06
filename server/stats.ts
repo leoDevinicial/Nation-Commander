@@ -101,6 +101,13 @@ export class DbStatsCache {
   }
 }
 
+/**
+ * Chave provisória (06/11, pedido do responsável enquanto não dá para criar `STATS_TOKEN` no Render): vale só quando a
+ * variável não existe. Os números são públicos de propósito (só agregados), então ela pode ficar no código; ao definir
+ * `STATS_TOKEN`, esta deixa de funcionar.
+ */
+export const PROVISIONAL_STATS_TOKEN = 'HkL665Bn&8D';
+
 const sha = (s: string) => createHash('sha256').update(s).digest();
 
 /** Confere o token (tempo constante) e bloqueia por um tempo o IP com muitas tentativas erradas. */
@@ -113,7 +120,7 @@ export class StatsGate {
   ) {}
 
   get enabled(): boolean {
-    return !!this.token && this.token.length >= STATS_POLICY.minTokenLength;
+    return !!this.token && (this.token.length >= STATS_POLICY.minTokenLength || this.token === PROVISIONAL_STATS_TOKEN);
   }
 
   /** 200 liberado, 401 token errado, 404 painel desligado, 429 tentativas demais. */

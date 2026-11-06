@@ -16,7 +16,7 @@ import { RoomManager } from './RoomManager.ts';
 import { KNPS_DEFLATE } from './knps/transport.ts';
 import { RegionTelemetry, regionFromEnv } from './knps/region.ts';
 import { getSupabase, kacSupabaseBackend, recordMatch, verifyAccessToken } from './supabase.ts';
-import { DbStatsCache, StatsGate, matchTally } from './stats.ts';
+import { DbStatsCache, PROVISIONAL_STATS_TOKEN, StatsGate, matchTally } from './stats.ts';
 
 // partidas em andamento sobrevivem a reinícios: Supabase em produção, arquivos no desenvolvimento
 const sb = getSupabase();
@@ -48,7 +48,8 @@ const kacAdmin = new KacAdmin(config.kacAdminToken || undefined, { journal: kacJ
 if (config.kacAdminToken && !kacAdmin.enabled) log.warn('KAC_ADMIN_TOKEN curto demais (mínimo 24 caracteres): painel /kac desligado');
 
 // painel de números (06/11): GET /stats com Authorization: Bearer STATS_TOKEN; sem token, não existe
-const statsGate = new StatsGate(config.statsToken || undefined);
+// sem STATS_TOKEN no Render, vale a chave provisória (stats.ts)
+const statsGate = new StatsGate(config.statsToken || PROVISIONAL_STATS_TOKEN);
 const dbStats = new DbStatsCache(getSupabase);
 if (config.statsToken && !statsGate.enabled) log.warn('STATS_TOKEN curto demais (mínimo 24 caracteres): painel /stats desligado');
 

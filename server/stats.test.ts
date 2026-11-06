@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DbStatsCache, MatchTally, STATS_POLICY, StatsGate, dayKey, dayStartIso } from './stats.ts';
+import { DbStatsCache, MatchTally, PROVISIONAL_STATS_TOKEN, STATS_POLICY, StatsGate, dayKey, dayStartIso } from './stats.ts';
 
 /** Painel de números (06/11): token, bloqueio por tentativas, dia no horário de Brasília e contagem em memória. */
 describe('Painel /stats', () => {
@@ -14,6 +14,11 @@ describe('Painel /stats', () => {
     for (let i = 0; i < STATS_POLICY.maxFailures; i++) gate.check('Bearer errado', '2.2.2.2');
     expect(gate.check(`Bearer ${TOKEN}`, '2.2.2.2')).toBe(429);
     expect(gate.check(`Bearer ${TOKEN}`, '3.3.3.3')).toBe(200);
+  });
+
+  it('chave provisória vale só sem STATS_TOKEN (com a variável, só ela entra)', () => {
+    expect(new StatsGate(PROVISIONAL_STATS_TOKEN).check(`Bearer ${PROVISIONAL_STATS_TOKEN}`, '9.9.9.9')).toBe(200);
+    expect(new StatsGate(TOKEN).check(`Bearer ${PROVISIONAL_STATS_TOKEN}`, '9.9.9.9')).toBe(401);
   });
 
   it('o dia vira à meia-noite de Brasília (03:00 UTC)', () => {
