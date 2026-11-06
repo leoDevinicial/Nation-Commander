@@ -124,6 +124,11 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 
 ## 0.4 O que mudou desde 31/10 (mais recente primeiro; detalhes no `git log` e nas docs citadas)
 
+**06/11 — diplomacia entre as nações do mapa** (`docs/DIPLOMACIA_NO_TEATRO.md`): modo time com vitória do time;
+pactos de não agressão e alianças no mapa (convite para humano, bot responde na hora, custo ao firmar, indenização ao
+romper, paz ao firmar em guerra); aliados com visão compartilhada, cartão "Auxiliar {país}" e janela de envio de
+recursos com frete por transporte; pactos desfeitos se, após uma eliminação, só sobram pactuados.
+
 **05/11, noite — pesqueiro e custo crescente em US$** (`docs/PESQUEIRO_E_CUSTO_CRESCENTE.md`): unidade `fishing_boat`
 no Porto (civil, automática, 3 por porto, +18% por barco, 80 de comida por viagem); taxa de obra em US$ crescente do 2º
 edifício do tipo em diante e Porto, Refinaria, Siderúrgica, usinas, hospital e delegacia no custo crescente. Interface

@@ -17,6 +17,7 @@ import { TouchToolbar } from '../hud/TouchToolbar.tsx';
 import { RouteInspector } from '../hud/RouteInspector.tsx';
 import { UpgradePanel } from '../hud/UpgradePanel.tsx';
 import { GlobePanel } from '../geo/GlobePanel.tsx';
+import { GiftDialog } from '../geo/GiftDialog.tsx';
 import { WarDialog } from '../geo/WarDialog.tsx';
 import { ChatBox } from '../components/ChatBox.tsx';
 import { NationalPanel } from '../national/NationalPanel.tsx';
@@ -42,6 +43,7 @@ export function GameScreen() {
   const touchUi = useHudStore((s) => s.touchUi);
   const globeOpen = useNationalStore((s) => s.globeOpen);
   const warTarget = useNationalStore((s) => s.warTarget);
+  const giftTarget = useNationalStore((s) => s.giftTarget);
   // partida encerrada no meio da pilotagem do drone: volta para a câmera do mapa (e solta o cursor)
   useEffect(() => {
     if (matchEnd && runtime) runtime.matchOver();
@@ -268,6 +270,18 @@ export function GameScreen() {
               onConfirm={() => {
                 gameClient.send({ t: 'national', cmd: { type: 'diplomacy', action: { type: 'declare_war', target: warTarget } } });
                 useNationalStore.getState().setWarTarget(null);
+              }}
+            />
+          )}
+          {giftTarget !== null && (
+            <GiftDialog
+              ally={giftTarget}
+              mySlot={match.yourSlot}
+              nameOf={makeNameOf(match.players, useNationalStore.getState().diplomacy?.nations ?? [])}
+              onClose={() => useNationalStore.getState().setGiftTarget(null)}
+              onSend={(items, mode) => {
+                runtime.send({ type: 'trade_gift', to: giftTarget, items, mode });
+                useNationalStore.getState().setGiftTarget(null);
               }}
             />
           )}

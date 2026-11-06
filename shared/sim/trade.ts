@@ -82,6 +82,17 @@ export const TRANSPORT: Record<TransportMode, TransportDef> = {
 /** Nível mínimo do QG para servir de aeroporto de carga. */
 export const AIR_HQ_LEVEL = 4;
 
+/**
+ * Envio a aliado (06/11): frete pago por quem envia, como fração do valor de referência da carga. Caminhão é o mais
+ * barato (e o mais lento fora da rodovia), navio fica no meio e avião é o mais caro e o mais rápido.
+ */
+export const GIFT = {
+  freight: { road: 0.04, sea: 0.08, air: 0.2 } as Record<TransportMode, number>,
+  minUsd: 10_000,
+  maxItems: 6,
+};
+export const giftFreightUsd = (items: readonly TradeItem[], mode: TransportMode): number => Math.max(GIFT.minUsd, Math.round(refValue(items) * GIFT.freight[mode]));
+
 /** Regras gerais. */
 export const TRADE = {
   /** Anúncio aberto por até (dias = segundos). */
@@ -212,7 +223,7 @@ export interface TradeLink {
   /** Dinheiro livre no caixa agora (saldo menos compras do dia ainda não fechadas). */
   spendable(slot: Slot): number;
   /** Lançamento no caixa: `export` = venda recebida, `import` = compra paga (negativo). */
-  pay(slot: Slot, usd: number, kind: 'export' | 'import'): void;
+  pay(slot: Slot, usd: number, kind: 'export' | 'import' | 'freight'): void;
   partnerName(id: Slot): string;
 }
 
@@ -325,6 +336,71 @@ export class TradeSystem {
     let n = 0;
     for (const s of this.shipments) if (s.mode === mode && (s.seller === slot || s.buyer === slot) && (s.state === 'loading' || s.state === 'moving' || s.state === 'offmap')) n++;
     return n;
+  }
+
+  /** Aviões cargueiros prontos (Transporte ou C-5 Galaxy), para o envio aéreo a um aliado. */
+  cargoPlanes(slot: Slot): number {
+    return this.sim.air.aircraft.filter((a) => a.owner === slot && (a.type === 'transport' || a.type === 'airlifter') && a.state === 'ready').length;
+  }
+
+  /**
+   * Por que `from` não pode enviar por `mode` ao aliado `to` agora (sem olhar a carga), ou null. Caminhão: Terminal
+   * Comercial dos dois lados ligados por rodovia ou estrada. Navio: Porto dos dois lados e um Cargueiro livre. Avião:
+   * aeroporto dos dois lados e um avião cargueiro pronto.
+   */
+  giftModeBlocker(from: Slot, to: Slot, mode: TransportMode): string | null {
+    if (!this.link) return 'Envio indisponível nesta partida';
+    if (from === to || !this.sim.allied(from, to)) return 'Só dá para enviar recursos a um aliado';
+    if (this.sim.players[to]?.defeated || this.sim.players[from]?.defeated) return 'Nação derrotada';
+    const other = this.name(to);
+    if (mode === 'road') {
+      if (!this.facilities(from, 'market').length) return 'Caminhão: construa um Terminal Comercial (é dele que saem os caminhões)';
+      if (!this.facilities(to, 'market').length) return `Caminhão: ${other} não tem Terminal Comercial para receber`;
+    } else if (mode === 'sea') {
+      if (!this.facilities(from, 'port').length) return 'Navio: construa um Porto na margem da água';
+      if (!this.facilities(to, 'port').length) return `Navio: ${other} não tem Porto para receber`;
+      const ships = this.cargoShips(from);
+      if (!ships) return 'Navio: produza um Cargueiro no Porto';
+      if (this.activeVehicles(from, 'sea') >= ships) return 'Navio: todos os seus Cargueiros estão em viagem';
+    } else {
+      if (!this.airports(from).length) return `Avião: construa uma Base Aérea (ou leve o Centro de Comando ao nível ${AIR_HQ_LEVEL})`;
+      if (!this.airports(to).length) return `Avião: ${other} não tem Base Aérea nem heliponto de carga para receber`;
+      if (!this.cargoPlanes(from)) return 'Avião: é preciso um avião cargueiro pronto (Transporte ou C-5 Galaxy) na Base Aérea';
+    }
+    const route = this.route(from, to, mode);
+    if (typeof route === 'string') return mode === 'road' ? `Caminhão: sem rodovia ou estrada contínua ligando os dois países (${route})` : route;
+    return null;
+  }
+
+  /** O que impede o envio desta carga ao aliado (forma, estoque, transporte e frete), ou null. */
+  giftBlocker(from: Slot, to: Slot, items: readonly TradeItem[], mode: TransportMode): string | null {
+    if (!TRANSPORT_MODES.includes(mode)) return 'Transporte inválido';
+    if (!items.length || items.length > GIFT.maxItems) return `De 1 a ${GIFT.maxItems} recursos por envio`;
+    const seen = new Set<TradeResource>();
+    for (const it of items) {
+      if (!TRADE_RESOURCES.includes(it.resource) || seen.has(it.resource)) return 'Recurso inválido';
+      seen.add(it.resource);
+      if (!Number.isInteger(it.quantity) || it.quantity < 1 || it.quantity > TRADE.maxQuantity) return `Quantidade entre 1 e ${TRADE.maxQuantity}`;
+      const have = this.sellable(from, it.resource);
+      if (have + 1e-6 < it.quantity) return `Estoque insuficiente de ${it.resource === 'oil' ? 'petróleo (sai dos tanques)' : it.resource}: ${Math.floor(have)} de ${it.quantity}`;
+    }
+    const mb = this.giftModeBlocker(from, to, mode);
+    if (mb) return mb;
+    const freight = giftFreightUsd(items, mode);
+    if (this.spendable(from) + 1e-6 < freight) return `Caixa insuficiente para o frete: ${fmtUsd(freight)}`;
+    return null;
+  }
+
+  /** Envia a carga ao aliado: sai do estoque agora, o frete sai do caixa e ela chega pelo transporte escolhido. */
+  gift(from: Slot, to: Slot, items: readonly TradeItem[], mode: TransportMode): string | null {
+    const err = this.giftBlocker(from, to, items, mode);
+    if (err) return err;
+    const freight = giftFreightUsd(items, mode);
+    for (const it of items) this.sim.takeForTrade(from, it.resource, it.quantity);
+    this.link!.pay(from, -freight, 'freight');
+    this.ship({ seller: from, buyer: to, items: items.map((i) => ({ ...i })), payUsd: 0, mode, listingId: null, contractId: null });
+    this.sim.emitTrade({ type: 'gift_sent', tick: this.sim.tick, from, to, items: items.map((i) => ({ ...i })), mode, freightUsd: freight });
+    return null;
   }
 
   /** Estoque que pode sair numa venda (petróleo só dos tanques). */

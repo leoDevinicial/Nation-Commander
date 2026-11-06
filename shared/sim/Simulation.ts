@@ -178,6 +178,11 @@ export interface SimulationSave {
   ended: boolean;
   wars: string[];
   alliances: string[];
+  /** Pactos de não agressão entre nações do teatro (06/11). */
+  pacts?: string[];
+  /** Time de cada vaga (modo time) e vencedores (o time inteiro). */
+  teams?: (number | null)[];
+  winners?: Slot[];
   incidents?: [string, number][];
   difficulty?: Difficulty;
   eras?: boolean;
@@ -434,6 +439,11 @@ export class Simulation {
   eras = false;
   /** Pares aliados: podem atravessar o território um do outro mesmo sem guerra. */
   private readonly alliances = new Set<string>();
+  /** Pactos de não agressão (06/11): sem guerra possível entre as partes até alguém romper; sem outro efeito. */
+  private readonly pacts = new Set<string>();
+  /** Time de cada vaga no modo time (null = sem time). Vitória do time: `winners` traz o time inteiro. */
+  teams: (number | null)[] = [];
+  winners: Slot[] = [];
   /** Depósitos naturais (quantidades finitas e limite de instalações). */
   readonly deposits: DepositIndex;
   /** Dono de cada célula (-1 = neutro), recalculado quando as fontes mudam. */
@@ -597,6 +607,9 @@ export class Simulation {
       ended: this.ended,
       wars: [...this.wars],
       alliances: [...this.alliances],
+      ...(this.pacts.size ? { pacts: [...this.pacts] } : {}),
+      ...(this.teams.some((t) => t !== null) ? { teams: [...this.teams] } : {}),
+      ...(this.winners.length ? { winners: [...this.winners] } : {}),
       ...(this.incidents.size ? { incidents: [...this.incidents] } : {}),
       ...(this.difficulty !== 'normal' ? { difficulty: this.difficulty } : {}),
       ...(this.eras ? { eras: true } : {}),
@@ -684,6 +697,10 @@ export class Simulation {
     for (const k of data.wars) sim.wars.add(k);
     sim.alliances.clear();
     for (const k of data.alliances) sim.alliances.add(k);
+    sim.pacts.clear();
+    for (const k of data.pacts ?? []) sim.pacts.add(k);
+    sim.teams = [...(data.teams ?? [])];
+    sim.winners = [...(data.winners ?? [])];
     for (const [k, v] of data.incidents ?? []) sim.incidents.set(k, v);
     sim.difficulty = data.difficulty ?? 'normal';
     sim.eras = !!data.eras;
@@ -768,7 +785,7 @@ export class Simulation {
    * como numa guerra, mas não há guerra declarada nem efeitos diplomáticos.
    */
   startIncident(aggressor: Slot, victim: Slot, seconds: number, pos: Vec2 | null): void {
-    if (aggressor === victim || this.formalWar(aggressor, victim)) return;
+    if (aggressor === victim || this.formalWar(aggressor, victim) || this.pacted(aggressor, victim)) return;
     const k = aggressor < victim ? `${aggressor}:${victim}` : `${victim}:${aggressor}`;
     const untilTick = this.tick + Math.round(seconds * TICK_RATE);
     this.incidents.set(k, untilTick);
@@ -788,6 +805,23 @@ export class Simulation {
 
   allied(a: Slot, b: Slot): boolean {
     return a !== b && this.alliances.has(a < b ? `${a}:${b}` : `${b}:${a}`);
+  }
+
+  setPact(a: Slot, b: Slot, on: boolean): void {
+    const k = a < b ? `${a}:${b}` : `${b}:${a}`;
+    if (on) this.pacts.add(k);
+    else this.pacts.delete(k);
+  }
+
+  /** Aliados ou com pacto de não agressão: nenhum dos dois pode atacar o outro. */
+  pacted(a: Slot, b: Slot): boolean {
+    return a !== b && (this.allied(a, b) || this.pacts.has(a < b ? `${a}:${b}` : `${b}:${a}`));
+  }
+
+  /** Mesmo time (modo time). */
+  sameTeam(a: Slot, b: Slot): boolean {
+    const t = this.teams[a];
+    return a !== b && t !== null && t !== undefined && t === this.teams[b];
   }
 
   // ---------------------------------------------------------------- território
@@ -1190,6 +1224,22 @@ export class Simulation {
     if (this.sandbox?.reveal) for (const slot of this.sandbox.slots) this.visibility[slot]?.fill(1);
     // satélite em órbita: o mapa inteiro, em tempo real
     for (const p of this.players) if (p.satellite) this.visibility[p.slot]?.fill(1);
+    // aliados (06/11): cada um vê o que o outro vê (só a visão própria do aliado, sem passar adiante a de terceiros)
+    if (this.alliances.size) {
+      const own = this.visibility.map((g) => g.slice());
+      for (const k of this.alliances) {
+        const [a, b] = k.split(':').map(Number) as [number, number];
+        const ga = this.visibility[a];
+        const gb = this.visibility[b];
+        const oa = own[a];
+        const ob = own[b];
+        if (!ga || !gb || !oa || !ob || this.players[a]?.defeated || this.players[b]?.defeated) continue;
+        for (let i = 0; i < ga.length; i++) {
+          if (ob[i]) ga[i] = 1;
+          if (oa[i]) gb[i] = 1;
+        }
+      }
+    }
     this.visibilityTick = this.tick;
   }
 
@@ -1686,6 +1736,19 @@ export class Simulation {
         return this.trade.list(slot, { kind: cmd.kind, items: cmd.items, priceUsd: cmd.priceUsd, ...(cmd.everyDays !== undefined ? { everyDays: cmd.everyDays } : {}) });
       case 'trade_buy':
         return this.trade.buy(slot, cmd.listingId, cmd.mode);
+      case 'trade_gift':
+        return this.trade.gift(slot, cmd.to, cmd.items, cmd.mode);
+      case 'aid_ally': {
+        // KAC: o aliado é conferido aqui (a aliança vem da diplomacia, não do pedido)
+        if (!this.allied(slot, cmd.ally) || this.players[cmd.ally]?.defeated) return 'Só dá para enviar tropas em auxílio a um aliado';
+        const hq = this.hqOf(cmd.ally);
+        if (!hq) return 'O aliado não tem Centro de Comando';
+        const units = this.ownUnits(slot, cmd.unitIds, true).filter((u) => !UNITS[u.type].naval);
+        if (!units.length) return 'Selecione tropas de terra para enviar';
+        const err = this.applyCommand(slot, { type: 'attack_move', unitIds: units.map((u) => u.id), x: hq.pos.x, y: hq.pos.y + this.map.cellSize * 3 });
+        if (!err) this.emit({ type: 'ally_aid', tick: this.tick, from: slot, to: cmd.ally, units: units.length });
+        return err;
+      }
       case 'trade_withdraw':
         return this.trade.withdraw(slot, cmd.listingId);
       case 'trade_world':
@@ -4635,6 +4698,7 @@ export class Simulation {
         if (now >= VICTORY.territorySeconds * TICK_RATE) {
           this.ended = true;
           this.winner = p.slot;
+          this.winners = this.teamOf(p.slot);
           this.victory = 'territory';
           this.emit({ type: 'victory_progress', tick: this.tick, kind: 'territory', slot: p.slot, state: 'won' });
           return;
@@ -4690,7 +4754,39 @@ export class Simulation {
     if (alive.length <= 1) {
       this.ended = true;
       this.winner = alive[0]?.slot ?? null;
+      this.winners = this.winner === null ? [] : this.teamOf(this.winner);
+      return;
     }
+    // modo time (06/11): só sobrou um time — a vitória é do time inteiro, inclusive de quem caiu antes
+    const team = this.teams[alive[0]!.slot];
+    if (team !== null && team !== undefined && alive.every((p) => this.teams[p.slot] === team)) {
+      this.ended = true;
+      this.winner = alive[0]!.slot;
+      this.winners = this.teamOf(this.winner);
+    }
+  }
+
+  /** A vaga e quem está no mesmo time (sem time: só ela). */
+  teamOf(slot: Slot): Slot[] {
+    const t = this.teams[slot];
+    return t === null || t === undefined ? [slot] : this.players.filter((p) => this.teams[p.slot] === t).map((p) => p.slot);
+  }
+
+  /**
+   * Partida sem times (06/11): sobraram só nações com pacto entre si (aliança ou não agressão, em todos os pares)? A
+   * camada nacional desfaz os pactos e a guerra continua. Devolve os pares, ou null se ainda há quem lutar.
+   */
+  lastPactPairs(): [Slot, Slot][] | null {
+    if (this.ended || this.teams.some((t) => t !== null && t !== undefined)) return null;
+    const alive = this.players.filter((p) => !p.defeated).map((p) => p.slot);
+    if (alive.length < 2) return null;
+    const pairs: [Slot, Slot][] = [];
+    for (let i = 0; i < alive.length; i++)
+      for (let j = i + 1; j < alive.length; j++) {
+        if (!this.pacted(alive[i]!, alive[j]!)) return null;
+        pairs.push([alive[i]!, alive[j]!]);
+      }
+    return pairs;
   }
 
   private emit(e: SimEvent): void {

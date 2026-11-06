@@ -65,6 +65,10 @@ export type Command =
    */
   | { type: 'trade_list'; kind: 'sale' | 'contract'; items: { resource: TradeResource; quantity: number }[]; priceUsd: number; everyDays?: number }
   | { type: 'trade_buy'; listingId: number; mode: TransportMode }
+  /** Aliança (06/11): envia recursos a um aliado pelo transporte escolhido (frete pago por quem envia). */
+  | { type: 'trade_gift'; to: number; items: { resource: TradeResource; quantity: number }[]; mode: TransportMode }
+  /** Aliança (06/11): tropas selecionadas vão defender o aliado (avançam atacando até o Centro de Comando dele). */
+  | { type: 'aid_ally'; unitIds: EntityId[]; ally: number }
   | { type: 'trade_withdraw'; listingId: number }
   | { type: 'trade_cancel'; contractId: number }
   | { type: 'trade_world'; side: 'buy' | 'sell'; resource: TradeResource; quantity: number; mode: TransportMode }
@@ -219,6 +223,19 @@ export function parseCommand(raw: unknown): Command | null {
       if (raw.everyDays !== undefined && !Number.isInteger(raw.everyDays)) return null;
       return { type: 'trade_list', kind: raw.kind, items, priceUsd: raw.priceUsd as number, ...(raw.everyDays !== undefined ? { everyDays: raw.everyDays as number } : {}) };
     }
+    case 'trade_gift': {
+      if (!Number.isInteger(raw.to) || (raw.to as number) < 0 || (raw.to as number) > 15 || !TRANSPORT_MODES.includes(raw.mode as TransportMode)) return null;
+      if (!Array.isArray(raw.items) || raw.items.length < 1 || raw.items.length > 6) return null;
+      const items: { resource: TradeResource; quantity: number }[] = [];
+      for (const it of raw.items) {
+        if (!isObj(it) || !TRADE_RESOURCES.includes(it.resource as TradeResource) || !Number.isInteger(it.quantity)) return null;
+        items.push({ resource: it.resource as TradeResource, quantity: it.quantity as number });
+      }
+      return { type: 'trade_gift', to: raw.to as number, items, mode: raw.mode as TransportMode };
+    }
+    case 'aid_ally':
+      if (!isIdList(raw.unitIds) || !Number.isInteger(raw.ally) || (raw.ally as number) < 0 || (raw.ally as number) > 15) return null;
+      return { type: 'aid_ally', unitIds: [...new Set(raw.unitIds)], ally: raw.ally as number };
     case 'trade_buy':
       if (!isId(raw.listingId) || !TRANSPORT_MODES.includes(raw.mode as TransportMode)) return null;
       return { type: 'trade_buy', listingId: raw.listingId, mode: raw.mode as TransportMode };

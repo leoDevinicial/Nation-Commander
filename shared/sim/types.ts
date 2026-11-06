@@ -371,6 +371,9 @@ export type SimEvent =
   /** Demolição pelo próprio dono (03/11): construção (`buildingType`) ou células de estrada (`roads`). */
   /** Pesqueiro descarregou comida no porto (05/11). */
   | { type: 'fish_landed'; tick: number; owner: Slot; unitId: EntityId; food: number; pos: Vec2 }
+  /** Aliança (06/11): tropas a caminho do aliado e recursos enviados a ele (só as duas partes ficam sabendo). */
+  | { type: 'ally_aid'; tick: number; from: Slot; to: Slot; units: number }
+  | { type: 'gift_sent'; tick: number; from: Slot; to: Slot; items: { resource: string; quantity: number }[]; mode: 'road' | 'sea' | 'air'; freightUsd: number }
   | { type: 'demolished'; tick: number; owner: Slot; buildingType?: BuildingType; roads?: number; pos: Vec2 }
   | { type: 'road_destroyed'; tick: number; owner: Slot; by: Slot; cell: number; highway: boolean; pos: Vec2 }
   /**

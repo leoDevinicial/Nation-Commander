@@ -933,7 +933,7 @@ export class TacticalAI {
   private planHarass(sim: Simulation, hq: Building, army: Unit[], committed: Set<number>, cmds: Command[]): void {
     if (sim.tick < AI_HARASS_FIRST_TICK || sim.tick - this.lastHarassTick < AI_HARASS_EVERY_TICKS) return;
     const objective = this.enemyObjective(sim);
-    if (!objective || sim.formalWar(this.slot, objective.slot) || sim.allied(this.slot, objective.slot)) return;
+    if (!objective || sim.formalWar(this.slot, objective.slot) || sim.pacted(this.slot, objective.slot)) return;
     const raiders = army.filter((u) => !committed.has(u.id) && u.order.kind === 'idle' && !u.refit && UNITS[u.type].weapon.minRange === undefined).slice(0, 3);
     if (raiders.length < 2) return;
     const edge = this.territoryEdge(sim, hq.pos, objective.slot);
@@ -1484,7 +1484,7 @@ export class TacticalAI {
     // com várias nações: ignora aliados e prefere quem já está em guerra com outro (enfraquecido,
     // e sem abrir uma segunda frente contra si) ou quem já perdeu o QG de vista
     sim.players.forEach((p) => {
-      if (p.slot === this.slot || p.defeated || sim.allied(this.slot, p.slot)) return;
+      if (p.slot === this.slot || p.defeated || sim.pacted(this.slot, p.slot)) return;
       const spawn = sim.map.spawns[p.slot];
       if (!spawn) return;
       const pos = sim.grid.cellCenter(spawn);

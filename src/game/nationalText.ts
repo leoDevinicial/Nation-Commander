@@ -10,9 +10,10 @@ export const TREATY_LABEL: Record<TreatyType, string> = {
   trade: 'Acordo comercial',
   alliance: 'Acordo de defesa',
   sanctions: 'Sanções',
+  nonaggression: 'Pacto de não agressão',
 };
 
-const PROPOSAL_LABEL: Record<string, string> = { trade: 'acordo comercial', alliance: 'acordo de defesa', sanctions: 'pedido de sanções' };
+const PROPOSAL_LABEL: Record<string, string> = { trade: 'acordo comercial', alliance: 'acordo de defesa', sanctions: 'pedido de sanções', nonaggression: 'pacto de não agressão' };
 
 /**
  * Texto de um evento nacional. Cada frase deriva só dos campos do evento: números vêm do
@@ -93,6 +94,10 @@ function describeDiplomatic(
       }
       const involved = t.a === mySlot || t.b === mySlot;
       const other = t.a === mySlot ? t.b : t.a;
+      if (t.pact || t.team) {
+        const what = t.type === 'alliance' ? 'Aliança' : 'Pacto de não agressão';
+        return involved ? { text: `${what} firmado com ${nameOf(other)}${t.type === 'alliance' ? ': visão compartilhada, envio de recursos e de tropas liberados' : ': nenhum dos dois pode atacar o outro'}`, tone: 'good' } : { text: `${nameOf(t.a)} e ${nameOf(t.b)} firmaram ${what.toLowerCase()}`, tone: 'warn' };
+      }
       return involved
         ? { text: `${TREATY_LABEL[t.type]} assinado com ${nameOf(other)} (até o dia ${t.endDay})`, tone: 'good' }
         : { text: `${nameOf(t.a)} e ${nameOf(t.b)} assinaram ${TREATY_LABEL[t.type].toLowerCase()}`, tone: 'warn' };
@@ -125,6 +130,27 @@ function describeDiplomatic(
       if (e.target === mySlot) return { text: `${nameOf(e.by)} declarou guerra ao nosso país — as forças do teatro já podem se enfrentar`, tone: 'bad' };
       return { text: `${nameOf(e.by)} declarou guerra a ${nameOf(e.target)}`, tone: 'warn' };
     }
+    case 'pact_offered': {
+      const o = e.offer;
+      const what = PROPOSAL_LABEL[o.treaty];
+      if (o.from === mySlot) return { text: `Convite de ${what} enviado a ${nameOf(o.to)} (resposta até o dia ${o.expiresDay})`, tone: 'info' };
+      return { text: `${nameOf(o.from)} propõe ${what === 'acordo de defesa' ? 'uma aliança' : `um ${what}`} — responda na aba Diplomacia`, tone: 'warn' };
+    }
+    case 'pact_declined': {
+      const what = PROPOSAL_LABEL[e.treaty];
+      if (e.from === mySlot) return { text: e.expired ? `${nameOf(e.to)} não respondeu ao convite de ${what}` : `${nameOf(e.to)} recusou o ${what}`, tone: 'warn' };
+      return e.expired ? null : { text: `Recusamos o ${what} com ${nameOf(e.from)}`, tone: 'info' };
+    }
+    case 'pact_broken': {
+      const t = e.treaty;
+      const what = t.type === 'alliance' ? 'a aliança' : 'o pacto de não agressão';
+      const other = t.a === e.breaker ? t.b : t.a;
+      if (e.breaker === mySlot) return { text: `Rompemos ${what} com ${nameOf(other)}: indenização de ${formatUsd(e.indemnityUsd)} paga`, tone: 'warn' };
+      if (other === mySlot) return { text: `${nameOf(e.breaker)} rompeu ${what} conosco e pagou ${formatUsd(e.indemnityUsd)} de indenização`, tone: 'bad' };
+      return { text: `${nameOf(e.breaker)} rompeu ${what} com ${nameOf(other)}`, tone: 'warn' };
+    }
+    case 'pacts_dissolved':
+      return { text: 'Só restaram nações com pacto entre si: as alianças e pactos foram desfeitos e a guerra continua até sobrar um', tone: 'bad' };
   }
 }
 

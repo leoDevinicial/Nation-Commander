@@ -49,9 +49,10 @@ import { ZONING, type ZoneKind } from '../../../shared/sim/zoning.ts';
 import { CardButton, usdDay } from './CardButton.tsx';
 import { Frame } from '../components/Frame.tsx';
 import { buildingDayUsd } from '../../../shared/strategic/treasury.ts';
-import { ArrowBigUp, Brain, Check, CircleDot, Cog, Construction, Crosshair, Eraser, Factory, Fuel, Globe, GraduationCap, Grid3x3, HardHat, Hospital, Hourglass, House, Landmark, type LucideIcon, Milestone, Pickaxe, RadioTower, Rocket, Route, RouteOff, Satellite, Shield, Siren, Square, Star, Store, Swords, Target, Telescope, TriangleAlert, Truck, Undo2, X, Zap } from 'lucide-react';
+import { ArrowBigUp, Brain, Check, CircleDot, Cog, Construction, Crosshair, Eraser, Factory, Fuel, Globe, GraduationCap, Grid3x3, HardHat, Hospital, Hourglass, House, Landmark, type LucideIcon, Milestone, Pickaxe, RadioTower, Rocket, Route, RouteOff, Satellite, Shield, ShieldPlus, Siren, Square, Star, Store, Swords, Target, Telescope, TriangleAlert, Truck, Undo2, X, Zap } from 'lucide-react';
 import { AirbaseButtons, AirbaseInfo, CarrierButtons, DomeInfo, HoldToConfirm, SiloButtons, SiloInfo, SubMissileButtons, airTargetText } from './AirPanels.tsx';
 import { useNationalStore } from '../../state/useNationalStore.ts';
+import { countryName } from '../../../shared/data/countries.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 import { buildingEffects, formatUsd as usdShort, specDef, upgradeTrack } from '../../../shared/sim/upgrades.ts';
 import { effectiveEra, effectiveMilitaryResearch, effectivePopCap, effectiveTechs, isSandboxMatch, timeText } from '../../state/sandbox.ts';
@@ -279,6 +280,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
               title="Atacar uma célula de estrada ou rodovia de quem está em guerra com você. As tropas nunca fazem isso sozinhas. Destruída, a célula some: corta a energia que passava por ela, as caravanas e a rota dos caminhões de carga."
             />
             <ModernizeButtons runtime={runtime} />
+            <AidAllyButtons runtime={runtime} />
             {units.some((u) => u.type === 'engineer') && <EngineerButtons runtime={runtime} />}
             {units.length === 1 && units[0]!.type === 'aircraft_carrier' && <CarrierButtons unitId={units[0]!.id} runtime={runtime} />}
             {units.length === 1 && units[0]!.type === 'missile_submarine' && <SubMissileButtons unitId={units[0]!.id} missiles={units[0]!.missiles ?? 0} runtime={runtime} />}
@@ -446,6 +448,29 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
         {building && building.progress >= 1 && mode.kind === 'normal' && building.type === 'space_center' && <SpaceButtons runtime={runtime} b={building} />}
       </div>
     </Frame>
+  );
+}
+
+/** Aliança (06/11): um cartão por aliado — as tropas selecionadas avançam atacando até o Centro de Comando dele. */
+function AidAllyButtons({ runtime }: { runtime: GameRuntime }) {
+  const links = useHudStore((s) => s.players.find((p) => p.slot === s.mySlot)?.allyLinks);
+  const nations = useNationalStore((s) => s.nations);
+  if (!links?.length) return null;
+  return (
+    <>
+      {links.map((l) => {
+        const name = countryName(nations.find((n) => n.slot === l.ally)?.countryId ?? '') || `Aliado ${l.ally + 1}`;
+        return (
+          <CardButton
+            key={l.ally}
+            icon={<ShieldPlus size={20} />}
+            label={`Auxiliar ${name}`}
+            onClick={() => runtime.send({ type: 'aid_ally', unitIds: [...useHudStore.getState().selectedUnits.map((u) => u.id)], ally: l.ally })}
+            title={`As tropas de terra selecionadas vão até o Centro de Comando de ${name} e defendem o aliado (avançam atacando o que encontrarem).`}
+          />
+        );
+      })}
+    </>
   );
 }
 

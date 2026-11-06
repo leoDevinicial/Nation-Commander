@@ -18,7 +18,7 @@ import { CAIXA_DAYS } from './params.ts';
  */
 
 export type NationId = number;
-export type TreatyType = 'trade' | 'alliance' | 'sanctions';
+export type TreatyType = 'trade' | 'alliance' | 'sanctions' | 'nonaggression';
 
 export interface Treaty {
   id: number;
@@ -28,12 +28,60 @@ export interface Treaty {
   b: NationId;
   startDay: number;
   endDay: number;
+  /** Pacto entre nações do teatro (06/11): não agressão ou aliança firmada na partida, sem prazo, rompível com indenização. */
+  pact?: true;
+  /** Aliança de time (definida na sala): não se rompe. */
+  team?: true;
 }
+
+/** Convite de pacto a um jogador humano do teatro (06/11): ele aceita ou recusa até `expiresDay`. */
+export interface PactOffer {
+  id: number;
+  from: NationId;
+  to: NationId;
+  treaty: 'alliance' | 'nonaggression';
+  day: number;
+  expiresDay: number;
+}
+
+/**
+ * Pactos no teatro (06/11), em dias de repasse do caixa de quem paga: firmar (pago por quem propõe) e indenização (paga
+ * por quem rompe à outra parte). Convite a humano vale `offerDays`; recusa de bot segura nova proposta por `rejectDays`.
+ */
+export const PACT = {
+  napFeeDays: 20,
+  allianceFeeDays: 30,
+  napIndemnityDays: 90,
+  allianceIndemnityDays: 120,
+  offerDays: 60,
+  rejectDays: 60,
+} as const;
+
+/** Ganchos da camada nacional para os pactos do teatro (bots, caixa, força militar e efeito no teatro). */
+export interface PactHooks {
+  isBot(id: NationId): boolean;
+  dayUsd(id: NationId): number;
+  fund(id: NationId): number;
+  /** Move dinheiro entre caixas (`to` null = some do jogo). */
+  pay(from: NationId, to: NationId | null, usd: number, label: string): void;
+  /** Força militar no teatro (unidades), para a avaliação dos bots. */
+  strength(id: NationId): number;
+  /** Liga ou desliga o pacto no teatro (aliança: visão compartilhada; os dois: sem ataque) e faz a paz. */
+  setPact(a: NationId, b: NationId, kind: 'alliance' | 'nonaggression' | null): void;
+  setPeace(a: NationId, b: NationId): void;
+}
+
+export const PACT_LABEL = { alliance: 'aliança', nonaggression: 'pacto de não agressão' } as const;
+
+/** Aliança de time: pela marca, ou (salvamentos antigos) pela duração da partida inteira sem ser pacto. */
+export const isTeamTreaty = (t: Treaty): boolean => t.team === true || (!t.pact && t.type === 'alliance' && t.endDay - t.startDay >= 1_000_000);
 
 export type DiplomaticAction =
   | { type: 'establish_contact'; partner: NationId }
   | { type: 'declare_war'; target: NationId }
-  | { type: 'propose'; treaty: 'trade' | 'alliance'; partner: NationId }
+  | { type: 'propose'; treaty: 'trade' | 'alliance' | 'nonaggression'; partner: NationId }
+  /** Resposta a um convite de pacto (06/11). */
+  | { type: 'answer_offer'; offerId: number; accept: boolean }
   | { type: 'request_sanctions'; partner: NationId; target: NationId }
   | { type: 'impose_sanctions'; target: NationId }
   | { type: 'lift_sanctions'; target: NationId }
@@ -62,6 +110,10 @@ export type DiplomaticEvent = { id: number; causes?: number[] } & (
   | { type: 'contact_started'; day: number; from: NationId; to: NationId; dueDay: number; costUsd: number }
   | { type: 'discovered'; day: number; by: NationId; target: NationId; via: DiscoveryMethod }
   | { type: 'war_declared'; day: number; by: NationId; target: NationId; costs: WarCosts; brokenTreaties: Treaty[]; respondingAllies: NationId[] }
+  | { type: 'pact_offered'; day: number; offer: PactOffer; feeUsd: number }
+  | { type: 'pact_declined'; day: number; from: NationId; to: NationId; treaty: 'alliance' | 'nonaggression'; expired?: true }
+  | { type: 'pact_broken'; day: number; treaty: Treaty; breaker: NationId; indemnityUsd: number }
+  | { type: 'pacts_dissolved'; day: number; nations: NationId[] }
 );
 
 type NewEvent = DiplomaticEvent extends infer E ? (E extends unknown ? Omit<E, 'id'> : never) : never;
@@ -183,7 +235,8 @@ export function warPreview(i: WarPreviewInput): WarPreview {
   }
   const between = (t: Treaty) => (t.a === i.actor && t.b === i.target) || (t.a === i.target && t.b === i.actor);
   // aliança de time (partidas com várias nações): não se rompe com uma declaração de guerra
-  if (i.treaties.some((t) => between(t) && t.type === 'alliance' && t.endDay - t.startDay >= TEAM_ALLIANCE_DAYS)) blockers.push('Aliado de time: não é possível declarar guerra');
+  if (i.treaties.some((t) => between(t) && isTeamTreaty(t))) blockers.push('Aliado de time: não é possível declarar guerra');
+  else if (i.treaties.some((t) => between(t) && t.pact)) blockers.push('Há um pacto em vigor com este país (aliança ou não agressão): rompa-o antes, pagando a indenização, na aba Diplomacia');
   const brokenTreaties = i.treaties.filter((t) => between(t) && t.type !== 'sanctions');
   const allies = i.treaties
     .filter((t) => t.type === 'alliance' && (t.a === i.target || t.b === i.target))
@@ -213,6 +266,8 @@ interface PairState {
 }
 
 export interface DiplomacySave {
+  offers?: PactOffer[];
+  nextOffer?: number;
   treaties: Treaty[];
   pairs: [string, PairState][];
   missions: string[];
@@ -241,6 +296,12 @@ export class Diplomacy {
   /** Missões de contato em andamento: "a>b" → dia de conclusão. */
   readonly pendingContacts = new Map<string, number>();
   private readonly wars = new Set<string>();
+  /** Convites de pacto pendentes entre jogadores do teatro (06/11). */
+  readonly offers: PactOffer[] = [];
+  private nextOffer = 1;
+  /** Partida com times: os pactos são os times (nenhum outro se firma no teatro). */
+  teamMode = false;
+  pactHooks: PactHooks | null = null;
 
   constructor(
     private readonly all: () => NationState[],
@@ -349,6 +410,8 @@ export class Diplomacy {
         known: [...this.known],
         pendingContacts: [...this.pendingContacts],
         wars: [...this.wars],
+        offers: this.offers,
+        nextOffer: this.nextOffer,
       }),
     ) as DiplomacySave;
   }
@@ -371,6 +434,8 @@ export class Diplomacy {
     for (const [k, v] of c.pendingContacts) this.pendingContacts.set(k, v);
     this.wars.clear();
     for (const k of c.wars) this.wars.add(k);
+    this.offers.splice(0, this.offers.length, ...(c.offers ?? []));
+    this.nextOffer = c.nextOffer ?? 1;
   }
 
   private nation(id: NationId): NationState | undefined {
@@ -460,7 +525,7 @@ export class Diplomacy {
   costPct(id: NationId): number {
     let c = 0;
     for (const m of this.missions) if (m.startsWith(`${id}>`)) c += DIPLO.missionCostPct;
-    c += this.treaties.filter((t) => t.type === 'alliance' && (t.a === id || t.b === id)).length * DIPLO.allianceCostPct;
+    c += this.treaties.filter((t) => t.type === 'alliance' && !t.pact && !isTeamTreaty(t) && (t.a === id || t.b === id)).length * DIPLO.allianceCostPct;
     return c;
   }
 
@@ -468,7 +533,7 @@ export class Diplomacy {
   allianceAid(id: NationId, gdpForTheater: (n: NationState) => number): number {
     let aid = 0;
     for (const t of this.treaties) {
-      if (t.type !== 'alliance' || (t.a !== id && t.b !== id)) continue;
+      if (t.type !== 'alliance' || t.pact || isTeamTreaty(t) || (t.a !== id && t.b !== id)) continue;
       const ally = this.nation(t.a === id ? t.b : t.a);
       if (!ally) continue;
       const defenseBn = ((ally.budget.defensePct / 100) * gdpForTheater(ally)) / 1e9;
@@ -538,12 +603,14 @@ export class Diplomacy {
       case 'propose': {
         const other = target(action.partner);
         if (!other) return 'País inválido';
+        if (action.treaty === 'nonaggression' || (action.treaty === 'alliance' && !isNpc(other.slot) && this.inTheater(actor, other.slot))) return this.proposePact(actor, other.slot, action.treaty, day);
         if (unknown(other.slot)) return unknown(other.slot);
         if (this.atWar(actor, other.slot)) return 'Não há acordos com um adversário em guerra';
         if (this.active(action.treaty, actor, other.slot)) return 'Acordo já vigente';
         if (!isNpc(other.slot)) return 'Propostas a outros jogadores ainda não são suportadas';
         const ck = `${actor}>${other.slot}:${action.treaty}`;
         if ((this.cooldown.get(ck) ?? -Infinity) > day) return `Proposta recusada recentemente; aguarde até o dia ${this.cooldown.get(ck)}`;
+        if (action.treaty !== 'trade' && action.treaty !== 'alliance') return 'Proposta inválida';
         const ev = this.evaluate(actor, other.slot, action.treaty);
         if (!ev.accept) {
           this.cooldown.set(ck, day + DIPLO.rejectCooldownDays);
@@ -612,9 +679,13 @@ export class Diplomacy {
         else this.missions.delete(k);
         return null;
       }
+      case 'answer_offer':
+        return this.answerOffer(actor, action.offerId, action.accept, day);
       case 'cancel_treaty': {
         const t = this.treaties.find((x) => x.id === action.treatyId && (x.a === actor || x.b === actor));
         if (!t) return 'Tratado inválido';
+        if (isTeamTreaty(t)) return 'Aliança de time: não pode ser rompida';
+        if (t.pact) return this.breakPact(actor, t, day);
         if (t.type === 'sanctions' && t.a !== actor) return 'Só quem aplica sanções pode retirá-las';
         this.end(t, day, 'cancelled', t.type === 'sanctions' ? null : actor);
         return null;
@@ -626,7 +697,141 @@ export class Diplomacy {
   teamAlliance(a: NationId, b: NationId, day: number): void {
     this.discover(a, b, 'contato', day);
     this.discover(b, a, 'contato', day);
-    if (!this.active('alliance', a, b)) this.sign('alliance', a, b, day, TEAM_ALLIANCE_DAYS);
+    if (!this.active('alliance', a, b)) {
+      this.sign('alliance', a, b, day, TEAM_ALLIANCE_DAYS);
+      const t = this.treaties[this.treaties.length - 1]!;
+      t.team = true;
+    }
+  }
+
+  // ------------------------------------------------------------ pactos no teatro (06/11)
+
+  /** Custo de firmar (pago por quem propõe) e indenização ao romper (paga por quem rompe), em US$. */
+  pactFeeUsd(payer: NationId, treaty: 'alliance' | 'nonaggression'): number {
+    return Math.round((this.pactHooks?.dayUsd(payer) ?? 0) * (treaty === 'alliance' ? PACT.allianceFeeDays : PACT.napFeeDays));
+  }
+
+  pactIndemnityUsd(breaker: NationId, treaty: 'alliance' | 'nonaggression'): number {
+    return Math.round((this.pactHooks?.dayUsd(breaker) ?? 0) * (treaty === 'alliance' ? PACT.allianceIndemnityDays : PACT.napIndemnityDays));
+  }
+
+  /** Pacto em vigor entre duas nações do teatro (o de time conta como aliança). */
+  pactBetween(a: NationId, b: NationId): Treaty | undefined {
+    return this.treaties.find((t) => ((t.a === a && t.b === b) || (t.a === b && t.b === a)) && (t.pact || isTeamTreaty(t)));
+  }
+
+  private proposePact(actor: NationId, other: NationId, treaty: 'alliance' | 'nonaggression', day: number): string | null {
+    const h = this.pactHooks;
+    if (!h || !this.inTheater(actor, other)) return 'Pactos só entre nações do mesmo teatro de operações';
+    if (this.teamMode) return 'Partida com times: as alianças são os times definidos na sala';
+    const cur = this.pactBetween(actor, other);
+    if (cur && (cur.type === treaty || cur.type === 'alliance')) return cur.type === 'alliance' ? 'Já são aliados' : 'Pacto de não agressão já em vigor';
+    if (this.offers.some((o) => o.from === actor && o.to === other)) return 'Já há um convite seu esperando resposta deste país';
+    const fee = this.pactFeeUsd(actor, treaty);
+    if (h.fund(actor) + 1e-6 < fee) return `Caixa insuficiente para firmar o ${PACT_LABEL[treaty]}: US$ ${(fee / 1e6).toFixed(1).replace('.', ',')} mi`;
+    if (h.isBot(other)) {
+      const ck = `${actor}>${other}:${treaty}`;
+      if ((this.cooldown.get(ck) ?? -Infinity) > day) return `Proposta recusada recentemente; aguarde até o dia ${this.cooldown.get(ck)}`;
+      const ev = this.evaluatePact(actor, other, treaty);
+      if (!ev.accept) {
+        this.cooldown.set(ck, day + PACT.rejectDays);
+        this.emit({ type: 'proposal_rejected', day, from: actor, to: other, proposal: treaty, reasons: ev.reasons });
+        return null;
+      }
+      this.signPact(actor, other, treaty, day);
+      return null;
+    }
+    const offer: PactOffer = { id: this.nextOffer++, from: actor, to: other, treaty, day, expiresDay: day + PACT.offerDays };
+    this.offers.push(offer);
+    this.emit({ type: 'pact_offered', day, offer, feeUsd: fee });
+    return null;
+  }
+
+  private answerOffer(actor: NationId, offerId: number, accept: boolean, day: number): string | null {
+    // KAC: só quem recebeu o convite responde (o dono vem da conexão)
+    const i = this.offers.findIndex((o) => o.id === offerId && o.to === actor);
+    if (i < 0) return 'Convite inválido ou já respondido';
+    const o = this.offers[i]!;
+    this.offers.splice(i, 1);
+    if (!accept) {
+      this.emit({ type: 'pact_declined', day, from: o.from, to: o.to, treaty: o.treaty });
+      return null;
+    }
+    const fee = this.pactFeeUsd(o.from, o.treaty);
+    if ((this.pactHooks?.fund(o.from) ?? 0) + 1e-6 < fee) return `${'O país que propôs'} não tem mais caixa para firmar o ${PACT_LABEL[o.treaty]}`;
+    const cur = this.pactBetween(o.from, o.to);
+    if (cur && (cur.type === o.treaty || cur.type === 'alliance')) return 'Esse pacto já está em vigor';
+    this.signPact(o.from, o.to, o.treaty, day);
+    return null;
+  }
+
+  /** Firma: cobra quem propôs, faz a paz se havia guerra, troca não agressão por aliança e liga o pacto no teatro. */
+  private signPact(from: NationId, to: NationId, treaty: 'alliance' | 'nonaggression', day: number): void {
+    const h = this.pactHooks!;
+    const fee = this.pactFeeUsd(from, treaty);
+    if (fee > 0) h.pay(from, null, fee, `${treaty === 'alliance' ? 'Aliança' : 'Pacto de não agressão'} firmado`);
+    if (this.wars.delete(key(from, to))) h.setPeace(from, to);
+    const old = this.pactBetween(from, to);
+    if (old) this.treaties.splice(this.treaties.indexOf(old), 1);
+    this.sign(treaty, from, to, day, TEAM_ALLIANCE_DAYS);
+    this.treaties[this.treaties.length - 1]!.pact = true;
+    for (let k = this.offers.length - 1; k >= 0; k--) {
+      const o = this.offers[k]!;
+      if ((o.from === from && o.to === to) || (o.from === to && o.to === from)) this.offers.splice(k, 1);
+    }
+    h.setPact(from, to, treaty);
+  }
+
+  /** Rompe: quem rompe paga a indenização à outra parte; sem caixa para ela, não rompe. */
+  private breakPact(actor: NationId, t: Treaty, day: number): string | null {
+    const h = this.pactHooks;
+    if (!h) return 'Indisponível';
+    const kind = t.type === 'alliance' ? 'alliance' : 'nonaggression';
+    const other = t.a === actor ? t.b : t.a;
+    const usd = this.pactIndemnityUsd(actor, kind);
+    if (h.fund(actor) + 1e-6 < usd) return `Caixa insuficiente para a indenização: US$ ${(usd / 1e6).toFixed(1).replace('.', ',')} mi`;
+    if (usd > 0) h.pay(actor, other, usd, `Indenização por romper ${kind === 'alliance' ? 'a aliança' : 'o pacto de não agressão'}`);
+    this.end(t, day, 'cancelled', actor);
+    this.emit({ type: 'pact_broken', day, treaty: t, breaker: actor, indemnityUsd: usd });
+    h.setPact(t.a, t.b, null);
+    return null;
+  }
+
+  /**
+   * Só sobraram nações com pacto entre si (partida sem times): os pactos caem sem indenização e a guerra volta entre
+   * todas, para a partida ter um vencedor.
+   */
+  dissolvePacts(nations: NationId[], day: number): void {
+    const h = this.pactHooks;
+    for (const t of [...this.treaties]) {
+      if (!t.pact || !nations.includes(t.a) || !nations.includes(t.b)) continue;
+      this.end(t, day, 'cancelled', null);
+      h?.setPact(t.a, t.b, null);
+    }
+    for (let i = 0; i < nations.length; i++) for (let j = i + 1; j < nations.length; j++) this.wars.add(key(nations[i]!, nations[j]!));
+    this.emit({ type: 'pacts_dissolved', day, nations: [...nations] });
+  }
+
+  /**
+   * Avaliação de um bot do teatro: relação, quem está mais forte, inimigos em comum e guerra em curso. Não agressão é
+   * fácil de aceitar quando o bot não tem vantagem; aliança pede relação boa ou um inimigo em comum.
+   */
+  evaluatePact(proposer: NationId, bot: NationId, treaty: 'alliance' | 'nonaggression'): { accept: boolean; reasons: Factor[] } {
+    const h = this.pactHooks!;
+    // a rivalidade de quem divide o teatro e o rancor da guerra pesam no máximo −15 (senão nenhum bot aceitaria nada)
+    const rel = this.relation(proposer, bot);
+    const reasons: Factor[] = [{ key: 'relation', label: 'Relação atual', value: round1(Math.max(rel, -15)) }];
+    const mine = h.strength(bot);
+    const theirs = h.strength(proposer);
+    if (mine > theirs * 1.5 + 2) reasons.push({ key: 'stronger', label: 'Está mais forte no teatro', value: -20 });
+    else if (theirs > mine * 1.5 + 2) reasons.push({ key: 'weaker', label: 'Está mais fraco no teatro', value: 15 });
+    const enemiesOf = (id: NationId) => this.warPairs().filter(([x, y]) => x === id || y === id).map(([x, y]) => (x === id ? y : x));
+    const common = enemiesOf(bot).filter((e) => e !== proposer && enemiesOf(proposer).includes(e));
+    if (common.length) reasons.push({ key: 'common_enemy', label: 'Inimigo em comum', value: 35 });
+    if (this.atWar(proposer, bot)) reasons.push({ key: 'war', label: 'Guerra em curso entre os dois', value: treaty === 'alliance' ? -25 : 5 });
+    reasons.push({ key: 'base', label: treaty === 'alliance' ? 'Compromisso de defesa' : 'Fronteira tranquila', value: treaty === 'alliance' ? -5 : 20 });
+    const total = reasons.reduce((s, r) => s + r.value, 0);
+    return { accept: total >= (treaty === 'alliance' ? 15 : 0), reasons };
   }
 
   private sign(type: TreatyType, a: NationId, b: NationId, day: number, duration: number, causes?: number[]): void {
@@ -666,6 +871,12 @@ export class Diplomacy {
         p.mission = active ? Math.min(DIPLO.missionCap, p.mission + DIPLO.missionPerDay) : p.mission * 0.99;
       }
     for (const t of [...this.treaties]) if (day >= t.endDay) this.end(t, day, 'expired', null);
+    for (let k = this.offers.length - 1; k >= 0; k--) {
+      const o = this.offers[k]!;
+      if (day < o.expiresDay) continue;
+      this.offers.splice(k, 1);
+      this.emit({ type: 'pact_declined', day, from: o.from, to: o.to, treaty: o.treaty, expired: true });
+    }
     // missões de contato concluídas: contato mútuo
     for (const [k, due] of [...this.pendingContacts]) {
       if (day < due) continue;

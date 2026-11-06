@@ -90,6 +90,10 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
   (`cargo`). Quem atinge quem fica em `shared/sim/targeting.ts` (submarino só por submarino). A carga sai do mapa e
   só o dono a vê no snapshot. Mísseis têm alcance por lançador e miram qualquer ponto fora da própria fronteira que o país já tenha explorado (`Simulation.explored`).
   No Arquipélago não há pontes: o contato é por navio e avião (C-5 com paraquedistas).
+- Diplomacia no mapa (`docs/DIPLOMACIA_NO_TEATRO.md`): modo time (aliança fixa, vitória do time; `Simulation.teams`/`winners`);
+  sem times, pactos de não agressão e alianças entre quem está no mapa (`PACT`, `pactHooks`, convites `PactOffer` para humanos,
+  bots avaliam na hora), custo ao firmar e indenização ao romper; aliados têm visão compartilhada, `aid_ally` e `trade_gift`
+  (frete por caminhão, navio ou avião). Depois de uma eliminação, se só sobram pactuados, os pactos caem e a guerra volta.
 - Alertas e HUD (`docs/ALERTAS_E_HUD.md`): evento `world` (guerra, era, nuclear, Grande Projeto) vai a todos, sem
   posição; sob ataque toca sirene e pulsa no minimapa; botão Construir (B) e comando `demolish` (nunca QG/prefeitura).
 - Combustível (`FUEL`, `docs/COMBUSTIVEL_E_CORRECOES.md`): veículos e navios gastam petróleo ao andar (o Combustível da

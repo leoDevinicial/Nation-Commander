@@ -121,6 +121,8 @@ export interface PlayerSnapshot {
   goods?: { fuel: number; steel: number; cap: number };
   /** Pesqueiros (05/11, só para o dono): total do jogador (prontos e na fila) e quantos cada Porto tem, para o limite e o custo crescente no botão. */
   fishing?: { owned: number; ports: [EntityId, number][] };
+  /** Aliados (06/11, só para o dono): por que cada transporte não serve agora para enviar recursos (null = serve). */
+  allyLinks?: { ally: Slot; road: string | null; sea: string | null; air: string | null }[];
   /** Pressão do mercado interno por recurso (só para o próprio jogador; baixa o preço de venda). */
   market?: Partial<Record<MarketResource, number>>;
   /** Demanda acumulada das compras no mercado interno (só para o dono). */
@@ -413,6 +415,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         ...(mine && p.marketPressure && Object.keys(p.marketPressure).length ? { market: Object.fromEntries(Object.entries(p.marketPressure).map(([k, v]) => [k, Math.round(v)])) } : {}),
         ...(mine && p.marketDemand && Object.keys(p.marketDemand).length ? { marketDemand: Object.fromEntries(Object.entries(p.marketDemand).map(([k, v]) => [k, Math.round(v)])) } : {}),
         ...(mine ? fishingSnapshot(sim, p.slot) : {}),
+        ...(mine ? allyLinksSnapshot(sim, p.slot) : {}),
         ...(mine && p.goods ? { goods: { fuel: Math.floor(p.goods.fuel), steel: Math.floor(p.goods.steel), cap: sim.goodsCap(p.slot) } } : {}),
       };
     }),
@@ -658,6 +661,20 @@ export function airView(sim: Simulation, slot: Slot): AirView {
   };
 }
 
+/** Aliados e a disponibilidade de cada transporte para o envio de recursos (só para o dono). */
+function allyLinksSnapshot(sim: Simulation, slot: Slot): { allyLinks?: { ally: Slot; road: string | null; sea: string | null; air: string | null }[] } {
+  const allies = sim.players.filter((o) => o.slot !== slot && !o.defeated && sim.allied(slot, o.slot));
+  if (!allies.length) return {};
+  return {
+    allyLinks: allies.map((o) => ({
+      ally: o.slot,
+      road: sim.trade.giftModeBlocker(slot, o.slot, 'road'),
+      sea: sim.trade.giftModeBlocker(slot, o.slot, 'sea'),
+      air: sim.trade.giftModeBlocker(slot, o.slot, 'air'),
+    })),
+  };
+}
+
 /** Pesqueiros do jogador por porto (só entra no snapshot quando há algum Porto). */
 function fishingSnapshot(sim: Simulation, slot: Slot): { fishing?: { owned: number; ports: [EntityId, number][] } } {
   const ports = sim.buildings.filter((b) => b.owner === slot && b.type === 'port' && b.hp > 0);
@@ -675,6 +692,9 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
   switch (e.type) {
     case 'fish_landed':
       return e.owner === slot;
+    case 'ally_aid':
+    case 'gift_sent':
+      return e.from === slot || e.to === slot;
     case 'demolished':
       return e.owner === slot || sim.isVisibleTo(slot, e.pos);
     case 'world':

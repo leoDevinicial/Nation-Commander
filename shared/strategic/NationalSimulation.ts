@@ -25,7 +25,7 @@ import {
 import { countryReference, type ReferenceKey } from './reference.ts';
 import { TECHNOLOGIES, techKnowledge, techDailyUsd, techDays, combineEffects, researchBlocker, TECH_IDS, type TechEffects, type TechId } from './technologies.ts';
 import { COUNTRIES } from '../data/countries.ts';
-import { DIPLO, Diplomacy, warPreview, type DiplomacySave, type DiplomaticAction, type DiplomaticEvent, type NationId, type RelationView, type Treaty, type WarPreview } from './Diplomacy.ts';
+import { DIPLO, Diplomacy, warPreview, type DiplomacySave, type DiplomaticAction, type DiplomaticEvent, type NationId, type PactOffer, type RelationView, type Treaty, type WarPreview } from './Diplomacy.ts';
 import { BUILDINGS, PROJECT_FX, SERVICES, type BuildingType, type Cost, type Stockpile } from '../sim/config.ts';
 import {
   DECREE_MIN_DAYS,
@@ -63,6 +63,9 @@ export interface TheaterLink {
   /** Pontos de conhecimento (02/11): saldo e débito (false sem saldo). */
   knowledge?(slot: Slot): number;
   spendKnowledge?(slot: Slot, kp: number): boolean;
+  /** Pactos (06/11): liga/desliga no teatro e faz a paz entre as partes. */
+  setPact?(a: Slot, b: Slot, kind: 'alliance' | 'nonaggression' | null): void;
+  setPeace?(a: Slot, b: Slot): void;
 }
 
 /** O que um país sabe de outro. `intel` só existe com missão diplomática ativa (ou para si mesmo). */
@@ -88,6 +91,17 @@ export interface GeopoliticalView {
   wars: [NationId, NationId][];
   /** Países com satélite em órbita (públicos: aparecem orbitando o globo). */
   satellites?: NationId[];
+  /** Pactos no teatro (06/11): convites em que o observador é parte, custos dele e se a partida é de times. */
+  pacts?: {
+    offers: PactOffer[];
+    napFeeUsd: number;
+    allianceFeeUsd: number;
+    napIndemnityUsd: number;
+    allianceIndemnityUsd: number;
+    teamMode: boolean;
+    /** Nações do teatro controladas pela IA (respondem na hora). */
+    bots: NationId[];
+  };
 }
 
 /** Nações não jogadoras recebem ids a partir deste valor. */
@@ -318,7 +332,29 @@ export class NationalSimulation {
 
   attachTheater(link: TheaterLink): void {
     this.theater = link;
+    this.diplomacy.pactHooks = {
+      isBot: (id) => this.bots.has(id),
+      dayUsd: (id) => this.nation(id)?.dayUsd ?? 0,
+      fund: (id) => this.nation(id)?.works.fundUsd ?? 0,
+      pay: (from, to, usd, label) => {
+        const a = this.nation(from);
+        if (!a) return;
+        a.works.fundUsd -= usd;
+        this.ledger(a, usd, label);
+        const b = to === null ? undefined : this.nation(to);
+        if (b) {
+          b.works.fundUsd += usd;
+          this.ledger(b, -usd, `${label} (recebida)`);
+        }
+      },
+      strength: (id) => this.theater?.stats?.(id)?.military ?? 0,
+      setPact: (a, b, kind) => this.theater?.setPact?.(a, b, kind),
+      setPeace: (a, b) => this.theater?.setPeace?.(a, b),
+    };
   }
+
+  /** Vagas controladas pela IA (respondem a propostas de pacto na hora). */
+  readonly bots = new Set<Slot>();
 
   /** Estado completo (JSON) para salvar a partida; o vínculo com o teatro é refeito por quem carrega. */
   toSave(): NationalSave {
@@ -433,6 +469,19 @@ export class NationalSimulation {
       relations: d.relationsOf(viewer),
       treaties: d.treaties.filter((t) => knows(t.a) && knows(t.b)).map((t) => ({ ...t })),
       missions: [...d.missions].filter((m) => m.startsWith(`${viewer}>`)),
+      ...(this.nations.length > 1 && this.nations.some((n) => n.slot === viewer)
+        ? {
+            pacts: {
+              offers: d.offers.filter((o) => o.from === viewer || o.to === viewer).map((o) => ({ ...o })),
+              napFeeUsd: d.pactFeeUsd(viewer, 'nonaggression'),
+              allianceFeeUsd: d.pactFeeUsd(viewer, 'alliance'),
+              napIndemnityUsd: d.pactIndemnityUsd(viewer, 'nonaggression'),
+              allianceIndemnityUsd: d.pactIndemnityUsd(viewer, 'alliance'),
+              teamMode: d.teamMode,
+              bots: [...this.bots],
+            },
+          }
+        : {}),
       wars: d.warPairs().filter(([a, b]) => knows(a) && knows(b)),
       ...(this.satellites.length ? { satellites: [...this.satellites] } : {}),
     };
@@ -462,6 +511,14 @@ export class NationalSimulation {
           return knows(ev.from) && knows(ev.to);
         case 'war_declared':
           return knows(ev.by) && knows(ev.target);
+        case 'pact_offered':
+          return ev.offer.from === viewer || ev.offer.to === viewer;
+        case 'pact_declined':
+          return ev.from === viewer || ev.to === viewer;
+        case 'pact_broken':
+          return knows(ev.treaty.a) && knows(ev.treaty.b);
+        case 'pacts_dissolved':
+          return ev.nations.includes(viewer);
       }
     });
   }

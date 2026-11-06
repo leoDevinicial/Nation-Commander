@@ -24,6 +24,17 @@ function specLabel(type: BuildingType, spec: SpecId): string {
 /** Mensagens do painel de eventos, derivadas exclusivamente de eventos da simulação. */
 export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone: 'info' | 'good' | 'warn' | 'bad' } | null {
   switch (e.type) {
+    case 'ally_aid':
+      return e.from === mySlot
+        ? { text: `${e.units} ${e.units === 1 ? 'tropa a caminho' : 'tropas a caminho'} para auxiliar o aliado`, tone: 'info' }
+        : { text: `Um aliado enviou ${e.units} ${e.units === 1 ? 'tropa' : 'tropas'} em nosso auxílio`, tone: 'good' };
+    case 'gift_sent': {
+      const what = e.items.map((i) => `${i.quantity} ${(RESOURCE_LABELS as Record<string, string>)[i.resource]?.toLowerCase() ?? i.resource}`).join(', ');
+      const how = e.mode === 'road' ? 'caminhão' : e.mode === 'sea' ? 'navio' : 'avião';
+      return e.from === mySlot
+        ? { text: `Carga enviada ao aliado por ${how}: ${what} (frete de US$ ${(e.freightUsd / 1e6).toFixed(2).replace('.', ',')} mi)`, tone: 'info' }
+        : { text: `Um aliado enviou ${what} por ${how}: chega ao nosso terminal em breve`, tone: 'good' };
+    }
     case 'construction_started':
       return e.owner === mySlot ? { text: `Construção iniciada: ${BUILDINGS[e.buildingType].label}`, tone: 'info' } : null;
     case 'construction_completed':

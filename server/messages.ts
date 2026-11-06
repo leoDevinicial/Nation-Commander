@@ -163,7 +163,9 @@ export function parseDiplomaticAction(raw: unknown): DiplomaticAction | null {
     case 'declare_war':
       return isNationId(raw.target) ? { type: 'declare_war', target: raw.target } : null;
     case 'propose':
-      return (raw.treaty === 'trade' || raw.treaty === 'alliance') && isNationId(raw.partner) ? { type: 'propose', treaty: raw.treaty, partner: raw.partner } : null;
+      return (raw.treaty === 'trade' || raw.treaty === 'alliance' || raw.treaty === 'nonaggression') && isNationId(raw.partner) ? { type: 'propose', treaty: raw.treaty, partner: raw.partner } : null;
+    case 'answer_offer':
+      return Number.isInteger(raw.offerId) && (raw.offerId as number) > 0 && typeof raw.accept === 'boolean' ? { type: 'answer_offer', offerId: raw.offerId as number, accept: raw.accept } : null;
     case 'request_sanctions':
       return isNationId(raw.partner) && isNationId(raw.target) ? { type: 'request_sanctions', partner: raw.partner, target: raw.target } : null;
     case 'impose_sanctions':

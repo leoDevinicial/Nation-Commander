@@ -29,6 +29,9 @@ interface NationalState {
   /** Alvo da confirmação de guerra em aberto. */
   warTarget: number | null;
   setWarTarget: (id: number | null) => void;
+  /** Aliado escolhido para receber recursos (06/11): abre a janela de envio. */
+  giftTarget: number | null;
+  setGiftTarget: (id: number | null) => void;
   reset: () => void;
 }
 
@@ -51,7 +54,9 @@ export const useNationalStore = create<NationalState>((set) => ({
   closeGlobe: () => set({ globeOpen: false }),
   warTarget: null,
   setWarTarget: (warTarget) => set({ warTarget }),
-  reset: () => set({ day: 0, date: '', nations: [], diplomacy: null, history: {}, log: [], panelOpen: false, globeOpen: false, globeFocus: null, warTarget: null }),
+  giftTarget: null,
+  setGiftTarget: (giftTarget) => set({ giftTarget }),
+  reset: () => set({ day: 0, date: '', nations: [], diplomacy: null, history: {}, log: [], panelOpen: false, globeOpen: false, globeFocus: null, warTarget: null, giftTarget: null }),
 }));
 
 export function applyNationalMessage(day: number, date: string, nations: NationView[], events: NationalEvent[], diplomacy: DiplomacyView): void {

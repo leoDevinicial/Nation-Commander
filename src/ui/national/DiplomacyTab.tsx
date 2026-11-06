@@ -26,6 +26,7 @@ export function DiplomacyTab({ me, diplomacy, day, nameOf, onAction, onDeclareWa
       Number(b.known) - Number(a.known) || Number(b.isPlayer) - Number(a.isPlayer) || (pairInfo(diplomacy, mine, b.id).relation?.value ?? 0) - (pairInfo(diplomacy, mine, a.id).relation?.value ?? 0),
   );
   const myTreaties = diplomacy.treaties.filter((t) => t.a === mine || t.b === mine);
+  const incoming = diplomacy.pacts?.offers.filter((o) => o.to === mine) ?? [];
 
   return (
     <div className="space-y-3 text-xs">
@@ -38,12 +39,35 @@ export function DiplomacyTab({ me, diplomacy, day, nameOf, onAction, onDeclareWa
         .
       </p>
 
+      {incoming.length > 0 && (
+        <div className="rounded-[3px] border border-brass-400/50 bg-brass-400/[0.06] p-2.5">
+          <div className="nc-kicker mb-1.5">Convites recebidos</div>
+          <ul className="space-y-1.5">
+            {incoming.map((o) => (
+              <li key={o.id} className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-ink-100">
+                  {nameOf(o.from)} propõe {o.treaty === 'alliance' ? 'uma aliança' : 'um pacto de não agressão'} <span className="text-ink-400">· até o dia {o.expiresDay}</span>
+                </span>
+                <span className="flex gap-1">
+                  <button className="btn btn-primary px-2 py-0.5 text-[11px]" onClick={() => onAction({ type: 'answer_offer', offerId: o.id, accept: true })}>
+                    Aceitar
+                  </button>
+                  <button className="btn px-2 py-0.5 text-[11px]" onClick={() => onAction({ type: 'answer_offer', offerId: o.id, accept: false })}>
+                    Recusar
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {myTreaties.length > 0 && (
         <div className="rounded border border-ink-700 bg-ink-900 p-2.5">
           <div className="mb-1.5 text-[11px] text-ink-400">Acordos e sanções em vigor</div>
           <ul className="space-y-1">
             {myTreaties.map((t) => (
-              <TreatyRow key={t.id} t={t} mine={mine} day={day} nameOf={nameOf} onCancel={() => onAction({ type: 'cancel_treaty', treatyId: t.id })} />
+              <TreatyRow key={t.id} t={t} mine={mine} day={day} nameOf={nameOf} view={diplomacy} onCancel={() => onAction({ type: 'cancel_treaty', treatyId: t.id })} />
             ))}
           </ul>
         </div>
@@ -92,21 +116,31 @@ export function DiplomacyTab({ me, diplomacy, day, nameOf, onAction, onDeclareWa
   );
 }
 
-function TreatyRow({ t, mine, day, nameOf, onCancel }: { t: Treaty; mine: number; day: number; nameOf: (id: number) => string; onCancel: () => void }) {
+function TreatyRow({ t, mine, day, nameOf, view, onCancel }: { t: Treaty; mine: number; day: number; nameOf: (id: number) => string; view: DiplomacyView; onCancel: () => void }) {
   const [confirm, setConfirm] = useState(false);
   const other = t.a === mine ? t.b : t.a;
-  const label = t.type === 'sanctions' ? (t.a === mine ? `Sanções contra ${nameOf(t.b)}` : `Sanções de ${nameOf(t.a)} contra nós`) : `${TREATY_LABEL[t.type]} com ${nameOf(other)}`;
-  const canCancel = t.type !== 'sanctions' || t.a === mine;
+  const team = t.team || (!t.pact && t.type === 'alliance' && t.endDay - t.startDay >= 1_000_000);
+  const label = t.type === 'sanctions'
+    ? t.a === mine
+      ? `Sanções contra ${nameOf(t.b)}`
+      : `Sanções de ${nameOf(t.a)} contra nós`
+    : team
+      ? `Aliado de time: ${nameOf(other)}`
+      : t.pact
+        ? `${t.type === 'alliance' ? 'Aliança' : 'Pacto de não agressão'} com ${nameOf(other)}`
+        : `${TREATY_LABEL[t.type]} com ${nameOf(other)}`;
+  const canCancel = !team && (t.type !== 'sanctions' || t.a === mine);
+  const indemnity = t.pact && view.pacts ? (t.type === 'alliance' ? view.pacts.allianceIndemnityUsd : view.pacts.napIndemnityUsd) : 0;
   return (
     <li className="flex items-center justify-between gap-2">
       <span className="text-ink-200">
-        {label} <span className="text-ink-400">· restam {Math.max(0, t.endDay - day)} dias</span>
+        {label} <span className="text-ink-400">· {t.pact || team ? 'sem prazo' : `restam ${Math.max(0, t.endDay - day)} dias`}</span>
       </span>
       {canCancel &&
         (confirm ? (
           <span className="flex gap-1">
             <button className="btn btn-danger px-2 py-0.5 text-[11px]" onClick={onCancel}>
-              {t.type === 'sanctions' ? 'Retirar' : 'Romper (custa relação)'}
+              {t.type === 'sanctions' ? 'Retirar' : t.pact ? `Romper e pagar US$ ${(indemnity / 1e6).toFixed(1).replace('.', ',')} mi` : 'Romper (custa relação)'}
             </button>
             <button className="btn px-2 py-0.5 text-[11px]" onClick={() => setConfirm(false)}>
               Não

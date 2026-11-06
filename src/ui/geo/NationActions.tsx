@@ -1,4 +1,5 @@
-import { Ban, Gavel, Handshake, HeartHandshake, Landmark, Map, RadioTower, Swords, Truck, Undo2 } from 'lucide-react';
+import { Ban, Check, Gavel, Handshake, HeartHandshake, Landmark, Map, Package, RadioTower, ShieldCheck, Swords, Truck, Undo2, Unlink, X } from 'lucide-react';
+import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useState } from 'react';
 import type { DiplomacyView, ForeignView, NationView } from '../../../shared/protocol.ts';
 import { DIPLO, type DiplomaticAction, type NationId, type Treaty } from '../../../shared/strategic/Diplomacy.ts';
@@ -188,20 +189,7 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
         )}
       </div>
 
-      {f.isPlayer && (
-        <div className="rounded border border-signal-red/40 bg-[#2a1210]/60 p-2">
-          {atWar ? (
-            <p className="text-red-300">Em guerra: as forças dos dois países no teatro de operações podem se enfrentar.</p>
-          ) : (
-            <>
-              <p className="mb-1.5 text-ink-200">As forças de {nameOf(f.id)} estão no mesmo teatro de operações, mas sem guerra formal nenhum dos lados pode atacar.</p>
-              <button className="btn btn-danger px-3 py-1.5 text-xs" onClick={() => onDeclareWar(f.id)}>
-                <Swords size={14} aria-hidden /> Declarar Guerra…
-              </button>
-            </>
-          )}
-        </div>
-      )}
+      {f.isPlayer && <TheaterPacts f={f} mine={mine} view={view} atWar={atWar} nameOf={nameOf} onAction={onAction} onDeclareWar={onDeclareWar} />}
       {!f.isPlayer && f.known && (
         <div className="rounded border border-signal-red/40 bg-[#2a1210]/60 p-2">
           {atWar ? (
@@ -235,6 +223,124 @@ function RelationBar({ value }: { value: number }) {
     <div className="relative mb-1.5 h-1.5 overflow-hidden rounded-sm bg-ink-800" role="meter" aria-valuemin={-100} aria-valuemax={100} aria-valuenow={Math.round(v)} aria-label="Relação">
       <span className="absolute inset-y-0 left-1/2 w-px bg-ink-500" aria-hidden />
       <span className="absolute inset-y-0" style={{ left: v >= 0 ? '50%' : `${50 - w}%`, width: `${w}%`, background: v >= 0 ? 'var(--color-signal-green)' : 'var(--color-signal-red)' }} aria-hidden />
+    </div>
+  );
+}
+
+const usdMi = (usd: number) => `US$ ${(usd / 1e6).toFixed(1).replace('.', ',')} mi`;
+
+/**
+ * Pactos com uma nação do mesmo teatro (06/11): aliança de time (fixa), aliança ou não agressão firmadas na partida
+ * (romper custa indenização), convites pendentes nos dois sentidos, propostas com o custo e a guerra quando não há pacto.
+ */
+function TheaterPacts({ f, mine, view, atWar, nameOf, onAction, onDeclareWar }: { f: ForeignView; mine: NationId; view: DiplomacyView; atWar: boolean; nameOf: (id: number) => string; onAction: (a: DiplomaticAction) => void; onDeclareWar: (id: NationId) => void }) {
+  const [confirm, setConfirm] = useState(false);
+  const p = view.pacts;
+  const pact = view.treaties.find((t) => ((t.a === mine && t.b === f.id) || (t.a === f.id && t.b === mine)) && (t.pact || t.team || (t.type === 'alliance' && t.endDay - t.startDay >= 1_000_000)));
+  const team = !!pact && (pact.team || !pact.pact);
+  const incoming = p?.offers.find((o) => o.from === f.id && o.to === mine);
+  const outgoing = p?.offers.find((o) => o.from === mine && o.to === f.id);
+  const bot = !!p?.bots.includes(f.id);
+  const what = (t: 'alliance' | 'nonaggression') => (t === 'alliance' ? 'aliança' : 'pacto de não agressão');
+  return (
+    <div className="space-y-2">
+      {pact ? (
+        <div className={`rounded-[3px] border p-2 ${pact.type === 'alliance' ? 'border-signal-green/40 bg-signal-green/[0.06]' : 'border-signal-blue/40 bg-signal-blue/[0.06]'}`}>
+          <div className="nc-kicker mb-1">{team ? 'Aliado de time' : pact.type === 'alliance' ? 'Aliança' : 'Pacto de não agressão'}</div>
+          <p className="mb-1.5 text-ink-200">
+            {pact.type === 'alliance'
+              ? 'Vocês veem o que o outro vê, podem enviar recursos e mandar tropas em auxílio. Nenhum dos dois pode atacar o outro.'
+              : 'Nenhum dos dois pode atacar o outro enquanto o pacto valer. Sem outros efeitos.'}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {pact.type === 'alliance' && (
+              <button className="btn btn-primary px-2 py-1 text-xs" onClick={() => useNationalStore.getState().setGiftTarget(f.id)}>
+                <Package size={14} aria-hidden /> Enviar recursos
+              </button>
+            )}
+            {pact.type === 'nonaggression' && !outgoing && p && !p.teamMode && (
+              <button className="btn px-2 py-1 text-xs" onClick={() => onAction({ type: 'propose', treaty: 'alliance', partner: f.id })} title={`Quem propõe paga ${usdMi(p.allianceFeeUsd)} ao firmar`}>
+                <Handshake size={14} aria-hidden /> Propor aliança ({usdMi(p.allianceFeeUsd)})
+              </button>
+            )}
+            {!team &&
+              p &&
+              (confirm ? (
+                <span className="flex gap-1">
+                  <button
+                    className="btn btn-danger px-2 py-1 text-xs"
+                    onClick={() => {
+                      onAction({ type: 'cancel_treaty', treatyId: pact.id });
+                      setConfirm(false);
+                    }}
+                  >
+                    Romper e pagar {usdMi(pact.type === 'alliance' ? p.allianceIndemnityUsd : p.napIndemnityUsd)}
+                  </button>
+                  <button className="btn px-2 py-1 text-xs" onClick={() => setConfirm(false)}>
+                    Não
+                  </button>
+                </span>
+              ) : (
+                <button className="btn px-2 py-1 text-xs" onClick={() => setConfirm(true)} title={`Quem rompe paga a indenização a ${nameOf(f.id)}`}>
+                  <Unlink size={14} aria-hidden /> Romper…
+                </button>
+              ))}
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-[3px] border border-ink-700 bg-ink-950/50 p-2">
+          <div className="nc-kicker mb-1">Pactos</div>
+          {p?.teamMode ? (
+            <p className="text-ink-400">Partida com times: as alianças são os times definidos na sala.</p>
+          ) : incoming ? (
+            <>
+              <p className="mb-1.5 text-ink-200">
+                {nameOf(f.id)} propõe {incoming.treaty === 'alliance' ? 'uma aliança' : 'um pacto de não agressão'} (até o dia {incoming.expiresDay}). Quem propôs paga o custo.
+              </p>
+              <div className="flex gap-1.5">
+                <button className="btn btn-primary px-2 py-1 text-xs" onClick={() => onAction({ type: 'answer_offer', offerId: incoming.id, accept: true })}>
+                  <Check size={14} aria-hidden /> Aceitar
+                </button>
+                <button className="btn px-2 py-1 text-xs" onClick={() => onAction({ type: 'answer_offer', offerId: incoming.id, accept: false })}>
+                  <X size={14} aria-hidden /> Recusar
+                </button>
+              </div>
+            </>
+          ) : outgoing ? (
+            <p className="text-ink-300">Convite de {what(outgoing.treaty)} enviado; aguardando resposta até o dia {outgoing.expiresDay}.</p>
+          ) : p ? (
+            <>
+              <p className="mb-1.5 text-ink-400">
+                Não agressão: ninguém ataca ninguém até alguém romper. Aliança: o mesmo, mais visão compartilhada, envio de recursos e tropas em auxílio. Quem propõe paga ao firmar; quem rompe paga
+                indenização à outra parte. {bot ? 'Governo da IA: responde na hora.' : 'Jogador: recebe um convite.'}
+                {atWar ? ' Firmar agora encerra a guerra.' : ''}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                <button className="btn px-2 py-1 text-xs" onClick={() => onAction({ type: 'propose', treaty: 'nonaggression', partner: f.id })}>
+                  <ShieldCheck size={14} aria-hidden /> Propor não agressão ({usdMi(p.napFeeUsd)})
+                </button>
+                <button className="btn px-2 py-1 text-xs" onClick={() => onAction({ type: 'propose', treaty: 'alliance', partner: f.id })}>
+                  <Handshake size={14} aria-hidden /> Propor aliança ({usdMi(p.allianceFeeUsd)})
+                </button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      )}
+      {!pact && (
+        <div className="rounded border border-signal-red/40 bg-[#2a1210]/60 p-2">
+          {atWar ? (
+            <p className="text-red-300">Em guerra: as forças dos dois países no teatro de operações podem se enfrentar.</p>
+          ) : (
+            <>
+              <p className="mb-1.5 text-ink-200">As forças de {nameOf(f.id)} estão no mesmo teatro de operações, mas sem guerra formal nenhum dos lados pode atacar.</p>
+              <button className="btn btn-danger px-3 py-1.5 text-xs" onClick={() => onDeclareWar(f.id)}>
+                <Swords size={14} aria-hidden /> Declarar Guerra…
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

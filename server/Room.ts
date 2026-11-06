@@ -458,7 +458,8 @@ export class Room {
     const sim = this.sim;
     const national = this.national;
     if (sim.sandbox) this.startSandbox();
-    // times: quem está no mesmo time começa aliado (no teatro e na diplomacia)
+    // times: quem está no mesmo time começa aliado (no teatro e na diplomacia); vitória do time (06/11)
+    this.setupPactRules();
     for (const a of this.players)
       for (const b of this.players)
         if (a.slot < b.slot && a.team && a.team === b.team) {
@@ -499,6 +500,12 @@ export class Room {
       era: (slot) => (sim.isSandbox(slot) ? 4 : sim.eraOf(slot)),
       knowledge: (slot) => (sim.isSandbox(slot) ? Infinity : (sim.players[slot]?.knowledge ?? 0)),
       spendKnowledge: (slot, kp) => sim.spendKnowledge(slot, kp),
+      // pactos (06/11): aliança liga a visão compartilhada e libera envio; os dois impedem o ataque
+      setPact: (a, b, kind) => {
+        sim.setAlliance(a, b, kind === 'alliance');
+        sim.setPact(a, b, kind === 'nonaggression');
+      },
+      setPeace: (a, b) => sim.setWar(a, b, false),
     });
     // melhorias de construções consultam pesquisas, condições nacionais e a verba de obras
     // Sandbox: tudo pesquisado, estabilidade máxima e verba de obras ilimitada (sem mexer no orçamento)
@@ -527,6 +534,16 @@ export class Room {
       pay: (slot, usd, kind) => national.tradePayment(slot, usd, kind),
       partnerName: (id) => countryName(national.nation(id)?.countryId ?? '') || `Jogador ${id + 1}`,
     });
+  }
+
+  /** Times (vitória do time), bots (respondem a pactos na hora) e o modo time na diplomacia (06/11). */
+  private setupPactRules(): void {
+    const sim = this.sim!;
+    const national = this.national!;
+    sim.teams = sim.players.map((sp) => this.players.find((p) => p.slot === sp.slot)?.team ?? null);
+    national.diplomacy.teamMode = sim.teams.some((t) => t !== null);
+    national.bots.clear();
+    for (const p of this.players) if (p.isAI) national.bots.add(p.slot);
   }
 
   /** Sandbox: contato e guerra com a IA desde o início (o combate fica liberado na hora). */
@@ -616,6 +633,7 @@ export class Room {
     room.national.load(save.national);
     if (save.mode === 'sandbox') room.national.policiesActive = false;
     room.wire();
+    room.setupPactRules();
     room.ops = new OperationsSystem(room.sim, room.national, save.seed);
     if (save.ops) room.ops.load(save.ops);
     room.ais = room.players.filter((p) => p.isAI).map((p) => new TacticalAI(p.slot));
@@ -772,6 +790,14 @@ export class Room {
     sim.step();
     this.stepOperations();
     const tickEvents = sim.drainEvents();
+    // depois de uma eliminação, se só sobraram nações com pacto entre si (sem times), os pactos caem e a guerra
+    // continua (06/11). Fora disso, um pacto entre os dois últimos vale até alguém romper.
+    const last = tickEvents.some((e) => e.type === 'player_defeated') ? sim.lastPactPairs() : null;
+    if (last && this.national) {
+      const nations = [...new Set(last.flat())];
+      this.national.diplomacy.dissolvePacts(nations, this.national.day);
+      for (const [a, b] of last) sim.setWar(a, b, true);
+    }
     this.events.push(...tickEvents);
     for (const e of tickEvents) if (e.type === 'unit_promoted' && e.rank > (this.bestRank.get(e.owner) ?? 0)) this.bestRank.set(e.owner, e.rank);
     if (sim.tick % REPORT_EVERY_TICKS === 0) this.reportSamples = pushSample(this.reportSamples, this.sampleReport());
@@ -1237,8 +1263,10 @@ export class Room {
     const endedAt = this.now();
     const durationSeconds = Math.round(sim.tick / TICK_RATE);
     // partida encerrada porque todos os humanos perderam (sobraram só bots): quem já caiu perdeu, não empatou
+    // modo time (06/11): o time inteiro vence, inclusive quem caiu antes
+    const winners = sim.winners.length ? sim.winners : winnerSlot === null ? [] : [winnerSlot];
     const result = (slot: Slot): 'win' | 'loss' | 'draw' =>
-      !sim.ended && sim.players[slot]?.defeated ? 'loss' : winnerSlot === null ? 'draw' : winnerSlot === slot ? 'win' : 'loss';
+      sim.ended && winners.includes(slot) ? 'win' : !sim.ended && sim.players[slot]?.defeated ? 'loss' : winnerSlot === null ? 'draw' : winners.includes(slot) ? 'win' : 'loss';
     const winner = this.players.find((p) => p.slot === winnerSlot);
 
     // relatório pós-partida: vai na tela de resultado e também no histórico do Supabase
