@@ -308,12 +308,11 @@ export class Diplomacy {
     /** Pares de países com forças no mesmo teatro de operações (os jogadores da partida). */
     private readonly theaterPairs: [NationId, NationId][],
   ) {
+    // 06/11 (estilo Rise of Nations): quem divide o mapa só se conhece depois de se encontrar nele (`discover` com
+    // 'teatro'); a região só dá contato inicial com os governos de fora do mapa
     const nations = all();
-    for (const a of nations) for (const b of nations) if (a.slot !== b.slot && initialContact(a.countryId, b.countryId)) this.known.add(`${a.slot}>${b.slot}`);
-    for (const [a, b] of theaterPairs) {
-      this.known.add(`${a}>${b}`);
-      this.known.add(`${b}>${a}`);
-    }
+    for (const a of nations)
+      for (const b of nations) if (a.slot !== b.slot && !this.inTheater(a.slot, b.slot) && initialContact(a.countryId, b.countryId)) this.known.add(`${a.slot}>${b.slot}`);
   }
 
   private emit(e: NewEvent): DiplomaticEvent {
@@ -329,8 +328,13 @@ export class Diplomacy {
     return a === b || this.known.has(`${a}>${b}`);
   }
 
-  discover(by: NationId, target: NationId, via: DiscoveryMethod, day: number, causes?: number[]): void {
+  /**
+   * `by` passa a conhecer `target`. Entre nações do mesmo mapa, só pelo encontro no mapa ('teatro') ou à força (times,
+   * Sandbox): nem missão de contato nem notícia de tratado revelam um vizinho de mapa nunca visto.
+   */
+  discover(by: NationId, target: NationId, via: DiscoveryMethod, day: number, causes?: number[], force = false): void {
     if (this.knows(by, target)) return;
+    if (!force && via !== 'teatro' && this.inTheater(by, target)) return;
     this.known.add(`${by}>${target}`);
     this.emit({ type: 'discovered', day, by, target, via, ...(causes ? { causes } : {}) });
   }
@@ -588,6 +592,7 @@ export class Diplomacy {
         const other = target(action.partner);
         if (!other) return 'País inválido';
         if (this.knows(actor, other.slot)) return 'Já há contato com este país';
+        if (this.inTheater(actor, other.slot)) return 'Nação do mesmo mapa: o contato só vem do encontro no mapa (uma unidade sua precisa avistar o território ou as forças dela)';
         const k = `${actor}>${other.slot}`;
         if (this.pendingContacts.has(k)) return 'Missão de contato já em andamento';
         const cost = CAIXA_DAYS.contact * me.dayUsd;
@@ -695,8 +700,8 @@ export class Diplomacy {
 
   /** Times da partida (lote 4): aliança desde o primeiro dia, por toda a partida, e contato mútuo. */
   teamAlliance(a: NationId, b: NationId, day: number): void {
-    this.discover(a, b, 'contato', day);
-    this.discover(b, a, 'contato', day);
+    this.discover(a, b, 'contato', day, undefined, true);
+    this.discover(b, a, 'contato', day, undefined, true);
     if (!this.active('alliance', a, b)) {
       this.sign('alliance', a, b, day, TEAM_ALLIANCE_DAYS);
       const t = this.treaties[this.treaties.length - 1]!;
@@ -723,6 +728,7 @@ export class Diplomacy {
   private proposePact(actor: NationId, other: NationId, treaty: 'alliance' | 'nonaggression', day: number): string | null {
     const h = this.pactHooks;
     if (!h || !this.inTheater(actor, other)) return 'Pactos só entre nações do mesmo teatro de operações';
+    if (!this.knows(actor, other)) return 'Sem contato: encontre essa nação no mapa antes';
     if (this.teamMode) return 'Partida com times: as alianças são os times definidos na sala';
     const cur = this.pactBetween(actor, other);
     if (cur && (cur.type === treaty || cur.type === 'alliance')) return cur.type === 'alliance' ? 'Já são aliados' : 'Pacto de não agressão já em vigor';

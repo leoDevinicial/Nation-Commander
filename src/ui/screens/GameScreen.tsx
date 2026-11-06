@@ -118,6 +118,15 @@ export function GameScreen() {
       for (const l of fresh) {
         const d = describeNationalEvent(l.event, match.yourSlot, nameOf);
         if (d) useHudStore.getState().pushEvent({ tick: 0, text: d.text, tone: d.tone });
+        // encontro no mapa (06/11): primeira vez que vemos essa nação — a diplomacia com ela fica liberada
+        if (l.event.type === 'diplomacy' && l.event.event.type === 'discovered' && l.event.event.via === 'teatro' && l.event.event.by === match.yourSlot)
+          useHudStore.getState().pushWorldAlert({
+            icon: 'contact',
+            title: 'Contato estabelecido',
+            text: `Você estabeleceu contato com ${nameOf(l.event.event.target)}`,
+            tone: 'info',
+            sub: 'Agora dá para negociar, propor pacto ou aliança — ou declarar guerra.',
+          });
         // satélite próprio em órbita: grande momento na faixa cinematográfica (Sala de Situação, 05/11)
         if (l.event.type === 'satellite' && l.event.slot === match.yourSlot)
           useHudStore.getState().pushWorldAlert({

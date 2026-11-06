@@ -206,7 +206,7 @@ export interface HudState {
 }
 
 /** Alerta mundial na faixa do topo (guerra, era, nuclear, Grande Projeto). */
-export type WorldAlertIcon = 'war' | 'era' | 'nuclear' | 'project' | 'satellite';
+export type WorldAlertIcon = 'war' | 'era' | 'nuclear' | 'project' | 'satellite' | 'contact';
 export interface WorldAlert {
   id: number;
   at: number;

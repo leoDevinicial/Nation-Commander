@@ -18,6 +18,9 @@ function setup(mode: 'parity' | 'realistic' = 'parity') {
     3,
     mode,
   );
+  // as duas nações do mapa já se encontraram (06/11: o contato no mapa vem do encontro)
+  meet(sim, 0, 1);
+  sim.drainEvents();
   const npc = (id: string) => sim.npcs.find((n) => n.countryId === id)!;
   return { sim, npc };
 }

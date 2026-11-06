@@ -4,7 +4,7 @@ import { NationalSimulation } from '../strategic/NationalSimulation.ts';
 import { TICK_RATE } from '../sim/config.ts';
 import { Simulation } from '../sim/Simulation.ts';
 import { giftFreightUsd } from '../sim/trade.ts';
-import { flatMap } from './helpers.ts';
+import { flatMap, meet } from './helpers.ts';
 
 /** Pactos no teatro, vitória do time e envio ao aliado (06/11). */
 
@@ -27,6 +27,7 @@ function national(players = 3) {
     setPeace: (a, b) => peace.push(`${a}:${b}`),
   });
   for (const n of nat.nations) n.works.fundUsd = 1e9;
+  for (let a = 0; a < players; a++) for (let b = a + 1; b < players; b++) meet(nat, a, b);
   return { nat, pacts, peace, wars };
 }
 
@@ -112,6 +113,40 @@ function theaterSim(players = 3) {
   ].slice(0, players);
   return new Simulation({ map, playerCount: players, startingUnits: [] });
 }
+
+describe('Contato só pelo encontro no mapa (06/11)', () => {
+  it('vizinhos de mapa começam sem contato: sem guerra, pacto ou missão de contato até se encontrarem', () => {
+    const nat = new NationalSimulation(
+      [
+        { slot: 0, countryId: 'BRA' },
+        { slot: 1, countryId: 'ARG' },
+      ],
+      7,
+      'parity',
+    );
+    expect(nat.diplomacy.knows(0, 1)).toBe(false);
+    expect(nat.diplomaticAction(0, { type: 'declare_war', target: 1 })).toMatch(/não descoberto/);
+    expect(nat.diplomaticAction(0, { type: 'establish_contact', partner: 1 })).toMatch(/encontro no mapa/);
+    nat.meetInTheater(0, 1);
+    expect(nat.diplomacy.knows(0, 1) && nat.diplomacy.knows(1, 0)).toBe(true);
+  });
+
+  it('a simulação anuncia o encontro quando uma nação avista o território da outra', () => {
+    const sim = theaterSim(2);
+    expect(sim.hasMet(0, 1)).toBe(false);
+    for (let t = 0; t < TICK_RATE * 2; t++) sim.step();
+    expect(sim.hasMet(0, 1)).toBe(false);
+    const scout = sim.addUnit('scout', 0, sim.grid.cellCenter({ cx: 30, cy: 6 }));
+    const met: unknown[] = [];
+    for (let t = 0; t < TICK_RATE * 2; t++) {
+      sim.step();
+      met.push(...sim.drainEvents().filter((e) => e.type === 'nations_met'));
+    }
+    expect(scout.hp).toBeGreaterThan(0);
+    expect(sim.hasMet(0, 1)).toBe(true);
+    expect(met).toHaveLength(1);
+  });
+});
 
 describe('Teatro: times, visão compartilhada e última aliança', () => {
   it('vitória do time: acaba quando só sobra um time, e o time inteiro vence', () => {

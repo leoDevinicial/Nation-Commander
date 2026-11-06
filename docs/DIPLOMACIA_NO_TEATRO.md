@@ -4,6 +4,19 @@ Pedido do responsável: modo time definido na sala; nas partidas sem times, pact
 quem está no mapa (humanos e bots), com envio de recursos e de tropas entre aliados; e a regra para a partida terminar
 quando só sobram aliados.
 
+## Contato: só depois do encontro no mapa (estilo Rise of Nations)
+
+- As nações do mesmo mapa começam **sem contato**. O contato vem do encontro: uma unidade ou construção de uma avista o
+  território ou alguma unidade/construção da outra (`Simulation.updateMeetings`, checado a cada segundo junto com a
+  exploração). Vale para os dois lados ao mesmo tempo e sai como `nations_met` (só para os dois); o servidor chama
+  `NationalSimulation.meetInTheater` e cada um vê o aviso "Contato estabelecido — Você estabeleceu contato com {país}".
+- Antes do encontro: sem guerra, pacto, aliança ou compra no comércio (os anúncios dessa nação nem aparecem); a
+  missão de contato e a notícia de tratados não valem entre vizinhos de mapa (só com os governos de fora). A ficha do
+  país diz que é preciso encontrá-lo.
+- Times e Sandbox começam se conhecendo. Salvamentos antigos mantêm quem já se conhecia.
+- A IA segue a mesma regra; com os exploradores, os bots se encontram cedo (`sim-economia` 1–7: a guerra começa nos
+  mesmos minutos de antes).
+
 ## Modo time
 
 - Definido na sala antes de começar (`set_team`). Não pode todos no mesmo time (a sala recusa ao iniciar).

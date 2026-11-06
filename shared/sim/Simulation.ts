@@ -180,6 +180,8 @@ export interface SimulationSave {
   alliances: string[];
   /** Pactos de não agressão entre nações do teatro (06/11). */
   pacts?: string[];
+  /** Pares que já se encontraram no mapa (06/11). */
+  met?: string[];
   /** Time de cada vaga (modo time) e vencedores (o time inteiro). */
   teams?: (number | null)[];
   winners?: Slot[];
@@ -441,6 +443,11 @@ export class Simulation {
   private readonly alliances = new Set<string>();
   /** Pactos de não agressão (06/11): sem guerra possível entre as partes até alguém romper; sem outro efeito. */
   private readonly pacts = new Set<string>();
+  /**
+   * Encontros no mapa (06/11, estilo Rise of Nations): pares "a:b" que já se avistaram — território ou forças de um no
+   * campo de visão do outro. Só depois disso há diplomacia entre eles (a camada nacional recebe `nations_met`).
+   */
+  private readonly met = new Set<string>();
   /** Time de cada vaga no modo time (null = sem time). Vitória do time: `winners` traz o time inteiro. */
   teams: (number | null)[] = [];
   winners: Slot[] = [];
@@ -608,6 +615,7 @@ export class Simulation {
       wars: [...this.wars],
       alliances: [...this.alliances],
       ...(this.pacts.size ? { pacts: [...this.pacts] } : {}),
+      ...(this.met.size ? { met: [...this.met] } : {}),
       ...(this.teams.some((t) => t !== null) ? { teams: [...this.teams] } : {}),
       ...(this.winners.length ? { winners: [...this.winners] } : {}),
       ...(this.incidents.size ? { incidents: [...this.incidents] } : {}),
@@ -699,6 +707,8 @@ export class Simulation {
     for (const k of data.alliances) sim.alliances.add(k);
     sim.pacts.clear();
     for (const k of data.pacts ?? []) sim.pacts.add(k);
+    sim.met.clear();
+    for (const k of data.met ?? []) sim.met.add(k);
     sim.teams = [...(data.teams ?? [])];
     sim.winners = [...(data.winners ?? [])];
     for (const [k, v] of data.incidents ?? []) sim.incidents.set(k, v);
@@ -816,6 +826,16 @@ export class Simulation {
   /** Aliados ou com pacto de não agressão: nenhum dos dois pode atacar o outro. */
   pacted(a: Slot, b: Slot): boolean {
     return a !== b && (this.allied(a, b) || this.pacts.has(a < b ? `${a}:${b}` : `${b}:${a}`));
+  }
+
+  /** Já se encontraram no mapa. */
+  hasMet(a: Slot, b: Slot): boolean {
+    return a === b || this.met.has(a < b ? `${a}:${b}` : `${b}:${a}`);
+  }
+
+  /** Marca o encontro (times e Sandbox começam se conhecendo) sem anunciar. */
+  setMet(a: Slot, b: Slot): void {
+    if (a !== b) this.met.add(a < b ? `${a}:${b}` : `${b}:${a}`);
   }
 
   /** Mesmo time (modo time). */
@@ -1193,6 +1213,32 @@ export class Simulation {
       const vis = this.visibilityOf(p.slot);
       for (let i = 0; i < n; i++) if (vis[i]) ex[i] = 1;
     });
+    this.updateMeetings();
+  }
+
+  /**
+   * Encontros (06/11): uma nação "encontra" outra quando avista o território dela ou alguma unidade ou construção dela.
+   * O encontro vale para os dois lados e sai como `nations_met` (uma vez por par).
+   */
+  private updateMeetings(): void {
+    if (this.players.length < 2) return;
+    const n = this.map.width * this.map.height;
+    for (const p of this.players) {
+      if (p.defeated) continue;
+      const vis = this.visibilityOf(p.slot);
+      const seen = new Set<number>();
+      for (let i = 0; i < n; i++) {
+        if (!vis[i]) continue;
+        const o = this.territory[i] ?? NO_OWNER;
+        if (o >= 0 && o !== p.slot) seen.add(o);
+      }
+      for (const e of this.entities.values()) if (e.owner !== p.slot && e.hp > 0 && !seen.has(e.owner) && this.canSee(p.slot, e)) seen.add(e.owner);
+      for (const o of seen) {
+        if (this.hasMet(p.slot, o) || this.players[o]?.defeated) continue;
+        this.setMet(p.slot, o);
+        this.emit({ type: 'nations_met', tick: this.tick, a: p.slot, b: o });
+      }
+    }
   }
 
   /** Grade de células visíveis para o jogador (1 = visível), recalculada a cada poucos ticks. */

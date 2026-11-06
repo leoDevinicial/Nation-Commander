@@ -48,6 +48,16 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
   const enemies = view.wars.flatMap(([a, b]) => (a === mine ? [b] : b === mine ? [a] : []));
   const [confirmAid, setConfirmAid] = useState(false);
 
+  if (!f.known && f.isPlayer)
+    return (
+      <div className="space-y-1.5 text-xs">
+        <p className="text-ink-300">Esta nação está no mesmo mapa, mas vocês ainda não se encontraram.</p>
+        <p className="text-ink-400">
+          Explore com tropas ou um explorador: quando uma unidade sua avistar o território ou as forças dela, o contato é estabelecido. Antes disso não há como negociar, propor pacto ou
+          aliança, nem declarar guerra.
+        </p>
+      </div>
+    );
   if (!f.known) {
     const cost = CAIXA_DAYS.contact * me.dayUsd;
     return (

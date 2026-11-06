@@ -464,6 +464,7 @@ export class Room {
       for (const b of this.players)
         if (a.slot < b.slot && a.team && a.team === b.team) {
           sim.setAlliance(a.slot, b.slot, true);
+          sim.setMet(a.slot, b.slot);
           national.diplomacy.teamAlliance(a.slot, b.slot, national.day);
         }
     // operações expedicionárias contra governos fora do teatro (Fase 8)
@@ -529,6 +530,7 @@ export class Room {
     const d = national.diplomacy;
     sim.setTradeLink({
       atWar: (a, b) => d.atWar(a, b),
+      knows: (a, b) => d.knows(a, b) && d.knows(b, a),
       sanctioned: (a, b) => !!d.active('sanctions', a, b),
       spendable: (slot) => national.spendableUsd(slot),
       pay: (slot, usd, kind) => national.tradePayment(slot, usd, kind),
@@ -553,8 +555,9 @@ export class Room {
     sim.sandboxTopUp();
     for (const me of sim.sandbox!.slots)
       for (const ai of this.players.filter((p) => p.isAI)) {
-        national.diplomacy.discover(me, ai.slot, 'contato', national.day);
-        national.diplomacy.discover(ai.slot, me, 'contato', national.day);
+        national.diplomacy.discover(me, ai.slot, 'contato', national.day, undefined, true);
+        national.diplomacy.discover(ai.slot, me, 'contato', national.day, undefined, true);
+        sim.setMet(me, ai.slot);
         if (national.declareWar(me, ai.slot)) sim.setWar(me, ai.slot, true);
       }
   }
@@ -634,6 +637,9 @@ export class Room {
     if (save.mode === 'sandbox') room.national.policiesActive = false;
     room.wire();
     room.setupPactRules();
+    // salvamentos de antes do encontro no mapa (06/11): quem já se conhecia continua se conhecendo
+    for (const a of room.players)
+      for (const b of room.players) if (a.slot < b.slot && room.national.diplomacy.knows(a.slot, b.slot) && room.national.diplomacy.knows(b.slot, a.slot)) room.sim.setMet(a.slot, b.slot);
     room.ops = new OperationsSystem(room.sim, room.national, save.seed);
     if (save.ops) room.ops.load(save.ops);
     room.ais = room.players.filter((p) => p.isAI).map((p) => new TacticalAI(p.slot));
@@ -790,6 +796,8 @@ export class Room {
     sim.step();
     this.stepOperations();
     const tickEvents = sim.drainEvents();
+    // encontro no mapa (06/11): só agora as duas nações têm contato diplomático
+    for (const e of tickEvents) if (e.type === 'nations_met' && this.national) this.national.meetInTheater(e.a, e.b);
     // depois de uma eliminação, se só sobraram nações com pacto entre si (sem times), os pactos caem e a guerra
     // continua (06/11). Fora disso, um pacto entre os dois últimos vale até alguém romper.
     const last = tickEvents.some((e) => e.type === 'player_defeated') ? sim.lastPactPairs() : null;

@@ -3288,4 +3288,12 @@ export const EN: Dict = {
   "Carga enviada ao aliado por {0}: {1} (frete de US$ {2} mi)": "Cargo sent to the ally by {0}: {1} (freight of US$ {2} M)",
   "Caixa insuficiente para firmar o {0}: US$ {1} mi": "Not enough treasury to sign the {0}: US$ {1} M",
   "Caixa insuficiente para a indenização: US$ {0} mi": "Not enough treasury for the compensation: US$ {0} M",
+  "Contato estabelecido": "Contact established",
+  "Você estabeleceu contato com {0}": "You established contact with {0}",
+  "Agora dá para negociar, propor pacto ou aliança — ou declarar guerra.": "You can now trade, propose a pact or alliance — or declare war.",
+  "Esta nação está no mesmo mapa, mas vocês ainda não se encontraram.": "This nation is on the same map, but you have not met yet.",
+  "Explore com tropas ou um explorador: quando uma unidade sua avistar o território ou as forças dela, o contato é estabelecido. Antes disso não há como negociar, propor pacto ou aliança, nem declarar guerra.": "Explore with troops or a scout: when one of your units sights its territory or forces, contact is established. Before that you cannot trade, propose a pact or alliance, or declare war.",
+  "Nação do mesmo mapa: o contato só vem do encontro no mapa (uma unidade sua precisa avistar o território ou as forças dela)": "Nation on the same map: contact only comes from meeting on the map (one of your units must sight its territory or forces)",
+  "Sem contato: encontre essa nação no mapa antes": "No contact: find that nation on the map first",
+  "Sem contato com {0}: encontre essa nação no mapa antes de negociar": "No contact with {0}: find that nation on the map before trading",
 };

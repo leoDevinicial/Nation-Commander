@@ -218,6 +218,8 @@ export interface TradeSave {
 /** Ligação com a camada nacional: diplomacia e caixa. */
 export interface TradeLink {
   atWar(a: Slot, b: Slot): boolean;
+  /** Contato mútuo (06/11): só se negocia com quem já se encontrou no mapa. Ausente = sem exigência (testes). */
+  knows?(a: Slot, b: Slot): boolean;
   /** Sanções em vigor em qualquer sentido. */
   sanctioned(a: Slot, b: Slot): boolean;
   /** Dinheiro livre no caixa agora (saldo menos compras do dia ainda não fechadas). */
@@ -422,6 +424,7 @@ export class TradeSystem {
     if (a === b) return 'Você não pode comprar o próprio anúncio';
     if (!this.link) return 'Comércio indisponível nesta partida';
     if (this.sim.players[b]?.defeated || this.sim.players[a]?.defeated) return 'Nação derrotada';
+    if (this.link.knows && !this.link.knows(a, b)) return `Sem contato com ${this.name(b)}: encontre essa nação no mapa antes de negociar`;
     if (this.link.atWar(a, b) || this.sim.hostile(a, b)) return `Em guerra com ${this.name(b)}`;
     if (this.link.sanctioned(a, b)) return `Sanções em vigor com ${this.name(b)}`;
     return null;

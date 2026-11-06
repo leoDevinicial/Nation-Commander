@@ -24,8 +24,8 @@ export function flatMap(size = 32, edit?: (set: (cx: number, cy: number, t: Terr
 
 /** Atalho de teste: estabelece contato mútuo sem passar pela missão de contato. */
 export function meet(sim: NationalSimulation, a: number, b: number) {
-  sim.diplomacy.discover(a, b, 'contato', sim.day);
-  sim.diplomacy.discover(b, a, 'contato', sim.day);
+  sim.diplomacy.discover(a, b, 'teatro', sim.day);
+  sim.diplomacy.discover(b, a, 'teatro', sim.day);
 }
 
 /** Teatro de teste: estoques táticos simples e registro das guerras ativadas no combate. */

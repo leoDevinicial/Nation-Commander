@@ -528,7 +528,8 @@ export function tradeView(sim: Simulation, slot: Slot): TradeView {
       if (l.status === 'open' || sim.tick - l.createdTick < 20 * 240) listings.push(l);
       continue;
     }
-    if (l.status !== 'open' || sim.hostile(slot, l.seller)) continue;
+    // sem encontro no mapa (06/11), o anúncio nem aparece: não revela que a nação existe
+    if (l.status !== 'open' || sim.hostile(slot, l.seller) || (l.seller >= 0 && l.seller < sim.players.length && !sim.hasMet(slot, l.seller))) continue;
     const blockers = Object.fromEntries(TRANSPORT_MODES.map((m) => [m, t.buyBlocker(slot, l, m)])) as Record<TransportMode, string | null>;
     listings.push({ ...l, blockers });
   }
@@ -692,6 +693,8 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
   switch (e.type) {
     case 'fish_landed':
       return e.owner === slot;
+    case 'nations_met':
+      return e.a === slot || e.b === slot;
     case 'ally_aid':
     case 'gift_sent':
       return e.from === slot || e.to === slot;

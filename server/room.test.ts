@@ -289,8 +289,8 @@ describe('servidor de partidas', () => {
     const msg = a.last('national')!;
     expect(msg.diplomacy.treaties.some((t) => t.type === 'trade' && (t.a === usa.id || t.b === usa.id))).toBe(true);
     expect(msg.diplomacy.relations.find((r) => (r.a === 0 && r.b === usa.id) || (r.b === 0 && r.a === usa.id))!.value).toBeGreaterThan(0);
-    // sem declaração não há guerra: a relação mostra só a rivalidade no teatro
-    expect(msg.diplomacy.relations.find((r) => r.a === 0 && r.b === 1)!.factors[0]!.key).toBe('rivalry');
+    // sem declaração não há guerra; e os dois ainda não se encontraram no mapa (06/11), então nem há relação com o vizinho
+    expect(msg.diplomacy.relations.find((r) => r.a === 0 && r.b === 1)).toBeUndefined();
     expect(msg.diplomacy.wars).toEqual([]);
     // proposta a um país sem contato é recusada com motivo
     await send(a.conn, { t: 'national', cmd: { type: 'diplomacy', action: { type: 'propose', treaty: 'trade', partner: jpn.id } } });

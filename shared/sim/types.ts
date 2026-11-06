@@ -374,6 +374,8 @@ export type SimEvent =
   /** Aliança (06/11): tropas a caminho do aliado e recursos enviados a ele (só as duas partes ficam sabendo). */
   | { type: 'ally_aid'; tick: number; from: Slot; to: Slot; units: number }
   | { type: 'gift_sent'; tick: number; from: Slot; to: Slot; items: { resource: string; quantity: number }[]; mode: 'road' | 'sea' | 'air'; freightUsd: number }
+  /** Duas nações se encontraram no mapa (06/11): só elas ficam sabendo; `a` foi quem avistou. */
+  | { type: 'nations_met'; tick: number; a: Slot; b: Slot }
   | { type: 'demolished'; tick: number; owner: Slot; buildingType?: BuildingType; roads?: number; pos: Vec2 }
   | { type: 'road_destroyed'; tick: number; owner: Slot; by: Slot; cell: number; highway: boolean; pos: Vec2 }
   /**

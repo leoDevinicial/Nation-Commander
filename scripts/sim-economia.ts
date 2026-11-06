@@ -204,6 +204,8 @@ function run(seed: number, difficulty: Difficulty): Result {
       console.log(`${t / MIN}min comércio: anúncios ${tr.listings.length} (abertos ${tr.listings.filter((l) => l.status === 'open').length}, vendidos ${tr.listings.filter((l) => l.status === 'sold').length}) | cargas entregues ${by('delivered')} perdidas ${by('lost')} a caminho ${by('moving') + by('offmap') + by('loading')} | ${[0, 1].map((s) => `P${s} vendas ${((national.nation(s)?.trade.exportsUsd ?? 0) / 1e6).toFixed(1)}mi compras ${((national.nation(s)?.trade.importsUsd ?? 0) / 1e6).toFixed(1)}mi`).join(' · ')}`);
     }
     const events = sim.drainEvents();
+    // encontro no mapa (06/11), como no servidor: só depois dele há diplomacia (e guerra) entre as nações
+    for (const e of events) if (e.type === 'nations_met') national.meetInTheater(e.a, e.b);
     if (process.env.NAVAL_LOG) {
       for (const e of events) if (e.type === 'unloaded') console.log(`  ${fmt(t)} desembarque IA ${e.owner}: ${e.count} tropas`);
       if (t % (5 * MIN) === 0)

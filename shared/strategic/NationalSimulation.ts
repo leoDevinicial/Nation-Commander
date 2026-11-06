@@ -353,6 +353,12 @@ export class NationalSimulation {
     };
   }
 
+  /** Encontro no mapa (06/11): contato mútuo, anunciado aos dois (evento `discovered` com 'teatro'). */
+  meetInTheater(a: Slot, b: Slot): void {
+    this.diplomacy.discover(a, b, 'teatro', this.day);
+    this.diplomacy.discover(b, a, 'teatro', this.day);
+  }
+
   /** Vagas controladas pela IA (respondem a propostas de pacto na hora). */
   readonly bots = new Set<Slot>();
 
