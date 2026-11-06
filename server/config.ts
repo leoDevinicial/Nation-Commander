@@ -26,6 +26,8 @@ export const config = {
     .filter(Boolean),
   /** KAC: token do painel de leitura `/kac` (mínimo 24 caracteres; vazio = painel desligado). */
   kacAdminToken: process.env.KAC_ADMIN_TOKEN ?? '',
+  /** Painel de números (`/stats`, página `/painel#token` do site): mínimo 24 caracteres; vazio = desligado. */
+  statsToken: process.env.STATS_TOKEN ?? '',
 };
 
 export type ServerConfig = typeof config;

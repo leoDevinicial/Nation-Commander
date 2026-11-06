@@ -183,4 +183,11 @@ export class RoomManager {
     }
     return { rooms: this.rooms.size, playing, knps };
   }
+
+  /** Jogadores humanos conectados a partidas em andamento (painel de números). */
+  humansInMatches(): number {
+    let n = 0;
+    for (const r of this.rooms.values()) if (r.status === 'playing') n += r.players.filter((p) => !p.isAI && p.connected).length;
+    return n;
+  }
 }

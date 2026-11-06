@@ -1,0 +1,135 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+/**
+ * Painel de números do jogo (06/11): contas registradas, jogadores online, partidas do dia e duração média. Só por link
+ * direto: a página `/painel` do site chama `GET /stats` aqui com `Authorization: Bearer <STATS_TOKEN>` (o token viaja no
+ * fragmento `#` do link, que o navegador não manda a servidor nenhum). Sem token configurado, o endpoint não existe
+ * (404). Só números agregados: nenhum nome, id ou IP sai daqui.
+ */
+export const STATS_POLICY = {
+  minTokenLength: 24,
+  maxFailures: 10,
+  failureWindowMs: 10 * 60_000,
+  /** As consultas ao banco ficam em cache por este tempo (a página atualiza sozinha). */
+  cacheMs: 30_000,
+  /** Fuso do "dia": o horário de Brasília (UTC−3, sem horário de verão desde 2019). */
+  timeZone: 'America/Sao_Paulo',
+  utcOffset: '-03:00',
+};
+
+/** Dia (AAAA-MM-DD) no fuso do painel. */
+export function dayKey(ms: number): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: STATS_POLICY.timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
+}
+
+/** Início do dia (ISO) no fuso do painel, `daysAgo` dias atrás. */
+export function dayStartIso(ms: number, daysAgo = 0): string {
+  const start = new Date(`${dayKey(ms)}T00:00:00${STATS_POLICY.utcOffset}`).getTime() - daysAgo * 86_400_000;
+  return new Date(start).toISOString();
+}
+
+interface DayTally {
+  matches: number;
+  seconds: number;
+  /** Partidas só de convidados (não vão para o banco). */
+  guestOnly: number;
+}
+
+/**
+ * Contagem em memória das partidas encerradas neste servidor (inclui as só de convidados, que o banco não grava). Zera
+ * num reinício; o Sandbox não conta.
+ */
+export class MatchTally {
+  readonly startedAt = Date.now();
+  private readonly days = new Map<string, DayTally>();
+
+  record(endedAtMs: number, durationSeconds: number, registered: boolean): void {
+    const k = dayKey(endedAtMs);
+    const d = this.days.get(k) ?? { matches: 0, seconds: 0, guestOnly: 0 };
+    d.matches++;
+    d.seconds += Math.max(0, durationSeconds);
+    if (!registered) d.guestOnly++;
+    this.days.set(k, d);
+    if (this.days.size > 14) this.days.delete(this.days.keys().next().value!);
+  }
+
+  today(now: number): { matches: number; avgSeconds: number | null; guestOnly: number } {
+    const d = this.days.get(dayKey(now));
+    return { matches: d?.matches ?? 0, avgSeconds: d && d.matches ? Math.round(d.seconds / d.matches) : null, guestOnly: d?.guestOnly ?? 0 };
+  }
+}
+
+export const matchTally = new MatchTally();
+
+export interface DbStats {
+  accounts: number | null;
+  today: { matches: number; avgSeconds: number | null } | null;
+  week: { matches: number; avgSeconds: number | null } | null;
+  error?: string;
+}
+
+const avg = (rows: { duration_seconds: number }[]) => (rows.length ? Math.round(rows.reduce((a, r) => a + r.duration_seconds, 0) / rows.length) : null);
+
+/** Números do banco (contas e partidas gravadas), com cache curto. */
+export class DbStatsCache {
+  private cached: { at: number; value: DbStats } | null = null;
+
+  constructor(private readonly sb: () => SupabaseClient | null) {}
+
+  async get(now: number): Promise<DbStats> {
+    if (this.cached && now - this.cached.at < STATS_POLICY.cacheMs) return this.cached.value;
+    const sb = this.sb();
+    if (!sb) return { accounts: null, today: null, week: null, error: 'Sem Supabase neste servidor' };
+    try {
+      const [acc, today, week] = await Promise.all([
+        sb.from('profiles').select('id', { count: 'exact', head: true }),
+        sb.from('matches').select('duration_seconds').gte('ended_at', dayStartIso(now)).limit(10_000),
+        sb.from('matches').select('duration_seconds').gte('ended_at', dayStartIso(now, 6)).limit(50_000),
+      ]);
+      const value: DbStats = {
+        accounts: acc.count ?? null,
+        today: today.data ? { matches: today.data.length, avgSeconds: avg(today.data) } : null,
+        week: week.data ? { matches: week.data.length, avgSeconds: avg(week.data) } : null,
+        ...(acc.error || today.error || week.error ? { error: 'Falha parcial na consulta ao banco' } : {}),
+      };
+      this.cached = { at: now, value };
+      return value;
+    } catch {
+      return { accounts: null, today: null, week: null, error: 'Banco indisponível' };
+    }
+  }
+}
+
+const sha = (s: string) => createHash('sha256').update(s).digest();
+
+/** Confere o token (tempo constante) e bloqueia por um tempo o IP com muitas tentativas erradas. */
+export class StatsGate {
+  private readonly failures = new Map<string, number[]>();
+
+  constructor(
+    private readonly token: string | undefined,
+    private readonly now: () => number = Date.now,
+  ) {}
+
+  get enabled(): boolean {
+    return !!this.token && this.token.length >= STATS_POLICY.minTokenLength;
+  }
+
+  /** 200 liberado, 401 token errado, 404 painel desligado, 429 tentativas demais. */
+  check(authorization: string | undefined, ip: string): 200 | 401 | 404 | 429 {
+    if (!this.enabled) return 404;
+    const now = this.now();
+    const recent = (this.failures.get(ip) ?? []).filter((t) => now - t < STATS_POLICY.failureWindowMs);
+    if (recent.length >= STATS_POLICY.maxFailures) return 429;
+    const given = /^Bearer\s+(\S+)\s*$/i.exec(authorization ?? '')?.[1];
+    if (!given || !timingSafeEqual(sha(given), sha(this.token!))) {
+      recent.push(now);
+      this.failures.set(ip, recent);
+      if (this.failures.size > 1000) this.failures.clear();
+      return 401;
+    }
+    this.failures.delete(ip);
+    return 200;
+  }
+}

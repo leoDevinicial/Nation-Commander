@@ -16,6 +16,7 @@ import { RoomManager } from './RoomManager.ts';
 import { KNPS_DEFLATE } from './knps/transport.ts';
 import { RegionTelemetry, regionFromEnv } from './knps/region.ts';
 import { getSupabase, kacSupabaseBackend, recordMatch, verifyAccessToken } from './supabase.ts';
+import { DbStatsCache, StatsGate, matchTally } from './stats.ts';
 
 // partidas em andamento sobrevivem a reinícios: Supabase em produção, arquivos no desenvolvimento
 const sb = getSupabase();
@@ -46,6 +47,11 @@ if (kacStore) {
 const kacAdmin = new KacAdmin(config.kacAdminToken || undefined, { journal: kacJournal, store: kacStore, network: networkGuard, startedAt: Date.now() });
 if (config.kacAdminToken && !kacAdmin.enabled) log.warn('KAC_ADMIN_TOKEN curto demais (mínimo 24 caracteres): painel /kac desligado');
 
+// painel de números (06/11): GET /stats com Authorization: Bearer STATS_TOKEN; sem token, não existe
+const statsGate = new StatsGate(config.statsToken || undefined);
+const dbStats = new DbStatsCache(getSupabase);
+if (config.statsToken && !statsGate.enabled) log.warn('STATS_TOKEN curto demais (mínimo 24 caracteres): painel /stats desligado');
+
 // KNPS-08: região deste servidor (letra no início dos códigos de sala) e o agregado do ping de rede dos jogadores
 const region = regionFromEnv(process.env);
 rooms.codePrefix = region.letter;
@@ -71,6 +77,39 @@ const http = createServer((req, res) => {
       ...(allowed && origin ? { 'access-control-allow-origin': origin, vary: 'Origin' } : {}),
     });
     res.end(allowed ? JSON.stringify({ region: region.id, rooms: rooms.listPublic() }) : '{}');
+    return;
+  }
+  if (path === '/stats') {
+    // a página /painel do site chama daqui: CORS só para as origens do jogo, com o cabeçalho Authorization
+    const origin = req.headers.origin;
+    const allowed = isOriginAllowed(origin, config.allowedOrigins);
+    const cors = allowed && origin ? { 'access-control-allow-origin': origin, 'access-control-allow-headers': 'authorization', 'access-control-allow-methods': 'GET', vary: 'Origin' } : {};
+    if (req.method === 'OPTIONS') {
+      res.writeHead(allowed && statsGate.enabled ? 204 : 404, { ...cors, 'cache-control': 'no-store' });
+      res.end();
+      return;
+    }
+    const status = req.method === 'GET' ? statsGate.check(req.headers.authorization, clientIp(req)) : 404;
+    if (status !== 200) {
+      res.writeHead(status, { ...cors, 'content-type': 'application/json', 'cache-control': 'no-store' });
+      res.end(JSON.stringify({ error: status === 404 ? 'not_found' : status === 429 ? 'too_many_attempts' : 'unauthorized' }));
+      return;
+    }
+    const now = Date.now();
+    void dbStats.get(now).then((db) => {
+      res.writeHead(200, { ...cors, 'content-type': 'application/json', 'cache-control': 'no-store' });
+      res.end(
+        JSON.stringify({
+          now: new Date(now).toISOString(),
+          region: region.id || null,
+          online: deps.sessions.size,
+          inMatches: rooms.humansInMatches(),
+          matchesRunning: rooms.stats().playing,
+          db,
+          server: { since: new Date(matchTally.startedAt).toISOString(), today: matchTally.today(now) },
+        }),
+      );
+    });
     return;
   }
   if (path === '/kac' && req.method === 'GET') {

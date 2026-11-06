@@ -124,6 +124,9 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 
 ## 0.4 O que mudou desde 31/10 (mais recente primeiro; detalhes no `git log` e nas docs citadas)
 
+**06/11 — painel de números** (`docs/PAINEL_DE_NUMEROS.md`): `/painel#<STATS_TOKEN>` com contas, online, partidas do
+dia e duração média; precisa de `STATS_TOKEN` no servidor de cada região (o usuário define no Render).
+
 **06/11 — diplomacia entre as nações do mapa** (`docs/DIPLOMACIA_NO_TEATRO.md`): modo time com vitória do time;
 pactos de não agressão e alianças no mapa (convite para humano, bot responde na hora, custo ao firmar, indenização ao
 romper, paz ao firmar em guerra); aliados com visão compartilhada, cartão "Auxiliar {país}" e janela de envio de

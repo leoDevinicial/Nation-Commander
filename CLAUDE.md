@@ -64,6 +64,8 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
   `docs/kac/KAC_THREAT_MODEL.md`; ataques reproduzidos em `server/kac.test.ts`. O snapshot nunca cita o que o jogador
   não vê (nem id de alvo, nem base de voo). Os ids são embaralhados por partida (KAC-06): nunca ordenar por id para
   dizer "mais antigo"; usar a ordem de `Simulation.entities`. Nenhuma punição automática: ver `docs/kac/KAC_ENFORCEMENT_POLICY.md`.
+- Painel de números (`docs/PAINEL_DE_NUMEROS.md`): `/painel#<STATS_TOKEN>` no site chama `GET /stats` de cada região
+  (Bearer, só agregados): contas, online, partidas do dia e duração média.
 - KNPS — Kaiser Network Performance System (`server/knps/`, `src/net/netStats.ts`, `docs/knps/`): compressão do
   WebSocket, fila de saída limitada (só snapshot é descartável), snapshot extra no tick da ordem e painel de conexão.
   Várias regiões (KNPS-08): `KNPS_REGION*` no servidor e `VITE_GAME_SERVERS` no cliente; a letra da região abre o
