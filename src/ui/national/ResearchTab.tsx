@@ -237,7 +237,7 @@ function TechCard({ id, nation, onSelect }: { id: TechId; nation: NationView; on
             Pausar
           </button>
         ) : (
-          <button className="btn shrink-0 px-2 py-1 text-xs" disabled={!!blocker} onClick={() => onSelect(id)} title={blocker ?? (r.current ? 'Troca o projeto atual por este (o atual fica pausado, sem perder progresso)' : 'Iniciar')}>
+          <button className="btn shrink-0 px-2 py-1 text-xs" data-tour="research-start" disabled={!!blocker} onClick={() => onSelect(id)} title={blocker ?? (r.current ? 'Troca o projeto atual por este (o atual fica pausado, sem perder progresso)' : 'Iniciar')}>
             {progress > 0 ? 'Retomar' : 'Pesquisar'}
           </button>
         )}

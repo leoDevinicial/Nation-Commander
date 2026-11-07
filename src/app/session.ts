@@ -5,6 +5,7 @@ import { useAppStore } from '../state/useAppStore.ts';
 import { screenAfterLogin } from '../ui/manual.ts';
 import { applyNationalMessage, useNationalStore } from '../state/useNationalStore.ts';
 import { applyOpsMessage, useOpsStore } from '../state/useOpsStore.ts';
+import { useTutorialStore } from '../state/useTutorialStore.ts';
 
 /** Liga mensagens do servidor de jogo ao estado da aplicação. Chamar uma vez. */
 export function wireGameClient(): void {
@@ -33,11 +34,15 @@ export function wireGameClient(): void {
           useNationalStore.getState().reset();
           useOpsStore.getState().reset();
         }
+        if (msg.match.mode !== 'tutorial') useTutorialStore.getState().set(null);
         // mesma partida (reconexão): mantém o objeto, e com ele a cena 3D montada
         const same = isSameMatch(currentMatch(), msg.match);
         useAppStore.setState({ match: same ? app.match : msg.match, matchEnd: null, screen: 'game' });
         break;
       }
+      case 'tutorial':
+        useTutorialStore.getState().set(msg.view);
+        break;
       case 'national':
         applyNationalMessage(msg.day, msg.date, msg.nations, msg.events, msg.diplomacy);
         break;

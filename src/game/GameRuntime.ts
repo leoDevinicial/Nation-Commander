@@ -1611,6 +1611,7 @@ export class GameRuntime {
       }
     }
     this.updateRouteInspection();
+    this.animateTutorialMarks();
     this.effects.update(dt);
     this.launchRumble(dt);
     for (let i = this.nukes.length - 1; i >= 0; i--)
@@ -3325,6 +3326,45 @@ export class GameRuntime {
     audio.ui('click');
   }
 
+  // ------------------------------------------------------------ tutorial (07/11)
+
+  private tutorialMarks: THREE.Mesh[] = [];
+
+  /** Anéis de latão pulsando no chão onde o tutorial aponta (unidades de mundo). */
+  setTutorialMarks(marks: readonly { x: number; y: number }[]): void {
+    while (this.tutorialMarks.length > marks.length) {
+      const m = this.tutorialMarks.pop()!;
+      this.scene.remove(m);
+      m.geometry.dispose();
+      (m.material as THREE.Material).dispose();
+    }
+    while (this.tutorialMarks.length < marks.length) {
+      const g = new THREE.RingGeometry(1.7, 2.3, 48);
+      g.rotateX(-Math.PI / 2);
+      const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: '#e0b44c', transparent: true, opacity: 0.9, depthWrite: false }));
+      m.renderOrder = 10;
+      this.scene.add(m);
+      this.tutorialMarks.push(m);
+    }
+    marks.forEach((p, i) => this.tutorialMarks[i]!.position.set(p.x, 0.3, p.y));
+  }
+
+  /** Leva a câmera até um ponto (passo do tutorial). */
+  tutorialFocus(x: number, y: number): void {
+    this.follow = null;
+    this.cameraCtl.lookAt(x, y);
+  }
+
+  private animateTutorialMarks(): void {
+    if (!this.tutorialMarks.length) return;
+    const t = performance.now() / 1000;
+    const k = 1 + 0.22 * Math.sin(t * 4);
+    for (const m of this.tutorialMarks) {
+      m.scale.set(k, 1, k);
+      (m.material as THREE.MeshBasicMaterial).opacity = 0.55 + 0.35 * (0.5 + 0.5 * Math.sin(t * 4));
+    }
+  }
+
   /** Segundo clique da demolição arriscada (id e prazo, em `performance.now()`). */
   private demolishConfirm: { id: number; until: number } | null = null;
 
@@ -4504,6 +4544,7 @@ export class GameRuntime {
   }
 
   dispose(): void {
+    this.setTutorialMarks([]);
     // saindo no meio da pilotagem: devolve o cursor e desliga a marca do HUD antes de desmontar
     if (this.fpv.active) this.exitFpv();
     this.disposed = true;

@@ -70,6 +70,12 @@ describe('tutorial', () => {
     await send({ t: 'tutorial', fact: 'camera_moved' });
     for (let i = 0; i < TICK_RATE; i++) room.advance();
     expect(view().step).toBe('1.3');
+    await send({ t: 'tutorial', fact: 'zoomed' });
+    for (let i = 0; i < TICK_RATE; i++) room.advance();
+    // passo novo: a ajuda só aparece depois de 35 s parado
+    expect(view()).toMatchObject({ step: '1.4', help: null });
+    for (let i = 0; i < 36 * TICK_RATE; i++) room.advance();
+    expect(view().help).toContain('tecla H');
     await send({ t: 'tutorial', skip: 'chapter' });
     expect(view()).toMatchObject({ chapter: 2, step: '2.1' });
     // mensagem inválida é recusada já no parser

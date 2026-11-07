@@ -16,6 +16,7 @@ import { TopBar } from '../hud/TopBar.tsx';
 import { TouchToolbar } from '../hud/TouchToolbar.tsx';
 import { RouteInspector } from '../hud/RouteInspector.tsx';
 import { UpgradePanel } from '../hud/UpgradePanel.tsx';
+import { TutorialOverlay } from '../hud/TutorialOverlay.tsx';
 import { GlobePanel } from '../geo/GlobePanel.tsx';
 import { GiftDialog } from '../geo/GiftDialog.tsx';
 import { WarDialog } from '../geo/WarDialog.tsx';
@@ -300,6 +301,7 @@ export function GameScreen() {
               <span className="hidden sm:inline">Chat</span>
             </button>
           )}
+          {match.mode === 'tutorial' && !matchEnd && !battleActive && <TutorialOverlay runtime={runtime} />}
           {menuOpen && !matchEnd && <PauseMenu runtime={runtime} onClose={() => setMenuOpen(false)} />}
         </>
       )}

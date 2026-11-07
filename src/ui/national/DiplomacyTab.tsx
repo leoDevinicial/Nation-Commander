@@ -49,7 +49,7 @@ export function DiplomacyTab({ me, diplomacy, day, nameOf, onAction, onDeclareWa
                   {nameOf(o.from)} propõe {o.treaty === 'alliance' ? 'uma aliança' : 'um pacto de não agressão'} <span className="text-ink-400">· até o dia {o.expiresDay}</span>
                 </span>
                 <span className="flex gap-1">
-                  <button className="btn btn-primary px-2 py-0.5 text-[11px]" onClick={() => onAction({ type: 'answer_offer', offerId: o.id, accept: true })}>
+                  <button className="btn btn-primary px-2 py-0.5 text-[11px]" data-tour="offer-accept" onClick={() => onAction({ type: 'answer_offer', offerId: o.id, accept: true })}>
                     Aceitar
                   </button>
                   <button className="btn px-2 py-0.5 text-[11px]" onClick={() => onAction({ type: 'answer_offer', offerId: o.id, accept: false })}>

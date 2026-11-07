@@ -114,9 +114,9 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
       const created = deps.rooms.create(conn, msg.mode, msg.countryId, msg.isPublic === true);
       if (typeof created === 'string') conn.send({ t: 'error', code: 'room', message: created });
       else {
-        created.broadcastRoom();
-        // tutorial: começa na hora, sem lobby
+        // tutorial: começa na hora, sem lobby (a partida já avisa a sala)
         if (msg.mode === 'tutorial') created.beginTutorial();
+        else created.broadcastRoom();
       }
       return;
     }

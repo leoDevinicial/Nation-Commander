@@ -12,6 +12,7 @@ export function Frame({
   style,
   cut,
   onPointerDown,
+  tour,
 }: {
   children: ReactNode;
   className?: string;
@@ -19,9 +20,11 @@ export function Frame({
   style?: CSSProperties;
   cut?: number;
   onPointerDown?: PointerEventHandler<HTMLDivElement>;
+  /** Âncora do destaque do tutorial (`data-tour`). */
+  tour?: string;
 }) {
   return (
-    <div className={`nc-frame ${className}`} style={cut !== undefined ? { ...style, ['--cut' as string]: `${cut}px` } : style} onPointerDown={onPointerDown}>
+    <div className={`nc-frame ${className}`} style={cut !== undefined ? { ...style, ['--cut' as string]: `${cut}px` } : style} onPointerDown={onPointerDown} data-tour={tour}>
       <div className={`nc-frame-in ${innerClassName}`}>{children}</div>
       <span className="nc-brk nc-brk-tr" aria-hidden />
       <span className="nc-brk nc-brk-bl" aria-hidden />

@@ -3,6 +3,8 @@
  * jogador chegar ao fim pelo menos uma vez (e sempre disponível pelo botão "Manual" do menu).
  * Regra de escrita: cada cartão cabe numa tela de celular, frases curtas, um assunto por cartão.
  */
+import { tutorialSeen } from '../state/useTutorialStore.ts';
+
 export interface ManualCard {
   icon: string;
   title: string;
@@ -119,5 +121,7 @@ export function markManualRead(): void {
 
 /** Tela que vem depois do login: o manual na primeira vez, o menu depois. */
 export function screenAfterLogin(): 'manual' | 'menu' {
+  // primeira visita (07/11): o menu com o convite para o tutorial no lugar do manual (que segue no botão Manual)
+  if (!tutorialSeen()) return 'menu';
   return manualRead() ? 'menu' : 'manual';
 }

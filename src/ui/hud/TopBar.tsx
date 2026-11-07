@@ -1,3 +1,4 @@
+import { useTutorialStore } from '../../state/useTutorialStore.ts';
 import { GAME_SPEEDS } from '../../../shared/protocol.ts';
 import { DIFFICULTY, prepTicks } from '../../../shared/sim/difficulty.ts';
 import { ERAS, type Era } from '../../../shared/sim/eras.ts';
@@ -19,6 +20,8 @@ import { MoneyChip, MoneyPopover, ProductionChip, ProductionPopover, type TopBar
 import { PerfChip, PerfPopover } from './PerfPanel.tsx';
 import { NetChip, NetPopover } from './NetPanel.tsx';
 import { SandboxChip, SandboxPanel } from './SandboxPanel.tsx';
+
+const NO_LOCKS: readonly string[] = [];
 
 export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRuntime; onMenu: () => void; canControlSpeed: boolean }) {
   const players = useHudStore((s) => s.players);
@@ -43,6 +46,8 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
   const panelOpen = useNationalStore((s) => s.panelOpen);
   const togglePanel = useNationalStore((s) => s.setPanelOpen);
   const globeOpen = useNationalStore((s) => s.globeOpen);
+  // tutorial (07/11): Nação e Globo aparecem no capítulo que os ensina
+  const locked = useTutorialStore((s) => s.view?.locked ?? NO_LOCKS);
   const openGlobe = useNationalStore((s) => s.openGlobe);
   const closeGlobe = useNationalStore((s) => s.closeGlobe);
   const nextSpeed = GAME_SPEEDS[(GAME_SPEEDS.indexOf(speed) + 1) % GAME_SPEEDS.length]!;
@@ -105,6 +110,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
       {/* prioridade por largura: os valores cabem sempre; rótulos, capacidade, saldo e nomes aparecem conforme sobra espaço
           (o detalhe completo fica na dica de cada item) */}
       <Frame
+        tour="topbar:resources"
         className="pointer-events-auto min-w-0 flex-1 lg:order-2"
         innerClassName="no-scrollbar flex items-center gap-0 overflow-x-auto pr-3 pl-1.5 [mask-image:linear-gradient(90deg,#000_calc(100%-28px),transparent)]"
       >
@@ -222,7 +228,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
       </Frame>
 
       <Frame className="pointer-events-auto shrink-0 lg:hidden" innerClassName="flex items-center px-1.5">
-        <button className={`nc-icon-btn ${more ? 'is-on' : ''}`} onClick={() => setMore(!more)} aria-expanded={more} aria-label={more ? 'Fechar a barra' : 'Nação, relógio e menus'} title={more ? 'Fechar a barra' : 'Nação, relógio e menus'}>
+        <button className={`nc-icon-btn ${more ? 'is-on' : ''}`} onClick={() => setMore(!more)} data-tour="topbar:more" aria-expanded={more} aria-label={more ? 'Fechar a barra' : 'Nação, relógio e menus'} title={more ? 'Fechar a barra' : 'Nação, relógio e menus'}>
           {paused && !more ? <Pause size={17} aria-hidden /> : more ? <ChevronUp size={18} aria-hidden /> : <ChevronDown size={18} aria-hidden />}
         </button>
       </Frame>
@@ -282,17 +288,28 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
         >
           <Video size={17} aria-hidden />
         </button>
-        <button
-          className={`nc-icon-btn ${globeOpen ? 'is-on' : ''}`}
-          onClick={() => (globeOpen ? closeGlobe() : openGlobe())}
-          title="Globo diplomático: países, contatos, relações, tratados e guerras (Tab)"
-          aria-label="Globo"
-        >
-          <Globe size={17} aria-hidden />
-        </button>
-        <button className={`nc-icon-btn ${panelOpen ? 'is-on' : ''}`} onClick={() => togglePanel(!panelOpen)} title="Painel nacional: economia, orçamento, pesquisa e diplomacia (G)" aria-label="Nação">
-          <Landmark size={17} aria-hidden />
-        </button>
+        {!locked.includes('globe') && (
+          <button
+            className={`nc-icon-btn ${globeOpen ? 'is-on' : ''}`}
+            onClick={() => (globeOpen ? closeGlobe() : openGlobe())}
+            title="Globo diplomático: países, contatos, relações, tratados e guerras (Tab)"
+            aria-label="Globo"
+            data-tour="topbar:globe"
+          >
+            <Globe size={17} aria-hidden />
+          </button>
+        )}
+        {!locked.includes('nation') && (
+          <button
+            className={`nc-icon-btn ${panelOpen ? 'is-on' : ''}`}
+            onClick={() => togglePanel(!panelOpen)}
+            title="Painel nacional: economia, orçamento, pesquisa e diplomacia (G)"
+            aria-label="Nação"
+            data-tour="topbar:nation"
+          >
+            <Landmark size={17} aria-hidden />
+          </button>
+        )}
         <MusicButton />
         <FullscreenButton variant="bar" />
         <button className="nc-icon-btn" onClick={onMenu} title="Menu (F10)" aria-label="Menu">
@@ -354,8 +371,11 @@ function BarItem({
   fillColor,
   valueClass = '',
   extra,
+  tour,
   children,
 }: {
+  /** Âncora do destaque do tutorial. */
+  tour?: string;
   label: string;
   icon: ReactNode;
   title: string;
@@ -372,6 +392,7 @@ function BarItem({
       className="flex h-full shrink-0 cursor-help items-center gap-1 border-r border-white/[0.07] px-1.5 last:border-r-0 min-[1800px]:gap-1.5 min-[1800px]:px-2.5"
       title={title}
       aria-label={ariaLabel}
+      data-tour={tour}
       onClick={() => useHudStore.getState().pushEvent({ tick: useHudStore.getState().tick, text: title.split('\n')[0]!.split(' (')[0]!, tone: 'info' })}
     >
       {icon}
@@ -415,6 +436,7 @@ function PowerChip({ power }: { power: { supply: number; demand: number; served:
   const why = power.isolated > 0 ? `${power.isolated} longe da rede (ligue com estrada a até 4 células de uma usina, do QG ou de outra estrada)` : 'falta geração: construa outra usina';
   return (
     <BarItem
+      tour="topbar:power"
       label="Energia"
       icon={<Zap size={15} className={short ? 'text-red-300' : 'text-brass-400'} aria-hidden />}
       title={`Energia: geração ${kw(power.supply)}, consumo ${kw(power.demand)}${power.coalPerMin > 0 ? ` · termelétricas queimam ${kw(power.coalPerMin)} de carvão/min` : ''}${short ? ` — ${power.dark} construção(ões) PARADA(S) sem luz: ${why}` : ''}`}

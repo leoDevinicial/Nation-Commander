@@ -1,3 +1,4 @@
+import { tutorialLocked } from './useTutorialStore.ts';
 import { create } from 'zustand';
 import type { DiplomacyView, NationView } from '../../shared/protocol.ts';
 import type { HistoryPoint, NationalEvent } from '../../shared/strategic/NationalSimulation.ts';
@@ -21,6 +22,8 @@ interface NationalState {
   /** Aba pedida ao abrir o painel nacional por um atalho (ex.: o saldo da barra abre o Orçamento). */
   panelTab: string | null;
   openPanelAt: (tab: string) => void;
+  /** Aba visível no painel aberto (o tutorial confere em que aba o jogador está). */
+  shownTab: string | null;
   /** Globo diplomático aberto e país a centralizar (ISO alfa-3). */
   globeOpen: boolean;
   globeFocus: string | null;
@@ -45,12 +48,14 @@ export const useNationalStore = create<NationalState>((set) => ({
   history: {},
   log: [],
   panelOpen: false,
-  setPanelOpen: (panelOpen) => set({ panelOpen, panelTab: null }),
+  // tutorial (07/11): o painel e o globo ficam fechados até o capítulo que os ensina
+  setPanelOpen: (panelOpen) => (panelOpen && tutorialLocked('nation') ? undefined : set({ panelOpen, panelTab: null })),
   panelTab: null,
-  openPanelAt: (tab) => set({ panelOpen: true, panelTab: tab, globeOpen: false }),
+  shownTab: null,
+  openPanelAt: (tab) => (tutorialLocked('nation') ? undefined : set({ panelOpen: true, panelTab: tab, globeOpen: false })),
   globeOpen: false,
   globeFocus: null,
-  openGlobe: (focus = null) => set({ globeOpen: true, globeFocus: focus, panelOpen: false }),
+  openGlobe: (focus = null) => (tutorialLocked('globe') ? undefined : set({ globeOpen: true, globeFocus: focus, panelOpen: false })),
   closeGlobe: () => set({ globeOpen: false }),
   warTarget: null,
   setWarTarget: (warTarget) => set({ warTarget }),

@@ -77,7 +77,7 @@ export function TradeTab({ nation, mySlot, partners }: { nation: NationView; myS
         <p className="mt-1 text-[11px] text-ink-400">
           Tudo passa pelo caixa do país. O dinheiro e a mercadoria só mudam de mão quando a carga chega; no caminho, quem está em guerra com uma das partes pode destruí-la.
         </p>
-        <div className="mt-1.5 grid grid-cols-3 gap-1">
+        <div className="mt-1.5 grid grid-cols-3 gap-1" data-tour="trade-modes">
           {TRANSPORT_MODES.map((m) => (
             <div
               key={m}
@@ -297,6 +297,7 @@ function ListingForm({ trade, disabled }: { trade: TradeView; disabled: string |
       </div>
       <button
         className="btn btn-primary w-full py-1.5 text-xs"
+        data-tour="trade-list"
         disabled={!!why}
         title={why ?? ''}
         onClick={() =>

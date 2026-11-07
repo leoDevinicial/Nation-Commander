@@ -1068,3 +1068,17 @@ input[type="range"], input[type="checkbox"], input[type="radio"] { accent-color:
     animation: none;
   }
 }
+
+/* tutorial (07/11): moldura de latão pulsando em volta do botão do passo */
+.tutorial-spot {
+  box-shadow: 0 0 0 2px rgb(10 14 20 / 0.6), 0 0 18px 4px rgb(224 180 76 / 0.55);
+  animation: tutorial-spot 1.2s ease-in-out infinite;
+}
+@keyframes tutorial-spot {
+  50% {
+    box-shadow: 0 0 0 2px rgb(10 14 20 / 0.6), 0 0 28px 8px rgb(224 180 76 / 0.85);
+  }
+}
+.reduce-motion .tutorial-spot {
+  animation: none;
+}

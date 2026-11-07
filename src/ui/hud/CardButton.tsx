@@ -59,6 +59,7 @@ export function CardButton({
       }}
       title={title}
       aria-label={label}
+      data-tour={label}
     >
       {hotkey && <span className="hotkey z-10">{hotkey}</span>}
       {badge && <span className="absolute top-0.5 right-0.5 z-10 rounded bg-ink-950/80 px-1 font-mono text-[9px] text-brass-400">{badge}</span>}

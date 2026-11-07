@@ -28,6 +28,7 @@ export function MoneyChip({ open, onToggle }: { open: boolean; onToggle: () => v
     <button
       className={`flex h-full shrink-0 items-center gap-1 border-r border-white/[0.07] px-1.5 min-[1800px]:gap-1.5 min-[1800px]:px-2.5 ${open ? 'bg-white/[0.07]' : 'hover:bg-white/[0.04]'}`}
       onClick={onToggle}
+      data-tour="topbar:usd"
       aria-expanded={open}
       aria-label={`Caixa do país: ${formatUsd(works.fundUsd)}, ${net >= 0 ? 'ganhando' : 'perdendo'} US$ ${perDay(net)} por dia`}
       title="Caixa do país — toque para ver de onde vem e para onde vai o dinheiro"

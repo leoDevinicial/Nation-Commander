@@ -384,6 +384,8 @@ const RADIO_LANGS = ['pt', 'en', 'es'] as const;
 const radioFiles = (lang: string, kind: RadioReply) => [1, 2, 3].map((i) => `radio-${lang}-${kind === 'move' ? 'movendo' : 'atacando'}-${i}`);
 // uns 3 dB acima da energia do anúncio mundial gravado (`calibrar.cjs`): a fala fica clara sem gritar
 const RADIO_GAIN = 0.3;
+/** Narrador do tutorial: no nível da resposta pelo rádio (fala clara por cima do jogo). */
+const NARRATION_GAIN = 0.3;
 const SNOW_WIND_GAIN = 3;
 export const EXTRA_SAMPLES = [
   ...SFX.distant,
@@ -3346,6 +3348,42 @@ export class AudioService {
     if (pick && this.playExtra([pick], 'ui', RADIO_GAIN, 0)) this.lastRadio = pick;
   }
   private lastRadio: string | null = null;
+
+  private narration: { id: string; stop: () => void } | null = null;
+  private narrationBufs = new Map<string, Promise<AudioBuffer | null>>();
+
+  /**
+   * Narrador do tutorial (07/11): a fala do passo `id` no idioma da tela (`public/narration/<idioma>/<id>.mp3`; idioma
+   * sem gravação usa o inglês), no canal da interface, com a música abaixada. A fala anterior para. Sem o arquivo, fica
+   * só a legenda. `null` cala o narrador.
+   */
+  narrate(id: string | null): void {
+    this.narration?.stop();
+    this.narration = null;
+    if (!id || !this.ready || !this.ctx) return;
+    const lang = (RADIO_LANGS as readonly string[]).includes(this.voiceLang) ? this.voiceLang : 'en';
+    const key = `${lang}/${id}`;
+    let buf = this.narrationBufs.get(key);
+    if (!buf) {
+      const ctx = this.ctx;
+      buf = fetch(`${import.meta.env.BASE_URL}narration/${key}.mp3`)
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+        .then((data) => ctx.decodeAudioData(data))
+        .catch(() => null);
+      this.narrationBufs.set(key, buf);
+    }
+    let cancelled = false;
+    this.narration = { id, stop: () => (cancelled = true) };
+    void buf.then((b) => {
+      if (!b || cancelled || !this.ctx) return;
+      const src = this.ctx.createBufferSource();
+      src.buffer = b;
+      src.connect(this.out('ui', NARRATION_GAIN, 0));
+      src.start();
+      this.duckMusic(0.35);
+      this.narration = { id, stop: () => src.stop() };
+    });
+  }
 
   /** Apito do navio saindo do porto, posicionado como os sons de combate. */
   shipHorn(x: number, y: number): void {

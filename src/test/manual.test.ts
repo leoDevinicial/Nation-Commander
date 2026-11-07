@@ -1,3 +1,4 @@
+import { markTutorial } from '../state/useTutorialStore.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MANUAL, manualRead, markManualRead, screenAfterLogin } from '../ui/manual.ts';
 import { useAppStore } from '../state/useAppStore.ts';
@@ -10,9 +11,11 @@ function fakeStorage() {
 }
 
 describe('manual de entrada', () => {
-  it('aparece antes do menu até ser lido inteiro; depois, vai direto ao menu', () => {
+  it('primeira visita vai ao menu (convite do tutorial); depois, o manual até ser lido inteiro', () => {
     fakeStorage();
     expect(manualRead()).toBe(false);
+    expect(screenAfterLogin()).toBe('menu');
+    markTutorial('skipped');
     expect(screenAfterLogin()).toBe('manual');
     markManualRead();
     expect(screenAfterLogin()).toBe('menu');

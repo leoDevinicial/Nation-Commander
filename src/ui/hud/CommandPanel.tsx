@@ -145,6 +145,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
 
   return (
     <Frame
+      tour="command-panel"
       className="pointer-events-auto min-w-0 flex-1 sm:h-[222px] [@media(max-height:520px)]:h-auto [@media(max-height:520px)]:max-h-[150px]"
       innerClassName="flex min-w-0 flex-col gap-2 p-2 sm:flex-row sm:gap-3 sm:p-3 [@media(max-height:520px)]:flex-row [@media(max-height:520px)]:gap-2 [@media(max-height:520px)]:p-2"
       onPointerDown={(e) => e.stopPropagation()}
@@ -326,6 +327,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
                 className="nc-tab"
                 onClick={() => setBuildTab(t.id)}
                 title={`Construções ${t.label.toLowerCase()}`}
+                data-tour={`tab:${t.id}`}
               >
                 <t.icon size={13} aria-hidden />
                 <span className="hidden min-[1100px]:inline">{t.label}</span>

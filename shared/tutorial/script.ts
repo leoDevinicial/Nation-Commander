@@ -151,7 +151,7 @@ export const TUTORIAL: TutorialChapter[] = [
         mark: 'hq',
         camera: 'hq',
         cond: { k: 'fact', fact: 'hq_selected' },
-        help: 'A tecla H seleciona e mostra o Centro de Comando.',
+        help: 'A tecla H leva a câmera até ele. Depois, clique no prédio.',
       },
       {
         id: '1.5',
@@ -171,7 +171,7 @@ export const TUTORIAL: TutorialChapter[] = [
         objective: 'Forme 2 cidadãos',
         anchor: ['Cidadão', 'build-button'],
         cond: { k: 'more', what: 'citizens', n: 2 },
-        help: 'Selecione o Centro de Comando (H) e toque em Cidadão duas vezes. Cada um custa comida.',
+        help: 'Clique no Centro de Comando (a tecla H mostra onde ele está) e toque em Cidadão duas vezes. Cada um custa comida.',
       },
       {
         id: '2.2',

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChartColumn, FlaskConical, Handshake, LayoutDashboard, Scale, Ship, Stethoscope, Wallet, X } from 'lucide-react';
 import { Frame } from '../components/Frame.tsx';
 import { factionColor } from '../../game/render/palette.ts';
@@ -36,6 +36,10 @@ type Tab = (typeof TABS)[number]['id'];
 export function NationalPanel({ onClose }: { onClose: () => void }) {
   const requested = useNationalStore((s) => s.panelTab);
   const [tab, setTab] = useState<Tab>(() => TABS.find((t) => t.id === requested)?.id ?? 'overview');
+  useEffect(() => {
+    useNationalStore.setState({ shownTab: tab });
+    return () => useNationalStore.setState({ shownTab: null });
+  }, [tab]);
   const mySlot = useAppStore((s) => s.match?.yourSlot ?? 0);
   const balanceMode = useAppStore((s) => s.match?.balanceMode ?? 'parity');
   const nation = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot));
@@ -82,7 +86,7 @@ export function NationalPanel({ onClose }: { onClose: () => void }) {
       </div>
       <div className="no-scrollbar flex overflow-x-auto px-2 pt-1" role="tablist">
         {TABS.map((t) => (
-          <button key={t.id} role="tab" aria-selected={tab === t.id} className="nc-tab !flex-none px-2.5" onClick={() => setTab(t.id)} title={t.label}>
+          <button key={t.id} role="tab" aria-selected={tab === t.id} className="nc-tab !flex-none px-2.5" onClick={() => setTab(t.id)} title={t.label} data-tour={`nation-tab:${t.id}`}>
             <t.icon size={13} aria-hidden />
             <span>{t.label}</span>
           </button>

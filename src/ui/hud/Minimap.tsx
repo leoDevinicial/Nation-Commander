@@ -115,6 +115,7 @@ export function Minimap({ runtime }: { runtime: GameRuntime }) {
       <button
         className="btn btn-primary mb-1 flex w-full items-center justify-center gap-1.5 px-1 py-1 text-xs"
         onClick={() => runtime.openBuildMenu()}
+        data-tour="build-button"
         title="Construir (B): abre o menu de construção do Centro de Comando sem mover a câmera"
       >
         <Hammer size={14} aria-hidden />

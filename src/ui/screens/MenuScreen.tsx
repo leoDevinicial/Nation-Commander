@@ -1,5 +1,6 @@
 import { LanguagePicker } from '../components/LanguagePicker.tsx';
-import { Flag, FlaskConical, Globe, MessageSquare, MessagesSquare, Play } from 'lucide-react';
+import { Flag, FlaskConical, Globe, GraduationCap, MessageSquare, MessagesSquare, Play } from 'lucide-react';
+import { markTutorial, tutorialSeen } from '../../state/useTutorialStore.ts';
 import { useState } from 'react';
 import { gameClient } from '../../net/client.ts';
 import { localAdvisorStore, type Advice } from '../../game/perf/advisor.ts';
@@ -25,7 +26,9 @@ export function MenuScreen() {
   const online = status === 'connected';
   const offlineHint = online ? undefined : 'Aguardando conexão com o servidor de jogo';
 
-  const create = async (mode: 'pvp' | 'vs_ai' | 'sandbox') => {
+  // primeira visita (07/11): convite para o tutorial no topo do menu, até jogar ou dispensar
+  const [invite, setInvite] = useState(() => !tutorialSeen());
+  const create = async (mode: 'pvp' | 'vs_ai' | 'sandbox' | 'tutorial') => {
     autoFullscreen();
     // KNPS-08: a sala nasce na região de menor ping (com várias regiões configuradas)
     if (!(await prepareNewRoom())) return;
@@ -53,12 +56,42 @@ export function MenuScreen() {
 
       <PresetAdvice />
 
+      {invite && (
+        <div className="mb-3 border border-brass-400/50 bg-brass-400/[0.07] p-3">
+          <div className="nc-kicker flex items-center gap-1.5">
+            <GraduationCap size={13} aria-hidden /> Primeira vez no comando?
+          </div>
+          <p className="mt-1 text-sm text-ink-200">Um tutorial narrado de uns 15 minutos: economia, exército, governo, alianças, comércio e a primeira vitória.</p>
+          <div className="mt-2 flex gap-2">
+            <button className="btn btn-primary flex-1" disabled={!online} title={offlineHint} onClick={() => void create('tutorial')}>
+              Começar o tutorial
+            </button>
+            <button
+              className="btn"
+              onClick={() => {
+                markTutorial('skipped');
+                setInvite(false);
+              }}
+            >
+              Agora não
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-2">
         <button className="btn btn-primary btn-hero w-full" disabled={!online} title={offlineHint} onClick={() => void create('vs_ai')}>
           <Play size={18} aria-hidden className="shrink-0" />
           <span className="flex flex-col">
             <span>Nova Partida</span>
             <span className="font-sans text-[11px] font-medium tracking-normal opacity-75">Contra um governo controlado pela IA</span>
+          </span>
+        </button>
+        <button className="btn btn-hero w-full" disabled={!online} title={offlineHint} onClick={() => void create('tutorial')}>
+          <GraduationCap size={18} aria-hidden className="shrink-0 text-brass-400" />
+          <span className="flex flex-col">
+            <span>Tutorial</span>
+            <span className="font-sans text-[11px] font-medium tracking-normal text-ink-400">Partida guiada e narrada: aprenda o jogo em uns 15 minutos</span>
           </span>
         </button>
         <button className="btn btn-hero w-full" disabled={!online} title={offlineHint} onClick={() => void create('sandbox')}>

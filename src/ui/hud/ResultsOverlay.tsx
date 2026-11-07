@@ -4,6 +4,7 @@ import { formatDuration, formatPct, formatSigned, formatUsd } from '../../lib/fo
 import { TECHNOLOGIES } from '../../../shared/strategic/technologies.ts';
 import { factionColor } from '../../game/factions.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
+import { preferredCountry } from '../../app/session.ts';
 import { MEDALS, type MedalId } from '../../../shared/sim/report.ts';
 import { ReportCharts } from './ReportCharts.tsx';
 
@@ -38,6 +39,7 @@ export function ResultsOverlay() {
   const me = end.players.find((p) => p.slot === mySlot);
   const title = me?.result === 'win' ? 'Vitória' : me?.result === 'loss' ? 'Derrota' : 'Empate';
 
+  const tutorial = useAppStore.getState().match?.mode === 'tutorial';
   const back = () => {
     gameClient.send({ t: 'leave_room' });
     useAppStore.setState({ screen: 'menu', match: null, matchEnd: null, room: null, chat: [] });
@@ -119,11 +121,26 @@ export function ResultsOverlay() {
             </p>
           </>
         )}
-        <p className="mt-4 text-center text-xs text-ink-400">
-          {end.recorded ? 'Partida registrada no seu perfil.' : guest ? 'Partida de convidado: estatísticas não são salvas.' : 'Não foi possível registrar esta partida.'}
-        </p>
-        <div className="mt-4 text-center">
-          <button className="btn btn-primary" onClick={back}>
+        {tutorial ? (
+          <p className="mt-4 text-center text-sm text-ink-200">Tutorial concluído. A próxima é de verdade: contra a IA, com oito minutos de preparo.</p>
+        ) : (
+          <p className="mt-4 text-center text-xs text-ink-400">
+            {end.recorded ? 'Partida registrada no seu perfil.' : guest ? 'Partida de convidado: estatísticas não são salvas.' : 'Não foi possível registrar esta partida.'}
+          </p>
+        )}
+        <div className="mt-4 flex justify-center gap-2">
+          {tutorial && (
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                back();
+                gameClient.send({ t: 'create_room', mode: 'vs_ai', countryId: preferredCountry() });
+              }}
+            >
+              Primeira partida contra a IA
+            </button>
+          )}
+          <button className={tutorial ? 'btn' : 'btn btn-primary'} onClick={back}>
             Voltar ao Menu
           </button>
         </div>
