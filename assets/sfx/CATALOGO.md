@@ -632,6 +632,35 @@ intervalo mais curto (dá para afastar o segundo tiro ao recortar: cortar no mei
 primeiro); a 3 serve como tiro distante. Ao implementar: cortar o início da 2, cortar em ~1 s com fade (a 2 em ~1,5 s,
 pelo eco), normalizar com margem (subir a 2 e a 3), converter para mono.
 
+## Lote 33 (07/11) — gerado no ElevenLabs: o que faltava (27 sons, 2 variações cada)
+Gerado pelo Claude no ElevenLabs (Sound Effects v2, com duração definida; vozes com o Eleven v4). MP3 44,1 kHz
+estéreo, 128 kbps. Fluxo "Nation Commander - SFX que faltam" na conta do responsável.
+
+| Pasta (`originais/`) | Arquivos | Duração | O que é | No jogo |
+|---|---|---|---|---|
+| `antiaerea-estouro/` | 2 | 2,5 s | estouro de granada antiaérea no céu, estilhaços e eco | `flak` (recorte 0,4–1,6 s) |
+| `missil-ar-terra/` | 2 | 3 s | míssil ar-terra saindo do caça | `agm_launch` (antes usava o ar-ar) |
+| `drone-passagem/` | 2 | 4 s | drone passando por cima, com Doppler | `drone_pass` |
+| `drone-fpv/` | 2 | 6 s, loop | som de bordo do drone FPV (hélice aguda e vento) | ainda não ligado |
+| `silo-preparo/` | 2 | 6 s | portas hidráulicas do silo, klaxon e baques | `missileCue('prepare')` (0–3,6 s) |
+| `silo-autorizado/` | 2 | 3 s | chave girando, dois bipes e alarme grave | `missileCue('authorize')` |
+| `chuva/` | 2 | 10 s, loop | chuva média em grama e telhados | ainda não ligado |
+| `trovao/` | 2 | 6 s | estalo e ronco longo | `thunder()` (0–5,5 s) |
+| `vento-neve/` | 2 | 10 s, loop | vento frio de inverno | ainda não ligado |
+| `producao-predios/` | 20 | 8 s, loop | serraria, pedreira, mina, fábrica, petróleo, fazenda, aeroporto, porto, escritório, zumbido | ainda não ligados |
+| `interface/` | 12 | 0,5–2,2 s | clique, confirmar, erro, alerta, sucesso, anúncio | `ui('click' / 'confirm' / 'error' / 'alert' / 'success' / 'herald')` |
+| `voz-contagem/` | 4 | 3,5–3,8 s | "Três, dois, um, ignição!" (voz Rômulo Franklin) e "Tres, dos, uno, ¡ignición!" (voz Joselo de Tacna) | `espaco-contagem-pt` e `-es` |
+
+Contagem em português e espanhol: `COUNTDOWNS` no `scripts/sfx-preparar.py` põe a voz sobre a `espaco-ignicao` (filtro de
+rádio de 300–3.800 Hz, compressão e +12 dB), com o ronco cedendo enquanto ela fala. Um número por segundo: "três" em
+T-3 e "ignição!" na decolagem. O `space_prelaunch` escolhe pelo idioma da tela (`voiceLang`); idioma sem gravação
+própria cai na ignição sem voz.
+
+Volumes: medidos offline contra o sintetizado que cada gravação substitui (mesma energia no canal), com
+`scripts/sfx/calibrar.cjs`; ficam em `AGM_GAIN`, `FLAK_GAIN`, `DRONE_PASS_GAIN`, `UI_GAIN`, `SILO_GAIN` e
+`THUNDER_GAIN` no `AudioService`. O estouro antiaéreo ficou um pouco acima do sintetizado (que é quase inaudível). Não
+ouvidos por uma pessoa: vale conferir no jogo e ajustar esses números.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono 44,1 kHz (o vento fica estéreo) e iguala o volume dos clipes em
 `public/sfx/` (121 arquivos, ~4,3 MB). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o áudio é
@@ -696,17 +725,11 @@ energia, sirene) eram descartados. Agora começa em "nunca tocou".
 **Ficaram de fora de propósito:** jato-voando-1 (muito baixo e cortado), antiaerea-era4-duplo-3 (distante, sem ataque),
 domo-lancamento-2 (baque fraco sozinho), sirene-ataque-aereo-1 (sem uso por enquanto), blindado-canhao-1 (sem ataque).
 
-## O que falta (04/11)
-Ainda sintetizados, sem gravação:
-- **Combate:** estouro antiaéreo no ar (`flak`, quando um avião cai); míssil ar-terra próprio (`agm_launch` usa o
-  ar-ar); drone passando (`drone_pass`) e o som de bordo do drone FPV (loop, sem fade).
-- **Silo nuclear:** "preparando" (`missileCue('prepare')`) e "autorizado" (`missileCue('authorize')`).
-- **Programa Espacial:** contagem falada em português e espanhol (só a voz, sem motor; hoje esses idiomas ouvem só a
-  ignição).
-- **Clima:** chuva (loop), trovão (estouros soltos) e vento de neve (a neve ainda usa o vento sintetizado do
-  `setWeather`; dá para testar os ventos do lote 24 ali).
-- **Produção dos prédios** (loops de 5–10 s sem fade): serraria, pedreira, mina, fábrica, bomba de petróleo, fazenda,
-  aeroporto, porto, escritório e o zumbido genérico.
-- **Interface** (opcional): clique, confirmar, erro, alerta, sucesso, anúncio.
+## O que falta (07/11)
+Gravados no lote 33 mas ainda não tocam (precisam de laço por prédio e por clima, hoje sintetizados no `setProduction` e
+no `setWeather`): chuva, vento de neve, som de bordo do drone FPV e os 10 laços de produção dos prédios.
+
+Ainda sem gravação:
 - **Variações que não vieram** (opcionais): explosão grande 1, sirene 3, bombardeio em tapete 1 e 4, decolagem 1, 3 e
   4, torre 1 e 4.
+- **Interface:** "segurar" (`hold`), "aviso grave" (`warning`) seguem sintetizados.

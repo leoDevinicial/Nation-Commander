@@ -1,0 +1,37 @@
+<!doctype html><meta charset="utf-8"><body>
+<script type="module">
+// Calibração offline (07/11): toca o mesmo som sintetizado e gravado no motor de áudio do jogo e compara a energia.
+import { AudioService } from '/src/game/audio/AudioService.ts';
+const SR = 48000;
+async function render(useSamples, fn, dur) {
+  const ctx = new OfflineAudioContext(2, Math.ceil(SR * dur), SR);
+  const realResume = ctx.resume.bind(ctx); let started = false;
+  ctx.resume = () => (started ? realResume() : Promise.resolve());
+  window.AudioContext = function () { return ctx; };
+  const a = new AudioService();
+  a.unlock();
+  Object.defineProperty(a, 'ready', { get: () => true });
+  a.setVolumes({ master: 1, combat: 1, music: 0, ambient: 1, ui: 1, production: 0 }, false);
+  a.useSamples = useSamples;
+  a.setListener(0, 0, 20, 0);
+  await new Promise((r) => setTimeout(r, 2500)); // amostras decodificadas
+  ctx.suspend(0.05).then(() => { fn(a); ctx.resume(); });
+  started = true;
+  const buf = await ctx.startRendering();
+  const L = buf.getChannelData(0), R = buf.getChannelData(1);
+  let e = 0, peak = 0;
+  for (let i = 0; i < L.length; i++) { const v = (L[i] * L[i] + R[i] * R[i]) / 2; e += v; peak = Math.max(peak, Math.abs(L[i]), Math.abs(R[i])); }
+  return { energy: e / SR, peak };
+}
+window.calibrate = async (cases) => {
+  const out = [];
+  for (const c of cases) {
+    const fn = new Function('a', c.call);
+    const synth = await render(false, fn, c.dur);
+    const rec = await render(true, fn, c.dur);
+    out.push({ name: c.name, synth, rec, gain: rec.energy > 0 ? Math.sqrt(synth.energy / rec.energy) : null });
+  }
+  return out;
+};
+window.ready = true;
+</script>

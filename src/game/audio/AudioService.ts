@@ -161,8 +161,8 @@ export interface SampleSet {
   layer?: { files: string[]; gain: number; delay: number };
   /** Começa `delay` s depois do pedido (contagem do Programa Espacial, que é pedida 10 s antes da decolagem). */
   delay?: number;
-  /** Só neste idioma da tela ('en') ou só fora dele ('outros'): a contagem gravada é falada em inglês. */
-  lang?: 'en' | 'outros';
+  /** Só neste idioma da tela, ou 'outros' (idioma sem gravação própria): a contagem gravada é falada. */
+  lang?: 'en' | 'pt' | 'es' | 'outros';
 }
 const SFX = {
   tank: ['tanque-tiro-1', 'tanque-tiro-2', 'tanque-tiro-3', 'tanque-tiro-4', 'tanque-tiro-5'],
@@ -201,7 +201,13 @@ const SFX = {
   tower: ['torre-defesa-1', 'torre-defesa-2'],
   jetCannon: ['caca-canhao-1', 'caca-canhao-2', 'caca-canhao-3'],
   aam: ['missil-ar-ar-1', 'missil-ar-ar-2', 'missil-ar-ar-3', 'missil-ar-ar-4'],
-  agm: ['missil-ar-ar-2', 'missil-ar-ar-4'],
+  // lote 33 (07/11, ElevenLabs): míssil ar-terra próprio, estouro antiaéreo, drone, silo, trovão e interface
+  agm: ['missil-ar-terra-1', 'missil-ar-terra-2'],
+  flak: ['antiaerea-estouro-1', 'antiaerea-estouro-2'],
+  dronePass: ['drone-passagem-1', 'drone-passagem-2'],
+  siloPrepare: ['silo-preparo-1', 'silo-preparo-2'],
+  siloAuthorize: ['silo-autorizado-1', 'silo-autorizado-2'],
+  thunder: ['trovao-1', 'trovao-2'],
   // sirene: o aviso curto "sob ataque" e as sirenes em loop do silo armado (o loop começa em `SIREN_LOOP` s)
   sirenAlert: ['sirene-aviso'],
   siren: ['sirene-loop-1', 'sirene-loop-2'],
@@ -213,6 +219,14 @@ const SFX = {
 export const LEVELS = { breeze: 3.2, gust: 0.95, salvo: 0.5, siren: 2.2, alert: 0.45 };
 /** Onde começa o loop de cada sirene (a parte antes é a subida do rotor; ver `LOOPS` em `scripts/sfx-preparar.py`). */
 const SIREN_LOOP: Record<string, number> = { 'sirene-loop-1': 3.0, 'sirene-loop-2': 1.5 };
+/**
+ * Lote 33 (07/11): ganhos medidos offline contra o sintetizado que substituem (mesma energia média no canal, em
+ * `scripts/sfx/calibrar.cjs`); interface e silo usam `UI_GAIN` e `SILO_GAIN` no `playExtra`.
+ */
+const AGM_GAIN = 0.75;
+// o estouro sintetizado é quase inaudível (alto no céu): a gravação fica um pouco acima da energia dele
+const FLAK_GAIN = 0.06;
+const DRONE_PASS_GAIN = 1.33;
 /** Ganhos calibrados no navegador (04/11) para ficar no nível do sintetizado que substituem (média do canal de combate). */
 export const SAMPLES: Partial<Record<CombatSound, SampleSet | SampleSet[]>> = {
   mbt_gun: { files: SFX.tank, gain: 1.1, rate: 0.9 },
@@ -257,6 +271,9 @@ export const SAMPLES: Partial<Record<CombatSound, SampleSet | SampleSet[]>> = {
   // em inglês vai a voz; nos outros idiomas, só a partir da ignição. As bombas e válvulas do sintetizado seguem por baixo.
   space_prelaunch: [
     { files: ['espaco-contagem-en'], gain: 1.15, delay: 0.3, synth: 0.7, lang: 'en' },
+    // português e espanhol (lote 33): a mesma ignição com "três, dois, um, ignição" por cima
+    { files: ['espaco-contagem-pt'], gain: 1.2, delay: 2.6, synth: 0.7, lang: 'pt' },
+    { files: ['espaco-contagem-es'], gain: 1.2, delay: 2.6, synth: 0.7, lang: 'es' },
     { files: ['espaco-ignicao'], gain: 1.2, delay: 2.6, synth: 0.7, lang: 'outros' },
   ],
   space_liftoff: { files: ['espaco-decolagem'], gain: 2.55 },
@@ -271,10 +288,37 @@ export const SAMPLES: Partial<Record<CombatSound, SampleSet | SampleSet[]>> = {
   tower: { files: SFX.tower, gain: 0.073, rate: 1.03 },
   jet_cannon: { files: SFX.jetCannon, gain: 3.45 },
   aam_launch: { files: SFX.aam, gain: 0.47 },
-  agm_launch: { files: SFX.agm, gain: 0.67, rate: 0.9 },
+  agm_launch: { files: SFX.agm, gain: AGM_GAIN },
+  flak: { files: SFX.flak, gain: FLAK_GAIN },
+  drone_pass: { files: SFX.dronePass, gain: DRONE_PASS_GAIN },
 };
 /** Gravações que não são sons de combate do `SAMPLES` (guerra ao longe, energia, sirene, vento, salva), carregadas junto. */
-export const EXTRA_SAMPLES = [...SFX.distant, ...SFX.powerDown, ...SFX.sirenAlert, ...SFX.siren, ...SFX.breeze, ...SFX.gust, ...SFX.salvo];
+/** Interface gravada (lote 33): o sintetizado continua para 'hold', 'warning' e 'attack' e enquanto o arquivo não carregou. */
+const UI_SFX: Partial<Record<UiSound, string[]>> = {
+  click: ['ui-clique-1', 'ui-clique-2'],
+  confirm: ['ui-confirmar-1', 'ui-confirmar-2'],
+  error: ['ui-erro-1', 'ui-erro-2'],
+  alert: ['ui-alerta-1', 'ui-alerta-2'],
+  success: ['ui-sucesso-1', 'ui-sucesso-2'],
+  herald: ['ui-anuncio-1', 'ui-anuncio-2'],
+};
+/** Volume da interface e dos sinais do silo gravados, no nível dos tons sintetizados (ver `AGM_GAIN`). */
+const UI_GAIN: Partial<Record<UiSound, number>> = { click: 0.15, confirm: 0.14, error: 0.13, alert: 0.14, success: 0.18, herald: 0.19 };
+const SILO_GAIN = { prepare: 0.26, authorize: 1.5 };
+const THUNDER_GAIN = 0.45;
+export const EXTRA_SAMPLES = [
+  ...SFX.distant,
+  ...SFX.powerDown,
+  ...SFX.sirenAlert,
+  ...SFX.siren,
+  ...SFX.breeze,
+  ...SFX.gust,
+  ...SFX.salvo,
+  ...SFX.siloPrepare,
+  ...SFX.siloAuthorize,
+  ...SFX.thunder,
+  ...Object.values(UI_SFX).flat(),
+];
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
 const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, bomber: 1.2, jet_cannon: 0.12, aam_launch: 0.25, drone_pass: 3, agm_launch: 0.2, air_mg: 0.18, bomb_whistle: 0.4, carpet_rumble: 1.5, bomb: 0.07, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, vehicle_explosion: 0.1, vehicle_explosion_heavy: 0.15, nuclear_blast: 1, space_prelaunch: 2, space_liftoff: 2, dome_launch: 0.2, dome_intercept: 0.3, tank_gun: 0.18, apc_gun: 0.25 };
@@ -664,7 +708,7 @@ export class AudioService {
     if (!entry || !this.useSamples) return false;
     const ready = (files: string[]) => files.map((f) => this.sampleBufs.get(f)).filter((b): b is AudioBuffer => !!b);
     const sets = (Array.isArray(entry) ? entry : [entry])
-      .filter((set) => !set.lang || (set.lang === 'en') === (this.voiceLang === 'en'))
+      .filter((set, _i, all) => !set.lang || set.lang === this.voiceLang || (set.lang === 'outros' && !all.some((x) => x.lang === this.voiceLang)))
       .map((set) => ({ set, ready: ready(set.files) }))
       .filter((x) => x.ready.length > 0);
     if (!sets.length) return false;
@@ -738,7 +782,7 @@ export class AudioService {
   }
 
   /** Toca uma gravação avulsa (fora do `SAMPLES`) num canal; false se ainda não carregou. */
-  private playExtra(files: string[], channel: Channel, gain: number, pan: number, rate = 1): boolean {
+  private playExtra(files: string[], channel: Channel, gain: number, pan: number, rate = 1, delay = 0): boolean {
     const ready = files.map((f) => this.sampleBufs.get(f)).filter((b): b is AudioBuffer => !!b);
     if (!ready.length || !this.ctx) return false;
     const buf = ready[Math.floor(Math.random() * ready.length)]!;
@@ -746,7 +790,7 @@ export class AudioService {
     src.buffer = buf;
     src.playbackRate.value = rate;
     src.connect(this.out(channel, gain, pan));
-    src.start();
+    src.start(delay > 0 ? this.ctx.currentTime + delay : 0);
     return true;
   }
 
@@ -2160,6 +2204,9 @@ export class AudioService {
       if (!this.gap('attack_alert', 30)) return;
       if (this.useSamples && this.playExtra(SFX.sirenAlert, 'ui', LEVELS.alert, 0)) return;
     }
+    if (sound === 'alert' && !this.gap('ui:alert_soft', 3)) return;
+    const rec = UI_SFX[sound];
+    if (rec && this.useSamples && this.playExtra(rec, 'ui', UI_GAIN[sound] ?? 1, 0)) return;
     const ctx = this.ctx!;
     const t = ctx.currentTime + 0.003;
     const out = this.out('ui', 1);
@@ -2194,8 +2241,7 @@ export class AudioService {
         tone(220, t, 0.14, 0.25, 'sawtooth', 170);
         break;
       case 'alert':
-        // perda (unidade, avião, caravana): duas notas suaves, no máximo a cada 3 s (a onda quadrada soava "8 bits")
-        if (!this.gap('ui:alert_soft', 3)) return;
+        // perda (unidade, avião, caravana): duas notas suaves, no máximo a cada 3 s (o intervalo é conferido acima)
         tone(880, t, 0.12, 0.22, 'triangle');
         tone(660, t + 0.16, 0.16, 0.22, 'triangle');
         break;
@@ -2225,6 +2271,12 @@ export class AudioService {
     const ctx = this.ctx!;
     const t = ctx.currentTime + 0.01;
     const out = this.out('ui', 0.9);
+    // preparação e autorização gravadas (lote 33); o alarme de armado continua com a sirene em loop
+    if (cue === 'prepare' && this.useSamples && this.playExtra(SFX.siloPrepare, 'ui', 0.9 * SILO_GAIN.prepare, 0)) return;
+    if (cue === 'authorize' && this.useSamples && this.playExtra(SFX.siloAuthorize, 'ui', 0.9 * SILO_GAIN.authorize, 0)) {
+      this.stopAlarm();
+      return;
+    }
     if (cue === 'prepare') {
       // abastecimento: pulsos graves de bomba durante a preparação
       for (let i = 0; i < 6; i++) {
@@ -3055,6 +3107,8 @@ export class AudioService {
    */
   thunder(delay: number, near: number): void {
     if (!this.ready) return;
+    // trovão gravado (lote 33): mais alto e mais agudo quando o raio cai perto
+    if (this.useSamples && this.playExtra(SFX.thunder, 'ambient', (0.6 + near * 0.6) * THUNDER_GAIN, 0, 0.92 + near * 0.12, delay)) return;
     const ctx = this.ctx!;
     const t = ctx.currentTime + delay;
     const out = this.out('ambient', 0.6 + near * 0.6);

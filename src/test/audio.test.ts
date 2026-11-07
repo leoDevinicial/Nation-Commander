@@ -33,9 +33,9 @@ describe('áudio contextual (Fase 7)', () => {
     const files = new Set(Object.keys(import.meta.glob('../../public/sfx/*.mp3')).map((f) => f.split('/').pop()!.replace('.mp3', '')));
     const missing = [...names].filter((n) => !files.has(n));
     expect(missing).toEqual([]);
-    // a contagem falada em inglês tem a versão sem voz para os outros idiomas
+    // contagem falada em inglês, português e espanhol (lote 33), e a versão sem voz para os outros idiomas
     const space = SAMPLES.space_prelaunch;
-    expect(Array.isArray(space) && space.map((x) => x.lang).sort()).toEqual(['en', 'outros']);
+    expect(Array.isArray(space) && space.map((x) => x.lang).sort()).toEqual(['en', 'es', 'outros', 'pt']);
   });
 
   it('sem contexto de áudio (antes do primeiro gesto) nada quebra', () => {

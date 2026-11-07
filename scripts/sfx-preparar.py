@@ -137,6 +137,39 @@ MORE = [
     ('missil-ar-ar-2', 'missil-ar-ar/missil-ar-ar-2', 0.1, 1.4, 0.5, -19, 0),
     ('missil-ar-ar-3', 'missil-ar-ar/missil-ar-ar-3', 0.02, 2.4, 0.8, -19, 0),
     ('missil-ar-ar-4', 'missil-ar-ar/missil-ar-ar-4', 0.1, 2.0, 0.8, -19, 0),
+    # lote 33 (07/11, ElevenLabs): estouro antiaéreo, míssil ar-terra, drone passando, silo, trovão e interface
+    ('antiaerea-estouro-1', 'antiaerea-estouro/antiaerea-estouro-1', 0.4, 1.5, 0.6, -19, 0.01),
+    ('antiaerea-estouro-2', 'antiaerea-estouro/antiaerea-estouro-2', 0.4, 1.6, 0.6, -19, 0.01),
+    ('missil-ar-terra-1', 'missil-ar-terra/missil-ar-terra-1', 0.0, 2.4, 0.8, -19, 0),
+    ('missil-ar-terra-2', 'missil-ar-terra/missil-ar-terra-2', 0.0, 2.4, 0.8, -19, 0),
+    ('drone-passagem-1', 'drone-passagem/drone-passagem-1', 0.0, 4.0, 0.8, -22, 0.2),
+    ('drone-passagem-2', 'drone-passagem/drone-passagem-2', 0.2, 3.4, 0.8, -22, 0.2),
+    ('silo-preparo-1', 'silo-preparo/silo-preparo-1', 0.0, 3.6, 0.8, -19, 0),
+    ('silo-preparo-2', 'silo-preparo/silo-preparo-2', 0.0, 3.6, 0.8, -19, 0),
+    ('silo-autorizado-1', 'silo-autorizado/silo-autorizado-1', 0.0, 1.8, 0.5, -19, 0),
+    ('silo-autorizado-2', 'silo-autorizado/silo-autorizado-2', 0.4, 2.4, 0.5, -19, 0),
+    ('trovao-1', 'trovao/trovao-1', 0.0, 5.5, 2.0, -19, 0),
+    ('trovao-2', 'trovao/trovao-2', 0.0, 5.5, 2.0, -19, 0),
+    ('ui-clique-1', 'interface/ui-clique-1', 0.0, 0.25, 0.1, -22, 0),
+    ('ui-clique-2', 'interface/ui-clique-2', 0.2, 0.48, 0.1, -22, 0),
+    ('ui-confirmar-1', 'interface/ui-confirmar-1', 0.0, 0.8, 0.25, -22, 0),
+    ('ui-confirmar-2', 'interface/ui-confirmar-2', 0.0, 0.6, 0.2, -22, 0),
+    ('ui-erro-1', 'interface/ui-erro-1', 0.0, 0.55, 0.2, -22, 0),
+    ('ui-erro-2', 'interface/ui-erro-2', 0.0, 0.45, 0.15, -22, 0),
+    ('ui-alerta-1', 'interface/ui-alerta-1', 0.0, 1.3, 0.4, -22, 0),
+    ('ui-alerta-2', 'interface/ui-alerta-2', 0.0, 1.45, 0.4, -22, 0),
+    ('ui-sucesso-1', 'interface/ui-sucesso-1', 0.0, 1.25, 0.5, -22, 0),
+    ('ui-sucesso-2', 'interface/ui-sucesso-2', 0.0, 1.0, 0.4, -22, 0),
+    ('ui-anuncio-1', 'interface/ui-anuncio-1', 0.0, 1.9, 0.7, -22, 0),
+    ('ui-anuncio-2', 'interface/ui-anuncio-2', 0.0, 1.6, 0.6, -22, 0),
+]
+
+# contagem falada em português e espanhol (lote 33): a ignição gravada (`espaco-ignicao`, tocada 2,6 s depois do pedido,
+# que vem 10 s antes da decolagem) com a voz por cima: "três" em T-3 (4,4 s no arquivo), um número por segundo e
+# "ignição!" na decolagem. (saída, voz, início da voz no arquivo s, ganho da voz dB)
+COUNTDOWNS = [
+    ('espaco-contagem-pt', 'voz-contagem/voz-contagem-pt-1', 4.31, 12.0),
+    ('espaco-contagem-es', 'voz-contagem/voz-contagem-es-1', 4.34, 12.0),
 ]
 
 # loops sem emenda: (saída, original, início s, fim s, cruz s, média alvo dB, estéreo, intro)
@@ -208,6 +241,20 @@ def main() -> None:
         print(f'{dst}: {dur:.1f} s, ganho {gain:+.1f} dB, {os.path.getsize(dst) // 1024} KB')
     for loop in LOOPS:
         make_loop(*loop)
+    for name, voice, at, gain in COUNTDOWNS:
+        base = os.path.join(OUT, 'espaco-ignicao.mp3')
+        src = os.path.normpath(os.path.join(SRC, voice + '.mp3'))
+        dst = os.path.join(OUT, name + '.mp3')
+        ms = int(at * 1000)
+        # voz de rádio: banda de 300–3.800 Hz, comprimida, acima do ronco
+        # o ronco cede enquanto a voz fala (sidechain), para os números não sumirem no fim da contagem
+        graph = (
+            f'[1:a]aformat=channel_layouts=mono,highpass=f=300,lowpass=f=3800,acompressor=threshold=-20dB:ratio=4,volume={gain}dB,adelay={ms},apad=whole_dur=11,asplit=2[v][k];'
+            '[0:a]aformat=channel_layouts=mono[b];[b][k]sidechaincompress=threshold=0.015:ratio=5:attack=8:release=260[bd];'
+            '[bd][v]amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.89:level=false[o]'
+        )
+        subprocess.run(['ffmpeg', '-y', '-v', 'error', '-i', base, '-i', src, '-filter_complex', graph, '-map', '[o]', '-ac', '1', '-ar', '44100', '-c:a', 'libmp3lame', '-b:a', '80k', dst], check=True)
+        print(f'{dst}: contagem com voz em {at:.2f} s, {os.path.getsize(dst) // 1024} KB')
 
 
 if __name__ == '__main__':
