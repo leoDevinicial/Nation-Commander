@@ -82,6 +82,18 @@ describe('tutorial', () => {
     expect(parseClientMessage(JSON.stringify({ t: 'tutorial', fact: 'qualquer' }))).toBeNull();
   });
 
+  it('pular cumpre o passo: pulando tudo até a vitória, a aliança, o terminal e a rota existem', async () => {
+    const { sim, send, view, until } = await tutorialRoom();
+    for (let i = 0; i < 8 && view().chapter < 9; i++) await send({ t: 'tutorial', skip: 'chapter' });
+    expect(view()).toMatchObject({ chapter: 9, step: '9.1' });
+    until('9.1', 1);
+    expect(sim.allied(0, 1)).toBe(true);
+    expect(sim.eraOf(0)).toBe(2);
+    expect(sim.buildings.some((b) => b.owner === 0 && b.type === 'market' && b.progress >= 1)).toBe(true);
+    expect(typeof sim.trade.route(0, 1, 'road')).not.toBe('string');
+    expect(sim.buildings.some((b) => b.owner === 0 && b.type === 'barracks')).toBe(true);
+  });
+
   it('do começo ao fim: economia, exército, combate, governo, aliança, comércio e vitória', async () => {
     const { sim, room, send, cmd, view, until, a, records } = await tutorialRoom();
     const hq = () => sim.hqOf(0)!;

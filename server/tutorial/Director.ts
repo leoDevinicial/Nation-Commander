@@ -4,11 +4,11 @@
  * jogador só o passo atual. O cliente informa apenas fatos da própria tela (câmera, seleção, painéis), aceitos só no
  * passo que os pede: nada que ele mande muda a partida.
  */
-import { BUILDINGS, TICK_RATE, Terrain, UNITS } from '../../shared/sim/config.ts';
+import { BUILDINGS, TICK_RATE, Terrain, UNITS, type BuildingType } from '../../shared/sim/config.ts';
 import type { NationalSimulation } from '../../shared/strategic/NationalSimulation.ts';
 import type { Simulation } from '../../shared/sim/Simulation.ts';
 import type { Building, EntityId, SimEvent, Slot } from '../../shared/sim/types.ts';
-import type { TechId } from '../../shared/strategic/technologies.ts';
+import { TECH_IDS, type TechId } from '../../shared/strategic/technologies.ts';
 import {
   TUTORIAL,
   TUTORIAL_STEPS,
@@ -40,6 +40,9 @@ export class TutorialDirector {
   private patrol: EntityId[] = [];
   private highwayEnd: { cx: number; cy: number } | null = null;
   private lastSent = '';
+  private met = false;
+  private bought = false;
+  private revealed = false;
   done = false;
 
   constructor(
@@ -86,6 +89,8 @@ export class TutorialDirector {
     this.topUp();
     const step = this.current().step;
     const elapsed = (this.sim.tick - this.since) / TICK_RATE;
+    // ações de entrada que ainda não pegaram (ex.: a proposta sai só depois do contato) tentam de novo; todas são idempotentes
+    for (const a of step.enter ?? []) this.act(a);
     if (this.satisfied(step.cond, elapsed)) {
       this.advance();
       return;
@@ -109,9 +114,13 @@ export class TutorialDirector {
   skip(what: 'step' | 'chapter'): void {
     if (this.done) return;
     const chapter = this.current().chapter.id;
+    let first = true;
     do {
       const { step } = this.current();
-      if (step.auto) this.act(step.auto.action);
+      // o passo atual já rodou as ações de entrada; os seguintes, pulados junto, rodam agora
+      if (!first) for (const a of step.enter ?? []) this.act(a);
+      first = false;
+      this.fulfill(step.cond);
       this.next();
     } while (!this.done && what === 'chapter' && this.current().chapter.id === chapter);
     if (!this.done) this.enter();
@@ -247,6 +256,67 @@ export class TutorialDirector {
     }
   }
 
+  /** Pular um passo cumpre o que ele pedia (constrói, treina, liga), para o mundo ficar coerente com os próximos. */
+  private fulfill(c: TutorialCond): void {
+    const { sim, national, human } = this;
+    const p = sim.players[human]!;
+    const hq = sim.hqOf(human);
+    switch (c.k) {
+      case 'more':
+        if (c.what === 'citizens') p.citizens += c.n;
+        else p.recruits += c.n;
+        return;
+      case 'built': {
+        const have = sim.buildings.filter((b) => b.owner === human && b.type === c.type && b.hp > 0);
+        for (const b of have) if (b.progress < 1) b.builtTicks = Math.max(b.builtTicks, b.buildTicks - 1);
+        if (have.length || !hq) return;
+        sim.grantResources(human, sim.buildingCostFor(human, c.type));
+        const byRoad = c.type === 'market' || c.type === 'barracks';
+        const cell = this.freeCellNear(human, c.type, hq, 2, 16, byRoad) ?? this.freeCellNear(human, c.type, hq, 2, 18);
+        if (cell) sim.addBuilding(c.type, human, cell, 1);
+        return;
+      }
+      case 'units':
+      case 'army': {
+        if (!hq) return;
+        const have = c.k === 'units' ? sim.units.filter((u) => u.owner === human && u.type === c.type && u.hp > 0).length : this.army().length;
+        for (let i = have; i < c.n; i++) sim.addUnit(c.k === 'units' ? c.type : 'infantry', human, { x: hq.pos.x + 6 + i * 1.5, y: hq.pos.y + 6 });
+        return;
+      }
+      case 'researching': {
+        const n = national.nation(human);
+        if (!n || n.research.current) return;
+        for (const t of TECH_IDS) if (!n.research.done.includes(t) && national.setResearch(human, t) === null) return;
+        return;
+      }
+      case 'era':
+        // pulado: a era nova vale na hora (sem os 4 s da obra)
+        if (sim.eraOf(human) < c.era) {
+          p.era = c.era as typeof p.era;
+          p.eraAdvance = null;
+        }
+        return;
+      case 'alliance':
+        this.act('ally_propose');
+        this.act('ally_accept_pact');
+        return;
+      case 'truck_route':
+        this.act('finish_highway');
+        return;
+      case 'listed':
+        if (!sim.trade.listings.some((l) => l.seller === human)) sim.applyCommand(human, { type: 'trade_list', kind: 'sale', items: [{ resource: 'wood', quantity: 40 }], priceUsd: 40 * 4500 });
+        return;
+      case 'patrol_dead':
+        this.act('weaken_patrol');
+        return;
+      case 'enemy_defeated':
+        this.act('weaken_enemy');
+        return;
+      default:
+        return;
+    }
+  }
+
   // ------------------------------------------------------------ ações
 
   private act(a: TutorialAction): void {
@@ -284,6 +354,8 @@ export class TutorialDirector {
         if (sim.players[ally] && (sim.players[ally]!.era ?? 1) < 2) sim.players[ally]!.era = 2;
         return;
       case 'meet_ally':
+        if (this.met) return;
+        this.met = true;
         sim.setMet(human, ally);
         national.meetInTheater(human, ally);
         return;
@@ -317,16 +389,17 @@ export class TutorialDirector {
         return;
       case 'ally_buy': {
         const listing = sim.trade.listings.find((l) => l.seller === human);
-        if (!listing) return;
+        if (!listing || this.bought) return;
         const n = national.nation(ally);
         if (n) n.works.fundUsd = Math.max(n.works.fundUsd, n.dayUsd * 400 + listing.priceUsd * 2);
-        sim.applyCommand(ally, { type: 'trade_buy', listingId: listing.id, mode: 'road' });
+        if (sim.applyCommand(ally, { type: 'trade_buy', listingId: listing.id, mode: 'road' }) === null) this.bought = true;
         return;
       }
       case 'reveal_enemy': {
         const foe = sim.hqOf(enemy);
         const hq = sim.hqOf(human);
-        if (!foe || !hq) return;
+        if (!foe || !hq || this.revealed) return;
+        this.revealed = true;
         const d = Math.hypot(foe.pos.x - hq.pos.x, foe.pos.y - hq.pos.y) || 1;
         const k = 1 - (13 * cs) / d;
         sim.addUnit('scout', human, { x: hq.pos.x + (foe.pos.x - hq.pos.x) * k, y: hq.pos.y + (foe.pos.y - hq.pos.y) * k });
@@ -458,7 +531,7 @@ export class TutorialDirector {
   }
 
   /** Célula válida para `type` a `min`..`max` células de `near` (com `byRoad`, encostada numa estrada). */
-  private freeCellNear(slot: Slot, type: 'tower' | 'market', near: Building, min: number, max: number, byRoad = false): { cx: number; cy: number } | null {
+  private freeCellNear(slot: Slot, type: BuildingType, near: Building, min: number, max: number, byRoad = false): { cx: number; cy: number } | null {
     const { sim } = this;
     const size = BUILDINGS[type].size;
     const W = sim.map.width;

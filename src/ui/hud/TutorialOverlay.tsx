@@ -49,7 +49,7 @@ export function TutorialOverlay({ runtime }: { runtime: GameRuntime }) {
     <>
       <Spotlight anchors={view.anchor} />
       <Frame
-        className="pointer-events-auto absolute top-16 left-3 z-30 w-[340px] max-w-[calc(100vw-24px)] max-sm:top-15 max-sm:left-2 [@media(max-height:520px)]:top-14 [@media(max-height:520px)]:w-[300px]"
+        className="pointer-events-auto absolute top-15 left-2 z-30 w-[340px] max-w-[calc(100vw-24px)] sm:top-auto sm:bottom-[244px] sm:left-3 [@media(max-height:640px)]:top-14 [@media(max-height:640px)]:bottom-auto [@media(max-height:520px)]:w-[300px]"
         innerClassName="space-y-2 p-3 text-sm"
         onPointerDown={(e) => e.stopPropagation()}
       >

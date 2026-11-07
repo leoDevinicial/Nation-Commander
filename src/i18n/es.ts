@@ -3099,7 +3099,7 @@ export const ES: Dict = {
   "A tecla F manda avançar atacando o que aparecer pelo caminho.": "La tecla F ordena avanzar atacando lo que aparezca en el camino.",
   "Patrulha eliminada. Bom trabalho, comandante.": "Patrulla eliminada. Buen trabajo, comandante.",
   "Governo e eras": "Gobierno y eras",
-  "A guerra se paga no governo. Abra o painel Nação: botão Nação, ou tecla G.": "La guerra se paga en el gobierno. Abra el panel Nación: botón Nación, o tecla G.",
+  "A guerra se paga no governo. Abra o painel Nação: o botão com o prédio de colunas, no alto à direita.": "La guerra se paga en el gobierno. Abra el panel Nación: el botón con el edificio de columnas, arriba a la derecha.",
   "Abra o painel Nação": "Abra el panel Nación",
   "Aqui ficam impostos, gastos e aprovação. O caixa do país é o dólar da barra de cima.": "Aquí están los impuestos, gastos y aprobación. La caja del país es el dólar de la barra de arriba.",
   "Pesquisas liberam prédios e tropas novas. Abra a aba Pesquisa.": "Las investigaciones desbloquean edificios y tropas nuevas. Abra la pestaña Investigación.",

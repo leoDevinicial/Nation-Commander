@@ -347,7 +347,7 @@ export const TUTORIAL: TutorialChapter[] = [
     steps: [
       {
         id: '6.1',
-        text: 'A guerra se paga no governo. Abra o painel Nação: botão Nação, ou tecla G.',
+        text: 'A guerra se paga no governo. Abra o painel Nação: o botão com o prédio de colunas, no alto à direita.',
         objective: 'Abra o painel Nação',
         anchor: ['topbar:nation', 'topbar:more'],
         cond: { k: 'fact', fact: 'nation_open' },
@@ -412,6 +412,7 @@ export const TUTORIAL: TutorialChapter[] = [
       {
         id: '7.3',
         text: 'Aceite o convite. Quem propõe paga para firmar; quem rompe depois paga uma indenização.',
+        enter: ['ally_propose'],
         objective: 'Aceite a aliança',
         anchor: ['offer-accept', 'nation-tab:diplomacy'],
         cond: { k: 'alliance' },

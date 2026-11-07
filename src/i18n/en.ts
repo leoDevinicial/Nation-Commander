@@ -3359,7 +3359,7 @@ export const EN: Dict = {
   "A tecla F manda avançar atacando o que aparecer pelo caminho.": "The F key orders an attack-move against anything along the way.",
   "Patrulha eliminada. Bom trabalho, comandante.": "Patrol eliminated. Good work, Commander.",
   "Governo e eras": "Government and eras",
-  "A guerra se paga no governo. Abra o painel Nação: botão Nação, ou tecla G.": "War is paid for by the government. Open the Nation panel: the Nation button, or the G key.",
+  "A guerra se paga no governo. Abra o painel Nação: o botão com o prédio de colunas, no alto à direita.": "War is paid for by the government. Open the Nation panel: the button with the columned building, top right.",
   "Abra o painel Nação": "Open the Nation panel",
   "Aqui ficam impostos, gastos e aprovação. O caixa do país é o dólar da barra de cima.": "Here you find taxes, spending and approval. The country's treasury is the dollar on the top bar.",
   "Pesquisas liberam prédios e tropas novas. Abra a aba Pesquisa.": "Research unlocks new buildings and troops. Open the Research tab.",

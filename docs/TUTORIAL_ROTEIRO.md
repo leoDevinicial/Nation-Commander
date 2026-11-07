@@ -1,4 +1,8 @@
-# Tutorial — roteiro para aprovação (07/11)
+# Tutorial — roteiro (07/11)
+
+> **Implementado** (ver [`TUTORIAL.md`](TUTORIAL.md)). Depois da aprovação entraram os capítulos **Alianças** (7) e
+> **Comércio** (8), o capítulo 6 virou **Governo e eras**, e a Vitória passou a ser o 9. O texto que vale é o de
+> `shared/tutorial/script.ts`; este documento fica como a proposta original.
 
 Proposta de um tutorial jogável, roteirizado e narrado, para quem abre o jogo pela primeira vez. Nada implementado
 ainda: este documento define o que acontece em cada passo, o que o narrador fala e o que faz o jogo avançar. Depois de

@@ -113,6 +113,10 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
 - Idiomas (`src/i18n/`, `docs/IDIOMAS.md`): o código segue em português; `en.ts`/`es.ts` traduzem o texto da tela
   (escolha no menu, ou região pelo IP via `api/geo.js` da Vercel). Texto novo na interface: acrescente a tradução nos dois
   dicionários; `npx tsx scripts/i18n-faltando.ts` lista o que falta. Chat e nomes de jogadores ficam com `translate="no"`.
+- Tutorial (`docs/TUTORIAL.md`): modo de sala `tutorial` (sem lobby, 3 nações, IA parada); roteiro em `shared/tutorial/script.ts`,
+  diretor no servidor (`server/tutorial/Director.ts`) e painel/destaque no cliente (`TutorialOverlay`, âncoras `data-tour`).
+  Botão novo citado no roteiro precisa de `data-tour`; texto novo do roteiro vai nos dicionários en/es e na narração
+  (`scripts/narracao-preparar.py`).
 - Minas terrestres (`shared/sim/mines.ts`) não são entidades: o snapshot envia só as do dono e as já detectadas
   (`MineSystem.visibleTo`). O satélite do Programa Espacial revela o resto do mapa, mas nunca as minas.
 
