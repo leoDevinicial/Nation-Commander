@@ -705,6 +705,22 @@ o volume soma o ganho espacial de cada unidade em movimento visível e satura (`
 ponderada. Ganho cheio 0,45 (uma coluna perto da câmera fica no nível médio da chuva, abaixo dos tiros); apito 0,6.
 Sem a gravação não há motor sintetizado.
 
+## Lote 37 (07/11) — resposta das tropas pelo rádio, pt/en/es (ElevenLabs)
+TTS `eleven_v4`, voz "Jerry B. - Military Commander" (feita para comunicação tática de jogos), uma tomada por idioma com
+as seis falas separadas por pausa (`originais/radio/radio-<idioma>-{a,b}.mp3`; a tomada "a" é a usada).
+
+| Idioma | Movendo (`radio('move')`) | Atacando (`radio('attack')`) |
+|---|---|---|
+| pt | Entendido, a caminho. / Positivo, movendo. / Copiado, em deslocamento. | Alvo confirmado, atacando! / Entendido, abrindo fogo! / Engajando o inimigo! |
+| en | Copy that, moving out. / Roger, on our way. / Affirmative, relocating. | Target confirmed, engaging! / Roger, opening fire! / Engaging the enemy! |
+| es | Entendido, en camino. / Recibido, avanzando. / Afirmativo, nos movemos. | ¡Objetivo confirmado, atacando! / ¡Recibido, abriendo fuego! / ¡Atacando al enemigo! |
+
+`scripts/sfx-radio.py` recorta cada fala e aplica o rádio: banda 350–3000 Hz, compressão, saturação leve, clique de
+apertar o botão, chiado ao soltar e chiado de fundo baixo, a −20 LUFS (`radio-<idioma>-<movendo|atacando>-<n>.mp3`,
+1,4–2,2 s). No jogo: ordem de mover, atacar ou atacar-movendo das tropas, no canal da interface, no máximo uma fala a
+cada 2,5 s e nunca a mesma duas vezes seguidas; idioma sem gravação usa o inglês. Ganho 0,3 (≈ 3 dB acima do anúncio
+mundial).
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono 44,1 kHz (o vento fica estéreo) e iguala o volume dos clipes em
 `public/sfx/` (121 arquivos, ~4,3 MB). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o áudio é

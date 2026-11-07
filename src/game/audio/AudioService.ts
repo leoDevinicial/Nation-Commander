@@ -377,6 +377,12 @@ const DRONE_ONBOARD_GAIN = 1;
 const ENGINE_SFX: Record<EngineClass, string[]> = { tracked: SFX.engineTracked, wheeled: SFX.engineWheeled, naval: SFX.shipUnderway };
 const ENGINE_GAIN: Record<EngineClass, number> = { tracked: 0.45, wheeled: 0.45, naval: 0.45 };
 const SHIP_HORN_GAIN = 0.6;
+/** Resposta das tropas pelo rádio (lote 37): três falas de cada tipo por idioma; idioma sem gravação usa o inglês. */
+export type RadioReply = 'move' | 'attack';
+const RADIO_LANGS = ['pt', 'en', 'es'] as const;
+const radioFiles = (lang: string, kind: RadioReply) => [1, 2, 3].map((i) => `radio-${lang}-${kind === 'move' ? 'movendo' : 'atacando'}-${i}`);
+// uns 3 dB acima da energia do anúncio mundial gravado (`calibrar.cjs`): a fala fica clara sem gritar
+const RADIO_GAIN = 0.3;
 const SNOW_WIND_GAIN = 3;
 export const EXTRA_SAMPLES = [
   ...SFX.distant,
@@ -396,6 +402,7 @@ export const EXTRA_SAMPLES = [
   ...SFX.engineWheeled,
   ...SFX.shipUnderway,
   ...SFX.shipHorn,
+  ...RADIO_LANGS.flatMap((l) => [...radioFiles(l, 'move'), ...radioFiles(l, 'attack')]),
   ...Object.values(UI_SFX).flat(),
   ...Object.values(PRODUCTION_SFX).flat(),
 ];
@@ -3324,6 +3331,19 @@ export class AudioService {
       e.pan?.pan.setTargetAtTime(m.pan, t, 0.35);
     }
   }
+
+  /**
+   * Resposta pelo rádio a uma ordem do jogador (lote 37): fala curta com estática, no idioma da tela, no canal da
+   * interface. No máximo uma a cada 2,5 s (ordens em sequência não empilham falas) e nunca a mesma duas vezes seguidas.
+   */
+  radio(kind: RadioReply): void {
+    if (!this.ready || !this.useSamples || !this.gap('radio', 2.5)) return;
+    const lang = (RADIO_LANGS as readonly string[]).includes(this.voiceLang) ? this.voiceLang : 'en';
+    const ready = radioFiles(lang, kind).filter((f) => f !== this.lastRadio && this.sampleBufs.get(f));
+    const pick = ready[Math.floor(Math.random() * ready.length)];
+    if (pick && this.playExtra([pick], 'ui', RADIO_GAIN, 0)) this.lastRadio = pick;
+  }
+  private lastRadio: string | null = null;
 
   /** Apito do navio saindo do porto, posicionado como os sons de combate. */
   shipHorn(x: number, y: number): void {

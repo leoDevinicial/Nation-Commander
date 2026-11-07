@@ -3842,7 +3842,10 @@ export class GameRuntime {
     if (this.mode.kind === 'attack_move') {
       const p = this.groundAt(e.clientX, e.clientY);
       const ids = this.myUnitIds();
-      if (p && ids.length) this.send({ type: 'attack_move', unitIds: ids, x: p.x, y: p.y });
+      if (p && ids.length) {
+        this.send({ type: 'attack_move', unitIds: ids, x: p.x, y: p.y });
+        audio.radio('attack');
+      }
       if (!e.shiftKey) this.cancelMode();
       return;
     }
@@ -3970,7 +3973,10 @@ export class GameRuntime {
     if (this.mode.kind === 'attack_move') {
       const p = this.groundAt(x, y);
       const ids = this.myUnitIds();
-      if (p && ids.length) this.send({ type: 'attack_move', unitIds: ids, x: p.x, y: p.y });
+      if (p && ids.length) {
+        this.send({ type: 'attack_move', unitIds: ids, x: p.x, y: p.y });
+        audio.radio('attack');
+      }
       this.cancelMode();
       return;
     }
@@ -4079,9 +4085,11 @@ export class GameRuntime {
       if (hit && this.ownerOf(hit) !== this.mySlot) {
         this.send({ type: 'attack', unitIds: ids, targetId: hit });
         this.flashTarget(hit);
+        audio.radio('attack');
       } else {
         this.send({ type: 'move', unitIds: ids, x: p.x, y: p.y });
         this.effects.flash(new THREE.Vector3(p.x, 0.1, p.y), 0.35, '#8fe0a4', 0.35);
+        audio.radio('move');
       }
       return true;
     }
