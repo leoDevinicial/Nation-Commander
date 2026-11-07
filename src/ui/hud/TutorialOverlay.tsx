@@ -30,9 +30,22 @@ export function TutorialOverlay({ runtime }: { runtime: GameRuntime }) {
     const v = useTutorialStore.getState().view;
     if (!v) return;
     if (v.camera) runtime.tutorialFocus(v.camera.x, v.camera.y);
-    audio.narrate(v.done ? null : v.step);
+    if (audio.narrate(v.done ? null : v.step)) return;
+    // o áudio só destrava no primeiro toque ou tecla da partida: a fala deste passo toca logo depois
+    const retry = () => window.setTimeout(() => audio.narrate(useTutorialStore.getState().view?.step === v.step ? v.step : null), 80);
+    window.addEventListener('pointerdown', retry, { once: true });
+    window.addEventListener('keydown', retry, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', retry);
+      window.removeEventListener('keydown', retry);
+    };
   }, [step, runtime]);
-  useEffect(() => () => audio.narrate(null), []);
+  useEffect(
+    () => () => {
+      audio.narrate(null);
+    },
+    [],
+  );
 
   // marcadores no chão (as posições mudam com a patrulha e as tropas)
   const marks = JSON.stringify(view?.marks ?? []);

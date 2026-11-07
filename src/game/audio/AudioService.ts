@@ -3357,10 +3357,12 @@ export class AudioService {
    * sem gravação usa o inglês), no canal da interface, com a música abaixada. A fala anterior para. Sem o arquivo, fica
    * só a legenda. `null` cala o narrador.
    */
-  narrate(id: string | null): void {
+  narrate(id: string | null): boolean {
     this.narration?.stop();
     this.narration = null;
-    if (!id || !this.ready || !this.ctx) return;
+    if (!id) return true;
+    // áudio ainda travado (o navegador só libera depois de um toque): quem chamou tenta de novo depois
+    if (!this.ready || !this.ctx) return false;
     const lang = (RADIO_LANGS as readonly string[]).includes(this.voiceLang) ? this.voiceLang : 'en';
     const key = `${lang}/${id}`;
     let buf = this.narrationBufs.get(key);
@@ -3383,6 +3385,7 @@ export class AudioService {
       this.duckMusic(0.35);
       this.narration = { id, stop: () => src.stop() };
     });
+    return true;
   }
 
   /** Apito do navio saindo do porto, posicionado como os sons de combate. */
