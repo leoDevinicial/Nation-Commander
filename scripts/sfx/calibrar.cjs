@@ -12,6 +12,8 @@ const cases = [
   ...['click', 'confirm', 'error', 'alert', 'success', 'herald', 'hold', 'warning', 'era'].map((u) => ({ name: 'ui_' + u, call: `a.ui('${u}')`, dur: 2.5 })),
   { name: 'drone_fpv', call: 'a.setDroneFpv(true, 7)', dur: 6 },
   ...['naval_gun', 'torpedo', 'torpedo_hit', 'ship_sink', 'mbt_gun', 'tank_gun', 'vehicle_explosion_heavy', 'howitzer'].map((s) => ({ name: s, call: `a.playAt('${s}', 0, 0)`, dur: 6 })),
+  ...['tracked', 'wheeled', 'naval'].map((k) => ({ name: 'engine_' + k, call: `a.setEngines({ ${k}: { level: 1, pan: 0 } })`, dur: 6 })),
+  { name: 'ship_horn', call: 'a.shipHorn(0, 0)', dur: 4 },
   { name: 'rain', call: 'a.setWeather(1, 0)', dur: 9 },
   { name: 'snow_wind', call: 'a.setWeather(0, 1)', dur: 9 },
   ...['saw', 'quarry', 'mine', 'factory', 'pump', 'farm', 'jet_idle', 'port', 'office', 'hum'].map((k) => ({ name: 'prod_' + k, call: `a.setProduction('${k}')`, dur: 6 })),

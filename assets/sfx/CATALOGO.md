@@ -690,6 +690,21 @@ Ganhos: o sintetizado de reserva da marinha é o estampido fraco do `cannon`, en
 vizinhas (`calibrar.cjs`): canhão naval 1 (entre `tank_gun` e `mbt_gun`), torpedo 0,6, explosão na água 1 e naufrágio
 1,2 (no nível do `vehicle_explosion_heavy`); fanfarra 0,12 no `UI_GAIN`, uns 3 dB acima do "sucesso".
 
+## Lote 36 (07/11) — motores andando e apito do navio (ElevenLabs)
+Duas variações de cada; antes deste lote os veículos e navios andavam em silêncio.
+
+| Pasta | Pedido | Recorte | Uso |
+|---|---|---|---|
+| `motor-lagarta/` | tanque andando: diesel grave e esteira batendo (8 s, loop) | laço 7 s | `tracked`: tanque, MBT, obus, antiaérea móvel, CIWS |
+| `motor-rodas/` | blindado 8×8 em estrada de terra: turbodiesel e pneus no cascalho (8 s, loop) | laço 4,5 s do miolo (o arquivo oscila 14 dB) | `wheeled`: blindado e lança-foguetes |
+| `navio-navegando/` | navio de guerra navegando: diesel marítimo, proa nas ondas, água no casco (10 s, loop) | laço 8,6 s | `naval`: todos os navios menos os submarinos (silenciosos) |
+| `navio-apito/` | um apito grave saindo do porto, com eco na água (4 s) | 2,6 s | `shipHorn`: navio novo do Porto (menos pesqueiro e submarinos) |
+
+Mixagem (`setEngines`, ~4×/s pelo `updateEngineSound` do `GameRuntime`): um laço por classe, no canal de combate;
+o volume soma o ganho espacial de cada unidade em movimento visível e satura (`1 − e^(−0,9·soma)`), e o lado é a média
+ponderada. Ganho cheio 0,45 (uma coluna perto da câmera fica no nível médio da chuva, abaixo dos tiros); apito 0,6.
+Sem a gravação não há motor sintetizado.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono 44,1 kHz (o vento fica estéreo) e iguala o volume dos clipes em
 `public/sfx/` (121 arquivos, ~4,3 MB). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o áudio é

@@ -178,6 +178,9 @@ MORE = [
     ('navio-afundando-2', 'navio-afundando/navio-afundando-2', 0.0, 4.4, 1.5, -18, 0),
     ('era-fanfarra-1', 'era-fanfarra/era-fanfarra-1', 0.0, 3.2, 1.0, -20, 0),
     ('era-fanfarra-2', 'era-fanfarra/era-fanfarra-2', 0.0, 3.2, 1.0, -20, 0),
+    # lote 36 (07/11): apito do navio saindo do porto
+    ('navio-apito-1', 'navio-apito/navio-apito-1', 0.0, 2.6, 0.8, -19, 0),
+    ('navio-apito-2', 'navio-apito/navio-apito-2', 0.0, 2.6, 0.8, -19, 0),
 ]
 
 # contagem falada em português e espanhol (lote 33): a ignição gravada (`espaco-ignicao`, tocada 2,6 s depois do pedido,
@@ -203,6 +206,11 @@ LOOPS = [
     ],
     # lote 34: bordo do drone de asa fixa (turboélice), mono; o jogo muda a rotação pela velocidade
     *[(f'drone-asa-fixa-{i}', f'drone-asa-fixa/drone-asa-fixa-{i}', 0.6, 7.6, 0.5, -20, False, False) for i in (1, 2)],
+    # lote 36: motores andando, mono (o jogo posiciona); as rodas oscilam 14 dB no arquivo, então só o miolo uniforme
+    *[(f'motor-lagarta-{i}', f'motor-lagarta/motor-lagarta-{i}', 0.6, 7.6, 0.5, -20, False, False) for i in (1, 2)],
+    ('motor-rodas-1', 'motor-rodas/motor-rodas-1', 2.0, 6.5, 0.5, -20, False, False),
+    ('motor-rodas-2', 'motor-rodas/motor-rodas-2', 1.5, 6.0, 0.5, -20, False, False),
+    *[(f'navio-navegando-{i}', f'navio-navegando/navio-navegando-{i}', 1.0, 9.6, 0.8, -20, False, False) for i in (1, 2)],
 ]
 
 

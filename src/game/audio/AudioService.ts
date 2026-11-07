@@ -69,6 +69,8 @@ const MUSIC_EQ: Record<Threat, { low: number; mid: number }> = {
 export type MissileCue = 'prepare' | 'armed' | 'authorize';
 
 /** Som de trabalho de cada edifício (os demais usam o zumbido genérico). */
+/** Classes de motor com laço próprio (lote 36): lagarta, rodas e navio. */
+export type EngineClass = 'tracked' | 'wheeled' | 'naval';
 export type ProductionSound = 'saw' | 'quarry' | 'mine' | 'factory' | 'pump' | 'farm' | 'jet_idle' | 'port' | 'office' | 'hum';
 export const PRODUCTION_SOUND: Record<string, ProductionSound> = {
   sawmill: 'saw',
@@ -219,6 +221,11 @@ const SFX = {
   torpedo: ['torpedo-lancamento-1', 'torpedo-lancamento-2'],
   torpedoHit: ['explosao-agua-1', 'explosao-agua-2'],
   shipSink: ['navio-afundando-1', 'navio-afundando-2'],
+  // motores andando (lote 36, em loop) e o apito do navio saindo do porto
+  engineTracked: ['motor-lagarta-1', 'motor-lagarta-2'],
+  engineWheeled: ['motor-rodas-1', 'motor-rodas-2'],
+  shipUnderway: ['navio-navegando-1', 'navio-navegando-2'],
+  shipHorn: ['navio-apito-1', 'navio-apito-2'],
   // sirene: o aviso curto "sob ataque" e as sirenes em loop do silo armado (o loop começa em `SIREN_LOOP` s)
   sirenAlert: ['sirene-aviso'],
   siren: ['sirene-loop-1', 'sirene-loop-2'],
@@ -363,6 +370,13 @@ const PRODUCTION_GAIN: Record<ProductionSound, number> = {
 const RAIN_GAIN = 3;
 /** Bordo do drone gravado no lugar da hélice, turbina e vento sintetizados (o chiado de rádio continua). */
 const DRONE_ONBOARD_GAIN = 1;
+/**
+ * Laço de cada classe de motor e o volume com a mixagem cheia (`level` 1, uma coluna inteira perto da câmera): no
+ * nível médio da chuva gravada, bem abaixo dos tiros (`calibrar.cjs`). O apito fica na energia de um tiro de tanque.
+ */
+const ENGINE_SFX: Record<EngineClass, string[]> = { tracked: SFX.engineTracked, wheeled: SFX.engineWheeled, naval: SFX.shipUnderway };
+const ENGINE_GAIN: Record<EngineClass, number> = { tracked: 0.45, wheeled: 0.45, naval: 0.45 };
+const SHIP_HORN_GAIN = 0.6;
 const SNOW_WIND_GAIN = 3;
 export const EXTRA_SAMPLES = [
   ...SFX.distant,
@@ -378,6 +392,10 @@ export const EXTRA_SAMPLES = [
   ...SFX.rain,
   ...SFX.snowWind,
   ...SFX.droneOnboard,
+  ...SFX.engineTracked,
+  ...SFX.engineWheeled,
+  ...SFX.shipUnderway,
+  ...SFX.shipHorn,
   ...Object.values(UI_SFX).flat(),
   ...Object.values(PRODUCTION_SFX).flat(),
 ];
@@ -3276,7 +3294,48 @@ export class AudioService {
   }
 
   /** Fim da partida: silencia laços (ambiente, música, produção e alarme). */
+  private engines = new Map<EngineClass, { gain: GainNode; pan: StereoPannerNode | null; stop: () => void }>();
+
+  /**
+   * Motores andando perto da câmera (lote 36): um laço gravado por classe, sempre o mesmo, cujo volume (`level` 0..1,
+   * já somado e saturado por quem chama) e lado (`pan`) seguem as unidades em movimento. O laço só nasce na primeira
+   * vez que a classe soa e fica tocando mudo depois. Sem a gravação, não há som de motor. Chamado ~4 vezes por segundo.
+   */
+  setEngines(mix: Partial<Record<EngineClass, { level: number; pan: number }>>): void {
+    if (!this.ready || !this.useSamples) return;
+    const ctx = this.ctx!;
+    const t = ctx.currentTime;
+    for (const k of ['tracked', 'wheeled', 'naval'] as EngineClass[]) {
+      const m = mix[k] ?? { level: 0, pan: 0 };
+      let e = this.engines.get(k);
+      if (!e) {
+        if (m.level < 0.01) continue;
+        const gain = ctx.createGain();
+        gain.gain.value = 0;
+        const pan = typeof ctx.createStereoPanner === 'function' ? ctx.createStereoPanner() : null;
+        if (pan) gain.connect(pan).connect(this.buses.get('combat')!);
+        else gain.connect(this.buses.get('combat')!);
+        const stop = this.loopSample(ENGINE_SFX[k], gain, 1);
+        if (!stop) continue;
+        e = { gain, pan, stop };
+        this.engines.set(k, e);
+      }
+      e.gain.gain.setTargetAtTime(ENGINE_GAIN[k] * m.level, t, 0.35);
+      e.pan?.pan.setTargetAtTime(m.pan, t, 0.35);
+    }
+  }
+
+  /** Apito do navio saindo do porto, posicionado como os sons de combate. */
+  shipHorn(x: number, y: number): void {
+    if (!this.ready || !this.useSamples) return;
+    const sp = this.spatial(x, y);
+    if (!sp || sp.gain < 0.03 || !this.gap('ship_horn', 4)) return;
+    this.playExtra(SFX.shipHorn, 'combat', SHIP_HORN_GAIN * sp.gain, sp.pan, 0.97 + Math.random() * 0.06);
+  }
+
   stopAll(): void {
+    for (const e of this.engines.values()) e.stop();
+    this.engines.clear();
     this.weatherLoop?.stop();
     this.weatherLoop = null;
     this.ambient?.stop();

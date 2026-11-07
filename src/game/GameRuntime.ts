@@ -57,7 +57,7 @@ import { DomeLayer } from './render/DomeLayer.ts';
 import { AIRCRAFT, AIRLIFT, CRUISE, FLIGHT_SIGHT, NUCLEAR, launcherRange, missileSpec } from '../../shared/sim/air.ts';
 import { ERAS, type Era } from '../../shared/sim/eras.ts';
 import { SPACE_PAD } from './render/models/projects.ts';
-import { PRODUCTION_SOUND, audio } from './audio/AudioService.ts';
+import { PRODUCTION_SOUND, audio, spatialMix, type EngineClass } from './audio/AudioService.ts';
 import { useSettingsStore } from '../state/useSettingsStore.ts';
 import { AdaptiveExposure, EnvironmentProbe, ShadowFollow } from './render/Lighting.ts';
 import { describeEvent, worldAlertText } from './eventText.ts';
@@ -146,6 +146,21 @@ const PRODUCERS_WITH_V: readonly BuildingType[] = (Object.keys(UNITS) as UnitTyp
 
 /** Tremor (visão aproximada) por disparo dos veículos pesados; no lança-foguetes, por foguete. */
 /** Veículos pesados: a explosão deles tem a munição cozinhando (estouros secundários). */
+/** Classe do motor de cada tropa que anda fazendo barulho (lote 36); infantaria e submarinos ficam de fora. */
+const ENGINE_CLASS: Partial<Record<string, EngineClass>> = {
+  tank: 'tracked',
+  mbt: 'tracked',
+  artillery: 'tracked',
+  mobile_aa: 'tracked',
+  ciws: 'tracked',
+  apc: 'wheeled',
+  rocket_artillery: 'wheeled',
+  transport_ship: 'naval',
+  frigate: 'naval',
+  aircraft_carrier: 'naval',
+  cargo_ship: 'naval',
+  fishing_boat: 'naval',
+};
 const HEAVY_WRECKS: ReadonlySet<string> = new Set(['tank', 'mbt', 'artillery', 'rocket_artillery', 'mobile_aa', 'ciws']);
 const HEAVY_FIRE_SHAKE: Partial<Record<UnitType, number>> = { tank: 0.22, mbt: 0.26, artillery: 0.32, rocket_artillery: 0.07 };
 
@@ -233,6 +248,7 @@ export class GameRuntime {
   private simSeconds = 0;
   private clockSeconds = 0;
   private weatherAudioAcc = 0;
+  private engineAudioAcc = 0;
   private mineLayer!: MineLayer;
   private roadPreview!: RoadPreview;
   /** Células que a coleta vai explorar, mostradas no chão durante o posicionamento (05/11: a fazenda parecia solta dos campos). */
@@ -1586,6 +1602,11 @@ export class GameRuntime {
     if (this.hudActive) {
       audio.setListener(this.cameraCtl.target.x, this.cameraCtl.target.z, this.cameraCtl.distance, this.cameraCtl.yaw);
       this.updateProductionSound();
+      this.engineAudioAcc += dt;
+      if (this.engineAudioAcc > 0.25) {
+        this.engineAudioAcc = 0;
+        this.updateEngineSound();
+      }
     }
     this.updateRouteInspection();
     this.effects.update(dt);
@@ -3431,6 +3452,26 @@ export class GameRuntime {
     });
   }
 
+  /**
+   * Motores (lote 36): soma o volume de cada unidade em movimento perto da câmera por classe (lagarta, rodas, navio) e
+   * satura, para um tanque soar sozinho e uma coluna inteira soar cheia sem estourar. Submarinos andam em silêncio.
+   */
+  private updateEngineSound(): void {
+    const L = { x: this.cameraCtl.target.x, y: this.cameraCtl.target.z, dist: this.cameraCtl.distance, yaw: this.cameraCtl.yaw };
+    const sum: Record<EngineClass, { g: number; p: number }> = { tracked: { g: 0, p: 0 }, wheeled: { g: 0, p: 0 }, naval: { g: 0, p: 0 } };
+    if (!this.paused)
+      for (const u of this.units.values()) {
+        const k = ENGINE_CLASS[u.visual.type];
+        if (!k || Math.abs(u.curr.x - u.prev.x) + Math.abs(u.curr.y - u.prev.y) < 0.01) continue;
+        const sp = spatialMix(L, u.curr.x, u.curr.y);
+        if (!sp) continue;
+        sum[k].g += sp.gain;
+        sum[k].p += sp.gain * sp.pan;
+      }
+    const mix = (s: { g: number; p: number }) => ({ level: 1 - Math.exp(-s.g * 0.9), pan: s.g > 0 ? s.p / s.g : 0 });
+    audio.setEngines({ tracked: mix(sum.tracked), wheeled: mix(sum.wheeled), naval: mix(sum.naval) });
+  }
+
   /** Sons de um evento da simulação (o serviço descarta o que está longe ou excede as vozes). */
   private eventSound(e: SimEvent): void {
     const mine = (o: number) => o === this.mySlot;
@@ -3530,6 +3571,10 @@ export class GameRuntime {
         break;
       case 'unit_promoted':
         if (mine(e.owner)) audio.ui('success');
+        break;
+      case 'unit_produced':
+        // navio novo saindo do porto: um apito (o pesqueiro, civil e automático, sai calado)
+        if (UNITS[e.unitType].naval && e.unitType !== 'fishing_boat' && e.unitType !== 'submarine' && e.unitType !== 'missile_submarine') audio.shipHorn(e.pos.x, e.pos.y);
         break;
       case 'victory_progress':
         if (e.state !== 'lost') audio.ui(mine(e.slot) === (e.kind === 'territory') ? 'success' : 'alert');
