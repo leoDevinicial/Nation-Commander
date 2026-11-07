@@ -211,6 +211,9 @@ LOOPS = [
     ('motor-rodas-1', 'motor-rodas/motor-rodas-1', 2.0, 6.5, 0.5, -20, False, False),
     ('motor-rodas-2', 'motor-rodas/motor-rodas-2', 1.5, 6.0, 0.5, -20, False, False),
     *[(f'navio-navegando-{i}', f'navio-navegando/navio-navegando-{i}', 1.0, 9.6, 0.8, -20, False, False) for i in (1, 2)],
+    # lote 38: obra em andamento, mono; só o trecho uniforme (o começo e o fim dos arquivos oscilam ~20 dB)
+    ('obra-1', 'obra/obra-1', 3.0, 8.5, 0.5, -20, False, False),
+    ('obra-2', 'obra/obra-2', 4.0, 9.5, 0.5, -20, False, False),
 ]
 
 

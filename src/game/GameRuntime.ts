@@ -249,6 +249,8 @@ export class GameRuntime {
   private clockSeconds = 0;
   private weatherAudioAcc = 0;
   private engineAudioAcc = 0;
+  /** Progresso de cada obra na última conta do som (a obra soa enquanto ele anda). */
+  private readonly buildProgress = new Map<number, { p: number; until: number }>();
   private mineLayer!: MineLayer;
   private roadPreview!: RoadPreview;
   /** Células que a coleta vai explorar, mostradas no chão durante o posicionamento (05/11: a fazenda parecia solta dos campos). */
@@ -3458,7 +3460,7 @@ export class GameRuntime {
    */
   private updateEngineSound(): void {
     const L = { x: this.cameraCtl.target.x, y: this.cameraCtl.target.z, dist: this.cameraCtl.distance, yaw: this.cameraCtl.yaw };
-    const sum: Record<EngineClass, { g: number; p: number }> = { tracked: { g: 0, p: 0 }, wheeled: { g: 0, p: 0 }, naval: { g: 0, p: 0 } };
+    const sum: Record<EngineClass, { g: number; p: number }> = { tracked: { g: 0, p: 0 }, wheeled: { g: 0, p: 0 }, naval: { g: 0, p: 0 }, construction: { g: 0, p: 0 } };
     if (!this.paused)
       for (const u of this.units.values()) {
         const k = ENGINE_CLASS[u.visual.type];
@@ -3468,8 +3470,25 @@ export class GameRuntime {
         sum[k].g += sp.gain;
         sum[k].p += sp.gain * sp.pan;
       }
+    // obras (lote 38): soam enquanto o progresso anda (com construtores trabalhando); parada sem gente fica calada
+    // (os snapshots chegam mais devagar que esta conta: a obra segue soando 1,5 s depois de cada avanço)
+    const cs = this.map.cellSize;
+    const now = performance.now();
+    for (const b of this.buildings.values()) {
+      const pr = b.snap.progress;
+      const last = this.buildProgress.get(b.snap.id);
+      const until = last && pr > last.p ? now + 1500 : (last?.until ?? 0);
+      this.buildProgress.set(b.snap.id, { p: pr, until });
+      if (pr >= 1 || now > until || this.paused) continue;
+      const size = BUILDINGS[b.snap.type].size;
+      const sp = spatialMix(L, (b.snap.cx + size / 2) * cs, (b.snap.cy + size / 2) * cs);
+      if (!sp) continue;
+      sum.construction.g += sp.gain;
+      sum.construction.p += sp.gain * sp.pan;
+    }
+    for (const id of this.buildProgress.keys()) if (!this.buildings.has(id)) this.buildProgress.delete(id);
     const mix = (s: { g: number; p: number }) => ({ level: 1 - Math.exp(-s.g * 0.9), pan: s.g > 0 ? s.p / s.g : 0 });
-    audio.setEngines({ tracked: mix(sum.tracked), wheeled: mix(sum.wheeled), naval: mix(sum.naval) });
+    audio.setEngines({ tracked: mix(sum.tracked), wheeled: mix(sum.wheeled), naval: mix(sum.naval), construction: mix(sum.construction) });
   }
 
   /** Sons de um evento da simulação (o serviço descarta o que está longe ou excede as vozes). */

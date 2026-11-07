@@ -721,6 +721,13 @@ apertar o botão, chiado ao soltar e chiado de fundo baixo, a −20 LUFS (`radio
 cada 2,5 s e nunca a mesma duas vezes seguidas; idioma sem gravação usa o inglês. Ganho 0,3 (≈ 3 dB acima do anúncio
 mundial).
 
+## Lote 38 (07/11) — obra em andamento (ElevenLabs)
+`obra/obra-{1,2}`: canteiro de obras de perto (marteladas em prego e aço, serra curta, andaime, máquina leve; 10 s,
+loop). Os arquivos oscilam ~20 dB no começo e no fim: laço mono de 5,5 s só do trecho uniforme (3–8,5 s e 4–9,5 s).
+No jogo, quarta classe do `setEngines` (`construction`): cada obra visível cujo progresso andou soma o seu ganho
+espacial (e segue soando 1,5 s depois de cada avanço, porque os snapshots chegam mais devagar que a conta); obra parada
+sem construtores fica calada. Ganho cheio 0,4, um pouco abaixo dos motores.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono 44,1 kHz (o vento fica estéreo) e iguala o volume dos clipes em
 `public/sfx/` (121 arquivos, ~4,3 MB). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o áudio é
@@ -786,17 +793,12 @@ energia, sirene) eram descartados. Agora começa em "nunca tocou".
 domo-lancamento-2 (baque fraco sozinho), sirene-ataque-aereo-1 (sem uso por enquanto), blindado-canhao-1 (sem ataque).
 
 ## O que falta (07/11)
-Chuva, vento de neve e os 10 laços de produção do lote 33 já tocam (07/11): recortados em laço sem emenda pelo `LOOPS`
-do `scripts/sfx-preparar.py` (`chuva-*` e `vento-neve-*` estéreo, 8,8 s; `producao-*` mono, 7 s), ligados no
-`setWeather` (no lugar das camadas de ruído; com a chuva gravada, as gotas sintetizadas saem) e no `setProduction`
-(`PRODUCTION_SFX`), com ganhos de `scripts/sfx/calibrar.cjs` (`PRODUCTION_GAIN`, `RAIN_GAIN`, `SNOW_WIND_GAIN`). Sem o
-arquivo, ou antes de ele carregar, fica o sintetizado.
+Os lotes 33 a 38 cobriram tudo o que ainda era sintetizado ou mudo: interface, silo, clima, produção dos prédios,
+drone, marinha, fanfarra de era, motores, apito do navio, resposta pelo rádio (pt/en/es) e obras.
 
-O som de bordo do drone FPV do lote 33 (`drone-fpv`) fica guardado sem uso: é de um quadricóptero elétrico (zumbido
-agudo de hélices). O drone do jogo é de asa fixa com turboélice; o lote 34 (`drone-asa-fixa`) é o que toca.
-
-Ainda sem gravação:
+Sem gravação ou em aberto:
+- **Sob ataque** (`ui('attack')`): o toque curto sintetizado só soa enquanto a sirene gravada não carregou.
+- **Motores e obras** não têm sintetizado de reserva: sem o arquivo, ficam calados (como antes do lote 36).
 - **Variações que não vieram** (opcionais): explosão grande 1, sirene 3, bombardeio em tapete 1 e 4, decolagem 1, 3 e
   4, torre 1 e 4.
-- **Interface:** só o toque curto de "sob ataque" (`attack`) segue sintetizado, e apenas enquanto a sirene gravada
-  não carregou.
+- **Rádio:** só ordens de mover e atacar; seleção, construção e produção não respondem por voz.

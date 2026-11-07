@@ -69,8 +69,8 @@ const MUSIC_EQ: Record<Threat, { low: number; mid: number }> = {
 export type MissileCue = 'prepare' | 'armed' | 'authorize';
 
 /** Som de trabalho de cada edifício (os demais usam o zumbido genérico). */
-/** Classes de motor com laço próprio (lote 36): lagarta, rodas e navio. */
-export type EngineClass = 'tracked' | 'wheeled' | 'naval';
+/** Laços de atividade no mapa: motores (lote 36: lagarta, rodas, navio) e obras em andamento (lote 38). */
+export type EngineClass = 'tracked' | 'wheeled' | 'naval' | 'construction';
 export type ProductionSound = 'saw' | 'quarry' | 'mine' | 'factory' | 'pump' | 'farm' | 'jet_idle' | 'port' | 'office' | 'hum';
 export const PRODUCTION_SOUND: Record<string, ProductionSound> = {
   sawmill: 'saw',
@@ -226,6 +226,7 @@ const SFX = {
   engineWheeled: ['motor-rodas-1', 'motor-rodas-2'],
   shipUnderway: ['navio-navegando-1', 'navio-navegando-2'],
   shipHorn: ['navio-apito-1', 'navio-apito-2'],
+  construction: ['obra-1', 'obra-2'],
   // sirene: o aviso curto "sob ataque" e as sirenes em loop do silo armado (o loop começa em `SIREN_LOOP` s)
   sirenAlert: ['sirene-aviso'],
   siren: ['sirene-loop-1', 'sirene-loop-2'],
@@ -374,8 +375,8 @@ const DRONE_ONBOARD_GAIN = 1;
  * Laço de cada classe de motor e o volume com a mixagem cheia (`level` 1, uma coluna inteira perto da câmera): no
  * nível médio da chuva gravada, bem abaixo dos tiros (`calibrar.cjs`). O apito fica na energia de um tiro de tanque.
  */
-const ENGINE_SFX: Record<EngineClass, string[]> = { tracked: SFX.engineTracked, wheeled: SFX.engineWheeled, naval: SFX.shipUnderway };
-const ENGINE_GAIN: Record<EngineClass, number> = { tracked: 0.45, wheeled: 0.45, naval: 0.45 };
+const ENGINE_SFX: Record<EngineClass, string[]> = { tracked: SFX.engineTracked, wheeled: SFX.engineWheeled, naval: SFX.shipUnderway, construction: SFX.construction };
+const ENGINE_GAIN: Record<EngineClass, number> = { tracked: 0.45, wheeled: 0.45, naval: 0.45, construction: 0.4 };
 const SHIP_HORN_GAIN = 0.6;
 /** Resposta das tropas pelo rádio (lote 37): três falas de cada tipo por idioma; idioma sem gravação usa o inglês. */
 export type RadioReply = 'move' | 'attack';
@@ -402,6 +403,7 @@ export const EXTRA_SAMPLES = [
   ...SFX.engineWheeled,
   ...SFX.shipUnderway,
   ...SFX.shipHorn,
+  ...SFX.construction,
   ...RADIO_LANGS.flatMap((l) => [...radioFiles(l, 'move'), ...radioFiles(l, 'attack')]),
   ...Object.values(UI_SFX).flat(),
   ...Object.values(PRODUCTION_SFX).flat(),
@@ -3312,7 +3314,7 @@ export class AudioService {
     if (!this.ready || !this.useSamples) return;
     const ctx = this.ctx!;
     const t = ctx.currentTime;
-    for (const k of ['tracked', 'wheeled', 'naval'] as EngineClass[]) {
+    for (const k of ['tracked', 'wheeled', 'naval', 'construction'] as EngineClass[]) {
       const m = mix[k] ?? { level: 0, pan: 0 };
       let e = this.engines.get(k);
       if (!e) {
