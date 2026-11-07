@@ -361,7 +361,8 @@ const PRODUCTION_GAIN: Record<ProductionSound, number> = {
   farm: 0.36,
   jet_idle: 0.41,
   port: 0.48,
-  office: 0.39,
+  // teclado do escritório (QG, quartel, terminal...): metade do calibrado, incomodava com o QG selecionado (07/11)
+  office: 0.2,
   hum: 0.52,
 };
 /**
@@ -385,7 +386,10 @@ const radioFiles = (lang: string, kind: RadioReply) => [1, 2, 3].map((i) => `rad
 // uns 3 dB acima da energia do anúncio mundial gravado (`calibrar.cjs`): a fala fica clara sem gritar
 const RADIO_GAIN = 0.3;
 /** Narrador do tutorial: no nível da resposta pelo rádio (fala clara por cima do jogo). */
-const NARRATION_GAIN = 0.3;
+const NARRATION_GAIN = 0.42;
+/** Enquanto o narrador fala: música e o resto do mundo (ambiente, combate, produção) descem; a interface não. */
+const TALK_MUSIC = 0.3;
+const TALK_WORLD = 0.55;
 const SNOW_WIND_GAIN = 3;
 export const EXTRA_SAMPLES = [
   ...SFX.distant,
@@ -456,6 +460,8 @@ export class AudioService {
   private musicMuted = false;
   /** Abaixa a música sob tiros e explosões (a guerra sempre se ouve acima da trilha). */
   private duck: GainNode | null = null;
+  /** Abaixam a música e o mundo enquanto o narrador fala (separados do `duck`, que volta sozinho). */
+  private talk: { music: GainNode; world: GainNode } | null = null;
   /** Filtros da música: grave (shelf) e médio (peaking), abertos na calma e cortados em combate. */
   private musicEq: { low: BiquadFilterNode; mid: BiquadFilterNode } | null = null;
   private noise: AudioBuffer | null = null;
@@ -492,8 +498,11 @@ export class AudioService {
       comp.knee.value = 12;
       comp.ratio.value = 4;
       this.master.connect(comp).connect(this.ctx.destination);
+      this.talk = { music: this.ctx.createGain(), world: this.ctx.createGain() };
+      this.talk.music.connect(this.master);
+      this.talk.world.connect(this.master);
       this.duck = this.ctx.createGain();
-      this.duck.connect(this.master);
+      this.duck.connect(this.talk.music);
       const low = this.ctx.createBiquadFilter();
       low.type = 'lowshelf';
       low.frequency.value = 180;
@@ -507,7 +516,7 @@ export class AudioService {
       this.musicEq = { low, mid };
       for (const c of CHANNELS) {
         const g = this.ctx.createGain();
-        g.connect(c === 'music' ? low : this.master);
+        g.connect(c === 'music' ? low : c === 'ui' ? this.master : this.talk.world);
         this.buses.set(c, g);
       }
       this.noise = this.makeNoise();
@@ -3360,6 +3369,7 @@ export class AudioService {
   narrate(id: string | null): boolean {
     this.narration?.stop();
     this.narration = null;
+    this.talkDuck(false);
     if (!id) return true;
     // áudio ainda travado (o navegador só libera depois de um toque): quem chamou tenta de novo depois
     if (!this.ready || !this.ctx) return false;
@@ -3381,11 +3391,31 @@ export class AudioService {
       const src = this.ctx.createBufferSource();
       src.buffer = b;
       src.connect(this.out('ui', NARRATION_GAIN, 0));
+      const playing = { id, stop: () => src.stop() };
+      src.onended = () => {
+        if (this.narration !== playing) return;
+        this.narration = null;
+        this.talkDuck(false);
+      };
       src.start();
-      this.duckMusic(0.35);
-      this.narration = { id, stop: () => src.stop() };
+      this.talkDuck(true);
+      this.narration = playing;
     });
     return true;
+  }
+
+  /** Música e mundo abaixados durante a fala do narrador: descem em ~0,25 s e voltam em ~1 s depois dela. */
+  private talkDuck(on: boolean): void {
+    if (!this.talk || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    for (const [g, to] of [
+      [this.talk.music, on ? TALK_MUSIC : 1],
+      [this.talk.world, on ? TALK_WORLD : 1],
+    ] as const) {
+      g.gain.cancelScheduledValues(t);
+      g.gain.setValueAtTime(g.gain.value, t);
+      g.gain.setTargetAtTime(to, t, on ? 0.08 : 0.35);
+    }
   }
 
   /** Apito do navio saindo do porto, posicionado como os sons de combate. */

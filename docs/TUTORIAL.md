@@ -58,7 +58,10 @@ até os capítulos 6 e 7.
 `public/narration/<idioma>/<passo>.mp3`, uma fala por passo, cortada por `scripts/narracao-preparar.py` dos originais em
 `assets/narration/originais/<idioma>-<capítulo>-<a|b>.mp3` (ElevenLabs `eleven_v4`, uma tomada por capítulo com pausas
 longas entre as falas). Vozes: português "Michelangelo/Lucas - Warm & Confident", inglês "Ian - Professional, Warm, Calm",
-espanhol "Roberto - Warm Baritone Broadcaster". Idioma sem gravação usa o inglês; sem o arquivo, fica só a legenda. A
+espanhol "Roberto - Warm Baritone Broadcaster". Idioma sem gravação usa o inglês; sem o arquivo, fica só a legenda. Enquanto a fala toca, a música desce para 30% e o
+mundo (ambiente, combate, produção) para 55% (`AudioService.talkDuck`), e voltam em ~1 s depois dela; a interface não
+muda. O som de escritório (teclado do QG, quartel e terminal) foi reduzido à metade em 07/11, por incomodar com o QG
+selecionado. A
 duração estimada de cada fala (`speechSeconds`, palavras ÷ 2,6 + 2,2 s) cobre a gravada nos três idiomas (conferido:
 falas de 1,8 a 10,8 s, nenhuma passa do tempo do passo).
 
