@@ -208,6 +208,8 @@ const SFX = {
   siloPrepare: ['silo-preparo-1', 'silo-preparo-2'],
   siloAuthorize: ['silo-autorizado-1', 'silo-autorizado-2'],
   thunder: ['trovao-1', 'trovao-2'],
+  // bordo do drone de asa fixa (lote 34, em loop): hélice do turboélice e vento
+  droneOnboard: ['drone-asa-fixa-1', 'drone-asa-fixa-2'],
   // sirene: o aviso curto "sob ataque" e as sirenes em loop do silo armado (o loop começa em `SIREN_LOOP` s)
   sirenAlert: ['sirene-aviso'],
   siren: ['sirene-loop-1', 'sirene-loop-2'],
@@ -296,7 +298,7 @@ export const SAMPLES: Partial<Record<CombatSound, SampleSet | SampleSet[]>> = {
   drone_pass: { files: SFX.dronePass, gain: DRONE_PASS_GAIN },
 };
 /** Gravações que não são sons de combate do `SAMPLES` (guerra ao longe, energia, sirene, vento, salva), carregadas junto. */
-/** Interface gravada (lote 33): o sintetizado continua para 'hold', 'warning' e 'attack' e enquanto o arquivo não carregou. */
+/** Interface gravada (lotes 33 e 34): o sintetizado continua para 'attack' (sirene) e enquanto o arquivo não carregou. */
 const UI_SFX: Partial<Record<UiSound, string[]>> = {
   click: ['ui-clique-1', 'ui-clique-2'],
   confirm: ['ui-confirmar-1', 'ui-confirmar-2'],
@@ -304,9 +306,11 @@ const UI_SFX: Partial<Record<UiSound, string[]>> = {
   alert: ['ui-alerta-1', 'ui-alerta-2'],
   success: ['ui-sucesso-1', 'ui-sucesso-2'],
   herald: ['ui-anuncio-1', 'ui-anuncio-2'],
+  hold: ['ui-segurar-1', 'ui-segurar-2'],
+  warning: ['ui-aviso-grave-1', 'ui-aviso-grave-2'],
 };
 /** Volume da interface e dos sinais do silo gravados, no nível dos tons sintetizados (ver `AGM_GAIN`). */
-const UI_GAIN: Partial<Record<UiSound, number>> = { click: 0.15, confirm: 0.14, error: 0.13, alert: 0.14, success: 0.18, herald: 0.19 };
+const UI_GAIN: Partial<Record<UiSound, number>> = { click: 0.15, confirm: 0.14, error: 0.13, alert: 0.14, success: 0.18, herald: 0.19, hold: 0.07, warning: 0.19 };
 const SILO_GAIN = { prepare: 0.26, authorize: 1.5 };
 const THUNDER_GAIN = 0.45;
 /** Trabalho do edifício selecionado gravado (lote 33, mono, em loop); o sintetizado fica enquanto não carregou. */
@@ -340,6 +344,8 @@ const PRODUCTION_GAIN: Record<ProductionSound, number> = {
  * sintetizada guarda quase tudo no grave e a gravada é larga (soa mais alta com menos energia, e estouraria): 3 nas duas.
  */
 const RAIN_GAIN = 3;
+/** Bordo do drone gravado no lugar da hélice, turbina e vento sintetizados (o chiado de rádio continua). */
+const DRONE_ONBOARD_GAIN = 1;
 const SNOW_WIND_GAIN = 3;
 export const EXTRA_SAMPLES = [
   ...SFX.distant,
@@ -354,6 +360,7 @@ export const EXTRA_SAMPLES = [
   ...SFX.thunder,
   ...SFX.rain,
   ...SFX.snowWind,
+  ...SFX.droneOnboard,
   ...Object.values(UI_SFX).flat(),
   ...Object.values(PRODUCTION_SFX).flat(),
 ];
@@ -2988,7 +2995,7 @@ export class AudioService {
     for (let i = 0; i < drops; i++) this.rainDrop(t + Math.random() * 0.5, this.weatherRain);
   }
 
-  private droneLoop: { prop: OscillatorNode; am: OscillatorNode; amDepth: GainNode; propGain: GainNode; propFilter: BiquadFilterNode; whine: OscillatorNode[]; whineGain: GainNode; wind: GainNode; windFilter: BiquadFilterNode; hiss: GainNode; stop: () => void } | null = null;
+  private droneLoop: { prop: OscillatorNode; am: OscillatorNode; amDepth: GainNode; propGain: GainNode; propFilter: BiquadFilterNode; whine: OscillatorNode[]; whineGain: GainNode; wind: GainNode; windFilter: BiquadFilterNode; hiss: GainNode; rec: { src: AudioBufferSourceNode; gain: GainNode } | null; stop: () => void } | null = null;
   private propWave: PeriodicWave | null = null;
 
   /**
@@ -3025,6 +3032,7 @@ export class AudioService {
       const loop = this.droneLoop;
       this.droneLoop = null;
       for (const g of [loop.propGain, loop.whineGain, loop.wind, loop.hiss]) g.gain.setTargetAtTime(0, t, 0.06);
+      loop.rec?.gain.gain.setTargetAtTime(0, t, 0.06);
       setTimeout(() => loop.stop(), 600);
       return;
     }
@@ -3080,6 +3088,21 @@ export class AudioService {
       hiss.gain.value = 0;
       hissSrc.connect(hp).connect(hiss).connect(out);
       hissSrc.start(0, Math.random());
+      // bordo gravado (lote 34): a hélice, a turbina e o vento sintetizados ficam mudos e a rotação muda a velocidade
+      // da gravação
+      const ready = this.useSamples ? SFX.droneOnboard.map((f) => this.sampleBufs.get(f)).filter((b): b is AudioBuffer => !!b) : [];
+      let rec: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
+      if (ready.length) {
+        const buf = ready[Math.floor(Math.random() * ready.length)]!;
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.loop = true;
+        const gain = ctx.createGain();
+        gain.gain.value = 0;
+        src.connect(gain).connect(out);
+        src.start(t, Math.random() * buf.duration);
+        rec = { src, gain };
+      }
       this.droneLoop = {
         prop,
         am,
@@ -3091,7 +3114,9 @@ export class AudioService {
         wind,
         windFilter,
         hiss,
+        rec,
         stop: () => {
+          rec?.src.stop();
           prop.stop();
           am.stop();
           for (const o of whine) o.stop();
@@ -3107,11 +3132,17 @@ export class AudioService {
     L.prop.frequency.setTargetAtTime(bpf, t, 0.25);
     L.am.frequency.setTargetAtTime(bpf / 4, t, 0.25);
     L.propFilter.frequency.setTargetAtTime(1100 + k * 900, t, 0.25);
-    L.propGain.gain.setTargetAtTime(0.16 + k * 0.06, t, 0.15);
+    const synth = L.rec ? 0 : 1;
+    L.propGain.gain.setTargetAtTime((0.16 + k * 0.06) * synth, t, 0.15);
     L.whine.forEach((o, i) => o.frequency.setTargetAtTime((3500 + k * 700) * (i ? 1.006 : 1), t, 0.3));
-    L.whineGain.gain.setTargetAtTime(0.012 + k * 0.008, t, 0.2);
+    L.whineGain.gain.setTargetAtTime((0.012 + k * 0.008) * synth, t, 0.2);
     L.windFilter.frequency.setTargetAtTime(450 + k * 900, t, 0.3);
-    L.wind.gain.setTargetAtTime(0.05 + k * 0.16, t, 0.2);
+    L.wind.gain.setTargetAtTime((0.05 + k * 0.16) * synth, t, 0.2);
+    if (L.rec) {
+      // a mesma subida de rotação do sintetizado (112 → 152 Hz, +36%) e um pouco mais de volume no acelerador
+      L.rec.src.playbackRate.setTargetAtTime(0.9 + k * 0.32, t, 0.25);
+      L.rec.gain.gain.setTargetAtTime(DRONE_ONBOARD_GAIN * (0.85 + k * 0.3), t, 0.15);
+    }
     L.hiss.gain.setTargetAtTime(0.018, t, 0.3);
   }
 

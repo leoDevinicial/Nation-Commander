@@ -162,6 +162,11 @@ MORE = [
     ('ui-sucesso-2', 'interface/ui-sucesso-2', 0.0, 1.0, 0.4, -22, 0),
     ('ui-anuncio-1', 'interface/ui-anuncio-1', 0.0, 1.9, 0.7, -22, 0),
     ('ui-anuncio-2', 'interface/ui-anuncio-2', 0.0, 1.6, 0.6, -22, 0),
+    # lote 34 (07/11): "segurar" (início do aperto longo) e o anúncio mundial grave
+    ('ui-segurar-1', 'interface/ui-segurar-1', 0.0, 0.5, 0.2, -22, 0),
+    ('ui-segurar-2', 'interface/ui-segurar-2', 0.0, 0.42, 0.15, -22, 0),
+    ('ui-aviso-grave-1', 'interface/ui-aviso-grave-1', 0.0, 2.3, 0.8, -22, 0),
+    ('ui-aviso-grave-2', 'interface/ui-aviso-grave-2', 0.0, 2.2, 0.6, -22, 0),
 ]
 
 # contagem falada em português e espanhol (lote 33): a ignição gravada (`espaco-ignicao`, tocada 2,6 s depois do pedido,
@@ -185,6 +190,8 @@ LOOPS = [
         for k in ('serraria', 'pedreira', 'mina', 'fabrica', 'petroleo', 'fazenda', 'aeroporto', 'porto', 'escritorio', 'zumbido')
         for i in (1, 2)
     ],
+    # lote 34: bordo do drone de asa fixa (turboélice), mono; o jogo muda a rotação pela velocidade
+    *[(f'drone-asa-fixa-{i}', f'drone-asa-fixa/drone-asa-fixa-{i}', 0.6, 7.6, 0.5, -20, False, False) for i in (1, 2)],
 ]
 
 

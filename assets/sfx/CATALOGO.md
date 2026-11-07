@@ -661,6 +661,19 @@ Volumes: medidos offline contra o sintetizado que cada gravação substitui (mes
 `THUNDER_GAIN` no `AudioService`. O estouro antiaéreo ficou um pouco acima do sintetizado (que é quase inaudível). Não
 ouvidos por uma pessoa: vale conferir no jogo e ajustar esses números.
 
+## Lote 34 (07/11) — interface "segurar" e "aviso grave", bordo do drone de asa fixa (ElevenLabs)
+Gerados no `eleven_text_to_sound_v2` (fluxo "Nation Commander - SFX que faltam"), duas variações de cada.
+
+| Pasta / arquivo | Pedido | Uso |
+|---|---|---|
+| `interface/ui-segurar-{1,2}` | toque curto subindo de console (0,6 s) | `ui('hold')`, início do aperto longo (recorte 0,4–0,5 s) |
+| `interface/ui-aviso-grave-{1,2}` | estática de rádio e clarim grave descendo em tom menor (2,4 s) | `ui('warning')`, anúncio mundial ruim |
+| `drone-asa-fixa/drone-asa-fixa-{1,2}` | bordo de drone de asa fixa com turboélice, cruzeiro constante (8 s, loop) | `setDroneFpv`: laço mono de 7 s; a velocidade muda a rotação (`playbackRate` 0,9–1,22) e o chiado de rádio sintetizado continua |
+
+Espectro do drone: 99% e 87% da energia abaixo de 800 Hz (hélice), contra 38% do quadricóptero do lote 33.
+Ganhos (`calibrar.cjs`): `hold` 0,07 (um pouco acima da energia do tique sintetizado de 60 ms), `warning` 0,19,
+`DRONE_ONBOARD_GAIN` 1.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono 44,1 kHz (o vento fica estéreo) e iguala o volume dos clipes em
 `public/sfx/` (121 arquivos, ~4,3 MB). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o áudio é
@@ -732,10 +745,11 @@ do `scripts/sfx-preparar.py` (`chuva-*` e `vento-neve-*` estéreo, 8,8 s; `produ
 (`PRODUCTION_SFX`), com ganhos de `scripts/sfx/calibrar.cjs` (`PRODUCTION_GAIN`, `RAIN_GAIN`, `SNOW_WIND_GAIN`). Sem o
 arquivo, ou antes de ele carregar, fica o sintetizado.
 
-O som de bordo do drone FPV (`drone-fpv`) fica guardado sem uso: a gravação é de um quadricóptero elétrico (zumbido
-agudo de hélices), e o `setDroneFpv` sintetizado foi desenhado para o drone de asa fixa com turboélice do jogo.
+O som de bordo do drone FPV do lote 33 (`drone-fpv`) fica guardado sem uso: é de um quadricóptero elétrico (zumbido
+agudo de hélices). O drone do jogo é de asa fixa com turboélice; o lote 34 (`drone-asa-fixa`) é o que toca.
 
 Ainda sem gravação:
 - **Variações que não vieram** (opcionais): explosão grande 1, sirene 3, bombardeio em tapete 1 e 4, decolagem 1, 3 e
   4, torre 1 e 4.
-- **Interface:** "segurar" (`hold`), "aviso grave" (`warning`) seguem sintetizados.
+- **Interface:** só o toque curto de "sob ataque" (`attack`) segue sintetizado, e apenas enquanto a sirene gravada
+  não carregou.
