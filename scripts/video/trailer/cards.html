@@ -1,0 +1,77 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face { font-family: Michroma; src: url(/node_modules/@fontsource/michroma/files/michroma-latin-400-normal.woff2) format('woff2'); }
+@font-face { font-family: BarlowC; font-weight: 600; src: url(/node_modules/@fontsource/barlow-condensed/files/barlow-condensed-latin-600-normal.woff2) format('woff2'); }
+@font-face { font-family: BarlowC; font-weight: 700; src: url(/node_modules/@fontsource/barlow-condensed/files/barlow-condensed-latin-700-normal.woff2) format('woff2'); }
+@font-face { font-family: BarlowC; font-weight: 800; src: url(/node_modules/@fontsource/barlow-condensed/files/barlow-condensed-latin-800-normal.woff2) format('woff2'); }
+@font-face { font-family: JBM; font-weight: 500; src: url(/node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff2) format('woff2'); }
+:root { --brass: #e0b44c; --ink: #e8ecf0; --ink4: #8693a2; --bg: #07090c; }
+html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; overflow: hidden; color: var(--ink); }
+.card { position: absolute; inset: 0; display: none; }
+/* frase central (sobre a imagem, com sombra larga) */
+#tag { display: none; align-items: center; justify-content: center; flex-direction: column; background: radial-gradient(ellipse 42% 26% at 50% 50%, rgba(4,6,9,.55), rgba(4,6,9,0) 100%); }
+#tag .kick { font: 600 26px BarlowC, sans-serif; letter-spacing: .5em; color: var(--brass); text-transform: uppercase; margin-bottom: 18px; text-shadow: 0 2px 18px rgba(0,0,0,.8); }
+#tag .main { font: 800 128px/1 BarlowC, sans-serif; letter-spacing: .06em; text-transform: uppercase; text-shadow: 0 4px 40px rgba(0,0,0,.75), 0 0 2px rgba(0,0,0,.6); }
+#tag .rule { margin-top: 26px; height: 3px; width: 520px; background: linear-gradient(90deg, transparent, var(--brass), transparent); }
+/* rótulo de era: painel de console no canto inferior esquerdo */
+#era { left: 96px; bottom: 110px; top: auto; right: auto; inset: auto auto 110px 96px; }
+.panel { position: relative; padding: 18px 34px 20px 30px; background: rgba(13,17,22,.78); border-left: 6px solid var(--brass); clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 0 100%); }
+.panel .k { font: 600 22px BarlowC, sans-serif; letter-spacing: .42em; color: var(--brass); }
+.panel .v { font: 700 64px/1.05 BarlowC, sans-serif; letter-spacing: .05em; text-transform: uppercase; }
+.panel .y { font: 500 22px JBM, monospace; color: var(--ink4); margin-top: 4px; letter-spacing: .08em; }
+/* contagem T-n: canto superior direito, mono */
+#tm { inset: 90px 110px auto auto; }
+#tm .v { font: 500 72px/1 JBM, monospace; letter-spacing: .04em; }
+/* final */
+#end { display: none; background: var(--bg); align-items: center; justify-content: center; flex-direction: column; }
+#end .grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(224,180,76,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(224,180,76,.06) 1px, transparent 1px); background-size: 64px 64px; }
+#end .vig { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,.85) 100%); }
+#end .radar { position: absolute; width: 900px; height: 900px; border-radius: 50%; border: 1px solid rgba(224,180,76,.12); }
+#end .sweep { position: absolute; width: 900px; height: 900px; border-radius: 50%; background: conic-gradient(from 0deg, rgba(224,180,76,.07), transparent 22%); }
+#end h1 { position: relative; margin: 0; font: 400 80px Michroma, sans-serif; letter-spacing: .14em; color: #fff; white-space: nowrap; }
+#end h1 span { display: inline-block; }
+#end .line { position: relative; margin-top: 34px; height: 2px; background: linear-gradient(90deg, transparent, var(--brass), transparent); }
+#end .sub { position: relative; margin-top: 30px; font: 600 30px BarlowC, sans-serif; letter-spacing: .5em; color: rgba(255,255,255,.75); }
+#end .cta { position: relative; margin-top: 70px; font: 600 26px BarlowC, sans-serif; letter-spacing: .38em; color: var(--brass); }
+#end .shine { position: absolute; inset: -10px -40px; background: linear-gradient(100deg, transparent 40%, rgba(255,255,255,.55) 50%, transparent 60%); mix-blend-mode: overlay; }
+</style></head>
+<body>
+<div id="tag" class="card"><div class="kick"></div><div class="main"></div><div class="rule"></div></div>
+<div id="era" class="card"><div class="panel"><div class="k"></div><div class="v"></div><div class="y"></div></div></div>
+<div id="tm" class="card"><div class="panel"><div class="k">LAUNCH</div><div class="v"></div></div></div>
+<div id="end" class="card"><div class="grid"></div><div class="radar"></div><div class="sweep"></div><div class="vig"></div>
+  <div style="position:relative;display:flex;flex-direction:column;align-items:center">
+    <h1 id="title"></h1><div class="line"></div><div class="sub">3D MODERN GEOPOLITICAL RTS</div><div class="cta">PLAY IN YOUR BROWSER</div>
+  </div>
+</div>
+<script>
+const $ = (s) => document.querySelector(s);
+const clamp = (x) => Math.max(0, Math.min(1, x));
+const ease = (x) => { x = clamp(x); return 1 - Math.pow(1 - x, 3); };
+const TITLE = 'NATIONS COMMANDER';
+$('#title').innerHTML = [...TITLE].map((c) => `<span>${c === ' ' ? '&nbsp;' : c}</span>`).join('') + '<i class="shine"></i>';
+window.show = (mode, o = {}) => {
+  for (const c of document.querySelectorAll('.card')) c.style.display = 'none';
+  if (mode === 'tag') { const e = $('#tag'); e.style.display = 'flex'; e.querySelector('.kick').textContent = o.kick ?? ''; e.querySelector('.main').textContent = o.text; }
+  if (mode === 'era') { const e = $('#era'); e.style.display = 'block'; e.querySelector('.k').textContent = o.kick; e.querySelector('.v').textContent = o.text; e.querySelector('.y').textContent = o.years ?? ''; }
+  if (mode === 'tm') { const e = $('#tm'); e.style.display = 'block'; e.querySelector('.v').textContent = o.text; }
+  if (mode === 'end') {
+    const e = $('#end'); e.style.display = 'flex'; const t = o.t;
+    document.body.style.background = '#07090c';
+    const spans = [...document.querySelectorAll('#title span')];
+    spans.forEach((s, i) => { const k = ease((t - 0.3 - i * 0.07) / 0.45); s.style.opacity = k; s.style.transform = `translateY(${(1 - k) * 18}px)`; s.style.filter = `blur(${(1 - k) * 6}px)`; });
+    $('#end .line').style.width = `${ease((t - 1.5) / 0.9) * 980}px`;
+    $('#end .sub').style.opacity = ease((t - 2.0) / 0.7);
+    $('#end .cta').style.opacity = ease((t - 2.8) / 0.7);
+    $('#end .sweep').style.transform = `rotate(${t * 70}deg)`;
+    $('#end .grid').style.opacity = 0.5 + 0.5 * ease(t / 1.2);
+    const sh = $('#end .shine');
+    sh.style.transform = `translateX(${(clamp((t - 2.2) / 1.0) * 2 - 1) * 900}px)`; sh.style.opacity = t > 2.2 && t < 3.3 ? 1 : 0;
+    // fade de saída nos últimos 0,8 s
+    e.style.opacity = 1 - clamp((t - (o.dur - 0.8)) / 0.8);
+  }
+};
+window.ready = document.fonts.ready.then(() => true);
+</script>
+</body></html>

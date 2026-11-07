@@ -5,3 +5,4 @@ dist-server
 .env.local
 *.log
 .vercel
+trailer_out/
