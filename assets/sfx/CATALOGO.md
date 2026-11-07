@@ -726,8 +726,14 @@ energia, sirene) eram descartados. Agora começa em "nunca tocou".
 domo-lancamento-2 (baque fraco sozinho), sirene-ataque-aereo-1 (sem uso por enquanto), blindado-canhao-1 (sem ataque).
 
 ## O que falta (07/11)
-Gravados no lote 33 mas ainda não tocam (precisam de laço por prédio e por clima, hoje sintetizados no `setProduction` e
-no `setWeather`): chuva, vento de neve, som de bordo do drone FPV e os 10 laços de produção dos prédios.
+Chuva, vento de neve e os 10 laços de produção do lote 33 já tocam (07/11): recortados em laço sem emenda pelo `LOOPS`
+do `scripts/sfx-preparar.py` (`chuva-*` e `vento-neve-*` estéreo, 8,8 s; `producao-*` mono, 7 s), ligados no
+`setWeather` (no lugar das camadas de ruído; com a chuva gravada, as gotas sintetizadas saem) e no `setProduction`
+(`PRODUCTION_SFX`), com ganhos de `scripts/sfx/calibrar.cjs` (`PRODUCTION_GAIN`, `RAIN_GAIN`, `SNOW_WIND_GAIN`). Sem o
+arquivo, ou antes de ele carregar, fica o sintetizado.
+
+O som de bordo do drone FPV (`drone-fpv`) fica guardado sem uso: a gravação é de um quadricóptero elétrico (zumbido
+agudo de hélices), e o `setDroneFpv` sintetizado foi desenhado para o drone de asa fixa com turboélice do jogo.
 
 Ainda sem gravação:
 - **Variações que não vieram** (opcionais): explosão grande 1, sirene 3, bombardeio em tapete 1 e 4, decolagem 1, 3 e

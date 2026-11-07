@@ -214,6 +214,9 @@ const SFX = {
   // vento (estéreo, em loop): brisas calmas de fundo e ventos mais fortes por cima
   breeze: ['vento-3', 'vento-4'],
   gust: ['vento-1', 'vento-2'],
+  // clima (lote 33, estéreo, em loop): chuva e o vento frio da neve
+  rain: ['chuva-1', 'chuva-2'],
+  snowWind: ['vento-neve-1', 'vento-neve-2'],
 };
 /** Volumes das gravações fora do `SAMPLES` (vento: brisa e rajadas; ronco da salva; sirenes), calibrados no navegador. */
 export const LEVELS = { breeze: 3.2, gust: 0.95, salvo: 0.5, siren: 2.2, alert: 0.45 };
@@ -306,6 +309,38 @@ const UI_SFX: Partial<Record<UiSound, string[]>> = {
 const UI_GAIN: Partial<Record<UiSound, number>> = { click: 0.15, confirm: 0.14, error: 0.13, alert: 0.14, success: 0.18, herald: 0.19 };
 const SILO_GAIN = { prepare: 0.26, authorize: 1.5 };
 const THUNDER_GAIN = 0.45;
+/** Trabalho do edifício selecionado gravado (lote 33, mono, em loop); o sintetizado fica enquanto não carregou. */
+const PRODUCTION_SFX: Record<ProductionSound, string[]> = {
+  saw: ['producao-serraria-1', 'producao-serraria-2'],
+  quarry: ['producao-pedreira-1', 'producao-pedreira-2'],
+  mine: ['producao-mina-1', 'producao-mina-2'],
+  factory: ['producao-fabrica-1', 'producao-fabrica-2'],
+  pump: ['producao-petroleo-1', 'producao-petroleo-2'],
+  farm: ['producao-fazenda-1', 'producao-fazenda-2'],
+  jet_idle: ['producao-aeroporto-1', 'producao-aeroporto-2'],
+  port: ['producao-porto-1', 'producao-porto-2'],
+  office: ['producao-escritorio-1', 'producao-escritorio-2'],
+  hum: ['producao-zumbido-1', 'producao-zumbido-2'],
+};
+// mesma energia do sintetizado (`scripts/sfx/calibrar.cjs`); a bomba de petróleo fica limitada a 1,2 para não estourar
+const PRODUCTION_GAIN: Record<ProductionSound, number> = {
+  saw: 0.73,
+  quarry: 1.2,
+  mine: 0.9,
+  factory: 0.35,
+  pump: 1.2,
+  farm: 0.36,
+  jet_idle: 0.41,
+  port: 0.48,
+  office: 0.39,
+  hum: 0.52,
+};
+/**
+ * Chuva e vento de neve gravados no lugar das camadas de ruído. A mesma energia pediria 4,5 e 3,2, mas a chuva
+ * sintetizada guarda quase tudo no grave e a gravada é larga (soa mais alta com menos energia, e estouraria): 3 nas duas.
+ */
+const RAIN_GAIN = 3;
+const SNOW_WIND_GAIN = 3;
 export const EXTRA_SAMPLES = [
   ...SFX.distant,
   ...SFX.powerDown,
@@ -317,7 +352,10 @@ export const EXTRA_SAMPLES = [
   ...SFX.siloPrepare,
   ...SFX.siloAuthorize,
   ...SFX.thunder,
+  ...SFX.rain,
+  ...SFX.snowWind,
   ...Object.values(UI_SFX).flat(),
+  ...Object.values(PRODUCTION_SFX).flat(),
 ];
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
@@ -2489,7 +2527,25 @@ export class AudioService {
     this.production = { kind, gain, stop: this.productionLoop(kind, gain) };
   }
 
+  /** Uma das gravações já carregadas de `files` tocando em loop (começo sorteado) em `out`; null se nenhuma carregou. */
+  private loopSample(files: string[], out: AudioNode, gain: number): (() => void) | null {
+    if (!this.useSamples || !this.ctx) return null;
+    const ready = files.map((f) => this.sampleBufs.get(f)).filter((b): b is AudioBuffer => !!b);
+    if (!ready.length) return null;
+    const buf = ready[Math.floor(Math.random() * ready.length)]!;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    const g = this.ctx.createGain();
+    g.gain.value = gain;
+    src.connect(g).connect(out);
+    src.start(this.ctx.currentTime, Math.random() * buf.duration);
+    return () => src.stop();
+  }
+
   private productionLoop(kind: ProductionSound, out: GainNode): () => void {
+    const recorded = this.loopSample(PRODUCTION_SFX[kind], out, PRODUCTION_GAIN[kind]);
+    if (recorded) return recorded;
     const ctx = this.ctx!;
     const stops: (() => void)[] = [];
     const drone = (
@@ -2821,7 +2877,15 @@ export class AudioService {
     this.ost = null;
   }
 
-  private weatherLoop: { wash: GainNode; hiss: GainNode; roof: GainNode; snow: GainNode; stop: () => void } | null = null;
+  private weatherLoop: {
+    wash: GainNode;
+    hiss: GainNode;
+    roof: GainNode;
+    snow: GainNode;
+    /** a chuva gravada já traz as gotas: as sintetizadas ficam de fora */
+    recordedRain: boolean;
+    stop: () => void;
+  } | null = null;
   private weatherRain = 0;
 
   /**
@@ -2869,8 +2933,22 @@ export class AudioService {
         stops.push(() => n.stop());
         return g;
       };
-      // ruído rosado aproximado: duas passa-baixas em cascata; rajadas lentas de vento mexem no volume
-      const wash = layer(
+      // gravação (lote 33) no lugar das camadas de ruído quando já carregou: o ganho da camada controla o loop
+      const recorded = (files: string[], gain: number) => {
+        const g = ctx.createGain();
+        g.gain.value = 0;
+        g.connect(out);
+        const stop = this.loopSample(files, g, gain);
+        if (!stop) {
+          g.disconnect();
+          return null;
+        }
+        stops.push(stop);
+        return g;
+      };
+      const rainRec = recorded(SFX.rain, RAIN_GAIN);
+      // com a chuva gravada, chiado e telhado viram ganhos soltos (sem fonte)
+      const wash = rainRec ?? layer(
         [
           ['highpass', 180, 0.5],
           ['lowpass', 2200, 0.4],
@@ -2878,25 +2956,25 @@ export class AudioService {
         ],
         { rate: 0.06, depth: 0.18, target: 'gain' },
       );
-      const hiss = layer([
+      const hiss = rainRec ? ctx.createGain() : layer([
         ['highpass', 4200, 0.4],
         ['lowpass', 9000, 0.4],
       ]);
-      const roof = layer(
+      const roof = rainRec ? ctx.createGain() : layer(
         [
           ['highpass', 70, 0.5],
           ['lowpass', 420, 0.6],
         ],
         { rate: 0.11, depth: 0.12, target: 'gain' },
       );
-      const snowG = layer(
+      const snowG = recorded(SFX.snowWind, SNOW_WIND_GAIN) ?? layer(
         [
           ['highpass', 60, 0.5],
           ['lowpass', 420, 0.8],
         ],
         { rate: 0.09, depth: 240, target: 'freq' },
       );
-      this.weatherLoop = { wash, hiss, roof, snow: snowG, stop: () => stops.forEach((f) => f()) };
+      this.weatherLoop = { wash, hiss, roof, snow: snowG, recordedRain: !!rainRec, stop: () => stops.forEach((f) => f()) };
     }
     const t = ctx.currentTime;
     // volumes confortáveis: a chuva fica atrás do jogo, nunca na frente
@@ -2906,7 +2984,7 @@ export class AudioService {
     this.weatherLoop.snow.gain.setTargetAtTime(0.3 * snow, t, 2.5);
     this.weatherRain += (rain - this.weatherRain) * 0.3;
     // gotas soltas para o próximo meio segundo (a função é chamada a cada ~0,5 s)
-    const drops = Math.round(this.weatherRain * 9 * (0.7 + Math.random() * 0.6));
+    const drops = this.weatherLoop.recordedRain ? 0 : Math.round(this.weatherRain * 9 * (0.7 + Math.random() * 0.6));
     for (let i = 0; i < drops; i++) this.rainDrop(t + Math.random() * 0.5, this.weatherRain);
   }
 

@@ -104,7 +104,8 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
   Refinaria sai primeiro); sem nenhum, andam a 50%. Testes de regra antigos rodam sem ele (`shared/test/setup.ts`).
 - Efeitos gravados (`public/sfx/`, `assets/sfx/CATALOGO.md`, `SAMPLES` e `LEVELS` no `AudioService`): quase todo o
   combate toca gravações (sem o arquivo, cai no sintetizado), mais guerra ao longe (`warAt`), energia desligando
-  (`powerDown`), sirenes (aviso de ataque e silo armado), vento ambiente em loop e o ronco da salva (`rocketSalvo`).
+  (`powerDown`), sirenes (aviso de ataque e silo armado), vento ambiente, chuva, vento de neve e o trabalho dos prédios
+  (`PRODUCTION_SFX`) em loop e o ronco da salva (`rocketSalvo`).
   Lote novo: guardar e catalogar, recortar em `scripts/sfx-preparar.py`, ligar no `SAMPLES` e calibrar o ganho contra o
   sintetizado; o que ainda falta gravar está no fim do catálogo.
 - Trilha sonora (`public/music/`, `docs/TRILHA_SONORA.md`): 4 faixas trocadas por estado de ameaça (`threat.ts`) com crossfade de

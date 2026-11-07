@@ -10,7 +10,13 @@ const cases = [
   { name: 'silo_prepare', call: "a.missileCue('prepare', 1)", dur: 4.5 },
   { name: 'silo_authorize', call: "a.missileCue('authorize', 1)", dur: 3 },
   ...['click', 'confirm', 'error', 'alert', 'success', 'herald'].map((u) => ({ name: 'ui_' + u, call: `a.ui('${u}')`, dur: 2.5 })),
+  { name: 'rain', call: 'a.setWeather(1, 0)', dur: 9 },
+  { name: 'snow_wind', call: 'a.setWeather(0, 1)', dur: 9 },
+  ...['saw', 'quarry', 'mine', 'factory', 'pump', 'farm', 'jet_idle', 'port', 'office', 'hum'].map((k) => ({ name: 'prod_' + k, call: `a.setProduction('${k}')`, dur: 6 })),
 ];
+// ONLY=rain,prod_saw limita os casos
+const only = process.env.ONLY?.split(',');
+if (only) cases.splice(0, cases.length, ...cases.filter((c) => only.includes(c.name)));
 (async () => {
   const b = await chromium.launch(); const p = await b.newPage();
   p.on('pageerror', (e) => console.log('PAGEERR', e.message));

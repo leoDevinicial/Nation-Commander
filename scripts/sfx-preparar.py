@@ -177,6 +177,14 @@ LOOPS = [
     ('sirene-loop-1', 'sirene-ataque-aereo/sirene-ataque-aereo-2', 3.0, 9.0, 0.5, -19, False, True),
     ('sirene-loop-2', 'sirene-ataque-aereo/sirene-ataque-aereo-4', 1.5, 9.0, 0.5, -19, False, True),
     *[(f'vento-{i}', f'vento/vento-{i}', 1.0, 9.0, 0.8, None, True, False) for i in range(1, 5)],
+    # lote 33 (07/11): chuva e vento de neve (estéreo) e a produção dos prédios (mono), duas variações de cada
+    *[(f'chuva-{i}', f'chuva/chuva-{i}', 0.9, 9.7, 0.8, -24, True, False) for i in (1, 2)],
+    *[(f'vento-neve-{i}', f'vento-neve/vento-neve-{i}', 0.9, 9.7, 0.8, -22, True, False) for i in (1, 2)],
+    *[
+        (f'producao-{k}-{i}', f'producao-predios/producao-{k}-{i}', 0.6, 7.6, 0.5, -22, False, False)
+        for k in ('serraria', 'pedreira', 'mina', 'fabrica', 'petroleo', 'fazenda', 'aeroporto', 'porto', 'escritorio', 'zumbido')
+        for i in (1, 2)
+    ],
 ]
 
 

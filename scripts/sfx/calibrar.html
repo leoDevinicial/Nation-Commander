@@ -11,7 +11,7 @@ async function render(useSamples, fn, dur) {
   const a = new AudioService();
   a.unlock();
   Object.defineProperty(a, 'ready', { get: () => true });
-  a.setVolumes({ master: 1, combat: 1, music: 0, ambient: 1, ui: 1, production: 0 }, false);
+  a.setVolumes({ master: 1, combat: 1, music: 0, ambient: 1, ui: 1, production: 1 }, false);
   a.useSamples = useSamples;
   a.setListener(0, 0, 20, 0);
   await new Promise((r) => setTimeout(r, 2500)); // amostras decodificadas
