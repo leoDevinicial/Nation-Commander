@@ -3462,9 +3462,15 @@ export class GameRuntime {
                       ? 'cannon'
                       : attacker.visual.type === 'apc'
                         ? 'apc_gun'
-                        : 'rifle'
+                        : attacker.visual.type === 'frigate'
+                          ? 'naval_gun'
+                          : attacker.visual.type === 'submarine' || attacker.visual.type === 'missile_submarine'
+                            ? 'torpedo'
+                            : 'rifle'
           : 'tower';
         audio.playAt(sound, e.from.x, e.from.y);
+        // o torpedo explode na água junto ao alvo (a gravação já começa ~1 s depois)
+        if (sound === 'torpedo') audio.playAt('torpedo_hit', e.to.x, e.to.y);
         break;
       }
       case 'salvo_impact':
@@ -3472,9 +3478,10 @@ export class GameRuntime {
         break;
       case 'destroyed': {
         // veículos: explosão cinematográfica (os pesados com a munição cozinhando); prédios e soldados como antes
-        const def = e.entity === 'unit' ? (UNITS as Record<string, { armor: string }>)[e.entityType] : undefined;
-        const sound =
-          def?.armor === 'vehicle'
+        const def = e.entity === 'unit' ? (UNITS as Record<string, { armor: string; naval?: boolean }>)[e.entityType] : undefined;
+        const sound = def?.naval
+          ? 'ship_sink'
+          : def?.armor === 'vehicle'
             ? HEAVY_WRECKS.has(e.entityType)
               ? 'vehicle_explosion_heavy'
               : 'vehicle_explosion'
@@ -3545,7 +3552,7 @@ export class GameRuntime {
         }
         break;
       case 'era':
-        if (mine(e.owner) && e.state === 'completed') audio.ui('success');
+        if (mine(e.owner) && e.state === 'completed') audio.ui('era');
         else if (!mine(e.owner) && e.state === 'completed') audio.ui('alert');
         break;
       case 'border_incident':

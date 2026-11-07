@@ -674,6 +674,22 @@ Espectro do drone: 99% e 87% da energia abaixo de 800 Hz (hélice), contra 38% d
 Ganhos (`calibrar.cjs`): `hold` 0,07 (um pouco acima da energia do tique sintetizado de 60 ms), `warning` 0,19,
 `DRONE_ONBOARD_GAIN` 1.
 
+## Lote 35 (07/11) — marinha e fanfarra de era (ElevenLabs)
+Gerados no `eleven_text_to_sound_v2`, duas variações de cada. Antes deste lote a fragata e os submarinos caíam no som
+de fuzil (o `shot` só distinguia as armas de terra) e o navio destruído tocava a explosão de blindado.
+
+| Pasta | Pedido | Recorte | Uso |
+|---|---|---|---|
+| `canhao-naval/` | canhão de convés disparando no mar, eco sobre a água (3 s) | 2,2–2,4 s | `naval_gun`: tiro da fragata |
+| `torpedo-lancamento/` | tubo de ar comprimido, bolhas e a hélice do torpedo se afastando (3 s) | 2,8 s | `torpedo`: submarino e submarino de mísseis |
+| `explosao-agua/` | explosão submarina abafada e a coluna d'água caindo (4 s) | 3,6 s | `torpedo_hit`: junto ao alvo, 1 s depois do disparo |
+| `navio-afundando/` | explosão a bordo, casco rangendo, água entrando e bolhas (6 s) | 4,3–4,4 s | `ship_sink`: qualquer navio destruído |
+| `era-fanfarra/` | fanfarra curta de metais, tímpanos e prato (3,5 s) | 3,2 s | `ui('era')`: a própria nação entrou numa era nova |
+
+Ganhos: o sintetizado de reserva da marinha é o estampido fraco do `cannon`, então o nível veio das gravações
+vizinhas (`calibrar.cjs`): canhão naval 1 (entre `tank_gun` e `mbt_gun`), torpedo 0,6, explosão na água 1 e naufrágio
+1,2 (no nível do `vehicle_explosion_heavy`); fanfarra 0,12 no `UI_GAIN`, uns 3 dB acima do "sucesso".
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono 44,1 kHz (o vento fica estéreo) e iguala o volume dos clipes em
 `public/sfx/` (121 arquivos, ~4,3 MB). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o áudio é

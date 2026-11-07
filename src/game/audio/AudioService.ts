@@ -36,8 +36,8 @@ export type Volumes = Record<Channel | 'master', number>;
 
 export const DEFAULT_VOLUMES: Volumes = { master: 0.8, music: 0.35, ui: 0.7, ambient: 0.5, combat: 0.8, production: 0.6 };
 
-export type UiSound = 'click' | 'confirm' | 'error' | 'alert' | 'success' | 'hold' | 'herald' | 'warning' | 'attack';
-export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'mbt_gun' | 'tank_gun' | 'vehicle_explosion' | 'vehicle_explosion_heavy' | 'nuclear_blast' | 'space_prelaunch' | 'space_liftoff' | 'dome_launch' | 'dome_intercept' | 'gatling' | 'bomber' | 'jet_cannon' | 'bomb_whistle' | 'carpet_rumble' | 'aam_launch' | 'agm_launch' | 'air_mg' | 'drone_pass' | 'apc_gun';
+export type UiSound = 'click' | 'confirm' | 'error' | 'alert' | 'success' | 'hold' | 'herald' | 'warning' | 'attack' | 'era';
+export type CombatSound = 'rifle' | 'cannon' | 'howitzer' | 'tower' | 'explosion' | 'explosion_big' | 'jet' | 'bomb' | 'flak' | 'missile_launch' | 'missile_impact' | 'intercept' | 'rocket' | 'aa_gun' | 'aa_twin' | 'mbt_gun' | 'tank_gun' | 'vehicle_explosion' | 'vehicle_explosion_heavy' | 'nuclear_blast' | 'space_prelaunch' | 'space_liftoff' | 'dome_launch' | 'dome_intercept' | 'gatling' | 'bomber' | 'jet_cannon' | 'bomb_whistle' | 'carpet_rumble' | 'aam_launch' | 'agm_launch' | 'air_mg' | 'drone_pass' | 'apc_gun' | 'naval_gun' | 'torpedo' | 'torpedo_hit' | 'ship_sink';
 /**
  * Só os sons grandes abaixam a música, e pouco (fração do volume dela). Tiro de fuzil, metralhadora e canhão leve não
  * mexem nela: quem faz o tiro aparecer é o filtro de combate (`MUSIC_EQ`), não o volume.
@@ -134,6 +134,10 @@ const PRIORITY: Record<CombatSound, number> = {
   intercept: 5,
   missile_launch: 6,
   missile_impact: 6,
+  naval_gun: 3,
+  torpedo: 3,
+  torpedo_hit: 5,
+  ship_sink: 5,
 };
 
 /**
@@ -210,6 +214,11 @@ const SFX = {
   thunder: ['trovao-1', 'trovao-2'],
   // bordo do drone de asa fixa (lote 34, em loop): hélice do turboélice e vento
   droneOnboard: ['drone-asa-fixa-1', 'drone-asa-fixa-2'],
+  // marinha (lote 35): canhão da fragata, torpedo dos submarinos, a explosão na água e o navio afundando
+  navalGun: ['canhao-naval-1', 'canhao-naval-2'],
+  torpedo: ['torpedo-lancamento-1', 'torpedo-lancamento-2'],
+  torpedoHit: ['explosao-agua-1', 'explosao-agua-2'],
+  shipSink: ['navio-afundando-1', 'navio-afundando-2'],
   // sirene: o aviso curto "sob ataque" e as sirenes em loop do silo armado (o loop começa em `SIREN_LOOP` s)
   sirenAlert: ['sirene-aviso'],
   siren: ['sirene-loop-1', 'sirene-loop-2'],
@@ -296,6 +305,13 @@ export const SAMPLES: Partial<Record<CombatSound, SampleSet | SampleSet[]>> = {
   agm_launch: { files: SFX.agm, gain: AGM_GAIN },
   flak: { files: SFX.flak, gain: FLAK_GAIN },
   drone_pass: { files: SFX.dronePass, gain: DRONE_PASS_GAIN },
+  // marinha (lote 35): o sintetizado de reserva (canhão) é fraco, então o nível vem das gravações vizinhas: o canhão
+  // naval fica entre o tiro do tanque e o do MBT, o torpedo abaixo, a explosão na água e o naufrágio no nível do
+  // veículo pesado destruído. O torpedo chega ao alvo ~1 s depois do disparo
+  naval_gun: { files: SFX.navalGun, gain: 1 },
+  torpedo: { files: SFX.torpedo, gain: 0.6 },
+  torpedo_hit: { files: SFX.torpedoHit, gain: 1, delay: 1 },
+  ship_sink: { files: SFX.shipSink, gain: 1.2 },
 };
 /** Gravações que não são sons de combate do `SAMPLES` (guerra ao longe, energia, sirene, vento, salva), carregadas junto. */
 /** Interface gravada (lotes 33 e 34): o sintetizado continua para 'attack' (sirene) e enquanto o arquivo não carregou. */
@@ -307,10 +323,11 @@ const UI_SFX: Partial<Record<UiSound, string[]>> = {
   success: ['ui-sucesso-1', 'ui-sucesso-2'],
   herald: ['ui-anuncio-1', 'ui-anuncio-2'],
   hold: ['ui-segurar-1', 'ui-segurar-2'],
+  era: ['era-fanfarra-1', 'era-fanfarra-2'],
   warning: ['ui-aviso-grave-1', 'ui-aviso-grave-2'],
 };
 /** Volume da interface e dos sinais do silo gravados, no nível dos tons sintetizados (ver `AGM_GAIN`). */
-const UI_GAIN: Partial<Record<UiSound, number>> = { click: 0.15, confirm: 0.14, error: 0.13, alert: 0.14, success: 0.18, herald: 0.19, hold: 0.07, warning: 0.19 };
+const UI_GAIN: Partial<Record<UiSound, number>> = { click: 0.15, confirm: 0.14, error: 0.13, alert: 0.14, success: 0.18, herald: 0.19, hold: 0.07, warning: 0.19, era: 0.12 };
 const SILO_GAIN = { prepare: 0.26, authorize: 1.5 };
 const THUNDER_GAIN = 0.45;
 /** Trabalho do edifício selecionado gravado (lote 33, mono, em loop); o sintetizado fica enquanto não carregou. */
@@ -366,7 +383,7 @@ export const EXTRA_SAMPLES = [
 ];
 
 /** Intervalo mínimo (s) entre dois sons iguais: vários fuzis no mesmo quadro viram um. */
-const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, bomber: 1.2, jet_cannon: 0.12, aam_launch: 0.25, drone_pass: 3, agm_launch: 0.2, air_mg: 0.18, bomb_whistle: 0.4, carpet_rumble: 1.5, bomb: 0.07, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, vehicle_explosion: 0.1, vehicle_explosion_heavy: 0.15, nuclear_blast: 1, space_prelaunch: 2, space_liftoff: 2, dome_launch: 0.2, dome_intercept: 0.3, tank_gun: 0.18, apc_gun: 0.25 };
+const MIN_GAP: Partial<Record<CombatSound, number>> = { rifle: 0.12, tower: 0.06, cannon: 0.08, howitzer: 0.35, rocket: 0.05, explosion: 0.06, flak: 0.05, jet: 0.4, bomber: 1.2, jet_cannon: 0.12, aam_launch: 0.25, drone_pass: 3, agm_launch: 0.2, air_mg: 0.18, bomb_whistle: 0.4, carpet_rumble: 1.5, bomb: 0.07, aa_gun: 0.45, aa_twin: 0.4, mbt_gun: 0.18, gatling: 0.15, vehicle_explosion: 0.1, vehicle_explosion_heavy: 0.15, nuclear_blast: 1, space_prelaunch: 2, space_liftoff: 2, dome_launch: 0.2, dome_intercept: 0.3, tank_gun: 0.18, apc_gun: 0.25, naval_gun: 0.15, torpedo: 0.2, torpedo_hit: 0.2, ship_sink: 0.3 };
 
 /**
  * Atenuação e panorâmica de um ponto do mapa para quem olha `L` (ponto da câmera, distância e giro).
@@ -1190,6 +1207,9 @@ export class AudioService {
         end = burst('lowpass', 200, 0.5, 0.1, 0.2, 1.3, stop + 0.45, mix);
         break;
       }
+      // canhão da fragata e torpedo sem a gravação: o estampido abafado do canhão
+      case 'naval_gun':
+      case 'torpedo':
       case 'cannon':
         end = burst('lowpass', 900, 0.8, 0.003, 0.9, 0.45);
         thump(110, 38, 0.004, 0.9, 0.38);
@@ -1264,13 +1284,15 @@ export class AudioService {
         burst('highpass', 3000, 0.7, 0.001, 0.3, 0.05, t + 0.03);
         break;
       case 'vehicle_explosion':
+      case 'torpedo_hit':
+      case 'ship_sink':
       case 'vehicle_explosion_heavy': {
         // veículo destruído, cinematográfico, em camadas:
         //   estalo da detonação; bola de fogo saturada que abre e fecha (filtro varrendo do agudo ao grave);
         //   estrondo grave, o soco no peito e um subgrave longo; destroços de metal caindo (baques médios, sem
         //   tilintar agudo); o fogo crepitando; nos pesados, a munição cozinhando (estouros secundários).
         // Tudo também vai para a reverberação de campo aberto, e no fim o estrondo rola pelo terreno.
-        const heavy = sound === 'vehicle_explosion_heavy';
+        const heavy = sound === 'vehicle_explosion_heavy' || sound === 'ship_sink';
         const p = heavy ? 1 : 0.75;
         const mix = ctx.createGain();
         mix.connect(out);
@@ -2277,6 +2299,8 @@ export class AudioService {
         tone(660, t, 0.09, 0.22);
         tone(990, t + 0.07, 0.12, 0.2);
         break;
+      // nova era sem a fanfarra gravada: o mesmo arpejo de sucesso
+      case 'era':
       case 'success':
         tone(523, t, 0.1, 0.2);
         tone(659, t + 0.09, 0.1, 0.2);

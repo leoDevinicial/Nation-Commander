@@ -167,6 +167,17 @@ MORE = [
     ('ui-segurar-2', 'interface/ui-segurar-2', 0.0, 0.42, 0.15, -22, 0),
     ('ui-aviso-grave-1', 'interface/ui-aviso-grave-1', 0.0, 2.3, 0.8, -22, 0),
     ('ui-aviso-grave-2', 'interface/ui-aviso-grave-2', 0.0, 2.2, 0.6, -22, 0),
+    # lote 35 (07/11): marinha (canhão da fragata, torpedo, explosão na água, navio afundando) e a fanfarra de era
+    ('canhao-naval-1', 'canhao-naval/canhao-naval-1', 0.0, 2.2, 1.0, -19, 0),
+    ('canhao-naval-2', 'canhao-naval/canhao-naval-2', 0.0, 2.4, 1.0, -19, 0),
+    ('torpedo-lancamento-1', 'torpedo-lancamento/torpedo-lancamento-1', 0.0, 2.8, 1.0, -19, 0),
+    ('torpedo-lancamento-2', 'torpedo-lancamento/torpedo-lancamento-2', 0.0, 2.8, 1.0, -19, 0),
+    ('explosao-agua-1', 'explosao-agua/explosao-agua-1', 0.0, 3.6, 1.3, -18, 0),
+    ('explosao-agua-2', 'explosao-agua/explosao-agua-2', 0.0, 3.6, 1.3, -18, 0),
+    ('navio-afundando-1', 'navio-afundando/navio-afundando-1', 0.65, 5.0, 1.5, -18, 0.01),
+    ('navio-afundando-2', 'navio-afundando/navio-afundando-2', 0.0, 4.4, 1.5, -18, 0),
+    ('era-fanfarra-1', 'era-fanfarra/era-fanfarra-1', 0.0, 3.2, 1.0, -20, 0),
+    ('era-fanfarra-2', 'era-fanfarra/era-fanfarra-2', 0.0, 3.2, 1.0, -20, 0),
 ]
 
 # contagem falada em português e espanhol (lote 33): a ignição gravada (`espaco-ignicao`, tocada 2,6 s depois do pedido,
