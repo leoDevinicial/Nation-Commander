@@ -542,9 +542,9 @@ export const TUTORIAL: TutorialChapter[] = [
 /** Todos os passos em ordem, com o capítulo de cada um. */
 export const TUTORIAL_STEPS: { chapter: TutorialChapter; step: TutorialStep }[] = TUTORIAL.flatMap((chapter) => chapter.steps.map((step) => ({ chapter, step })));
 
-/** Duração estimada da fala (s): ~2,6 palavras por segundo e uma pausa curta no fim. */
+/** Duração estimada da fala (s): ~2,6 palavras por segundo e uma pausa no fim (cobre as gravações em pt, en e es). */
 export function speechSeconds(text: string): number {
-  return Math.max(3, text.split(/\s+/).length / 2.6 + 1.2);
+  return Math.max(3, text.split(/\s+/).length / 2.6 + 2.2);
 }
 
 /** O que o cliente recebe a cada mudança do tutorial (nunca o roteiro inteiro). */

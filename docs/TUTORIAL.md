@@ -59,10 +59,11 @@ até os capítulos 6 e 7.
 `assets/narration/originais/<idioma>-<capítulo>-<a|b>.mp3` (ElevenLabs `eleven_v4`, uma tomada por capítulo com pausas
 longas entre as falas). Vozes: português "Michelangelo/Lucas - Warm & Confident", inglês "Ian - Professional, Warm, Calm",
 espanhol "Roberto - Warm Baritone Broadcaster". Idioma sem gravação usa o inglês; sem o arquivo, fica só a legenda. A
-duração estimada de cada fala (`speechSeconds`) cobre a gravada (conferido em pt: 3–7 s).
+duração estimada de cada fala (`speechSeconds`, palavras ÷ 2,6 + 2,2 s) cobre a gravada nos três idiomas (conferido:
+falas de 1,8 a 10,8 s, nenhuma passa do tempo do passo).
 
-**Estado (07/11):** gravados os capítulos 1–3 em português. O restante (pt 4–9, en e es inteiros) parou no limite de
-créditos do ElevenLabs; os textos estão prontos nos dicionários `src/i18n/en.ts` e `es.ts` e no roteiro.
+**Estado (07/11):** gravados os 49 passos em português, inglês e espanhol (27 tomadas, tomada "a" em todas). Texto do
+roteiro mudou: regravar o capítulo no ElevenLabs e rodar `python3 scripts/narracao-preparar.py`.
 
 ## Testes
 
