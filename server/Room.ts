@@ -45,9 +45,13 @@ import { PAUSE_POLICY } from './kac/policy.ts';
 import { idCipher, newIdKey } from './kac/entityIds.ts';
 import type { MatchRecord } from './supabase.ts';
 import { KnpsRoomStats } from './knps/stats.ts';
+import { TutorialDirector } from './tutorial/Director.ts';
+import type { TutorialFact } from '../shared/tutorial/script.ts';
 
 export const SNAPSHOT_EVERY = 2; // 10 snapshots/s
 const MAX_COMMANDS_PER_TICK = 20;
+/** Semente fixa do mapa do tutorial (Continental, 3 nações). */
+const TUTORIAL_SEED = 2026;
 /** Partida retomada de um salvamento: tempo extra para os jogadores reconectarem antes do abandono. */
 export const RESTORE_GRACE_MS = 5 * 60_000;
 
@@ -167,6 +171,8 @@ export class Room {
   private readonly behavior = new BehaviorMonitor();
   /** Eventos de segurança relevantes (média ou maior) desta sala durante a partida. */
   private kacEvents = 0;
+  /** Diretor do tutorial (só no modo `tutorial`). */
+  private tutorial: TutorialDirector | null = null;
   /** KAC-06: chave secreta da permutação dos ids desta partida (nunca vai para o cliente). */
   private idKey: string | null = null;
 
@@ -184,9 +190,20 @@ export class Room {
     if (!host) return;
     const countryId = host.countryId;
     this.hostUserId = host.conn.user!.id;
-    this.nationLimit = mode === 'sandbox' ? 2 : host.conn.user!.subscriber ? MAX_NATIONS_SUBSCRIBER : MAX_NATIONS_FREE;
+    this.nationLimit = mode === 'sandbox' ? 2 : mode === 'tutorial' ? 3 : host.conn.user!.subscriber ? MAX_NATIONS_SUBSCRIBER : MAX_NATIONS_FREE;
     this.addHuman(host.conn, countryId);
-    if (mode !== 'pvp') {
+    if (mode === 'tutorial') {
+      // tutorial (07/11): o aliado e a Força Vermelha, ambos parados até o diretor mandar
+      const ally = randomFreeCountry([countryId], this.rand);
+      const enemy = randomFreeCountry([countryId, ally], this.rand);
+      for (const [slot, name, country] of [
+        [1, 'Nação Aliada', ally],
+        [2, 'Força Vermelha', enemy],
+      ] as const)
+        this.players.push({ slot, userId: null, name, countryId: country, ready: true, isAI: true, connected: true, conn: null, disconnectedAt: null });
+      this.maxPlayers = 3;
+      this.mapType = 'continental';
+    } else if (mode !== 'pvp') {
       this.players.push({
         slot: 1,
         userId: null,
@@ -419,6 +436,20 @@ export class Room {
     this.broadcastRoom();
   }
 
+  /** Tutorial: a partida começa na hora, sem lobby. */
+  beginTutorial(): void {
+    if (this.mode !== 'tutorial' || this.status !== 'lobby') return;
+    this.beginMatch();
+  }
+
+  /** Tutorial: fato da tela ou pedido de pular, só do jogador humano da sala. */
+  tutorialInput(conn: Connection, msg: { fact?: TutorialFact; skip?: 'step' | 'chapter' }): void {
+    const p = this.playerOf(conn);
+    if (!this.tutorial || !p || p.slot !== this.tutorial.human) return;
+    if (msg.skip) this.tutorial.skip(msg.skip);
+    else if (msg.fact) this.tutorial.fact(msg.fact);
+  }
+
   start(conn: Connection): string | null {
     if (this.status !== 'lobby') return 'A partida já começou';
     if (conn.user!.id !== this.hostUserId) return 'Apenas o anfitrião pode iniciar';
@@ -434,7 +465,8 @@ export class Room {
   // ------------------------------------------------------------ partida
 
   private beginMatch(): void {
-    this.seed = this.deps.seed ?? (Math.random() * 0xffffffff) >>> 0;
+    // tutorial: sempre o mesmo mapa (base com solo fértil, floresta, rocha e minério por perto; ver docs/TUTORIAL.md)
+    this.seed = this.deps.seed ?? (this.mode === 'tutorial' ? TUTORIAL_SEED : (Math.random() * 0xffffffff) >>> 0);
     // slots contínuos (0..n-1) na ordem do lobby: a simulação indexa nações por slot
     this.players.sort((a, b) => a.slot - b.slot).forEach((p, i) => (p.slot = i));
     const type = this.mapType === 'random' ? MAP_TYPES[this.seed % MAP_TYPES.length]! : this.mapType;
@@ -468,6 +500,11 @@ export class Room {
           sim.setMet(a.slot, b.slot);
           national.diplomacy.teamAlliance(a.slot, b.slot, national.day);
         }
+    if (this.mode === 'tutorial') {
+      sim.tutorial = { slot: 0, timeDiv: 3 };
+      this.tutorial = new TutorialDirector(sim, national, 0, 1, 2, (view) => this.playerBySlot(0)?.conn?.send({ t: 'tutorial', view }));
+      this.tutorial.setup();
+    }
     // operações expedicionárias contra governos fora do teatro (Fase 8)
     this.ops = new OperationsSystem(sim, national, this.seed);
     for (const n of this.national.nations) this.gdpStart.set(n.slot, n.gdpUsd);
@@ -478,6 +515,7 @@ export class Room {
     this.paused = false;
     this.speed = 1;
     for (const p of this.players) if (p.conn) this.sendMatchStart(p);
+    this.tutorial?.publish(true);
     this.broadcastRoom();
     this.broadcastSnapshot();
     this.broadcastNational(true);
@@ -582,7 +620,8 @@ export class Room {
 
   /** Estado completo da partida em andamento (null fora da partida). */
   toSave(): RoomSave | null {
-    if (this.status !== 'playing' || !this.sim || !this.national) return null;
+    // o tutorial não é retomado (o diretor não vai no salvamento): curto, recomeça do menu
+    if (this.status !== 'playing' || !this.sim || !this.national || this.mode === 'tutorial') return null;
     return {
       format: 1,
       gameVersion: GAME_VERSION,
@@ -749,7 +788,7 @@ export class Room {
     const sim = this.sim;
     if (!sim || this.status !== 'playing') return;
     // Sandbox: a IA inimiga só age quando o jogador liga (senão a base fica parada como alvo)
-    if (sim.tick % AI_THINK_TICKS === 0 && (!sim.sandbox || sim.sandbox.aiActive)) {
+    if (sim.tick % AI_THINK_TICKS === 0 && !this.tutorial && (!sim.sandbox || sim.sandbox.aiActive)) {
       for (const ai of this.ais) {
         const cmds = ai.think(sim);
         // incidente de fronteira (assédio no preparo): abre antes das ordens, para as tropas entrarem
@@ -801,7 +840,7 @@ export class Room {
     for (const e of tickEvents) if (e.type === 'nations_met' && this.national) this.national.meetInTheater(e.a, e.b);
     // depois de uma eliminação, se só sobraram nações com pacto entre si (sem times), os pactos caem e a guerra
     // continua (06/11). Fora disso, um pacto entre os dois últimos vale até alguém romper.
-    const last = tickEvents.some((e) => e.type === 'player_defeated') ? sim.lastPactPairs() : null;
+    const last = !this.tutorial && tickEvents.some((e) => e.type === 'player_defeated') ? sim.lastPactPairs() : null;
     if (last && this.national) {
       const nations = [...new Set(last.flat())];
       this.national.diplomacy.dissolvePacts(nations, this.national.day);
@@ -811,6 +850,13 @@ export class Room {
     for (const e of tickEvents) if (e.type === 'unit_promoted' && e.rank > (this.bestRank.get(e.owner) ?? 0)) this.bestRank.set(e.owner, e.rank);
     if (sim.tick % REPORT_EVERY_TICKS === 0) this.reportSamples = pushSample(this.reportSamples, this.sampleReport());
     this.advanceNational(tickEvents);
+    this.tutorial?.tick(tickEvents);
+    if (this.tutorial?.done && !sim.ended) {
+      // tutorial concluído: vitória do jogador e do aliado
+      sim.ended = true;
+      sim.winner = this.tutorial.human;
+      sim.winners = [this.tutorial.human, this.tutorial.ally];
+    }
     if (sim.tick % SNAPSHOT_EVERY === 0 || sim.ended) this.broadcastSnapshot();
     else for (const slot of commanded) this.sendQuickSnapshot(slot);
     if (sim.ended) void this.finish(this.endReason ?? sim.victory ?? (sim.winner === null ? 'draw' : 'hq_destroyed'));
@@ -943,7 +989,7 @@ export class Room {
     }
     // Sandbox com a IA pausada: o governo inimigo também não mexe em orçamento nem diplomacia
     // (senão poderia propor paz e desligar o combate no meio do teste)
-    if (national.day % 30 === 0 && (!sim.sandbox || sim.sandbox.aiActive)) {
+    if (national.day % 30 === 0 && !this.tutorial && (!sim.sandbox || sim.sandbox.aiActive)) {
       for (const ai of this.nationalAIs) {
         // governo de nação derrotada não decide mais nada (antes declarava guerra e propunha tratados depois de cair)
         if (sim.players[ai.slot]?.defeated) continue;
@@ -1208,6 +1254,7 @@ export class Room {
       this.territorySent.delete(p.slot); // reconexão: reenvia as fronteiras
       conn.sendRaw(this.snapshotJson([], p.slot));
       if (this.national) conn.send(this.nationalMessage(p.slot, [], true));
+      if (this.tutorial && p.slot === this.tutorial.human) this.tutorial.publish(true);
       // operação em combate: o cliente reabre a batalha local
       const battle = this.ops?.battleOf(p.slot);
       if (battle) {
@@ -1299,9 +1346,10 @@ export class Room {
       }),
     };
     // o Sandbox não conta no histórico nem no ranking
-    const realUsers = this.mode === 'sandbox' ? [] : this.players.filter((p) => !p.isAI && p.userId && !p.userId.startsWith('guest:'));
+    const practice = this.mode === 'sandbox' || this.mode === 'tutorial';
+    const realUsers = practice ? [] : this.players.filter((p) => !p.isAI && p.userId && !p.userId.startsWith('guest:'));
     // painel de números (06/11): conta toda partida de verdade, inclusive só de convidados (o banco grava só as com conta)
-    if (this.mode !== 'sandbox') {
+    if (!practice) {
       matchTally.record(endedAt, durationSeconds, realUsers.length > 0);
       recentMatches.record({
         endedAt: new Date(endedAt).toISOString(),

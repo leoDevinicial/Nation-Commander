@@ -1,3 +1,4 @@
+import { TUTORIAL_FACTS, type TutorialFact } from '../shared/tutorial/script.ts';
 import { isDecreeId } from '../shared/strategic/policies.ts';
 import { isMapType } from '../shared/sim/matchMap.ts';
 import { isDifficulty } from '../shared/sim/difficulty.ts';
@@ -30,7 +31,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return { t: 'hello', protocol: data.protocol, token, guestId, guestName };
     }
     case 'create_room':
-      if ((data.mode !== 'pvp' && data.mode !== 'vs_ai' && data.mode !== 'sandbox') || !isCountryId(data.countryId)) return null;
+      if ((data.mode !== 'pvp' && data.mode !== 'vs_ai' && data.mode !== 'sandbox' && data.mode !== 'tutorial') || !isCountryId(data.countryId)) return null;
       return { t: 'create_room', mode: data.mode, countryId: data.countryId, ...(data.isPublic === true && data.mode === 'pvp' ? { isPublic: true } : {}) };
     case 'list_rooms':
       return { t: 'list_rooms' };
@@ -139,6 +140,9 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return GAME_SPEEDS.includes(data.speed as GameSpeed) ? { t: 'speed', speed: data.speed as GameSpeed } : null;
     case 'surrender':
       return { t: 'surrender' };
+    case 'tutorial':
+      if (data.skip === 'step' || data.skip === 'chapter') return { t: 'tutorial', skip: data.skip };
+      return TUTORIAL_FACTS.includes(data.fact as TutorialFact) ? { t: 'tutorial', fact: data.fact as TutorialFact } : null;
     case 'chat': {
       if (typeof data.text !== 'string') return null;
       // eslint-disable-next-line no-control-regex -- remove caracteres de controle do chat

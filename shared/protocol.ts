@@ -1,3 +1,4 @@
+import type { TutorialFact, TutorialView } from './tutorial/script.ts';
 import type { Command } from './sim/commands.ts';
 import type { MatchReport } from './sim/report.ts';
 import type { MapType } from './sim/matchMap.ts';
@@ -11,7 +12,8 @@ import type { Difficulty } from './sim/difficulty.ts';
 import type { DecreeId } from './strategic/policies.ts';
 
 /** `sandbox`: modo livre contra uma IA (recursos ilimitados, tudo liberado, ferramentas de teste). */
-export type RoomMode = 'pvp' | 'vs_ai' | 'sandbox';
+/** `tutorial` (07/11): partida roteirizada e narrada para quem joga pela primeira vez (`server/tutorial/`). */
+export type RoomMode = 'pvp' | 'vs_ai' | 'sandbox' | 'tutorial';
 
 /** Mensagem do chat da Comunidade (menu). */
 export interface CommunityMessage {
@@ -204,6 +206,8 @@ export type ClientMessage =
   | { t: 'pause'; paused: boolean }
   | { t: 'speed'; speed: GameSpeed }
   | { t: 'surrender' }
+  /** Tutorial: fato da tela do jogador ou pedido de pular (07/11). */
+  | { t: 'tutorial'; fact?: TutorialFact; skip?: 'step' | 'chapter' }
   | { t: 'chat'; text: string }
   | { t: 'ping'; n: number };
 
@@ -232,6 +236,7 @@ export type ServerMessage =
   /** `nations` traz só a nação do próprio jogador; as demais vêm filtradas em `diplomacy`. */
   | { t: 'national'; day: number; date: string; nations: NationView[]; events: NationalEvent[]; diplomacy: DiplomacyView }
   | { t: 'cmd_rejected'; reason: string }
+  | { t: 'tutorial'; view: TutorialView }
   | { t: 'chat'; from: string; text: string; system?: boolean }
   | { t: 'pong'; n: number };
 

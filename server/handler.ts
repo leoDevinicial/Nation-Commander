@@ -113,7 +113,11 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
       if (room) room.leave(conn);
       const created = deps.rooms.create(conn, msg.mode, msg.countryId, msg.isPublic === true);
       if (typeof created === 'string') conn.send({ t: 'error', code: 'room', message: created });
-      else created.broadcastRoom();
+      else {
+        created.broadcastRoom();
+        // tutorial: começa na hora, sem lobby
+        if (msg.mode === 'tutorial') created.beginTutorial();
+      }
       return;
     }
     case 'join_room': {
@@ -230,6 +234,9 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
       return;
     case 'surrender':
       room?.surrender(conn);
+      return;
+    case 'tutorial':
+      room?.tutorialInput(conn, msg);
       return;
     case 'chat':
       room?.chat(conn, msg.text);

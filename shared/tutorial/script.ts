@@ -287,7 +287,7 @@ export const TUTORIAL: TutorialChapter[] = [
         objective: 'Aliste 2 recrutas',
         anchor: ['Recruta'],
         cond: { k: 'more', what: 'recruits', n: 2 },
-        help: 'Selecione a Base Militar e toque em Recruta.',
+        help: 'Selecione a Base Militar e toque em Recruta. Ela precisa de cidadãos livres para trabalhar: forme mais no Centro de Comando se faltar.',
       },
       {
         id: '4.3',
