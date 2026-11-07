@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DbStatsCache, MatchTally, PROVISIONAL_STATS_TOKEN, STATS_POLICY, StatsGate, dayKey, dayStartIso } from './stats.ts';
+import { createHash } from 'node:crypto';
+import { DbDetailsCache, DbStatsCache, MatchTally, PROVISIONAL_DETAILS_KEY_SHA256, PROVISIONAL_STATS_TOKEN, RecentMatches, STATS_POLICY, StatsGate, dayKey, dayStartIso } from './stats.ts';
 
 /** Painel de números (06/11): token, bloqueio por tentativas, dia no horário de Brasília e contagem em memória. */
 describe('Painel /stats', () => {
@@ -41,5 +42,28 @@ describe('Painel /stats', () => {
     const db = await new DbStatsCache(() => null).get(Date.now());
     expect(db.accounts).toBeNull();
     expect(db.error).toMatch(/Supabase/);
+  });
+  it('chave de detalhes: só o hash fica no código; abre os detalhes sem STATS_TOKEN e nunca a chave pública', () => {
+    const key = 'chave-de-detalhes-de-teste-0123456789';
+    const hash = createHash('sha256').update(key).digest();
+    const details = new StatsGate(undefined, Date.now, [hash]);
+    expect(details.enabled).toBe(true);
+    expect(details.check(`Bearer ${key}`, '4.4.4.4')).toBe(200);
+    expect(details.check(`Bearer ${PROVISIONAL_STATS_TOKEN}`, '4.4.4.4')).toBe(401);
+    // a mesma chave abre os números junto com a chave pública
+    const basic = new StatsGate(PROVISIONAL_STATS_TOKEN, Date.now, [hash]);
+    expect(basic.check(`Bearer ${key}`, '5.5.5.5')).toBe(200);
+    expect(basic.check(`Bearer ${PROVISIONAL_STATS_TOKEN}`, '5.5.5.5')).toBe(200);
+    expect(PROVISIONAL_DETAILS_KEY_SHA256).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('últimas partidas: mais recente primeiro, com limite', () => {
+    const r = new RecentMatches(3);
+    for (let i = 0; i < 5; i++) r.record({ endedAt: `2026-11-07T10:0${i}:00Z`, durationSeconds: 60 * i, mode: 'vs_ai', map: 'continental', reason: 'hq_destroyed', players: [{ name: `C${i}`, ai: false, guest: true, country: 'BRA', result: 'win' }] });
+    expect(r.all().map((m) => m.players[0]!.name)).toEqual(['C4', 'C3', 'C2']);
+  });
+
+  it('sem Supabase, os detalhes do banco vêm vazios com o motivo', async () => {
+    expect(await new DbDetailsCache(() => null).get(Date.now())).toEqual({ feedback: null, matches: null, error: 'Sem Supabase neste servidor' });
   });
 });

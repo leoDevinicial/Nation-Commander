@@ -35,3 +35,21 @@ As consultas ao banco ficam em cache por 30 s; a página atualiza sozinha a cada
 `server/stats.ts` (`StatsGate`, `DbStatsCache`, `MatchTally`), rota em `server/index.ts`, contagem em `Room.finish`,
 página `src/ui/screens/StatsPage.tsx` (escolhida em `src/main.tsx` pelo caminho `/painel`), reescrita em `vercel.json`.
 Testes em `server/stats.test.ts`.
+
+## Feedbacks e últimas partidas (07/11)
+
+Abaixo dos números, o painel mostra duas janelas, só para quem abre com a **chave de detalhes** (ou com o `STATS_TOKEN`
+de verdade, quando ele existir no Render):
+
+- **Feedbacks:** os 50 mais recentes da tabela `feedback` (nome, convidado ou não, categoria, nota, mensagem, versão).
+- **Últimas partidas:** duas abas.
+  - *Servidores (todas):* as 40 últimas encerradas em cada servidor desde o reinício, inclusive só de convidados
+    (`RecentMatches` em memória; o Sandbox não entra).
+  - *Banco (com conta):* as 30 últimas da tabela `matches` com os jogadores de `match_players`.
+  - Cada linha mostra o fim, a duração, os comandantes (país, IA, convidado, troféu para quem venceu), o modo, o mapa e o
+    motivo do fim.
+
+A rota é `GET /stats/details` (`DbDetailsCache`, cache de 30 s). Nomes e mensagens são dados de jogadores, então a chave
+de detalhes não é a pública `HkL665Bn&8D` e não fica no código: só o SHA-256 dela (`PROVISIONAL_DETAILS_KEY_SHA256`); a
+chave foi passada ao responsável em conversa. Ela também abre os números. Com `STATS_TOKEN` definido, só ele abre os
+detalhes. A chave pública continua mostrando só os números.

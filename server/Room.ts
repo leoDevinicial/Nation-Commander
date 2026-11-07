@@ -28,7 +28,7 @@ import type { TreasuryInputs } from '../shared/strategic/treasury.ts';
 import type { BuildingSnapshot } from '../shared/sim/snapshot.ts';
 import type { EntityId, SimEvent, Slot } from '../shared/sim/types.ts';
 import { NationalAI } from '../shared/strategic/NationalAI.ts';
-import { matchTally } from './stats.ts';
+import { matchTally, recentMatches } from './stats.ts';
 import type { DiplomaticAction } from '../shared/strategic/Diplomacy.ts';
 import { NationalSimulation, type NationalEvent, type NationalSave } from '../shared/strategic/NationalSimulation.ts';
 import { HISTORY_EVERY_DAYS, SCENARIO_START, TICKS_PER_DAY, militaryResearchSpeed } from '../shared/strategic/params.ts';
@@ -1301,7 +1301,17 @@ export class Room {
     // o Sandbox não conta no histórico nem no ranking
     const realUsers = this.mode === 'sandbox' ? [] : this.players.filter((p) => !p.isAI && p.userId && !p.userId.startsWith('guest:'));
     // painel de números (06/11): conta toda partida de verdade, inclusive só de convidados (o banco grava só as com conta)
-    if (this.mode !== 'sandbox') matchTally.record(endedAt, durationSeconds, realUsers.length > 0);
+    if (this.mode !== 'sandbox') {
+      matchTally.record(endedAt, durationSeconds, realUsers.length > 0);
+      recentMatches.record({
+        endedAt: new Date(endedAt).toISOString(),
+        durationSeconds,
+        mode: this.mode,
+        map: sim.map.kind ?? null,
+        reason,
+        players: this.players.map((p) => ({ name: p.name, ai: p.isAI, guest: !p.isAI && (!p.userId || p.userId.startsWith('guest:')), country: p.countryId, result: result(p.slot) })),
+      });
+    }
     let recorded = false;
     if (realUsers.length > 0) {
       try {

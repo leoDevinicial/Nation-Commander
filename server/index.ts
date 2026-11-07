@@ -16,7 +16,7 @@ import { RoomManager } from './RoomManager.ts';
 import { KNPS_DEFLATE } from './knps/transport.ts';
 import { RegionTelemetry, regionFromEnv } from './knps/region.ts';
 import { getSupabase, kacSupabaseBackend, recordMatch, verifyAccessToken } from './supabase.ts';
-import { DbStatsCache, PROVISIONAL_STATS_TOKEN, StatsGate, matchTally } from './stats.ts';
+import { DbDetailsCache, DbStatsCache, PROVISIONAL_DETAILS_KEY_SHA256, PROVISIONAL_STATS_TOKEN, StatsGate, matchTally, recentMatches } from './stats.ts';
 
 // partidas em andamento sobrevivem a reinícios: Supabase em produção, arquivos no desenvolvimento
 const sb = getSupabase();
@@ -49,8 +49,13 @@ if (config.kacAdminToken && !kacAdmin.enabled) log.warn('KAC_ADMIN_TOKEN curto d
 
 // painel de números (06/11): GET /stats com Authorization: Bearer STATS_TOKEN; sem token, não existe
 // sem STATS_TOKEN no Render, vale a chave provisória (stats.ts)
-const statsGate = new StatsGate(config.statsToken || PROVISIONAL_STATS_TOKEN);
+// detalhes (07/11: feedbacks e últimas partidas com o nome dos comandantes): só o STATS_TOKEN de verdade ou, sem ele, a
+// chave de detalhes provisória (no código fica só o hash). A chave de detalhes também abre os números.
+const detailsHash = Buffer.from(PROVISIONAL_DETAILS_KEY_SHA256, 'hex');
+const statsGate = new StatsGate(config.statsToken || PROVISIONAL_STATS_TOKEN, Date.now, config.statsToken ? [] : [detailsHash]);
+const detailsGate = config.statsToken ? new StatsGate(config.statsToken) : new StatsGate(undefined, Date.now, [detailsHash]);
 const dbStats = new DbStatsCache(getSupabase);
+const dbDetails = new DbDetailsCache(getSupabase);
 if (config.statsToken && !statsGate.enabled) log.warn('STATS_TOKEN curto demais (mínimo 24 caracteres): painel /stats desligado');
 
 // KNPS-08: região deste servidor (letra no início dos códigos de sala) e o agregado do ping de rede dos jogadores
@@ -80,23 +85,31 @@ const http = createServer((req, res) => {
     res.end(allowed ? JSON.stringify({ region: region.id, rooms: rooms.listPublic() }) : '{}');
     return;
   }
-  if (path === '/stats') {
+  if (path === '/stats' || path === '/stats/details') {
     // a página /painel do site chama daqui: CORS só para as origens do jogo, com o cabeçalho Authorization
     const origin = req.headers.origin;
     const allowed = isOriginAllowed(origin, config.allowedOrigins);
     const cors = allowed && origin ? { 'access-control-allow-origin': origin, 'access-control-allow-headers': 'authorization', 'access-control-allow-methods': 'GET', vary: 'Origin' } : {};
+    const gate = path === '/stats' ? statsGate : detailsGate;
     if (req.method === 'OPTIONS') {
-      res.writeHead(allowed && statsGate.enabled ? 204 : 404, { ...cors, 'cache-control': 'no-store' });
+      res.writeHead(allowed && gate.enabled ? 204 : 404, { ...cors, 'cache-control': 'no-store' });
       res.end();
       return;
     }
-    const status = req.method === 'GET' ? statsGate.check(req.headers.authorization, clientIp(req)) : 404;
+    const status = req.method === 'GET' ? gate.check(req.headers.authorization, clientIp(req)) : 404;
     if (status !== 200) {
       res.writeHead(status, { ...cors, 'content-type': 'application/json', 'cache-control': 'no-store' });
       res.end(JSON.stringify({ error: status === 404 ? 'not_found' : status === 429 ? 'too_many_attempts' : 'unauthorized' }));
       return;
     }
     const now = Date.now();
+    if (path === '/stats/details') {
+      void dbDetails.get(now).then((db) => {
+        res.writeHead(200, { ...cors, 'content-type': 'application/json', 'cache-control': 'no-store' });
+        res.end(JSON.stringify({ now: new Date(now).toISOString(), region: region.id || null, recent: recentMatches.all(), db }));
+      });
+      return;
+    }
     void dbStats.get(now).then((db) => {
       res.writeHead(200, { ...cors, 'content-type': 'application/json', 'cache-control': 'no-store' });
       res.end(

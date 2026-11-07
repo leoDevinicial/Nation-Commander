@@ -62,6 +62,37 @@ export class MatchTally {
 
 export const matchTally = new MatchTally();
 
+/** Uma partida encerrada neste servidor, para a lista do painel (07/11). */
+export interface RecentMatch {
+  endedAt: string;
+  durationSeconds: number;
+  mode: string;
+  map: string | null;
+  reason: string;
+  players: { name: string; ai: boolean; guest: boolean; country: string; result: 'win' | 'loss' | 'draw' }[];
+}
+
+/**
+ * Últimas partidas encerradas neste servidor, em memória (inclui as só de convidados, que o banco não grava). Zera num
+ * reinício; o Sandbox não entra.
+ */
+export class RecentMatches {
+  private readonly list: RecentMatch[] = [];
+
+  constructor(readonly max = 40) {}
+
+  record(m: RecentMatch): void {
+    this.list.unshift(m);
+    if (this.list.length > this.max) this.list.length = this.max;
+  }
+
+  all(): RecentMatch[] {
+    return [...this.list];
+  }
+}
+
+export const recentMatches = new RecentMatches();
+
 export interface DbStats {
   accounts: number | null;
   today: { matches: number; avgSeconds: number | null } | null;
@@ -101,6 +132,83 @@ export class DbStatsCache {
   }
 }
 
+export interface FeedbackRow {
+  id: number;
+  created_at: string;
+  display_name: string;
+  guest: boolean;
+  category: string;
+  rating: number | null;
+  message: string;
+  game_version: string;
+}
+
+export interface DbMatchRow {
+  ended_at: string;
+  duration_seconds: number;
+  mode: string;
+  end_reason: string;
+  players: { name: string; ai: boolean; country: string; result: string }[];
+}
+
+export interface DbDetails {
+  feedback: FeedbackRow[] | null;
+  matches: DbMatchRow[] | null;
+  error?: string;
+}
+
+/** Feedbacks e partidas gravadas mais recentes (só para a chave de detalhes), com cache curto. */
+export class DbDetailsCache {
+  private cached: { at: number; value: DbDetails } | null = null;
+
+  constructor(
+    private readonly sb: () => SupabaseClient | null,
+    readonly limits = { feedback: 50, matches: 30 },
+  ) {}
+
+  async get(now: number): Promise<DbDetails> {
+    if (this.cached && now - this.cached.at < STATS_POLICY.cacheMs) return this.cached.value;
+    const sb = this.sb();
+    if (!sb) return { feedback: null, matches: null, error: 'Sem Supabase neste servidor' };
+    try {
+      const [fb, mt] = await Promise.all([
+        sb.from('feedback').select('id, created_at, display_name, guest, category, rating, message, game_version').order('created_at', { ascending: false }).limit(this.limits.feedback),
+        sb
+          .from('matches')
+          .select('ended_at, duration_seconds, mode, end_reason, match_players(display_name, is_ai, country_id, result, slot)')
+          .order('ended_at', { ascending: false })
+          .limit(this.limits.matches),
+      ]);
+      type Mp = { display_name: string; is_ai: boolean; country_id: string; result: string; slot: number };
+      const matches = mt.data
+        ? (mt.data as unknown as (Omit<DbMatchRow, 'players'> & { match_players: Mp[] | null })[]).map((m) => ({
+            ended_at: m.ended_at,
+            duration_seconds: m.duration_seconds,
+            mode: m.mode,
+            end_reason: m.end_reason,
+            players: [...(m.match_players ?? [])].sort((a, b) => a.slot - b.slot).map((p) => ({ name: p.display_name, ai: p.is_ai, country: p.country_id, result: p.result })),
+          }))
+        : null;
+      const value: DbDetails = {
+        feedback: (fb.data as FeedbackRow[] | null) ?? null,
+        matches,
+        ...(fb.error || mt.error ? { error: 'Falha parcial na consulta ao banco' } : {}),
+      };
+      this.cached = { at: now, value };
+      return value;
+    } catch {
+      return { feedback: null, matches: null, error: 'Banco indisponível' };
+    }
+  }
+}
+
+/**
+ * Chave de detalhes provisória (07/11): feedbacks e nomes dos comandantes não são públicos como os agregados, então a
+ * chave não fica no código, só o SHA-256 dela (o responsável recebeu a chave em conversa). Abre o painel inteiro
+ * enquanto `STATS_TOKEN` não existe; com a variável definida, só ela abre os detalhes.
+ */
+export const PROVISIONAL_DETAILS_KEY_SHA256 = 'c55e945b74b2d06b4d7bc765a9963a4a8dd24276d21176b576f6f3fe8ec92f35';
+
 /**
  * Chave provisória (06/11, pedido do responsável enquanto não dá para criar `STATS_TOKEN` no Render): vale só quando a
  * variável não existe. Os números são públicos de propósito (só agregados), então ela pode ficar no código; ao definir
@@ -117,10 +225,17 @@ export class StatsGate {
   constructor(
     private readonly token: string | undefined,
     private readonly now: () => number = Date.now,
+    /** Outras chaves aceitas, pelo SHA-256 (a chave em si não fica no código). */
+    private readonly extraHashes: Buffer[] = [],
   ) {}
 
-  get enabled(): boolean {
+  /** O token principal vale (comprido o bastante, ou a chave provisória pública). */
+  private get tokenOk(): boolean {
     return !!this.token && (this.token.length >= STATS_POLICY.minTokenLength || this.token === PROVISIONAL_STATS_TOKEN);
+  }
+
+  get enabled(): boolean {
+    return this.tokenOk || this.extraHashes.length > 0;
   }
 
   /** 200 liberado, 401 token errado, 404 painel desligado, 429 tentativas demais. */
@@ -130,7 +245,9 @@ export class StatsGate {
     const recent = (this.failures.get(ip) ?? []).filter((t) => now - t < STATS_POLICY.failureWindowMs);
     if (recent.length >= STATS_POLICY.maxFailures) return 429;
     const given = /^Bearer\s+(\S+)\s*$/i.exec(authorization ?? '')?.[1];
-    if (!given || !timingSafeEqual(sha(given), sha(this.token!))) {
+    const h = given ? sha(given) : null;
+    const match = !!h && ((this.tokenOk && timingSafeEqual(h, sha(this.token!))) || this.extraHashes.some((x) => x.length === h.length && timingSafeEqual(h, x)));
+    if (!match) {
       recent.push(now);
       this.failures.set(ip, recent);
       if (this.failures.size > 1000) this.failures.clear();
