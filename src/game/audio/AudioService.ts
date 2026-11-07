@@ -172,7 +172,7 @@ export interface SampleSet {
 }
 const SFX = {
   tank: ['tanque-tiro-1', 'tanque-tiro-2', 'tanque-tiro-3', 'tanque-tiro-4', 'tanque-tiro-5'],
-  explosion: ['explosao-grande-1', 'explosao-grande-2', 'explosao-grande-3'],
+  explosion: ['explosao-grande-1', 'explosao-grande-2', 'explosao-grande-3', 'explosao-grande-4', 'explosao-grande-5'],
   launch: ['missil-lancamento-1', 'missil-lancamento-2', 'missil-lancamento-3', 'missil-lancamento-4'],
   impact: ['missil-impacto-1', 'missil-impacto-2', 'missil-impacto-3', 'missil-impacto-4'],
   mg: ['metralhadora-tiro-1', 'metralhadora-tiro-2', 'metralhadora-tiro-3', 'metralhadora-tiro-4'],
@@ -194,7 +194,7 @@ const SFX = {
   domeLaunch: ['domo-lancamento-1', 'domo-lancamento-2', 'domo-lancamento-3'],
   intercept: ['interceptacao-no-ar-1', 'interceptacao-no-ar-2', 'interceptacao-no-ar-3', 'interceptacao-no-ar-4'],
   whistle: ['bomba-assobio-1', 'bomba-assobio-2', 'bomba-assobio-3', 'bomba-assobio-4'],
-  carpet: ['bombardeio-tapete-1', 'bombardeio-tapete-2'],
+  carpet: ['bombardeio-tapete-1', 'bombardeio-tapete-2', 'bombardeio-tapete-3', 'bombardeio-tapete-4'],
   gatling: ['ciws-gatling-1', 'ciws-gatling-2', 'ciws-gatling-3', 'ciws-gatling-4'],
   nuclear: ['explosao-nuclear-1', 'explosao-nuclear-2', 'explosao-nuclear-3', 'explosao-nuclear-4'],
   apcShot: ['blindado-canhao-1', 'blindado-canhao-2'],
@@ -204,7 +204,7 @@ const SFX = {
   small: ['explosao-pequena-1', 'explosao-pequena-2', 'explosao-pequena-3', 'explosao-pequena-4'],
   rocket: ['foguete-lancamento-1', 'foguete-lancamento-2', 'foguete-lancamento-3', 'foguete-lancamento-4'],
   salvo: ['foguete-salva'],
-  tower: ['torre-defesa-1', 'torre-defesa-2'],
+  tower: ['torre-defesa-1', 'torre-defesa-2', 'torre-defesa-3', 'torre-defesa-4'],
   jetCannon: ['caca-canhao-1', 'caca-canhao-2', 'caca-canhao-3'],
   aam: ['missil-ar-ar-1', 'missil-ar-ar-2', 'missil-ar-ar-3', 'missil-ar-ar-4'],
   // lote 33 (07/11, ElevenLabs): míssil ar-terra próprio, estouro antiaéreo, drone, silo, trovão e interface
@@ -229,7 +229,7 @@ const SFX = {
   construction: ['obra-1', 'obra-2'],
   // sirene: o aviso curto "sob ataque" e as sirenes em loop do silo armado (o loop começa em `SIREN_LOOP` s)
   sirenAlert: ['sirene-aviso'],
-  siren: ['sirene-loop-1', 'sirene-loop-2'],
+  siren: ['sirene-loop-1', 'sirene-loop-2', 'sirene-loop-3', 'sirene-loop-4'],
   // vento (estéreo, em loop): brisas calmas de fundo e ventos mais fortes por cima
   breeze: ['vento-3', 'vento-4'],
   gust: ['vento-1', 'vento-2'],
@@ -298,7 +298,7 @@ export const SAMPLES: Partial<Record<CombatSound, SampleSet | SampleSet[]>> = {
     { files: ['espaco-contagem-es'], gain: 1.2, delay: 2.6, synth: 0.7, lang: 'es' },
     { files: ['espaco-ignicao'], gain: 1.2, delay: 2.6, synth: 0.7, lang: 'outros' },
   ],
-  space_liftoff: { files: ['espaco-decolagem'], gain: 2.55 },
+  space_liftoff: { files: ['espaco-decolagem', 'espaco-decolagem-2', 'espaco-decolagem-3'], gain: 2.55 },
   // blindado: rajada de 3 tiros a ~0,3 s montada com tiros únicos, ou a rajada embolada gravada
   apc_gun: [
     { files: SFX.apcShot, gain: 0.46, rounds: [3, 3], interval: 0.3, weight: 2 },

@@ -728,6 +728,21 @@ No jogo, quarta classe do `setEngines` (`construction`): cada obra visível cujo
 espacial (e segue soando 1,5 s depois de cada avanço, porque os snapshots chegam mais devagar que a conta); obra parada
 sem construtores fica calada. Ganho cheio 0,4, um pouco abaixo dos motores.
 
+## Lote 39 (07/11) — variações extras (ElevenLabs)
+Duas tomadas de cada família que só tinha duas ou três gravações; recortes com o mesmo alvo de volume das antigas e
+nível conferido contra elas (RMS de cada arquivo final a ±0,5 dB da família).
+
+| Original (pasta) | Saída | Recorte | Observação |
+|---|---|---|---|
+| `explosao-grande/explosao-grande-{5,6}` | `explosao-grande-{4,5}` | 0–6 s | 95–98% abaixo de 200 Hz, como as antigas |
+| `bombardeio-tapete/bombardeio-tapete-{5,6}` | `bombardeio-tapete-{3,4}` | 0,3–6 s / 0–5,5 s | geradas baixas (+9 a +15 dB no recorte); a 4 com alvo −20,5 dB para não bater no limite |
+| `torre-defesa/torre-defesa-{5,6}` | `torre-defesa-{3,4}` | 0–0,9 s | estampido e estalo do mecanismo |
+| `espaco-lancamento/espaco-decolagem-{5,6}` | `espaco-decolagem-{2,3}` | 0–11 s, fade 4 s | mais graves que a antiga (66–82% abaixo de 200 Hz contra 23%); alvo −18,1 e −16,7 dB para o mesmo RMS |
+| `sirene-ataque-aereo/sirene-ataque-aereo-{5,6}` | `sirene-loop-{3,4}` | laço 1–9 s | tom fixo desde o começo (814 Hz e 1278 Hz), sem a subida do rotor: laço inteiro (`SIREN_LOOP` 0) |
+
+Entram sorteadas junto das antigas em `SFX.explosion`, `SFX.carpet`, `SFX.tower`, `SFX.siren` e `space_liftoff`, com os
+ganhos que já existiam.
+
 ## Em uso no jogo (04/11)
 `scripts/sfx-preparar.py` recorta, converte para mono 44,1 kHz (o vento fica estéreo) e iguala o volume dos clipes em
 `public/sfx/` (121 arquivos, ~4,3 MB). O `AudioService` (`SAMPLES`) baixa os clipes em segundo plano quando o áudio é
@@ -793,12 +808,10 @@ energia, sirene) eram descartados. Agora começa em "nunca tocou".
 domo-lancamento-2 (baque fraco sozinho), sirene-ataque-aereo-1 (sem uso por enquanto), blindado-canhao-1 (sem ataque).
 
 ## O que falta (07/11)
-Os lotes 33 a 38 cobriram tudo o que ainda era sintetizado ou mudo: interface, silo, clima, produção dos prédios,
-drone, marinha, fanfarra de era, motores, apito do navio, resposta pelo rádio (pt/en/es) e obras.
+Os lotes 33 a 39 cobriram tudo o que ainda era sintetizado ou mudo: interface, silo, clima, produção dos prédios,
+drone, marinha, fanfarra de era, motores, apito do navio, resposta pelo rádio (pt/en/es), obras e as variações extras que faltavam.
 
 Sem gravação ou em aberto:
 - **Sob ataque** (`ui('attack')`): o toque curto sintetizado só soa enquanto a sirene gravada não carregou.
 - **Motores e obras** não têm sintetizado de reserva: sem o arquivo, ficam calados (como antes do lote 36).
-- **Variações que não vieram** (opcionais): explosão grande 1, sirene 3, bombardeio em tapete 1 e 4, decolagem 1, 3 e
-  4, torre 1 e 4.
 - **Rádio:** só ordens de mover e atacar; seleção, construção e produção não respondem por voz.

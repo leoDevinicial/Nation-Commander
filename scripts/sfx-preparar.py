@@ -181,6 +181,15 @@ MORE = [
     # lote 36 (07/11): apito do navio saindo do porto
     ('navio-apito-1', 'navio-apito/navio-apito-1', 0.0, 2.6, 0.8, -19, 0),
     ('navio-apito-2', 'navio-apito/navio-apito-2', 0.0, 2.6, 0.8, -19, 0),
+    # lote 39 (07/11): variações extras no mesmo nível das antigas (mesmo alvo de volume de cada família)
+    ('explosao-grande-4', 'explosao-grande/explosao-grande-5', 0.0, 6.0, 2.0, -17, 0),
+    ('explosao-grande-5', 'explosao-grande/explosao-grande-6', 0.0, 6.0, 2.0, -17, 0),
+    ('bombardeio-tapete-3', 'bombardeio-tapete/bombardeio-tapete-5', 0.3, 6.0, 2.0, -19, 0),
+    ('bombardeio-tapete-4', 'bombardeio-tapete/bombardeio-tapete-6', 0.0, 5.5, 2.0, -20.5, 0),
+    ('torre-defesa-3', 'torre-defesa/torre-defesa-5', 0.0, 0.9, 0.3, -20, 0),
+    ('torre-defesa-4', 'torre-defesa/torre-defesa-6', 0.0, 0.9, 0.3, -20, 0),
+    ('espaco-decolagem-2', 'espaco-lancamento/espaco-decolagem-5', 0.0, 11.0, 4.0, -18.1, 0),
+    ('espaco-decolagem-3', 'espaco-lancamento/espaco-decolagem-6', 0.0, 11.0, 4.0, -16.7, 0),
 ]
 
 # contagem falada em português e espanhol (lote 33): a ignição gravada (`espaco-ignicao`, tocada 2,6 s depois do pedido,
@@ -214,6 +223,9 @@ LOOPS = [
     # lote 38: obra em andamento, mono; só o trecho uniforme (o começo e o fim dos arquivos oscilam ~20 dB)
     ('obra-1', 'obra/obra-1', 3.0, 8.5, 0.5, -20, False, False),
     ('obra-2', 'obra/obra-2', 4.0, 9.5, 0.5, -20, False, False),
+    # lote 39: sirenes de tom fixo desde o início (sem a subida do rotor): laço inteiro
+    ('sirene-loop-3', 'sirene-ataque-aereo/sirene-ataque-aereo-5', 1.0, 9.0, 0.5, -20.3, False, False),
+    ('sirene-loop-4', 'sirene-ataque-aereo/sirene-ataque-aereo-6', 1.0, 9.0, 0.5, -20.3, False, False),
 ]
 
 
