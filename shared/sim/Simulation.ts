@@ -475,6 +475,11 @@ export class Simulation {
   battle = false;
   /** Modo Sandbox (null numa partida normal). */
   sandbox: SandboxState | null = null;
+  /**
+   * Tutorial (07/11, `server/tutorial/`): o jogador e o divisor das durações de obra e produção (o tutorial ensina a
+   * ordem, não a espera). Sem vitória territorial nem política: quem decide o fim é o diretor. Não vai no salvamento.
+   */
+  tutorial: { slot: Slot; timeDiv: number } | null = null;
   /** País de cada jogador (código ISO-3), para os nomes das cidades; vazio nos testes. */
   countries: string[] = [];
 
@@ -1560,18 +1565,7 @@ export class Simulation {
           const freeHw = this.isSandbox(slot);
           if (!freeHw && this.national && hp.usd > 0 && !this.national.chargeWorks(slot, hp.usd, `Rodovia (${hp.cells.length} células)`)) return 'Caixa do país sem saldo para a rodovia';
           if (!freeHw) this.spend(player, { stone: hp.stone });
-          for (const i of hp.cells) {
-            this.zones.clearCell(i);
-            this.clearForestCell(i);
-            const prev = this.map.terrain[i]!;
-            this.map.terrain[i] = Terrain.Road;
-            this.grid.terrain[i] = Terrain.Road;
-            const own = this.roads.find((r) => r.i === i);
-            if (own) own.hw = true;
-            else this.roads.push({ i, owner: slot, hw: true, ...(prev === Terrain.Fertile ? { prev } : {}) });
-            this.highways.add(i);
-          }
-          this.territoryVersion++;
+          this.layHighway(slot, hp.cells);
           return null;
         }
         const plan = this.roadPlan(slot, cmd.cells);
@@ -2069,6 +2063,22 @@ export class Simulation {
    * outro de rodovias de propósito. Estrada própria vira rodovia (paga a célula); estrada ou rodovia de outro jogador e
    * pontes do mapa são puladas (servem de ligação).
    */
+  /** Pavimenta células já validadas como rodovia de `slot` (comando `build_road` e diretor do tutorial). */
+  layHighway(slot: Slot, cells: readonly number[]): void {
+    for (const i of cells) {
+      this.zones.clearCell(i);
+      this.clearForestCell(i);
+      const prev = this.map.terrain[i]!;
+      this.map.terrain[i] = Terrain.Road;
+      this.grid.terrain[i] = Terrain.Road;
+      const own = this.roads.find((r) => r.i === i);
+      if (own) own.hw = true;
+      else this.roads.push({ i, owner: slot, hw: true, ...(prev === Terrain.Fertile ? { prev } : {}) });
+      this.highways.add(i);
+    }
+    this.territoryVersion++;
+  }
+
   highwayPlan(slot: Slot, cells: readonly Cell[]): { cells: number[]; stone: number; usd: number; error: string | null } {
     const out: number[] = [];
     const fail = (error: string) => ({ cells: [], stone: 0, usd: 0, error });
@@ -2483,6 +2493,7 @@ export class Simulation {
   /** Duração em ticks de uma obra/produção/pesquisa (1 tick no Sandbox instantâneo). */
   duration(slot: Slot, ticks: number): number {
     if (this.sandbox?.instant && this.isSandbox(slot)) return 1;
+    if (this.tutorial && this.tutorial.slot === slot) return Math.max(1, Math.round(ticks / this.tutorial.timeDiv));
     return Math.max(1, Math.round(ticks));
   }
 
@@ -4724,7 +4735,7 @@ export class Simulation {
    * território reivindicado no mapa por `VICTORY.territorySeconds` seguidos vence. Fora do Sandbox.
    */
   private updateTerritorialVictory(): void {
-    if (this.ended || this.sandbox || this.tick % TICK_RATE !== 0) return;
+    if (this.ended || this.sandbox || this.tutorial || this.tick % TICK_RATE !== 0) return;
     const alive = this.players.filter((p) => !p.defeated);
     if (alive.length < 2) return;
     const counts = this.players.map(() => 0);
@@ -4763,7 +4774,7 @@ export class Simulation {
    */
   politicalPressure(slot: Slot, stability: number): void {
     const p = this.players[slot];
-    if (this.ended || this.sandbox || !p || p.defeated) return;
+    if (this.ended || this.sandbox || this.tutorial || !p || p.defeated) return;
     const before = this.collapseDays[slot] ?? 0;
     if (stability >= VICTORY.politicalStability) {
       if (before > 0) {
