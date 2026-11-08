@@ -126,9 +126,11 @@ export function GameScreen() {
           const tech = TECHNOLOGIES[l.event.techId];
           useHudStore.getState().pushWorldAlert({ icon: 'research', title: 'Pesquisa concluída', text: tech.unlocks[0] ? `${tech.label} · ${tech.unlocks[0]}` : tech.label, tone: 'good' });
           audio.ui('success');
+          audio.announce('research');
         }
         // encontro no mapa (06/11): primeira vez que vemos essa nação — a diplomacia com ela fica liberada
-        if (l.event.type === 'diplomacy' && l.event.event.type === 'discovered' && l.event.event.via === 'teatro' && l.event.event.by === match.yourSlot)
+        if (l.event.type === 'diplomacy' && l.event.event.type === 'discovered' && l.event.event.via === 'teatro' && l.event.event.by === match.yourSlot) {
+          audio.announce('contact');
           useHudStore.getState().pushWorldAlert({
             icon: 'contact',
             title: 'Contato estabelecido',
@@ -136,8 +138,10 @@ export function GameScreen() {
             tone: 'info',
             sub: 'Agora dá para negociar, propor pacto ou aliança — ou declarar guerra.',
           });
+        }
         // satélite próprio em órbita: grande momento na faixa cinematográfica (Sala de Situação, 05/11)
-        if (l.event.type === 'satellite' && l.event.slot === match.yourSlot)
+        if (l.event.type === 'satellite' && l.event.slot === match.yourSlot) {
+          audio.announce('satellite');
           useHudStore.getState().pushWorldAlert({
             icon: 'satellite',
             title: 'Programa Espacial',
@@ -146,7 +150,25 @@ export function GameScreen() {
             big: true,
             sub: 'O mapa inteiro fica visível em tempo real — só as minas continuam escondidas. Aprovação em alta.',
           });
+        }
       }
+    });
+  }, []);
+
+  // assessor (08/11): proposta de pacto recebida e caixa do país entrando no vermelho
+  useEffect(() => {
+    const mineSlot = () => useAppStore.getState().match?.yourSlot ?? -1;
+    const offersTo = (s: ReturnType<typeof useNationalStore.getState>) => new Set((s.diplomacy?.pacts?.offers ?? []).filter((o) => o.to === mineSlot()).map((o) => o.id));
+    const fundOf = (s: ReturnType<typeof useNationalStore.getState>) => s.nations.find((n) => n.slot === mineSlot())?.works.fundUsd ?? null;
+    let offers = offersTo(useNationalStore.getState());
+    let fund = fundOf(useNationalStore.getState());
+    return useNationalStore.subscribe((s) => {
+      const now = offersTo(s);
+      if ([...now].some((id) => !offers.has(id))) audio.announce('pact_offer');
+      offers = now;
+      const f = fundOf(s);
+      if (f !== null && f < 0 && (fund === null || fund >= 0)) audio.announce('cash');
+      fund = f;
     });
   }, []);
 

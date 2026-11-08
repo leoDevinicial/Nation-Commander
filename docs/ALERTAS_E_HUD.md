@@ -43,6 +43,11 @@ minimapa quando estamos sob ataque, construir sem precisar clicar no QG toda vez
 Pesquisa nacional própria concluída aparece também no topo da tela (alerta verde com ícone de frasco e o primeiro item
 de `unlocks`) e toca `success`, além da linha no registro: não é preciso abrir a aba Pesquisa para saber.
 
+## Assessor falado (08/11)
+Os alertas grandes que nos tocam também são falados pela voz do narrador do tutorial (`audio.announce`): pesquisa
+concluída, sob ataque, era nova, contato, guerra contra nós, armas nucleares (nossas ou de outra nação), Grande Projeto,
+satélite, proposta de pacto e caixa no vermelho. Lista, textos e intervalos em `assets/sfx/CATALOGO.md` (lote 40).
+
 ## Testes
 `shared/test/alerts.test.ts`: alerta de guerra para todos e sem posição, sem repetir; alerta nuclear ao começar e ao
 terminar; demolição de construção (QG recusado, construção alheia recusada), de estrada (só a própria) e validação do

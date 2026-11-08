@@ -379,10 +379,22 @@ const DRONE_ONBOARD_GAIN = 1;
 const ENGINE_SFX: Record<EngineClass, string[]> = { tracked: SFX.engineTracked, wheeled: SFX.engineWheeled, naval: SFX.shipUnderway, construction: SFX.construction };
 const ENGINE_GAIN: Record<EngineClass, number> = { tracked: 0.45, wheeled: 0.45, naval: 0.45, construction: 0.4 };
 const SHIP_HORN_GAIN = 0.6;
-/** Resposta das tropas pelo rádio (lote 37): três falas de cada tipo por idioma; idioma sem gravação usa o inglês. */
-export type RadioReply = 'move' | 'attack';
+/**
+ * Resposta das tropas pelo rádio (lote 37; seleção, unidade pronta e obra concluída em 08/11): falas por idioma; idioma
+ * sem gravação usa o inglês.
+ */
+export type RadioReply = 'move' | 'attack' | 'select' | 'ready' | 'built';
 const RADIO_LANGS = ['pt', 'en', 'es'] as const;
-const radioFiles = (lang: string, kind: RadioReply) => [1, 2, 3].map((i) => `radio-${lang}-${kind === 'move' ? 'movendo' : 'atacando'}-${i}`);
+const RADIO_FILE: Record<RadioReply, [string, number]> = { move: ['movendo', 3], attack: ['atacando', 3], select: ['selecao', 3], ready: ['pronta', 2], built: ['obra', 2] };
+const radioFiles = (lang: string, kind: RadioReply) => Array.from({ length: RADIO_FILE[kind][1] }, (_, i) => `radio-${lang}-${RADIO_FILE[kind][0]}-${i + 1}`);
+/** Intervalo mínimo (s) de cada tipo de resposta: selecionar e obras acontecem toda hora e não podem virar falatório. */
+const RADIO_EVERY: Record<RadioReply, number> = { move: 0, attack: 0, select: 6, ready: 5, built: 5 };
+/**
+ * Avisos falados do assessor (08/11, voz do narrador do tutorial) junto dos alertas grandes da tela:
+ * `public/narration/<idioma>/aviso-<id>.mp3`. Cada um tem um intervalo mínimo (s) para não repetir em sequência.
+ */
+export type AnnounceId = 'research' | 'attack' | 'era' | 'contact' | 'war_us' | 'nuclear_ours' | 'nuclear_other' | 'project' | 'satellite' | 'pact_offer' | 'cash';
+const ANNOUNCE_EVERY: Record<AnnounceId, number> = { research: 4, attack: 45, era: 10, contact: 8, war_us: 10, nuclear_ours: 10, nuclear_other: 30, project: 10, satellite: 10, pact_offer: 20, cash: 180 };
 // uns 3 dB acima da energia do anúncio mundial gravado (`calibrar.cjs`): a fala fica clara sem gritar
 const RADIO_GAIN = 0.3;
 /** Narrador do tutorial: no nível da resposta pelo rádio (fala clara por cima do jogo). */
@@ -410,7 +422,7 @@ export const EXTRA_SAMPLES = [
   ...SFX.shipUnderway,
   ...SFX.shipHorn,
   ...SFX.construction,
-  ...RADIO_LANGS.flatMap((l) => [...radioFiles(l, 'move'), ...radioFiles(l, 'attack')]),
+  ...RADIO_LANGS.flatMap((l) => (Object.keys(RADIO_FILE) as RadioReply[]).flatMap((k) => radioFiles(l, k))),
   ...Object.values(UI_SFX).flat(),
   ...Object.values(PRODUCTION_SFX).flat(),
 ];
@@ -3350,13 +3362,70 @@ export class AudioService {
    * interface. No máximo uma a cada 2,5 s (ordens em sequência não empilham falas) e nunca a mesma duas vezes seguidas.
    */
   radio(kind: RadioReply): void {
-    if (!this.ready || !this.useSamples || !this.gap('radio', 2.5)) return;
+    if (!this.ready || !this.useSamples || !this.ctx || this.narration || this.announcing) return;
+    const order = kind === 'move' || kind === 'attack';
+    const now = this.ctx.currentTime;
+    const talking = this.radioVoice && now < this.radioVoice.end ? this.radioVoice : null;
+    // uma fala de cada vez; a resposta a uma ordem corta a de seleção, unidade pronta ou obra (selecionar e logo mandar
+    // mover é o caso comum)
+    if (talking && (!order || talking.order)) return;
+    if (order ? !this.gap('radio', 2.5) : !this.gap(`radio_${kind}`, RADIO_EVERY[kind])) return;
     const lang = (RADIO_LANGS as readonly string[]).includes(this.voiceLang) ? this.voiceLang : 'en';
     const ready = radioFiles(lang, kind).filter((f) => f !== this.lastRadio && this.sampleBufs.get(f));
     const pick = ready[Math.floor(Math.random() * ready.length)];
-    if (pick && this.playExtra([pick], 'ui', RADIO_GAIN, 0)) this.lastRadio = pick;
+    const buf = pick ? this.sampleBufs.get(pick) : undefined;
+    if (!pick || !buf) return;
+    talking?.stop();
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(this.out('ui', RADIO_GAIN, 0));
+    src.start();
+    this.lastRadio = pick;
+    this.radioVoice = { order, end: now + buf.duration, stop: () => src.stop() };
   }
   private lastRadio: string | null = null;
+  private radioVoice: { order: boolean; end: number; stop: () => void } | null = null;
+
+  /** Aviso do assessor tocando agora (o rádio e outro aviso esperam ele acabar; o narrador do tutorial o corta). */
+  private announcing = false;
+  private announceStop: (() => void) | null = null;
+
+  /**
+   * Aviso falado do assessor (08/11). Não toca por cima do narrador do tutorial nem de outro aviso, e cada aviso tem um
+   * intervalo mínimo (`ANNOUNCE_EVERY`). Música e mundo descem enquanto ele fala, como na narração.
+   */
+  announce(id: AnnounceId): void {
+    if (!this.ready || !this.ctx || this.narration || this.announcing || !this.gap(`announce_${id}`, ANNOUNCE_EVERY[id])) return;
+    const lang = (RADIO_LANGS as readonly string[]).includes(this.voiceLang) ? this.voiceLang : 'en';
+    const key = `${lang}/aviso-${id}`;
+    let buf = this.narrationBufs.get(key);
+    if (!buf) {
+      const ctx = this.ctx;
+      buf = fetch(`${import.meta.env.BASE_URL}narration/${key}.mp3`)
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+        .then((data) => ctx.decodeAudioData(data))
+        .catch(() => null);
+      this.narrationBufs.set(key, buf);
+    }
+    this.announcing = true;
+    void buf.then((b) => {
+      if (!b || !this.ctx || this.narration) {
+        this.announcing = false;
+        return;
+      }
+      const src = this.ctx.createBufferSource();
+      src.buffer = b;
+      src.connect(this.out('ui', NARRATION_GAIN, 0));
+      src.onended = () => {
+        this.announcing = false;
+        this.announceStop = null;
+        if (!this.narration) this.talkDuck(false);
+      };
+      src.start();
+      this.announceStop = () => src.stop();
+      this.talkDuck(true);
+    });
+  }
 
   private narration: { id: string; stop: () => void } | null = null;
   private narrationBufs = new Map<string, Promise<AudioBuffer | null>>();
@@ -3369,6 +3438,7 @@ export class AudioService {
   narrate(id: string | null): boolean {
     this.narration?.stop();
     this.narration = null;
+    this.announceStop?.();
     this.talkDuck(false);
     if (!id) return true;
     // áudio ainda travado (o navegador só libera depois de um toque): quem chamou tenta de novo depois

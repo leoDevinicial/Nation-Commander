@@ -807,6 +807,40 @@ energia, sirene) eram descartados. Agora começa em "nunca tocou".
 **Ficaram de fora de propósito:** jato-voando-1 (muito baixo e cortado), antiaerea-era4-duplo-3 (distante, sem ataque),
 domo-lancamento-2 (baque fraco sozinho), sirene-ataque-aereo-1 (sem uso por enquanto), blindado-canhao-1 (sem ataque).
 
+## Lote 40 (08/11) — avisos do assessor e rádio de seleção, unidade pronta e obra (ElevenLabs)
+TTS `eleven_v4`, duas tomadas por idioma (a "a" é a usada), cortadas por `scripts/vozes-preparar.py` (detecção de
+silêncio; o rádio passa pelo mesmo filtro do lote 37, agora em `render()` de `scripts/sfx-radio.py`).
+
+**Avisos do assessor** (vozes do narrador do tutorial; `assets/narration/originais/aviso-<idioma>-{a,b}.mp3` →
+`public/narration/<idioma>/aviso-<id>.mp3`, −18 LUFS, 1,3–3,6 s), tocados por `audio.announce(id)`:
+
+| id | pt | en | es | Quando |
+|---|---|---|---|---|
+| research | Pesquisa concluída. | Research complete. | Investigación completada. | pesquisa nacional nossa concluída |
+| attack | Comandante, estamos sob ataque! | Commander, we're under attack! | ¡Comandante, nos atacan! | `under_attack` nosso (no máx. 1 a cada 45 s) |
+| era | Nova era alcançada. | A new era has begun. | Nueva era alcanzada. | nossa era nova |
+| contact | Contato estabelecido com uma nova nação. | Contact established with a new nation. | Contacto establecido con una nueva nación. | encontro no mapa |
+| war_us | Declararam guerra contra nós! | War has been declared on us! | ¡Nos han declarado la guerra! | guerra declarada contra nós |
+| nuclear_ours | Armas nucleares prontas. | Nuclear weapons are ready. | Armas nucleares listas. | nossa pesquisa nuclear concluída |
+| nuclear_other | Alerta: outra nação agora tem armas nucleares. | Warning: another nation now has nuclear weapons. | Alerta: otra nación ya tiene armas nucleares. | de outra nação |
+| project | Grande Projeto concluído. | Great Project complete. | Gran Proyecto completado. | nosso Grande Projeto pronto |
+| satellite | Satélite em órbita. Agora vemos o mapa inteiro. | Satellite in orbit. We can now see the entire map. | Satélite en órbita. Ahora vemos todo el mapa. | nosso satélite |
+| pact_offer | Recebemos uma proposta de pacto. | We've received a pact proposal. | Hemos recibido una propuesta de pacto. | convite de pacto novo para nós |
+| cash | O caixa do país está no vermelho. | The national treasury is in the red. | La caja del país está en números rojos. | caixa do país passa para negativo (no máx. 1 a cada 3 min) |
+
+Um aviso de cada vez, nunca por cima do narrador do tutorial (o narrador corta o aviso), com a música a 30% e o mundo a
+55% enquanto fala (`talkDuck`), intervalo mínimo por aviso em `ANNOUNCE_EVERY`. Baixados na primeira vez que tocam.
+
+**Rádio novo** (voz "Jerry B.", `assets/sfx/originais/radio/radio2-<idioma>-{a,b}.mp3` → `public/sfx/radio-<idioma>-<tipo>-<n>.mp3`):
+
+| Tipo | pt | en | es | Quando |
+|---|---|---|---|---|
+| `selecao` (`radio('select')`) | Às ordens, comandante. / Pronto. / Aguardando ordens. | Ready, Commander. / Standing by. / Awaiting orders. | A sus órdenes, comandante. / Listos. / Esperando órdenes. | tropa nossa entra na seleção (no máx. 1 a cada 6 s) |
+| `pronta` (`radio('ready')`) | Unidade pronta para o combate. / Reforços prontos. | Unit ready for action. / Reinforcements ready. | Unidad lista para el combate. / Refuerzos listos. | tropa nossa formada (não o pesqueiro; 1 a cada 5 s) |
+| `obra` (`radio('built')`) | Obra concluída. / Construção finalizada, comandante. | Construction complete. / Building finished, Commander. | Obra terminada. / Construcción finalizada, comandante. | construção nossa pronta (1 a cada 5 s) |
+
+Uma fala de rádio por vez; a resposta a uma ordem (mover/atacar) corta a de seleção, unidade pronta ou obra.
+
 ## O que falta (07/11)
 Os lotes 33 a 39 cobriram tudo o que ainda era sintetizado ou mudo: interface, silo, clima, produção dos prédios,
 drone, marinha, fanfarra de era, motores, apito do navio, resposta pelo rádio (pt/en/es), obras e as variações extras que faltavam.
@@ -814,4 +848,3 @@ drone, marinha, fanfarra de era, motores, apito do navio, resposta pelo rádio (
 Sem gravação ou em aberto:
 - **Sob ataque** (`ui('attack')`): o toque curto sintetizado só soa enquanto a sirene gravada não carregou.
 - **Motores e obras** não têm sintetizado de reserva: sem o arquivo, ficam calados (como antes do lote 36).
-- **Rádio:** só ordens de mover e atacar; seleção, construção e produção não respondem por voz.

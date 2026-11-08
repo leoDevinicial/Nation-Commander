@@ -1424,6 +1424,15 @@ export class GameRuntime {
         return p ? countryName(p.countryId) : `Nação ${slot + 1}`;
       });
       useHudStore.getState().pushWorldAlert(a);
+      // assessor fala os grandes momentos que nos tocam (08/11)
+      const own = e.slot === this.mySlot;
+      const say =
+        e.kind === 'war' ? (e.other === this.mySlot ? 'war_us' : null)
+        : e.kind === 'era' ? (own ? 'era' : null)
+        : e.kind === 'nuclear' ? (e.phase === 'started' ? null : own ? 'nuclear_ours' : 'nuclear_other')
+        : e.kind === 'project' ? (own && e.phase !== 'started' ? 'project' : null)
+        : null;
+      if (say) audio.announce(say);
       // a declaração de guerra já entra no registro pela camada nacional; os outros, aqui
       if (e.kind !== 'war') useHudStore.getState().pushEvent({ tick: e.tick, text: a.big ? `${a.title}: ${a.text}` : a.text, tone: a.tone });
       audio.ui(a.tone === 'bad' ? 'warning' : 'herald');
@@ -2358,6 +2367,8 @@ export class GameRuntime {
 
   // ------------------------------------------------------------ HUD
 
+  private lastSelectionIds = new Set<number>();
+
   private publishHud(): void {
     const s = this.snapshot;
     if (!s || !this.hudActive) return;
@@ -2414,6 +2425,10 @@ export class GameRuntime {
         else inspected = { kind: 'building' as const, type: b.snap.type, owner: b.snap.owner, hp: b.snap.hp, maxHp: b.snap.maxHp, level: b.snap.level, spec: b.snap.spec };
       }
     }
+    // tropa nova na seleção (não quando uma morre e sai dela): resposta pelo rádio
+    const ids = new Set(selectedUnits.map((u) => u.id));
+    if ([...ids].some((id) => !this.lastSelectionIds.has(id))) audio.radio('select');
+    this.lastSelectionIds = ids;
     if (selectedUnits.length !== this.lastSelectionCount && selectedUnits.length > 0) {
       useHudStore.getState().pushEvent({
         tick: s.tick,
@@ -3636,6 +3651,7 @@ export class GameRuntime {
         if (mine(e.owner)) {
           // sirene e aviso pulsante no minimapa onde o ataque está acontecendo
           audio.ui('attack');
+          audio.announce('attack');
           this.attackPings.push({ x: e.pos.x, y: e.pos.y, at: performance.now() });
           if (this.attackPings.length > 6) this.attackPings.shift();
         }
@@ -3646,6 +3662,8 @@ export class GameRuntime {
       case 'unit_produced':
         // navio novo saindo do porto: um apito (o pesqueiro, civil e automático, sai calado)
         if (UNITS[e.unitType].naval && e.unitType !== 'fishing_boat' && e.unitType !== 'submarine' && e.unitType !== 'missile_submarine') audio.shipHorn(e.pos.x, e.pos.y);
+        // tropa nossa pronta: resposta pelo rádio (o pesqueiro é civil e sai calado)
+        if (mine(e.owner) && e.unitType !== 'fishing_boat') audio.radio('ready');
         break;
       case 'victory_progress':
         if (e.state !== 'lost') audio.ui(mine(e.slot) === (e.kind === 'territory') ? 'success' : 'alert');
@@ -3675,6 +3693,12 @@ export class GameRuntime {
         if (mine(e.victim)) audio.ui('alert');
         break;
       case 'construction_completed':
+        if (mine(e.owner)) {
+          audio.ui('success');
+          // obra pronta: o canteiro avisa pelo rádio (no máximo uma a cada 5 s)
+          audio.radio('built');
+        }
+        break;
       case 'upgrade_completed':
       case 'military_research_completed':
         if (mine(e.owner)) audio.ui('success');
