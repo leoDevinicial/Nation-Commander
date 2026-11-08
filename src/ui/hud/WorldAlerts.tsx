@@ -1,15 +1,16 @@
 import { useEffect } from 'react';
-import { ChevronsUp, Landmark, type LucideIcon, Radar, Radiation, Satellite, Swords } from 'lucide-react';
+import { ChevronsUp, FlaskConical, Landmark, type LucideIcon, Radar, Radiation, Satellite, Swords } from 'lucide-react';
 import { useHudStore, type WorldAlert, type WorldAlertIcon } from '../../state/useHudStore.ts';
 
 /** Quanto tempo cada alerta mundial fica na tela (ms); a faixa cinematográfica fica um pouco mais. */
 const ALERT_MS = 7000;
 const BIG_MS = 5500;
 
-const ICONS: Record<WorldAlertIcon, LucideIcon> = { war: Swords, era: ChevronsUp, nuclear: Radiation, project: Landmark, satellite: Satellite, contact: Radar };
+const ICONS: Record<WorldAlertIcon, LucideIcon> = { war: Swords, era: ChevronsUp, nuclear: Radiation, project: Landmark, satellite: Satellite, contact: Radar, research: FlaskConical };
 
 const TONE: Record<WorldAlert['tone'], { color: string; border: string }> = {
   info: { color: '#5aa9e6', border: 'border-l-signal-blue' },
+  good: { color: '#5cc47a', border: 'border-l-signal-green' },
   warn: { color: '#e2b54d', border: 'border-l-brass-400' },
   bad: { color: '#e85c4e', border: 'border-l-signal-red' },
 };

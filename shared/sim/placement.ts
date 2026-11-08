@@ -6,6 +6,8 @@ import type { Cell, Slot } from './types.ts';
 
 const WATER = 4 as Terrain;
 const ROAD = 1 as Terrain;
+const FOREST = 2 as Terrain;
+const MUD = 3 as Terrain;
 /** Edifícios de onde saem tropas e veículos: a saída deles não pode ser fechada por outra obra. */
 const PRODUCERS = new Set<BuildingType>(Object.values(UNITS).map((u) => u.producedBy));
 /** Uma saída é "aberta" se a partir dela dá para andar por pelo menos tantas células livres. */
@@ -47,7 +49,10 @@ export function placementError(w: PlacementWorld, slot: Slot, type: BuildingType
     for (let x = cell.cx; x < cell.cx + def.size; x++) {
       if (x < 0 || y < 0 || x >= w.width || y >= w.height) return 'Fora do mapa';
       const t = w.terrain[y * w.width + x];
-      if (t === undefined || !TERRAIN[t].buildable) return 'Terreno impróprio para construção';
+      // 08/11: mata também serve (as árvores são derrubadas, como na estrada) e a praia (lama) serve para o que fica
+      // na margem da água (porto); o resto da lama segue impróprio
+      const ok = t !== undefined && (TERRAIN[t].buildable || t === FOREST || (t === MUD && !!def.nearWater));
+      if (!ok) return 'Terreno impróprio para construção';
       // a estrada construída leva tropas, comboios e energia: nada vai em cima dela (as do mapa seguem livres)
       if (t === ROAD && w.builtRoads?.has(y * w.width + x)) return 'Estrada no caminho: construa ao lado dela';
       const occupied = buildings.some((b) => {

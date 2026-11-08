@@ -802,6 +802,18 @@ export class GameRuntime {
         this.scene.add(visual.group, visual.rallyObject);
         t = { visual, snap: b };
         this.buildings.set(b.id, t);
+        // obra sobre mata (08/11): o servidor derrubou as árvores embaixo; aqui também (se o prédio cair, não voltam)
+        const felled: number[] = [];
+        for (let y = b.cy; y < b.cy + size; y++)
+          for (let x = b.cx; x < b.cx + size; x++) {
+            const i = y * this.map.width + x;
+            if (this.map.terrain[i] !== T.Forest) continue;
+            this.map.terrain[i] = T.Plains;
+            this.deposits.cellDeposit[i] = -1;
+            this.clearedCells.add(i);
+            felled.push(i);
+          }
+        if (felled.length) this.terrain.repaint(felled);
       } else {
         // construção nossa que acabou de ficar sem energia: som de desligando
         if (b.owner === this.mySlot && b.unpowered === true && t.snap.unpowered !== true) {

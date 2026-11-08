@@ -4345,6 +4345,8 @@ export class Simulation {
   addBuilding(type: BuildingType, owner: Slot, cell: Cell, progress: number): Building {
     const def = BUILDINGS[type];
     const cs = this.grid.cellSize;
+    // obra sobre mata (08/11): as árvores embaixo são derrubadas, como na estrada (o cliente repete isso ao ver o prédio)
+    for (let y = cell.cy; y < cell.cy + def.size; y++) for (let x = cell.cx; x < cell.cx + def.size; x++) this.clearForestCell(y * this.map.width + x);
     const b: Building = {
       kind: 'building',
       id: this.opaqueId('entity', this.nextId++),

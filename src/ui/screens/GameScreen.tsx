@@ -25,6 +25,8 @@ import { NationalPanel } from '../national/NationalPanel.tsx';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
 import { FullscreenPrompt } from '../components/FullscreenButton.tsx';
+import { TECHNOLOGIES } from '../../../shared/strategic/technologies.ts';
+import { audio } from '../../game/audio/AudioService.ts';
 import { describeNationalEvent, makeNameOf } from '../../game/nationalText.ts';
 import { battleSnapshotBuffer, useOpsStore } from '../../state/useOpsStore.ts';
 import { OperationalMap } from '../geo/OperationalMap.tsx';
@@ -119,6 +121,12 @@ export function GameScreen() {
       for (const l of fresh) {
         const d = describeNationalEvent(l.event, match.yourSlot, nameOf);
         if (d) useHudStore.getState().pushEvent({ tick: 0, text: d.text, tone: d.tone });
+        // pesquisa própria concluída (08/11, feedback: "não ter que ficar abrindo a aba toda hora"): aviso no topo da tela
+        if (l.event.type === 'research_completed' && l.event.slot === match.yourSlot) {
+          const tech = TECHNOLOGIES[l.event.techId];
+          useHudStore.getState().pushWorldAlert({ icon: 'research', title: 'Pesquisa concluída', text: tech.unlocks[0] ? `${tech.label} · ${tech.unlocks[0]}` : tech.label, tone: 'good' });
+          audio.ui('success');
+        }
         // encontro no mapa (06/11): primeira vez que vemos essa nação — a diplomacia com ela fica liberada
         if (l.event.type === 'diplomacy' && l.event.event.type === 'discovered' && l.event.event.via === 'teatro' && l.event.event.by === match.yourSlot)
           useHudStore.getState().pushWorldAlert({

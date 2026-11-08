@@ -60,5 +60,8 @@ Os preços valem para o PIB de referência (US$ 1 tri, modo paridade); no modo r
 | 16 | 160 mi | +208 mil | 213 mil | 104 mil |
 | 24 | 170 mi | +92 mil | 219 mil | 114 mil |
 
+Navios pagam um veículo por 3 tripulantes; o pesqueiro, civil e sem tripulação militar, não paga nada (08/11: antes
+cada um contava como um veículo, e três por porto pesavam como três tanques).
+
 O saldo cai conforme o exército e a base crescem; com 20 veículos sem produção, fica negativo. O caixa negativo bloqueia
 melhorias, estradas, eras e projetos até voltar ao positivo.

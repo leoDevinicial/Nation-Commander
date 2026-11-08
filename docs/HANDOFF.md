@@ -147,6 +147,10 @@ edifício do tipo em diante e Porto, Refinaria, Siderúrgica, usinas, hospital e
 - Estrada/rodovia sobre mata: a árvore é derrubada, a célula vira planície e a floresta perde a madeira da célula
   (`clearForestCell`); `clearedForest` vai no salvamento para os depósitos não mudarem de ordem ao carregar. No
   cliente, as árvores da célula não voltam se a estrada cair (`clearedCells`).
+- Feedback 08/11: qualquer prédio vai na mata (as árvores embaixo caem em `addBuilding`, e o cliente repete ao ver o
+  prédio); a praia (lama) aceita o que fica na margem da água (`nearWater`: porto). O pesqueiro (`crew: 0`) não paga
+  manutenção do exército (`treasuryInputs`; antes, cada um valia um veículo). Pesquisa própria concluída vira aviso no
+  topo da tela (`GameScreen`, ícone `research`).
 - Energia na barra com uma casa decimal (aparecia 28.800000000000008). Conhecimento: QG forma 0,05/s, escola 0,15,
   universidade 0,4 (antes 0 / 0,1 / 0,3).
 - Tiros: variação de ±2 ticks no intervalo de cada disparo (`fireJitter`, determinística, média zero; rajadas do CIWS

@@ -39,6 +39,10 @@ minimapa quando estamos sob ataque, construir sem precisar clicar no QG toda vez
   - estrada: só as células próprias; as pontes do mapa não são de ninguém e ficam; a célula volta a ser planície.
 - Evento `demolished` (dono e quem vê o lugar): poeira e estalo no cliente; texto "Demolido: …" para o dono.
 
+## Pesquisa concluída (08/11)
+Pesquisa nacional própria concluída aparece também no topo da tela (alerta verde com ícone de frasco e o primeiro item
+de `unlocks`) e toca `success`, além da linha no registro: não é preciso abrir a aba Pesquisa para saber.
+
 ## Testes
 `shared/test/alerts.test.ts`: alerta de guerra para todos e sem posição, sem repetir; alerta nuclear ao começar e ao
 terminar; demolição de construção (QG recusado, construção alheia recusada), de estrada (só a própria) e validação do

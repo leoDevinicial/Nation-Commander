@@ -1608,8 +1608,9 @@ export function treasuryInputs(sim: Simulation, slot: Slot): TreasuryInputs {
   for (const u of sim.units.flatMap((x) => [x, ...(x.cargo ?? [])])) {
     if (u.owner !== slot) continue;
     const def = UNITS[u.type];
-    // navios (03/11): pagam como veículos, um por cada 3 tripulantes (o porta-aviões, 3 veículos; antes pagavam soldo de soldado)
-    if (def.naval) vehicles += Math.max(1, Math.ceil((def.crew ?? 1) / 3));
+    // navios (03/11): pagam como veículos, um por cada 3 tripulantes (o porta-aviões, 3 veículos; antes pagavam soldo de soldado).
+    // Barco civil sem tripulação militar (pesqueiro, crew 0) não entra no exército (08/11: três por porto pesavam como 3 tanques)
+    if (def.naval) vehicles += def.crew === 0 ? 0 : Math.max(1, Math.ceil((def.crew ?? 1) / 3));
     else if (def.producedBy === 'factory') vehicles++;
     else infantry++;
   }
