@@ -20,10 +20,10 @@ export const TREASURY = {
   price: { food: 4_500, wood: 4_500, stone: 4_500, iron: 8_000, oil: 10_000, coal: 6_000, supplies: 6_000 } as Record<ResourceType, number>,
   /** Acordos comerciais: % do repasse por ponto percentual de crescimento vindo dos acordos. */
   tradePactShare: 0.25,
-  /** Manutenção do exército por dia: infantaria, veículo e aeronave (08/11: cortada para ~1/3, "absurdos de caro"). */
-  infantry: 2_000,
-  vehicle: 7_000,
-  aircraft: 14_000,
+  /** Manutenção do exército por dia: infantaria, veículo e aeronave (08/11: 1/5 do original, "absurdos de caro"). */
+  infantry: 1_200,
+  vehicle: 4_000,
+  aircraft: 8_000,
   /** Energia: por unidade de consumo atendida por dia. */
   energy: 1_500,
   /** Manutenção por construção pronta (por célula de área) e por célula de estrada. */
