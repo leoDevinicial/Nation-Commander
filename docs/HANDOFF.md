@@ -4,25 +4,27 @@ Este arquivo é o ponto de partida para quem pega o projeto numa conversa nova (
 antes de mexer em qualquer coisa. Depois leia `CLAUDE.md` (regras curtas) e
 `docs/BALANCEAMENTO_E_PROGRESSAO.md` (direção de design + tabela "Estado da implementação").
 
-Última atualização: **04/11/2026, noite**. **Tudo publicado:** a branch de publicação `claude/serene-bell-7cjnhp` está no
-commit `39d7ace` (efeitos gravados, correção da demolição e ajustes de áudio do feedback de 04/11); a de trabalho agora é `claude/friendly-maxwell-ssxv7n` (seção 0.1). Não há pedido pela metade. O que mudou está no topo da seção 0.4; o que dá para
-fazer em seguida está na seção 0.45.
+Última atualização: **08/11/2026**. **Tudo publicado:** a branch de publicação `claude/serene-bell-7cjnhp` está no
+commit `1a42a6d` (tutorial narrado em pt/en/es, feedback de 08/11 e exército a 1/5 do custo); só este handoff está à
+frente, na branch de trabalho `claude/friendly-maxwell-ssxv7n` (seção 0.1). Não há pedido pela metade. O que mudou está
+no topo da seção 0.4; o que dá para fazer em seguida está na seção 0.45.
 
 ## 00. Checklist de chegada (faça nesta ordem, antes de qualquer pedido)
 
 1. **Branch.** Descubra qual branch o ambiente mandou usar (o prompt do sistema diz "Develop on branch …").
    - Se for uma branch **nova** (outra conta), crie-a a partir da linha principal **sem perder nada**:
      ```bash
-     git fetch origin claude/youthful-dijkstra-a45emp claude/serene-bell-7cjnhp
-     git checkout -B <branch-nova> origin/claude/youthful-dijkstra-a45emp
+     git fetch origin claude/friendly-maxwell-ssxv7n claude/serene-bell-7cjnhp
+     git checkout -B <branch-nova> origin/claude/friendly-maxwell-ssxv7n
      git push -u origin <branch-nova>
      ```
-     A `claude/youthful-dijkstra-a45emp` contém tudo (é a linha mais nova; a `claude/serene-bell-7cjnhp` é a publicada e
+     A `claude/friendly-maxwell-ssxv7n` contém tudo (é a linha mais nova; a `claude/serene-bell-7cjnhp` é a publicada e
      está igual ou atrás dela). Confira com
-     `git merge-base --is-ancestor origin/claude/serene-bell-7cjnhp origin/claude/youthful-dijkstra-a45emp && echo ok`.
-   - Se for a própria `claude/youthful-dijkstra-a45emp`, só `git pull`.
+     `git merge-base --is-ancestor origin/claude/serene-bell-7cjnhp origin/claude/friendly-maxwell-ssxv7n && echo ok`.
+     A antiga `claude/youthful-dijkstra-a45emp` está parada em `265d772`: não parta dela.
+   - Se for a própria `claude/friendly-maxwell-ssxv7n`, só `git pull`.
    - **Nunca** reescreva histórico, force push, merge ou PR sem o usuário pedir. Não use branches `ccr-…` nem as antigas.
-2. **Instalar e verificar:** `npm ci && npm test && npm run lint && npm run typecheck`. Em 04/11: **708 testes** (78
+2. **Instalar e verificar:** `npm ci && npm test && npm run lint && npm run typecheck`. Em 08/11: **745 testes** (85
    arquivos), lint e typecheck limpos. Se algo falhar logo na chegada, investigue antes de mudar qualquer coisa.
 3. **Anote aqui (seção 0.1)** a branch nova, o commit de partida e o resultado dos testes, e atualize o `CLAUDE.md`
    ("Branch de trabalho atual"). Commit pequeno só com isso.
@@ -63,6 +65,9 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 - **04/11/2026, noite — mesma conta:** 24 lotes de som recebidos e catalogados (lotes 9–32) e depois implementados de
   uma vez (seção 0.4). Publicado em `fd86870`; depois, caça a bugs (demolição, `926f440`) e ajustes de áudio do
   feedback (contagem, música de guerra, +3 dB nos efeitos, aviso de ataque), publicados em `39d7ace`. 711 testes.
+- **05–08/11/2026 — mesma conta e branch:** interface "Sala de Situação", diplomacia no mapa, painel de números,
+  trailer, lotes de som 33–39 (ElevenLabs), tutorial narrado e duas rodadas de feedback. Publicado em `1a42a6d`;
+  745 testes (85 arquivos).
 - Próxima conta: acrescente uma linha aqui (data, branch, commit de partida, testes).
 
 ## 0.2 Infraestrutura e coisas que só o usuário faz
@@ -81,6 +86,12 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 - **Divulgação (01/11):** o usuário e o irmão começaram a divulgar o jogo e criar perfis. O irmão fez o trailer; foram
   feitos também um vídeo de combate de 36 s sem texto e o vídeo "Drone Update" (terceira pessoa + FPV, sem texto). Passo
   a passo em `scripts/video/README.md` e `scripts/video/drone/`; os vídeos em si não estão no git.
+
+- **ElevenLabs** (conector MCP): sons e narração saem dele e gastam créditos do usuário. Em 07/11 os créditos acabaram
+  no meio da narração e o usuário comprou mais 35 mil; se acabar de novo, avise e espere.
+- **Render demora mais que a Vercel:** depois de publicar, o cliente novo sobe em ~1 min e o servidor leva vários
+  minutos. Nesse intervalo, recurso novo que precisa do servidor (ex.: sala `tutorial`) dá "Mensagem inválida". Daqui
+  o contêiner não alcança o Render (proxy recusa); para conferir, rode o build do Dockerfile localmente.
 
 ## 0.3 Regras que já custaram caro (não repetir)
 
@@ -124,6 +135,30 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 
 ## 0.4 O que mudou desde 31/10 (mais recente primeiro; detalhes no `git log` e nas docs citadas)
 
+**08/11 — feedback de partida (5 prints), publicado em `1a42a6d`:**
+- Porto na praia: a praia é `Terrain.Mud`, que não aceitava obra; agora aceita o que tem `nearWater` (porto).
+- Obra na mata: qualquer prédio vai para cima de árvores, que são derrubadas (`addBuilding` → `clearForestCell`; o
+  cliente repete ao ver o prédio e não deixa as árvores voltarem).
+- Gasto militar: o pesqueiro (`crew: 0`) era cobrado como veículo militar (`treasuryInputs`); agora não paga. A
+  manutenção do exército caiu para 1/5 a pedido do usuário (`TREASURY`: infantaria 1,2 mil, veículo 4 mil, aeronave
+  8 mil por dia no PIB de referência). `docs/CAIXA_DO_PAIS.md`.
+- Pesquisa concluída vira aviso verde no topo da tela, com som (`GameScreen`, ícone `research`; `docs/ALERTAS_E_HUD.md`).
+- Não verificado no navegador: as árvores sumindo sob o prédio e o aviso de pesquisa.
+
+**07–08/11 — tutorial narrado** (`docs/TUTORIAL.md`, roteiro em `docs/TUTORIAL_ROTEIRO.md`): modo de sala `tutorial`,
+9 capítulos e 49 passos (câmera, economia, energia, exército, combate, governo e eras, alianças, comércio por rodovia,
+navio e avião, vitória), diretor no servidor e painel com destaque no cliente. Narração ElevenLabs nos três idiomas
+(`public/narration/<idioma>/`, cortada por `scripts/narracao-preparar.py`). Feedback de 07/11: a música e o mundo
+abaixam enquanto o narrador fala (`talkDuck`) e o som de escritório (teclado do QG) caiu pela metade. Convite no menu
+na primeira visita. Pendente: funil por passo no painel de números; conflito antigo das teclas G e M com o QG selecionado.
+
+**06–07/11 — sons do ElevenLabs, lotes 33–39** (`assets/sfx/CATALOGO.md`): antiaérea, ar-terra, drone, silo, trovão,
+interface, contagem pt/es, chuva, vento de neve, trabalho dos prédios (`PRODUCTION_SFX`), marinha, fanfarra de era,
+motores andando, apito do navio, resposta das tropas pelo rádio em pt/en/es, obra em andamento e variações extras.
+
+**06/11 — trailer cinematográfico** (`scripts/video/`): gravador por cena, cartelas, montagem e mixagem; o vídeo não
+está no git. **Painel de números**: `GET /stats/details` (feedbacks e últimas partidas) só com a chave de detalhes.
+
 **06/11 — painel de números** (`docs/PAINEL_DE_NUMEROS.md`): `/painel#<STATS_TOKEN>` com contas, online, partidas do
 dia e duração média; precisa de `STATS_TOKEN` no servidor de cada região (o usuário define no Render).
 
@@ -147,10 +182,6 @@ edifício do tipo em diante e Porto, Refinaria, Siderúrgica, usinas, hospital e
 - Estrada/rodovia sobre mata: a árvore é derrubada, a célula vira planície e a floresta perde a madeira da célula
   (`clearForestCell`); `clearedForest` vai no salvamento para os depósitos não mudarem de ordem ao carregar. No
   cliente, as árvores da célula não voltam se a estrada cair (`clearedCells`).
-- Feedback 08/11: qualquer prédio vai na mata (as árvores embaixo caem em `addBuilding`, e o cliente repete ao ver o
-  prédio); a praia (lama) aceita o que fica na margem da água (`nearWater`: porto). O pesqueiro (`crew: 0`) não paga
-  manutenção do exército (`treasuryInputs`; antes, cada um valia um veículo). Pesquisa própria concluída vira aviso no
-  topo da tela (`GameScreen`, ícone `research`).
 - Energia na barra com uma casa decimal (aparecia 28.800000000000008). Conhecimento: QG forma 0,05/s, escola 0,15,
   universidade 0,4 (antes 0 / 0,1 / 0,3).
 - Tiros: variação de ±2 ticks no intervalo de cada disparo (`fireJitter`, determinística, média zero; rajadas do CIWS
@@ -267,19 +298,19 @@ Construir/Demolir, água natural (mais escura quanto mais funda, rastro dos navi
   longas, caças com canhão/metralhadora/mísseis, bombardeiro novo, cargueiros por era, drone de reconhecimento, Base
   Aérea 5×5, usina solar com reflexo, clima ocasional, jazida de petróleo reservada, obras sem bloquear estradas/saídas.
 
-## 0.45 De onde continuar (04/11, noite)
+## 0.45 De onde continuar (08/11)
 
-- **Sons que ainda faltam gravar:** lista no fim de `assets/sfx/CATALOGO.md` ("O que falta"): estouro antiaéreo no ar,
-  míssil ar-terra próprio, drone (passagem e FPV), silo "preparando" e "autorizado", contagem em português e espanhol,
-  chuva, trovão, vento de neve, produção dos prédios e interface. Quando chegarem lotes: guardar e catalogar como os
-  anteriores (o usuário pede assim), depois acrescentar em `MORE`/`LOOPS` do `scripts/sfx-preparar.py` e no `SAMPLES`,
-  e calibrar o ganho no navegador (renderizar o som com `useSamples` falso e verdadeiro num `OfflineAudioContext` e
-  comparar o maior RMS de 300 ms; o compressor do fim achata os sons fortes, então ganhos altos são normais).
-- **Tamanho:** `public/sfx/` tem ~4,3 MB, baixados em segundo plano quando o áudio é liberado. Se pesar no celular,
-  baixar o bitrate dos longos (nuclear, aviões, decolagem) ou carregar sob demanda.
-- **Não verificado de ouvido:** os níveis dos efeitos foram medidos, não ouvidos; a queda de energia foi testada
-  chamando `powerDown` direto. Se o usuário reclamar de volume, ajustar `gain` em `SAMPLES` ou o fator em
-  `warAt`/`powerDown`.
+- **Próximos passos conversados com o usuário (08/11), sem decisão ainda:** domínio próprio (barato; deixa a tela do
+  Google e a de pagamento confiáveis) → login com Google pelo Supabase (hoje só e-mail e senha, `AuthScreen`) →
+  monetização. Para cobrar: servidor pago no Render (Virgínia), termos de uso e privacidade, Stripe (cartão e Pix) com
+  webhook no servidor gravando `subscriptions.active`; o limite 4/6 nações já depende de `user.subscriber`. Falta o
+  usuário decidir preço e o que a assinatura inclui. Pergunte por qual começar.
+- **Conferir numa partida:** árvores somem sob prédio novo na mata; porto na praia; aviso de pesquisa concluída.
+- **Texto sem tradução:** "Mensagem inválida." (`server/index.ts`) não está em `en.ts`/`es.ts` (apareceu como
+  "Message inválida").
+- **`sim-economia` (2,5,6 25):** 6 de 9 critérios passam; falham armazém ≥95%, primeira ofensiva entre 9 e 12 min e era
+  3 até 22:00 — já falhavam antes das mudanças de 08/11.
+- **Sons que ainda faltam:** lista no fim de `assets/sfx/CATALOGO.md`.
 - **Navegador sem GPU no contêiner:** com swiftshader cada quadro leva segundos e o `performance.now()` salta ~25 s
   por avaliação; o relógio da trilha e da ameaça parece "pular". Confira o estado, não o tempo.
 
