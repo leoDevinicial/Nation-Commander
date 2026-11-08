@@ -15,7 +15,7 @@ describe('caixa do país', () => {
     const army = treasuryDay({ ...quiet, infantry: 10, vehicles: 5, aircraft: 2 }, ctx);
     expect(army.expense.find((l) => l.key === 'army')!.usd).toBe(10 * TREASURY.infantry + 5 * TREASURY.vehicle + 2 * TREASURY.aircraft);
     // mais tropas, mais gasto: um exército grande deixa o saldo negativo
-    expect(treasuryDay({ ...quiet, vehicles: 20 }, ctx).net).toBeLessThan(0);
+    expect(treasuryDay({ ...quiet, vehicles: 30 }, ctx).net).toBeLessThan(0);
     const upkeep = treasuryDay({ ...quiet, energy: 40, buildingCells: 100, roads: 30, services: 2 }, ctx);
     expect(upkeep.expense.map((l) => l.key)).toEqual(['army', 'energy', 'buildings', 'roads', 'services']);
     expect(upkeep.net).toBe(200_000 - 40 * TREASURY.energy - 100 * TREASURY.buildingPerCell - 30 * TREASURY.road - 2 * TREASURY.service);

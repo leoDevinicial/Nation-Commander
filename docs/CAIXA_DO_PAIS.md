@@ -33,7 +33,7 @@ Onde está:
 
 | Linha | Cálculo |
 |---|---|
-| Exército | US$ 6 mil por tropa de infantaria, 20 mil por veículo, 40 mil por aeronave |
+| Exército | US$ 2 mil por tropa de infantaria, 7 mil por veículo, 14 mil por aeronave (08/11: antes 6, 20 e 40 mil); navio paga 1 veículo por 3 tripulantes, pesqueiro nada |
 | Energia | US$ 1,5 mil por unidade de consumo atendida |
 | Construções | US$ 400 por célula de área das construções prontas (sem o QG) |
 | Estradas | US$ 600 por célula de estrada do jogador |
@@ -51,7 +51,7 @@ Pesquisa). Nações da IA não têm caixa e avançam como antes, um dia por dia.
 
 Os preços valem para o PIB de referência (US$ 1 tri, modo paridade); no modo realista, escalam com o PIB do país.
 
-## Medição (IA × IA, seed 5, Normal)
+## Medição (IA × IA, seed 5, Normal; antes do corte do exército em 08/11)
 
 | Minuto | Caixa | Saldo do dia | Receita de produção | Exército |
 |---|---|---|---|---|
@@ -63,5 +63,5 @@ Os preços valem para o PIB de referência (US$ 1 tri, modo paridade); no modo r
 Navios pagam um veículo por 3 tripulantes; o pesqueiro, civil e sem tripulação militar, não paga nada (08/11: antes
 cada um contava como um veículo, e três por porto pesavam como três tanques).
 
-O saldo cai conforme o exército e a base crescem; com 20 veículos sem produção, fica negativo. O caixa negativo bloqueia
+O saldo cai conforme o exército e a base crescem; com uns 30 veículos sem produção, fica negativo. O caixa negativo bloqueia
 melhorias, estradas, eras e projetos até voltar ao positivo.
