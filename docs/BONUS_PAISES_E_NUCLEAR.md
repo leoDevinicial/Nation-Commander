@@ -80,9 +80,9 @@ Pedido do usuário: ogiva nuclear que explode no mar levanta um tsunami (`shared
   submerso não sofre (`canHit`), como na explosão.
 - **Salvamento:** guarda só a origem, o início e quem já foi atingido; o campo de distâncias é recalculado do mapa.
 - **Cliente:** evento `tsunami` (visto por todos) abre um anel facetado de espuma branca com faixa turquesa
-  (`render/TsunamiWave.ts`) rente à água, que o terreno esconde onde há terra; ronco grave (`carpet_rumble`), tremor,
-  alerta no topo e linha no registro.
+  (`render/TsunamiWave.ts`) rente à água, que o terreno esconde onde há terra; som gravado da onda (`audio.tsunami`,
+  lote 41 do catálogo), fala do assessor ("Alerta: tsunami a caminho!"), tremor, alerta no topo e linha no registro.
 - **Testes:** `shared/test/tsunami.test.ts` (contorna a ilha, só a faixa da costa, todos os lados, salvamento) e
   `shared/test/air.test.ts` (a ogiva na água levanta a onda; em terra, não).
-- Não verificado no navegador: o visual do anel e o som.
+- Não verificado no navegador: o visual do anel (o som e a fala carregam e tocam).
 

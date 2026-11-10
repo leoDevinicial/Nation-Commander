@@ -226,6 +226,8 @@ const SFX = {
   engineWheeled: ['motor-rodas-1', 'motor-rodas-2'],
   shipUnderway: ['navio-navegando-1', 'navio-navegando-2'],
   shipHorn: ['navio-apito-1', 'navio-apito-2'],
+  /** Lote 41 (11/11): a onda do tsunami crescendo e sumindo (10 s). */
+  tsunami: ['tsunami-1', 'tsunami-2', 'tsunami-3'],
   construction: ['obra-1', 'obra-2'],
   // sirene: o aviso curto "sob ataque" e as sirenes em loop do silo armado (o loop começa em `SIREN_LOOP` s)
   sirenAlert: ['sirene-aviso'],
@@ -379,6 +381,8 @@ const DRONE_ONBOARD_GAIN = 1;
 const ENGINE_SFX: Record<EngineClass, string[]> = { tracked: SFX.engineTracked, wheeled: SFX.engineWheeled, naval: SFX.shipUnderway, construction: SFX.construction };
 const ENGINE_GAIN: Record<EngineClass, number> = { tracked: 0.45, wheeled: 0.45, naval: 0.45, construction: 0.4 };
 const SHIP_HORN_GAIN = 0.6;
+/** A onda do tsunami: forte, mas abaixo da explosão nuclear que vem logo antes. */
+const TSUNAMI_GAIN = 0.8;
 /**
  * Resposta das tropas pelo rádio (lote 37; seleção, unidade pronta e obra concluída em 08/11): falas por idioma; idioma
  * sem gravação usa o inglês.
@@ -393,8 +397,8 @@ const RADIO_EVERY: Record<RadioReply, number> = { move: 0, attack: 0, select: 6,
  * Avisos falados do assessor (08/11, voz do narrador do tutorial) junto dos alertas grandes da tela:
  * `public/narration/<idioma>/aviso-<id>.mp3`. Cada um tem um intervalo mínimo (s) para não repetir em sequência.
  */
-export type AnnounceId = 'research' | 'attack' | 'era' | 'contact' | 'war_us' | 'nuclear_ours' | 'nuclear_other' | 'project' | 'satellite' | 'pact_offer' | 'cash';
-const ANNOUNCE_EVERY: Record<AnnounceId, number> = { research: 4, attack: 45, era: 10, contact: 8, war_us: 10, nuclear_ours: 10, nuclear_other: 30, project: 10, satellite: 10, pact_offer: 20, cash: 180 };
+export type AnnounceId = 'research' | 'attack' | 'era' | 'contact' | 'war_us' | 'nuclear_ours' | 'nuclear_other' | 'project' | 'satellite' | 'pact_offer' | 'cash' | 'tsunami';
+const ANNOUNCE_EVERY: Record<AnnounceId, number> = { research: 4, attack: 45, era: 10, contact: 8, war_us: 10, nuclear_ours: 10, nuclear_other: 30, project: 10, satellite: 10, pact_offer: 20, cash: 180, tsunami: 10 };
 // uns 3 dB acima da energia do anúncio mundial gravado (`calibrar.cjs`): a fala fica clara sem gritar
 const RADIO_GAIN = 0.3;
 /** Narrador do tutorial: no nível da resposta pelo rádio (fala clara por cima do jogo). */
@@ -421,6 +425,7 @@ export const EXTRA_SAMPLES = [
   ...SFX.engineWheeled,
   ...SFX.shipUnderway,
   ...SFX.shipHorn,
+  ...SFX.tsunami,
   ...SFX.construction,
   ...RADIO_LANGS.flatMap((l) => (Object.keys(RADIO_FILE) as RadioReply[]).flatMap((k) => radioFiles(l, k))),
   ...Object.values(UI_SFX).flat(),
@@ -3486,6 +3491,18 @@ export class AudioService {
       g.gain.setValueAtTime(g.gain.value, t);
       g.gain.setTargetAtTime(to, t, on ? 0.08 : 0.35);
     }
+  }
+
+  /**
+   * Tsunami (lote 41, 11/11): a onda gravada, ouvida de todo o mapa (mais baixa de longe, nunca abaixo de 40%), com a
+   * música abaixada um pouco. Sem as gravações, o ronco grave sintetizado do bombardeio em tapete faz as vezes.
+   */
+  tsunami(x: number, y: number): void {
+    if (!this.ready) return;
+    const sp = this.spatial(x, y);
+    const gain = Math.max(0.4, sp?.gain ?? 0);
+    if (this.useSamples && this.playExtra(SFX.tsunami, 'combat', TSUNAMI_GAIN * gain, sp?.pan ?? 0, 0.96 + Math.random() * 0.08)) this.duckMusic(0.3);
+    else this.playWide('carpet_rumble', x, y, 0.35);
   }
 
   /** Apito do navio saindo do porto, posicionado como os sons de combate. */

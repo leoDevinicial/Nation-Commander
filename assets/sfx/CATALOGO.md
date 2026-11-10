@@ -841,6 +841,18 @@ Um aviso de cada vez, nunca por cima do narrador do tutorial (o narrador corta o
 
 Uma fala de rádio por vez; a resposta a uma ordem (mover/atacar) corta a de seleção, unidade pronta ou obra.
 
+## Lote 41 (11/11) — tsunami (ElevenLabs)
+Sound Effects v2, 10 s, prompt de onda gigante cruzando o mar depois de uma explosão submarina (ronco grave que cresce,
+arrebenta e some). Originais em `originais/tsunami/tsunami-{1..4}.mp3`; usados o 1, o 3 e o 4 (sobem de baixo, como a
+onda chegando) → `tsunami-{1,2,3}`, a −18 dB médios com 3 s de fade no fim (`sfx-preparar.py`, `MORE`). No jogo,
+`audio.tsunami(x, y)` (0,9 s depois do estrondo da ogiva; ouvido de todo o mapa, nunca abaixo de 40%, ganho 0,8, música
+abaixada); sem os arquivos, cai no ronco sintetizado do bombardeio em tapete.
+
+Fala do assessor `aviso-tsunami` (vozes do narrador, Eleven v4, tomada "a"; `public/narration/<idioma>/`, −18 LUFS,
+4,2–4,5 s): "Alerta: tsunami a caminho! A onda vai atingir navios e costas." / "Warning: tsunami incoming! The wave
+will hit ships and coastlines." / "¡Alerta: tsunami en camino! La ola golpeará barcos y costas." Originais em
+`assets/narration/originais/aviso-tsunami-<idioma>-{a,b}.mp3`.
+
 ## O que falta (07/11)
 Os lotes 33 a 39 cobriram tudo o que ainda era sintetizado ou mudo: interface, silo, clima, produção dos prédios,
 drone, marinha, fanfarra de era, motores, apito do navio, resposta pelo rádio (pt/en/es), obras e as variações extras que faltavam.

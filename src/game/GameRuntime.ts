@@ -1423,8 +1423,9 @@ export class GameRuntime {
       const wave = new TsunamiWave(e.pos, e.speed, e.radius);
       this.scene.add(wave.group);
       this.tsunamis.push(wave);
-      audio.playWide('carpet_rumble', e.pos.x, e.pos.y, 0.35);
-      window.setTimeout(() => audio.playWide('carpet_rumble', e.pos.x, e.pos.y, 0.25), 2500);
+      // a onda gravada sai logo depois do estrondo da ogiva; o assessor avisa todos
+      window.setTimeout(() => audio.tsunami(e.pos.x, e.pos.y), 900);
+      audio.announce('tsunami');
       this.shakeNear(e.pos, 0.6);
       const text = e.owner === this.mySlot ? 'Nossa ogiva levantou um tsunami: a onda atinge navios e costas de todos, inclusive os nossos' : 'Explosão nuclear no mar: um tsunami se espalha e atinge navios e costas de todos';
       useHudStore.getState().pushWorldAlert({ icon: 'nuclear', title: 'Tsunami', text, tone: 'bad' });

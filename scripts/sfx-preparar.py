@@ -190,6 +190,10 @@ MORE = [
     ('torre-defesa-4', 'torre-defesa/torre-defesa-6', 0.0, 0.9, 0.3, -20, 0),
     ('espaco-decolagem-2', 'espaco-lancamento/espaco-decolagem-5', 0.0, 11.0, 4.0, -18.1, 0),
     ('espaco-decolagem-3', 'espaco-lancamento/espaco-decolagem-6', 0.0, 11.0, 4.0, -16.7, 0),
+    # lote 41 (11/11): tsunami da ogiva nuclear no mar (a onda cresce e some; 10 s inteiros, fim em fade)
+    ('tsunami-1', 'tsunami/tsunami-1', 0.0, 10.0, 3.0, -18, 0),
+    ('tsunami-2', 'tsunami/tsunami-3', 0.0, 10.0, 3.0, -18, 0),
+    ('tsunami-3', 'tsunami/tsunami-4', 0.0, 10.0, 3.0, -18, 0),
 ]
 
 # contagem falada em português e espanhol (lote 33): a ignição gravada (`espaco-ignicao`, tocada 2,6 s depois do pedido,
