@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TICK_RATE, Terrain, type BuildingType } from '../sim/config.ts';
+import { POP_ABSOLUTE_CAP, TICK_RATE, Terrain, type BuildingType } from '../sim/config.ts';
 import { parseCommand } from '../sim/commands.ts';
 import { Simulation } from '../sim/Simulation.ts';
 import { FogMemory, makeSnapshot } from '../sim/snapshot.ts';
@@ -94,6 +94,24 @@ describe('zoneamento', () => {
       expect(s.grid.occupant(i % W, Math.floor(i / W))).toBe(LOT_OCCUPANT);
       expect(s.placementError(0, 'house', { cx: i % W, cy: Math.floor(i / W) })).toMatch(/Lote privado|ocupado/);
     }
+  });
+
+  it('com a nação no teto de população (500), o zoneamento residencial não cria casa nova', () => {
+    expect(POP_ABSOLUTE_CAP).toBe(500);
+    const grow = (citizens: number) => {
+      const { s, below } = setup({ approval: 90, growth: 6 });
+      develop(s);
+      s.players[0]!.citizens = citizens;
+      s.applyCommand(0, { type: 'zone_tax', kind: 'res', pct: 0 });
+      s.applyCommand(0, { type: 'zone_paint', cells: below, kind: 'res' });
+      run(s, ZONING.everyTicks * 150);
+      return { s, lots: [...s.zones.lots].filter(([, l]) => l.owner === 0 && l.kind === 'res').length };
+    };
+    // abaixo do teto as casas aparecem (o teste mede algo de verdade)
+    expect(grow(40).lots).toBeGreaterThan(0);
+    const full = grow(POP_ABSOLUTE_CAP);
+    expect(full.lots).toBe(0);
+    expect(full.s.population(0).total).toBeLessThanOrEqual(POP_ABSOLUTE_CAP);
   });
 
   it('todo lote encosta na rua; com duas fileiras zoneadas, vira lote fundo (frente e trás, mesma construção)', () => {

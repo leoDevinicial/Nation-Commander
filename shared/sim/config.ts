@@ -20,7 +20,7 @@ export const CELL_SIZE = 2; // unidades de mundo por célula
 // ------------------------------------------------------------------ população
 
 /** Teto absoluto de população por nação (cidadãos + efetivo militar), em qualquer situação. */
-export const POP_ABSOLUTE_CAP = 300;
+export const POP_ABSOLUTE_CAP = 500;
 /** Cidadãos no início da partida (além das unidades iniciais). 11 desde 01/11: as obras usam até 4 construtores. */
 export const STARTING_CITIZENS = 11;
 /** Formação de um cidadão civil no Centro de Comando: trabalha nas construções (fazendas, poços, serrarias…). */

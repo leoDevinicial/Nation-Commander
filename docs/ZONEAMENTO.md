@@ -28,7 +28,7 @@ zoneamento fecha o ciclo de recursos: depois dele, só melhorias nas mecânicas 
 - **Casa privada:** +1 cidadão e +1 de teto de população. **Prédio privado:** +5 e +5; raro (só com muita procura
   residencial e 30+ moradores na cidade; 12% dos lotes novos nesse caso, e casas viram prédio raramente).
 - Os cidadãos chegam junto com o lote e vão embora quando ele é abandonado, demolido ou perdido com a fronteira.
-- **Teto nacional de população: 300** (era 200). Um lote residencial não surge se não couber.
+- **Teto nacional de população: 500** (era 300 até 11/11; antes, 200). Um lote residencial não surge se não couber.
 - Casa e prédio residencial do governo só aumentam o teto; os cidadãos vêm do Centro de Comando.
 
 ## Cidades
