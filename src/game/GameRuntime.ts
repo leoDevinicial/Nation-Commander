@@ -25,6 +25,7 @@ import { disposeBuildingModels } from './render/models/buildingModels.ts';
 import { disposeCitizenModel, disposeUnitModels, unitModel, unitModelKey } from './render/models/unitModels.ts';
 import { NuclearBlast } from './render/NuclearBlast.ts';
 import { TsunamiWave } from './render/TsunamiWave.ts';
+import { tsunamiField } from '../../shared/sim/tsunami.ts';
 import { setModelDetail } from './render/models/kit.ts';
 import { chooseClaims, claimableCells, claimedBy, gatherRate, sitesByDeposit } from '../../shared/sim/gathering.ts';
 import { findDeposits, type DepositIndex } from '../../shared/sim/deposits.ts';
@@ -292,7 +293,8 @@ export class GameRuntime {
   private readonly launchLightAt = new THREE.Vector3();
   /** Cogumelos nucleares em andamento. */
   private readonly nukes: NuclearBlast[] = [];
-  private readonly tsunamis: TsunamiWave[] = [];
+  /** Ondas na tela e as células de terra que cada uma ainda vai varrer (árvores e enfeites caem quando a frente passa). */
+  private readonly tsunamis: { wave: TsunamiWave; field: Float32Array; land: number[]; next: number }[] = [];
   private snapshotAt = 0;
   private snapshotInterval = 100;
   private tickMs = 50;
@@ -1420,9 +1422,16 @@ export class GameRuntime {
     this.eventSound(e);
     if (e.type === 'tsunami') {
       // tsunami (11/11): o anel de espuma se abre pelo mar; ronco grave e tremor; aviso para todos
-      const wave = new TsunamiWave(e.pos, e.speed, e.radius);
+      // o mesmo campo da simulação (mar alcançado e faixa da costa): recorta a parede e diz onde a mata cai
+      const cs = this.map.cellSize;
+      const field = tsunamiField(this.map, Math.floor(e.pos.x / cs), Math.floor(e.pos.y / cs));
+      const wave = new TsunamiWave(e.pos, e.speed, e.radius, this.map, field);
       this.scene.add(wave.group);
-      this.tsunamis.push(wave);
+      const land: number[] = [];
+      for (let i = 0; i < field.length; i++) if (field[i]! < Infinity && this.map.terrain[i] !== T.Water) land.push(i);
+      land.sort((a, b) => field[a]! - field[b]! || a - b);
+      this.tsunamis.push({ wave, field, land, next: 0 });
+      audio.tsunamiSiren();
       // a onda gravada sai logo depois do estrondo da ogiva; o assessor avisa todos
       window.setTimeout(() => audio.tsunami(e.pos.x, e.pos.y), 900);
       audio.announce('tsunami');
@@ -1657,11 +1666,28 @@ export class GameRuntime {
         this.nukes.splice(i, 1);
       }
     // a onda anda no ritmo do jogo (a simulação também)
-    for (let i = this.tsunamis.length - 1; i >= 0; i--)
-      if (!this.tsunamis[i]!.update(this.paused ? 0 : dt * this.speed)) {
-        this.tsunamis[i]!.dispose();
+    for (let i = this.tsunamis.length - 1; i >= 0; i--) {
+      const ts = this.tsunamis[i]!;
+      const alive = ts.wave.update(this.paused ? 0 : dt * this.speed);
+      // a frente passou pela costa: mata vira planície (como no servidor) e árvores e enfeites da faixa somem
+      const front = ts.wave.front / this.map.cellSize;
+      const swept: number[] = [];
+      while (ts.next < ts.land.length && (ts.field[ts.land[ts.next]!]! <= front || !alive)) {
+        const c = ts.land[ts.next++]!;
+        if (this.map.terrain[c] === T.Forest) {
+          this.map.terrain[c] = T.Plains;
+          this.deposits.cellDeposit[c] = -1;
+          swept.push(c);
+        }
+        this.clearedCells.add(c);
+      }
+      if (swept.length) this.terrain.repaint(swept);
+      if (ts.next) this.decorKey = '';
+      if (!alive) {
+        ts.wave.dispose();
         this.tsunamis.splice(i, 1);
       }
+    }
     this.citizens.update(this.paused ? 0 : dt * this.speed);
     if (!this.suspended) {
       // clima e hora: o relógio anda com a velocidade do jogo entre um snapshot e outro
@@ -4624,7 +4650,7 @@ export class GameRuntime {
     this.effects.dispose();
     for (const n of this.nukes) n.dispose();
     this.nukes.length = 0;
-    for (const w of this.tsunamis) w.dispose();
+    for (const w of this.tsunamis) w.wave.dispose();
     this.tsunamis.length = 0;
     this.postFx?.dispose();
     this.citizens.dispose();

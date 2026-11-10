@@ -228,6 +228,8 @@ const SFX = {
   shipHorn: ['navio-apito-1', 'navio-apito-2'],
   /** Lote 41 (11/11): a onda do tsunami crescendo e sumindo (10 s). */
   tsunami: ['tsunami-1', 'tsunami-2', 'tsunami-3'],
+  /** Lote 42 (11/11): sirene de alerta de tsunami (uivo que sobe e desce, 9 s). */
+  tsunamiSiren: ['tsunami-sirene-1', 'tsunami-sirene-2', 'tsunami-sirene-3'],
   construction: ['obra-1', 'obra-2'],
   // sirene: o aviso curto "sob ataque" e as sirenes em loop do silo armado (o loop começa em `SIREN_LOOP` s)
   sirenAlert: ['sirene-aviso'],
@@ -383,6 +385,8 @@ const ENGINE_GAIN: Record<EngineClass, number> = { tracked: 0.45, wheeled: 0.45,
 const SHIP_HORN_GAIN = 0.6;
 /** A onda do tsunami: forte, mas abaixo da explosão nuclear que vem logo antes. */
 const TSUNAMI_GAIN = 0.8;
+/** A sirene de alerta: clara, mas abaixo da fala do assessor (0,42) para não cobri-la. */
+const TSUNAMI_SIREN_GAIN = 0.28;
 /**
  * Resposta das tropas pelo rádio (lote 37; seleção, unidade pronta e obra concluída em 08/11): falas por idioma; idioma
  * sem gravação usa o inglês.
@@ -426,6 +430,7 @@ export const EXTRA_SAMPLES = [
   ...SFX.shipUnderway,
   ...SFX.shipHorn,
   ...SFX.tsunami,
+  ...SFX.tsunamiSiren,
   ...SFX.construction,
   ...RADIO_LANGS.flatMap((l) => (Object.keys(RADIO_FILE) as RadioReply[]).flatMap((k) => radioFiles(l, k))),
   ...Object.values(UI_SFX).flat(),
@@ -3503,6 +3508,15 @@ export class AudioService {
     const gain = Math.max(0.4, sp?.gain ?? 0);
     if (this.useSamples && this.playExtra(SFX.tsunami, 'combat', TSUNAMI_GAIN * gain, sp?.pan ?? 0, 0.96 + Math.random() * 0.08)) this.duckMusic(0.3);
     else this.playWide('carpet_rumble', x, y, 0.35);
+  }
+
+  /**
+   * Sirene de alerta de tsunami (lote 42): toca para todos assim que a ogiva cai no mar, antes da onda; no canal da
+   * interface, como os outros alarmes. Sem as gravações, o aviso de ataque sintetizado.
+   */
+  tsunamiSiren(): void {
+    if (!this.ready) return;
+    if (!(this.useSamples && this.playExtra(SFX.tsunamiSiren, 'ui', TSUNAMI_SIREN_GAIN, 0))) this.ui('warning');
   }
 
   /** Apito do navio saindo do porto, posicionado como os sons de combate. */

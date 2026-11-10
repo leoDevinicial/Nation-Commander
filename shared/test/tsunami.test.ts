@@ -23,13 +23,13 @@ describe('tsunami', () => {
     expect(f[32 * 64 + 26]).toBe(0);
     // atrás da ilha (x 42) fica mais longe pela água que a mesma distância em linha reta do outro lado (x 10 é terra)
     expect(f[32 * 64 + 42]!).toBeGreaterThan(16 + 2);
-    // a costa da ilha (terra) é alcançada; o meio da ilha (3 células da margem), não
+    // a costa da ilha (terra) é alcançada
     expect(f[32 * 64 + 34]!).toBeLessThan(Infinity);
-    expect(f[32 * 64 + 36]).toBe(Infinity);
-    // terra firme a oeste: as duas primeiras colunas da margem, sim; a terceira, não
+    // terra firme a oeste: as três primeiras colunas da margem, sim; a quarta, não
+    expect(TSUNAMI.coastCells).toBe(3);
     expect(f[32 * 64 + 15]!).toBeLessThan(Infinity);
-    expect(f[32 * 64 + 14]!).toBeLessThan(Infinity);
-    expect(f[32 * 64 + 13]).toBe(Infinity);
+    expect(f[32 * 64 + 13]!).toBeLessThan(Infinity);
+    expect(f[32 * 64 + 12]).toBe(Infinity);
     // explosão em terra: nada
     expect(tsunamiField(m, 5, 5).every((d) => d === Infinity)).toBe(true);
   });
@@ -38,7 +38,7 @@ describe('tsunami', () => {
     const sim = new Simulation({ map: map(), playerCount: 2, startingUnits: [], allAtWar: false, startingResources: TEST_START });
     const ownNear = sim.addUnit('frigate', 0, cell(sim, 24, 32));
     const enemyNear = sim.addUnit('aircraft_carrier', 1, cell(sim, 28, 30));
-    const open = sim.addUnit('frigate', 1, cell(sim, 26, 8));
+    const open = sim.addUnit('frigate', 1, cell(sim, 26, 3));
     const sheltered = sim.addUnit('frigate', 1, cell(sim, 43, 32));
     const coastTroop = sim.addUnit('infantry', 1, cell(sim, 15, 32));
     const inland = sim.addUnit('infantry', 1, cell(sim, 10, 32));
@@ -54,7 +54,7 @@ describe('tsunami', () => {
     // perto da explosão: afundam, inclusive a fragata de quem lançou e o porta-aviões
     expect(hp(ownNear)).toBe(0);
     expect(hp(enemyNear)).toBe(0);
-    // em mar aberto a 24 células: avariada, mas de pé
+    // em mar aberto a 29 células: avariada, mas de pé
     expect(hp(open)).toBeGreaterThan(0);
     expect(hp(open)).toBeLessThan(900);
     // atrás da ilha (mais longe pelo caminho da água) sofre menos que em mar aberto
@@ -62,6 +62,24 @@ describe('tsunami', () => {
     // a tropa na margem morre; a do interior nem sente
     expect(hp(coastTroop)).toBe(0);
     expect(inland.hp).toBe(70);
+  });
+
+  it('derruba a mata por onde passa (a costa), não a do interior', () => {
+    const m = flatMap(64, (set) => {
+      for (let y = 0; y < 64; y++) {
+        for (let x = 16; x < 48; x++) set(x, y, Terrain.Water);
+        for (let x = 6; x < 16; x++) set(x, y, Terrain.Forest);
+      }
+    });
+    const sim = new Simulation({ map: m, playerCount: 2, startingUnits: [], allAtWar: false, startingResources: TEST_START });
+    const W = 64;
+    expect(sim.map.terrain[32 * W + 15]).toBe(Terrain.Forest);
+    sim.tsunamis.detonate(0, cell(sim, 26, 32));
+    for (let i = 0; i < ((TSUNAMI.reach + TSUNAMI.coastCells + 2) / TSUNAMI.speed) * TICK_RATE; i++) sim.step();
+    // as três colunas da margem viram planície; a quarta em diante continua mata
+    for (const x of [13, 14, 15]) expect(sim.map.terrain[32 * W + x]).toBe(Terrain.Plains);
+    expect(sim.map.terrain[32 * W + 12]).toBe(Terrain.Forest);
+    expect(sim.clearedForest).toContain(32 * W + 15);
   });
 
   it('o tsunami em andamento vai no salvamento e continua igual depois de carregar', () => {

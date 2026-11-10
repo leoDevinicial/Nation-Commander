@@ -16,15 +16,15 @@ export const TSUNAMI = {
   speed: 4,
   /** Distância máxima pela água (células): depois disso a onda sumiu. */
   reach: 40,
-  /** Quantas células a onda avança terra adentro a partir da margem. */
-  coastCells: 2,
+  /** Quantas células a onda avança terra adentro a partir da margem (3 desde 11/11: "mais destrutivo"). */
+  coastCells: 3,
   /**
    * Dano nos navios junto da explosão; cai com o quadrado da distância até zero no alcance máximo: perto afunda até o
-   * porta-aviões (2.600), a meio caminho avaria uma fragata (900) sem afundá-la.
+   * porta-aviões (2.600) com folga, até uns 20 células afunda uma fragata (900); mais longe, avaria.
    */
-  shipDamage: 3200,
-  /** Dano na faixa da costa (construções e tropas) junto da explosão. */
-  coastDamage: 1500,
+  shipDamage: 4500,
+  /** Dano na faixa da costa (construções e tropas) junto da explosão: portos e casas da margem caem até ~25 células. */
+  coastDamage: 2600,
 };
 
 export interface TsunamiSave {
@@ -43,6 +43,8 @@ export interface TsunamiHost {
   readonly entities: Map<EntityId, Entity>;
   damageUnit(u: Extract<Entity, { kind: 'unit' }>, dmg: number, attacker: Slot): boolean;
   damageBuilding(b: Extract<Entity, { kind: 'building' }>, dmg: number, attacker: Slot): boolean;
+  /** Derruba a mata da célula (vira planície e a floresta perde a madeira dela), como a estrada faz. */
+  clearForestCell(i: number): void;
   emitTrade(e: SimEvent): void;
 }
 
@@ -153,6 +155,16 @@ export function tsunamiField(map: MapData, cx: number, cy: number): Float32Array
 interface Wave extends TsunamiSave {
   field: Float32Array | null;
   hitSet: Set<EntityId>;
+  /** Células de mata ao alcance, da mais perto à mais longe (derrubadas quando a frente passa), e quantas já passaram. */
+  forest: number[] | null;
+  felled: number;
+}
+
+/** Células de mata que a onda alcança, em ordem de chegada (distância, depois índice: determinístico). */
+export function tsunamiForest(map: MapData, field: Float32Array): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < field.length; i++) if (field[i]! < Infinity && map.terrain[i] === (Terrain.Forest as number)) out.push(i);
+  return out.sort((a, b) => field[a]! - field[b]! || a - b);
 }
 
 export class TsunamiSystem {
@@ -171,7 +183,7 @@ export class TsunamiSystem {
     const cy = Math.floor(at.y / cs);
     const { width: W, height: H } = this.host.map;
     if (cx < 0 || cy < 0 || cx >= W || cy >= H || this.host.map.terrain[cy * W + cx] !== WATER) return false;
-    this.waves.push({ owner, cx, cy, startTick: this.host.tick, hit: [], field: null, hitSet: new Set() });
+    this.waves.push({ owner, cx, cy, startTick: this.host.tick, hit: [], field: null, hitSet: new Set(), forest: null, felled: 0 });
     this.host.emitTrade({
       type: 'tsunami',
       tick: this.host.tick,
@@ -204,6 +216,12 @@ export class TsunamiSystem {
     for (const w of this.waves) {
       w.field ??= tsunamiField(this.host.map, w.cx, w.cy);
       const front = ((t - w.startTick) / TICK_RATE) * TSUNAMI.speed;
+      // a mata por onde a onda passa é arrancada (o cliente repete a mesma conta a partir do evento)
+      w.forest ??= tsunamiForest(this.host.map, w.field);
+      while (w.felled < w.forest.length && w.field[w.forest[w.felled]!]! <= front) {
+        const i = w.forest[w.felled++]!;
+        if (this.host.map.terrain[i] === (Terrain.Forest as number)) this.host.clearForestCell(i);
+      }
       // todo o mundo que a frente já alcançou e ainda não foi atingido (navio que entra depois na área molhada, não)
       for (const e of this.host.entities.values()) {
         if (e.hp <= 0 || w.hitSet.has(e.id) || !canHit(null, e)) continue;
@@ -228,6 +246,6 @@ export class TsunamiSystem {
   }
 
   load(saves: readonly TsunamiSave[] | undefined): void {
-    this.waves = (saves ?? []).map((s) => ({ ...s, hit: [...s.hit], field: null, hitSet: new Set(s.hit) }));
+    this.waves = (saves ?? []).map((s) => ({ ...s, hit: [...s.hit], field: null, hitSet: new Set(s.hit), forest: null, felled: 0 }));
   }
 }

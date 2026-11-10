@@ -4582,7 +4582,7 @@ export class Simulation {
    * Estrada ou rodovia sobre mata (feedback 05/11): a árvore é derrubada. A célula vira planície (se a estrada cair, não
    * volta a ser mata), a floresta perde a madeira que cabia a ela e a serraria que a explorava procura outra célula.
    */
-  private clearForestCell(i: number): void {
+  clearForestCell(i: number): void {
     if (this.map.terrain[i] !== Terrain.Forest) return;
     const d = this.deposits.deposits[this.deposits.cellDeposit[i] ?? -1];
     if (d && d.cells.length) d.remaining = Math.max(0, d.remaining - d.initial / d.cells.length);

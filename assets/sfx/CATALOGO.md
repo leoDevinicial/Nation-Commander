@@ -853,6 +853,13 @@ Fala do assessor `aviso-tsunami` (vozes do narrador, Eleven v4, tomada "a"; `pub
 will hit ships and coastlines." / "¡Alerta: tsunami en camino! La ola golpeará barcos y costas." Originais em
 `assets/narration/originais/aviso-tsunami-<idioma>-{a,b}.mp3`.
 
+## Lote 42 (11/11) — sirene de alerta de tsunami (ElevenLabs)
+Sound Effects v2, 9 s, prompt de sirene de defesa civil numa torre da costa (uivo mecânico lento que sobe e desce,
+ecoando na baía). Originais em `originais/tsunami-sirene/tsunami-sirene-{1..4}.mp3`; usadas a 2, a 3 e a 4 (uivo
+regular, 360–860 Hz) → `tsunami-sirene-{1,2,3}`, −19 dB médios, 2,5 s de fade no fim. No jogo, `audio.tsunamiSiren()`
+no canal da interface (ganho 0,28, abaixo da fala do assessor) assim que a ogiva cai no mar; sem os arquivos, o aviso
+sintetizado (`ui('warning')`).
+
 ## O que falta (07/11)
 Os lotes 33 a 39 cobriram tudo o que ainda era sintetizado ou mudo: interface, silo, clima, produção dos prédios,
 drone, marinha, fanfarra de era, motores, apito do navio, resposta pelo rádio (pt/en/es), obras e as variações extras que faltavam.

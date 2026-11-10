@@ -194,6 +194,10 @@ MORE = [
     ('tsunami-1', 'tsunami/tsunami-1', 0.0, 10.0, 3.0, -18, 0),
     ('tsunami-2', 'tsunami/tsunami-3', 0.0, 10.0, 3.0, -18, 0),
     ('tsunami-3', 'tsunami/tsunami-4', 0.0, 10.0, 3.0, -18, 0),
+    # lote 42 (11/11): sirene de alerta de tsunami (torre na costa, uivo que sobe e desce; 9 s, fim em fade)
+    ('tsunami-sirene-1', 'tsunami-sirene/tsunami-sirene-2', 0.0, 9.0, 2.5, -19, 0.05),
+    ('tsunami-sirene-2', 'tsunami-sirene/tsunami-sirene-3', 0.0, 9.0, 2.5, -19, 0.05),
+    ('tsunami-sirene-3', 'tsunami-sirene/tsunami-sirene-4', 0.0, 9.0, 2.5, -19, 0.05),
 ]
 
 # contagem falada em português e espanhol (lote 33): a ignição gravada (`espaco-ignicao`, tocada 2,6 s depois do pedido,

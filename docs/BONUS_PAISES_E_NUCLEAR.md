@@ -73,14 +73,20 @@ Pedido do usuário: ogiva nuclear que explode no mar levanta um tsunami (`shared
   `TsunamiSystem.detonate`).
 - **Propagação:** a frente anda 4 células/s pela água a partir da explosão, até 40 células pelo caminho na água
   (Dijkstra em 8 direções). Contorna ilhas e continentes: o que está atrás de uma ilha fica mais longe e sofre menos.
-  Da margem alcançada, a onda invade 2 células de terra.
-- **Dano:** cai com o quadrado da distância (`(1 − d/42)²`). Navios: 3.200 junto da explosão (afunda até o porta-aviões
-  perto; a 24 células avaria uma fragata sem afundar). Faixa da costa (construções e tropas em terra): 1.500. Atinge
+  Da margem alcançada, a onda invade 3 células de terra (2 até o primeiro ajuste) e derruba a mata por onde passa
+  (`tsunamiForest` → `clearForestCell`, como a estrada: vira planície e a floresta perde a madeira).
+- **Dano** (11/11, mais destrutivo): cai com o quadrado da distância (`(1 − d/43)²`). Navios: 4.500 junto da explosão
+  (afunda o porta-aviões com folga e a fragata até ~20 células; a 29 só avaria). Faixa da costa (construções e tropas
+  em terra): 2.600. Atinge
   **todos**, de qualquer nação, inclusive quem lançou e os aliados; cada entidade só uma vez por onda. Submarino
   submerso não sofre (`canHit`), como na explosão.
 - **Salvamento:** guarda só a origem, o início e quem já foi atingido; o campo de distâncias é recalculado do mapa.
-- **Cliente:** evento `tsunami` (visto por todos) abre um anel facetado de espuma branca com faixa turquesa
-  (`render/TsunamiWave.ts`) rente à água, que o terreno esconde onde há terra; som gravado da onda (`audio.tsunami`,
+- **Cliente:** evento `tsunami` (visto por todos). `render/TsunamiWave.ts`: parede de água facetada (perfil girado,
+  corpo turquesa e crista branca), ~7 unidades de altura no começo, baixando até sumir; recortada por uma máscara com
+  as células do próprio `tsunamiField`, então só aparece no mar alcançado e na faixa da costa. O cliente refaz o campo
+  a partir do evento e derruba as árvores e os enfeites da faixa quando a frente passa (a mata do servidor cai na mesma
+  conta; um jogador que recarrega a página no meio da partida volta a ver as árvores, sem efeito na regra). Sirene de
+  alerta (`audio.tsunamiSiren`, lote 42), som gravado da onda som gravado da onda (`audio.tsunami`,
   lote 41 do catálogo), fala do assessor ("Alerta: tsunami a caminho!"), tremor, alerta no topo e linha no registro.
 - **Testes:** `shared/test/tsunami.test.ts` (contorna a ilha, só a faixa da costa, todos os lados, salvamento) e
   `shared/test/air.test.ts` (a ogiva na água levanta a onda; em terra, não).
