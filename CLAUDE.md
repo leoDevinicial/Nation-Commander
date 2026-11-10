@@ -117,6 +117,9 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
   diretor no servidor (`server/tutorial/Director.ts`) e painel/destaque no cliente (`TutorialOverlay`, âncoras `data-tour`).
   Botão novo citado no roteiro precisa de `data-tour`; texto novo do roteiro vai nos dicionários en/es e na narração
   (`scripts/narracao-preparar.py`).
+- Escala (`docs/ESCALA_DA_SIMULACAO.md`): busca de alvo e separação das unidades usam a grade espacial
+  (`shared/sim/spatial.ts`) com resultado idêntico à busca completa; ao mexer em combate ou movimento, rodar
+  `npx tsx scripts/sim-escala.ts hash` antes e depois (só muda se a regra mudou) e `bench` para o custo do tick.
 - Minas terrestres (`shared/sim/mines.ts`) não são entidades: o snapshot envia só as do dono e as já detectadas
   (`MineSystem.visibleTo`). O satélite do Programa Espacial revela o resto do mapa, mas nunca as minas.
 

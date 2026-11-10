@@ -1,4 +1,5 @@
 import { canHit } from './targeting.ts';
+import { SpatialGrid } from './spatial.ts';
 import { prepTicks, type Difficulty } from './difficulty.ts';
 import type { IdCipher, IdSpace } from './ids.ts';
 import { RANKS, rankDamageMul, rankFor, rankHpMul } from './veterancy.ts';
@@ -348,12 +349,35 @@ const techLabel = (id: string) => (isTechId(id) ? TECHNOLOGIES[id].label : id);
  * Simulação tática autoritativa. Não depende de rede, DOM nem Three.js: o servidor a executa e
  * os testes a exercitam diretamente. Avança em passos fixos (`step`) de TICK_SECONDS.
  */
+/**
+ * Mapa das entidades que lembra quem entrou depois da última reconstrução da grade espacial (10/11): tropa formada,
+ * desembarque ou prédio novo no meio do tick entram nas buscas mesmo sem estar na grade.
+ */
+class EntityMap extends Map<EntityId, Entity> {
+  fresh: Entity[] = [];
+  override set(id: EntityId, e: Entity): this {
+    this.fresh?.push(e);
+    return super.set(id, e);
+  }
+}
+
+/** Grade espacial (10/11): lado de cada quadrado e folga das buscas (as unidades andam bem menos que isso num tick). */
+const SPATIAL_CELL = 8;
+const SPATIAL_PAD = 3;
+const MAX_UNIT_RADIUS = Math.max(...Object.values(UNITS).map((u) => u.radius));
+/** Maior distância em que duas unidades se empurram (`separateUnits`). */
+const MAX_SEPARATION = MAX_UNIT_RADIUS * 2 * 0.9;
+/** Liga a grade espacial; o teste de equivalência desliga para comparar com a busca completa. */
+export const SPATIAL = { enabled: true };
+/** Hostilidade guardada por tick para os primeiros slots (`hostile` é chamada milhões de vezes nas batalhas grandes). */
+const HOSTILE_SLOTS = 32;
+
 export class Simulation {
   readonly map: MapData;
   readonly grid: Grid;
   tick = 0;
   readonly players: PlayerState[];
-  readonly entities = new Map<EntityId, Entity>();
+  readonly entities: Map<EntityId, Entity> = new EntityMap();
   /** Eventos acumulados desde a última chamada a `drainEvents`. */
   private events: SimEvent[] = [];
   private nextId = 1;
@@ -708,6 +732,7 @@ export class Simulation {
     sim.ended = data.ended;
     sim.wars.clear();
     for (const k of data.wars) sim.wars.add(k);
+    sim.hostileVersion++;
     sim.alliances.clear();
     for (const k of data.alliances) sim.alliances.add(k);
     sim.pacts.clear();
@@ -717,6 +742,7 @@ export class Simulation {
     sim.teams = [...(data.teams ?? [])];
     sim.winners = [...(data.winners ?? [])];
     for (const [k, v] of data.incidents ?? []) sim.incidents.set(k, v);
+    sim.hostileVersion++;
     sim.difficulty = data.difficulty ?? 'normal';
     sim.eras = !!data.eras;
     sim.roads = (data.roads ?? []).map((r) => ({ ...r }));
@@ -763,6 +789,7 @@ export class Simulation {
   // ---------------------------------------------------------------- guerra
 
   setWar(a: Slot, b: Slot, atWar: boolean): void {
+    this.hostileVersion++;
     const k = a < b ? `${a}:${b}` : `${b}:${a}`;
     if (atWar && !this.wars.has(k)) {
       this.wars.add(k);
@@ -780,9 +807,32 @@ export class Simulation {
    */
   hostile(a: Slot, b: Slot): boolean {
     if (a === b) return false;
+    if (a >= 0 && b >= 0 && a < HOSTILE_SLOTS && b < HOSTILE_SLOTS) {
+      // memória do tick: guerras e incidentes só mudam por setWar/startIncident (que trocam a versão) ou com o tick
+      if (this.hostileMemoTick !== this.tick || this.hostileMemoVersion !== this.hostileVersion) {
+        this.hostileMemo.fill(0);
+        this.hostileMemoTick = this.tick;
+        this.hostileMemoVersion = this.hostileVersion;
+      }
+      const m = this.hostileMemo[a * HOSTILE_SLOTS + b]!;
+      if (m) return m === 2;
+      const r = this.hostileNow(a, b);
+      this.hostileMemo[a * HOSTILE_SLOTS + b] = this.hostileMemo[b * HOSTILE_SLOTS + a] = r ? 2 : 1;
+      return r;
+    }
+    return this.hostileNow(a, b);
+  }
+
+  private hostileNow(a: Slot, b: Slot): boolean {
     const k = a < b ? `${a}:${b}` : `${b}:${a}`;
     return this.wars.has(k) || (this.incidents.get(k) ?? -1) > this.tick;
   }
+
+  private readonly hostileMemo = new Uint8Array(HOSTILE_SLOTS * HOSTILE_SLOTS);
+  private hostileMemoTick = -1;
+  private hostileMemoVersion = -1;
+  /** Muda a cada guerra declarada ou encerrada e a cada incidente (invalida a memória de `hostile`). */
+  private hostileVersion = 0;
 
   /** Guerra declarada (sem contar incidentes de fronteira). */
   formalWar(a: Slot, b: Slot): boolean {
@@ -804,6 +854,7 @@ export class Simulation {
     const k = aggressor < victim ? `${aggressor}:${victim}` : `${victim}:${aggressor}`;
     const untilTick = this.tick + Math.round(seconds * TICK_RATE);
     this.incidents.set(k, untilTick);
+    this.hostileVersion++;
     this.emit({ type: 'border_incident', tick: this.tick, aggressor, victim, untilTick, pos: pos ? { ...pos } : null });
   }
 
@@ -2357,6 +2408,8 @@ export class Simulation {
     this.mines.step();
     this.zones.step();
     this.caravans.step();
+    // grade espacial (10/11): reconstruída antes de cada fase com buscas de alvo e desligada depois
+    this.rebuildSpatial();
     for (const u of this.units) {
       // navio (03/11): a grade vira só água enquanto ele pensa e anda
       this.grid.naval = !!UNITS[u.type].naval;
@@ -2366,12 +2419,15 @@ export class Simulation {
         this.grid.naval = false;
       }
     }
+    this.spatialLive = false;
     this.applyBoarding();
     this.updateInterceptions();
     this.updateSalvos();
     this.updateAttrition();
     if (this.tick % TICK_RATE === 0) this.evacuateForeignTerritory();
+    this.rebuildSpatial();
     for (const b of this.buildings) this.updateBuildingWeapon(b);
+    this.spatialLive = false;
     this.separateUnits();
     this.removeDead();
     this.checkVictory();
@@ -3421,18 +3477,54 @@ export class Simulation {
   acquireTarget(from: Vec2, owner: Slot, radius: number, minRadius = 0, attacker: UnitType | null = null): Entity | null {
     let best: Entity | null = null;
     let bestScore = Infinity;
-    for (const e of this.entities.values()) {
-      if (e.hp <= 0 || !this.hostile(owner, e.owner) || !canHit(attacker, e)) continue;
-      if (!this.canSee(owner, e)) continue;
+    // o resultado é o menor (score, id): não depende da ordem em que os candidatos aparecem
+    const consider = (e: Entity) => {
+      if (e.hp <= 0 || !this.hostile(owner, e.owner) || !canHit(attacker, e)) return;
+      if (!this.canSee(owner, e)) return;
       const d = this.distanceToEdge(from, e);
-      if (d > radius || d < minRadius) continue;
+      if (d > radius || d < minRadius) return;
       const score = d + (e.kind === 'building' ? 1000 : 0);
       if (score < bestScore || (score === bestScore && best !== null && e.id < best.id)) {
         best = e;
         bestScore = score;
       }
+    };
+    if (!this.spatialLive || !SPATIAL.enabled) {
+      for (const e of this.entities.values()) consider(e);
+      return best;
     }
+    // grade espacial (10/11): só os quadrados ao alcance, mais quem entrou no mapa depois da reconstrução. A folga cobre
+    // o raio da unidade-alvo e o quanto as unidades andaram desde a reconstrução (menos de um tick)
+    const r = radius + MAX_UNIT_RADIUS + SPATIAL_PAD;
+    const live = (e: Entity) => {
+      if (this.entities.get(e.id) === e) consider(e);
+    };
+    this.spatial.forEachIn(from.x - r, from.y - r, from.x + r, from.y + r, live);
+    for (const e of (this.entities as EntityMap).fresh) live(e);
     return best;
+  }
+
+  /** Grade das entidades para as buscas de alvo, válida só enquanto `spatialLive` (fases de combate do tick). */
+  private spatialGrid: SpatialGrid<Entity> | null = null;
+  private get spatial(): SpatialGrid<Entity> {
+    return (this.spatialGrid ??= new SpatialGrid<Entity>(this.map.width * this.map.cellSize, this.map.height * this.map.cellSize, SPATIAL_CELL));
+  }
+  private spatialLive = false;
+
+  /** Reconstrói a grade com as posições de agora; quem entrar no mapa até a próxima reconstrução fica em `fresh`. */
+  private rebuildSpatial(): void {
+    const g = this.spatial;
+    g.clear();
+    const cs = this.grid.cellSize;
+    for (const e of this.entities.values()) {
+      if (e.kind === 'unit') g.insertPoint(e.pos.x, e.pos.y, e);
+      else {
+        const size = BUILDINGS[e.type].size;
+        g.insertRect(e.cell.cx * cs, e.cell.cy * cs, (e.cell.cx + size) * cs, (e.cell.cy + size) * cs, e);
+      }
+    }
+    (this.entities as EntityMap).fresh = [];
+    this.spatialLive = true;
   }
 
   private engage(u: Unit, target: Entity): void {
@@ -4277,28 +4369,71 @@ export class Simulation {
   /** Separação simples entre unidades para reduzir empilhamento. */
   private separateUnits(): void {
     const units = this.units;
-    for (let i = 0; i < units.length; i++) {
+    const n = units.length;
+    // quanto cada unidade já foi empurrada nesta passada (garantia da grade, abaixo)
+    const drift = new Float64Array(n);
+    let maxDrift = 0;
+    const pair = (i: number, j: number) => {
       const a = units[i]!;
-      for (let j = i + 1; j < units.length; j++) {
-        const b = units[j]!;
-        // navio e tropa em terra não se empurram; navio com navio, só pela água (03/11)
-        const navalA = !!UNITS[a.type].naval;
-        if (navalA !== !!UNITS[b.type].naval) continue;
-        this.grid.naval = navalA;
-        const minD = (UNITS[a.type].radius + UNITS[b.type].radius) * 0.9;
-        const dx = b.pos.x - a.pos.x;
-        const dy = b.pos.y - a.pos.y;
-        const d2 = dx * dx + dy * dy;
-        if (d2 >= minD * minD) continue;
-        const d = Math.sqrt(d2);
-        // direção determinística quando as posições coincidem
-        const nx = d > 1e-6 ? dx / d : Math.cos(a.id * 2.399);
-        const ny = d > 1e-6 ? dy / d : Math.sin(a.id * 2.399);
-        const push = Math.min((minD - d) / 2, 0.15);
-        const pa = { x: a.pos.x - nx * push, y: a.pos.y - ny * push };
-        const pb = { x: b.pos.x + nx * push, y: b.pos.y + ny * push };
-        if (this.grid.isWorldPassable(pa)) a.pos = pa;
-        if (this.grid.isWorldPassable(pb)) b.pos = pb;
+      const b = units[j]!;
+      // navio e tropa em terra não se empurram; navio com navio, só pela água (03/11)
+      const navalA = !!UNITS[a.type].naval;
+      if (navalA !== !!UNITS[b.type].naval) return;
+      this.grid.naval = navalA;
+      const minD = (UNITS[a.type].radius + UNITS[b.type].radius) * 0.9;
+      const dx = b.pos.x - a.pos.x;
+      const dy = b.pos.y - a.pos.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 >= minD * minD) return;
+      const d = Math.sqrt(d2);
+      // direção determinística quando as posições coincidem
+      const nx = d > 1e-6 ? dx / d : Math.cos(a.id * 2.399);
+      const ny = d > 1e-6 ? dy / d : Math.sin(a.id * 2.399);
+      const push = Math.min((minD - d) / 2, 0.15);
+      const pa = { x: a.pos.x - nx * push, y: a.pos.y - ny * push };
+      const pb = { x: b.pos.x + nx * push, y: b.pos.y + ny * push };
+      if (this.grid.isWorldPassable(pa)) {
+        a.pos = pa;
+        maxDrift = Math.max(maxDrift, (drift[i]! += push));
+      }
+      if (this.grid.isWorldPassable(pb)) {
+        b.pos = pb;
+        maxDrift = Math.max(maxDrift, (drift[j]! += push));
+      }
+    };
+    // Grade espacial (10/11): os mesmos pares, na mesma ordem (i crescente, j crescente), mas só os que estavam perto no
+    // começo da passada. Um par de fora estava a mais de MAX_SEPARATION + SPATIAL_PAD; enquanto nenhuma unidade foi
+    // empurrada mais que SPATIAL_PAD / 2, ele continua longe demais para se empurrar e pular é exato. Passou disso
+    // (pilha enorme), o resto da passada volta a comparar todos os pares, como antes.
+    const limit = SPATIAL_PAD / 2 - 0.15;
+    const grid = new SpatialGrid<number>(this.map.width * this.map.cellSize, this.map.height * this.map.cellSize, SPATIAL_CELL);
+    for (let i = 0; i < n; i++) grid.insertPoint(units[i]!.pos.x, units[i]!.pos.y, i);
+    const reach = MAX_SEPARATION + SPATIAL_PAD;
+    const near: number[] = [];
+    let all = n < 64 || !SPATIAL.enabled;
+    for (let i = 0; i < n; i++) {
+      if (all) {
+        for (let j = i + 1; j < n; j++) pair(i, j);
+        continue;
+      }
+      const p = units[i]!.pos;
+      // posição do começo da passada (a unidade pode ter sido empurrada desde então, a grade não)
+      near.length = 0;
+      const x = p.x;
+      const y = p.y;
+      grid.forEachIn(x - reach - drift[i]!, y - reach - drift[i]!, x + reach + drift[i]!, y + reach + drift[i]!, (j) => {
+        if (j > i) near.push(j);
+      });
+      near.sort((u, v) => u - v);
+      let last = i;
+      for (const j of near) {
+        if (maxDrift > limit) break;
+        pair(i, j);
+        last = j;
+      }
+      if (maxDrift > limit) {
+        all = true;
+        for (let j = last + 1; j < n; j++) pair(i, j);
       }
     }
     this.grid.naval = false;

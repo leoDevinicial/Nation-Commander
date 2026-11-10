@@ -135,6 +135,13 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 
 ## 0.4 O que mudou desde 31/10 (mais recente primeiro; detalhes no `git log` e nas docs citadas)
 
+**10/11 — escala da simulação** (`docs/ESCALA_DA_SIMULACAO.md`): grade espacial na busca de alvo e na separação,
+memória de `hostile`; 1.000 unidades em combate caíram de 102 para 15 ms por tick, com resultado idêntico (hash de
+partidas fixas e `shared/test/spatial.test.ts`). Ferramenta: `scripts/sim-escala.ts` (`bench` e `hash`).
+
+**08/11 — lote 40 (ElevenLabs):** assessor falado (`audio.announce`) e rádio de seleção, unidade pronta e obra; ver
+`assets/sfx/CATALOGO.md`.
+
 **08/11 — feedback de partida (5 prints), publicado em `1a42a6d`:**
 - Porto na praia: a praia é `Terrain.Mud`, que não aceitava obra; agora aceita o que tem `nearWater` (porto).
 - Obra na mata: qualquer prédio vai para cima de árvores, que são derrubadas (`addBuilding` → `clearForestCell`; o
