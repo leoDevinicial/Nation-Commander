@@ -38,8 +38,33 @@ A grade é reconstruída antes de cada fase com buscas de alvo (laço das unidad
 
 Orçamento: 50 ms por tick (20 ticks/s). 1.000 unidades em combate cabem com folga; 2.000 ficam no limite.
 
+## 11/11: 6 nações × 600 tropas
+
+Pergunta do usuário: partidas de 6 jogadores com limite de 600 tropas pesam muito? Medição (`npx tsx scripts/sim-escala.ts
+seis`, mapa de 6 nações 192×192, 3.600 tropas): **parado nas bases 51 ms** por tick e **três frentes de batalha 88 ms de
+média, picos de 264–310 ms**, acima do orçamento de 50 ms. Três ajustes, todos com resultado idêntico:
+
+| Ajuste | Por quê |
+|---|---|
+| Uma grade por nação na busca de alvo (`spatialByOwner`) | com o exército em casa, cada tropa varria centenas de aliados em volta só para descartá-los; agora só olha as grades de quem está em guerra com ela |
+| Separação com grades de terra e de água (`MAX_SEPARATION.land/naval`) | a folga usava o raio do maior navio também para os soldados (~70 vizinhos conferidos à toa) |
+| Separação sem a volta para "todos os pares" | numa batalha densa muitas unidades passavam da folga e a passada inteira virava 3.600² comparações (os picos de 300 ms). Agora só quem foi muito empurrado entra na lista `moved` (comparada com todos) e, com mais de 32 nela, a grade é refeita com as posições de agora (nova âncora); a prova de exatidão é a mesma, a partir da âncora |
+
+| Cenário | Antes | Depois |
+|---|---|---|
+| 6 × 600 paradas nas bases | 51 / 59 ms | 26–27 / 37 ms |
+| 6 × 600, três frentes de batalha | 88 / 264–310 ms | 48–53 / 69–73 ms |
+| `bench` 1.000 em combate | 15 / 17 ms | 7,5 / 11 ms |
+| `bench` 2.000 em combate | 37 / 50 ms | 14 / 18 ms |
+
+(média / p95; medido num contêiner de 4 núcleos, os números variam uns 10% de uma rodada para outra.)
+
+Equivalência: o `hash` ganhou uma partida de 6 nações × 150 em três frentes (mesmo hash antes e depois, como as outras
+quatro) e `shared/test/spatial.test.ts` segue comparando com a busca completa (`SPATIAL.enabled = false`).
+
 ## Próximo gargalo
 
-Com 2.000 unidades: a busca de alvo ainda pesa (~32%, agora proporcional aos vizinhos), seguida do A* (`findPath`,
-~26% somando a fila), da separação (~14%) e de `isPassable`. Para ir além, o passo seguinte é o caminho em grupo (um
-A* por esquadrão em vez de um por unidade) ou um campo de fluxo para ordens em massa.
+Na batalha de 6 × 600 o custo ficou espalhado: separação (~29%), busca de alvo (~27%) e A* (~23%, boa parte no tick em
+que 1.800 tropas recebem a ordem juntas). Depois vêm `population` e `updateUpkeep` (~9%, cada uma varre todas as
+entidades por jogador a cada tick). Para ir além: caminho em grupo (um A* por esquadrão em vez de um por unidade) ou
+campo de fluxo para ordens em massa, e contar a população uma vez por tick.

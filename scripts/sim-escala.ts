@@ -3,6 +3,7 @@
  * partidas fixas, para provar que uma otimização não mudou o resultado (a simulação é determinística).
  *
  *   npx tsx scripts/sim-escala.ts bench            # 250, 500, 1000 e 2000 unidades em combate: ms por tick
+ *   npx tsx scripts/sim-escala.ts seis             # 6 nações × 600 tropas: paradas nas bases e em três frentes
  *   npx tsx scripts/sim-escala.ts hash             # hash do estado final de partidas fixas (IA × IA e batalhas)
  *
  * Compare a saída de `hash` antes e depois da mudança: tem que ser idêntica.
@@ -41,9 +42,63 @@ function battle(n: number, navy: boolean): Simulation {
   return sim;
 }
 
+/** 6 nações com `per` tropas cada em volta do QG (mapa de 6 nações, todos em guerra). */
+function sixNations(per: number): { sim: Simulation; armies: number[][] } {
+  const sim = new Simulation({ map: generateMatchMap(5, { nations: 6 }), playerCount: 6, allAtWar: true });
+  const kinds: UnitType[] = ['infantry', 'infantry', 'infantry', 'tank', 'apc', 'artillery', 'at_infantry', 'mobile_aa'];
+  const g = sim.grid;
+  const armies: number[][] = [];
+  for (let s = 0; s < 6; s++) {
+    const hq = sim.hqOf(s)!;
+    const ids: number[] = [];
+    for (let r = 4; ids.length < per && r < 40; r++)
+      for (let dy = -r; dy <= r && ids.length < per; dy++)
+        for (let dx = -r; dx <= r && ids.length < per; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const cx = hq.cell.cx + dx;
+          const cy = hq.cell.cy + dy;
+          if (!g.isPassable(cx, cy) || g.occupant(cx, cy) !== 0) continue;
+          ids.push(sim.addUnit(kinds[ids.length % kinds.length]!, s, g.cellCenter({ cx, cy })).id);
+        }
+    armies.push(ids);
+  }
+  return { sim, armies };
+}
+
+/** Três guerras ao mesmo tempo (0×1, 2×3, 4×5): metade de cada exército ataca o QG do vizinho. */
+function threeFronts(sim: Simulation, armies: number[][]): void {
+  for (const [a, b] of [
+    [0, 1],
+    [2, 3],
+    [4, 5],
+  ] as const) {
+    const ha = sim.hqOf(a)!.pos;
+    const hb = sim.hqOf(b)!.pos;
+    sim.applyCommand(a, { type: 'attack_move', unitIds: armies[a]!.slice(0, armies[a]!.length / 2), x: hb.x, y: hb.y });
+    sim.applyCommand(b, { type: 'attack_move', unitIds: armies[b]!.slice(0, armies[b]!.length / 2), x: ha.x, y: ha.y });
+  }
+}
+
+function timeTicks(sim: Simulation, ticks: number): string {
+  const times: number[] = [];
+  for (let i = 0; i < ticks; i++) {
+    const t = performance.now();
+    sim.step();
+    times.push(performance.now() - t);
+  }
+  times.sort((x, y) => x - y);
+  return `média ${(times.reduce((s, x) => s + x, 0) / times.length).toFixed(1)} ms, p95 ${times[Math.floor(times.length * 0.95)]!.toFixed(1)} ms`;
+}
+
 const hash = (sim: Simulation) => createHash('sha256').update(sim.serialize()).digest('hex').slice(0, 16);
 
-if (mode === 'bench') {
+if (mode === 'seis') {
+  const { sim, armies } = sixNations(600);
+  for (let i = 0; i < 20; i++) sim.step();
+  console.log(`6 nações × 600 (${sim.units.length} tropas), paradas nas bases: ${timeTicks(sim, 200)}`);
+  threeFronts(sim, armies);
+  console.log(`três frentes de batalha (metade de cada exército atacando): ${timeTicks(sim, 600)}`);
+} else if (mode === 'bench') {
   for (const n of [250, 500, 1000, 2000]) {
     const sim = battle(n, false);
     for (let i = 0; i < 20; i++) sim.step();
@@ -65,6 +120,14 @@ if (mode === 'bench') {
     const sim = battle(n, navy);
     for (let i = 0; i < 90 * TICK_RATE; i++) sim.step();
     console.log(`batalha ${n}${navy ? ' + marinha' : ''}: ${hash(sim)} (vivas ${sim.units.length})`);
+  }
+  {
+    // 6 nações × 150 tropas, três frentes: grade por nação e separação por terra/água
+    const { sim, armies } = sixNations(150);
+    for (let i = 0; i < 10 * TICK_RATE; i++) sim.step();
+    threeFronts(sim, armies);
+    for (let i = 0; i < 60 * TICK_RATE; i++) sim.step();
+    console.log(`6 nações × 150, três frentes: ${hash(sim)} (vivas ${sim.units.length})`);
   }
   for (const [seed, nations] of [
     [3, 2],

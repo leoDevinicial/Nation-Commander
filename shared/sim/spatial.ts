@@ -20,6 +20,11 @@ export class SpatialGrid<T> {
     this.cells = Array.from({ length: this.cols * this.rows }, () => []);
   }
 
+  /** Quantos quadrados têm algo dentro (0 = grade vazia). */
+  get filled(): number {
+    return this.used.length;
+  }
+
   clear(): void {
     for (const i of this.used) this.cells[i]!.length = 0;
     this.used = [];

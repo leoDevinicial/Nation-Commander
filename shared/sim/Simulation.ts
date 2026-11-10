@@ -365,8 +365,12 @@ class EntityMap extends Map<EntityId, Entity> {
 const SPATIAL_CELL = 8;
 const SPATIAL_PAD = 3;
 const MAX_UNIT_RADIUS = Math.max(...Object.values(UNITS).map((u) => u.radius));
-/** Maior distância em que duas unidades se empurram (`separateUnits`). */
-const MAX_SEPARATION = MAX_UNIT_RADIUS * 2 * 0.9;
+/**
+ * Maior distância em que duas unidades se empurram (`separateUnits`), separada por terra e água (11/11): navio só empurra
+ * navio, então o raio do porta-aviões não alarga a busca dos soldados.
+ */
+const maxRadius = (naval: boolean) => Math.max(...Object.values(UNITS).filter((u) => !!u.naval === naval).map((u) => u.radius));
+const MAX_SEPARATION = { land: maxRadius(false) * 2 * 0.9, naval: maxRadius(true) * 2 * 0.9 };
 /** Liga a grade espacial; o teste de equivalência desliga para comparar com a busca completa. */
 export const SPATIAL = { enabled: true };
 /** Hostilidade guardada por tick para os primeiros slots (`hostile` é chamada milhões de vezes nas batalhas grandes). */
@@ -3494,29 +3498,28 @@ export class Simulation {
       return best;
     }
     // grade espacial (10/11): só os quadrados ao alcance, mais quem entrou no mapa depois da reconstrução. A folga cobre
-    // o raio da unidade-alvo e o quanto as unidades andaram desde a reconstrução (menos de um tick)
+    // o raio da unidade-alvo e o quanto as unidades andaram desde a reconstrução (menos de um tick). Uma grade por nação
+    // (11/11): só se olham as de quem está em guerra com o dono, então o próprio exército em volta não custa nada
     const r = radius + MAX_UNIT_RADIUS + SPATIAL_PAD;
     const live = (e: Entity) => {
       if (this.entities.get(e.id) === e) consider(e);
     };
-    this.spatial.forEachIn(from.x - r, from.y - r, from.x + r, from.y + r, live);
+    for (const [o, grid] of this.spatialByOwner) if (grid.filled && this.hostile(owner, o)) grid.forEachIn(from.x - r, from.y - r, from.x + r, from.y + r, live);
     for (const e of (this.entities as EntityMap).fresh) live(e);
     return best;
   }
 
-  /** Grade das entidades para as buscas de alvo, válida só enquanto `spatialLive` (fases de combate do tick). */
-  private spatialGrid: SpatialGrid<Entity> | null = null;
-  private get spatial(): SpatialGrid<Entity> {
-    return (this.spatialGrid ??= new SpatialGrid<Entity>(this.map.width * this.map.cellSize, this.map.height * this.map.cellSize, SPATIAL_CELL));
-  }
+  /** Grades das entidades por dono, para as buscas de alvo; válidas só enquanto `spatialLive` (fases de combate do tick). */
+  private readonly spatialByOwner = new Map<Slot, SpatialGrid<Entity>>();
   private spatialLive = false;
 
-  /** Reconstrói a grade com as posições de agora; quem entrar no mapa até a próxima reconstrução fica em `fresh`. */
+  /** Reconstrói as grades com as posições de agora; quem entrar no mapa até a próxima reconstrução fica em `fresh`. */
   private rebuildSpatial(): void {
-    const g = this.spatial;
-    g.clear();
+    for (const g of this.spatialByOwner.values()) g.clear();
     const cs = this.grid.cellSize;
     for (const e of this.entities.values()) {
+      let g = this.spatialByOwner.get(e.owner);
+      if (!g) this.spatialByOwner.set(e.owner, (g = new SpatialGrid<Entity>(this.map.width * cs, this.map.height * cs, SPATIAL_CELL)));
       if (e.kind === 'unit') g.insertPoint(e.pos.x, e.pos.y, e);
       else {
         const size = BUILDINGS[e.type].size;
@@ -4367,12 +4370,22 @@ export class Simulation {
   }
 
   /** Separação simples entre unidades para reduzir empilhamento. */
+  /** Grades reaproveitadas da separação (terra e água). */
+  private sepLand: SpatialGrid<number> | null = null;
+  private sepNaval: SpatialGrid<number> | null = null;
+
   private separateUnits(): void {
     const units = this.units;
     const n = units.length;
-    // quanto cada unidade já foi empurrada nesta passada (garantia da grade, abaixo)
+    // Grade espacial (10/11, revista em 11/11): os mesmos pares, na mesma ordem (i crescente, j crescente) da comparação
+    // completa, mas só os que podem se tocar. A grade guarda as posições de uma "âncora" (começo da passada ou a última
+    // reconstrução) e `drift` soma quanto cada unidade foi empurrada desde então. Um par fora da grade estava a mais de
+    // MAX_SEPARATION (da classe: terra ou água) + SPATIAL_PAD na âncora; se nenhuma das duas andou mais que SPATIAL_PAD / 2,
+    // ele continua longe demais para se empurrar e pular é exato. Quem passa de LIMIT entra na lista `moved` e é comparado
+    // com todos; com muitas unidades na lista, a grade é refeita com as posições de agora (nova âncora, drift zerado).
+    const LIMIT = SPATIAL_PAD / 2 - 0.15;
     const drift = new Float64Array(n);
-    let maxDrift = 0;
+    const moved: number[] = [];
     const pair = (i: number, j: number) => {
       const a = units[i]!;
       const b = units[j]!;
@@ -4394,47 +4407,68 @@ export class Simulation {
       const pb = { x: b.pos.x + nx * push, y: b.pos.y + ny * push };
       if (this.grid.isWorldPassable(pa)) {
         a.pos = pa;
-        maxDrift = Math.max(maxDrift, (drift[i]! += push));
+        if (drift[i]! <= LIMIT && (drift[i]! += push) > LIMIT) moved.push(i);
       }
       if (this.grid.isWorldPassable(pb)) {
         b.pos = pb;
-        maxDrift = Math.max(maxDrift, (drift[j]! += push));
+        if (drift[j]! <= LIMIT && (drift[j]! += push) > LIMIT) moved.push(j);
       }
     };
-    // Grade espacial (10/11): os mesmos pares, na mesma ordem (i crescente, j crescente), mas só os que estavam perto no
-    // começo da passada. Um par de fora estava a mais de MAX_SEPARATION + SPATIAL_PAD; enquanto nenhuma unidade foi
-    // empurrada mais que SPATIAL_PAD / 2, ele continua longe demais para se empurrar e pular é exato. Passou disso
-    // (pilha enorme), o resto da passada volta a comparar todos os pares, como antes.
-    const limit = SPATIAL_PAD / 2 - 0.15;
-    const grid = new SpatialGrid<number>(this.map.width * this.map.cellSize, this.map.height * this.map.cellSize, SPATIAL_CELL);
-    for (let i = 0; i < n; i++) grid.insertPoint(units[i]!.pos.x, units[i]!.pos.y, i);
-    const reach = MAX_SEPARATION + SPATIAL_PAD;
+    if (n < 64 || !SPATIAL.enabled) {
+      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) pair(i, j);
+      this.grid.naval = false;
+      return;
+    }
+    const cs = this.map.cellSize;
+    const land = (this.sepLand ??= new SpatialGrid<number>(this.map.width * cs, this.map.height * cs, SPATIAL_CELL));
+    const sea = (this.sepNaval ??= new SpatialGrid<number>(this.map.width * cs, this.map.height * cs, SPATIAL_CELL));
+    const anchor = () => {
+      land.clear();
+      sea.clear();
+      for (let k = 0; k < n; k++) (UNITS[units[k]!.type].naval ? sea : land).insertPoint(units[k]!.pos.x, units[k]!.pos.y, k);
+      drift.fill(0);
+      moved.length = 0;
+    };
+    anchor();
     const near: number[] = [];
-    let all = n < 64 || !SPATIAL.enabled;
+    const mark = new Int32Array(n).fill(-1);
     for (let i = 0; i < n; i++) {
-      if (all) {
+      if (moved.length > 32) anchor();
+      // a própria unidade já foi longe: a linha dela compara com todas, como antes
+      if (drift[i]! > LIMIT) {
         for (let j = i + 1; j < n; j++) pair(i, j);
         continue;
       }
       const p = units[i]!.pos;
-      // posição do começo da passada (a unidade pode ter sido empurrada desde então, a grade não)
+      const naval = !!UNITS[units[i]!.type].naval;
+      const grid = naval ? sea : land;
+      // caixa em volta da posição de agora, alargada pelo quanto ela andou desde a âncora
+      const reach = (naval ? MAX_SEPARATION.naval : MAX_SEPARATION.land) + SPATIAL_PAD + drift[i]!;
       near.length = 0;
-      const x = p.x;
-      const y = p.y;
-      grid.forEachIn(x - reach - drift[i]!, y - reach - drift[i]!, x + reach + drift[i]!, y + reach + drift[i]!, (j) => {
-        if (j > i) near.push(j);
+      grid.forEachIn(p.x - reach, p.y - reach, p.x + reach, p.y + reach, (j) => {
+        if (j > i && mark[j] !== i) {
+          mark[j] = i;
+          near.push(j);
+        }
       });
+      for (const j of moved)
+        if (j > i && mark[j] !== i) {
+          mark[j] = i;
+          near.push(j);
+        }
       near.sort((u, v) => u - v);
       let last = i;
+      let rest = false;
       for (const j of near) {
-        if (maxDrift > limit) break;
+        if (drift[i]! > LIMIT) {
+          rest = true;
+          break;
+        }
         pair(i, j);
         last = j;
       }
-      if (maxDrift > limit) {
-        all = true;
-        for (let j = last + 1; j < n; j++) pair(i, j);
-      }
+      // empurrada demais no meio da linha: termina a linha comparando com todas as seguintes
+      if (rest || drift[i]! > LIMIT) for (let j = last + 1; j < n; j++) pair(i, j);
     }
     this.grid.naval = false;
   }
