@@ -60,7 +60,9 @@ média, picos de 264–310 ms**, acima do orçamento de 50 ms. Três ajustes, to
 (média / p95; medido num contêiner de 4 núcleos, os números variam uns 10% de uma rodada para outra.)
 
 Equivalência: o `hash` ganhou uma partida de 6 nações × 150 em três frentes (mesmo hash antes e depois, como as outras
-quatro) e `shared/test/spatial.test.ts` segue comparando com a busca completa (`SPATIAL.enabled = false`).
+quatro), `shared/test/spatial.test.ts` segue comparando com a busca completa (`SPATIAL.enabled = false`) e a batalha
+de 6 × 600 em três frentes deu o mesmo estado com a grade e com a busca completa depois de 400 ticks (hash
+`8cb19b6795fcf23a` nas duas; a busca completa leva vários segundos por tick nesse tamanho, por isso não está no `hash`).
 
 ## Próximo gargalo
 
