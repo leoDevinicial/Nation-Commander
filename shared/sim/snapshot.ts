@@ -203,7 +203,7 @@ export interface AirView {
   drones: { id: number; owner: Slot; x: number; y: number; alt: number; heading: number; speed: number; climb: number; controlled?: boolean; takeover?: number; battery?: number; tx?: number; ty?: number }[];
   /** Missões próprias recentes, com o resultado registrado. */
   missions: { id: number; kind: MissionKind; state: MissionState; baseId: EntityId; targetType: string | null; fuel: number; count: number; result: MissionResult | null }[];
-  silos: { id: EntityId; missiles: number; building: number; nuclear?: number; buildingNuclear?: boolean }[];
+  silos: { id: EntityId; missiles: number; building: number; nuclear?: number; buildingNuclear?: boolean; stalled?: boolean }[];
   /** Baterias do Domo de Ferro do jogador: interceptadores prontos, recarga do próximo (0..1) e espera dos lançadores (s). */
   domes: { id: EntityId; ready: number; max: number; reload: number; cooldown: number }[];
   /** Lançamentos próprios, e os inimigos em voo que miram este jogador ou estão à vista. */
@@ -625,10 +625,12 @@ export function airView(sim: Simulation, slot: Slot): AirView {
       .map((b) => {
         const st = air.silos[b.id];
         const secs = st?.buildingNuclear ? NUCLEAR.buildSeconds : MISSILE.buildSeconds;
+        const total = st?.total ?? secs * TICK_RATE;
         return {
           id: b.id,
           missiles: st?.missiles ?? 0,
-          building: st && st.building > 0 ? r2(1 - st.building / (secs * TICK_RATE)) : 0,
+          building: st && st.building > 0 ? r2(1 - st.building / total) : 0,
+          ...(st?.stalled && st.building > 0 ? { stalled: true } : {}),
           ...(st?.nuclear ? { nuclear: st.nuclear } : {}),
           ...(st?.buildingNuclear && st.building > 0 ? { buildingNuclear: true } : {}),
         };

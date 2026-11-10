@@ -3,7 +3,7 @@ import { Bomb, Crosshair, Fuel, type LucideIcon, OctagonX, Package, PersonStandi
 import { UNITS, canAfford, emptyStockpile } from '../../../shared/sim/config.ts';
 import { useMyBonus } from '../../state/myCountry.ts';
 import { DRONE } from '../../../shared/sim/drones.ts';
-import { AIR, AIRCRAFT_TYPES, AIRLIFT, aircraftFor, CRUISE, IRON_DOME, MISSILE, NUCLEAR, launcherRange, missileSpec, type AircraftState, type AircraftType, type LaunchState } from '../../../shared/sim/air.ts';
+import { AIR, AIRCRAFT_TYPES, AIRLIFT, aircraftFor, CRUISE, IRON_DOME, MISSILE, NUCLEAR, launcherRange, nuclearUpfront, missileSpec, type AircraftState, type AircraftType, type LaunchState } from '../../../shared/sim/air.ts';
 import { TECHNOLOGIES } from '../../../shared/strategic/technologies.ts';
 import { buildingEffects, formatUsd } from '../../../shared/sim/upgrades.ts';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
@@ -260,6 +260,7 @@ export function SiloInfo({ b }: { b: SelectedBuildingInfo }) {
           <span>
             {' '}
             · produzindo{silo.buildingNuclear ? ' ogiva nuclear' : ''} <Bar value={silo.building} /> {Math.round(silo.building * 100)}%
+            {silo.stalled && <span className="text-red-300"> · aguardando recursos</span>}
           </span>
         )}
       </div>
@@ -337,7 +338,7 @@ export function SiloButtons({ b, runtime }: { b: SelectedBuildingInfo; runtime: 
       ? 'em produção'
       : full
         ? 'silo cheio'
-        : !canAfford(ctx.resources, NUCLEAR.cost)
+        : !canAfford(ctx.resources, nuclearUpfront())
           ? 'recursos insuficientes'
           : ctx.fund !== null && ctx.fund < NUCLEAR.usd
             ? 'verba insuficiente'
@@ -372,7 +373,7 @@ export function SiloButtons({ b, runtime }: { b: SelectedBuildingInfo; runtime: 
           blocked={nukeBuildBlock !== null}
           short={nukeBuildBlock}
           onClick={() => (nukeBuildBlock ? warn(`Ogiva nuclear: ${nukeBuildBlock}`) : runtime.send({ type: 'build_missile', buildingId: b.id, nuclear: true }))}
-          title={`Míssil com ogiva nuclear: ${formatUsd(NUCLEAR.usd)} + materiais · ${timeText(NUCLEAR.buildSeconds)} · dano ${NUCLEAR.damage} em raio ${NUCLEAR.radius}. Todo lançamento derruba a economia de todos os países por meses, inclusive a nossa. No mar, levanta um tsunami que atinge navios e costas de todos.`}
+          title={`Míssil com ogiva nuclear: ${formatUsd(NUCLEAR.usd)} + materiais · ${timeText(NUCLEAR.buildSeconds)} · dano ${NUCLEAR.damage} em raio ${NUCLEAR.radius}. Começa com ${Math.round(NUCLEAR.upfront * 100)}% dos materiais; o resto sai do estoque durante a montagem, que para quando falta. Todo lançamento derruba a economia de todos os países por meses, inclusive a nossa. No mar, levanta um tsunami que atinge navios e costas de todos.`}
         >
           <CostLabel cost={NUCLEAR.cost} have={ctx.resources} compact />
         </CardButton>

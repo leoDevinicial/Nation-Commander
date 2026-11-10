@@ -37,9 +37,10 @@ A pesquisa nacional **Armas nucleares** exige Mísseis balísticos e libera a og
 
 | | Míssil convencional | Ogiva nuclear |
 |---|---|---|
-| Custo (base, antes do ×2,5 de `ECONOMY.missiles`) | 80 ferro, 60 petróleo, 60 suprimentos, US$ 6 mi | 660 ferro, 480 petróleo, 660 suprimentos, US$ 100 mi (11/11; era 220/160/220 e US$ 40 mi) |
+| Custo (já com o ×2,5 de `ECONOMY.missiles`) | 200 ferro, 150 petróleo, 150 suprimentos, US$ 6 mi | **6.000 ferro, 6.000 petróleo, 6.000 suprimentos** e US$ 100 mi (11/11; antes 1.650/1.200/1.650, e no começo 550/400/550 e US$ 40 mi) |
 | Produção | 45 s | 180 s (era 90 s) |
-| Dano / raio | 700 / 4 (pesado: 1150 / 5,5) | 6000 / 14 |
+| Pagamento | tudo ao começar | 15% ao começar (900 de cada); o resto sai do estoque a cada tick durante a montagem, que para ("aguardando recursos") quando falta: nenhum armazém guarda 6 mil suprimentos de uma vez (QG no nível máximo: 3.120) |
+| Dano / raio | 700 / 4 (pesado: 1150 / 5,5) | 10.000 / 20 (11/11; era 6.000 / 14) |
 | Interceptação | normal | metade da chance |
 
 O lançamento segue a mesma sequência do convencional: preparar, autorizar (manter pressionado) e lançar. A

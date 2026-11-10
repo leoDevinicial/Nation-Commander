@@ -263,12 +263,18 @@ export interface DomeState {
  */
 export const NUCLEAR = {
   tech: 'nuclear_weapons',
-  // 11/11: 3× os recursos, US$ 100 mi e 180 s ("arma nuclear está muito barata")
-  cost: { iron: 660, oil: 480, supplies: 660 } as Cost,
+  // 11/11: 6 mil de cada (com o ×2,5 de ECONOMY.missiles), US$ 100 mi e 180 s ("bem onerosa mesmo")
+  cost: { iron: 2400, oil: 2400, supplies: 2400 } as Cost,
   usd: 100_000_000,
   buildSeconds: 180,
-  damage: 6000,
-  radius: 14,
+  /**
+   * Parte do custo paga ao começar; o resto sai do estoque ao longo da produção (nenhum armazém guarda 6 mil
+   * suprimentos de uma vez). Faltou recurso, a montagem para até chegar.
+   */
+  upfront: 0.15,
+  // 11/11: mais destrutiva (era 6.000 em raio 14)
+  damage: 10000,
+  radius: 20,
   interceptMul: 0.5,
 };
 
@@ -386,6 +392,18 @@ export interface SiloState {
   building: number;
   paid: Cost;
   usd: number;
+  /** Ogiva nuclear em produção (11/11): ticks totais e o que ainda falta pagar ao longo da montagem. */
+  total?: number;
+  due?: Cost;
+  /** A montagem parou por falta de recurso. */
+  stalled?: boolean;
+}
+
+/** Parte da ogiva nuclear paga ao começar (o resto sai durante a produção). */
+export function nuclearUpfront(): Cost {
+  const out: Cost = {};
+  for (const [r, v] of Object.entries(NUCLEAR.cost) as [keyof Cost, number][]) out[r] = Math.ceil(v * NUCLEAR.upfront);
+  return out;
 }
 
 export interface Reveal {
@@ -843,7 +861,8 @@ export class AirSystem {
     const reserved = this.launches.filter((l) => l.siloId === siloId && (l.state === 'preparing' || l.state === 'armed' || l.state === 'launching')).length;
     if (s.missiles + reserved >= MISSILE.capacityPerSilo) return `Silo cheio: ${MISSILE.capacityPerSilo} mísseis por silo`;
     const p = this.sim.players[slot]!;
-    if (!canAfford(p.resources, price.cost)) return `Recursos insuficientes: faltam ${missingText(p.resources, price.cost)}`;
+    const start = nuclear ? nuclearUpfront() : price.cost;
+    if (!canAfford(p.resources, start)) return `Recursos insuficientes: faltam ${missingText(p.resources, start)}`;
     const f = this.funds(slot);
     if (f !== null && f + 1e-6 < price.usd) return 'Caixa do país sem saldo para o míssil';
     return null;
@@ -854,11 +873,19 @@ export class AirSystem {
     if (err) return err;
     const price = nuclear ? NUCLEAR : MISSILE;
     if (this.sim.national && !this.sim.national.chargeWorks(slot, price.usd, nuclear ? 'Míssil com ogiva nuclear' : 'Míssil balístico')) return 'Caixa do país sem saldo para o míssil';
-    this.sim.spendResources(slot, price.cost);
+    const start = nuclear ? nuclearUpfront() : price.cost;
+    this.sim.spendResources(slot, start);
     const s = this.silo(siloId);
     s.building = this.sim.duration(slot, price.buildSeconds * TICK_RATE);
     s.buildingNuclear = nuclear;
-    s.paid = { ...price.cost };
+    s.paid = { ...start };
+    if (nuclear) {
+      s.total = s.building;
+      const due: Cost = {};
+      for (const [r, v] of Object.entries(price.cost) as [keyof Cost, number][]) due[r] = v - (start[r] ?? 0);
+      s.due = due;
+      s.stalled = false;
+    }
     s.usd = this.sim.national ? price.usd : 0;
     return null;
   }
@@ -1165,8 +1192,36 @@ export class AirSystem {
         delete this.silos[Number(id)];
         continue;
       }
+      // ogiva nuclear: cada tick paga a sua parte do restante; faltou recurso, a montagem espera (11/11)
+      if (s.building > 0 && s.due && s.total && !b.unpaid && this.sim.isPowered(b)) {
+        // fração montada depois deste tick; deve-se o restante proporcional a ela (no último tick, tudo o que falta)
+        const done = 1 - (s.building - 1) / s.total;
+        const upfront = nuclearUpfront();
+        const now: Cost = {};
+        let any = false;
+        for (const [r, left] of Object.entries(s.due) as [keyof Cost, number][]) {
+          const rest = (NUCLEAR.cost[r] ?? 0) - (upfront[r] ?? 0);
+          const owe = Math.min(left, Math.floor(rest * done) - (rest - left));
+          if (owe > 0) {
+            now[r] = owe;
+            any = true;
+          }
+        }
+        if (any && !this.sim.spendResources(b.owner, now)) {
+          s.stalled = true;
+          continue;
+        }
+        s.stalled = false;
+        for (const [r, v] of Object.entries(now) as [keyof Cost, number][]) {
+          s.due[r] = (s.due[r] ?? 0) - v;
+          s.paid[r] = (s.paid[r] ?? 0) + v;
+        }
+      }
       if (s.building > 0 && !b.unpaid && this.sim.isPowered(b) && --s.building <= 0) {
         s.building = 0;
+        s.due = undefined;
+        s.total = undefined;
+        s.stalled = false;
         s.missiles++;
         if (s.buildingNuclear) s.nuclear = (s.nuclear ?? 0) + 1;
         const nuc = !!s.buildingNuclear;

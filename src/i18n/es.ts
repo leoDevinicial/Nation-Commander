@@ -1290,7 +1290,7 @@ export const ES: Dict = {
   "Míssil balístico": "Misil balístico",
   "Míssil com ogiva nuclear": "Misil con ojiva nuclear",
   "Míssil com ogiva nuclear pronto no silo": "Misil con ojiva nuclear listo en el silo",
-  "Míssil com ogiva nuclear: {0} + materiais · {1} · dano {2} em raio {3}. Todo lançamento derruba a economia de todos os países por meses, inclusive a nossa. No mar, levanta um tsunami que atinge navios e costas de todos.": "Misil con ojiva nuclear: {0} + materiales · {1} · daño {2} en radio {3}. Todo lanzamiento hunde la economía de todos los países durante meses, incluida la nuestra. En el mar, levanta un tsunami que golpea los barcos y las costas de todos.",
+  "Míssil com ogiva nuclear: {0} + materiais · {1} · dano {2} em raio {3}. Começa com {4}% dos materiais; o resto sai do estoque durante a montagem, que para quando falta. Todo lançamento derruba a economia de todos os países por meses, inclusive a nossa. No mar, levanta um tsunami que atinge navios e costas de todos.": "Misil con ojiva nuclear: {0} + materiales · {1} · daño {2} en radio {3}. Empieza con el {4}% de los materiales; el resto sale del inventario durante el montaje, que se detiene cuando falta. Todo lanzamiento hunde la economía de todos los países durante meses, incluida la nuestra. En el mar, levanta un tsunami que golpea los barcos y las costas de todos.",
   "Míssil de cruzeiro": "Misil de crucero",
   "Míssil de cruzeiro ({0})": "Misil de crucero ({0})",
   "Míssil de cruzeiro convencional: qualquer ponto já explorado fora da sua fronteira a até {0} do submarino (anel no mapa); dano {1} em raio {2}. Preparação de {3}s e autorização. Recarrega junto a um Porto seu (um a cada {4}s, pagando o míssil).": "Misil de crucero convencional: cualquier punto ya explorado fuera de tu frontera a menos de {0} del submarino (anillo en el mapa); daño {1} en radio {2}. Preparación de {3}s y autorización. Se recarga junto a uno de tus Puertos (uno cada {4}s, pagando el misil).",
@@ -3159,4 +3159,5 @@ export const ES: Dict = {
   "Nossa ogiva levantou um tsunami: a onda atinge navios e costas de todos, inclusive os nossos": "Nuestra ojiva levantó un tsunami: la ola golpea los barcos y las costas de todos, incluidos los nuestros",
   "Explosão nuclear no mar: um tsunami se espalha e atinge navios e costas de todos": "Explosión nuclear en el mar: un tsunami se expande y golpea los barcos y las costas de todos",
   "Tsunami: {0}": "Tsunami: {0}",
+  "aguardando recursos": "esperando recursos",
 };

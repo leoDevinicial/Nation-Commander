@@ -693,7 +693,7 @@ describe('ogiva nuclear e choque econômico global', () => {
     expect(s.sim.applyCommand(0, { type: 'build_missile', buildingId: silo.id, nuclear: true })).toMatch(/Armas nucleares/);
     s.N.st.techs = ['guided_munitions', 'ballistic_missiles', 'nuclear_weapons'];
     // a ogiva custa caro (11/11): estoque à altura
-    Object.assign(s.sim.players[0]!.resources, { iron: 5000, oil: 5000, supplies: 5000 });
+    Object.assign(s.sim.players[0]!.resources, { iron: 20000, oil: 20000, supplies: 20000 });
     expect(s.sim.applyCommand(0, { type: 'build_missile', buildingId: silo.id, nuclear: true })).toBeNull();
     run(s.sim, NUCLEAR.buildSeconds + 1);
     expect(s.sim.air.silo(silo.id).nuclear).toBe(1);
@@ -716,12 +716,37 @@ describe('ogiva nuclear e choque econômico global', () => {
     expect(events.some((e) => e.type === 'tsunami')).toBe(false);
   });
 
+  it('a ogiva custa 6 mil de cada: começa com 15% e paga o resto durante a montagem, que para sem recurso (11/11)', () => {
+    const s = setup({ techs: ['guided_munitions', 'ballistic_missiles', 'nuclear_weapons'] });
+    const silo = s.place(0, 'missile_silo', [2, 8], [12, 14]);
+    run(s.sim, BUILDINGS.missile_silo.buildSeconds + 1);
+    expect(NUCLEAR.cost).toEqual({ iron: 6000, oil: 6000, supplies: 6000 });
+    const res = s.sim.players[0]!.resources;
+    // só o sinal (15%): começa, mas para logo
+    Object.assign(res, { iron: 900, oil: 900, supplies: 900 });
+    expect(s.sim.applyCommand(0, { type: 'build_missile', buildingId: silo.id, nuclear: true })).toBeNull();
+    expect(res.iron).toBe(0);
+    run(s.sim, 10);
+    expect(s.sim.air.silo(silo.id).stalled).toBe(true);
+    const left = s.sim.air.silo(silo.id).building;
+    run(s.sim, 10);
+    expect(s.sim.air.silo(silo.id).building).toBe(left);
+    // com estoque, retoma e no fim pagou exatamente 6 mil de cada
+    Object.assign(res, { iron: 10000, oil: 10000, supplies: 10000 });
+    run(s.sim, NUCLEAR.buildSeconds + 5);
+    expect(s.sim.air.silo(silo.id).nuclear).toBe(1);
+    expect(s.sim.air.silo(silo.id).stalled).toBe(false);
+    expect(res.iron).toBe(10000 - 5100);
+    expect(res.oil).toBe(10000 - 5100);
+    expect(res.supplies).toBeLessThanOrEqual(10000 - 5100 + 200);
+  });
+
   it('a ogiva que explode na água levanta um tsunami (11/11)', () => {
     const s = setup({ techs: ['guided_munitions', 'ballistic_missiles', 'nuclear_weapons'] });
     const silo = s.place(0, 'missile_silo', [2, 8], [12, 14]);
     const target = s.place(1, 'oil_tank', [24, 24], [33, 33]);
     run(s.sim, BUILDINGS.missile_silo.buildSeconds + 1);
-    Object.assign(s.sim.players[0]!.resources, { iron: 5000, oil: 5000, supplies: 5000 });
+    Object.assign(s.sim.players[0]!.resources, { iron: 20000, oil: 20000, supplies: 20000 });
     expect(s.sim.applyCommand(0, { type: 'build_missile', buildingId: silo.id, nuclear: true })).toBeNull();
     run(s.sim, NUCLEAR.buildSeconds + 1);
     s.sim.air.known[0] = new Set([target.id]);
