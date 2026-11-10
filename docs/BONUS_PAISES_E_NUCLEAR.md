@@ -37,8 +37,8 @@ A pesquisa nacional **Armas nucleares** exige Mísseis balísticos e libera a og
 
 | | Míssil convencional | Ogiva nuclear |
 |---|---|---|
-| Custo | 80 ferro, 60 petróleo, 60 suprimentos, US$ 6 mi | 220 ferro, 160 petróleo, 220 suprimentos, US$ 40 mi |
-| Produção | 45 s | 90 s |
+| Custo (base, antes do ×2,5 de `ECONOMY.missiles`) | 80 ferro, 60 petróleo, 60 suprimentos, US$ 6 mi | 660 ferro, 480 petróleo, 660 suprimentos, US$ 100 mi (11/11; era 220/160/220 e US$ 40 mi) |
+| Produção | 45 s | 180 s (era 90 s) |
 | Dano / raio | 700 / 4 (pesado: 1150 / 5,5) | 6000 / 14 |
 | Interceptação | normal | metade da chance |
 
@@ -64,3 +64,25 @@ de eventos. Os lançamentos ficam no estado salvo.
 - `shared/test/countryBonus.test.ts`: todo país com bônus, custos, aeronaves, floresta, coleta e produção.
 - `shared/test/air.test.ts`: ogiva nuclear (pesquisa, produção, preparo e detonação) e o choque global
   (todos atingidos, decaimento e salvamento).
+
+## Tsunami (11/11)
+
+Pedido do usuário: ogiva nuclear que explode no mar levanta um tsunami (`shared/sim/tsunami.ts`).
+
+- **Gatilho:** só a ogiva nuclear não interceptada cujo ponto de impacto é uma célula de água (`AirSystem.impact` chama
+  `TsunamiSystem.detonate`).
+- **Propagação:** a frente anda 4 células/s pela água a partir da explosão, até 40 células pelo caminho na água
+  (Dijkstra em 8 direções). Contorna ilhas e continentes: o que está atrás de uma ilha fica mais longe e sofre menos.
+  Da margem alcançada, a onda invade 2 células de terra.
+- **Dano:** cai com o quadrado da distância (`(1 − d/42)²`). Navios: 3.200 junto da explosão (afunda até o porta-aviões
+  perto; a 24 células avaria uma fragata sem afundar). Faixa da costa (construções e tropas em terra): 1.500. Atinge
+  **todos**, de qualquer nação, inclusive quem lançou e os aliados; cada entidade só uma vez por onda. Submarino
+  submerso não sofre (`canHit`), como na explosão.
+- **Salvamento:** guarda só a origem, o início e quem já foi atingido; o campo de distâncias é recalculado do mapa.
+- **Cliente:** evento `tsunami` (visto por todos) abre um anel facetado de espuma branca com faixa turquesa
+  (`render/TsunamiWave.ts`) rente à água, que o terreno esconde onde há terra; ronco grave (`carpet_rumble`), tremor,
+  alerta no topo e linha no registro.
+- **Testes:** `shared/test/tsunami.test.ts` (contorna a ilha, só a faixa da costa, todos os lados, salvamento) e
+  `shared/test/air.test.ts` (a ogiva na água levanta a onda; em terra, não).
+- Não verificado no navegador: o visual do anel e o som.
+

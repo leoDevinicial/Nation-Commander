@@ -372,7 +372,7 @@ export function SiloButtons({ b, runtime }: { b: SelectedBuildingInfo; runtime: 
           blocked={nukeBuildBlock !== null}
           short={nukeBuildBlock}
           onClick={() => (nukeBuildBlock ? warn(`Ogiva nuclear: ${nukeBuildBlock}`) : runtime.send({ type: 'build_missile', buildingId: b.id, nuclear: true }))}
-          title={`Míssil com ogiva nuclear: ${formatUsd(NUCLEAR.usd)} + materiais · ${timeText(NUCLEAR.buildSeconds)} · dano ${NUCLEAR.damage} em raio ${NUCLEAR.radius}. Todo lançamento derruba a economia de todos os países por meses, inclusive a nossa.`}
+          title={`Míssil com ogiva nuclear: ${formatUsd(NUCLEAR.usd)} + materiais · ${timeText(NUCLEAR.buildSeconds)} · dano ${NUCLEAR.damage} em raio ${NUCLEAR.radius}. Todo lançamento derruba a economia de todos os países por meses, inclusive a nossa. No mar, levanta um tsunami que atinge navios e costas de todos.`}
         >
           <CostLabel cost={NUCLEAR.cost} have={ctx.resources} compact />
         </CardButton>

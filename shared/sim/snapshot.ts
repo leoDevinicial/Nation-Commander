@@ -700,6 +700,8 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
       return e.from === slot || e.to === slot;
     case 'demolished':
       return e.owner === slot || sim.isVisibleTo(slot, e.pos);
+    // tsunami (11/11): catástrofe que chega à costa de todos; todos veem a onda se abrir
+    case 'tsunami':
     case 'world':
       // alerta mundial: todos ficam sabendo (sem posição)
       return true;

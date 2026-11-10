@@ -91,7 +91,7 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
   (o pesqueiro é civil e automático: pesca e traz comida, até 3 por porto; `FISHING`),
   só andam na água (`Grid.naval`), têm tripulação (`crew`), pesquisa nacional (`requiresTech`) e carga por classe
   (`cargo`). Quem atinge quem fica em `shared/sim/targeting.ts` (submarino só por submarino). A carga sai do mapa e
-  só o dono a vê no snapshot. Mísseis têm alcance por lançador e miram qualquer ponto fora da própria fronteira que o país já tenha explorado (`Simulation.explored`).
+  só o dono a vê no snapshot. Mísseis têm alcance por lançador e miram qualquer ponto fora da própria fronteira que o país já tenha explorado (`Simulation.explored`); a ogiva nuclear na água levanta um tsunami que atinge navios e costas de todos (`shared/sim/tsunami.ts`).
   No Arquipélago não há pontes: o contato é por navio e avião (C-5 com paraquedistas).
 - Diplomacia no mapa (`docs/DIPLOMACIA_NO_TEATRO.md`): contato entre nações do mapa só depois do encontro (`nations_met`;
   sem ele, nada de guerra, pacto ou comércio); modo time (aliança fixa, vitória do time; `Simulation.teams`/`winners`);

@@ -1421,7 +1421,7 @@ export const EN: Dict = {
   "Míssil balístico": "Ballistic missile",
   "Míssil com ogiva nuclear": "Nuclear-tipped missile",
   "Míssil com ogiva nuclear pronto no silo": "Nuclear missile ready in the silo",
-  "Míssil com ogiva nuclear: {0} + materiais · {1} · dano {2} em raio {3}. Todo lançamento derruba a economia de todos os países por meses, inclusive a nossa.": "Nuclear-tipped missile: {0} + materials · {1} · damage {2} in radius {3}. Every launch crashes the economy of every country for months, including ours.",
+  "Míssil com ogiva nuclear: {0} + materiais · {1} · dano {2} em raio {3}. Todo lançamento derruba a economia de todos os países por meses, inclusive a nossa. No mar, levanta um tsunami que atinge navios e costas de todos.": "Nuclear-tipped missile: {0} + materials · {1} · damage {2} in radius {3}. Every launch crashes the economy of every country for months, including ours. At sea, it raises a tsunami that hits everyone's ships and coasts.",
   "Míssil de cruzeiro": "Cruise missile",
   "Míssil de cruzeiro ({0})": "Cruise missile ({0})",
   "Míssil de cruzeiro convencional: qualquer ponto já explorado fora da sua fronteira a até {0} do submarino (anel no mapa); dano {1} em raio {2}. Preparação de {3}s e autorização. Recarrega junto a um Porto seu (um a cada {4}s, pagando o míssil).": "Conventional cruise missile: any explored point outside your border within {0} of the submarine (ring on the map); damage {1} in radius {2}. {3}s preparation and authorization. Reloads next to one of your Ports (one every {4}s, paying for the missile).",
@@ -3415,4 +3415,8 @@ export const EN: Dict = {
   "Primeira partida contra a IA": "First match against the AI",
   "Nação Aliada": "Allied Nation",
   "Força Vermelha": "Red Force",
+  "Tsunami": "Tsunami",
+  "Nossa ogiva levantou um tsunami: a onda atinge navios e costas de todos, inclusive os nossos": "Our warhead raised a tsunami: the wave hits everyone's ships and coasts, ours included",
+  "Explosão nuclear no mar: um tsunami se espalha e atinge navios e costas de todos": "Nuclear blast at sea: a tsunami spreads and hits everyone's ships and coasts",
+  "Tsunami: {0}": "Tsunami: {0}",
 };

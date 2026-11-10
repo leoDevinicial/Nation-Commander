@@ -24,6 +24,7 @@ import { climateUniforms, cloudUniforms, disposeMaterials, fogUniforms, setCloud
 import { disposeBuildingModels } from './render/models/buildingModels.ts';
 import { disposeCitizenModel, disposeUnitModels, unitModel, unitModelKey } from './render/models/unitModels.ts';
 import { NuclearBlast } from './render/NuclearBlast.ts';
+import { TsunamiWave } from './render/TsunamiWave.ts';
 import { setModelDetail } from './render/models/kit.ts';
 import { chooseClaims, claimableCells, claimedBy, gatherRate, sitesByDeposit } from '../../shared/sim/gathering.ts';
 import { findDeposits, type DepositIndex } from '../../shared/sim/deposits.ts';
@@ -291,6 +292,7 @@ export class GameRuntime {
   private readonly launchLightAt = new THREE.Vector3();
   /** Cogumelos nucleares em andamento. */
   private readonly nukes: NuclearBlast[] = [];
+  private readonly tsunamis: TsunamiWave[] = [];
   private snapshotAt = 0;
   private snapshotInterval = 100;
   private tickMs = 50;
@@ -1416,6 +1418,19 @@ export class GameRuntime {
       });
     }
     this.eventSound(e);
+    if (e.type === 'tsunami') {
+      // tsunami (11/11): o anel de espuma se abre pelo mar; ronco grave e tremor; aviso para todos
+      const wave = new TsunamiWave(e.pos, e.speed, e.radius);
+      this.scene.add(wave.group);
+      this.tsunamis.push(wave);
+      audio.playWide('carpet_rumble', e.pos.x, e.pos.y, 0.35);
+      window.setTimeout(() => audio.playWide('carpet_rumble', e.pos.x, e.pos.y, 0.25), 2500);
+      this.shakeNear(e.pos, 0.6);
+      const text = e.owner === this.mySlot ? 'Nossa ogiva levantou um tsunami: a onda atinge navios e costas de todos, inclusive os nossos' : 'Explosão nuclear no mar: um tsunami se espalha e atinge navios e costas de todos';
+      useHudStore.getState().pushWorldAlert({ icon: 'nuclear', title: 'Tsunami', text, tone: 'bad' });
+      useHudStore.getState().pushEvent({ tick: e.tick, text: `Tsunami: ${text}`, tone: 'bad' });
+      return;
+    }
     if (e.type === 'world') {
       // alerta mundial: faixa no topo, som de anúncio e registro no painel de eventos
       const players = useAppStore.getState().match?.players ?? [];
@@ -1639,6 +1654,12 @@ export class GameRuntime {
       if (!this.nukes[i]!.update(this.paused ? 0 : dt)) {
         this.nukes[i]!.dispose();
         this.nukes.splice(i, 1);
+      }
+    // a onda anda no ritmo do jogo (a simulação também)
+    for (let i = this.tsunamis.length - 1; i >= 0; i--)
+      if (!this.tsunamis[i]!.update(this.paused ? 0 : dt * this.speed)) {
+        this.tsunamis[i]!.dispose();
+        this.tsunamis.splice(i, 1);
       }
     this.citizens.update(this.paused ? 0 : dt * this.speed);
     if (!this.suspended) {
@@ -4602,6 +4623,8 @@ export class GameRuntime {
     this.effects.dispose();
     for (const n of this.nukes) n.dispose();
     this.nukes.length = 0;
+    for (const w of this.tsunamis) w.dispose();
+    this.tsunamis.length = 0;
     this.postFx?.dispose();
     this.citizens.dispose();
     this.exposure?.dispose();

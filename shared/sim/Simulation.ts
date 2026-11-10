@@ -1,5 +1,6 @@
 import { canHit } from './targeting.ts';
 import { SpatialGrid } from './spatial.ts';
+import { TsunamiSystem, type TsunamiSave } from './tsunami.ts';
 import { prepTicks, type Difficulty } from './difficulty.ts';
 import type { IdCipher, IdSpace } from './ids.ts';
 import { RANKS, rankDamageMul, rankFor, rankHpMul } from './veterancy.ts';
@@ -213,6 +214,8 @@ export interface SimulationSave {
   lastAlertTick: number[];
   /** Comércio (Fase 6): ofertas, contratos, embarques e mercado dos países da IA. */
   trade?: TradeSave;
+  /** Tsunamis em andamento (ogiva nuclear na água, 11/11). */
+  tsunamis?: TsunamiSave[];
   /** Força aérea e mísseis (Fase 7). */
   air?: AirSave;
   mines?: MineSave;
@@ -491,6 +494,8 @@ export class Simulation {
   readonly trade: TradeSystem = new TradeSystem(this);
   /** Força aérea, antiaérea e mísseis. */
   readonly air: AirSystem = new AirSystem(this);
+  /** Ondas das ogivas nucleares que explodem na água (`tsunami.ts`). */
+  readonly tsunamis: TsunamiSystem = new TsunamiSystem(this);
   /** Minas antitanque e o trabalho dos engenheiros (lote 3). */
   readonly mines: MineSystem = new MineSystem(this);
   /** Zoneamento e lotes privados (`zoning.ts`). */
@@ -670,6 +675,7 @@ export class Simulation {
       lastAlertTick: this.lastAlertTick,
       trade: this.trade.toSave(),
       air: this.air.toSave(),
+      ...(this.tsunamis.active ? { tsunamis: this.tsunamis.toSave() } : {}),
       ...(this.mines.mines.length || this.mines.tasks.length ? { mines: this.mines.toSave() } : {}),
       ...(this.zones.zones.size || this.zones.lots.size || this.zones.tax.length || this.zones.heat.some((h) => h > 0) ? { zoning: this.zones.toSave() } : {}),
       ...(this.caravans.caravans.length ? { caravans: this.caravans.toSave() } : {}),
@@ -769,6 +775,7 @@ export class Simulation {
     sim.visibilityTick = -1;
     sim.trade.load(data.trade);
     sim.air.load(data.air);
+    sim.tsunamis.load(data.tsunamis);
     sim.mines.load(data.mines);
     sim.zones.load(data.zoning);
     sim.caravans.load(data.caravans);
@@ -2409,6 +2416,7 @@ export class Simulation {
     }
     this.trade.step();
     this.air.step();
+    this.tsunamis.step();
     this.mines.step();
     this.zones.step();
     this.caravans.step();

@@ -263,9 +263,10 @@ export interface DomeState {
  */
 export const NUCLEAR = {
   tech: 'nuclear_weapons',
-  cost: { iron: 220, oil: 160, supplies: 220 } as Cost,
-  usd: 40_000_000,
-  buildSeconds: 90,
+  // 11/11: 3× os recursos, US$ 100 mi e 180 s ("arma nuclear está muito barata")
+  cost: { iron: 660, oil: 480, supplies: 660 } as Cost,
+  usd: 100_000_000,
+  buildSeconds: 180,
   damage: 6000,
   radius: 14,
   interceptMul: 0.5,
@@ -1097,6 +1098,8 @@ export class AirSystem {
     l.state = 'impact';
     l.endTick = this.sim.tick;
     l.result = { damage: Math.round(damage), destroyed, casualties, intercepted: false };
+    // ogiva nuclear na água: tsunami (11/11)
+    if (l.nuclear) this.sim.tsunamis.detonate(l.owner, l.target);
     this.missileEvent(l, `Impacto: ${Math.round(damage)} de dano, ${destroyed} edifício(s) destruído(s), ${casualties} baixa(s)`);
   }
 

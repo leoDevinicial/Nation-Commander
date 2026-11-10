@@ -383,5 +383,7 @@ export type SimEvent =
    * Sem posição (não revela onde fica a obra).
    */
   | { type: 'world'; tick: number; kind: 'war' | 'era' | 'nuclear' | 'project'; slot: Slot; other?: Slot; era?: number; buildingType?: BuildingType; phase: 'started' | 'completed' }
+  /** Tsunami (11/11): ogiva nuclear explodiu na água; a frente anda `speed` (mundo/s) até `radius` pela água. */
+  | { type: 'tsunami'; tick: number; owner: Slot; pos: Vec2; speed: number; radius: number }
   | { type: 'missile'; tick: number; owner: Slot; launchId: number; state: string; text: string; from: Vec2; target: Vec2; targetOwner: Slot; gen?: number; nuclear?: boolean; cruise?: boolean; damage?: number; destroyed?: number; casualties?: number }
   | { type: 'modernize_cancelled'; tick: number; id: EntityId; owner: Slot; unitType: UnitType; mod: ModId; reason: 'player' | 'facility_lost'; pos: Vec2 };

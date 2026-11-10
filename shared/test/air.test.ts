@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TICK_RATE, type BuildingType } from '../sim/config.ts';
+import { TICK_RATE, Terrain, type BuildingType } from '../sim/config.ts';
 import { parseCommand } from '../sim/commands.ts';
 import { Simulation, type NationalLink } from '../sim/Simulation.ts';
 import { AIR, AIRCRAFT, IRON_DOME, MISSILE, NUCLEAR, type AirMission } from '../sim/air.ts';
@@ -692,6 +692,8 @@ describe('ogiva nuclear e choque econômico global', () => {
     run(s.sim, BUILDINGS.missile_silo.buildSeconds + 1);
     expect(s.sim.applyCommand(0, { type: 'build_missile', buildingId: silo.id, nuclear: true })).toMatch(/Armas nucleares/);
     s.N.st.techs = ['guided_munitions', 'ballistic_missiles', 'nuclear_weapons'];
+    // a ogiva custa caro (11/11): estoque à altura
+    Object.assign(s.sim.players[0]!.resources, { iron: 5000, oil: 5000, supplies: 5000 });
     expect(s.sim.applyCommand(0, { type: 'build_missile', buildingId: silo.id, nuclear: true })).toBeNull();
     run(s.sim, NUCLEAR.buildSeconds + 1);
     expect(s.sim.air.silo(silo.id).nuclear).toBe(1);
@@ -710,6 +712,33 @@ describe('ogiva nuclear e choque econômico global', () => {
     }
     expect(events.some((e) => e.type === 'missile' && e.nuclear && e.state === 'flight')).toBe(true);
     expect(target.hp).toBeLessThanOrEqual(0);
+    // explosão em terra: sem tsunami
+    expect(events.some((e) => e.type === 'tsunami')).toBe(false);
+  });
+
+  it('a ogiva que explode na água levanta um tsunami (11/11)', () => {
+    const s = setup({ techs: ['guided_munitions', 'ballistic_missiles', 'nuclear_weapons'] });
+    const silo = s.place(0, 'missile_silo', [2, 8], [12, 14]);
+    const target = s.place(1, 'oil_tank', [24, 24], [33, 33]);
+    run(s.sim, BUILDINGS.missile_silo.buildSeconds + 1);
+    Object.assign(s.sim.players[0]!.resources, { iron: 5000, oil: 5000, supplies: 5000 });
+    expect(s.sim.applyCommand(0, { type: 'build_missile', buildingId: silo.id, nuclear: true })).toBeNull();
+    run(s.sim, NUCLEAR.buildSeconds + 1);
+    s.sim.air.known[0] = new Set([target.id]);
+    expect(s.sim.applyCommand(0, { type: 'missile_prepare', buildingId: silo.id, x: target.pos.x, y: target.pos.y, nuclear: true })).toBeNull();
+    run(s.sim, MISSILE.prepareSeconds + 1);
+    const l = s.sim.air.launches.at(-1)!;
+    // o ponto de impacto vira mar (o teste só precisa da célula do alvo na água)
+    const cs = s.sim.map.cellSize;
+    s.sim.map.terrain[Math.floor(l.target.y / cs) * s.sim.map.width + Math.floor(l.target.x / cs)] = Terrain.Water;
+    expect(s.sim.applyCommand(0, { type: 'missile_authorize', launchId: l.id })).toBeNull();
+    const events: SimEvent[] = [];
+    for (let i = 0; i < 40 * TICK_RATE && l.state !== 'impact' && l.state !== 'intercepted'; i++) {
+      s.sim.step();
+      events.push(...s.sim.drainEvents());
+    }
+    expect(l.state).toBe('impact');
+    expect(events.some((e) => e.type === 'tsunami' && e.owner === 0)).toBe(true);
   });
 
   it('todo lançamento nuclear derruba a economia de todos, inclusive de quem lançou, e decai', () => {

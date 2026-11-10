@@ -135,6 +135,10 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 
 ## 0.4 O que mudou desde 31/10 (mais recente primeiro; detalhes no `git log` e nas docs citadas)
 
+**11/11 — tsunami e ogiva mais cara** (`docs/BONUS_PAISES_E_NUCLEAR.md`): ogiva nuclear na água levanta um tsunami
+(`shared/sim/tsunami.ts`, `render/TsunamiWave.ts`) que corre pela água, contorna ilhas, afunda/avaria navios de todos e
+invade 2 células de costa; ogiva custa 3× os recursos, US$ 100 mi e 180 s. Visual do anel não visto no navegador.
+
 **11/11 — teto de população 500 e escala para 6 × 600** (`docs/ESCALA_DA_SIMULACAO.md`): `POP_ABSOLUTE_CAP` 300 → 500
 (cidadãos + militares; o zoneamento residencial não cria casa acima disso, teste em `zoning.test.ts`). Grade por nação
 na busca de alvo e separação por terra/água sem a volta para todos os pares: 6 nações × 600 paradas 51 → 27 ms, três
