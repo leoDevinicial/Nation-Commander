@@ -63,6 +63,37 @@ describe('Painel /stats', () => {
     expect(r.all().map((m) => m.players[0]!.name)).toEqual(['C4', 'C3', 'C2']);
   });
 
+  it('detalhes (11/11): contas com e-mail, partidas e feedbacks contados; e-mail nos jogadores e nos feedbacks', async () => {
+    const rows: Record<string, unknown[]> = {
+      feedback: [{ id: 1, created_at: '2026-11-10T10:00:00Z', user_id: 'u1', display_name: 'Ana', guest: false, category: 'bug', rating: 5, message: 'oi', game_version: '1' }],
+      matches: [{ ended_at: '2026-11-10T11:00:00Z', duration_seconds: 600, mode: 'vs_ai', end_reason: 'hq_destroyed', match_players: [{ player_id: 'u1', display_name: 'Ana', is_ai: false, country_id: 'BRA', result: 'win', slot: 0 }] }],
+      profiles: [
+        { id: 'u1', username: 'ana', display_name: 'Ana' },
+        { id: 'u2', username: 'bot123', display_name: null },
+      ],
+      match_players: [{ player_id: 'u1' }, { player_id: 'u1' }],
+    };
+    const query = (table: string) => {
+      const q = { select: () => q, order: () => q, limit: () => q, not: () => q, then: (ok: (v: unknown) => unknown) => Promise.resolve({ data: rows[table], error: null }).then(ok) };
+      return q;
+    };
+    const users = [
+      { id: 'u1', email: 'ana@exemplo.com', created_at: '2026-11-01T00:00:00Z', last_sign_in_at: '2026-11-10T09:00:00Z', email_confirmed_at: '2026-11-01T00:01:00Z', app_metadata: { provider: 'email' } },
+      { id: 'u2', email: 'x9@temp.mail', created_at: '2026-11-09T00:00:00Z', last_sign_in_at: null, email_confirmed_at: null },
+    ];
+    const sb = { from: query, auth: { admin: { listUsers: async () => ({ data: { users }, error: null }) } } };
+    const db = await new DbDetailsCache(() => sb as never).get(Date.now());
+    expect(db.error).toBeUndefined();
+    expect(db.accounts).toEqual([
+      { email: 'x9@temp.mail', username: 'bot123', displayName: null, createdAt: '2026-11-09T00:00:00Z', lastSignIn: null, confirmed: false, provider: null, matches: 0, feedbacks: 0 },
+      { email: 'ana@exemplo.com', username: 'ana', displayName: 'Ana', createdAt: '2026-11-01T00:00:00Z', lastSignIn: '2026-11-10T09:00:00Z', confirmed: true, provider: 'email', matches: 2, feedbacks: 1 },
+    ]);
+    expect(db.feedback![0]).toMatchObject({ email: 'ana@exemplo.com' });
+    expect(db.feedback![0]).not.toHaveProperty('user_id');
+    expect(db.matches![0]!.players[0]).toMatchObject({ name: 'Ana', email: 'ana@exemplo.com' });
+    expect(db.emails?.get('u1')).toBe('ana@exemplo.com');
+  });
+
   it('sem Supabase, os detalhes do banco vêm vazios com o motivo', async () => {
     expect(await new DbDetailsCache(() => null).get(Date.now())).toEqual({ feedback: null, matches: null, error: 'Sem Supabase neste servidor' });
   });

@@ -53,3 +53,18 @@ A rota é `GET /stats/details` (`DbDetailsCache`, cache de 30 s). Nomes e mensag
 de detalhes não é a pública `HkL665Bn&8D` e não fica no código: só o SHA-256 dela (`PROVISIONAL_DETAILS_KEY_SHA256`); a
 chave foi passada ao responsável em conversa. Ela também abre os números. Com `STATS_TOKEN` definido, só ele abre os
 detalhes. A chave pública continua mostrando só os números.
+
+## Contas com e-mail (11/11)
+
+Pedido do responsável: ver se as contas são de jogadores de verdade ou cadastros automáticos. Só na **chave de
+detalhes** (`/stats/details`); a chave pública continua só com os números.
+
+- **Tabela "Contas registradas"** (`AccountsPanel` em `StatsPage.tsx`): e-mail, usuário, data de criação, último login,
+  e-mail confirmado, partidas gravadas e feedbacks de cada conta (até 500, as mais novas primeiro), com filtro por
+  texto, "só sem uso" (nenhuma partida e nenhum feedback) e os domínios de e-mail mais comuns. Sinais de cadastro
+  falso: e-mail não confirmado, login "nunca", sem partidas, muitos e-mails do mesmo domínio estranho.
+- **E-mail ao lado do nome** nas últimas partidas (do servidor e do banco) e nos feedbacks, para quem tem conta.
+- **Código:** `DbDetailsCache` (`server/stats.ts`) lê as contas com `auth.admin.listUsers` (precisa da service role do
+  Supabase no servidor, que já existe no Render), cruza com `profiles`, `match_players` e `feedback`. O id da conta
+  nunca sai na resposta: as partidas da memória guardam o `uid` só para o `server/index.ts` trocar pelo e-mail.
+  Teste em `server/stats.test.ts` com um Supabase falso.

@@ -33,6 +33,19 @@ interface MatchPlayer {
   guest?: boolean;
   country: string;
   result: string;
+  /** E-mail da conta (11/11; só jogadores com conta). */
+  email?: string;
+}
+interface AccountRow {
+  email: string | null;
+  username: string | null;
+  displayName: string | null;
+  createdAt: string;
+  lastSignIn: string | null;
+  confirmed: boolean;
+  provider: string | null;
+  matches: number;
+  feedbacks: number;
 }
 interface RecentMatch {
   endedAt: string;
@@ -46,6 +59,7 @@ interface FeedbackRow {
   id: number;
   created_at: string;
   display_name: string;
+  email?: string;
   guest: boolean;
   category: string;
   rating: number | null;
@@ -55,7 +69,12 @@ interface FeedbackRow {
 interface RegionDetails {
   region: string | null;
   recent: RecentMatch[];
-  db: { feedback: FeedbackRow[] | null; matches: { ended_at: string; duration_seconds: number; mode: string; end_reason: string; players: MatchPlayer[] }[] | null; error?: string };
+  db: {
+    feedback: FeedbackRow[] | null;
+    matches: { ended_at: string; duration_seconds: number; mode: string; end_reason: string; players: MatchPlayer[] }[] | null;
+    accounts?: AccountRow[] | null;
+    error?: string;
+  };
 }
 type Details = { label: string; data: RegionDetails };
 
@@ -244,6 +263,7 @@ export function StatsPage() {
         </Frame>
 
         {details.length > 0 && <DetailsPanels details={details} />}
+        {details.length > 0 && <AccountsPanel details={details} />}
       </div>
     </div>
   );
@@ -261,6 +281,7 @@ function Players({ players }: { players: MatchPlayer[] }) {
             {p.country}
             {p.guest ? ' · convidado' : ''}
           </span>
+          {p.email && <span className="ml-1 text-[10px] text-sky-300">{p.email}</span>}
         </span>
       ))}
     </span>
@@ -293,6 +314,7 @@ function DetailsPanels({ details }: { details: Details[] }) {
                   {f.display_name}
                 </span>
                 {f.guest && <span className="text-ink-400">convidado</span>}
+                {f.email && <span className="text-sky-300">{f.email}</span>}
                 <span className="border border-ink-600 px-1 text-[10px] tracking-wide text-ink-200 uppercase">{CATEGORY[f.category] ?? f.category}</span>
                 {f.rating !== null && (
                   <span className="flex items-center text-brass-400" aria-label={`${f.rating} de 5`}>
@@ -377,5 +399,88 @@ function DetailsPanels({ details }: { details: Details[] }) {
         </div>
       </Frame>
     </div>
+  );
+}
+
+/**
+ * Contas registradas com e-mail (11/11): para conferir se é jogador de verdade ou cadastro automático. "Sem uso" =
+ * nenhuma partida gravada e nenhum feedback; e-mail não confirmado e login só no dia do cadastro também chamam atenção.
+ */
+function AccountsPanel({ details }: { details: Details[] }) {
+  const [filter, setFilter] = useState('');
+  const [onlyIdle, setOnlyIdle] = useState(false);
+  const accounts = details.find((d) => d.data.db.accounts)?.data.db.accounts;
+  if (accounts === undefined) return null;
+  const q = filter.trim().toLowerCase();
+  const idle = (a: AccountRow) => a.matches === 0 && a.feedbacks === 0;
+  const rows = (accounts ?? []).filter((a) => (!onlyIdle || idle(a)) && (!q || [a.email, a.username, a.displayName].some((v) => v?.toLowerCase().includes(q))));
+  const total = accounts?.length ?? 0;
+  const idleCount = (accounts ?? []).filter(idle).length;
+  const unconfirmed = (accounts ?? []).filter((a) => !a.confirmed).length;
+  const domains = new Map<string, number>();
+  for (const a of accounts ?? []) {
+    const d = a.email?.split('@')[1]?.toLowerCase();
+    if (d) domains.set(d, (domains.get(d) ?? 0) + 1);
+  }
+  const topDomains = [...domains].sort((a, b) => b[1] - a[1]).slice(0, 6);
+  return (
+    <Frame className="mt-4" innerClassName="flex max-h-[40rem] flex-col p-4">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <UserRound size={16} className="text-brass-400" aria-hidden />
+        <span className="nc-kicker">Contas registradas</span>
+        <span className="text-xs text-ink-400">
+          {accounts ? `${num(total)} contas · ${num(idleCount)} sem uso · ${num(unconfirmed)} sem e-mail confirmado` : 'Sem dados (o servidor precisa da service role do Supabase)'}
+        </span>
+        <label className="ml-auto flex items-center gap-1 text-xs text-ink-300">
+          <input type="checkbox" checked={onlyIdle} onChange={(e) => setOnlyIdle(e.target.checked)} className="accent-[#e0b44c]" />
+          Só sem uso
+        </label>
+        <input className="field h-7 w-48 text-xs" placeholder="Filtrar e-mail ou nome" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Filtrar contas" />
+      </div>
+      {topDomains.length > 0 && (
+        <p className="mb-2 text-xs text-ink-400">
+          Domínios mais comuns: {topDomains.map(([d, n]) => `${d} (${n})`).join(' · ')}
+        </p>
+      )}
+      <div className="-mr-2 overflow-auto pr-2">
+        <table className="w-full text-left text-xs">
+          <thead className="text-ink-400">
+            <tr className="border-b border-ink-700">
+              <th className="py-1.5 pr-2 font-semibold">E-mail</th>
+              <th className="py-1.5 pr-2 font-semibold">Usuário</th>
+              <th className="py-1.5 pr-2 font-semibold">Criada</th>
+              <th className="py-1.5 pr-2 font-semibold">Último login</th>
+              <th className="py-1.5 pr-2 font-semibold">Confirmado</th>
+              <th className="py-1.5 pr-2 font-semibold">Partidas</th>
+              <th className="py-1.5 font-semibold">Feedbacks</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((a, i) => (
+              <tr key={i} className={`border-b border-ink-800 ${idle(a) ? 'text-ink-400' : 'text-ink-200'}`}>
+                <td className="py-1.5 pr-2 break-all text-sky-300">{a.email ?? '—'}</td>
+                <td className="py-1.5 pr-2" translate="no">
+                  {a.username ?? '—'}
+                  {a.displayName && a.displayName !== a.username ? <span className="text-ink-400"> ({a.displayName})</span> : null}
+                  {a.provider && a.provider !== 'email' ? <span className="ml-1 text-[10px] text-ink-400 uppercase">{a.provider}</span> : null}
+                </td>
+                <td className="py-1.5 pr-2 whitespace-nowrap">{when(a.createdAt)}</td>
+                <td className="py-1.5 pr-2 whitespace-nowrap">{a.lastSignIn ? when(a.lastSignIn) : 'nunca'}</td>
+                <td className={`py-1.5 pr-2 ${a.confirmed ? '' : 'text-red-300'}`}>{a.confirmed ? 'sim' : 'não'}</td>
+                <td className="nc-num py-1.5 pr-2">{num(a.matches)}</td>
+                <td className="nc-num py-1.5">{num(a.feedbacks)}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={7} className="py-3 text-ink-400">
+                  Nenhuma conta com esse filtro.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Frame>
   );
 }

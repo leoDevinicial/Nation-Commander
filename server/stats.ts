@@ -69,7 +69,7 @@ export interface RecentMatch {
   mode: string;
   map: string | null;
   reason: string;
-  players: { name: string; ai: boolean; guest: boolean; country: string; result: 'win' | 'loss' | 'draw' }[];
+  players: { name: string; ai: boolean; guest: boolean; country: string; result: 'win' | 'loss' | 'draw'; uid?: string; email?: string }[];
 }
 
 /**
@@ -136,6 +136,7 @@ export interface FeedbackRow {
   id: number;
   created_at: string;
   display_name: string;
+  email?: string;
   guest: boolean;
   category: string;
   rating: number | null;
@@ -148,12 +149,28 @@ export interface DbMatchRow {
   duration_seconds: number;
   mode: string;
   end_reason: string;
-  players: { name: string; ai: boolean; country: string; result: string }[];
+  players: { name: string; ai: boolean; country: string; result: string; email?: string }[];
+}
+
+/** Conta registrada (11/11, só na chave de detalhes): para o responsável ver se é jogador de verdade ou cadastro falso. */
+export interface AccountRow {
+  email: string | null;
+  username: string | null;
+  displayName: string | null;
+  createdAt: string;
+  lastSignIn: string | null;
+  confirmed: boolean;
+  provider: string | null;
+  matches: number;
+  feedbacks: number;
 }
 
 export interface DbDetails {
   feedback: FeedbackRow[] | null;
   matches: DbMatchRow[] | null;
+  accounts?: AccountRow[] | null;
+  /** E-mail por id de conta (não sai na resposta: serve para pôr o e-mail nas partidas da memória). */
+  emails?: Map<string, string>;
   error?: string;
 }
 
@@ -163,7 +180,7 @@ export class DbDetailsCache {
 
   constructor(
     private readonly sb: () => SupabaseClient | null,
-    readonly limits = { feedback: 50, matches: 30 },
+    readonly limits = { feedback: 50, matches: 30, accounts: 500 },
   ) {}
 
   async get(now: number): Promise<DbDetails> {
@@ -171,28 +188,59 @@ export class DbDetailsCache {
     const sb = this.sb();
     if (!sb) return { feedback: null, matches: null, error: 'Sem Supabase neste servidor' };
     try {
-      const [fb, mt] = await Promise.all([
-        sb.from('feedback').select('id, created_at, display_name, guest, category, rating, message, game_version').order('created_at', { ascending: false }).limit(this.limits.feedback),
+      const [fb, mt, users, profiles, plays] = await Promise.all([
+        sb.from('feedback').select('id, created_at, user_id, display_name, guest, category, rating, message, game_version').order('created_at', { ascending: false }).limit(this.limits.feedback),
         sb
           .from('matches')
-          .select('ended_at, duration_seconds, mode, end_reason, match_players(display_name, is_ai, country_id, result, slot)')
+          .select('ended_at, duration_seconds, mode, end_reason, match_players(player_id, display_name, is_ai, country_id, result, slot)')
           .order('ended_at', { ascending: false })
           .limit(this.limits.matches),
+        listAllUsers(sb),
+        sb.from('profiles').select('id, username, display_name').limit(10_000),
+        sb.from('match_players').select('player_id').not('player_id', 'is', null).limit(100_000),
       ]);
-      type Mp = { display_name: string; is_ai: boolean; country_id: string; result: string; slot: number };
+      const emails = new Map<string, string>();
+      for (const u of users ?? []) if (u.email) emails.set(u.id, u.email);
+      const prof = new Map(((profiles.data ?? []) as { id: string; username: string; display_name: string | null }[]).map((p) => [p.id, p]));
+      const played = new Map<string, number>();
+      for (const r of (plays.data ?? []) as { player_id: string }[]) played.set(r.player_id, (played.get(r.player_id) ?? 0) + 1);
+      const fbRows = (fb.data as (FeedbackRow & { user_id: string | null })[] | null) ?? null;
+      const wrote = new Map<string, number>();
+      for (const f of fbRows ?? []) if (f.user_id) wrote.set(f.user_id, (wrote.get(f.user_id) ?? 0) + 1);
+      const accounts: AccountRow[] | null = users
+        ? users
+            .map((u) => ({
+              email: u.email ?? null,
+              username: prof.get(u.id)?.username ?? null,
+              displayName: prof.get(u.id)?.display_name ?? null,
+              createdAt: u.created_at,
+              lastSignIn: u.last_sign_in_at ?? null,
+              confirmed: !!u.email_confirmed_at,
+              provider: u.app_metadata?.provider ?? null,
+              matches: played.get(u.id) ?? 0,
+              feedbacks: wrote.get(u.id) ?? 0,
+            }))
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+            .slice(0, this.limits.accounts)
+        : null;
+      type Mp = { player_id: string | null; display_name: string; is_ai: boolean; country_id: string; result: string; slot: number };
       const matches = mt.data
         ? (mt.data as unknown as (Omit<DbMatchRow, 'players'> & { match_players: Mp[] | null })[]).map((m) => ({
             ended_at: m.ended_at,
             duration_seconds: m.duration_seconds,
             mode: m.mode,
             end_reason: m.end_reason,
-            players: [...(m.match_players ?? [])].sort((a, b) => a.slot - b.slot).map((p) => ({ name: p.display_name, ai: p.is_ai, country: p.country_id, result: p.result })),
+            players: [...(m.match_players ?? [])]
+              .sort((a, b) => a.slot - b.slot)
+              .map((p) => ({ name: p.display_name, ai: p.is_ai, country: p.country_id, result: p.result, ...(p.player_id && emails.has(p.player_id) ? { email: emails.get(p.player_id)! } : {}) })),
           }))
         : null;
       const value: DbDetails = {
-        feedback: (fb.data as FeedbackRow[] | null) ?? null,
+        feedback: fbRows ? fbRows.map(({ user_id, ...f }) => ({ ...f, ...(user_id && emails.has(user_id) ? { email: emails.get(user_id)! } : {}) })) : null,
         matches,
-        ...(fb.error || mt.error ? { error: 'Falha parcial na consulta ao banco' } : {}),
+        accounts,
+        emails,
+        ...(fb.error || mt.error || !users || profiles.error || plays.error ? { error: 'Falha parcial na consulta ao banco' } : {}),
       };
       this.cached = { at: now, value };
       return value;
@@ -200,6 +248,20 @@ export class DbDetailsCache {
       return { feedback: null, matches: null, error: 'Banco indisponível' };
     }
   }
+}
+
+type AuthUser = { id: string; email?: string; created_at: string; last_sign_in_at?: string | null; email_confirmed_at?: string | null; app_metadata?: { provider?: string } };
+
+/** Todas as contas do Supabase Auth (precisa da service role), em páginas de 1.000; null se falhar. */
+async function listAllUsers(sb: SupabaseClient): Promise<AuthUser[] | null> {
+  const out: AuthUser[] = [];
+  for (let page = 1; page <= 20; page++) {
+    const { data, error } = await sb.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) return out.length ? out : null;
+    out.push(...(data.users as AuthUser[]));
+    if (data.users.length < 1000) break;
+  }
+  return out;
 }
 
 /**

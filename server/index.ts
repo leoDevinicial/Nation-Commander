@@ -104,9 +104,14 @@ const http = createServer((req, res) => {
     }
     const now = Date.now();
     if (path === '/stats/details') {
-      void dbDetails.get(now).then((db) => {
+      void dbDetails.get(now).then(({ emails, ...db }) => {
+        // e-mail de quem tem conta nas partidas da memória (11/11); o id da conta não sai daqui
+        const recent = recentMatches.all().map((m) => ({
+          ...m,
+          players: m.players.map(({ uid, ...p }) => ({ ...p, ...(uid && emails?.has(uid) ? { email: emails.get(uid)! } : {}) })),
+        }));
         res.writeHead(200, { ...cors, 'content-type': 'application/json', 'cache-control': 'no-store' });
-        res.end(JSON.stringify({ now: new Date(now).toISOString(), region: region.id || null, recent: recentMatches.all(), db }));
+        res.end(JSON.stringify({ now: new Date(now).toISOString(), region: region.id || null, recent, db }));
       });
       return;
     }

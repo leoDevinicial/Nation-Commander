@@ -1357,7 +1357,11 @@ export class Room {
         mode: this.mode,
         map: sim.map.kind ?? null,
         reason,
-        players: this.players.map((p) => ({ name: p.name, ai: p.isAI, guest: !p.isAI && (!p.userId || p.userId.startsWith('guest:')), country: p.countryId, result: result(p.slot) })),
+        players: this.players.map((p) => {
+          const guest = !p.isAI && (!p.userId || p.userId.startsWith('guest:'));
+          // id da conta só para o painel trocar pelo e-mail (não sai na resposta)
+          return { name: p.name, ai: p.isAI, guest, country: p.countryId, result: result(p.slot), ...(!p.isAI && !guest && p.userId ? { uid: p.userId } : {}) };
+        }),
       });
     }
     let recorded = false;
