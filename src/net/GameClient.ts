@@ -1,6 +1,8 @@
 import type { ClientMessage, ServerMessage } from '../../shared/protocol.ts';
 import { PROTOCOL_VERSION } from '../../shared/version.ts';
 import { NetStats } from './netStats.ts';
+import { SnapshotDeltaDecoder, type SnapshotDelta } from '../../shared/net/delta.ts';
+import type { Snapshot } from '../../shared/sim/snapshot.ts';
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed';
 
@@ -41,6 +43,11 @@ const OPEN_TIMEOUT_MS = 9000;
 export class GameClient {
   private ws: WebSocket | null = null;
   private listeners = new Set<Listener>();
+  /** Mensagens binárias (comprimidas pelo servidor) descomprimem em fila, na ordem de chegada. */
+  private inbox: Promise<void> = Promise.resolve();
+  private pendingBinary = 0;
+  /** Snapshots delta (15/11): remonta o snapshot completo antes de entregar (`shared/net/delta.ts`). */
+  private readonly delta = new SnapshotDeltaDecoder();
   private statusListeners = new Set<StatusListener>();
   private creds: Credentials | null = null;
   private attempts = 0;
@@ -195,6 +202,37 @@ export class GameClient {
     return () => this.statusListeners.delete(fn);
   }
 
+  /** Uma mensagem do servidor, já em texto (`bytes`: tamanho que chegou pela rede, para o painel de conexão). */
+  private receive(ws: WebSocket, raw: string, bytes: number): void {
+    let msg: ServerMessage;
+    try {
+      msg = JSON.parse(raw) as ServerMessage;
+    } catch {
+      return;
+    }
+    if (this.ws !== ws) return;
+    this.unanswered = 0;
+    this.stats.message(bytes, msg.t === 'snapshot');
+    if (msg.t === 'welcome') {
+      this.clearOpenTimer();
+      this.attempts = 0;
+      this.setStatus('connected');
+      this.startPing();
+    } else if (msg.t === 'net') {
+      this.stats.network(msg.rtt, msg.region);
+    } else if (msg.t === 'pong') {
+      this.rtt = Math.round(performance.now() - msg.n);
+      this.stats.pong(this.rtt);
+      return;
+    } else if (msg.t === 'snapshot' && !msg.scope) {
+      // diferença sobre o snapshot anterior: o resto do jogo sempre recebe o snapshot inteiro
+      const full = this.delta.apply(msg.s as Snapshot | SnapshotDelta);
+      if (!full) return;
+      msg = { ...msg, s: full };
+    }
+    for (const l of this.listeners) l(msg);
+  }
+
   private open(): void {
     if (!this.creds) return;
     this.setStatus(this.attempts === 0 ? 'connecting' : 'reconnecting', this.lastDetail);
@@ -206,6 +244,10 @@ export class GameClient {
       return;
     }
     this.ws = ws;
+    // mensagens comprimidas pelo servidor chegam em binário (ver `inflate` no hello)
+    ws.binaryType = 'arraybuffer';
+    this.inbox = Promise.resolve();
+    this.pendingBinary = 0;
     this.unanswered = 0;
     this.stats.reset();
     // conexão que não abre nem responde ao hello (rede presa): desiste desta e tenta outra
@@ -215,34 +257,30 @@ export class GameClient {
     }, OPEN_TIMEOUT_MS);
 
     ws.onopen = async () => {
+      // conexão nova: o servidor manda o primeiro snapshot completo
+      this.delta.reset();
+      // sem a compressão do WebSocket (algum proxy no caminho tirou), pede ao servidor que comprima ele mesmo
+      const inflate = !/permessage-deflate/.test(ws.extensions) && typeof DecompressionStream !== 'undefined';
+      this.stats.compression = /permessage-deflate/.test(ws.extensions) ? 'transporte' : inflate ? 'servidor' : 'nenhuma';
       const token = await this.creds!.getToken().catch(() => null);
-      this.send({ t: 'hello', protocol: PROTOCOL_VERSION, token, guestId: this.creds!.guestId, guestName: this.creds!.guestName });
+      this.send({ t: 'hello', protocol: PROTOCOL_VERSION, token, guestId: this.creds!.guestId, guestName: this.creds!.guestName, ...(inflate ? { inflate: true as const } : {}) });
     };
 
     ws.onmessage = (ev) => {
-      let msg: ServerMessage;
-      const raw = String(ev.data);
-      try {
-        msg = JSON.parse(raw) as ServerMessage;
-      } catch {
+      const data = ev.data as string | ArrayBuffer;
+      // texto sem binário na frente: na hora; binário (ou texto atrás de um binário): em fila, na ordem de chegada
+      if (typeof data === 'string' && this.pendingBinary === 0) {
+        this.receive(ws, data, data.length);
         return;
       }
-      if (this.ws !== ws) return;
-      this.unanswered = 0;
-      this.stats.message(raw.length, msg.t === 'snapshot');
-      if (msg.t === 'welcome') {
-        this.clearOpenTimer();
-        this.attempts = 0;
-        this.setStatus('connected');
-        this.startPing();
-      } else if (msg.t === 'net') {
-        this.stats.network(msg.rtt, msg.region);
-      } else if (msg.t === 'pong') {
-        this.rtt = Math.round(performance.now() - msg.n);
-        this.stats.pong(this.rtt);
-        return;
-      }
-      for (const l of this.listeners) l(msg);
+      if (typeof data !== 'string') this.pendingBinary++;
+      this.inbox = this.inbox
+        .then(async () => {
+          if (typeof data === 'string') return this.receive(ws, data, data.length);
+          const text = await inflateRaw(data).finally(() => this.pendingBinary--);
+          this.receive(ws, text, data.byteLength);
+        })
+        .catch(() => undefined);
     };
 
     ws.onclose = (ev) => {
@@ -311,4 +349,10 @@ export class GameClient {
     this.lastDetail = s === 'reconnecting' ? detail : undefined;
     for (const l of this.statusListeners) l(s, detail);
   }
+}
+
+/** Descomprime uma mensagem binária do servidor (deflate-raw, ver `Connection.sendRaw`). */
+async function inflateRaw(buf: ArrayBuffer): Promise<string> {
+  const stream = new Blob([buf]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Response(stream).text();
 }

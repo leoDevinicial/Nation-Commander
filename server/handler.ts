@@ -60,6 +60,8 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
       conn.close(4000, 'protocol');
       return;
     }
+    // sem compressão no transporte: o servidor comprime as mensagens grandes ele mesmo (Connection.sendRaw)
+    conn.appDeflate = msg.inflate === true;
     if (msg.token) {
       conn.authenticating = true;
       const user = await deps.verify(msg.token).finally(() => (conn.authenticating = false));

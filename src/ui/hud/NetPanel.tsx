@@ -64,10 +64,11 @@ export function NetPopover({ onClose }: { onClose: () => void }) {
         <Stat label="Snapshots/s" value={String(s.snapshotsPerSec)} />
         <Stat label="Intervalo p95" value={ms(s.gapP95)} warn={(s.gapP95 ?? 0) > 300} />
         <Stat label="Dados" value={`${s.kbps} kbit/s`} />
+        <Stat label="Compressão" value={s.compression} warn={s.compression === 'nenhuma'} />
       </dl>
       <p className="mt-2 text-[11px] text-ink-400">
         Ping de rede é medido pelo servidor (o navegador responde sem passar pelo jogo). Ping + página inclui o tempo que a página leva para ler a resposta: com o jogo travando,
-        ele sobe junto. Dados contam o conteúdo já descomprimido; na rede ele viaja comprimido (cerca de 1/18 do tamanho).
+        ele sobe junto. Dados contam o que chega pela rede: o servidor manda só o que mudou desde o último snapshot e comprime (pelo WebSocket ou, sem ele, por conta própria).
       </p>
     </div>
   );

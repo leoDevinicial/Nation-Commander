@@ -176,7 +176,11 @@ export interface MatchEndInfo {
 }
 
 export type ClientMessage =
-  | { t: 'hello'; protocol: number; token: string | null; guestId?: string; guestName?: string }
+  /**
+   * `inflate` (15/11): o navegador não negociou a compressão do WebSocket (proxy no caminho) e sabe descomprimir; o
+   * servidor manda snapshots e relatórios grandes comprimidos por ele mesmo, em mensagem binária (deflate-raw).
+   */
+  | { t: 'hello'; protocol: number; token: string | null; guestId?: string; guestName?: string; inflate?: true }
   | { t: 'create_room'; mode: RoomMode; countryId: string; isPublic?: boolean }
   | { t: 'list_rooms' }
   | { t: 'community_join' }

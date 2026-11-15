@@ -1,4 +1,5 @@
 import { NetworkGuard } from './kac/network.ts';
+import { decodedMessages } from '../shared/net/delta.ts';
 import { describe, expect, it, vi } from 'vitest';
 import type { WebSocket } from 'ws';
 import type { ServerMessage } from '../shared/protocol.ts';
@@ -27,10 +28,11 @@ import { KacJournal, type KacEvent } from './kac/journal.ts';
  */
 function fakeConn() {
   const sent: ServerMessage[] = [];
+  const dec = decodedMessages<ServerMessage>(); // remonta os snapshots delta, como o GameClient
   const ws = {
     readyState: 1,
     OPEN: 1,
-    send: (s: string) => sent.push(JSON.parse(s) as ServerMessage),
+    send: (s: string) => void ((m) => m && sent.push(m))(dec(JSON.parse(s) as ServerMessage)),
     close: vi.fn(),
   } as unknown as WebSocket;
   const conn = new Connection(ws);

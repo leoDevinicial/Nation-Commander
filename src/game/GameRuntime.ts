@@ -55,6 +55,7 @@ import { POWER, POWER_GEN, POWER_USE } from '../../shared/sim/power.ts';
 import { WeatherSystem } from './render/Weather.ts';
 import { CLIMATE_LABELS, dayLight, matchClimate } from '../../shared/sim/climate.ts';
 import { AirLayer, disposeAirModels, missilePoint } from './render/AirLayer.ts';
+import { SnapshotClock, lerpAngle } from './net/interp.ts';
 import { DomeLayer } from './render/DomeLayer.ts';
 import { AIRCRAFT, AIRLIFT, CRUISE, FLIGHT_SIGHT, NUCLEAR, launcherRange, missileSpec } from '../../shared/sim/air.ts';
 import { ERAS, type Era } from '../../shared/sim/eras.ts';
@@ -297,6 +298,8 @@ export class GameRuntime {
   private readonly tsunamis: { wave: TsunamiWave; field: Float32Array; land: number[]; next: number }[] = [];
   private snapshotAt = 0;
   private snapshotInterval = 100;
+  /** Relógio da interpolação (15/11): folga pela variação da rede e partida do ponto desenhado (`net/interp.ts`). */
+  private readonly clock = new SnapshotClock();
   private tickMs = 50;
   private paused = false;
   private pausedBy: string | null = null;
@@ -660,20 +663,22 @@ export class GameRuntime {
 
   private onSnapshot(msg: SnapshotMsg): void {
     const s = msg.s;
+    // fração do trecho desenhada neste instante: quem já existe parte daqui (não do destino anterior), sem salto
+    const a0 = this.clock.alpha(performance.now(), this.paused, this.speed);
     if ((s.trade || s.caravans) && this.hudActive) {
       if (s.trade) useHudStore.getState().set({ trade: s.trade });
       // caravanas internas usam o mesmo caminhão dos comboios rodoviários
       const caravans = (s.caravans ?? [])
         .filter((c) => c.state !== 'destroyed')
         .map((c) => ({ id: CARAVAN_ID_BASE + c.id, mode: 'caravan' as const, state: c.state === 'moving' ? ('moving' as const) : ('loading' as const), x: c.x, y: c.y, heading: c.heading, seller: c.owner, buyer: c.owner }));
-      this.cargo.update([...(s.trade?.shipments ?? []), ...caravans], this.cameraCtl.target, (slot) => s.players.find((p) => p.slot === slot)?.era ?? 1);
+      this.cargo.update(a0, [...(s.trade?.shipments ?? []), ...caravans], this.cameraCtl.target, (slot) => s.players.find((p) => p.slot === slot)?.era ?? 1);
       const mine = (s.caravans ?? []).filter((c) => c.owner === this.mySlot).map((c) => ({ cityId: c.cityId, state: c.state, to: c.to, income: c.income, waitSeconds: c.waitSeconds }));
       if (JSON.stringify(mine) !== JSON.stringify(useHudStore.getState().caravans)) useHudStore.getState().set({ caravans: mine });
     }
     if (s.air) {
       if (this.hudActive) useHudStore.getState().set({ air: s.air });
       this.airLayer.era = s.players.find((p) => p.slot === this.mySlot)?.era ?? 1;
-      this.airLayer.update(s.air, s.tick);
+      this.airLayer.update(s.air, s.tick, a0);
       this.syncDrones(s.air.drones ?? []);
       // sobrevoo: quando a formação entra no mapa (própria ou inimiga à vista) e de novo sempre que passa perto da
       // câmera; o bombardeiro tem o próprio ronco
@@ -724,6 +729,7 @@ export class GameRuntime {
     this.paused = msg.paused;
     this.pausedBy = msg.pausedBy;
     this.speed = msg.speed;
+    this.clock.arrive(this.snapshotAt, this.snapshotInterval, this.speed);
 
     const seen = new Set<number>();
     for (const u of s.units) {
@@ -739,10 +745,10 @@ export class GameRuntime {
         this.scene.add(visual.group);
         this.units.set(u.id, t);
       } else {
-        // interpola entre snapshots consecutivos (não a partir da posição renderizada),
-        // para que FPS baixo não acumule atraso visual
-        t.prev.copy(t.curr);
-        t.prevFacing = t.currFacing;
+        // parte de onde a tropa estava (fração a0 do trecho anterior, calculada pelo relógio no instante da chegada,
+        // não pela posição do último quadro, para FPS baixo não acumular atraso) e vai ao destino novo
+        t.prev.lerp(t.curr, a0);
+        t.prevFacing = lerpAngle(t.prevFacing, t.currFacing, a0);
         t.curr.set(u.x, u.y);
         t.currFacing = u.facing;
         t.snap = u;
@@ -1597,7 +1603,7 @@ export class GameRuntime {
       o.set((o.x - 0.94 * CLOUD_DRIFT * dt) % 1, (o.y - 0.34 * CLOUD_DRIFT * dt) % 1);
     }
 
-    const alpha = this.paused ? 1 : Math.min(1, (now - this.snapshotAt) / (this.snapshotInterval / this.speed));
+    const alpha = this.clock.alpha(now, this.paused, this.speed);
     // K-08: com o quadro pesado, tropas longe da câmera animam a cada 2 quadros (metade por vez)
     const farR = this.farAnimEvery > 1 ? Math.max(30, this.cameraCtl.distance * 0.8) : Infinity;
     const camT = this.cameraCtl.target;

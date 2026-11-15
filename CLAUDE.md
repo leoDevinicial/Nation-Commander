@@ -71,6 +71,10 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
   WebSocket, fila de saída limitada (só snapshot é descartável), snapshot extra no tick da ordem e painel de conexão.
   Várias regiões (KNPS-08): `KNPS_REGION*` no servidor e `VITE_GAME_SERVERS` no cliente; a letra da região abre o
   código da sala. Nada do KNPS muda regra ou velocidade para um jogador. Medir com `npx tsx scripts/knps-baseline.ts`.
+  Snapshots delta (`shared/net/delta.ts`, 15/11): o servidor manda só o que mudou e o `GameClient` remonta o snapshot
+  inteiro (campo novo no snapshot: nada a fazer, a não ser que seja "só quando muda" como território, aí vai em
+  `TRANSIENT`); sem compressão no WebSocket, o servidor comprime (`inflate` no hello). Interpolação em
+  `src/game/net/interp.ts`. Banda de partida pesada: `npx tsx scripts/knps-banda.ts`; ver `docs/knps/KNPS_DELTA_E_FLUIDEZ.md`.
 - Construtores (`BUILDERS`, `docs/CONSTRUTORES.md`): toda obra usa até 4 cidadãos (25% da velocidade cada; sem nenhum,
   para). Testes de regra antigos rodam sem eles (`shared/test/setup.ts`), como a rede elétrica.
 - Caixa do país (`shared/strategic/treasury.ts`, `docs/CAIXA_DO_PAIS.md`): o antigo "verba de obras" (`works.fundUsd`)

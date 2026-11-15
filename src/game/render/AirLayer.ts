@@ -634,7 +634,8 @@ export class AirLayer {
     p.tone = o.tone;
   }
 
-  update(air: AirView, tick?: number): void {
+  /** `a0`: fração do trecho já desenhada quando o snapshot chegou (o voo parte dali, sem salto; ver `net/interp.ts`). */
+  update(air: AirView, tick?: number, a0 = 1): void {
     if (tick !== undefined) this.noteServerTick(tick);
     this.updateDrones(air.drones ?? []);
     const seen = new Set<number>();
@@ -656,7 +657,7 @@ export class AirLayer {
         }
         this.flights.set(f.id, t);
       } else {
-        t.prev.copy(t.curr);
+        t.prev.lerp(t.curr, a0);
         t.curr.copy(p);
       }
       // aeronave perdida no caminho (ou troca de modelo): a formação é refeita
@@ -698,7 +699,7 @@ export class AirLayer {
         m = { group, glow, flame, prev: l.progress, curr: l.progress, snap: l, trailAcc: 0, lightAcc: 0, last: null, ...(booster ? { booster } : {}) };
         this.missiles.set(l.id, m);
       } else {
-        m.prev = m.snap.state === l.state ? m.curr : 0;
+        m.prev = m.snap.state === l.state ? Math.min(1, m.prev + (m.curr - m.prev) * a0) : 0;
         m.curr = l.progress;
         m.snap = l;
       }

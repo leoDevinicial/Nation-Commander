@@ -1,7 +1,11 @@
+import { deflateRawSync } from 'node:zlib';
 import type { WebSocket } from 'ws';
 import type { PublicUser, ServerMessage } from '../shared/protocol.ts';
 import { KNPS_SEND_QUEUE_LIMIT } from './knps/transport.ts';
 import { RttTracker } from './knps/region.ts';
+
+/** Mensagens a partir deste tamanho vão comprimidas pelo servidor quando o transporte não comprime. */
+export const APP_DEFLATE_MIN = 1024;
 
 /** Token bucket simples para limitar mensagens por conexão. */
 class RateLimiter {
@@ -33,15 +37,29 @@ export class Connection {
   violations = 0;
   /** KNPS: ping de rede medido pelo servidor (ping de protocolo do WebSocket). */
   readonly rtt = new RttTracker();
+  /**
+   * Compressão feita pelo próprio servidor (15/11): o navegador avisa no `hello` que o WebSocket chegou sem a
+   * compressão do transporte (algum proxy no caminho a tirou). Mensagens acima de `APP_DEFLATE_MIN` bytes vão
+   * comprimidas em binário (deflate-raw, nível 1, sem contexto: ~1/3 do tamanho dos snapshots delta).
+   */
+  appDeflate = false;
 
   constructor(readonly ws: WebSocket) {}
 
   send(msg: ServerMessage): void {
-    if (this.ws.readyState === this.ws.OPEN) this.ws.send(JSON.stringify(msg));
+    this.sendRaw(JSON.stringify(msg));
   }
 
   sendRaw(json: string): void {
-    if (this.ws.readyState === this.ws.OPEN) this.ws.send(json);
+    if (this.ws.readyState !== this.ws.OPEN) return;
+    if (this.appDeflate && json.length >= APP_DEFLATE_MIN) this.ws.send(deflateRawSync(json, { level: 1 }), { binary: true, compress: false });
+    else this.ws.send(json);
+  }
+
+  /** Como esta conexão está comprimida: pelo transporte (permessage-deflate), pelo servidor ou nada. */
+  get compression(): 'transporte' | 'servidor' | 'nenhuma' {
+    if (/permessage-deflate/.test(this.ws.extensions ?? '')) return 'transporte';
+    return this.appDeflate ? 'servidor' : 'nenhuma';
   }
 
   /** KNPS-02: a fila de saída desta conexão passou do limite (rede do jogador não está dando conta). */

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { decodedMessages } from '../shared/net/delta.ts';
 import { WebSocket, WebSocketServer } from 'ws';
 import type { AddressInfo } from 'node:net';
 import type { ServerMessage } from '../shared/protocol.ts';
@@ -76,7 +77,8 @@ describe('KNPS-01: compressão do transporte', () => {
 
 function room(): { conn: Connection; sent: ServerMessage[]; ws: { bufferedAmount: number }; room: Room; send: (raw: object) => Promise<void> } {
   const sent: ServerMessage[] = [];
-  const ws = { readyState: 1, OPEN: 1, bufferedAmount: 0, send: (s: string) => sent.push(JSON.parse(s) as ServerMessage), close: () => {} };
+  const dec = decodedMessages<ServerMessage>(); // remonta os snapshots delta, como o GameClient
+  const ws = { readyState: 1, OPEN: 1, bufferedAmount: 0, send: (s: string) => void ((m) => m && sent.push(m))(dec(JSON.parse(s) as ServerMessage)), close: () => {} };
   const conn = new Connection(ws as unknown as WebSocket);
   const rooms = new RoomManager({ reconnectGraceMs: 60_000, record: async () => true, autoLoop: false, seed: 3, now: () => 0 }, 10);
   const deps: HandlerDeps = { rooms, allowGuests: false, sessions: new Map(), network: new NetworkGuard(), verify: async (t) => ({ id: t, name: t }) };

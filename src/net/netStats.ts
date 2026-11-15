@@ -26,6 +26,8 @@ export interface NetSummary {
   gapP95: number | null;
   /** kbit/s recebidos (descomprimidos) nos últimos ~10 s. */
   kbps: number;
+  /** Quem comprime as mensagens desta conexão (15/11): o WebSocket, o servidor ou ninguém. */
+  compression: 'transporte' | 'servidor' | 'nenhuma' | '—';
   quality: 'boa' | 'instável' | 'ruim' | 'medindo';
   reasons: string[];
 }
@@ -43,6 +45,8 @@ export class NetStats {
   private pings: { at: number; answered: boolean }[] = [];
   private arrivals: number[] = [];
   private bytes: { at: number; n: number }[] = [];
+  /** Definido pelo GameClient ao abrir a conexão. */
+  compression: NetSummary['compression'] = '—';
 
   constructor(private readonly now: () => number = () => performance.now()) {}
 
@@ -86,6 +90,7 @@ export class NetStats {
     this.pings = [];
     this.arrivals = [];
     this.bytes = [];
+    this.compression = '—';
   }
 
   summary(): NetSummary {
@@ -113,6 +118,7 @@ export class NetStats {
       gapP50: pct(gaps, 0.5),
       gapP95: pct(gaps, 0.95),
       kbps,
+      compression: this.compression,
       quality: 'medindo',
       reasons: [],
     };

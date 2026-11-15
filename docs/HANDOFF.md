@@ -135,6 +135,12 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 
 ## 0.4 O que mudou desde 31/10 (mais recente primeiro; detalhes no `git log` e nas docs citadas)
 
+**15/11 — banda e engasgo (pedido do usuário depois de uma partida de ~3 GB no Render):** snapshots delta, compressão
+garantida mesmo sem permessage-deflate (o servidor de produção não negociou a extensão num teste) e interpolação que
+parte do ponto desenhado. Pior caso medido (500 tropas em marcha): 1,56 GB/h → 81–114 MB/h por jogador. Detalhes,
+números e por que o pacote do Grok não foi aplicado como veio: `docs/knps/KNPS_DELTA_E_FLUIDEZ.md`. Ainda a 10 Hz (5 Hz
+só depois de agendar os eventos pelo tick). Depois de publicar: conferir `compression` em `/health` com alguém jogando.
+
 **11/11 — tsunami e ogiva mais cara** (`docs/BONUS_PAISES_E_NUCLEAR.md`): ogiva nuclear na água levanta um tsunami
 (`shared/sim/tsunami.ts`, `render/TsunamiWave.ts`) que corre pela água, contorna ilhas, afunda/avaria navios de todos e
 invade 2 células de costa; ogiva custa 3× os recursos, US$ 100 mi e 180 s. Visual do anel não visto no navegador.

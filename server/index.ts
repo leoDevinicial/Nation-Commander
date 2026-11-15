@@ -145,6 +145,8 @@ const http = createServer((req, res) => {
         version: GAME_VERSION,
         ...rooms.stats(),
         players: deps.sessions.size,
+        // como as conexões abertas estão comprimidas (15/11): se "nenhuma" aparecer, o navegador não sabe descomprimir
+        compression: [...deps.sessions.values()].reduce((a, c) => ((a[c.compression] = (a[c.compression] ?? 0) + 1), a), {} as Record<string, number>),
         region: region.id || null,
         letter: region.letter || null,
         rttBuckets: regionTelemetry.summary(),
@@ -160,8 +162,9 @@ const wss = new WebSocketServer({
   // aceita /ws e também a raiz, para tolerar VITE_GAME_SERVER_URL sem o sufixo
   path: undefined,
   maxPayload: 16 * 1024,
-  // KNPS-01: snapshots comprimidos com contexto (~5% do tamanho); ver server/knps/transport.ts
-  perMessageDeflate: KNPS_DEFLATE,
+  // KNPS-01: snapshots comprimidos com contexto (~5% do tamanho); ver server/knps/transport.ts. KNPS_NO_DEFLATE=1 (só
+  // para teste) desliga, como um proxy que tira a extensão: o navegador pede a compressão pelo servidor (`inflate`)
+  perMessageDeflate: process.env.KNPS_NO_DEFLATE === '1' ? false : KNPS_DEFLATE,
   verifyClient: ({ origin }, done) => {
     if (isOriginAllowed(origin, config.allowedOrigins)) done(true);
     else {

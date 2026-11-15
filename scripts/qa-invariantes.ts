@@ -8,6 +8,7 @@
  *   npx tsx scripts/qa-invariantes.ts [seeds=1,2,3] [minutos=30] [nações=4] [mapa=random] [dificuldade=normal]
  */
 import type { WebSocket } from 'ws';
+import { decodedMessages } from '../shared/net/delta.ts';
 import { Connection } from '../server/Connection.ts';
 import { handleMessage, type HandlerDeps } from '../server/handler.ts';
 import { NetworkGuard } from '../server/kac/network.ts';
@@ -55,7 +56,8 @@ function checkSnapshot(seed: number, msg: Extract<ServerMessage, { t: 'snapshot'
 
 async function run(seed: number): Promise<void> {
   const sent: ServerMessage[] = [];
-  const ws = { readyState: 1, OPEN: 1, bufferedAmount: 0, send: (s: string) => sent.push(JSON.parse(s) as ServerMessage), close: () => {} };
+  const dec = decodedMessages<ServerMessage>(); // remonta os snapshots delta, como o GameClient
+  const ws = { readyState: 1, OPEN: 1, bufferedAmount: 0, send: (s: string) => void ((m) => m && sent.push(m))(dec(JSON.parse(s) as ServerMessage)), close: () => {} };
   const conn = new Connection(ws as unknown as WebSocket);
   const rooms = new RoomManager({ reconnectGraceMs: 600_000, record: async () => true, autoLoop: false, seed, now: () => 0 }, 10);
   const deps: HandlerDeps = { rooms, allowGuests: false, sessions: new Map(), network: new NetworkGuard(), verify: async (t) => ({ id: t, name: t, subscriber: true }) };

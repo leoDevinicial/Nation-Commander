@@ -28,7 +28,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       const token = typeof data.token === 'string' && data.token.length < 4096 ? data.token : null;
       const guestId = typeof data.guestId === 'string' && GUEST_ID.test(data.guestId) ? data.guestId : undefined;
       const guestName = typeof data.guestName === 'string' ? sanitizeName(data.guestName) : undefined;
-      return { t: 'hello', protocol: data.protocol, token, guestId, guestName };
+      return { t: 'hello', protocol: data.protocol, token, guestId, guestName, ...(data.inflate === true ? { inflate: true as const } : {}) };
     }
     case 'create_room':
       if ((data.mode !== 'pvp' && data.mode !== 'vs_ai' && data.mode !== 'sandbox' && data.mode !== 'tutorial') || !isCountryId(data.countryId)) return null;

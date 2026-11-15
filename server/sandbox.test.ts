@@ -1,4 +1,5 @@
 import { NetworkGuard } from './kac/network.ts';
+import { decodedMessages } from '../shared/net/delta.ts';
 import { describe, expect, it, vi } from 'vitest';
 import type { WebSocket } from 'ws';
 import type { ServerMessage } from '../shared/protocol.ts';
@@ -15,7 +16,8 @@ import type { MatchRecord } from './supabase.ts';
 
 function fakeConn() {
   const sent: ServerMessage[] = [];
-  const ws = { readyState: 1, OPEN: 1, send: (s: string) => sent.push(JSON.parse(s) as ServerMessage), close: vi.fn() } as unknown as WebSocket;
+  const dec = decodedMessages<ServerMessage>(); // remonta os snapshots delta, como o GameClient
+  const ws = { readyState: 1, OPEN: 1, send: (s: string) => void ((m) => m && sent.push(m))(dec(JSON.parse(s) as ServerMessage)), close: vi.fn() } as unknown as WebSocket;
   return { conn: new Connection(ws), sent, last: <T extends ServerMessage['t']>(t: T) => sent.filter((m) => m.t === t).at(-1) as Extract<ServerMessage, { t: T }> | undefined };
 }
 

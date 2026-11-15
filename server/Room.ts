@@ -19,7 +19,8 @@ import type { Command } from '../shared/sim/commands.ts';
 import { BUILDINGS, TICK_RATE, Terrain, UNITS } from '../shared/sim/config.ts';
 import { MAP_TYPE_INFO, MAP_TYPES, MAX_NATIONS_FREE, MAX_NATIONS_SUBSCRIBER, generateMatchMap, type MapType } from '../shared/sim/matchMap.ts';
 import { Simulation } from '../shared/sim/Simulation.ts';
-import { FogMemory, makeSnapshot } from '../shared/sim/snapshot.ts';
+import { FogMemory, makeSnapshot, type Snapshot } from '../shared/sim/snapshot.ts';
+import { SnapshotDeltaEncoder } from '../shared/net/delta.ts';
 import { REPORT_EVERY_TICKS, medalsFor, pushSample, reportSample, type MatchReport, type ReportSample } from '../shared/sim/report.ts';
 import { AI_THINK_TICKS, AI_HARASS_SECONDS, TacticalAI, type TacticalAISave } from '../shared/sim/TacticalAI.ts';
 import { DIFFICULTY, type Difficulty } from '../shared/sim/difficulty.ts';
@@ -132,6 +133,8 @@ export class Room {
   private reportSamples: ReportSample[] = [];
   private bestRank = new Map<Slot, number>();
   private fogMemory = new Map<Slot, FogMemory>();
+  /** Snapshots delta (15/11): último estado enviado a cada jogador (`shared/net/delta.ts`). */
+  private deltas = new Map<Slot, SnapshotDeltaEncoder>();
   /** Última versão de território enviada a cada jogador (o mapa só vai quando muda). */
   private territorySent = new Map<Slot, number>();
 
@@ -722,6 +725,7 @@ export class Room {
   }
 
   private sendMatchStart(p: RoomPlayer): void {
+    this.deltas.get(p.slot)?.reset();
     const sim = this.sim!;
     const match: MatchStartInfo = {
       seed: this.seed,
@@ -1252,6 +1256,7 @@ export class Room {
       this.system(`${p.name} reconectou.`);
       this.broadcastRoom();
       this.territorySent.delete(p.slot); // reconexão: reenvia as fronteiras
+      this.deltas.get(p.slot)?.reset(); // conexão nova: o primeiro snapshot vai completo
       conn.sendRaw(this.snapshotJson([], p.slot));
       if (this.national) conn.send(this.nationalMessage(p.slot, [], true));
       if (this.tutorial && p.slot === this.tutorial.human) this.tutorial.publish(true);
@@ -1448,15 +1453,26 @@ export class Room {
   /**
    * Snapshot com névoa de guerra para um jogador. Ao fim da partida o mapa é revelado (sem filtro).
    */
-  private snapshotJson(events: SimEvent[], slot: Slot): string {
+  private snapshotJson(events: SimEvent[], slot: Slot, send = true): string {
     const sim = this.sim!;
     let memory = this.fogMemory.get(slot);
     if (!memory) this.fogMemory.set(slot, (memory = new FogMemory()));
+    // snapshot que não vai sair (jogador desconectado ou fila cheia): só atualiza a memória da névoa
+    if (!send) {
+      if (!sim.ended) makeSnapshot(sim, events, { slot, memory }, false);
+      return '';
+    }
     const withTerritory = this.territorySent.get(slot) !== sim.territoryVersion;
     this.territorySent.set(slot, sim.territoryVersion);
+    const full = sim.ended ? makeSnapshot(sim, events, undefined, withTerritory) : makeSnapshot(sim, events, { slot, memory }, withTerritory);
+    let enc = this.deltas.get(slot);
+    if (!enc) this.deltas.set(slot, (enc = new SnapshotDeltaEncoder()));
+    // fim da partida: mapa revelado, vai completo; no resto, só a diferença sobre o último enviado
+    if (sim.ended) enc.reset();
     return JSON.stringify({
       t: 'snapshot',
-      s: sim.ended ? makeSnapshot(sim, events, undefined, withTerritory) : makeSnapshot(sim, events, { slot, memory }, withTerritory),
+      // o cliente (GameClient) remonta o snapshot completo antes de entregar ao jogo
+      s: (sim.ended ? full : enc.encode(full)) as Snapshot,
       paused: this.paused,
       speed: this.speed,
       pausedBy: this.pausedBy,
@@ -1471,10 +1487,11 @@ export class Room {
       if (p.isAI) continue;
       const carried = this.carryEvents.get(p.slot);
       const mine = carried ? carried.concat(events) : events;
-      const json = this.snapshotJson(mine, p.slot);
       // KNPS-02: conexão com a fila de saída cheia: este snapshot não entra na fila (o próximo traz o estado inteiro);
       // os eventos dele ficam guardados para o próximo e o território é mandado de novo
-      if (p.conn && !this.sim.ended && p.conn.congested()) {
+      const congested = !!p.conn && !this.sim.ended && p.conn.congested();
+      const json = this.snapshotJson(mine, p.slot, !!p.conn && !congested);
+      if (congested) {
         this.carryEvents.set(p.slot, mine.length > 4000 ? mine.slice(-4000) : mine);
         this.territorySent.delete(p.slot);
         this.knps.skipped++;

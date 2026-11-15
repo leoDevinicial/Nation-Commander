@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { ShipmentView } from '../../../shared/sim/snapshot.ts';
 import { accentMaterial, bodyMaterial, glassMaterial } from './materials.ts';
+import { lerpAngle } from '../net/interp.ts';
 import type { ModelLayers } from './models/kit.ts';
 import { cargoVehicle } from './models/logistics.ts';
 import { aircraftModel } from './models/military.ts';
@@ -49,7 +50,8 @@ export class CargoLayer {
   private routeLine: THREE.Line | null = null;
   private routeFor: number | null = null;
 
-  update(shipments: CargoItem[], camTarget: THREE.Vector3, eraOf: (slot: number) => number = () => 1): void {
+  /** `a0`: fração do trecho já desenhada quando o snapshot chegou (a carga parte dali, sem salto). */
+  update(a0: number, shipments: CargoItem[], camTarget: THREE.Vector3, eraOf: (slot: number) => number = () => 1): void {
     const onMap = shipments.filter((s) => s.state === 'moving' || s.state === 'loading' || s.state === 'waiting_capacity');
     onMap.sort((a, b) => Math.hypot(a.x - camTarget.x, a.y - camTarget.z) - Math.hypot(b.x - camTarget.x, b.y - camTarget.z));
     const shown = new Set(onMap.slice(0, MAX_VEHICLES).map((s) => s.id));
@@ -75,9 +77,9 @@ export class CargoLayer {
         t = { group, prev: p.clone(), curr: p.clone(), prevHeading: s.heading, currHeading: s.heading, mode: s.mode, bob: Math.random() * 6 };
         this.tracked.set(s.id, t);
       } else {
-        t.prev.copy(t.curr);
+        t.prev.lerp(t.curr, a0);
         t.curr.copy(p);
-        t.prevHeading = t.currHeading;
+        t.prevHeading = lerpAngle(t.prevHeading, t.currHeading, a0);
         t.currHeading = s.heading;
       }
     }
