@@ -1111,3 +1111,9 @@ input[type="range"], input[type="checkbox"], input[type="radio"] { accent-color:
   .lobby .lb-act { padding-top: 4px; padding-bottom: 4px; }
   .lobby .btn-hero { min-height: 36px; font-size: 14px; }
 }
+
+/* menu inicial (16/11): os dois botões grandes do herói */
+.menu .menu-cta { min-height: 56px; padding: 0 28px; font-size: 18px; letter-spacing: 0.08em; }
+@media (max-height: 520px) {
+  .menu .menu-cta { min-height: 40px; padding: 0 16px; font-size: 14px; }
+}

@@ -109,7 +109,7 @@ Fontes: `fonte/lobby.tpl.html`; `node fonte/lobby-build.cjs` monta `lobby.html` 
 `lucide-static`, instalado com `npm i --no-save lucide-static` na raiz) e `node fonte/shot.cjs` tira as imagens.
 Os números das vagas (PIB, defesa) são ilustrativos.
 
-## Menu inicial — proposta de redesign (16/11, ainda não está no jogo)
+## Menu inicial — redesign (16/11, aplicado em `src/ui/screens/MenuScreen.tsx`)
 
 - `9-menu-computador.jpg` — o globo do menu como cenário da tela inteira, título grande ("Comande uma nação") com o
   título oficial do jogo no rótulo, uma ação principal ("Jogar contra a IA") e Multijogador ao lado; "Continuar partida"
@@ -121,3 +121,7 @@ Os números das vagas (PIB, defesa) são ilustrativos.
 
 Fontes: `fonte/menu.tpl.html` (base visual em `fonte/base-maquete.css`, a mesma do lobby) e `fonte/menu-globo.jpg`
 (recorte do globo do menu de hoje). `node fonte/lobby-build.cjs` monta `menu.html` e `menu-celular.html`.
+
+No jogo: o globo de fundo é o `GlobeBackdrop` "hero"; "Continuar partida" ficou de fora (o jogo ainda não guarda
+partida para retomar pelo menu). No celular em pé os atalhos descem para uma segunda linha inteira e o idioma mostra só
+a sigla; deitado (altura até 520 px) somem o texto de apoio, a descrição dos cartões e o subtítulo do perfil.
