@@ -1,0 +1,30 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Lobby — antes e depois</title>
+<style>
+@font-face { font-family: 'BSC'; font-weight: 600; src: url(../../../node_modules/@fontsource/barlow-semi-condensed/files/barlow-semi-condensed-latin-600-normal.woff2); }
+@font-face { font-family: 'BC'; font-weight: 700; src: url(../../../node_modules/@fontsource/barlow-condensed/files/barlow-condensed-latin-700-normal.woff2); }
+* { margin: 0; box-sizing: border-box; } body { background: #05070a; color: #eef1f4; font-family: 'BSC', sans-serif; padding: 28px; width: 1760px; }
+h1 { font: 700 30px 'BC', sans-serif; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 18px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.col h2 { font: 700 18px 'BC', sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #e2b54d; margin-bottom: 10px; }
+.col.old h2 { color: #7d8996; }
+img { width: 100%; display: block; border: 1px solid rgba(200,212,226,.18); }
+ul { margin-top: 12px; padding-left: 18px; font-size: 15px; line-height: 1.5; color: #c9d1da; }
+li b { color: #eef1f4; }
+</style></head><body>
+<h1>Lobby — antes e depois (mesma tela de 1600 × 900)</h1>
+<div class="grid">
+  <div class="col old"><h2>Hoje</h2><img src="lobby-antes.png">
+    <ul>
+      <li>A página tem <b>2.467 px</b> de altura: mapa, regra, dificuldade, fichas dos países e o botão <b>Iniciar</b> ficam lá embaixo, depois de rolar.</li>
+      <li>Cada vaga ocupa ~110 px; o canal ocupa uma coluna quase vazia.</li>
+      <li>Não dá para ver de relance quem falta ficar pronto nem o que foi escolhido.</li>
+    </ul></div>
+  <div class="col"><h2>Proposta</h2><img src="lobby-novo.png">
+    <ul>
+      <li><b>Tudo numa tela, sem rolar:</b> nações, operação e canal lado a lado; código da sala em destaque no topo, com "Copiar" e "Pública".</li>
+      <li><b>Barra de ação fixa embaixo:</b> quem está pronto (faixas na cor de cada nação), o que falta ("Aguardando Ana_Strat"), o resumo da operação e o <b>Iniciar</b>.</li>
+      <li><b>Vagas compactas:</b> país, time, ping e estado na mesma linha; a ficha do país vira uma linha (PIB, defesa, região), e a completa abre ao tocar.</li>
+      <li><b>Operação enxuta:</b> mapa em ícones (a descrição só do escolhido), regra e dificuldade em botões lado a lado.</li>
+    </ul></div>
+</div>
+</body></html>

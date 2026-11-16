@@ -91,3 +91,20 @@ node shot.cjs hud.html ../1-tela-computador.png 1600 900 2
    aliança, sanções, missão, ajuda, guerra) — valem também na aba Diplomacia do painel nacional.
 11. Restam de propósito: setas de tendência (▲▼) nos números do painel nacional, `producibleIcon` (só aparece sem
    miniatura) e símbolos matemáticos em textos (√, ≈, →).
+
+## Lobby — proposta de redesign (16/11, ainda não está no jogo)
+
+Pedido do responsável depois de uma proposta de menu/lobby feita com o Grok; esta segue a identidade aprovada em 05/11
+(mesma moldura, latão, cor da nação e fontes), não a paleta nova daquela proposta.
+
+- `6-lobby-computador.jpg` — sala multijogador de 4 nações (2 humanos + 2 bots) em 1600 × 900: tudo numa tela, sem
+  rolar. Cabeçalho com o nome da sala e o código em destaque ("Copiar", "Pública", vagas e servidor); três colunas
+  (Nações, Operação, Canal da sala); barra de ação fixa com quem está pronto (faixas na cor de cada nação), o que falta,
+  o resumo da operação, "Sair" e "Iniciar operação".
+- `7-lobby-celular.jpg` — celular em paisagem: abas Nações / Operação / Canal (com contador de mensagens), a lista rola
+  dentro do painel e a barra de ação continua fixa.
+- `8-lobby-antes-e-depois.jpg` — o lobby de hoje (2.467 px de altura, o Iniciar fica depois de rolar) × a proposta.
+
+Fontes: `fonte/lobby.tpl.html`; `node fonte/lobby-build.cjs` monta `lobby.html` e `lobby-celular.html` (ícones de
+`lucide-static`, instalado com `npm i --no-save lucide-static` na raiz) e `node fonte/shot.cjs` tira as imagens.
+Os números das vagas (PIB, defesa) são ilustrativos.

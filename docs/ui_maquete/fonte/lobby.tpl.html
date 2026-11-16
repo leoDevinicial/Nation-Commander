@@ -1,0 +1,295 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Lobby — maquete</title>
+<style>
+@font-face { font-family: 'BSC'; font-weight: 400; src: url(../../../node_modules/@fontsource/barlow-semi-condensed/files/barlow-semi-condensed-latin-400-normal.woff2); }
+@font-face { font-family: 'BSC'; font-weight: 500; src: url(../../../node_modules/@fontsource/barlow-semi-condensed/files/barlow-semi-condensed-latin-500-normal.woff2); }
+@font-face { font-family: 'BSC'; font-weight: 600; src: url(../../../node_modules/@fontsource/barlow-semi-condensed/files/barlow-semi-condensed-latin-600-normal.woff2); }
+@font-face { font-family: 'BSC'; font-weight: 700; src: url(../../../node_modules/@fontsource/barlow-semi-condensed/files/barlow-semi-condensed-latin-700-normal.woff2); }
+@font-face { font-family: 'BC'; font-weight: 600; src: url(../../../node_modules/@fontsource/barlow-condensed/files/barlow-condensed-latin-600-normal.woff2); }
+@font-face { font-family: 'BC'; font-weight: 700; src: url(../../../node_modules/@fontsource/barlow-condensed/files/barlow-condensed-latin-700-normal.woff2); }
+@font-face { font-family: 'JBM'; font-weight: 500; src: url(../../../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff2); }
+@font-face { font-family: 'JBM'; font-weight: 700; src: url(../../../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-700-normal.woff2); }
+:root {
+  --panel: rgba(10, 14, 20, 0.86); --panel-2: rgba(18, 24, 33, 0.92); --line: rgba(200, 212, 226, 0.12); --line-2: rgba(200, 212, 226, 0.22);
+  --ink-100: #eef1f4; --ink-200: #c9d1da; --ink-300: #a3aeba; --ink-400: #7d8996; --ink-500: #5d6875; --ink-600: #3a4554;
+  --brass: #e2b54d; --brass-2: #b88d2c; --brass-glow: rgba(226, 181, 77, 0.35);
+  --ok: #5cc47a; --bad: #e85c4e; --warn: #e6a53c;
+  --cut: 12px; --font: 'BSC', system-ui, sans-serif; --title: 'BC', 'BSC', sans-serif; --mono: 'JBM', ui-monospace, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body { font-family: var(--font); color: var(--ink-100); -webkit-font-smoothing: antialiased;
+  background: radial-gradient(ellipse at 70% 20%, #101a28 0%, #070a0f 55%, #040507 100%); }
+body::before { content: ''; position: fixed; inset: 0; opacity: .5;
+  background-image: linear-gradient(rgba(200,212,226,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(200,212,226,.035) 1px, transparent 1px); background-size: 48px 48px; }
+svg.i { width: 16px; height: 16px; stroke-width: 1.8; flex: none; }
+
+.frame { position: relative; padding: 1px; background: linear-gradient(160deg, var(--line-2), var(--line) 40%, rgba(226,181,77,0.28));
+  clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut)); }
+.frame > .in { position: relative; height: 100%; background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  clip-path: polygon(calc(var(--cut) - 0.5px) 0, 100% 0, 100% calc(100% - var(--cut) + 0.5px), calc(100% - var(--cut) + 0.5px) 100%, 0 100%, 0 calc(var(--cut) - 0.5px)); }
+.brk { position: absolute; width: 9px; height: 9px; border-color: var(--brass); border-style: solid; opacity: 0.9; z-index: 3; }
+.brk.tr { top: 3px; right: 3px; border-width: 1.5px 1.5px 0 0; } .brk.bl { bottom: 3px; left: 3px; border-width: 0 0 1.5px 1.5px; }
+.kicker { font: 600 10.5px/1 var(--font); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-400); display: flex; align-items: center; gap: 7px; }
+.kicker::before { content: ''; width: 10px; height: 2px; background: var(--brass); }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.title { font: 700 26px/1 var(--title); letter-spacing: .06em; text-transform: uppercase; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; min-width: 32px; padding: 0 10px; color: var(--ink-200);
+  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01)); border: 1px solid var(--line); border-radius: 3px; font: 600 13px var(--font); white-space: nowrap; }
+.btn.primary { height: 44px; padding: 0 22px; font: 700 16px var(--title); letter-spacing: .1em; text-transform: uppercase; color: #17130a;
+  background: linear-gradient(180deg, #f0c766, var(--brass)); border-color: #f5d68a; box-shadow: 0 0 18px var(--brass-glow); }
+.btn.primary.wait { color: var(--ink-300); background: rgba(226,181,77,.08); border-color: rgba(226,181,77,.35); box-shadow: none; }
+.btn.ghost-bad { color: #f0a49b; border-color: rgba(232,92,78,.35); }
+.btn svg.i { width: 15px; height: 15px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+.seg .btn { border: 0; border-radius: 0; border-right: 1px solid var(--line); height: 28px; min-width: 32px; font-size: 12.5px; background: transparent; }
+.seg .btn:last-child { border-right: 0; }
+.seg .btn.on { color: #17130a; background: linear-gradient(180deg, #f0c766, var(--brass)); }
+.seg .btn.off { opacity: .35; }
+.field { height: 30px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 9px; border: 1px solid var(--line-2); border-radius: 3px;
+  background: rgba(4,6,9,.6); font: 500 13.5px var(--font); color: var(--ink-100); }
+.field svg.i { width: 14px; height: 14px; color: var(--ink-400); }
+.chip { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 7px; border: 1px solid var(--line-2); border-radius: 3px; font: 600 11.5px var(--font); color: var(--ink-300); white-space: nowrap; }
+.chip svg.i { width: 13px; height: 13px; }
+.chip.host { color: var(--brass); border-color: rgba(226,181,77,.5); }
+.chip.ok { color: var(--ok); border-color: rgba(92,196,122,.5); }
+.chip.wait { color: var(--warn); border-color: rgba(230,165,60,.45); }
+.chip.team { font-family: var(--mono); font-size: 11px; }
+
+/* ---------- página ---------- */
+.page { position: relative; height: 100%; display: grid; grid-template-rows: auto 1fr auto; gap: 12px; padding: 18px 22px; max-width: 1600px; margin: 0 auto; }
+
+/* cabeçalho: nome da sala, código em destaque, resumo */
+.head .in { display: flex; align-items: center; gap: 22px; padding: 12px 18px 12px 20px; }
+.head .name { min-width: 0; }
+.head .name .row { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+.head .name .row svg.i { color: var(--ink-400); width: 15px; height: 15px; }
+.code { display: flex; align-items: center; gap: 14px; padding: 6px 8px 6px 16px; margin-left: auto; border: 1px solid rgba(226,181,77,.35); background: rgba(226,181,77,.05);
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
+.code .v { font: 700 30px/1 var(--mono); letter-spacing: .32em; color: var(--brass); text-shadow: 0 0 14px var(--brass-glow); }
+.code .k { font: 600 10px/1.3 var(--font); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-400); }
+.switch { display: inline-flex; align-items: center; gap: 8px; font: 600 12.5px var(--font); color: var(--ink-200); }
+.switch i { width: 30px; height: 16px; border-radius: 9px; background: rgba(255,255,255,.08); border: 1px solid var(--line-2); position: relative; }
+.switch i::after { content: ''; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: var(--ink-400); }
+.switch.on i { background: rgba(226,181,77,.25); border-color: rgba(226,181,77,.6); } .switch.on i::after { left: 16px; background: var(--brass); }
+.facts { display: grid; grid-template-columns: auto auto; gap: 5px 16px; font: 500 12.5px var(--font); color: var(--ink-300); }
+.facts b { font: 500 12.5px var(--mono); color: var(--ink-100); }
+.facts svg.i { width: 13px; height: 13px; vertical-align: -2px; margin-right: 4px; color: var(--ink-400); }
+
+/* corpo em três colunas */
+.body { display: grid; grid-template-columns: 1.45fr 1fr 0.72fr; gap: 12px; min-height: 0; }
+.body > .col { min-height: 0; } .col .in { overflow: hidden auto; }
+.col .in { display: flex; flex-direction: column; padding: 14px 16px; gap: 10px; }
+.colhead { display: flex; align-items: center; gap: 10px; }
+.colhead .note { margin-left: auto; font: 500 11.5px var(--font); color: var(--ink-400); display: flex; align-items: center; gap: 8px; }
+
+/* vagas */
+.seat { position: relative; display: grid; grid-template-columns: 52px 1fr auto; gap: 12px; align-items: center; padding: 10px 12px 10px 16px;
+  background: rgba(4,6,9,.45); border: 1px solid var(--line); clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%, 0 8px); }
+.seat::before { content: ''; position: absolute; left: 0; top: 7px; bottom: 0; width: 3px; background: var(--c); box-shadow: 0 0 10px var(--c); }
+.seat.me { border-color: rgba(226,181,77,.3); background: linear-gradient(90deg, rgba(226,181,77,.06), rgba(4,6,9,.45) 40%); }
+.badge { width: 52px; height: 36px; display: grid; place-items: center; font: 700 15px var(--title); letter-spacing: .08em; color: #fff; background: var(--c);
+  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px); box-shadow: inset 0 -10px 14px rgba(0,0,0,.25); }
+.who { min-width: 0; }
+.who .l1 { display: flex; align-items: center; gap: 8px; font: 700 15px var(--font); }
+.who .l1 .ai { font: 600 11px var(--font); color: var(--ink-400); letter-spacing: .06em; }
+.ping { display: inline-flex; align-items: center; gap: 3px; font: 500 11px var(--mono); color: var(--ok); }
+.ping svg.i { width: 13px; height: 13px; } .ping.mid { color: var(--brass); }
+.who .l2 { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.who .l2 .field { width: 210px; }
+.who .intel { margin-top: 6px; font: 500 11.5px var(--font); color: var(--ink-400); display: flex; gap: 10px; flex-wrap: wrap; }
+.who .intel b { font: 500 11.5px var(--mono); color: var(--ink-200); margin-left: 4px; }
+.side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.side .r { display: flex; gap: 6px; align-items: center; }
+.x { width: 22px; height: 22px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 3px; color: var(--ink-400); }
+.x svg.i { width: 13px; height: 13px; }
+.seat.empty { grid-template-columns: 52px 1fr auto; border-style: dashed; border-color: var(--line-2); background: transparent; }
+.seat.empty::before { background: var(--ink-600); box-shadow: none; }
+.seat.empty .badge { background: transparent; border: 1px dashed var(--ink-600); color: var(--ink-500); clip-path: none; box-shadow: none; }
+
+/* operação */
+.opsec { display: flex; flex-direction: column; gap: 7px; }
+.opsec + .opsec { border-top: 1px solid var(--line); padding-top: 11px; }
+.maps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.tile { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 9px 4px 8px; border: 1px solid var(--line); border-radius: 3px; background: rgba(4,6,9,.4);
+  font: 600 11.5px var(--font); color: var(--ink-300); text-align: center; position: relative; }
+.tile svg.i { width: 20px; height: 20px; color: var(--ink-400); }
+.tile.on { border-color: var(--brass); background: rgba(226,181,77,.08); color: var(--brass); }
+.tile.on svg.i { color: var(--brass); }
+.desc { font: 500 12px/1.35 var(--font); color: var(--ink-400); }
+.desc b { color: var(--ink-200); font-weight: 600; }
+.opts { display: grid; gap: 6px; }
+.opts.two { grid-template-columns: 1fr 1fr; } .opts.four { grid-template-columns: repeat(4, 1fr); }
+.opt { display: flex; align-items: center; gap: 7px; padding: 8px 9px; border: 1px solid var(--line); border-radius: 3px; background: rgba(4,6,9,.4); font: 600 12.5px var(--font); color: var(--ink-200); }
+.opt svg.i { color: var(--ink-400); }
+.opt.on { border-color: var(--brass); background: rgba(226,181,77,.08); color: var(--brass); } .opt.on svg.i { color: var(--brass); }
+.lockline { margin-top: auto; display: flex; align-items: center; gap: 6px; font: 500 11.5px var(--font); color: var(--ink-400); }
+.lockline svg.i { width: 13px; height: 13px; }
+
+/* canal */
+.chat { flex: 1; display: flex; flex-direction: column; gap: 9px; overflow: hidden; font: 500 13px/1.35 var(--font); }
+.msg .n { font-weight: 700; color: var(--c, var(--ink-100)); margin-right: 5px; }
+.msg .t { color: var(--ink-200); }
+.msg.sys { color: var(--ink-400); font-size: 12px; display: flex; gap: 6px; align-items: center; }
+.msg.sys svg.i { width: 13px; height: 13px; color: var(--ink-500); }
+.say { display: flex; gap: 6px; } .say .field { flex: 1; color: var(--ink-500); }
+
+/* barra de ação */
+.act .in { display: flex; align-items: center; gap: 20px; padding: 11px 16px 11px 20px; }
+.readiness { display: flex; align-items: center; gap: 12px; }
+.pips { display: flex; gap: 4px; } .pips i { width: 26px; height: 6px; background: var(--c); opacity: .95; } .pips i.no { background: transparent; border: 1px solid var(--warn); }
+.readiness .t { font: 600 14px var(--font); } .readiness .s { font: 500 12px var(--font); color: var(--warn); margin-top: 3px; display: flex; gap: 5px; align-items: center; }
+.readiness .s svg.i { width: 13px; height: 13px; }
+.summary { display: flex; gap: 8px; margin-left: 10px; }
+.act .right { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+
+/* ---------- celular (paisagem) ---------- */
+body.cel .page { padding: 8px 10px; gap: 7px; }
+body.cel .head .in { padding: 7px 12px; gap: 12px; }
+body.cel .title { font-size: 19px; }
+body.cel .head .name .kicker, body.cel .head .name .row svg.i, body.cel .facts, body.cel .lockline { display: none; }
+body.cel .head .name .row { margin-top: 0; } body.cel .title { max-width: 210px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+body.cel .code { padding: 4px 6px 4px 10px; gap: 8px; } body.cel .code .v { font-size: 21px; } body.cel .code .k { display: none; }
+body.cel .tabs { display: flex; }
+body.cel .body { grid-template-columns: 1fr; }
+body.cel .body > .col:not(.c1) { display: none; }
+body.cel .col .in { padding: 8px 10px; gap: 6px; }
+body.cel .colhead { display: none; }
+body.cel .seat { padding: 6px 10px 6px 14px; grid-template-columns: 44px 1fr auto; }
+body.cel .badge { width: 44px; height: 30px; font-size: 13px; }
+body.cel .who .intel { display: none; } body.cel .who .l2 { margin-top: 4px; } body.cel .who .l2 .field { height: 28px; width: 170px; }
+body.cel .side { flex-direction: row; align-items: center; }
+body.cel .act .in { padding: 6px 10px 6px 12px; gap: 10px; }
+body.cel .summary, body.cel .readiness .s { display: none; }
+body.cel .btn.primary { height: 38px; font-size: 14px; padding: 0 16px; }
+.tabs { display: none; gap: 2px; margin-left: 4px; }
+.tabs .t { display: flex; align-items: center; gap: 5px; height: 30px; padding: 0 10px; font: 600 12.5px var(--font); color: var(--ink-400); border-bottom: 2px solid transparent; }
+.tabs .t.on { color: var(--ink-100); border-bottom-color: var(--brass); }
+.tabs .t .badge2 { min-width: 16px; height: 16px; border-radius: 8px; background: var(--brass); color: #17130a; font: 700 10px/16px var(--mono); text-align: center; }
+</style></head>
+<body class="{{BODY}}">
+<div class="page">
+
+  <!-- cabeçalho -->
+  <div class="frame head"><i class="brk tr"></i><i class="brk bl"></i><div class="in">
+    <div class="name">
+      <div class="kicker">Sala de Situação · Multijogador</div>
+      <div class="row"><span class="title">Guerra Fria — só veteranos</span>{{i:pencil}}</div>
+    </div>
+    <div class="tabs">
+      <span class="t on">{{i:users}} Nações</span>
+      <span class="t">{{i:map}} Operação</span>
+      <span class="t">{{i:message-square}} Canal <span class="badge2">2</span></span>
+    </div>
+    <div class="code">
+      <div><div class="k">Código</div><div class="k">da sala</div></div>
+      <span class="v">XYWYD</span>
+      <span class="btn">{{i:copy}} Copiar</span>
+    </div>
+    <span class="switch on"><i></i>Pública</span>
+    <div class="facts">
+      <span>{{i:users}}Vagas</span><b>4 / 4</b>
+      <span>{{i:server}}Servidor</span><b>Virgínia · 38 ms</b>
+    </div>
+  </div></div>
+
+  <!-- corpo -->
+  <div class="body">
+    <!-- nações -->
+    <div class="frame col c1"><i class="brk tr"></i><i class="brk bl"></i><div class="in">
+      <div class="colhead"><span class="kicker">Nações</span>
+        <span class="note">Vagas <span class="seg"><span class="btn off">2</span><span class="btn off">3</span><span class="btn on">4</span></span></span>
+      </div>
+
+      <div class="seat me" style="--c:#3d8fd6">
+        <span class="badge">BRA</span>
+        <div class="who">
+          <div class="l1">Comandante <span class="ping">{{i:signal-high}}38 ms</span></div>
+          <div class="l2"><span class="field">Brasil {{i:chevron-down}}</span><span class="chip team">Time A</span></div>
+          <div class="intel"><span>PIB <b>US$ 2,2 tri</b></span><span>Defesa <b>1,1%</b></span><span>Região <b>Florestal</b></span></div>
+        </div>
+        <div class="side"><span class="chip host">{{i:crown}} Anfitrião</span></div>
+      </div>
+
+      <div class="seat" style="--c:#d6503f">
+        <span class="badge">ARG</span>
+        <div class="who">
+          <div class="l1">Ana_Strat <span class="ping mid">{{i:signal-medium}}164 ms</span></div>
+          <div class="l2"><span class="field">Argentina {{i:chevron-down}}</span><span class="chip team">Time B</span></div>
+          <div class="intel"><span>PIB <b>US$ 0,6 tri</b></span><span>Defesa <b>0,5%</b></span><span>Região <b>Planície</b></span></div>
+        </div>
+        <div class="side"><span class="chip wait">{{i:hourglass}} Escolhendo…</span></div>
+      </div>
+
+      <div class="seat" style="--c:#4fb36a">
+        <span class="badge">ESP</span>
+        <div class="who">
+          <div class="l1">IA Tática <span class="ai">BOT</span></div>
+          <div class="l2"><span class="field">Espanha {{i:chevron-down}}</span><span class="chip team">Time B</span></div>
+          <div class="intel"><span>PIB <b>US$ 1,6 tri</b></span><span>Defesa <b>1,3%</b></span><span>Região <b>Equilibrada</b></span></div>
+        </div>
+        <div class="side"><div class="r"><span class="chip ok">{{i:circle-check}} Pronto</span><span class="x">{{i:x}}</span></div></div>
+      </div>
+
+      <div class="seat" style="--c:#c9a43a">
+        <span class="badge">ZAF</span>
+        <div class="who">
+          <div class="l1">IA Tática 2 <span class="ai">BOT</span></div>
+          <div class="l2"><span class="field">África do Sul {{i:chevron-down}}</span><span class="chip team">Time A</span></div>
+          <div class="intel"><span>PIB <b>US$ 0,4 tri</b></span><span>Defesa <b>0,9%</b></span><span>Região <b>Serrana</b></span></div>
+        </div>
+        <div class="side"><div class="r"><span class="chip ok">{{i:circle-check}} Pronto</span><span class="x">{{i:x}}</span></div></div>
+      </div>
+      <div class="lockline">{{i:info}} Toque numa nação para ver a ficha completa do país. Times: quem está no mesmo time começa aliado.</div>
+    </div></div>
+
+    <!-- operação -->
+    <div class="frame col"><i class="brk tr"></i><i class="brk bl"></i><div class="in">
+      <div class="colhead"><span class="kicker">Operação</span><span class="note">Mapa <b class="num" style="color:var(--ink-200)">144×144</b></span></div>
+      <div class="opsec">
+        <div class="maps">
+          <span class="tile on">{{i:trees}}Continental</span><span class="tile">{{i:waves}}Rios</span><span class="tile">{{i:mountain}}Montanhoso</span><span class="tile">{{i:sun}}Deserto</span>
+          <span class="tile">{{i:anchor}}Oceano</span><span class="tile">{{i:tree-palm}}Arquipélago</span><span class="tile">{{i:dices}}Sorteado</span><span class="tile" style="visibility:hidden"></span>
+        </div>
+        <div class="desc"><b>Continental:</b> terra contínua com florestas, serras e planícies. O padrão.</div>
+      </div>
+      <div class="opsec">
+        <span class="kicker">Regra do teatro</span>
+        <div class="opts two"><span class="opt on">{{i:scale}} Paridade econômica</span><span class="opt">{{i:landmark}} Escala real</span></div>
+        <div class="desc">Logística pela parcela do PIB em defesa, como se todos tivessem a mesma economia. Disputa equilibrada.</div>
+      </div>
+      <div class="opsec">
+        <span class="kicker">Dificuldade da IA</span>
+        <div class="opts four"><span class="opt">{{i:feather}} Fácil</span><span class="opt on">{{i:shield}} Normal</span><span class="opt">{{i:swords}} Difícil</span><span class="opt">{{i:skull}} Brutal</span></div>
+        <div class="desc">Mesmas regras e mesma névoa de guerra que você; só o Brutal tem bônus.</div>
+      </div>
+      <div class="lockline">{{i:crown}} Você é o anfitrião: só você altera a operação.</div>
+    </div></div>
+
+    <!-- canal -->
+    <div class="frame col"><i class="brk tr"></i><i class="brk bl"></i><div class="in">
+      <div class="colhead"><span class="kicker">Canal da sala</span></div>
+      <div class="chat">
+        <div class="msg sys">{{i:log-in}} Ana_Strat entrou na sala.</div>
+        <div class="msg sys">{{i:bot}} IA Tática e IA Tática 2 entraram (bots).</div>
+        <div class="msg" style="--c:#d6503f"><span class="n">Ana_Strat</span><span class="t">Arquipélago na próxima? Hoje vou de Argentina</span></div>
+        <div class="msg" style="--c:#3d8fd6"><span class="n">Comandante</span><span class="t">Fechado. Normal com paridade, ok?</span></div>
+        <div class="msg" style="--c:#d6503f"><span class="n">Ana_Strat</span><span class="t">Ok, só escolhendo o time</span></div>
+      </div>
+      <div class="say"><span class="field">Mensagem…</span><span class="btn">{{i:send}}</span></div>
+    </div></div>
+  </div>
+
+  <!-- ação -->
+  <div class="frame act"><i class="brk tr"></i><i class="brk bl"></i><div class="in">
+    <div class="readiness">
+      <div class="pips"><i style="--c:#3d8fd6"></i><i class="no"></i><i style="--c:#4fb36a"></i><i style="--c:#c9a43a"></i></div>
+      <div><div class="t">3 de 4 prontos</div><div class="s">{{i:hourglass}} Aguardando Ana_Strat</div></div>
+    </div>
+    <div class="summary"><span class="chip">{{i:trees}} Continental 144×144</span><span class="chip">{{i:scale}} Paridade</span><span class="chip">{{i:shield}} IA Normal</span><span class="chip">{{i:users}} 2 × 2</span></div>
+    <div class="right">
+      <span class="btn ghost-bad">{{i:log-out}} Sair</span>
+      <span class="btn primary wait">{{i:play}} Iniciar operação</span>
+    </div>
+  </div></div>
+</div>
+</body></html>
