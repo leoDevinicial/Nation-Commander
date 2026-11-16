@@ -66,7 +66,7 @@ describe('Demolir (03/11)', () => {
     const s = sim();
     const house = s.addBuilding('house', 0, { cx: 8, cy: 3 }, 1);
     const enemy = s.addBuilding('house', 1, { cx: 30, cy: 30 }, 1);
-    expect(s.applyCommand(0, { type: 'demolish', buildingId: s.hqOf(0)!.id })).toMatch(/não podem ser demolidos/);
+    expect(s.applyCommand(0, { type: 'demolish', buildingId: s.hqOf(0)!.id })).toMatch(/não pode ser demolido/);
     expect(s.applyCommand(0, { type: 'demolish', buildingId: enemy.id })).toMatch(/inválida/);
     expect(s.applyCommand(0, { type: 'demolish', buildingId: house.id })).toBeNull();
     expect(s.entities.has(house.id)).toBe(false);

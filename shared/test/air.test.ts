@@ -716,14 +716,14 @@ describe('ogiva nuclear e choque econômico global', () => {
     expect(events.some((e) => e.type === 'tsunami')).toBe(false);
   });
 
-  it('a ogiva custa 6 mil de cada: começa com 15% e paga o resto durante a montagem, que para sem recurso (11/11)', () => {
+  it('a ogiva custa 3 mil de cada (16/11; era 6 mil): começa com 15% e paga o resto durante a montagem, que para sem recurso', () => {
     const s = setup({ techs: ['guided_munitions', 'ballistic_missiles', 'nuclear_weapons'] });
     const silo = s.place(0, 'missile_silo', [2, 8], [12, 14]);
     run(s.sim, BUILDINGS.missile_silo.buildSeconds + 1);
-    expect(NUCLEAR.cost).toEqual({ iron: 6000, oil: 6000, supplies: 6000 });
+    expect(NUCLEAR.cost).toEqual({ iron: 3000, oil: 3000, supplies: 3000 });
     const res = s.sim.players[0]!.resources;
     // só o sinal (15%): começa, mas para logo
-    Object.assign(res, { iron: 900, oil: 900, supplies: 900 });
+    Object.assign(res, { iron: 450, oil: 450, supplies: 450 });
     expect(s.sim.applyCommand(0, { type: 'build_missile', buildingId: silo.id, nuclear: true })).toBeNull();
     expect(res.iron).toBe(0);
     run(s.sim, 10);
@@ -731,14 +731,14 @@ describe('ogiva nuclear e choque econômico global', () => {
     const left = s.sim.air.silo(silo.id).building;
     run(s.sim, 10);
     expect(s.sim.air.silo(silo.id).building).toBe(left);
-    // com estoque, retoma e no fim pagou exatamente 6 mil de cada
+    // com estoque, retoma e no fim pagou exatamente 3 mil de cada
     Object.assign(res, { iron: 10000, oil: 10000, supplies: 10000 });
     run(s.sim, NUCLEAR.buildSeconds + 5);
     expect(s.sim.air.silo(silo.id).nuclear).toBe(1);
     expect(s.sim.air.silo(silo.id).stalled).toBe(false);
-    expect(res.iron).toBe(10000 - 5100);
-    expect(res.oil).toBe(10000 - 5100);
-    expect(res.supplies).toBeLessThanOrEqual(10000 - 5100 + 200);
+    expect(res.iron).toBe(10000 - 2550);
+    expect(res.oil).toBe(10000 - 2550);
+    expect(res.supplies).toBeLessThanOrEqual(10000 - 2550 + 200);
   });
 
   it('a ogiva que explode na água levanta um tsunami (11/11)', () => {

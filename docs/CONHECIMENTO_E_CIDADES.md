@@ -55,3 +55,16 @@ Pedido do usuário:
 ## Testes
 `shared/test/knowledge.test.ts` (conhecimento, limite por cidade, custos das pesquisas, mina subterrânea, floresta e
 forno).
+
+## Colônias e demolição de prefeitura (16/11)
+
+Pedido do usuário ("em mapa de ilhas você chega numa ilha desabitada e não pode colonizar"):
+
+- **Colônia:** a prefeitura pode ser erguida em **terra neutra** quando há uma tropa ou navio próprio vivo a até
+  `CITY.colonyRangeCells` (8) células do centro da obra. Nunca no território de outra nação. A distância mínima de 10
+  células de outra prefeitura ou QG continua valendo. Pronta, a fronteira dela (`territoryRadius` 10) se forma em volta
+  como em qualquer cidade; a partir daí o resto se constrói normalmente. Os construtores não precisam chegar a pé (são
+  abstratos), então ilha sem ponte não trava a obra. Regra em `placement.ts` (`colonyOk`), conferida no servidor por
+  `Simulation.colonistNear` e na prévia do cliente por `colonistNearCell`.
+- **Demolir prefeitura:** permitido (só o QG continua protegido). No cliente pede um segundo clique ("a cidade deixa de
+  existir e os prédios dela passam à cidade mais próxima"). Testes em `shared/test/engineering.test.ts`.

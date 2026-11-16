@@ -203,9 +203,11 @@ export const MISSILE = {
   maxIntercept: 0.6,
   /**
    * Alcance (03/11, pedido do usuário: o silo não alcança o mapa inteiro; para atingir o inimigo, construa perto da
-   * fronteira). Por geração do silo; o raio aparece no mapa ao escolher o alvo.
+   * fronteira). Por geração do silo; o raio aparece no mapa ao escolher o alvo. 16/11: dobrado (era 90/120, "absurdo
+   * de pequeno": num mapa de 4 nações, 288 de lado, mal passava da própria fronteira); 180 cobre do centro de uma base
+   * até a vizinha e o silo nível 2 alcança quase o mapa inteiro.
    */
-  range: { 1: 90, 2: 120 } as Record<number, number>,
+  range: { 1: 180, 2: 260 } as Record<number, number>,
 };
 
 /** Míssil de cruzeiro do Submarino Lançador (convencional): menor que o balístico, sai em segundos. */
@@ -263,9 +265,10 @@ export interface DomeState {
  */
 export const NUCLEAR = {
   tech: 'nuclear_weapons',
-  // 11/11: 6 mil de cada (com o ×2,5 de ECONOMY.missiles), US$ 100 mi e 180 s ("bem onerosa mesmo")
-  cost: { iron: 2400, oil: 2400, supplies: 2400 } as Cost,
-  usd: 100_000_000,
+  // 11/11: 6 mil de cada (com o ×2,5 de ECONOMY.missiles), US$ 100 mi e 180 s ("bem onerosa mesmo");
+  // 16/11: metade (3 mil de cada e US$ 50 mi), pedido do usuário
+  cost: { iron: 1200, oil: 1200, supplies: 1200 } as Cost,
+  usd: 50_000_000,
   buildSeconds: 180,
   /**
    * Parte do custo paga ao começar; o resto sai do estoque ao longo da produção (nenhum armazém guarda 6 mil

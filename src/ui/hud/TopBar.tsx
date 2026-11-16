@@ -14,6 +14,7 @@ import { useHudStore } from '../../state/useHudStore.ts';
 import { useSettingsStore } from '../../state/useSettingsStore.ts';
 import { formatDate, formatDuration, formatPct } from '../../lib/format.ts';
 import { FullscreenButton } from '../components/FullscreenButton.tsx';
+import { ScrollStrip } from '../components/ScrollStrip.tsx';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { useState, type ReactNode } from 'react';
 import { MoneyChip, MoneyPopover, ProductionChip, ProductionPopover, type TopBarPopover } from './TopBarExtras.tsx';
@@ -112,8 +113,10 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
       <Frame
         tour="topbar:resources"
         className="pointer-events-auto min-w-0 flex-1 lg:order-2"
-        innerClassName="no-scrollbar flex items-center gap-0 overflow-x-auto pr-3 pl-1.5 [mask-image:linear-gradient(90deg,#000_calc(100%-28px),transparent)]"
+        innerClassName="flex"
       >
+        {/* 16/11: o que não cabe rola com a roda do mouse, por arrasto ou pelas setas nas bordas (antes só pelo teclado) */}
+        <ScrollStrip className="h-full flex-1" innerClassName="flex h-full items-center gap-0 pr-3 pl-1.5">
         {sandbox && (
           <span className="shrink-0 pr-2">
             <SandboxChip open={pop === 'sandbox'} onToggle={() => toggle('sandbox')} />
@@ -225,6 +228,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
             </span>
           ))}
         </div>
+        </ScrollStrip>
       </Frame>
 
       <Frame className="pointer-events-auto shrink-0 lg:hidden" innerClassName="flex items-center px-1.5">

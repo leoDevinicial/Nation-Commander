@@ -4,7 +4,8 @@ import { MAX_CHAT_LENGTH } from '../../../shared/protocol.ts';
 import { gameClient } from '../../net/client.ts';
 import { useAppStore } from '../../state/useAppStore.ts';
 
-export function ChatBox({ compact }: { compact?: boolean }) {
+/** `fill` (16/11, lobby novo): ocupa a altura do painel onde está, sem moldura nem título próprios. */
+export function ChatBox({ compact, fill }: { compact?: boolean; fill?: boolean }) {
   const chat = useAppStore((s) => s.chat);
   const [text, setText] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
@@ -12,8 +13,8 @@ export function ChatBox({ compact }: { compact?: boolean }) {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [chat]);
   return (
-    <div className={`flex flex-col rounded-[3px] border border-ink-700 bg-ink-950 ${compact ? 'h-40' : 'h-72'}`}>
-      {!compact && (
+    <div className={`flex flex-col ${fill ? 'h-full min-h-0' : `rounded-[3px] border border-ink-700 bg-ink-950 ${compact ? 'h-40' : 'h-72'}`}`}>
+      {!compact && !fill && (
         <div className="flex items-center gap-1.5 border-b border-ink-700 px-2 py-1.5">
           <MessageSquare size={12} className="text-brass-400" aria-hidden />
           <span className="nc-kicker">Canal da sala</span>

@@ -580,6 +580,23 @@ select {
 input[type="range"], input[type="checkbox"], input[type="radio"] { accent-color: var(--color-brass-400); }
 
 /* abas do menu de construção: sublinhado de latão na ativa (Sala de Situação) */
+/* faixa rolável (ScrollStrip, 16/11): setas de latão na borda que tem mais conteúdo */
+.nc-strip-arrow {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 26px;
+  display: grid;
+  place-items: center;
+  color: var(--color-brass-400);
+  border: 0;
+  cursor: pointer;
+}
+.nc-strip-arrow-l { left: 0; background: linear-gradient(90deg, rgb(12 16 23) 45%, transparent); }
+.nc-strip-arrow-r { right: 0; background: linear-gradient(270deg, rgb(12 16 23) 45%, transparent); }
+.nc-strip-arrow:hover { color: #f0c766; }
+.nc-strip-arrow:focus-visible { outline: 2px solid var(--color-brass-400); outline-offset: -2px; }
 .nc-tab {
   position: relative;
   display: inline-flex;
@@ -1081,4 +1098,16 @@ input[type="range"], input[type="checkbox"], input[type="radio"] { accent-color:
 }
 .reduce-motion .tutorial-spot {
   animation: none;
+}
+
+/* lobby (16/11) em tela baixa (celular deitado): cabeçalho e barras finos, sem rótulos nem dicas. Fora das camadas
+   de propósito: precisa vencer os utilitários sm: do Tailwind */
+@media (max-height: 520px) {
+  .lobby .lb-kicker, .lobby .lb-hint, .lobby .lb-codelabel, .lobby .lb-copytext { display: none; }
+  .lobby .lb-title { font-size: 1.05rem; margin-top: 0; }
+  .lobby .lb-code { font-size: 1.25rem; }
+  .lobby .lb-head { padding-top: 5px; padding-bottom: 5px; column-gap: 12px; flex-wrap: nowrap; }
+  .lobby .lb-name { flex: 1 1 auto; min-width: 0; }
+  .lobby .lb-act { padding-top: 4px; padding-bottom: 4px; }
+  .lobby .btn-hero { min-height: 36px; font-size: 14px; }
 }

@@ -33,6 +33,8 @@ export interface PlacementWorld {
   territory: ArrayLike<number>;
   /** Fora do território vale (obstáculo perto de um engenheiro): só não pode em país sem guerra. */
   outsideOk?: (owner: number) => boolean;
+  /** Colônia (16/11): prefeitura com tropa própria por perto pode ficar em terra neutra (nunca na de outra nação). */
+  colonyOk?: boolean;
   deposits: DepositIndex;
   /** Células de estrada construídas pelos jogadores (levam tropas, comboios e energia): nada vai em cima delas. */
   builtRoads?: { has(i: number): boolean };
@@ -70,6 +72,9 @@ export function placementError(w: PlacementWorld, slot: Slot, type: BuildingType
   }
   if (w.outsideOk && outside) {
     if (foreign >= 0 && !w.outsideOk(foreign)) return 'Território de outra nação: não é possível construir aqui';
+  } else if (type === 'city_hall' && outside && foreign < 0) {
+    // colônia: terra neutra só com uma tropa ou navio próprio por perto (quem nunca chegou lá não funda cidade)
+    if (!w.colonyOk) return `Fora do seu território: para fundar uma cidade em terra neutra, leve uma tropa ou navio a até ${CITY.colonyRangeCells} células`;
   } else {
     if (foreign >= 0) return 'Território de outra nação: não é possível construir aqui';
     if (outside) return 'Fora do seu território: amplie a fronteira com casas, bases ou torres';

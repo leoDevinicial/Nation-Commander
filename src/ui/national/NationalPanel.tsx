@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ChartColumn, FlaskConical, Handshake, LayoutDashboard, Scale, Ship, Stethoscope, Wallet, X } from 'lucide-react';
 import { Frame } from '../components/Frame.tsx';
+import { ScrollStrip } from '../components/ScrollStrip.tsx';
 import { factionColor } from '../../game/render/palette.ts';
 import { countryName } from '../../../shared/data/countries.ts';
 import type { Budget } from '../../../shared/strategic/NationalSimulation.ts';
@@ -84,14 +85,14 @@ export function NationalPanel({ onClose }: { onClose: () => void }) {
           <X size={17} aria-hidden />
         </button>
       </div>
-      <div className="no-scrollbar flex overflow-x-auto px-2 pt-1" role="tablist">
+      <ScrollStrip innerClassName="flex px-2 pt-1" role="tablist" ariaLabel="Abas do painel nacional">
         {TABS.map((t) => (
           <button key={t.id} role="tab" aria-selected={tab === t.id} className="nc-tab !flex-none px-2.5" onClick={() => setTab(t.id)} title={t.label} data-tour={`nation-tab:${t.id}`}>
             <t.icon size={13} aria-hidden />
             <span>{t.label}</span>
           </button>
         ))}
-      </div>
+      </ScrollStrip>
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
         {!nation ? (
           <p className="text-sm text-ink-400">Aguardando o primeiro relatório nacional do servidor…</p>

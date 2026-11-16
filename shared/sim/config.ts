@@ -1011,6 +1011,12 @@ export const CITY = {
   spacingCells: 10,
   radiusCells: 8,
   captureHpFrac: 0.3,
+  /**
+   * Colonizar (16/11, pedido do usuário: "chega em uma ilha desabitada e não pode colonizar"): a prefeitura pode ser
+   * erguida em terra neutra (nunca na de outra nação) com uma tropa ou navio próprio a até tantas células da obra; pronta,
+   * a fronteira dela se forma em volta como em qualquer cidade.
+   */
+  colonyRangeCells: 8,
 };
 
 /**

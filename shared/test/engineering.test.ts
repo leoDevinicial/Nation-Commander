@@ -341,3 +341,31 @@ describe('Aprovação: bairros pavimentados e minas esquecidas', () => {
     expect(f.find((x) => x.key === 'mines')?.value).toBeCloseTo(-1.5, 1);
   });
 });
+
+describe('Colônia e demolição de prefeitura (16/11)', () => {
+  it('prefeitura em terra neutra só com tropa própria por perto; nunca no território de outra nação; pronta, forma fronteira', () => {
+    const { sim, run, cell } = setup();
+    for (const r of ['wood', 'stone', 'supplies'] as const) sim.players[0]!.resources[r] = 5000;
+    const site = { cx: 19, cy: 20 };
+    expect(sim.territory[20 * 40 + 19]).toBe(NO_OWNER);
+    expect(sim.applyCommand(0, { type: 'build', buildingType: 'city_hall', ...site })).toMatch(/fundar uma cidade em terra neutra/);
+    sim.addUnit('infantry', 0, cell(20, 23));
+    // no território do vizinho, nem com a tropa ao lado
+    sim.addUnit('infantry', 0, cell(30, 30));
+    expect(sim.applyCommand(0, { type: 'build', buildingType: 'city_hall', cx: 29, cy: 29 })).toMatch(/outra nação/);
+    expect(sim.applyCommand(0, { type: 'build', buildingType: 'city_hall', ...site })).toBeNull();
+    run(BUILDINGS.city_hall.buildSeconds + 2);
+    const hall = sim.buildings.find((b) => b.owner === 0 && b.type === 'city_hall')!;
+    expect(hall.progress).toBe(1);
+    expect(sim.territory[20 * 40 + 19]).toBe(0);
+    // e pode ser demolida (o QG continua protegido)
+    expect(sim.applyCommand(0, { type: 'demolish', buildingId: hall.id })).toBeNull();
+    expect(sim.buildings.some((b) => b.id === hall.id)).toBe(false);
+  });
+
+  it('o QG continua sem poder ser demolido', () => {
+    const sim = new Simulation({ map: flatMap(40), playerCount: 2 });
+    const hq = sim.hqOf(0)!;
+    expect(sim.applyCommand(0, { type: 'demolish', buildingId: hq.id })).toMatch(/Centro de Comando não pode ser demolido/);
+  });
+});

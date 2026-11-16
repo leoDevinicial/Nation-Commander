@@ -3462,10 +3462,12 @@ export class GameRuntime {
     const b = hit !== null ? this.buildings.get(hit) : undefined;
     if (b) {
       if (b.snap.owner !== this.mySlot) return warn('Demolir: só construções do seu país');
-      if (b.snap.type === 'hq' || b.snap.type === 'city_hall') return warn('O Centro de Comando e as prefeituras não podem ser demolidos');
+      if (b.snap.type === 'hq') return warn('O Centro de Comando não pode ser demolido');
       // 03/11: o que guarda aeronaves, mísseis ou custou um Grande Projeto pede um segundo clique (sem reembolso)
       const risk =
-        b.snap.type === 'airbase'
+        b.snap.type === 'city_hall'
+          ? 'a cidade deixa de existir e os prédios dela passam à cidade mais próxima'
+          : b.snap.type === 'airbase'
           ? 'as aeronaves no hangar serão perdidas'
           : b.snap.type === 'missile_silo'
             ? 'os mísseis no silo serão perdidos'
@@ -4501,6 +4503,8 @@ export class GameRuntime {
         territory: this.territory,
         // obstáculos perto de um engenheiro próprio: fora do território (a guerra o servidor confere)
         ...(BUILDINGS[type].engineerOutside && this.engineerNearCell(cell) ? { outsideOk: () => true } : {}),
+        // colônia: prefeitura em terra neutra com tropa própria por perto (o servidor confere de novo)
+        ...(type === 'city_hall' && this.colonistNearCell(cell) ? { colonyOk: true } : {}),
         deposits: this.deposits,
         builtRoads: this.roadCells,
         cityName: (seat) => s.buildings.find((b) => b.type === seat.type && b.cx === seat.cell.cx && b.cy === seat.cell.cy)?.city ?? null,
@@ -4510,6 +4514,14 @@ export class GameRuntime {
       type,
       cell,
     );
+  }
+
+  private colonistNearCell(cell: Cell): boolean {
+    const half = BUILDINGS.city_hall.size / 2;
+    const x = (cell.cx + half) * this.map.cellSize;
+    const z = (cell.cy + half) * this.map.cellSize;
+    const reach = CITY.colonyRangeCells * this.map.cellSize;
+    return [...this.units.values()].some((u) => u.snap.owner === this.mySlot && Math.hypot(u.curr.x - x, u.curr.y - z) <= reach);
   }
 
   private engineerNearCell(cell: Cell): boolean {

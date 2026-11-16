@@ -103,7 +103,7 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
   bots avaliam na hora), custo ao firmar e indenização ao romper; aliados têm visão compartilhada, `aid_ally` e `trade_gift`
   (frete por caminhão, navio ou avião). Depois de uma eliminação, se só sobram pactuados, os pactos caem e a guerra volta.
 - Alertas e HUD (`docs/ALERTAS_E_HUD.md`): evento `world` (guerra, era, nuclear, Grande Projeto) vai a todos, sem
-  posição; sob ataque toca sirene e pulsa no minimapa; botão Construir (B) e comando `demolish` (nunca QG/prefeitura).
+  posição; sob ataque toca sirene e pulsa no minimapa; botão Construir (B) e comando `demolish` (nunca o QG; a prefeitura pode, 16/11). Prefeitura pode ir em terra neutra com tropa ou navio próprio a até 8 células (colônia, `CITY.colonyRangeCells`).
 - Combustível (`FUEL`, `docs/COMBUSTIVEL_E_CORRECOES.md`): veículos e navios gastam petróleo ao andar (o Combustível da
   Refinaria sai primeiro); sem nenhum, andam a 50%. Testes de regra antigos rodam sem ele (`shared/test/setup.ts`).
 - Efeitos gravados (`public/sfx/`, `assets/sfx/CATALOGO.md`, `SAMPLES` e `LEVELS` no `AudioService`): quase todo o

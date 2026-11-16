@@ -94,7 +94,7 @@ torres em terra atiram em navios de superfície normalmente.
 **Carga** (`UnitDef.cargo`): vagas separadas para tropas a pé e veículos; o embarque e o desembarque são os do navio de
 transporte (botão direito no navio com tropas selecionadas; com o navio selecionado, botão direito na terra).
 
-**Mísseis** (pedido do usuário): o silo tem alcance (90 no 1º nível, 120 no míssil pesado) e o submarino, 70; o anel
+**Mísseis** (pedido do usuário): o silo tem alcance (180 no 1º nível, 260 no míssil pesado; 16/11, era 90/120) e o submarino, 70; o anel
 aparece no mapa ao escolher o alvo. O alvo pode ser qualquer ponto fora da própria fronteira (terra neutra, mar ou
 território inimigo, este só em guerra), sem precisar estar à vista agora, mas já explorado pelo país alguma vez (ou
 junto de um edifício inimigo já descoberto; 03/11, ver `docs/COMBUSTIVEL_E_CORRECOES.md`). O dano em área não atinge nações em paz com quem

@@ -217,7 +217,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           {mode.kind === 'road' && <RoadHint mode={mode} touch={touch} worksCap={worksCap} stone={resources.stone} />}
           {mode.kind === 'zone' && <ZoneInfo mode={mode} touch={touch} runtime={runtime} />}
           {mode.kind === 'demolish' && (
-            <ModeHint title="Demolir" text={`${touch ? 'Toque' : 'Clique'} numa construção ou estrada sua para derrubar na hora (sem devolver o custo). O QG e as prefeituras ficam. ${touch ? 'Cancelar' : 'Botão direito ou Esc'} sai do modo.`} />
+            <ModeHint title="Demolir" text={`${touch ? 'Toque' : 'Clique'} numa construção ou estrada sua para derrubar na hora (sem devolver o custo). O QG fica. ${touch ? 'Cancelar' : 'Botão direito ou Esc'} sai do modo.`} />
           )}
           {mode.kind === 'attack_road' && <ModeHint title="Atacar estrada" text={`${touch ? 'Toque' : 'Clique'} numa célula de estrada ou rodovia inimiga à vista. As tropas vão até lá e destroem o asfalto (estrada: ${ROAD.hp} de vida; rodovia: ${HIGHWAY.hp}).`} />}
           {mode.kind === 'attack_move' && <ModeHint title="Avançar atacando" text={`${touch ? 'Toque' : 'Clique'} no destino. As unidades atacam o que encontrarem pelo caminho.`} />}
@@ -382,7 +382,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             icon={<Pickaxe size={20} />}
             label="Demolir"
             onClick={() => runtime.startDemolish()}
-            title="Demolir: clique numa construção sua ou numa célula de estrada/rodovia sua para derrubar na hora (sem devolver o custo da obra; a fila de produção é devolvida). O Centro de Comando e as prefeituras não podem ser demolidos. Botão direito ou Esc sai do modo."
+            title="Demolir: clique numa construção sua ou numa célula de estrada/rodovia sua para derrubar na hora (sem devolver o custo da obra; a fila de produção é devolvida). O Centro de Comando não pode ser demolido; a prefeitura pede confirmação. Botão direito ou Esc sai do modo."
           />
         )}
         {command &&

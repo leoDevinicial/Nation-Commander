@@ -2207,6 +2207,14 @@ export class Simulation {
   }
 
   /** Há um Engenheiro de Combate próprio perto da célula (obstáculos e estradas fora do território). */
+  /** Colônia (16/11): alguma tropa ou navio próprio vivo a até `CITY.colonyRangeCells` do centro da prefeitura. */
+  colonistNear(slot: Slot, cell: Cell): boolean {
+    const half = BUILDINGS.city_hall.size / 2;
+    const c = { x: (cell.cx + half) * this.map.cellSize, y: (cell.cy + half) * this.map.cellSize };
+    const reach = CITY.colonyRangeCells * this.map.cellSize;
+    return this.units.some((u) => u.owner === slot && u.hp > 0 && dist(u.pos, c) <= reach);
+  }
+
   engineerNear(slot: Slot, cell: Cell): boolean {
     const c = this.grid.cellCenter(cell);
     return this.units.some((u) => u.owner === slot && u.type === 'engineer' && u.hp > 0 && dist(u.pos, c) <= ROAD.engineerRange * this.map.cellSize);
@@ -2376,6 +2384,7 @@ export class Simulation {
         territory: this.territory,
         // obstáculos: fora do território (terra neutra ou de quem está em guerra), perto de um engenheiro
         ...(BUILDINGS[type].engineerOutside && this.engineerNear(slot, cell) ? { outsideOk: (owner: number) => this.hostile(slot, owner) } : {}),
+        ...(type === 'city_hall' && this.colonistNear(slot, cell) ? { colonyOk: true } : {}),
         deposits: this.deposits,
         builtRoads: this.builtRoads,
         cityName: (seat) => this.cityName(seat as Building) ?? null,
@@ -2683,7 +2692,8 @@ export class Simulation {
   demolishBuilding(slot: Slot, id: EntityId): string | null {
     const b = this.entities.get(id);
     if (!b || b.kind !== 'building' || b.owner !== slot || b.hp <= 0) return 'Construção inválida';
-    if (b.type === 'hq' || b.type === 'city_hall') return 'O Centro de Comando e as prefeituras não podem ser demolidos';
+    // 16/11: a prefeitura pode ser demolida (pedido do usuário); o QG, nunca
+    if (b.type === 'hq') return 'O Centro de Comando não pode ser demolido';
     // aeronaves e mísseis não têm para onde ir: sem esta trava, sumiriam como se a base tivesse sido destruída
     if (b.type === 'airbase' && this.air.aircraftAt(b.id).length) return 'Base aérea com aeronaves: use-as ou espere voltarem antes de demolir';
     if (b.type === 'missile_silo') {
