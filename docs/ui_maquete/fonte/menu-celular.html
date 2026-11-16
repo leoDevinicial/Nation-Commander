@@ -1,0 +1,135 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Menu inicial — maquete</title>
+<link rel="stylesheet" href="base-maquete.css">
+<style>
+body { background: #04070b; }
+body::before { display: none; }
+.globe { position: fixed; right: -60px; top: 50%; width: 980px; height: 980px; transform: translateY(-50%); background: url(menu-globo.jpg) center / cover;
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 52%, transparent 71%); mask-image: radial-gradient(circle at 50% 50%, #000 52%, transparent 71%); }
+.vignette { position: fixed; inset: 0; background: linear-gradient(90deg, #04070b 18%, rgba(4,7,11,.75) 45%, rgba(4,7,11,0) 70%), linear-gradient(0deg, rgba(4,7,11,.9), transparent 35%); }
+.stars { position: fixed; inset: 0; background-image: radial-gradient(1px 1px at 12% 22%, #fff8, transparent), radial-gradient(1px 1px at 33% 71%, #fff6, transparent), radial-gradient(1px 1px at 58% 12%, #fff7, transparent), radial-gradient(1.5px 1.5px at 81% 88%, #fff5, transparent), radial-gradient(1px 1px at 91% 30%, #fff6, transparent), radial-gradient(1px 1px at 46% 46%, #fff4, transparent); }
+.wrap { position: relative; height: 100%; display: grid; grid-template-rows: auto 1fr auto; padding: 22px 44px 26px; max-width: 1600px; margin: 0 auto; }
+
+/* barra de cima: marca à esquerda, atalhos à direita */
+.top { display: flex; align-items: center; gap: 18px; }
+.brand { display: flex; align-items: center; gap: 10px; font: 700 15px var(--title); letter-spacing: .22em; text-transform: uppercase; color: var(--ink-200); }
+.brand .mark { width: 28px; height: 28px; display: grid; place-items: center; color: #17130a; background: linear-gradient(180deg, #f0c766, var(--brass));
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
+.brand .mark svg.i { width: 16px; height: 16px; }
+.nav { margin-left: auto; display: flex; gap: 4px; }
+.nav .t { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; font: 600 13px var(--font); color: var(--ink-300); border-radius: 3px; }
+.nav .t:hover, .nav .t.on { color: var(--ink-100); background: rgba(255,255,255,.05); }
+.nav .t svg.i { width: 15px; height: 15px; }
+.nav .t .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--brass); box-shadow: 0 0 8px var(--brass-glow); }
+.who { display: flex; align-items: center; gap: 10px; padding-left: 14px; border-left: 1px solid var(--line); }
+.who .badge { width: 40px; height: 28px; display: grid; place-items: center; font: 700 12px var(--title); letter-spacing: .06em; color: #fff; background: #3d8fd6;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
+.who .n { font: 700 14px var(--font); line-height: 1.1; } .who .s { font: 500 11px var(--font); color: var(--ink-400); }
+.status { display: flex; align-items: center; gap: 6px; font: 500 11.5px var(--font); color: var(--ink-400); }
+.status i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px rgba(92,196,122,.6); }
+
+/* herói */
+.hero { align-self: center; max-width: 640px; }
+.hero .k { font: 600 12px var(--font); letter-spacing: .3em; text-transform: uppercase; color: var(--brass); display: flex; align-items: center; gap: 10px; }
+.hero .k::before { content: ''; width: 28px; height: 2px; background: var(--brass); }
+.hero h1 { font: 700 86px/0.92 var(--title); letter-spacing: .02em; text-transform: uppercase; margin-top: 16px; text-shadow: 0 6px 30px rgba(0,0,0,.6); }
+.hero h1 span { color: var(--brass); }
+.hero p { font: 500 17px/1.45 var(--font); color: var(--ink-300); margin-top: 16px; max-width: 520px; }
+.cta { display: flex; align-items: center; gap: 12px; margin-top: 28px; }
+.cta .btn.primary { height: 58px; padding: 0 34px; font-size: 20px; }
+.cta .btn.primary svg.i { width: 20px; height: 20px; }
+.cta .btn.big { height: 58px; padding: 0 22px; font: 700 16px var(--title); letter-spacing: .08em; text-transform: uppercase; }
+.resume { display: inline-flex; align-items: center; gap: 10px; margin-top: 18px; padding: 8px 14px 8px 12px; border: 1px solid rgba(92,196,122,.4); background: rgba(92,196,122,.07);
+  font: 600 13px var(--font); color: var(--ink-100); clip-path: polygon(7px 0, 100% 0, 100% 100%, 0 100%, 0 7px); }
+.resume svg.i { color: var(--ok); }
+.resume .s { color: var(--ink-400); font-weight: 500; }
+
+/* rodapé: modos de jogo + novidades */
+.bottom { display: grid; grid-template-columns: 1fr 380px; gap: 16px; align-items: end; }
+.modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.mode .in { padding: 14px 16px 15px; display: flex; flex-direction: column; gap: 6px; min-height: 126px; }
+.mode .ic { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--line-2); color: var(--brass); border-radius: 3px; background: rgba(226,181,77,.05); }
+.mode .ic svg.i { width: 18px; height: 18px; }
+.mode .t { font: 700 17px var(--title); letter-spacing: .06em; text-transform: uppercase; margin-top: 4px; }
+.mode .d { font: 500 12.5px/1.35 var(--font); color: var(--ink-400); }
+.mode.main .in { background: linear-gradient(180deg, rgba(226,181,77,.14), rgba(10,14,20,.9)); }
+.mode.main .ic { color: #17130a; background: linear-gradient(180deg, #f0c766, var(--brass)); border-color: #f5d68a; }
+.mode .code { display: flex; gap: 6px; margin-top: auto; }
+.mode .code .field { flex: 1; height: 28px; font: 700 13px var(--mono); letter-spacing: .3em; color: var(--ink-500); }
+.mode .code .btn { height: 28px; font-size: 12px; }
+.news .in { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+.news .h { display: flex; align-items: center; gap: 8px; }
+.news .v { font: 700 11px var(--mono); color: #17130a; background: var(--brass); padding: 2px 6px; border-radius: 2px; }
+.news ul { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.news li { display: flex; gap: 8px; font: 500 12.5px/1.35 var(--font); color: var(--ink-200); }
+.news li svg.i { width: 14px; height: 14px; color: var(--brass); margin-top: 1px; }
+.news .more { font: 600 12px var(--font); color: var(--brass); display: flex; align-items: center; gap: 4px; }
+.news .more svg.i { width: 13px; height: 13px; }
+
+/* celular deitado */
+body.cel .wrap { padding: 10px 14px 12px; }
+body.cel .globe { width: 520px; height: 520px; right: -80px; }
+body.cel .nav .t span.l, body.cel .status, body.cel .who .s, body.cel .news, body.cel .hero p, body.cel .resume .s { display: none; }
+body.cel .nav .t { padding: 0 8px; }
+body.cel .hero h1 { font-size: 46px; margin-top: 8px; }
+body.cel .hero .k { font-size: 10px; }
+body.cel .cta { margin-top: 12px; } body.cel .cta .btn.primary, body.cel .cta .btn.big { height: 42px; font-size: 15px; padding: 0 18px; }
+body.cel .resume { margin-top: 10px; padding: 5px 10px; }
+body.cel .bottom { grid-template-columns: 1fr; }
+body.cel .mode .in { min-height: 0; padding: 9px 10px; gap: 3px; } body.cel .mode .d { display: none; } body.cel .mode .ic { width: 28px; height: 28px; } body.cel .mode .t { font-size: 14px; margin-top: 2px; }
+body.cel .mode .code { display: none; }
+</style></head>
+<body class="cel">
+<div class="stars"></div><div class="globe"></div><div class="vignette"></div>
+<div class="wrap">
+  <div class="top">
+    <div class="brand"><span class="mark"> <svg class="i" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" > <circle cx="12" cy="12" r="10" /> <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /> <path d="M2 12h20" /> </svg> </span>Nation Commander</div>
+    <nav class="nav">
+      <span class="t"> <svg class="i" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" > <path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z" /> </svg> <span class="l">Comunidade</span></span>
+      <span class="t"> <svg class="i" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" > <path d="M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" /> <path d="M6 14a12 12 0 0 0 2.4 7.2 2 2 0 0 0 3.2-2.4A8 8 0 0 1 10 14" /> <path d="M8 6v8" /> </svg> <span class="l">Novidades</span><i class="dot"></i></span>
+      <span class="t"> <svg class="i" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" > <path d="M12 5v16" /> <path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z" /> </svg> <span class="l">Manual</span></span>
+      <span class="t"> <svg class="i" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" > <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /> <circle cx="12" cy="12" r="3" /> </svg> <span class="l">Configurações</span></span>
+      <span class="t"> <svg class="i" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" > <path d="m5 8 6 6" /> <path d="m4 14 6-6 2-3" /> <path d="M2 5h12" /> <path d="M7 2h1" /> <path d="m22 22-5-10-5 10" /> <path d="M14 18h6" /> </svg> <span class="l">PT</span></span>
+    </nav>
+    <span class="status"><i></i>Servidor conectado</span>
+    <div class="who"><span class="badge">BRA</span><div><div class="n">Comandante</div><div class="s">Perfil · 12 vitórias</div></div></div>
+  </div>
+
+  <div class="hero">
+    <div class="k">3D Modern Geopolitical RTS</div>
+    <h1>Comande<br>uma <span>nação</span></h1>
+    <p>Construa a economia, governe as cidades, ganhe aliados e vença a guerra num mapa vivo, da Guerra Fria ao futuro próximo.</p>
+    <div class="cta">
+      <span class="btn primary"> <svg class="i" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" > <path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" /> </svg>  Jogar contra a IA</span>
+      <span class="btn big"> <svg class="i" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" > <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /> <path d="M16 3.128a4 4 0 0 1 0 7.744" /> <path d="M22 21v-2a4 4 0 0 0-3-3.87" /> <circle cx="9" cy="7" r="4" /> </svg>  Multijogador</span>
+    </div>
+    <div class="resume"> <svg class="i" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" > <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /> <path d="M3 3v5h5" /> </svg>  Continuar partida — Brasil contra 3 bots <span class="s">· dia 214</span></div>
+  </div>
+
+  <div class="bottom">
+    <div class="modes">
+      <div class="frame mode main"><i class="brk tr"></i><i class="brk bl"></i><div class="in">
+        <span class="ic"> <svg class="i" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" > <path d="M12 8V4H8" /> <rect width="16" height="12" x="4" y="8" rx="2" /> <path d="M2 14h2" /> <path d="M20 14h2" /> <path d="M15 13v2" /> <path d="M9 13v2" /> </svg> </span><span class="t">Contra a IA</span><span class="d">Você contra governos da IA, do Fácil ao Brutal.</span>
+      </div></div>
+      <div class="frame mode"><i class="brk tr"></i><i class="brk bl"></i><div class="in">
+        <span class="ic"> <svg class="i" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" > <circle cx="12" cy="12" r="10" /> <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /> <path d="M2 12h20" /> </svg> </span><span class="t">Multijogador</span><span class="d">Salas públicas ou privadas, com amigos e bots.</span>
+        <div class="code"><span class="field">CÓDIGO</span><span class="btn">Entrar</span></div>
+      </div></div>
+      <div class="frame mode"><i class="brk tr"></i><i class="brk bl"></i><div class="in">
+        <span class="ic"> <svg class="i" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" > <path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z" /> <path d="M22 10v6" /> <path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5" /> </svg> </span><span class="t">Tutorial</span><span class="d">Partida guiada e narrada: aprenda em 15 minutos.</span>
+      </div></div>
+      <div class="frame mode"><i class="brk tr"></i><i class="brk bl"></i><div class="in">
+        <span class="ic"> <svg class="i" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" > <path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2" /> <path d="M6.453 15h11.094" /> <path d="M8.5 2h7" /> </svg> </span><span class="t">Sandbox</span><span class="d">Recursos ilimitados e tudo liberado para testar.</span>
+      </div></div>
+    </div>
+    <div class="frame news"><i class="brk tr"></i><i class="brk bl"></i><div class="in">
+      <div class="h"><span class="kicker">Novidades</span><span class="v">v1.5</span><span class="desc" style="margin-left:auto;font:500 11px var(--font);color:var(--ink-400)">16/11</span></div>
+      <ul>
+        <li> <svg class="i" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" > <path d="M20 6 9 17l-5-5" /> </svg> Lobby novo, tudo numa tela, e escolha da vitória</li>
+        <li> <svg class="i" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" > <path d="M20 6 9 17l-5-5" /> </svg> Colônias em ilhas desabitadas</li>
+        <li> <svg class="i" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" > <path d="M20 6 9 17l-5-5" /> </svg> Tropas e mísseis sem travar, rede bem mais leve</li>
+      </ul>
+      <span class="more">Ver tudo o que mudou (26 novidades desde a 1.2)  <svg class="i" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" > <path d="M5 12h14" /> <path d="m12 5 7 7-7 7" /> </svg> </span>
+    </div></div>
+  </div>
+</div>
+</body></html>

@@ -108,3 +108,16 @@ Pedido do responsável depois de uma proposta de menu/lobby feita com o Grok; es
 Fontes: `fonte/lobby.tpl.html`; `node fonte/lobby-build.cjs` monta `lobby.html` e `lobby-celular.html` (ícones de
 `lucide-static`, instalado com `npm i --no-save lucide-static` na raiz) e `node fonte/shot.cjs` tira as imagens.
 Os números das vagas (PIB, defesa) são ilustrativos.
+
+## Menu inicial — proposta de redesign (16/11, ainda não está no jogo)
+
+- `9-menu-computador.jpg` — o globo do menu como cenário da tela inteira, título grande ("Comande uma nação") com o
+  título oficial do jogo no rótulo, uma ação principal ("Jogar contra a IA") e Multijogador ao lado; "Continuar partida"
+  só quando há uma; modos em cartões embaixo (Contra a IA, Multijogador com o campo do código, Tutorial, Sandbox);
+  cartão de Novidades com a versão e o link para o changelog; barra discreta em cima com Comunidade, Novidades,
+  Manual, Configurações, idioma, servidor e o perfil.
+- `10-menu-celular.jpg` — celular deitado: atalhos só com ícone, cartões compactos, sem o texto de apoio.
+- `11-menu-antes-e-depois.jpg` — o menu de hoje × a proposta.
+
+Fontes: `fonte/menu.tpl.html` (base visual em `fonte/base-maquete.css`, a mesma do lobby) e `fonte/menu-globo.jpg`
+(recorte do globo do menu de hoje). `node fonte/lobby-build.cjs` monta `menu.html` e `menu-celular.html`.
