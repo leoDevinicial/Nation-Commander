@@ -1447,7 +1447,8 @@ export class Room {
   private nationalSummary(slot: Slot): NationalSummary | null {
     const n = this.national?.nation(slot);
     if (!n || !this.national) return null;
-    const start = this.gdpStart.get(slot) ?? n.gdpUsd;
+    // nação do mapa (16/11): o PIB nasce no 1º dia, do que o cenário produz
+    const start = n.gdpFirstUsd ?? this.gdpStart.get(slot) ?? n.gdpUsd;
 
     const avg = n.history.length > 0 ? n.history.reduce((a, h) => a + h.growthPct, 0) / n.history.length : n.realGrowthPct;
     return {

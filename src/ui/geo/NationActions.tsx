@@ -136,7 +136,7 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
               className="btn px-2 py-1 text-xs"
               disabled={has('alliance')}
               onClick={() => onAction({ type: 'propose', treaty: 'alliance', partner: f.id })}
-              title={`Duração ${DIPLO.allianceDays} dias. O aliado envia ajuda militar ao teatro; custa ${DIPLO.allianceCostPct}% do PIB/ano. Exige relação alta.`}
+              title={`Duração ${DIPLO.allianceDays} dias. O aliado envia ajuda militar ao teatro; custa US$ ${DIPLO.allianceDayUsd / 1000} mil por dia ao caixa. Exige relação alta.`}
             >
               <Handshake size={14} aria-hidden /> Propor Aliança
             </button>
@@ -157,7 +157,7 @@ export function NationActions({ f, me, view, day, nameOf, onAction, onDeclareWar
           <button
             className="btn px-2 py-1 text-xs"
             onClick={() => onAction({ type: 'set_mission', partner: f.id, active: !mission })}
-            title={`Melhora a relação gradualmente (até +${DIPLO.missionCap}) e fornece dados atualizados; custa ${DIPLO.missionCostPct}% do PIB/ano.`}
+            title={`Melhora a relação gradualmente (até +${DIPLO.missionCap}) e fornece dados atualizados; custa US$ ${DIPLO.missionDayUsd / 1000} mil por dia ao caixa.`}
           >
             <Landmark size={14} aria-hidden /> {mission ? 'Encerrar Missão' : 'Abrir Missão Diplomática'}
           </button>

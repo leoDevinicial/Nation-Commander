@@ -4,6 +4,10 @@ export const CHANGELOG: { version: string; date: string; items: string[] }[] = [
     version: '1.5',
     date: '16/11/2026',
     items: [
+      'Orçamento de verdade, como num jogo de cidade: impostos residencial, comercial e industrial e sete áreas (Defesa, Infraestrutura, Educação, Saúde, Segurança, Pesquisa, Assistência) de 50% a 150%, cada uma com custo por dia e efeito no mapa.',
+      'Todos os países começam iguais: nada de vantagem pelo PIB ou pelo gasto militar reais. Fica o bônus único de cada país.',
+      'O PIB e a aprovação vêm do que acontece no mapa; sem caixa, o orçamento corta as áreas em vez de ficar negativo.',
+      'Menu inicial novo, com o globo em tela cheia, os modos em cartões e as novidades à vista.',
       'Lobby redesenhado: tudo numa tela só, com o código da sala em destaque, quem já está pronto e abas no celular.',
       'O anfitrião escolhe a vitória: só por eliminação ou também por domínio territorial.',
       'Colônias: funde uma prefeitura em terra neutra levando uma tropa ou navio até lá (ilhas desabitadas do Arquipélago).',

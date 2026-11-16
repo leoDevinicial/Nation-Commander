@@ -94,7 +94,7 @@ export function ResultsOverlay() {
                   <th>Variação</th>
                   <th>Aprovação</th>
                   <th>Caixa</th>
-                  <th>Inflação</th>
+                  <th>Sem trabalho</th>
                   <th>Pesquisas</th>
                 </tr>
               </thead>
@@ -107,7 +107,7 @@ export function ResultsOverlay() {
                       <td>{formatSigned(((p.national.gdpEndUsd / p.national.gdpStartUsd) - 1) * 100, 1, '%')}</td>
                       <td>{formatPct(p.national.approvalEnd, 0)}</td>
                       <td>{formatUsd(p.national.fundEndUsd)}</td>
-                      <td>{formatPct(p.national.inflationEndPct)}</td>
+                      <td>{formatPct(p.national.unemploymentEndPct)}</td>
                       <td className="font-sans text-xs" title={p.national.researchDone.map((t) => TECHNOLOGIES[t].label).join(', ')}>
                         {p.national.researchDone.length}
                       </td>

@@ -77,9 +77,15 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
   `src/game/net/interp.ts`. Banda de partida pesada: `npx tsx scripts/knps-banda.ts`; ver `docs/knps/KNPS_DELTA_E_FLUIDEZ.md`.
 - Construtores (`BUILDERS`, `docs/CONSTRUTORES.md`): toda obra usa até 4 cidadãos (25% da velocidade cada; sem nenhum,
   para). Testes de regra antigos rodam sem eles (`shared/test/setup.ts`), como a rede elétrica.
-- Caixa do país (`shared/strategic/treasury.ts`, `docs/CAIXA_DO_PAIS.md`): o antigo "verba de obras" (`works.fundUsd`)
-  recebe repasse, produção e comércio e paga exército, energia, prédios, estradas e serviços todo dia; sem teto.
-  Não existe dívida pública (02/11): guerra, contato, ajuda e operações saem do caixa em dias de repasse (`CAIXA_DAYS`).
+- Caixa do país (`shared/strategic/treasury.ts`, `docs/CAIXA_DO_PAIS.md`): `works.fundUsd` recebe produção, impostos
+  (cidadãos e lotes) e comércio e paga exército, energia, prédios, estradas e as áreas do orçamento todo dia; nunca
+  fica negativo (sem saldo, as áreas são cortadas). Sem dívida pública: guerra, contato, ajuda e operações saem do
+  caixa em dias de `dayUsd` (`CAIXA_DAYS`). Preços em US$ sobre base fixa (`PRICE_BASE_USD`).
+- Orçamento do país do mapa (`shared/strategic/areas.ts`, `docs/ORCAMENTO_DO_PAIS.md`, 16/11): áreas de 50% a 150%
+  (Defesa, Infraestrutura, Educação, Saúde, Segurança, Pesquisa, Assistência) com custo por dia e efeito no teatro;
+  impostos R/C/I no topo do painel; PIB e aprovação vêm do mapa. Todos os países começam iguais (sem dados reais; a
+  "Escala real" saiu); só os países de fora usam dados reais, e só para o tamanho na diplomacia. A macroeconomia antiga
+  (inflação, déficit, `budget` em % do PIB) só roda nos países de fora; no mapa, `budget` é derivado das áreas.
 - Comércio (`shared/sim/trade.ts`, `docs/COMERCIO.md`): anúncios entre as nações da partida (venda simples ou contrato),
   rota por rodovia/estrada, porto ou aeroporto, cargas atacáveis por quem está em guerra com uma das partes e pagamento
   só na chegada; mercado mundial de reserva. Rodovia (`HIGHWAY`): sai da fronteira sem engenheiro, só pela terra

@@ -1,7 +1,6 @@
 import { Star } from 'lucide-react';
 import { countryName } from '../../../shared/data/countries.ts';
 import { countryBonus } from '../../../shared/sim/countryBonus.ts';
-import { COEF, theaterSupply } from '../../../shared/strategic/params.ts';
 import { countryReference, REFERENCE_META, type ReferenceKey, type SourcedValue } from '../../../shared/strategic/reference.ts';
 import { formatCount, formatNumber, formatPct, formatUsd } from '../../lib/format.ts';
 
@@ -47,27 +46,13 @@ export function ReferenceRow({ k, v, fmt }: { k: ReferenceKey; v: SourcedValue; 
   );
 }
 
-/** Fatores que tornam o início da campanha mais difícil, derivados só dos dados exibidos. */
-export function difficultyFactors(id: string): string[] {
-  const v = countryReference(id).values;
-  const out: string[] = [];
-  const val = (k: ReferenceKey) => v[k].value;
-  if ((val('inflationPct') ?? 0) > 10) out.push(`inflação alta (${formatPct(val('inflationPct'))}): pressiona a aprovação até ceder`);
-  if ((val('unemploymentPct') ?? 0) > 15) out.push(`desemprego estrutural alto (${formatPct(val('unemploymentPct'))})`);
-  if ((val('gdpGrowthPct') ?? 2) < 1) out.push(`crescimento fraco (${formatPct(val('gdpGrowthPct'))})`);
-  const rev = val('govRevenuePctGdp');
-  const exp = val('govExpensePctGdp');
-  if (rev !== null && exp !== null && exp - rev > 5) out.push(`déficit do governo central de ${formatPct(exp - rev)} do PIB`);
-  if ((val('militaryUsd') ?? Infinity) < 10e9) out.push('orçamento de defesa pequeno: pouca logística no teatro se a regra for realista');
-  return out;
-}
-
-export function CountryCard({ id, balanceMode }: { id: string; balanceMode: 'parity' | 'realistic' }) {
+/**
+ * Ficha do país no lobby (16/11): todos começam iguais na partida; o que muda é o bônus único e a região inicial. Os
+ * dados reais ficam como curiosidade, sem efeito no jogo.
+ */
+export function CountryCard({ id }: { id: string; balanceMode?: 'parity' | 'realistic' }) {
   const ref = countryReference(id);
-  const factors = difficultyFactors(id);
-  const level = factors.length >= 3 ? 'Alta' : factors.length >= 1 ? 'Moderada' : 'Baixa';
   const l = ref.leaders;
-  const militaryUsd = ref.values.militaryUsd.value;
   const bonus = countryBonus(id);
   return (
     <div className="rounded border border-ink-700 bg-ink-950 p-3 text-xs">
@@ -75,7 +60,6 @@ export function CountryCard({ id, balanceMode }: { id: string; balanceMode: 'par
         <h3 className="text-sm font-semibold">
           {countryName(id)} <span className="text-ink-400">({id})</span>
         </h3>
-        <span className="text-ink-400">Dificuldade estimada: <span className="text-ink-100">{level}</span></span>
       </div>
       {l && (
         <p className="mb-2 text-ink-400">
@@ -95,6 +79,8 @@ export function CountryCard({ id, balanceMode }: { id: string; balanceMode: 'par
           </span> {bonus.description}
         </p>
       )}
+      <p className="mb-2 text-ink-300">Na partida, todos os países começam com a mesma economia, a mesma logística e o mesmo caixa. O que muda é o bônus acima e a região inicial do mapa.</p>
+      <div className="text-[11px] font-semibold text-ink-200">O país real (só curiosidade, sem efeito no jogo)</div>
       <table className="w-full">
         <tbody>
           {MAIN_ROWS.map((r) => (
@@ -102,19 +88,6 @@ export function CountryCard({ id, balanceMode }: { id: string; balanceMode: 'par
           ))}
         </tbody>
       </table>
-      <div className="mt-2 text-ink-400">
-        <div className="text-[11px] font-semibold text-ink-200">Fatores de dificuldade</div>
-        {factors.length === 0 ? <div>Nenhum fator crítico nos dados de referência.</div> : <ul className="list-inside list-disc">{factors.map((f) => <li key={f}>{f}</li>)}</ul>}
-        {militaryUsd !== null && (
-          <div className="mt-1">
-            Logística inicial no teatro:{' '}
-            <span className="font-mono text-ink-100">
-              +{theaterSupply((balanceMode === 'parity' ? ((ref.values.militaryPctGdp.value ?? 0) / 100) * COEF.parityGdpUsd : militaryUsd) / 1e9).toFixed(2)}/s
-            </span>{' '}
-            ({balanceMode === 'parity' ? 'regra de paridade' : 'regra realista'}).
-          </div>
-        )}
-      </div>
       <p className="mt-2 text-[10px] text-ink-400">
         Fonte: Banco Mundial (WDI) e bases que ele redistribui (OIT, SIPRI, IISS, UNESCO, OMS), licença CC BY 4.0
         {REFERENCE_META.fetchedAt ? `, importado em ${REFERENCE_META.fetchedAt.slice(0, 10).split('-').reverse().join('/')}` : ''}. O ano de cada valor está ao

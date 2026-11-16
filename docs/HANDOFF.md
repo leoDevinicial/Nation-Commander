@@ -135,6 +135,14 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 
 ## 0.4 O que mudou desde 31/10 (mais recente primeiro; detalhes no `git log` e nas docs citadas)
 
+**16/11 — orçamento do país do mapa e menu novo:** o painel de Orçamento passou a governar o país do cenário (impostos
+R/C/I e sete áreas de 50–150% com custo e efeito no teatro; PIB e aprovação do mapa; cortes sem caixa). Todos os
+países começam iguais e a "Escala real" saiu; o "repasse do orçamento" acabou (o caixa vive de produção e impostos,
+inclusive dos cidadãos). Regras e calibragem em `docs/ORCAMENTO_DO_PAIS.md`. Antes, no mesmo dia: menu inicial novo
+(`MenuScreen.tsx`, maquete em `docs/ui_maquete` 9–11), lobby redesenhado, vitória escolhida pelo anfitrião, colônias,
+silo e ogiva nuclear, faixas roláveis na barra de recursos. Ainda não aprovado: a correção dos acordos comerciais do
+Globo (todos aceitam; a IA assina com todo mundo), proposta na análise de 16/11.
+
 **15/11 — banda e engasgo (pedido do usuário depois de uma partida de ~3 GB no Render):** snapshots delta, compressão
 garantida mesmo sem permessage-deflate (o servidor de produção não negociou a extensão num teste) e interpolação que
 parte do ponto desenhado. Pior caso medido (500 tropas em marcha): 1,56 GB/h → 81–114 MB/h por jogador. Detalhes,

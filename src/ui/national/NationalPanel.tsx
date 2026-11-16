@@ -4,7 +4,7 @@ import { Frame } from '../components/Frame.tsx';
 import { ScrollStrip } from '../components/ScrollStrip.tsx';
 import { factionColor } from '../../game/render/palette.ts';
 import { countryName } from '../../../shared/data/countries.ts';
-import type { Budget } from '../../../shared/strategic/NationalSimulation.ts';
+import type { Areas } from '../../../shared/strategic/areas.ts';
 import type { TechId } from '../../../shared/strategic/technologies.ts';
 import { gameClient } from '../../net/client.ts';
 import { formatDate } from '../../lib/format.ts';
@@ -42,7 +42,6 @@ export function NationalPanel({ onClose }: { onClose: () => void }) {
     return () => useNationalStore.setState({ shownTab: null });
   }, [tab]);
   const mySlot = useAppStore((s) => s.match?.yourSlot ?? 0);
-  const balanceMode = useAppStore((s) => s.match?.balanceMode ?? 'parity');
   const nation = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot));
   const history = useNationalStore((s) => s.history[mySlot] ?? []);
   const day = useNationalStore((s) => s.day);
@@ -50,7 +49,7 @@ export function NationalPanel({ onClose }: { onClose: () => void }) {
   const diplomacy = useNationalStore((s) => s.diplomacy);
   const players = useAppStore((s) => s.match?.players ?? []);
 
-  const applyBudget = (budget: Budget) => gameClient.send({ t: 'national', cmd: { type: 'set_budget', budget } });
+  const applyAreas = (areas: Areas) => gameClient.send({ t: 'national', cmd: { type: 'set_areas', areas } });
   const selectResearch = (techId: TechId | null) => gameClient.send({ t: 'national', cmd: { type: 'set_research', techId } });
   const diplomaticAction = (action: DiplomaticAction) => gameClient.send({ t: 'national', cmd: { type: 'diplomacy', action } });
   const nameOf = makeNameOf(players, diplomacy?.nations ?? []);
@@ -97,9 +96,9 @@ export function NationalPanel({ onClose }: { onClose: () => void }) {
         {!nation ? (
           <p className="text-sm text-ink-400">Aguardando o primeiro relatório nacional do servidor…</p>
         ) : tab === 'overview' ? (
-          <OverviewTab nation={nation} history={history} day={day} balanceMode={balanceMode} />
+          <OverviewTab nation={nation} history={history} day={day} />
         ) : tab === 'budget' ? (
-          <BudgetTab nation={nation} onApply={applyBudget} balanceMode={balanceMode} />
+          <BudgetTab nation={nation} onApply={applyAreas} />
         ) : tab === 'research' ? (
           <ResearchTab nation={nation} onSelect={selectResearch} />
         ) : tab === 'policy' ? (

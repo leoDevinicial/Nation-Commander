@@ -72,7 +72,7 @@ export function describeNationalEvent(e: NationalEvent, mySlot: number, nameOf: 
     case 'nuclear_shock': {
       const victim = e.victim === mySlot ? 'nosso país' : nameOf(e.victim);
       return {
-        text: `☢ ${mine ? 'Lançamos' : `${nameOf(e.slot)} lançou`} um míssil nuclear contra ${victim}. A economia mundial entra em choque por meses: crescimento, inflação e renda no teatro de todos os países pioram.`,
+        text: `☢ ${mine ? 'Lançamos' : `${nameOf(e.slot)} lançou`} um míssil nuclear contra ${victim}. A economia mundial entra em choque por meses: a coleta, a logística e a aprovação de todos os países pioram.`,
         tone: 'bad',
       };
     }

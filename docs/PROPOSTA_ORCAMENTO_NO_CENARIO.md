@@ -1,4 +1,8 @@
-# Proposta: o orçamento governa o país do cenário (16/11, para aprovação)
+# Proposta: o orçamento governa o país do cenário (16/11, aprovada e aplicada)
+
+> **Aplicada em 16/11.** As regras que valem estão em [`ORCAMENTO_DO_PAIS.md`](ORCAMENTO_DO_PAIS.md); este texto fica
+> como registro da proposta. Diferenças: Segurança não mexe no abandono dos lotes (só na aprovação e nos protestos), as
+> estradas não perdem o bônus de velocidade abaixo de 75%, e entrou o imposto dos cidadãos para o caixa do começo.
 
 Pedido do responsável: o painel de orçamento deve mudar o país que está no mapa, como em Cities: Skylines, e não uma
 "instância fictícia" do país; os países não começam mais com vantagem financeira ou de recursos vinda dos dados reais,

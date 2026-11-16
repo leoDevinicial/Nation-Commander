@@ -1,94 +1,169 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
+import { Minus, Plus, Scissors } from 'lucide-react';
 import type { NationView } from '../../../shared/protocol.ts';
-import { spendPct, type Budget } from '../../../shared/strategic/NationalSimulation.ts';
-import { COEF, LIMITS, WORKS_SHARE_OF_INFRA, theaterSupply } from '../../../shared/strategic/params.ts';
-import { formatPct, formatSigned, formatUsd } from '../../lib/format.ts';
+import { AREA_FX, AREA_KEYS, AREA_LABEL, AREA_LIMITS, DEFAULT_AREAS, averageTax, clampAreas, taxApproval, type AreaKey, type Areas } from '../../../shared/strategic/areas.ts';
+import { COEF, theaterSupply } from '../../../shared/strategic/params.ts';
+import { ZONING, type ZoneKind } from '../../../shared/sim/zoning.ts';
+import { formatSigned, formatUsd } from '../../lib/format.ts';
+import { useHudStore } from '../../state/useHudStore.ts';
+import { gameClient } from '../../net/client.ts';
 
-const ROWS: { key: keyof Budget; label: string; limits: readonly [number, number]; hint: string }[] = [
-  { key: 'taxPct', label: 'Receita tributária', limits: LIMITS.taxPct, hint: 'Mais impostos reduzem o déficit, mas freiam o crescimento e derrubam a aprovação.' },
-  { key: 'defensePct', label: 'Defesa', limits: LIMITS.defensePct, hint: 'Financia a logística do teatro (suprimentos/s), com retornos decrescentes.' },
-  { key: 'educationPct', label: 'Educação', limits: LIMITS.categoryPct, hint: 'Melhora a aprovação; eleva o crescimento só após anos (capital humano).' },
-  { key: 'healthPct', label: 'Saúde', limits: LIMITS.categoryPct, hint: 'Serviço público: pesa na aprovação.' },
-  { key: 'infrastructurePct', label: 'Infraestrutura', limits: LIMITS.categoryPct, hint: 'Acumula estoque de infraestrutura que eleva o crescimento gradualmente.' },
-  { key: 'socialPct', label: 'Previdência, assistência e administração', limits: LIMITS.categoryPct, hint: 'Serviço público: pesa na aprovação. Cortes aliviam o déficit.' },
+/** Linhas do extrato do dia que cada área paga (para mostrar o custo de hoje). */
+const AREA_LINES: Record<AreaKey, string[]> = {
+  defense: ['defense'],
+  infrastructure: ['buildings', 'roads'],
+  education: ['svc_education'],
+  health: ['svc_health'],
+  security: ['svc_security'],
+  research: ['research'],
+  social: ['social'],
+};
+
+const AREA_HINT: Record<AreaKey, string> = {
+  defense: 'Logística militar: os suprimentos/s que chegam ao teatro.',
+  infrastructure: 'Manutenção de prédios e estradas: ritmo das obras e o índice de infraestrutura (QG alto e produtividade).',
+  education: 'Escolas e universidades: conhecimento formado e capital humano.',
+  health: 'Hospitais: formação de cidadãos no Centro de Comando e aprovação onde cobrem.',
+  security: 'Delegacias: aprovação onde cobrem e protestos mais fracos.',
+  research: 'Pesquisa nacional: ritmo e custo do dia da pesquisa em andamento.',
+  social: 'Prefeituras e administração: aprovação geral e estabilidade.',
+};
+
+const TAX_ROWS: { k: ZoneKind; label: string }[] = [
+  { k: 'res', label: 'Residencial (cidadãos e casas)' },
+  { k: 'com', label: 'Comercial' },
+  { k: 'ind', label: 'Industrial' },
 ];
 
-export function BudgetTab({ nation, onApply, balanceMode }: { nation: NationView; onApply: (b: Budget) => void; balanceMode: 'parity' | 'realistic' }) {
-  // rascunho só existe enquanto o jogador edita; sem ele, mostra o orçamento vigente
-  const [edited, setEdited] = useState<Budget | null>(null);
-  const draft = edited ?? nation.budget;
-  const dirty = edited !== null;
+/** O que a área faz no nível `v` (texto curto com números do jogo). */
+function effectText(k: AreaKey, v: number, nation: NationView): string {
+  const l = v / 100;
+  const pct = (x: number) => (Math.abs(x - 1) < 0.005 ? '±0%' : `${x > 1 ? '+' : '−'}${Math.round(Math.abs(x - 1) * 100)}%`);
+  switch (k) {
+    case 'defense':
+      return `${theaterSupply(((nation.referenceBudget.defensePct * l) / 100) * (COEF.parityGdpUsd / 1e9)).toFixed(2)} suprimentos/s (sem bônus)`;
+    case 'infrastructure':
+      return `obras ${pct(AREA_FX.buildSpeed(l))} · índice tende a ${AREA_FX.infraIndexTarget(l).toFixed(2)}`;
+    case 'education':
+      return `conhecimento ${pct(AREA_FX.knowledge(l))}`;
+    case 'health':
+      return `formação de cidadãos ${pct(AREA_FX.citizens(l))} · cobertura ×${l.toFixed(1)} na aprovação`;
+    case 'security':
+      return `cobertura das delegacias ×${l.toFixed(1)} na aprovação`;
+    case 'research':
+      return `pesquisas ${pct(AREA_FX.research(l))} · custo do dia ×${l.toFixed(1)}`;
+    case 'social':
+      return `aprovação ${formatSigned(AREA_FX.socialApproval(l), 0, '')}`;
+  }
+}
 
-  const preview = useMemo(() => {
-    const spend = spendPct(draft);
-    const balance = draft.taxPct - spend;
-    const gdpForTheater = balanceMode === 'parity' ? COEF.parityGdpUsd : nation.gdpUsd;
-    const supply = theaterSupply(((draft.defensePct / 100) * gdpForTheater) / 1e9);
-    const worksCap = (draft.infrastructurePct / 100) * gdpForTheater * WORKS_SHARE_OF_INFRA;
-    return { spend, balance, supplyBase: supply, worksCap };
-  }, [draft, nation, balanceMode]);
-
-  const set = (key: keyof Budget, v: number) => setEdited({ ...draft, [key]: v });
-  const usd = (pct: number) => formatUsd((pct / 100) * nation.gdpUsd);
+/**
+ * Orçamento do país do cenário (16/11, `shared/strategic/areas.ts`), no estilo dos orçamentos de serviço de Cities:
+ * impostos em cima (aplicam na hora) e as áreas embaixo, de 50% a 150%, cada uma com o custo de hoje, o custo no
+ * rascunho e o efeito em números do jogo; o saldo do dia antes → depois.
+ */
+export function BudgetTab({ nation, onApply }: { nation: NationView; onApply: (a: Areas) => void }) {
+  const current = clampAreas(nation.areas);
+  const [edited, setEdited] = useState<Areas | null>(null);
+  const draft = edited ?? current;
+  const dirty = edited !== null && AREA_KEYS.some((k) => draft[k] !== current[k]);
+  const tax = useHudStore((s) => s.zoning?.tax) ?? { res: ZONING.taxDefault, com: ZONING.taxDefault, ind: ZONING.taxDefault };
+  const today = nation.works.today;
+  const lineUsd = (keys: string[]) => keys.reduce((a, key) => a + (today?.expense.find((l) => l.key === key)?.usd ?? 0), 0);
+  const effective = (k: AreaKey) => nation.areasCut?.[k] ?? current[k];
+  const costToday = (k: AreaKey) => lineUsd(AREA_LINES[k]);
+  // custo do rascunho: o de hoje proporcional ao nível (as linhas escalam linearmente com ele)
+  const costDraft = (k: AreaKey) => (effective(k) > 0 ? (costToday(k) * draft[k]) / effective(k) : 0);
+  const delta = AREA_KEYS.reduce((a, k) => a + costDraft(k) - costToday(k), 0);
+  const net = today?.net ?? 0;
+  const incomeOf = (prefix: string) => today?.income.filter((l) => l.key.startsWith(prefix)).reduce((a, l) => a + l.usd, 0) ?? 0;
+  const setTax = (k: ZoneKind, pct: number) => gameClient.send({ t: 'cmd', cmd: { type: 'zone_tax', kind: k, pct: Math.max(0, Math.min(ZONING.taxMax, Math.round(pct))) } });
+  const cut = nation.areasCut ? (Object.keys(nation.areasCut) as AreaKey[]) : [];
 
   return (
     <div className="space-y-3 text-xs">
       <p className="text-ink-400">
-        Valores anuais em % do PIB ({formatUsd(nation.gdpUsd)}). Os efeitos não são instantâneos: aprovação, crescimento e inflação reagem ao
-        longo de semanas e meses de jogo (1 dia = 1 s a 1×).
+        O orçamento governa o país do mapa: cada área paga prédios e serviços que estão no cenário e muda o que acontece nele. Valores por dia (1 dia = 1 s a
+        1×).
       </p>
-      <div className="space-y-2.5">
-        {ROWS.map((r) => {
-          const ref = nation.referenceBudget[r.key];
-          const v = draft[r.key];
+
+      <section className="space-y-1.5 rounded border border-ink-700 bg-ink-900 p-2.5">
+        <div className="flex items-baseline justify-between">
+          <span className="nc-kicker">Impostos</span>
+          <span className="text-[11px] text-ink-400">
+            {`aprovação ${formatSigned(taxApproval(averageTax(tax)), 0, '')} · rendem ${formatUsd(incomeOf('tax_'))}/dia`}
+          </span>
+        </div>
+        {TAX_ROWS.map(({ k, label }) => (
+          <div key={k} className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 text-ink-200">{label}</span>
+            <button className="btn min-h-6 px-1.5 py-0" aria-label={`Menos imposto ${label}`} disabled={tax[k] <= 0} onClick={() => setTax(k, tax[k] - 1)}>
+              <Minus size={12} aria-hidden />
+            </button>
+            <span className="w-9 text-center font-mono text-ink-100">{tax[k]}%</span>
+            <button className="btn min-h-6 px-1.5 py-0" aria-label={`Mais imposto ${label}`} disabled={tax[k] >= ZONING.taxMax} onClick={() => setTax(k, tax[k] + 1)}>
+              <Plus size={12} aria-hidden />
+            </button>
+          </div>
+        ))}
+        <p className="text-[10px] text-ink-400">Mais imposto: mais caixa por cidadão e por lote, mas os bairros crescem menos, abandonam mais e a aprovação cai (10% é neutro).</p>
+      </section>
+
+      {cut.length > 0 && (
+        <p className="flex items-start gap-1.5 rounded border border-red-400/40 bg-red-500/10 p-2 text-red-200">
+          <Scissors size={13} className="mt-px shrink-0" aria-hidden />
+          <span>{`Caixa sem saldo: hoje o orçamento cortou ${cut.map((k) => `${AREA_LABEL[k]} (${nation.areasCut![k]}%)`).join(', ')}. Os efeitos caem junto.`}</span>
+        </p>
+      )}
+
+      <section className="space-y-2.5">
+        <span className="nc-kicker">Áreas (50% a 150%)</span>
+        {AREA_KEYS.map((k) => {
+          const v = draft[k];
+          const changed = v !== current[k];
           return (
-            <div key={r.key} title={r.hint}>
-              <div className="flex items-baseline justify-between">
-                <label htmlFor={`b-${r.key}`} className="text-ink-200">
-                  {r.label}
+            <div key={k} title={AREA_HINT[k]}>
+              <div className="flex items-baseline justify-between gap-2">
+                <label htmlFor={`a-${k}`} className="text-ink-200">
+                  {AREA_LABEL[k]}
                 </label>
                 <span className="font-mono text-ink-100">
-                  {formatPct(v, 1)} <span className="text-ink-400">· {usd(v)}</span>
+                  {v}% <span className="text-ink-400">· {formatUsd(costDraft(k))}/dia</span>
                 </span>
               </div>
               <input
-                id={`b-${r.key}`}
+                id={`a-${k}`}
                 type="range"
-                min={r.limits[0]}
-                max={r.limits[1]}
-                step={0.1}
+                min={AREA_LIMITS[0]}
+                max={Math.max(AREA_LIMITS[1], current[k])}
+                step={10}
                 value={v}
-                onChange={(e) => set(r.key, Number(e.target.value))}
+                onChange={(e) => setEdited({ ...draft, [k]: Number(e.target.value) })}
                 onKeyDown={(e) => e.stopPropagation()}
                 className="w-full accent-[#e2b54d]"
               />
-              <div className="flex justify-between text-[10px] text-ink-400">
-                <span>{r.hint}</span>
-                <span className="shrink-0 pl-2">ref. {formatPct(ref, 1)}</span>
+              <div className="flex justify-between gap-2 text-[10px]">
+                <span className={changed ? 'text-brass-400' : 'text-ink-400'}>{effectText(k, v, nation)}</span>
+                {changed && <span className="shrink-0 font-mono text-ink-400">hoje {current[k]}%</span>}
               </div>
             </div>
           );
         })}
-      </div>
+      </section>
+
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 rounded border border-ink-700 bg-ink-900 p-2.5 font-mono">
-        <span className="font-sans text-ink-400">Receitas</span>
-        <span className="text-right">{formatPct(draft.taxPct)}</span>
-        <span className="font-sans text-ink-400">Despesas primárias</span>
-        <span className="text-right">{formatPct(preview.spend)}</span>
-        <span className="font-sans font-semibold text-ink-200">Saldo (− = déficit)</span>
-        <span className={`text-right font-semibold ${preview.balance < 0 ? 'text-red-300' : 'text-signal-green'}`}>
-          {formatSigned(preview.balance, 1, '%')} · {usd(preview.balance)}
-        </span>
-        <span className="font-sans text-ink-400">Logística do teatro (sem bônus)</span>
-        <span className="text-right">+{preview.supplyBase.toFixed(2)}/s</span>
+        <span className="font-sans text-ink-400">Saldo de hoje</span>
+        <span className={`text-right ${net < 0 ? 'text-red-300' : 'text-signal-green'}`}>{formatSigned(net / 1e3, 0, ' mil')}/dia</span>
+        {dirty && (
+          <>
+            <span className="font-sans text-ink-400">Com o rascunho</span>
+            <span className={`text-right font-semibold ${net - delta < 0 ? 'text-red-300' : 'text-signal-green'}`}>{formatSigned((net - delta) / 1e3, 0, ' mil')}/dia</span>
+          </>
+        )}
+        <span className="font-sans text-ink-400">Caixa do país</span>
+        <span className="text-right text-ink-100">{formatUsd(nation.works.fundUsd)}</span>
       </div>
-      <WorksFundBox nation={nation} draftCap={preview.worksCap} />
-      {nation.taxAdjustmentPct > 0 && (
-        <p className="text-[10px] text-ink-400">
-          A receita de referência inclui um ajuste de {formatPct(nation.taxAdjustmentPct)} do PIB: os dados de receita cobrem só o governo central,
-          enquanto saúde e educação cobrem todos os níveis de governo. O ajuste preserva o déficit observado.
-        </p>
-      )}
+
       <div className="flex gap-2">
         <button
           className="btn btn-primary flex-1"
@@ -98,54 +173,33 @@ export function BudgetTab({ nation, onApply, balanceMode }: { nation: NationView
             setEdited(null);
           }}
         >
-          Aplicar Orçamento
+          Aplicar orçamento
         </button>
-        <button
-          className="btn"
-          disabled={!dirty}
-          onClick={() => setEdited(null)}
-        >
+        <button className="btn" disabled={!dirty} onClick={() => setEdited(null)}>
           Descartar
         </button>
-        <button
-          className="btn"
-          onClick={() => setEdited({ ...nation.referenceBudget })}
-          title="Volta aos valores de referência do país"
-        >
-          Referência
+        <button className="btn" onClick={() => setEdited({ ...DEFAULT_AREAS })} title="Todas as áreas no custo de referência">
+          Tudo em 100%
         </button>
       </div>
+      <WorksFundBox nation={nation} />
     </div>
   );
 }
 
-/**
- * Verba de obras do teatro: parcela do orçamento de infraestrutura que paga as melhorias de
- * construções (Fase 4). Mostra saldo, teto anual (e o efeito do rascunho do orçamento) e o extrato.
- */
-function WorksFundBox({ nation, draftCap }: { nation: NationView; draftCap: number }) {
+/** Caixa do país: saldo, gasto na partida e o extrato das obras. */
+function WorksFundBox({ nation }: { nation: NationView }) {
   const w = nation.works;
-  const changed = Math.abs(draftCap - w.capUsd) > 1;
   return (
     <div className="rounded border border-ink-700 bg-ink-900 p-2.5">
       <div className="flex items-baseline justify-between">
-        <span className="font-semibold text-ink-200">Caixa do país no teatro</span>
-        <span className="font-mono text-ink-100">
-          {formatUsd(w.fundUsd)} <span className="text-ink-400">· repasse {formatUsd(w.capUsd)}/ano</span>
-        </span>
+        <span className="font-semibold text-ink-200">Obras pagas pelo caixa</span>
+        <span className="font-mono text-ink-100">{formatUsd(w.spentUsd)}</span>
       </div>
       <p className="mt-1 text-[10px] text-ink-400">
-        Paga melhorias, estradas, eras e Grandes Projetos. Recebe todo dia o repasse ({formatPct(WORKS_SHARE_OF_INFRA * 100, 1)} do orçamento de
-        infraestrutura, já contado no gasto público), a produção do teatro e o comércio, e paga a manutenção do exército, da energia, dos prédios,
-        das estradas e dos serviços. Extrato no US$ da barra superior.
-        {changed && (
-          <span className="text-brass-400"> Com o rascunho, o repasse passa a {formatUsd(draftCap)}/ano.</span>
-        )}
+        O caixa recebe a produção, os impostos dos cidadãos e dos lotes e o comércio, e paga o exército, a energia, as áreas do orçamento, as melhorias,
+        estradas, eras e Grandes Projetos. Nunca fica negativo: sem saldo, as áreas são cortadas. Extrato completo no US$ da barra superior.
       </p>
-      <div className="mt-1 flex justify-between text-[11px]">
-        <span className="text-ink-400">Gasto na partida</span>
-        <span className="font-mono text-ink-200">{formatUsd(w.spentUsd)}</span>
-      </div>
       {w.ledger.length > 0 && (
         <ul className="mt-1 max-h-24 space-y-0.5 overflow-y-auto text-[11px]">
           {[...w.ledger].reverse().map((l, i) => (

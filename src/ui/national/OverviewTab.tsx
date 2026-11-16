@@ -11,7 +11,11 @@ function dateOf(day: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function OverviewTab({ nation, history, day, balanceMode }: { nation: NationView; history: HistoryPoint[]; day: number; balanceMode: 'parity' | 'realistic' }) {
+/**
+ * Visão geral do país do mapa (16/11): PIB do cenário, crescimento, cidadãos sem trabalho, saldo do caixa e aprovação.
+ * Inflação e desemprego "macro" saíram (não há mais o que os gere); a logística vem da área Defesa do orçamento.
+ */
+export function OverviewTab({ nation, history, day }: { nation: NationView; history: HistoryPoint[]; day: number }) {
   const pts = [...history];
   const lastDay = pts.at(-1)?.day ?? -1;
   if (lastDay < day) {
@@ -36,36 +40,30 @@ export function OverviewTab({ nation, history, day, balanceMode }: { nation: Nat
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
         <StatTile
-          label="PIB nominal (US$ correntes)"
+          label="PIB do cenário (produção × 365)"
           value={formatUsd(nation.gdpUsd)}
-          delta={first ? { text: `${formatSigned(((nation.gdpUsd / first.gdpUsd) - 1) * 100, 1, '%')} desde o início`, good: nation.gdpUsd >= first.gdpUsd } : undefined}
+          delta={first && first.gdpUsd > 0 ? { text: `${formatSigned(((nation.gdpUsd / first.gdpUsd) - 1) * 100, 1, '%')} desde o início`, good: nation.gdpUsd >= first.gdpUsd } : undefined}
           series={series('gdpUsd')}
           format={formatUsd}
         />
         <StatTile
-          label="Crescimento real (anualizado)"
+          label="Crescimento (PIB vs. média de 30 dias)"
           value={formatPct(nation.realGrowthPct)}
           delta={delta(nation.realGrowthPct, first?.growthPct, true, ' p.p.')}
           series={series('growthPct')}
           format={(v) => formatPct(v)}
-          baseline={nation.trendGrowthPct}
+          baseline={0}
         />
+        <StatTile label="População (cidadãos e militares)" value={Math.round(nation.population).toLocaleString('pt-BR')} delta={{ text: `caixa ${formatUsd(nation.works.fundUsd)}`, good: null }} series={[]} format={(v) => String(v)} />
         <StatTile
-          label="Inflação (anual)"
-          value={formatPct(nation.inflationPct)}
-          delta={delta(nation.inflationPct, first?.inflationPct, false, ' p.p.')}
-          series={series('inflationPct')}
-          format={(v) => formatPct(v)}
-        />
-        <StatTile
-          label="Desemprego"
+          label="Cidadãos sem trabalho"
           value={formatPct(nation.unemploymentPct)}
           delta={delta(nation.unemploymentPct, first?.unemploymentPct, false, ' p.p.')}
           series={series('unemploymentPct')}
           format={(v) => formatPct(v)}
         />
         <StatTile
-          label="Déficit do orçamento (% do PIB)"
+          label="Despesa acima da receita (% do PIB)"
           value={formatPct(nation.deficitPctGdp, 1)}
           delta={delta(nation.deficitPctGdp, first?.deficitPctGdp, false, ' p.p.', 1)}
           series={series('deficitPctGdp')}
@@ -81,18 +79,16 @@ export function OverviewTab({ nation, history, day, balanceMode }: { nation: Nat
       </div>
       <div className="space-y-2 rounded border border-ink-700 bg-ink-900 p-2.5">
         <Meter label="Aprovação" value={nation.approval} hint="Abaixo de 35, cresce o risco de protestos." />
-        <Meter label="Estabilidade institucional" value={nation.stability} hint="Depende da aprovação e da inflação. Abaixo de 40 freia o crescimento." />
+        <Meter label="Estabilidade institucional" value={nation.stability} hint="Segue a aprovação e os decretos. Muito baixa por tempo demais, o governo cai." />
       </div>
       <div className="rounded border border-ink-700 bg-ink-900 p-2.5 text-xs text-ink-200">
         <div className="mb-1 text-[11px] text-ink-400">Logística do teatro de operações</div>
         <div>
-          <span className="font-mono text-base font-semibold text-ink-100">+{nation.theaterSupplyPerSec.toFixed(2)}</span> suprimentos/s vindos do
-          orçamento de defesa ({formatPct(nation.budget.defensePct)} do PIB).
+          <span className="font-mono text-base font-semibold text-ink-100">+{nation.theaterSupplyPerSec.toFixed(2)}</span>{' '}
+          {`suprimentos/s vindos da Defesa do orçamento (${nation.areasCut?.defense ?? nation.areas?.defense ?? 100}%).`}
         </div>
         <div className="mt-1 text-[11px] text-ink-400">
-          Fórmula: {COEF.theaterSupplyK} × √(gasto de defesa anual em US$ bi), com saturação suave em {COEF.theaterSupplyMax}/s
-          {balanceMode === 'parity' ? ', calculado sobre um PIB de referência de US$ 1 tri (regra de paridade)' : ', calculado sobre o PIB real do país (regra realista)'}
-          , × bônus de pesquisa. Retornos decrescentes: quadruplicar a defesa dobra os suprimentos.
+          {`Fórmula: ${COEF.theaterSupplyK} × √(verba de defesa), com saturação suave em ${COEF.theaterSupplyMax}/s, × bônus de pesquisa, mais a ajuda de aliados. Igual para todos os países; retornos decrescentes: a 150% rende uns 20% a mais que a 100%.`}
         </div>
       </div>
     </div>

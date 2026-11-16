@@ -1,5 +1,8 @@
 # Caixa do país (01/11)
 
+> **16/11:** o "repasse do orçamento" não existe mais, os preços em US$ têm base fixa e o caixa paga as áreas do
+> orçamento; ver [`ORCAMENTO_DO_PAIS.md`](ORCAMENTO_DO_PAIS.md). O resto deste texto é o histórico de 01/11.
+
 Pedido do usuário depois de uma partida real: "aquele saldo em dinheiro de 75 milhões! Super confuso! Não sei quanto
 estou ganhando ou perdendo de dinheiro e de onde vem esse 75 [...] gostaria que ali mostrasse o saldo do país em $ e se
 está ganhando ou perdendo com base em ganhos − custos".

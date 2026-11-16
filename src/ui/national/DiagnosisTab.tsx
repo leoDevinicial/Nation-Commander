@@ -49,13 +49,13 @@ export function DiagnosisTab({ nation }: { nation: NationView }) {
         title={`Aprovação: alvo ${formatPct(Math.max(0, Math.min(100, COEF.approvalBase + nation.approvalFactors.reduce((a, f) => a + f.value, 0))), 0)} (base ${COEF.approvalBase}) — a aprovação atual (${formatPct(nation.approval, 0)}) converge para ele em ~${COEF.approvalDays} dias`}
         factors={nation.approvalFactors}
         unit=" pts"
-        note="Inflação e desemprego são comparados à situação de referência do país; serviços e impostos, ao orçamento de referência."
+        note="Tudo vem do mapa: impostos (10% é neutro), Assistência, serviços cobrindo os bairros, cidadãos sem trabalho, contas do caixa, guerra e decretos."
       />
       <FactorList
-        title={`Crescimento real anualizado: ${formatPct(nation.realGrowthPct)} (soma dos fatores)`}
+        title={`Crescimento do PIB do cenário: ${formatPct(nation.realGrowthPct)} (contra a média dos últimos 30 dias)`}
         factors={nation.growthFactors}
         unit=" p.p."
-        note="A tendência vem do crescimento observado no último ano com dado (limitado a −1% e 6%). Infraestrutura e educação agem com defasagem."
+        note="O PIB é o que o mapa produz por dia (coletas, indústrias e lotes) × 365: cresce quando a cidade e a produção crescem."
       />
       <div className="rounded border border-ink-700 bg-ink-900 p-2.5">
         <div className="mb-1 text-[11px] text-ink-400">Risco de protestos</div>

@@ -12,7 +12,6 @@ import {
   Feather,
   Hourglass,
   Info,
-  Landmark,
   LogOut,
   Map as MapIcon,
   MessageSquare,
@@ -20,7 +19,6 @@ import {
   Pencil,
   Play,
   Plus,
-  Scale,
   Shield,
   SignalHigh,
   SignalLow,
@@ -67,10 +65,6 @@ const sizeType = (t: MapType | 'random' | undefined): MapType => (t === undefine
 const MAP_ICON: Record<MapType | 'random', LucideIcon> = { continental: Trees, rivers: Waves, mountains: Mountain, desert: Sun, ocean: Anchor, islands: TreePalm, random: Dices };
 const MAP_SHORT: Record<MapType | 'random', string> = { continental: 'Continental', rivers: 'Rios', mountains: 'Montanhoso', desert: 'Deserto', ocean: 'Oceano', islands: 'Arquipélago', random: 'Sorteado' };
 const DIFF_ICON: Record<string, LucideIcon> = { easy: Feather, normal: Shield, hard: Swords, brutal: Skull };
-const BALANCE = {
-  parity: { icon: Scale, title: 'Paridade econômica', short: 'Paridade', text: 'Logística pela parcela do PIB em defesa, como se todos tivessem a mesma economia. Disputa equilibrada.' },
-  realistic: { icon: Landmark, title: 'Escala real', short: 'Escala real', text: 'Logística pelo gasto de defesa real de cada país: grandes economias têm vantagem.' },
-} as const;
 const TEAM_LABEL = ['Sem time', 'Time A', 'Time B', 'Time C'];
 /** Como se vence (16/11): o anfitrião escolhe se o domínio territorial também encerra a partida. */
 const VICTORY_MODE = {
@@ -331,15 +325,6 @@ export function LobbyScreen() {
                 {(mapType === 'islands' || mapType === 'random') && ' No Arquipélago, o contato entre as ilhas é por navio de transporte (Porto) e por avião.'}
               </p>
             </div>
-            <div className="flex flex-col gap-1.5 border-t border-ink-700 pt-3">
-              <Kicker>Regra do teatro</Kicker>
-              <div className="grid grid-cols-2 gap-1.5">
-                {(['parity', 'realistic'] as const).map((m) => (
-                  <Pick key={m} name="balance" on={room.balanceMode === m} disabled={!isHost} icon={BALANCE[m].icon} label={BALANCE[m].title} onPick={() => gameClient.send({ t: 'set_balance', mode: m })} />
-                ))}
-              </div>
-              <p className="text-xs text-ink-400">{BALANCE[room.balanceMode].text}</p>
-            </div>
             {!sandbox && (
               <div className="flex flex-col gap-1.5 border-t border-ink-700 pt-3">
                 <Kicker>Vitória</Kicker>
@@ -403,14 +388,12 @@ export function LobbyScreen() {
           <div className="hidden flex-wrap gap-1.5 lg:flex">
             {(() => {
               const MapI = MAP_ICON[mapType];
-              const BalI = BALANCE[room.balanceMode].icon;
               const DiffI = DIFF_ICON[room.difficulty ?? 'normal'] ?? Shield;
               return (
                 <>
                   <SummaryChip icon={MapI}>
                     {MAP_SHORT[mapType]} {size}×{size}
                   </SummaryChip>
-                  <SummaryChip icon={BalI}>{BALANCE[room.balanceMode].short}</SummaryChip>
                   {!sandbox && <SummaryChip icon={VICTORY_MODE[victoryMode].icon}>{VICTORY_MODE[victoryMode].short}</SummaryChip>}
                   {showDifficulty && <SummaryChip icon={DiffI}>IA {DIFFICULTY[room.difficulty ?? 'normal'].label}</SummaryChip>}
                   {teamCounts.length > 1 && <SummaryChip icon={Users}>{teamCounts.join(' × ')}</SummaryChip>}
@@ -554,7 +537,7 @@ function Seat({ p, room, isMe, isHost, canTeam, open, onToggle, ready }: { p: Pl
       </div>
       {open && (
         <div className="mt-2">
-          <CountryCard id={p.countryId} balanceMode={room.balanceMode} />
+          <CountryCard id={p.countryId} />
         </div>
       )}
     </div>

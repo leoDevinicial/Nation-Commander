@@ -137,6 +137,8 @@ export const DIPLO = {
   missionCostPct: 0.02,
   /** Nações do mapa (16/11): cada missão ativa custa isto por dia ao caixa. */
   missionDayUsd: 12_000,
+  /** Nações do mapa (16/11): cada aliança com um país de fora custa isto por dia ao caixa. */
+  allianceDayUsd: 30_000,
   /** Contribuição anual de cada parte de uma aliança de defesa, % do PIB. */
   allianceCostPct: 0.1,
   aidRelationPer01Pct: 12,
@@ -528,6 +530,14 @@ export class Diplomacy {
   }
 
   /** Custo anual (% do PIB) de missões e alianças. */
+  /** Missões e alianças pagas por uma nação (16/11: no mapa, custo por dia no caixa). */
+  costCounts(id: NationId): { missions: number; alliances: number } {
+    let missions = 0;
+    for (const m of this.missions) if (m.startsWith(`${id}>`)) missions++;
+    const alliances = this.treaties.filter((t) => t.type === 'alliance' && !t.pact && !isTeamTreaty(t) && (t.a === id || t.b === id)).length;
+    return { missions, alliances };
+  }
+
   costPct(id: NationId): number {
     let c = 0;
     for (const m of this.missions) if (m.startsWith(`${id}>`)) c += DIPLO.missionCostPct;

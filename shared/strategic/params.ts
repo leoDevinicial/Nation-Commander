@@ -193,10 +193,14 @@ export const MAP_GDP_LOT_OUTPUT = 10;
 export const MAP_APPROVAL = {
   /** Cobertura completa de um serviço (Saúde, Educação ou Segurança) a 100%: 4 pontos (6 a 150%). */
   servicePerArea: 4,
-  /** Cidadãos ociosos: a partir de 3, até −10 (toda a população ociosa pesa 25). */
-  idleMin: 3,
-  idleWeight: 25,
-  idleMax: 10,
+  /**
+   * Cidadãos ociosos: só depois dos primeiros 3 minutos (no começo todos esperam emprego) e com 10 ou mais cidadãos;
+   * até −6 (toda a população ociosa pesa 15).
+   */
+  idleFromDay: 180,
+  idleMin: 10,
+  idleWeight: 15,
+  idleMax: 6,
   /** Crescimento do PIB do cenário (% sobre a média de 30 dias) × peso. */
   growth: 0.4,
   /** Contas do dia sem pagar e cortes por falta de caixa. */

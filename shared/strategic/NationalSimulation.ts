@@ -249,6 +249,8 @@ export interface NationState {
   areasCut?: Partial<Areas>;
   /** PIB lento (média de ~30 dias), para o crescimento do cenário. */
   gdpSlowUsd?: number;
+  /** Primeiro PIB do cenário (dia 1), para a variação no fim da partida. */
+  gdpFirstUsd?: number;
   /** Linha de base (valores de referência) para medir desvios. */
   base: { inflationPct: number; growthPct: number; taxPct: number; servicesPct: number; totalSpendPct: number; deficitPctGdp: number };
 }
@@ -1232,7 +1234,7 @@ export class NationalSimulation {
     const svc = stats?.services;
     if (svc && svc.health + svc.education + svc.security > 0)
       factors.push({ key: 'services_coverage', label: 'Hospitais, escolas e delegacias cobrindo os bairros', value: MAP_APPROVAL.servicePerArea * (svc.health * lv('health') + svc.education * lv('education') + svc.security * lv('security')) });
-    if (stats?.citizens && (stats.idle ?? 0) >= MAP_APPROVAL.idleMin) factors.push({ key: 'idle', label: 'Cidadãos sem trabalho', value: -Math.min(MAP_APPROVAL.idleMax, MAP_APPROVAL.idleWeight * ((stats.idle ?? 0) / stats.citizens)) });
+    if (this.day >= MAP_APPROVAL.idleFromDay && (stats?.citizens ?? 0) >= MAP_APPROVAL.idleMin && stats?.citizens) factors.push({ key: 'idle', label: 'Cidadãos sem trabalho', value: -Math.min(MAP_APPROVAL.idleMax, MAP_APPROVAL.idleWeight * ((stats.idle ?? 0) / stats.citizens)) });
     if (Math.abs(n.realGrowthPct) >= 0.5) factors.push({ key: 'growth', label: 'Economia do cenário (PIB nos últimos 30 dias)', value: clamp(MAP_APPROVAL.growth * n.realGrowthPct, -6, 4) });
     if ((n.works.shortUsd ?? 0) > 0) factors.push({ key: 'unpaid', label: 'Contas do dia sem pagar', value: -MAP_APPROVAL.unpaid });
     else if (n.areasCut) factors.push({ key: 'cuts', label: 'Cortes no orçamento por falta de caixa', value: -MAP_APPROVAL.cuts });
@@ -1282,7 +1284,13 @@ export class NationalSimulation {
       incomeMul: this.incomeMul(n) * (1 - Math.min(0.4, Math.max(0, -diplo.sanctions) * 0.1)) * (1 - 0.05 * Math.max(0, policyEffects(n.policies).inflation)),
       ...(n.works.tradePending ? { trade: n.works.tradePending } : {}),
       // missões diplomáticas ativas: custo por dia, no caixa (antes eram % de um PIB fictício)
-      extra: [{ key: 'missions', label: 'Missões diplomáticas', usd: Math.round((this.diplomacy.costPct(n.slot) / DIPLO.missionCostPct) * DIPLO.missionDayUsd) }],
+      extra: (() => {
+        const c = this.diplomacy.costCounts(n.slot);
+        return [
+          { key: 'missions', label: 'Missões diplomáticas', usd: c.missions * DIPLO.missionDayUsd },
+          { key: 'alliances', label: 'Alianças com países de fora', usd: c.alliances * DIPLO.allianceDayUsd },
+        ];
+      })(),
     };
     n.works.tradePending = undefined;
     const cur = n.research.current;
@@ -1334,6 +1342,7 @@ export class NationalSimulation {
     if (!n.gdpSlowUsd || n.gdpUsd <= 0) {
       n.gdpUsd = target;
       n.gdpSlowUsd = target;
+      n.gdpFirstUsd ??= target;
     } else {
       n.gdpUsd += (target - n.gdpUsd) * 0.2;
       n.gdpSlowUsd += (n.gdpUsd - n.gdpSlowUsd) / HISTORY_EVERY_DAYS;
@@ -1459,7 +1468,8 @@ export function createNation(slot: Slot, countryId: string, neutral = false): Na
     slot,
     countryId,
     population,
-    gdpUsd,
+    // nação do mapa: o PIB nasce no 1º dia, do que o cenário produz (`mapEconomy`)
+    gdpUsd: neutral ? 0 : gdpUsd,
     realGrowthPct: growth,
     trendGrowthPct: growth,
     inflationPct: inflation,
