@@ -48,11 +48,12 @@ export const AREA_FX = {
   /** Defesa: a verba militar que rende os suprimentos (`theaterSupply`) é a de referência × nível. */
   defense: (l: number) => l,
   /**
-   * Infraestrutura: obras (tempo ÷) e o índice de infraestrutura, que destrava o QG alto e rende produtividade. A 100%
-   * o índice fica em 1,0; o QG nível 8 pede 1,02, então é preciso investir acima da referência por um tempo.
+   * Infraestrutura: obras (tempo ÷) e o índice de infraestrutura, que destrava o QG alto (nível 8 pede 1,02) e rende
+   * produtividade. A 100% o índice tende a 1,05; abaixo de ~95%, o QG 8 fica travado. (Com 1,0 a 100% a calibragem
+   * de 16/11 deu eras mais tardias e uma IA travada: a produtividade pesa no caixa do começo.)
    */
   buildSpeed: (l: number) => 0.75 + 0.25 * l,
-  infraIndexTarget: (l: number) => 0.4 + 0.6 * l,
+  infraIndexTarget: (l: number) => 0.4 + 0.65 * l,
   /** Educação: conhecimento das escolas e universidades e o capital humano. */
   knowledge: (l: number) => 0.5 + 0.5 * l,
   /** Saúde: formação de cidadãos no Centro de Comando (velocidade). */

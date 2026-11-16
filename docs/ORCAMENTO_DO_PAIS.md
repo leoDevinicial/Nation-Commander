@@ -46,14 +46,14 @@ sofridas tiram 10% por ponto (até 40%); a inflação dos decretos (economia de 
 | Área | Paga | Efeito no cenário |
 |---|---|---|
 | Defesa | US$ 15 mil/dia | suprimentos/s da logística (`theaterSupply` sobre a verba de referência × nível) |
-| Infraestrutura | manutenção de prédios e estradas | obras (tempo ÷ 0,75+0,25·nível) e o índice de infraestrutura (alvo 0,4+0,6·nível: 1,0 a 100%; o QG 8 pede 1,02) |
+| Infraestrutura | manutenção de prédios e estradas | obras (tempo ÷ 0,75+0,25·nível) e o índice de infraestrutura (alvo 0,4+0,65·nível: 1,05 a 100%; o QG 8 pede 1,02, então cortar a Infraestrutura abaixo de ~95% trava o QG 8) |
 | Educação | escolas e universidades | conhecimento formado (×0,5+0,5·nível) e capital humano |
 | Saúde | hospitais | formação de cidadãos (×0,7+0,3·nível) e peso da cobertura na aprovação |
 | Segurança | delegacias | peso da cobertura na aprovação (e protestos mais fracos, como antes) |
 | Pesquisa | o dia da pesquisa em andamento | ritmo das pesquisas nacionais (×0,5+0,5·nível); a pesquisa militar acompanha |
 | Assistência e administração | US$ 8 mil/dia + prefeituras | aprovação direta (14 × (nível − 1)) |
 
-Missões diplomáticas (US$ 12 mil/dia cada) e alianças com países de fora (US$ 30 mil/dia) também saem do caixa.
+Missões diplomáticas (US$ 4 mil/dia cada) e alianças com países de fora (US$ 10 mil/dia) também saem do caixa.
 
 **Sem caixa.** Se o dia não fecha, as áreas são cortadas por igual (de 10 em 10%, até 50%) e um aviso diz quais; os
 efeitos caem junto. O caixa nunca fica negativo: o que faltar fica sem pagar (`works.shortUsd`) e pesa na aprovação.

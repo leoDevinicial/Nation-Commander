@@ -136,9 +136,9 @@ export const DIPLO = {
   /** Custo anual de uma missão diplomática, % do PIB. */
   missionCostPct: 0.02,
   /** Nações do mapa (16/11): cada missão ativa custa isto por dia ao caixa. */
-  missionDayUsd: 12_000,
+  missionDayUsd: 4_000,
   /** Nações do mapa (16/11): cada aliança com um país de fora custa isto por dia ao caixa. */
-  allianceDayUsd: 30_000,
+  allianceDayUsd: 10_000,
   /** Contribuição anual de cada parte de uma aliança de defesa, % do PIB. */
   allianceCostPct: 0.1,
   aidRelationPer01Pct: 12,
