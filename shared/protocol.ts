@@ -114,7 +114,12 @@ export interface RoomInfo {
   isPublic?: boolean;
   /** Nome escolhido pelo anfitrião (padrão "Sala de <anfitrião>"). */
   name?: string;
+  /** Como se vence (16/11): por eliminação ou também por domínio territorial (padrão). */
+  victoryMode?: VictoryMode;
 }
+
+/** `territory`: vence quem eliminar os outros ou dominar o território; `elimination`: só eliminando. */
+export type VictoryMode = 'territory' | 'elimination';
 
 /** Linha da lista de salas públicas do menu (só salas multijogador no lobby, com vaga). */
 export interface PublicRoomSummary {
@@ -200,7 +205,7 @@ export type ClientMessage =
   | { t: 'set_balance'; mode: BalanceMode }
   | { t: 'set_difficulty'; difficulty: Difficulty }
   /** Anfitrião: número de nações da sala e tipo de mapa. */
-  | { t: 'set_room'; maxPlayers?: number; mapType?: MapType | 'random'; isPublic?: boolean; name?: string }
+  | { t: 'set_room'; maxPlayers?: number; mapType?: MapType | 'random'; isPublic?: boolean; name?: string; victoryMode?: VictoryMode }
   | { t: 'add_bot' }
   | { t: 'remove_bot'; slot: Slot }
   /** Anfitrião: país de um bot (ou sorteado entre os livres). */

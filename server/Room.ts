@@ -13,6 +13,7 @@ import type {
   RoomMode,
   RoomPlayerInfo,
   ServerMessage,
+  VictoryMode,
 } from '../shared/protocol.ts';
 import { GAME_VERSION } from '../shared/version.ts';
 import type { Command } from '../shared/sim/commands.ts';
@@ -122,6 +123,8 @@ export class Room {
   /** Teto de nações: 4 na versão grátis, 6 com o anfitrião assinante; 2 no Sandbox. */
   nationLimit = MAX_NATIONS_FREE;
   mapType: MapType | 'random' = 'continental';
+  /** Como se vence (16/11): também por território (padrão) ou só por eliminação. */
+  victoryMode: VictoryMode = 'territory';
   balanceMode: BalanceMode = 'parity';
   difficulty: Difficulty = 'normal';
   national: NationalSimulation | null = null;
@@ -234,6 +237,7 @@ export class Room {
       maxPlayers: this.maxPlayers,
       balanceMode: this.balanceMode,
       mapType: this.mapType,
+      victoryMode: this.victoryMode,
       nationLimit: this.nationLimit,
       ...(this.isPublic ? { isPublic: true } : {}),
       name: this.displayName(),
@@ -354,7 +358,7 @@ export class Room {
   }
 
   /** Anfitrião: número de nações e tipo de mapa. */
-  setRoom(conn: Connection, opts: { maxPlayers?: number; mapType?: MapType | 'random'; isPublic?: boolean; name?: string }): void {
+  setRoom(conn: Connection, opts: { maxPlayers?: number; mapType?: MapType | 'random'; isPublic?: boolean; name?: string; victoryMode?: VictoryMode }): void {
     if (this.status !== 'lobby' || conn.user?.id !== this.hostUserId) return;
     // Sandbox (03/11): só o tipo de mapa muda (um inimigo fixo, sala privada)
     if (this.mode === 'sandbox') opts = opts.mapType !== undefined ? { mapType: opts.mapType } : {};
@@ -367,6 +371,10 @@ export class Room {
       this.system(opts.isPublic ? 'Sala pública: aparece na lista do menu.' : 'Sala privada: só entra quem tiver o código.');
     }
     if (opts.maxPlayers !== undefined) this.maxPlayers = Math.max(2, this.players.length, Math.min(this.nationLimit, opts.maxPlayers));
+    if (opts.victoryMode !== undefined && opts.victoryMode !== this.victoryMode) {
+      this.victoryMode = opts.victoryMode;
+      this.system(opts.victoryMode === 'elimination' ? 'Vitória só por eliminação.' : 'Vitória por eliminação ou por domínio territorial.');
+    }
     if (opts.mapType !== undefined) {
       this.mapType = opts.mapType;
       this.system(`Mapa: ${opts.mapType === 'random' ? 'sorteado no início' : MAP_TYPE_INFO[opts.mapType].label}.`);
@@ -585,6 +593,7 @@ export class Room {
     const sim = this.sim!;
     const national = this.national!;
     sim.teams = sim.players.map((sp) => this.players.find((p) => p.slot === sp.slot)?.team ?? null);
+    sim.territoryVictory = this.victoryMode !== 'elimination';
     national.diplomacy.teamMode = sim.teams.some((t) => t !== null);
     national.bots.clear();
     for (const p of this.players) if (p.isAI) national.bots.add(p.slot);
@@ -671,6 +680,7 @@ export class Room {
       room.sim.idCipher = idCipher(save.idKey);
     }
     room.difficulty = room.sim.difficulty;
+    room.victoryMode = room.sim.territoryVictory ? 'territory' : 'elimination';
     room.national = new NationalSimulation(
       room.players.map((p) => ({ slot: p.slot, countryId: p.countryId })),
       save.seed,

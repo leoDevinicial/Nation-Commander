@@ -2,6 +2,12 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → espanhol (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const ES: Dict = {
+  "Eliminação ou território": "Eliminación o territorio",
+  "Só eliminação": "Solo eliminación",
+  "Vence quem eliminar os outros (destruir o QG de todos) ou quem controlar 70% do território do mapa por 4 minutos seguidos.": "Gana quien elimine a los demás (destruya el CG de todos) o quien controle el 70% del territorio del mapa durante 4 minutos seguidos.",
+  "Só vence quem eliminar os outros (destruir o QG de todos); dominar o território não encerra a partida.": "Solo gana quien elimine a los demás (destruya el CG de todos); dominar el territorio no termina la partida.",
+  "Vitória só por eliminação.": "Victoria solo por eliminación.",
+  "Vitória por eliminação ou por domínio territorial.": "Victoria por eliminación o por dominio territorial.",
   "(ou um bot)": "(o un bot)",
   "Aguardando": "Esperando",
   "Aguardando {0}": "Esperando a {0}",

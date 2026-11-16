@@ -186,6 +186,7 @@ export interface SimulationSave {
   met?: string[];
   /** Time de cada vaga (modo time) e vencedores (o time inteiro). */
   teams?: (number | null)[];
+  territoryVictory?: boolean;
   winners?: Slot[];
   incidents?: [string, number][];
   difficulty?: Difficulty;
@@ -481,6 +482,8 @@ export class Simulation {
   private readonly met = new Set<string>();
   /** Time de cada vaga no modo time (null = sem time). Vitória do time: `winners` traz o time inteiro. */
   teams: (number | null)[] = [];
+  /** Vitória por domínio territorial ligada (16/11: o anfitrião pode deixar só a eliminação). */
+  territoryVictory = true;
   winners: Slot[] = [];
   /** Depósitos naturais (quantidades finitas e limite de instalações). */
   readonly deposits: DepositIndex;
@@ -655,6 +658,7 @@ export class Simulation {
       ...(this.pacts.size ? { pacts: [...this.pacts] } : {}),
       ...(this.met.size ? { met: [...this.met] } : {}),
       ...(this.teams.some((t) => t !== null) ? { teams: [...this.teams] } : {}),
+      ...(this.territoryVictory ? {} : { territoryVictory: false }),
       ...(this.winners.length ? { winners: [...this.winners] } : {}),
       ...(this.incidents.size ? { incidents: [...this.incidents] } : {}),
       ...(this.difficulty !== 'normal' ? { difficulty: this.difficulty } : {}),
@@ -750,6 +754,7 @@ export class Simulation {
     sim.met.clear();
     for (const k of data.met ?? []) sim.met.add(k);
     sim.teams = [...(data.teams ?? [])];
+    sim.territoryVictory = data.territoryVictory !== false;
     sim.winners = [...(data.winners ?? [])];
     for (const [k, v] of data.incidents ?? []) sim.incidents.set(k, v);
     sim.hostileVersion++;
@@ -4924,7 +4929,7 @@ export class Simulation {
    * território reivindicado no mapa por `VICTORY.territorySeconds` seguidos vence. Fora do Sandbox.
    */
   private updateTerritorialVictory(): void {
-    if (this.ended || this.sandbox || this.tutorial || this.tick % TICK_RATE !== 0) return;
+    if (this.ended || this.sandbox || this.tutorial || !this.territoryVictory || this.tick % TICK_RATE !== 0) return;
     const alive = this.players.filter((p) => !p.defeated);
     if (alive.length < 2) return;
     const counts = this.players.map(() => 0);

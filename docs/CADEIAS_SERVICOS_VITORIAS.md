@@ -58,6 +58,11 @@ Além da queda do Centro de Comando, há duas vitórias alternativas. As duas fi
 - Vence quem controlar 70% de todo o território reivindicado no mapa por 4 minutos seguidos.
 - Cair abaixo dos 70% zera a contagem.
 - O início, a perda e a vitória são anunciados a todos.
+- **Escolha do anfitrião (16/11):** no lobby, em Operação → Vitória, "Eliminação ou território" (padrão) ou "Só
+  eliminação". Com "Só eliminação", o domínio territorial não encerra a partida nem aparece na barra
+  (`Simulation.territoryVictory = false`, salvo junto com a partida; `RoomInfo.victoryMode`, comando `set_room`
+  validado no servidor: só o anfitrião, só no lobby). A queda de governo pela crise política continua valendo nos dois
+  modos: é a eliminação de quem chega a ela.
 
 **Vitória política**
 - Um governo cai depois de 60 dias seguidos com estabilidade nacional abaixo de 10. O país é derrotado.

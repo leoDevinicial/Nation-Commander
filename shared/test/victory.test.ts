@@ -39,6 +39,19 @@ describe('Vitória territorial', () => {
     expect(hq0.hp).toBeGreaterThan(0);
   });
 
+  it('anfitrião escolheu "só eliminação" (16/11): dominar o território não encerra a partida, e a escolha sobrevive ao salvamento', () => {
+    const { sim, run, kinds } = setup();
+    sim.territoryVictory = false;
+    for (let s = 0; s < VICTORY.territorySeconds + 5 && !sim.ended; s++) {
+      for (let i = 0; i < sim.territory.length; i++) sim.territory[i] = i === 0 ? 1 : 0;
+      run(1);
+    }
+    expect(sim.ended).toBe(false);
+    expect(kinds.filter((k) => k.startsWith('territory'))).toEqual([]);
+    expect(sim.victoryPressure().filter((v) => v.kind === 'territory')).toEqual([]);
+    expect(Simulation.deserialize(sim.serialize()).territoryVictory).toBe(false);
+  });
+
   it('perder o domínio zera a contagem; o HUD recebe o progresso', () => {
     const { sim, run, kinds } = setup();
     for (let s = 0; s < 30; s++) {

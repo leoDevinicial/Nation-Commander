@@ -603,6 +603,26 @@ describe('salas públicas', () => {
     expect(guest.last('room_list')?.rooms).toEqual([]);
   });
 
+  it('modo de vitória (16/11): só o anfitrião escolhe no lobby e a partida começa com ele', async () => {
+    const { send, rooms } = setup();
+    const host = fakeConn();
+    const guest = fakeConn();
+    await send(host.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-ana' });
+    await send(guest.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-beto' });
+    await send(host.conn, { t: 'create_room', mode: 'pvp', countryId: COUNTRIES[0]!.id });
+    const code = host.last('room')!.room!.code;
+    expect(host.last('room')!.room!.victoryMode).toBe('territory');
+    await send(guest.conn, { t: 'join_room', code, countryId: COUNTRIES[1]!.id });
+    // o convidado não muda
+    await send(guest.conn, { t: 'set_room', victoryMode: 'elimination' });
+    expect(guest.last('room')!.room!.victoryMode).toBe('territory');
+    await send(host.conn, { t: 'set_room', victoryMode: 'elimination' });
+    expect(guest.last('room')!.room!.victoryMode).toBe('elimination');
+    await send(guest.conn, { t: 'set_ready', ready: true });
+    await send(host.conn, { t: 'start' });
+    expect(rooms.get(code)!.sim!.territoryVictory).toBe(false);
+  });
+
   it('só salas multijogador podem ser públicas', async () => {
     const { send } = setup();
     const a = fakeConn();

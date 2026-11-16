@@ -6,6 +6,7 @@ import {
   ChevronUp,
   CircleCheck,
   Copy,
+  Crosshair,
   Crown,
   Dices,
   Feather,
@@ -37,6 +38,7 @@ import {
 import { useState, type ReactNode } from 'react';
 import { countryName } from '../../../shared/data/countries.ts';
 import { DIFFICULTIES, DIFFICULTY } from '../../../shared/sim/difficulty.ts';
+import { VICTORY } from '../../../shared/sim/config.ts';
 import { countryReference } from '../../../shared/strategic/reference.ts';
 import type { RoomInfo } from '../../../shared/protocol.ts';
 import { gameClient } from '../../net/client.ts';
@@ -70,6 +72,21 @@ const BALANCE = {
   realistic: { icon: Landmark, title: 'Escala real', short: 'Escala real', text: 'Logística pelo gasto de defesa real de cada país: grandes economias têm vantagem.' },
 } as const;
 const TEAM_LABEL = ['Sem time', 'Time A', 'Time B', 'Time C'];
+/** Como se vence (16/11): o anfitrião escolhe se o domínio territorial também encerra a partida. */
+const VICTORY_MODE = {
+  territory: {
+    icon: MapIcon,
+    title: 'Eliminação ou território',
+    short: 'Eliminação ou território',
+    text: `Vence quem eliminar os outros (destruir o QG de todos) ou quem controlar ${Math.round(VICTORY.territoryShare * 100)}% do território do mapa por ${VICTORY.territorySeconds / 60} minutos seguidos.`,
+  },
+  elimination: {
+    icon: Crosshair,
+    title: 'Só eliminação',
+    short: 'Só eliminação',
+    text: 'Só vence quem eliminar os outros (destruir o QG de todos); dominar o território não encerra a partida.',
+  },
+} as const;
 
 /** Ping em barras de sinal (KNPS): verde até 150 ms, latão até 250, vermelho acima. */
 function Ping({ ms }: { ms: number }) {
@@ -137,6 +154,7 @@ export function LobbyScreen() {
   const limit = room.nationLimit ?? 2;
   const canTeam = (p: Player) => (p.isAI ? isHost : p.userId === me.id);
   const mapType = room.mapType ?? 'continental';
+  const victoryMode = room.victoryMode ?? 'territory';
   const size = mapSizeFor(room.maxPlayers, sizeType(room.mapType));
   const showDifficulty = room.mode !== 'pvp' || room.players.some((p) => p.isAI);
   const ready = (p: Player) => !!p.ready || !!p.isAI || p.userId === room.hostUserId;
@@ -322,6 +340,17 @@ export function LobbyScreen() {
               </div>
               <p className="text-xs text-ink-400">{BALANCE[room.balanceMode].text}</p>
             </div>
+            {!sandbox && (
+              <div className="flex flex-col gap-1.5 border-t border-ink-700 pt-3">
+                <Kicker>Vitória</Kicker>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(['territory', 'elimination'] as const).map((v) => (
+                    <Pick key={v} name="victoryMode" on={victoryMode === v} disabled={!isHost} icon={VICTORY_MODE[v].icon} label={VICTORY_MODE[v].title} onPick={() => gameClient.send({ t: 'set_room', victoryMode: v })} />
+                  ))}
+                </div>
+                <p className="text-xs text-ink-400">{VICTORY_MODE[victoryMode].text}</p>
+              </div>
+            )}
             {showDifficulty && (
               <div className="flex flex-col gap-1.5 border-t border-ink-700 pt-3">
                 <Kicker>Dificuldade da IA</Kicker>
@@ -382,6 +411,7 @@ export function LobbyScreen() {
                     {MAP_SHORT[mapType]} {size}×{size}
                   </SummaryChip>
                   <SummaryChip icon={BalI}>{BALANCE[room.balanceMode].short}</SummaryChip>
+                  {!sandbox && <SummaryChip icon={VICTORY_MODE[victoryMode].icon}>{VICTORY_MODE[victoryMode].short}</SummaryChip>}
                   {showDifficulty && <SummaryChip icon={DiffI}>IA {DIFFICULTY[room.difficulty ?? 'normal'].label}</SummaryChip>}
                   {teamCounts.length > 1 && <SummaryChip icon={Users}>{teamCounts.join(' × ')}</SummaryChip>}
                 </>

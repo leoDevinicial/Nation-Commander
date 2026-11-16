@@ -2,6 +2,12 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → inglês (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const EN: Dict = {
+  "Eliminação ou território": "Elimination or territory",
+  "Só eliminação": "Elimination only",
+  "Vence quem eliminar os outros (destruir o QG de todos) ou quem controlar 70% do território do mapa por 4 minutos seguidos.": "The winner is whoever eliminates the others (destroys every HQ) or controls 70% of the map's territory for 4 minutes in a row.",
+  "Só vence quem eliminar os outros (destruir o QG de todos); dominar o território não encerra a partida.": "Only eliminating the others (destroying every HQ) wins; dominating the territory does not end the match.",
+  "Vitória só por eliminação.": "Victory by elimination only.",
+  "Vitória por eliminação ou por domínio territorial.": "Victory by elimination or by territorial control.",
   "(ou um bot)": "(or a bot)",
   "Aguardando": "Waiting",
   "Aguardando {0}": "Waiting for {0}",
