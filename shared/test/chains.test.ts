@@ -1,3 +1,4 @@
+import { MAP_APPROVAL } from '../strategic/params.ts';
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS, GOODS, GOODS_USE, SERVICES, TICK_RATE, Terrain, UNITS } from '../sim/config.ts';
 import { Simulation } from '../sim/Simulation.ts';
@@ -133,6 +134,6 @@ describe('Serviços com raio de cobertura', () => {
       stats: () => ({ buildings: {}, military: 0, workers: 0, food: 0, services: { health: 1, education: 0.5, security: 0 } }),
     });
     nat.stepDay();
-    expect(nat.nation(0)!.approvalFactors.find((f) => f.key === 'services_coverage')?.value).toBeCloseTo(SERVICES.approvalMax * 1.5, 1);
+    expect(nat.nation(0)!.approvalFactors.find((f) => f.key === 'services_coverage')?.value).toBeCloseTo(MAP_APPROVAL.servicePerArea * 1.5, 1);
   });
 });

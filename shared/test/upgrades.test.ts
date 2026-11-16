@@ -380,27 +380,21 @@ describe('persistência', () => {
 });
 
 describe('verba de obras no orçamento nacional', () => {
-  it('repasse segue o orçamento de infraestrutura; o caixa começa pela metade e recebe o saldo do dia', async () => {
+  it('preços em US$ têm base fixa (igual para todos e para qualquer orçamento); o caixa começa com 40% dela e recebe o saldo do dia', async () => {
     const { NationalSimulation } = await import('../strategic/NationalSimulation.ts');
-    const { WORKS_SHARE_OF_INFRA, WORKS_START_FRACTION, COEF, DAYS_PER_YEAR } = await import('../strategic/params.ts');
+    const { PRICE_BASE_USD, WORKS_START_FRACTION } = await import('../strategic/params.ts');
     const nat = new NationalSimulation([{ slot: 0, countryId: 'BRA' }, { slot: 1, countryId: 'ARG' }], 1, 'parity');
     const n = nat.nation(0)!;
-    const cap = Math.round((n.budget.infrastructurePct / 100) * COEF.parityGdpUsd * WORKS_SHARE_OF_INFRA);
-    expect(n.works.capUsd).toBe(cap);
-    expect(n.works.fundUsd).toBe(Math.round(cap * WORKS_START_FRACTION));
+    expect(n.works.capUsd).toBe(PRICE_BASE_USD);
+    expect(n.works.fundUsd).toBe(Math.round(PRICE_BASE_USD * WORKS_START_FRACTION));
     const start = n.works.fundUsd;
     nat.stepDay();
-    // caixa do país (01/11): entra o saldo do dia, cujo repasse do orçamento é 1/365 do teto anual
-    expect(n.works.today!.income.find((l) => l.key === 'transfer')!.usd).toBe(Math.round(cap / DAYS_PER_YEAR));
+    // 16/11: sem o "repasse do orçamento"
+    expect(n.works.today!.income.some((l) => l.key === 'transfer')).toBe(false);
     expect(n.works.fundUsd).toBeCloseTo(start + n.works.today!.net, 0);
-    // mais orçamento de infraestrutura → teto maior (com efeitos normais sobre gasto e déficit)
-    const deficit = n.deficitPctGdp;
-    nat.setBudget(0, { ...n.budget, infrastructurePct: n.budget.infrastructurePct + 1 });
-    expect(n.works.capUsd).toBeGreaterThan(cap);
-    expect(n.deficitPctGdp).toBeGreaterThan(deficit);
-    // o caixa não tem mais teto: sem despesas no teatro, acumula além do repasse anual
-    for (let d = 0; d < DAYS_PER_YEAR * 2; d++) nat.stepDay();
-    expect(n.works.fundUsd).toBeGreaterThan(n.works.capUsd);
+    // subir a Infraestrutura não encarece as obras (antes, o teto e os preços subiam juntos)
+    nat.setAreas(0, { infrastructure: 150 });
+    expect(n.works.capUsd).toBe(PRICE_BASE_USD);
   });
 
   it('débito sem saldo é recusado sem cobrar; débito e devolução ficam no extrato', async () => {

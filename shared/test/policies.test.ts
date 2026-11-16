@@ -54,14 +54,17 @@ describe('decretos', () => {
     expect(policyEffects(sim.nation(0)!.policies).recruitCostMul).toBe(1);
   });
 
-  it('economia de guerra acelera a produção e sobe a inflação; lei marcial segura protestos', () => {
-    const a = setup().sim;
-    const b = setup().sim;
+  it('economia de guerra acelera a produção e custa receita (inflação); lei marcial segura protestos', () => {
+    const town: TheaterStats = { buildings: {}, military: 0, workers: 0, food: 0, economy: { production: { food: 10 }, infantry: 0, vehicles: 0, aircraft: 0, energy: 0, buildingCells: 0, roads: 0, services: 0 } };
+    const a = setup(town).sim;
+    const b = setup(town).sim;
     a.setDecree(0, 'war_economy', true);
     run(a, 120);
     run(b, 120);
     expect(policyEffects(a.nation(0)!.policies).productionTimeMul).toBeCloseTo(0.8);
-    expect(a.nation(0)!.inflationPct).toBeGreaterThan(b.nation(0)!.inflationPct);
+    // no mapa, a inflação do decreto sai da receita do dia (produção e impostos)
+    const prod = (x: typeof a) => x.nation(0)!.works.today!.income.find((l) => l.key === 'production')!.usd;
+    expect(prod(a)).toBeCloseTo(prod(b) * 0.925, 0);
     const m = setup().sim;
     m.setDecree(0, 'martial_law', true);
     const fx = policyEffects(m.nation(0)!.policies);
@@ -80,6 +83,8 @@ describe('facções', () => {
     expect(policyText(sim).some((t) => t.includes('exigem'))).toBe(true);
     // tudo o que pode ser pedido no teatro passa a existir
     st.stats = { buildings: { barracks: 3, airbase: 1, factory: 3, mine: 3, market: 1, farm: 5, silo: 3, residential: 1, house: 5 }, military: 30, workers: 40, food: 900 };
+    // e o orçamento atende as exigências sobre ele (Defesa e serviços)
+    sim.setAreas(0, { defense: 150, education: 110, health: 110, social: 110 });
     const before = Object.fromEntries(open.map(([id, f]) => [id, f.satisfaction]));
     run(sim, 1);
     const texts = policyText(sim);

@@ -140,7 +140,7 @@ describe('Fase 5 — árvore de pesquisa', () => {
     for (let d = 0; d < 3000; d++) {
       if (sim.day % 30 === 0) {
         const r = ai.think(sim);
-        if (r.budget) sim.setBudget(0, r.budget);
+        if (r.areas) sim.setAreasUncapped(0, r.areas, ai.defenseMax);
         if (r.research !== undefined) expect(sim.setResearch(0, r.research)).toBeNull();
       }
       sim.stepDay();

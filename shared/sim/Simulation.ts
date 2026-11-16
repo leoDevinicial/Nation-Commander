@@ -1570,7 +1570,7 @@ export class Simulation {
         if (cmd.unitType === 'citizen' || cmd.unitType === 'recruit') {
           const recruit = cmd.unitType === 'recruit';
           const def = recruit ? RECRUIT : CITIZEN;
-          const ticks = this.duration(slot, def.buildSeconds * TICK_RATE * (recruit ? bfx.recruitTimeMul : 1));
+          const ticks = this.duration(slot, def.buildSeconds * TICK_RATE * (recruit ? bfx.recruitTimeMul : (player.modifiers.citizenTimeMul ?? 1)));
           b.queue.push({ unitType: cmd.unitType, remainingTicks: ticks, totalTicks: ticks, paid: cost });
           return null;
         }
@@ -2942,7 +2942,7 @@ export class Simulation {
       const eff = (need > 0 ? b.workers / need : 1) * (p.hungry ? HUNGER_EFFICIENCY : 1) * (b.upgrade ? UPGRADE_WORK_EFFICIENCY : 1);
       if (def.knowledge) {
         const lit = this.hasLight(b) ? 1 : KNOWLEDGE.darkMul;
-        p.knowledge = (p.knowledge ?? 0) + def.knowledge * eff * lit * TICK_SECONDS;
+        p.knowledge = (p.knowledge ?? 0) + def.knowledge * eff * lit * (p.modifiers.knowledgeMul ?? 1) * TICK_SECONDS;
         if (!def.output && !def.convert) this.setStatus(b, 'ok');
       }
       if (def.output) {

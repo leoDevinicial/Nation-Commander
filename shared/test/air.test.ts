@@ -785,7 +785,8 @@ describe('ogiva nuclear e choque econômico global', () => {
       calm.stepDay();
       war.stepDay();
     }
-    for (const slot of [0, 1]) expect(war.nation(slot)!.realGrowthPct).toBeLessThan(calm.nation(slot)!.realGrowthPct - 2);
+    // nações do mapa (16/11): o choque bate na coleta e na logística do teatro (`shockTheaterMul`) e na aprovação
+    for (const slot of [0, 1]) expect(war.nation(slot)!.approvalFactors.find((f) => f.key === 'nuclear')!.value).toBeLessThan(0);
     // um país de fora da partida também sente
     expect(war.npcs[0]!.realGrowthPct).toBeLessThan(calm.npcs[0]!.realGrowthPct - 2);
     expect(war.diplomacy.relation(0, war.npcs[0]!.slot)).toBeLessThan(calm.diplomacy.relation(0, calm.npcs[0]!.slot));

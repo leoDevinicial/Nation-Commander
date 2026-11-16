@@ -1,12 +1,12 @@
 import type { Slot } from '../sim/types.ts';
-import { spendPct, type Budget, type NationalSimulation } from './NationalSimulation.ts';
+import type { NationalSimulation } from './NationalSimulation.ts';
+import { AREA_LIMITS, DEFAULT_AREAS, type Areas } from './areas.ts';
 import { researchBlocker, techKnowledge, TECH_IDS, type TechId } from './technologies.ts';
 
 /** Conhecimento que a IA não gasta na pesquisa nacional (fica para as pesquisas militares do teatro). */
 const AI_KNOWLEDGE_RESERVE = 20;
 import type { DiplomaticAction } from './Diplomacy.ts';
 import type { DecreeId } from './policies.ts';
-import { BASE_INFRASTRUCTURE_PCT } from './params.ts';
 import { INFRA_GATE_MIN } from '../sim/upgrades.ts';
 
 /** Ordem de pesquisa da IA: primeiro o que ajuda no teatro, depois a economia. */
@@ -70,57 +70,55 @@ export class NationalAI {
     private readonly naval = false,
   ) {}
 
-  /** Retorna o orçamento a aplicar (ou null para manter) e a pesquisa desejada. */
-  think(sim: NationalSimulation): { budget: Budget | null; research: TechId | null | undefined; diplomacy: DiplomaticAction[]; decrees: { id: DecreeId; active: boolean }[] } {
-    const n = sim.nation(this.slot);
-    if (!n) return { budget: null, research: undefined, diplomacy: [], decrees: [] };
-    const b: Budget = { ...n.budget };
-    const ref = n.referenceBudget;
-    let changed = false;
+  /** Defesa que a IA busca com folga no caixa (dificuldade): Fácil e Normal 100%, Difícil 150%, Brutal 200%+. */
+  get defenseTarget(): number {
+    return Math.round(100 * this.defenseMul);
+  }
 
-    // o índice de infraestrutura só cresce com a verba acima da base e destrava os níveis altos do Centro de Comando
-    // (nível 8 em diante exige INFRA_GATE_MIN): enquanto ele não passa com folga, a verba não cai abaixo da base
-    // (só a partir de ~12 min de partida: antes disso o gasto extra atrasa a economia do começo, e o QG só chega ao
-    // nível 8 por volta dos 25 min; a verba leva uns 3 min para levar o índice acima da exigência)
+  /** Teto da defesa da IA (sob ataque sobe até aqui): 150% ou a da dificuldade, o que for maior. */
+  get defenseMax(): number {
+    return Math.max(AREA_LIMITS[1], this.defenseTarget);
+  }
+
+  /**
+   * Retorna as áreas do orçamento a aplicar (ou null para manter) e a pesquisa desejada. 16/11: as mesmas regras do
+   * jogador, sobre o caixa do país do mapa (não há mais déficit fictício): com o caixa apertado ou cortes, alivia
+   * Assistência, Segurança e Pesquisa; com folga, sobe a Defesa até a da dificuldade, a Infraestrutura até o índice
+   * passar a exigência do QG alto e a Assistência quando a aprovação cai.
+   */
+  think(sim: NationalSimulation): { areas: Areas | null; research: TechId | null | undefined; diplomacy: DiplomaticAction[]; decrees: { id: DecreeId; active: boolean }[] } {
+    const n = sim.nation(this.slot);
+    if (!n) return { areas: null, research: undefined, diplomacy: [], decrees: [] };
+    const a: Areas = { ...DEFAULT_AREAS, ...n.areas };
+    const before = JSON.stringify(a);
+    const step = (k: keyof Areas, d: number, min: number, max: number) => (a[k] = Math.max(min, Math.min(max, a[k] + d)));
+    const today = n.works.today;
+    const spend = today ? today.expense.reduce((x, l) => x + l.usd, 0) : 0;
+    const net = today?.net ?? 0;
+    // aperto: o dia não fecha e o caixa dura menos de 2 minutos, ou o orçamento já está sendo cortado
+    const tight = !!n.areasCut || (net < 0 && n.works.fundUsd < -net * 120);
+    // folga: o dia rende ou o caixa paga uns 5 minutos de despesas
+    const comfy = !tight && (net > 0 || n.works.fundUsd > spend * 300);
     const infraLow = sim.day >= AI_INFRA_FROM_DAY && n.infrastructureIndex < INFRA_GATE_MIN + 0.05;
-    // déficit muito acima do de referência: corta despesas discricionárias e sobe impostos
-    if (n.deficitPctGdp > Math.max(3, n.base.deficitPctGdp) + 2) {
-      b.socialPct = Math.max(ref.socialPct * 0.9, b.socialPct - 0.3);
-      b.infrastructurePct = Math.max(ref.infrastructurePct * 0.8, infraLow ? BASE_INFRASTRUCTURE_PCT : 0, b.infrastructurePct - 0.2);
-      if (n.approval > 45) b.taxPct += 0.3;
-      changed = true;
+    if (tight) {
+      step('social', -10, 80, 150);
+      step('security', -10, 80, 150);
+      step('research', -10, 80, 150);
+      if (!infraLow) step('infrastructure', -10, 90, 150);
+      if (a.defense > 100) step('defense', -10, 100, this.defenseMax);
+    } else if (comfy) {
+      if (a.defense < this.defenseTarget) step('defense', 10, 50, this.defenseTarget);
+      if (infraLow) step('infrastructure', 10, 50, 140);
+      else if (n.infrastructureIndex > INFRA_GATE_MIN + 0.1 && a.infrastructure > 110) step('infrastructure', -10, 110, 150);
+      if (n.approval < 45) step('social', 10, 50, 130);
+      if (a.research < 100) step('research', 10, 50, 100);
     }
-    // aprovação baixa: recompõe serviços sociais e alivia impostos
-    if (n.approval < 40) {
-      b.socialPct = Math.min(ref.socialPct * 1.2, b.socialPct + 0.3);
-      b.taxPct = Math.max(ref.taxPct - 1, b.taxPct - 0.2);
-      changed = true;
-    }
-    // sob pressão militar com folga fiscal: reforça a defesa gradualmente
-    const casualties = n.casualties30d.reduce((a, c) => a + c, 0);
-    if (casualties >= 5 && n.deficitPctGdp < n.base.deficitPctGdp + 3 && b.defensePct < ref.defensePct * 2) {
-      b.defensePct += 0.2;
-      changed = true;
-    }
-    // defesa da dificuldade: mais verba militar rende mais suprimentos no teatro (mesmo comando do jogador)
-    if (b.defensePct < ref.defensePct * this.defenseMul - 0.05 && n.deficitPctGdp < Math.max(3, n.base.deficitPctGdp) + 1) {
-      b.defensePct = Math.min(ref.defensePct * this.defenseMul, b.defensePct + 0.2);
-      changed = true;
-    }
-    // infraestrutura: sobe a verba aos poucos até o índice passar a exigência do QG com folga (e rende mais verba de
-    // obras); depois volta para perto da base, sem deixar o índice cair
-    if (infraLow && b.infrastructurePct < BASE_INFRASTRUCTURE_PCT + 1 && n.deficitPctGdp < Math.max(3, n.base.deficitPctGdp) + 1) {
-      b.infrastructurePct = Math.min(BASE_INFRASTRUCTURE_PCT + 1, Math.max(b.infrastructurePct, BASE_INFRASTRUCTURE_PCT) + 0.25);
-      changed = true;
-    } else if (n.infrastructureIndex > INFRA_GATE_MIN + 0.1 && b.infrastructurePct > Math.max(ref.infrastructurePct, BASE_INFRASTRUCTURE_PCT) + 0.25) {
-      b.infrastructurePct = Math.max(Math.max(ref.infrastructurePct, BASE_INFRASTRUCTURE_PCT) + 0.1, b.infrastructurePct - 0.2);
-      changed = true;
-    }
-    // pesquisa: garante um mínimo de investimento
-    if (b.researchPct < 0.3 && spendPct(b) < spendPct(ref) + 1) {
-      b.researchPct = 0.3;
-      changed = true;
-    }
+    // aprovação baixa: Assistência mesmo sem folga (a queda de governo custa mais que o caixa)
+    if (n.approval < 35 && !tight) step('social', 10, 50, 130);
+    // sob pressão militar: defesa primeiro
+    const casualties = n.casualties30d.reduce((x, c) => x + c, 0);
+    if (casualties >= 5 && !tight) step('defense', 10, 50, this.defenseMax);
+    const areas = JSON.stringify(a) !== before ? a : null;
 
     let research: TechId | null | undefined;
     if (!n.research.current) {
@@ -133,7 +131,7 @@ export class NationalAI {
         (kp === null || (n.research.kpPaid ?? []).includes(t) || kp >= techKnowledge(t) + AI_KNOWLEDGE_RESERVE);
       research = (this.naval ? AI_NAVAL_FIRST.find(ready) : undefined) ?? (this.militaryFirst ? AI_MILITARY_FIRST.find(ready) : undefined) ?? AI_RESEARCH_ORDER.find(ready) ?? TECH_IDS.find(ready) ?? null;
     }
-    return { budget: changed ? b : null, research, diplomacy: this.diplomacy(sim), decrees: this.decrees(sim, n) };
+    return { areas, research, diplomacy: this.diplomacy(sim), decrees: this.decrees(sim, n) };
   }
 
   /**
@@ -144,12 +142,12 @@ export class NationalAI {
     const on = new Set((n.policies?.decrees ?? []).map((d) => d.id));
     const out: { id: DecreeId; active: boolean }[] = [];
     const atWar = sim.nations.some((x) => x.slot !== this.slot && sim.diplomacy.atWar(this.slot, x.slot));
-    if (atWar && !on.has('war_economy') && n.inflationPct < n.base.inflationPct + 8) out.push({ id: 'war_economy', active: true });
+    if (atWar && !on.has('war_economy')) out.push({ id: 'war_economy', active: true });
     if (atWar && !on.has('conscription') && n.approval > 52) out.push({ id: 'conscription', active: true });
     if (!on.has('martial_law') && n.stability < 25) out.push({ id: 'martial_law', active: true });
     if (n.approval < 35) for (const id of ['conscription', 'rationing'] as const) if (on.has(id)) out.push({ id, active: false });
     if (on.has('martial_law') && n.stability > 45) out.push({ id: 'martial_law', active: false });
-    if (on.has('war_economy') && (!atWar || n.inflationPct > n.base.inflationPct + 15)) out.push({ id: 'war_economy', active: false });
+    if (on.has('war_economy') && !atWar) out.push({ id: 'war_economy', active: false });
     return out;
   }
 

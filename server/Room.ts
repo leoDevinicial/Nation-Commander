@@ -17,7 +17,7 @@ import type {
 } from '../shared/protocol.ts';
 import { GAME_VERSION } from '../shared/version.ts';
 import type { Command } from '../shared/sim/commands.ts';
-import { BUILDINGS, TICK_RATE, Terrain, UNITS } from '../shared/sim/config.ts';
+import { BUILDINGS, TICK_RATE, Terrain, UNITS, type BuildingType } from '../shared/sim/config.ts';
 import { MAP_TYPE_INFO, MAP_TYPES, MAX_NATIONS_FREE, MAX_NATIONS_SUBSCRIBER, generateMatchMap, type MapType } from '../shared/sim/matchMap.ts';
 import { Simulation } from '../shared/sim/Simulation.ts';
 import { FogMemory, makeSnapshot, type Snapshot } from '../shared/sim/snapshot.ts';
@@ -26,7 +26,7 @@ import { REPORT_EVERY_TICKS, medalsFor, pushSample, reportSample, type MatchRepo
 import { AI_THINK_TICKS, AI_HARASS_SECONDS, TacticalAI, type TacticalAISave } from '../shared/sim/TacticalAI.ts';
 import { DIFFICULTY, type Difficulty } from '../shared/sim/difficulty.ts';
 import { policyEffects, type TheaterStats } from '../shared/strategic/policies.ts';
-import type { TreasuryInputs } from '../shared/strategic/treasury.ts';
+import { SERVICE_BUILDINGS, type TreasuryInputs } from '../shared/strategic/treasury.ts';
 import type { BuildingSnapshot } from '../shared/sim/snapshot.ts';
 import type { EntityId, SimEvent, Slot } from '../shared/sim/types.ts';
 import { NationalAI } from '../shared/strategic/NationalAI.ts';
@@ -343,10 +343,10 @@ export class Room {
 
   setBalance(conn: Connection, mode: BalanceMode): void {
     if (this.status !== 'lobby' || conn.user?.id !== this.hostUserId) return;
-    this.balanceMode = mode;
+    this.balanceMode = 'parity';
+    void mode;
     // mudar a regra exige nova confirmação dos demais
     this.players.forEach((p) => !p.isAI && p.userId !== this.hostUserId && (p.ready = false));
-    this.system(mode === 'parity' ? 'Regra do teatro: paridade econômica.' : 'Regra do teatro: escala econômica real.');
     this.broadcastRoom();
   }
 
@@ -667,7 +667,7 @@ export class Room {
     const room = new Room(save.code, save.mode, null, deps);
     const now = room.now();
     room.hostUserId = save.hostUserId;
-    room.balanceMode = save.balanceMode;
+    room.balanceMode = 'parity';
     room.seed = save.seed;
     room.startedAt = save.startedAt;
     room.speed = save.speed;
@@ -985,7 +985,9 @@ export class Room {
       const err =
         cmd.type === 'set_budget'
           ? national.setBudget(slot, cmd.budget)
-          : cmd.type === 'set_research'
+          : cmd.type === 'set_areas'
+            ? national.setAreas(slot, cmd.areas)
+            : cmd.type === 'set_research'
             ? national.setResearch(slot, cmd.techId)
             : cmd.type === 'decree'
               ? national.setDecree(slot, cmd.id, cmd.active)
@@ -994,7 +996,7 @@ export class Room {
                 : national.diplomaticAction(slot, cmd.action);
       if (err) conn?.send({ t: 'cmd_rejected', reason: err });
       else if (cmd.type === 'diplomacy' || cmd.type === 'decree' || cmd.type === 'request_respond') diplomacyChanged = true;
-      if (!err && cmd.type === 'decree') this.applyNationalModifiers();
+      if (!err && (cmd.type === 'decree' || cmd.type === 'set_areas' || cmd.type === 'set_budget')) this.applyNationalModifiers();
     }
     if (sim.tick % TICKS_PER_DAY !== 0) {
       // decisões diplomáticas (contato, guerra, tratados) aparecem na hora, sem esperar o dia virar
@@ -1008,7 +1010,7 @@ export class Room {
         // governo de nação derrotada não decide mais nada (antes declarava guerra e propunha tratados depois de cair)
         if (sim.players[ai.slot]?.defeated) continue;
         const r = ai.think(national);
-        if (r.budget) national.setBudget(ai.slot, r.budget);
+        if (r.areas) national.setAreasUncapped(ai.slot, r.areas, ai.defenseMax);
         for (const d of r.decrees) national.setDecree(ai.slot, d.id, d.active);
         if (r.research !== undefined) national.setResearch(ai.slot, r.research);
         for (const action of r.diplomacy) if (!this.targetsDefeated(action)) national.diplomaticAction(ai.slot, action);
@@ -1037,11 +1039,15 @@ export class Room {
     if (!this.national || !this.sim) return;
     for (const n of this.national.nations) {
       const fx = this.national.effects(n.slot);
+      const am = this.national.areaModifiers(n.slot);
       const pol = policyEffects(n.policies);
       // choque nuclear global: a coleta e a logística de todos caem enquanto durar
       const shock = this.national.shockTheaterMul();
       this.sim.setModifiers(n.slot, {
-        constructionTimeMul: fx.constructionTimeMul,
+        // orçamento do país (16/11): Infraestrutura acelera as obras, Educação o conhecimento, Saúde os cidadãos
+        constructionTimeMul: fx.constructionTimeMul / am.buildSpeed,
+        knowledgeMul: am.knowledgeMul,
+        citizenTimeMul: 1 / am.citizenSpeed,
         productionTimeMul: fx.productionTimeMul * pol.productionTimeMul,
         recruitCostMul: pol.recruitCostMul,
         foodUpkeepMul: pol.foodUpkeepMul,
@@ -1611,6 +1617,8 @@ export function theaterStats(sim: Simulation, slot: Slot): TheaterStats {
     buildings,
     military: sim.population(slot).military,
     workers: pop.employed,
+    idle: pop.idle,
+    citizens: pop.citizens,
     food: sim.players[slot]?.resources.food ?? 0,
     homes: homes.homes,
     pavedHomes: homes.paved,
@@ -1626,11 +1634,15 @@ export function treasuryInputs(sim: Simulation, slot: Slot): TreasuryInputs {
   const production: TreasuryInputs['production'] = {};
   let buildingCells = 0;
   let services = 0;
+  const serviceCounts: Partial<Record<BuildingType, number>> = {};
   for (const b of sim.buildings) {
     if (b.owner !== slot || b.progress < 1 || b.hp <= 0) continue;
     const def = BUILDINGS[b.type];
     if (b.type !== 'hq') buildingCells += def.size * def.size;
-    if (b.type === 'hospital' || b.type === 'school' || b.type === 'university' || b.type === 'police_station' || b.type === 'city_hall') services++;
+    if (SERVICE_BUILDINGS.has(b.type)) {
+      services++;
+      serviceCounts[b.type] = (serviceCounts[b.type] ?? 0) + 1;
+    }
     if (def.gather && b.status === 'ok') production[def.gather.resource] = (production[def.gather.resource] ?? 0) + sim.buildingRate(b);
   }
   let infantry = 0;
@@ -1655,6 +1667,8 @@ export function treasuryInputs(sim: Simulation, slot: Slot): TreasuryInputs {
     buildingCells,
     roads: sim.roads.filter((r) => r.owner === slot).length,
     services,
+    serviceCounts,
+    citizens: sim.population(slot).citizens,
     zoning: { base: sim.zones.taxBase(slot), tax: { ...sim.zones.taxOf(slot) } },
   };
 }

@@ -56,7 +56,7 @@ export const CAIXA_DAYS = {
 } as const;
 /** A verba começa a partida com esta fração do teto anual (o resto chega dia a dia). Rebalanceamento
  * da economia: começa com pouco dinheiro, para a primeira melhoria ser uma escolha. */
-export const WORKS_START_FRACTION = 0.25;
+export const WORKS_START_FRACTION = 0.4;
 /** Lançamentos mais recentes guardados no extrato de obras. */
 export const WORKS_LEDGER_MAX = 12;
 
@@ -160,3 +160,54 @@ export function theaterSupply(defenseBn: number): number {
 export function militaryResearchSpeed(researchPct: number): number {
   return Math.max(0.8, Math.min(2, 0.8 + researchPct * 0.6));
 }
+
+/**
+ * 16/11 — país do mapa: todos começam iguais. Valores de partida neutros (não vêm de nenhum país real); os países de
+ * fora da partida seguem com os dados reais só para o tamanho relativo na diplomacia.
+ */
+export const NEUTRAL_NATION = {
+  gdpUsd: 1e12,
+  population: 50e6,
+  gdpGrowthPct: 2.5,
+  inflationPct: 3,
+  unemploymentPct: 6,
+  govRevenuePctGdp: 25,
+  govExpensePctGdp: 27,
+  militaryPctGdp: 2,
+  educationPctGdp: 4.5,
+  healthPctGdp: 5,
+  researchPctGdp: 1,
+} as const;
+
+/**
+ * Base dos preços em US$ do mapa (16/11): o antigo teto anual da verba de obras no orçamento de referência (PIB de
+ * US$ 1 tri × 2,5% de infraestrutura × 0,3%). Estradas, pesquisas militares, eras, Grandes Projetos e taxas de obra
+ * custam frações dela; os gastos de governo em "dias" (`CAIXA_DAYS`) usam 1/365 dela.
+ */
+export const PRICE_BASE_USD = 75_000_000;
+
+/** PIB do mapa: a produção privada de um lote vale este múltiplo do imposto que ele paga a 10%. */
+export const MAP_GDP_LOT_OUTPUT = 10;
+
+/** Aprovação do país do mapa (16/11), em pontos. */
+export const MAP_APPROVAL = {
+  /** Cobertura completa de um serviço (Saúde, Educação ou Segurança) a 100%: 4 pontos (6 a 150%). */
+  servicePerArea: 4,
+  /** Cidadãos ociosos: a partir de 3, até −10 (toda a população ociosa pesa 25). */
+  idleMin: 3,
+  idleWeight: 25,
+  idleMax: 10,
+  /** Crescimento do PIB do cenário (% sobre a média de 30 dias) × peso. */
+  growth: 0.4,
+  /** Contas do dia sem pagar e cortes por falta de caixa. */
+  unpaid: 8,
+  cuts: 3,
+} as const;
+
+/** Tamanho para a diplomacia: as nações do mapa contam como o PIB de referência (paridade); as de fora, o real. */
+export function diploSize(n: { slot: number; gdpUsd: number }): number {
+  return n.slot < 100 ? COEF.parityGdpUsd : n.gdpUsd;
+}
+
+/** Facções (16/11): os Sindicatos pedem no máximo esta parcela de cidadãos ociosos (+0,5 ponto). */
+export const MAP_IDLE_REF_PCT = 10;

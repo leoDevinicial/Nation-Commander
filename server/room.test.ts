@@ -197,12 +197,10 @@ describe('servidor de partidas', () => {
     await send(a.conn, { t: 'create_room', mode: 'pvp', countryId: 'USA' });
     const code = a.last('room')!.room!.code;
     await send(b.conn, { t: 'join_room', code, countryId: 'ZAF' });
-    // só o anfitrião muda a regra, e isso desfaz o "pronto" dos outros
+    // 16/11: a "Escala real" saiu; o pedido antigo continua em paridade (e só o anfitrião mexe na regra)
     await send(b.conn, { t: 'set_ready', ready: true });
-    await send(b.conn, { t: 'set_balance', mode: 'realistic' });
-    expect(a.last('room')!.room!.balanceMode).toBe('parity');
     await send(a.conn, { t: 'set_balance', mode: 'realistic' });
-    expect(a.last('room')!.room!.balanceMode).toBe('realistic');
+    expect(a.last('room')!.room!.balanceMode).toBe('parity');
     // KAC-05: a sala só mostra ids públicos
     expect(a.last('room')!.room!.players.find((p) => p.userId === publicId('guest'))!.ready).toBe(false);
     await send(b.conn, { t: 'set_ready', ready: true });
@@ -216,14 +214,14 @@ describe('servidor de partidas', () => {
     const supply = usa.theaterSupplyPerSec;
     expect(room.sim!.players[0]!.modifiers.externalIncome).toBeCloseTo(supply);
 
-    await send(a.conn, { t: 'national', cmd: { type: 'set_budget', budget: { ...usa.budget, defensePct: 6 } } });
+    await send(a.conn, { t: 'national', cmd: { type: 'set_areas', areas: { defense: 150 } } });
     await send(a.conn, { t: 'national', cmd: { type: 'set_research', techId: 'logistics' } });
     for (let i = 0; i < 20; i++) room.advance();
     const msg = a.last('national')!;
     expect(msg.day).toBe(1);
     expect(msg.date).toBe('2026-01-02');
     expect(msg.nations[0]!.history).toBeUndefined(); // histórico só no registro mensal
-    expect(usa.budget.defensePct).toBe(6);
+    expect(usa.areas!.defense).toBe(150);
     expect(usa.research.current).toBe('logistics');
     expect(room.sim!.players[0]!.modifiers.externalIncome).toBeGreaterThan(supply);
     expect(msg.events.some((e) => e.type === 'budget_changed')).toBe(true);
@@ -231,7 +229,7 @@ describe('servidor de partidas', () => {
     await send(b.conn, { t: 'surrender' });
     await vi.waitFor(() => expect(records).toHaveLength(1));
     const rec = records[0]!;
-    expect(rec.balance_mode).toBe('realistic');
+    expect(rec.balance_mode).toBe('parity');
     expect(rec.players[0]!.national?.countryId).toBe('USA');
     expect(rec.players[0]!.national?.days).toBe(1);
     await vi.waitFor(() => expect(a.last('match_end')).toBeDefined());

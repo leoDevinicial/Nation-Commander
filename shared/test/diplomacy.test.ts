@@ -48,7 +48,8 @@ describe('diplomacia', () => {
     expect(sim.diplomacy.relation(0, usa.slot)).toBe(DIPLO.tradeRelation);
     expect(sim.diplomacy.growthEffects(0).trade).toBeGreaterThan(growth0);
     run(sim, 2);
-    expect(sim.nation(0)!.growthFactors.find((f) => f.key === 'trade')!.value).toBeGreaterThan(0);
+    // no mapa o acordo rende no caixa (fração da produção), não num "crescimento" fictício
+    expect(sim.diplomacy.growthEffects(0).trade).toBeGreaterThan(0);
     run(sim, DIPLO.tradeDays);
     expect(sim.diplomacy.active('trade', 0, usa.slot)).toBeUndefined();
     expect(sim.drainEvents().some((e) => e.type === 'diplomacy' && e.event.type === 'treaty_ended' && e.event.reason === 'expired')).toBe(true);
@@ -73,6 +74,7 @@ describe('diplomacia', () => {
     meet(sim, 0, ind.slot);
     sim.diplomaticAction(0, { type: 'set_mission', partner: ind.slot, active: true });
     sim.diplomaticAction(0, { type: 'propose', treaty: 'trade', partner: ind.slot });
+    sim.nation(0)!.works.fundUsd = 1e9;
     run(sim, 200);
     sim.diplomaticAction(0, { type: 'send_aid', partner: ind.slot, pctGdp: 0.5 });
     expect(sim.diplomacy.relation(0, ind.slot)).toBeGreaterThanOrEqual(50);
@@ -95,9 +97,9 @@ describe('diplomacia', () => {
     expect(n.works.fundUsd).toBeCloseTo(1e9 - 0.2 * CAIXA_DAYS.aidPerPctGdp * n.dayUsd, -3);
     n.works.fundUsd = 0;
     expect(sim.diplomaticAction(0, { type: 'send_aid', partner: npc('MEX').slot, pctGdp: 0.2 })).toMatch(/Caixa insuficiente/);
-    const spend = n.spendingUsd;
     sim.diplomaticAction(0, { type: 'set_mission', partner: npc('MEX').slot, active: true });
-    expect(n.spendingUsd).toBeGreaterThan(spend);
+    run(sim, 1);
+    expect(n.works.today!.expense.find((l) => l.key === 'missions')!.usd).toBe(DIPLO.missionDayUsd);
   });
 
   it('pedido de sanções depende da relação com quem pede e com o alvo; sanções reduzem o crescimento do alvo', () => {
@@ -110,6 +112,7 @@ describe('diplomacia', () => {
     // constrói relação com os EUA: comércio, missão e, por fim, ajuda
     sim.diplomaticAction(0, { type: 'propose', treaty: 'trade', partner: usa.slot });
     sim.diplomaticAction(0, { type: 'set_mission', partner: usa.slot, active: true });
+    sim.nation(0)!.works.fundUsd = 1e9;
     run(sim, 120);
     sim.diplomaticAction(0, { type: 'send_aid', partner: usa.slot, pctGdp: 0.5 });
     expect(sim.diplomaticAction(0, { type: 'request_sanctions', partner: usa.slot, target: 1 })).toBeNull();

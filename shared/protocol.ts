@@ -2,6 +2,7 @@ import type { TutorialFact, TutorialView } from './tutorial/script.ts';
 import type { Command } from './sim/commands.ts';
 import type { MatchReport } from './sim/report.ts';
 import type { MapType } from './sim/matchMap.ts';
+import type { Areas } from './strategic/areas.ts';
 import type { BalanceMode, Budget, ForeignView, GeopoliticalView, HistoryPoint, NationalEvent, NationState } from './strategic/NationalSimulation.ts';
 import type { TechId } from './strategic/technologies.ts';
 import type { DiplomaticAction } from './strategic/Diplomacy.ts';
@@ -40,6 +41,8 @@ export type { BalanceMode };
 
 export type NationalCommand =
   | { type: 'set_budget'; budget: Budget }
+  /** Orçamento do país do cenário (16/11): nível de cada área, de 50% a 150%. */
+  | { type: 'set_areas'; areas: Partial<Areas> }
   | { type: 'set_research'; techId: TechId | null }
   | { type: 'diplomacy'; action: DiplomaticAction }
   /** Decreta ou revoga (política interna). */

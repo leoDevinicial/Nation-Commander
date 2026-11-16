@@ -6,6 +6,7 @@ import { isCountryId } from '../shared/data/countries.ts';
 import { MAX_COMMUNITY_LENGTH, REPORT_REASONS, type ReportReason, FEEDBACK_CATEGORIES, GAME_SPEEDS, MAX_CHAT_LENGTH, type ClientMessage, type FeedbackCategory, type GameSpeed } from '../shared/protocol.ts';
 import { parseCommand } from '../shared/sim/commands.ts';
 import { BUDGET_KEYS, type Budget } from '../shared/strategic/NationalSimulation.ts';
+import { AREA_KEYS, type Areas } from '../shared/strategic/areas.ts';
 import { TECHNOLOGIES, type TechId } from '../shared/strategic/technologies.ts';
 import type { DiplomaticAction } from '../shared/strategic/Diplomacy.ts';
 
@@ -118,6 +119,16 @@ export function parseClientMessage(raw: string): ClientMessage | null {
         }
         return { t: 'national', cmd: { type: 'set_budget', budget } };
       }
+      if (cmd.type === 'set_areas' && isObj(cmd.areas)) {
+        const areas: Partial<Areas> = {};
+        for (const k of AREA_KEYS) {
+          const v = cmd.areas[k];
+          if (v === undefined) continue;
+          if (typeof v !== 'number' || !Number.isFinite(v)) return null;
+          areas[k] = v;
+        }
+        return Object.keys(areas).length ? { t: 'national', cmd: { type: 'set_areas', areas } } : null;
+      }
       if (cmd.type === 'diplomacy') {
         const action = parseDiplomaticAction(cmd.action);
         return action ? { t: 'national', cmd: { type: 'diplomacy', action } } : null;
@@ -133,7 +144,8 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return null;
     }
     case 'set_balance':
-      return data.mode === 'parity' || data.mode === 'realistic' ? { t: 'set_balance', mode: data.mode } : null;
+      // 16/11: só paridade (a "Escala real" saiu); o pedido antigo vira paridade
+      return data.mode === 'parity' || data.mode === 'realistic' ? { t: 'set_balance', mode: 'parity' } : null;
     case 'set_difficulty':
       return isDifficulty(data.difficulty) ? { t: 'set_difficulty', difficulty: data.difficulty } : null;
     case 'pause':

@@ -939,8 +939,10 @@ export const PROJECT_FX = {
   network5gSight: 2,
   /** Hidrelétrica: coleta maior. */
   hydroGatherMul: 1.15,
-  /** Centro Financeiro: teto da verba de obras maior. */
-  financialWorksMul: 1.5,
+  /** Centro Financeiro (16/11): receita do país maior (produção e impostos); soma com os 6% de `growth`. */
+  financialIncomeBonus: 0.25,
+  /** Grandes Projetos (16/11): cada ponto de `growth` vira 10% a mais na receita do país (era "p.p. de crescimento"). */
+  incomePerGrowth: 0.1,
 };
 
 /**
@@ -1568,8 +1570,8 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     upkeep: { supplies: 0.1 },
     territoryRadius: 5,
     buildable: true,
-    project: { usdShare: 0.4, effect: '150 de energia, +4 suprimentos/s e obras 10% mais rápidas; +0,5 p.p. de crescimento nacional', growth: 0.5 },
-    description: 'Grande Projeto Nacional: energia firme para a nação. Gera 150 de energia, +4 suprimentos/s, obras 10% mais rápidas e +0,5 p.p. de crescimento. Um por nação.',
+    project: { usdShare: 0.4, effect: '150 de energia, +4 suprimentos/s e obras 10% mais rápidas; +5% na receita do país', growth: 0.5 },
+    description: 'Grande Projeto Nacional: energia firme para a nação. Gera 150 de energia, +4 suprimentos/s, obras 10% mais rápidas e +5% na receita do país. Um por nação.',
   },
   network_5g: {
     ...NONE,
@@ -1585,8 +1587,8 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     upkeep: { supplies: 0.08 },
     territoryRadius: 6,
     buildable: true,
-    project: { usdShare: 0.35, effect: 'Pesquisa militar 30% mais rápida e +2 de visão para todas as tropas; +0,4 p.p. de crescimento', growth: 0.4 },
-    description: 'Grande Projeto Nacional: torre central da rede 5G. Pesquisa militar 30% mais rápida, +2 de visão para todas as tropas e +0,4 p.p. de crescimento. Um por nação.',
+    project: { usdShare: 0.35, effect: 'Pesquisa militar 30% mais rápida e +2 de visão para todas as tropas; +4% na receita do país', growth: 0.4 },
+    description: 'Grande Projeto Nacional: torre central da rede 5G. Pesquisa militar 30% mais rápida, +2 de visão para todas as tropas e +4% na receita do país. Um por nação.',
   },
   hydro_dam: {
     ...NONE,
@@ -1603,8 +1605,8 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     territoryRadius: 5,
     buildable: true,
     nearWater: true,
-    project: { usdShare: 0.4, effect: '+15% na coleta de todos os recursos e +2 suprimentos/s; +0,4 p.p. de crescimento', growth: 0.4 },
-    description: 'Grande Projeto Nacional: barragem e casa de força na margem da água. +15% na coleta de todos os recursos, +2 suprimentos/s e +0,4 p.p. de crescimento. Um por nação.',
+    project: { usdShare: 0.4, effect: '+15% na coleta de todos os recursos e +2 suprimentos/s; +4% na receita do país', growth: 0.4 },
+    description: 'Grande Projeto Nacional: barragem e casa de força na margem da água. +15% na coleta de todos os recursos, +2 suprimentos/s e +4% na receita do país. Um por nação.',
   },
   financial_center: {
     ...NONE,
@@ -1620,8 +1622,8 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     territoryRadius: 6,
     territoryWeight: 1.3,
     buildable: true,
-    project: { usdShare: 0.3, effect: 'Teto da verba de obras 50% maior e +3 suprimentos/s; +0,6 p.p. de crescimento', growth: 0.6 },
-    description: 'Grande Projeto Nacional: arranha-céu da bolsa e dos bancos. Teto da verba de obras 50% maior, +3 suprimentos/s e +0,6 p.p. de crescimento. Um por nação.',
+    project: { usdShare: 0.3, effect: 'Receita do país 31% maior (produção e impostos) e +3 suprimentos/s', growth: 0.6 },
+    description: 'Grande Projeto Nacional: arranha-céu da bolsa e dos bancos. Receita do país 31% maior (produção e impostos) e +3 suprimentos/s. Um por nação.',
   },
   space_center: {
     ...NONE,
@@ -1638,7 +1640,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     buildable: true,
     minHqLevel: 9,
     requiresTech: 'space_technology',
-    project: { usdShare: 0.9, effect: 'Lança um satélite: o mapa inteiro fica visível em tempo real (menos minas); +0,5 p.p. de crescimento', growth: 0.5 },
+    project: { usdShare: 0.9, effect: 'Lança um satélite: o mapa inteiro fica visível em tempo real (menos minas); +5% na receita do país', growth: 0.5 },
     description:
       'A megaconstrução de fim de partida: plataforma, torre de serviço, foguete e centro de controle. Pronto, autorize o lançamento: o satélite em órbita tira a névoa de guerra do mapa inteiro, em tempo real (só as minas continuam escondidas). Exige o Centro de Comando no nível 9 e a pesquisa Tecnologia espacial.',
   },

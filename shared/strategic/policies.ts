@@ -57,7 +57,7 @@ export const DECREES: Record<DecreeId, DecreeDef> = {
   war_economy: {
     label: 'Economia de guerra',
     gain: 'Produção militar 20% mais rápida',
-    cost: '+1,5 p.p. de inflação; Sindicatos insatisfeitos',
+    cost: 'Receita do país 7,5% menor (inflação); Sindicatos insatisfeitos',
     approval: 0,
     inflation: 1.5,
     stability: 0,
@@ -108,6 +108,9 @@ export interface TheaterStats {
   buildings: Partial<Record<BuildingType, number>>;
   military: number;
   workers: number;
+  /** Cidadãos ociosos e total de cidadãos (16/11: o "desemprego" do país é o do mapa). */
+  idle?: number;
+  citizens?: number;
   food: number;
   /** Moradias prontas e quantas ficam ligadas à estrada ("bairro pavimentado"). */
   homes?: number;
@@ -317,11 +320,11 @@ export function demandText(d: Demand): string {
     case 'casualties_max':
       return `Não passar de ${d.count} baixas em 30 dias até o prazo`;
     case 'services':
-      return 'Gastar em serviços (educação, saúde, social) pelo menos o de referência';
+      return 'Educação, Saúde e Assistência no orçamento em pelo menos 100% (média)';
     case 'defense':
-      return `Orçamento de defesa de pelo menos ${String(d.pct).replace('.', ',')}% do PIB`;
+      return `Defesa no orçamento em pelo menos ${String(d.pct).replace('.', ',')}%`;
     case 'unemployment':
-      return `Desemprego até ${String(d.pct).replace('.', ',')}%`;
+      return `Cidadãos sem trabalho até ${String(d.pct).replace('.', ',')}%`;
   }
 }
 
@@ -344,7 +347,7 @@ export function requestText(r: PowerRequest, name: (id: number) => string): stri
     case 'no_war':
       return `Não declarar guerra a ${name(r.target)}`;
     case 'defense':
-      return `Reforçar a defesa para pelo menos ${String(r.pct).replace('.', ',')}% do PIB`;
+      return `Reforçar a Defesa do orçamento para pelo menos ${String(r.pct).replace('.', ',')}%`;
     case 'research':
       return 'Concluir uma pesquisa nacional';
   }

@@ -1,6 +1,6 @@
 import type { Factor, NationState } from './NationalSimulation.ts';
 import { regionOf } from '../data/geography.ts';
-import { CAIXA_DAYS } from './params.ts';
+import { CAIXA_DAYS, diploSize } from './params.ts';
 
 /**
  * Diplomacia bilateral. Não há base de dados confiável de relações bilaterais para iniciar o
@@ -135,6 +135,8 @@ export const DIPLO = {
   missionCap: 20,
   /** Custo anual de uma missão diplomática, % do PIB. */
   missionCostPct: 0.02,
+  /** Nações do mapa (16/11): cada missão ativa custa isto por dia ao caixa. */
+  missionDayUsd: 12_000,
   /** Contribuição anual de cada parte de uma aliança de defesa, % do PIB. */
   allianceCostPct: 0.1,
   aidRelationPer01Pct: 12,
@@ -510,11 +512,11 @@ export class Diplomacy {
     for (const t of this.treaties) {
       if (t.type === 'trade' && (t.a === id || t.b === id)) {
         const other = this.nation(t.a === id ? t.b : t.a);
-        if (other) trade += DIPLO.tradeGrowth * Math.sqrt(Math.min(other.gdpUsd / me.gdpUsd, 2));
+        if (other) trade += DIPLO.tradeGrowth * Math.sqrt(Math.min(diploSize(other) / diploSize(me), 2));
       } else if (t.type === 'sanctions') {
         if (t.b === id) {
           const by = this.nation(t.a);
-          if (by) sanctions -= DIPLO.sanctionsGrowth * Math.sqrt(Math.min(by.gdpUsd / me.gdpUsd, 2));
+          if (by) sanctions -= DIPLO.sanctionsGrowth * Math.sqrt(Math.min(diploSize(by) / diploSize(me), 2));
         } else if (t.a === id) sanctions -= DIPLO.sanctionsCostGrowth;
       }
     }
@@ -560,7 +562,7 @@ export class Diplomacy {
     const threshold = THRESHOLDS[proposal];
     if (proposal === 'trade') {
       reasons.push({ key: 'mutual', label: 'Benefício mútuo do comércio', value: 8 });
-      reasons.push({ key: 'market', label: 'Tamanho do mercado do proponente', value: round1(12 * Math.log10(1 + them.gdpUsd / me.gdpUsd)) });
+      reasons.push({ key: 'market', label: 'Tamanho do mercado do proponente', value: round1(12 * Math.log10(1 + diploSize(them) / diploSize(me))) });
       if (this.active('sanctions', receiver, proposer, true)) reasons.push({ key: 'sanctions', label: 'Mantém sanções contra o proponente', value: -50 });
     } else if (proposal === 'alliance') {
       const enemies = this.warPairs()

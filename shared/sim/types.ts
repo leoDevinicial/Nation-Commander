@@ -219,6 +219,9 @@ export interface TacticalModifiers {
   /** Decretos: custo dos recrutas e consumo de comida (padrão 1). */
   recruitCostMul?: number;
   foodUpkeepMul?: number;
+  /** Orçamento do país (16/11): Educação → conhecimento das escolas; Saúde → tempo de formar cidadãos (padrão 1). */
+  knowledgeMul?: number;
+  citizenTimeMul?: number;
 }
 
 export interface PlayerState {

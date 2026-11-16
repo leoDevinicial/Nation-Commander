@@ -112,10 +112,14 @@ function run(seed: number, difficulty: Difficulty): Result {
   const applyModifiers = () => {
     for (const n of national.nations) {
       const fx = national.effects(n.slot);
+      const am = national.areaModifiers(n.slot);
       const pol = policyEffects(n.policies);
       const shock = national.shockTheaterMul();
       sim.setModifiers(n.slot, {
-        constructionTimeMul: fx.constructionTimeMul,
+        // orçamento do país (16/11): Infraestrutura acelera as obras, Educação o conhecimento, Saúde os cidadãos
+        constructionTimeMul: fx.constructionTimeMul / am.buildSpeed,
+        knowledgeMul: am.knowledgeMul,
+        citizenTimeMul: 1 / am.citizenSpeed,
         productionTimeMul: fx.productionTimeMul * pol.productionTimeMul,
         recruitCostMul: pol.recruitCostMul,
         foodUpkeepMul: pol.foodUpkeepMul,
@@ -221,7 +225,7 @@ function run(seed: number, difficulty: Difficulty): Result {
       if (national.day % 30 === 0)
         for (const nai of nais) {
           const r = nai.think(national);
-          if (r.budget) national.setBudget(nai.slot, r.budget);
+          if (r.areas) national.setAreasUncapped(nai.slot, r.areas, nai.defenseMax);
           for (const d of r.decrees) national.setDecree(nai.slot, d.id, d.active);
           if (r.research !== undefined) national.setResearch(nai.slot, r.research);
           for (const action of r.diplomacy) national.diplomaticAction(nai.slot, action);

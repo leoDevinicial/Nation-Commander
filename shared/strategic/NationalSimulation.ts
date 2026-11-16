@@ -1,4 +1,5 @@
-import { treasuryDay, type TreasuryDay } from './treasury.ts';
+import { TREASURY, treasuryDay, type TreasuryDay } from './treasury.ts';
+import { AREA_FX, AREA_KEYS, AREA_LABEL, averageTax, clampAreas, level, taxApproval, type AreaKey, type Areas } from './areas.ts';
 import { Random } from '../sim/Random.ts';
 import { POWER } from '../sim/power.ts';
 import { decodeNonFinite, encodeNonFinite } from '../sim/json.ts';
@@ -21,6 +22,12 @@ import {
   ROAD_APPROVAL,
   theaterSupply,
   CAIXA_DAYS,
+  NEUTRAL_NATION,
+  PRICE_BASE_USD,
+  MAP_APPROVAL,
+  MAP_GDP_LOT_OUTPUT,
+  diploSize,
+  MAP_IDLE_REF_PCT,
 } from './params.ts';
 import { countryReference, type ReferenceKey } from './reference.ts';
 import { TECHNOLOGIES, techKnowledge, techDailyUsd, techDays, combineEffects, researchBlocker, TECH_IDS, type TechEffects, type TechId } from './technologies.ts';
@@ -148,8 +155,10 @@ export interface HistoryPoint {
 export interface WorksFund {
   /** Disponível agora (US$). */
   fundUsd: number;
-  /** Teto anual (US$): orçamento de infraestrutura × parcela do teatro. */
+  /** Base dos preços em US$ (no mapa, fixa: `PRICE_BASE_USD`; nos países de fora, o antigo teto anual). */
   capUsd: number;
+  /** O que faltou pagar no último dia, depois dos cortes (o caixa não fica negativo; 16/11). */
+  shortUsd?: number;
   /** Total gasto em obras na partida (US$, líquido de devoluções). */
   spentUsd: number;
   /** Lançamentos mais recentes (dia, valor; negativo = devolução). */
@@ -231,6 +240,15 @@ export interface NationState {
   policies?: PolicyState;
   /** Grandes Projetos Nacionais prontos no teatro (atualizado todo dia). */
   projects?: BuildingType[];
+  /**
+   * Orçamento do país do cenário (16/11, `areas.ts`): nível de 50% a 150% de cada área. Só as nações do mapa;
+   * `budget` passa a ser derivado dele (referência × nível) para quem ainda lê as % (facções, pedidos, logística).
+   */
+  areas?: Areas;
+  /** Áreas cortadas hoje por falta de caixa (nível efetivo abaixo do escolhido). */
+  areasCut?: Partial<Areas>;
+  /** PIB lento (média de ~30 dias), para o crescimento do cenário. */
+  gdpSlowUsd?: number;
   /** Linha de base (valores de referência) para medir desvios. */
   base: { inflationPct: number; growthPct: number; taxPct: number; servicesPct: number; totalSpendPct: number; deficitPctGdp: number };
 }
@@ -299,10 +317,14 @@ export class NationalSimulation {
   constructor(
     players: { slot: Slot; countryId: string }[],
     seed: number,
-    readonly mode: BalanceMode,
+    mode: BalanceMode = 'parity',
   ) {
+    // 16/11: "Escala real" saiu do jogo; salvamentos antigos com ela voltam em paridade
+    void mode;
     this.rng = new Random(seed ^ 0x5bd1e995);
-    this.nations = players.map((p) => createNation(p.slot, p.countryId));
+    // 16/11: as nações do mapa começam iguais (sem PIB, impostos ou gastos reais); os países de fora seguem com os
+    // dados reais só para o tamanho relativo na diplomacia
+    this.nations = players.map((p) => createNation(p.slot, p.countryId, true));
     const used = new Set(players.map((p) => p.countryId));
     this.npcs = COUNTRIES.filter((c) => !used.has(c.id)).map((c, i) => createNation(NPC_BASE_ID + i, c.id));
     // os jogadores da partida têm forças no mesmo teatro: rivais, mas sem guerra até a declaração
@@ -318,8 +340,65 @@ export class NationalSimulation {
       // o déficit inicial faz parte da situação de referência; só desvios pressionam a inflação
       n.base.deficitPctGdp = n.deficitPctGdp;
       n.works.fundUsd = Math.round(n.works.capUsd * WORKS_START_FRACTION);
-      this.pushHistory(n);
     }
+  }
+
+  /** Sempre paridade (16/11): todos os países do mapa jogam com a mesma escala. */
+  readonly mode: BalanceMode = 'parity';
+
+  /**
+   * Orçamento do país do cenário (16/11): níveis de 50% a 150% por área. O `budget` em % do PIB vira derivado
+   * (referência × nível), para facções, pedidos das potências e a logística seguirem lendo a mesma coisa.
+   */
+  setAreas(slot: Slot, areas: Partial<Areas>): string | null {
+    const n = this.nations.find((x) => x.slot === slot);
+    if (!n) return 'Nação inválida';
+    n.areas = clampAreas({ ...n.areas, ...areas });
+    this.syncBudget(n);
+    this.recompute(n, 0);
+    this.events.push({ type: 'budget_changed', day: this.day, slot, deficitPctGdp: round2(n.deficitPctGdp) });
+    return null;
+  }
+
+  /** IA (dificuldade): a defesa pode passar de 150% (Difícil e Brutal investem mais na logística, e pagam por isso). */
+  setAreasUncapped(slot: Slot, areas: Areas, defenseMax: number): void {
+    const n = this.nations.find((x) => x.slot === slot);
+    if (!n) return;
+    n.areas = { ...clampAreas(areas), defense: Math.round(Math.max(50, Math.min(defenseMax, areas.defense))) };
+    this.syncBudget(n);
+    this.recompute(n, 0);
+  }
+
+  private syncBudget(n: NationState): void {
+    const a = (n.areas ??= clampAreas(undefined));
+    const ref = n.referenceBudget;
+    const eff = { ...a, ...n.areasCut };
+    n.budget = {
+      taxPct: ref.taxPct,
+      defensePct: ref.defensePct * level(eff, 'defense'),
+      educationPct: ref.educationPct * level(eff, 'education'),
+      healthPct: ref.healthPct * level(eff, 'health'),
+      infrastructurePct: ref.infrastructurePct * level(eff, 'infrastructure'),
+      researchPct: ref.researchPct * level(eff, 'research'),
+      socialPct: ref.socialPct * level(eff, 'social'),
+    };
+  }
+
+  /** Nível efetivo de hoje (com os cortes por falta de caixa). */
+  areaLevel(slot: Slot, k: AreaKey): number {
+    const n = this.nations.find((x) => x.slot === slot);
+    if (!n?.areas) return 1;
+    return (n.areasCut?.[k] ?? n.areas[k]) / 100;
+  }
+
+  /** Multiplicadores que as áreas aplicam no teatro (obras, conhecimento, formação de cidadãos). */
+  areaModifiers(slot: Slot): { buildSpeed: number; knowledgeMul: number; citizenSpeed: number } {
+    if (!this.nations.some((x) => x.slot === slot)) return { buildSpeed: 1, knowledgeMul: 1, citizenSpeed: 1 };
+    return {
+      buildSpeed: AREA_FX.buildSpeed(this.areaLevel(slot, 'infrastructure')),
+      knowledgeMul: AREA_FX.knowledge(this.areaLevel(slot, 'education')),
+      citizenSpeed: AREA_FX.citizens(this.areaLevel(slot, 'health')),
+    };
   }
 
   nation(slot: Slot): NationState | undefined {
@@ -632,6 +711,20 @@ export class NationalSimulation {
   // ------------------------------------------------------------ comandos
 
   setBudget(slot: Slot, budget: Budget): string | null {
+    // 16/11: no mapa o orçamento é por área; o comando antigo vira níveis (% sobre a referência)
+    const own = this.nations.find((x) => x.slot === slot);
+    if (own) {
+      const ref = own.referenceBudget;
+      const lv = (v: number, r: number) => (r > 0 ? (v / r) * 100 : 100);
+      return this.setAreas(slot, {
+        defense: lv(budget.defensePct, ref.defensePct),
+        education: lv(budget.educationPct, ref.educationPct),
+        health: lv(budget.healthPct, ref.healthPct),
+        infrastructure: lv(budget.infrastructurePct, ref.infrastructurePct),
+        research: lv(budget.researchPct, ref.researchPct),
+        social: lv(budget.socialPct, ref.socialPct),
+      });
+    }
     const n = this.nation(slot);
     if (!n) return 'Nação inválida';
     const clamped = clampBudget(budget);
@@ -697,7 +790,7 @@ export class NationalSimulation {
   /** Orçamento anual de defesa (US$) — base do tamanho das guarnições dos governos da IA. */
   defenseBudgetUsd(id: NationId): number {
     const n = this.nation(id);
-    return n ? (n.budget.defensePct / 100) * n.gdpUsd : 0;
+    return n ? (n.budget.defensePct / 100) * diploSize(n) : 0;
   }
 
   /**
@@ -816,6 +909,9 @@ export class NationalSimulation {
   private stepNation(n: NationState): void {
     const dt = 1 / DAYS_PER_YEAR;
     const fx = combineEffects(n.research.done);
+    // 16/11: nação do mapa: o orçamento é por área (o `budget` em % sai dele) e a economia é a do cenário
+    const onMap = !this.isNpc(n.slot);
+    if (onMap) this.syncBudget(n);
     const b = n.budget;
     const totalSpendPct = spendPct(b);
     const diplo = this.diplomacy.growthEffects(n.slot);
@@ -846,54 +942,37 @@ export class NationalSimulation {
     n.growthFactors = growthFactors.map((f) => ({ ...f, value: round2(f.value) }));
 
     // --- estoques de longo prazo
-    n.infrastructureIndex = clamp(n.infrastructureIndex + COEF.infrastructureAccumulation * (b.infrastructurePct - BASE_INFRASTRUCTURE_PCT) * dt, 0.5, 1.6);
+    if (onMap) {
+      // índice de infraestrutura: segue o nível da área (100% → 1,0; 150% → 1,3) em uns dois meses de jogo
+      const target = AREA_FX.infraIndexTarget(level(n.areas!, 'infrastructure') * ((n.areasCut?.infrastructure ?? n.areas!.infrastructure) / n.areas!.infrastructure));
+      n.infrastructureIndex = clamp(n.infrastructureIndex + (target - n.infrastructureIndex) / 60, 0.5, 1.6);
+    } else n.infrastructureIndex = clamp(n.infrastructureIndex + COEF.infrastructureAccumulation * (b.infrastructurePct - BASE_INFRASTRUCTURE_PCT) * dt, 0.5, 1.6);
     const eduTarget = b.educationPct / Math.max(0.5, n.referenceBudget.educationPct);
     n.humanCapitalIndex += ((clamp(eduTarget, 0.5, 1.5) - n.humanCapitalIndex) * dt) / COEF.educationLagYears;
 
-    // --- inflação: âncora que converge para 3% + pressão do déficit e do aquecimento
-    const years = this.day / DAYS_PER_YEAR;
-    const anchor = COEF.inflationAnchor + (n.base.inflationPct - COEF.inflationAnchor) * Math.exp(-years / COEF.disinflationYears);
-    const deficitExcess = Math.max(0, n.deficitPctGdp - Math.max(3, n.base.deficitPctGdp));
     const pol = policyEffects(n.policies);
-    const target = anchor + COEF.deficitInflation * deficitExcess + 0.3 * (n.realGrowthPct - n.trendGrowthPct) + pol.inflation + NUCLEAR_SHOCK.inflation * shock;
     const prevInflation = n.inflationPct;
-    n.inflationPct += (target - n.inflationPct) * Math.min(1, COEF.inflationAdjust * dt);
+    if (!onMap) {
+      // --- inflação: âncora que converge para 3% + pressão do déficit e do aquecimento
+      const years = this.day / DAYS_PER_YEAR;
+      const anchor = COEF.inflationAnchor + (n.base.inflationPct - COEF.inflationAnchor) * Math.exp(-years / COEF.disinflationYears);
+      const deficitExcess = Math.max(0, n.deficitPctGdp - Math.max(3, n.base.deficitPctGdp));
+      const target = anchor + COEF.deficitInflation * deficitExcess + 0.3 * (n.realGrowthPct - n.trendGrowthPct) + pol.inflation + NUCLEAR_SHOCK.inflation * shock;
+      n.inflationPct += (target - n.inflationPct) * Math.min(1, COEF.inflationAdjust * dt);
 
-    // --- desemprego (Okun + reversão à taxa de referência)
-    n.unemploymentPct = clamp(n.unemploymentPct + (-COEF.okun * (n.realGrowthPct - n.trendGrowthPct) + COEF.unemploymentReversion * (n.naturalUnemploymentPct - n.unemploymentPct)) * dt, 0.5, 50);
+      // --- desemprego (Okun + reversão à taxa de referência)
+      n.unemploymentPct = clamp(n.unemploymentPct + (-COEF.okun * (n.realGrowthPct - n.trendGrowthPct) + COEF.unemploymentReversion * (n.naturalUnemploymentPct - n.unemploymentPct)) * dt, 0.5, 50);
 
-    // --- PIB nominal, contas públicas e dívida
-    n.gdpUsd *= 1 + ((n.realGrowthPct + COEF.usdInflation) / 100) * dt;
+      // --- PIB nominal, contas públicas e dívida
+      n.gdpUsd *= 1 + ((n.realGrowthPct + COEF.usdInflation) / 100) * dt;
+    }
     this.recompute(n, dt);
     // --- caixa do país: receitas menos despesas do dia (NPCs: só o repasse, até o teto, como antes)
     // a pesquisa nacional do jogador sai do caixa, por dia, enquanto corre; sem saldo, ela espera (NPCs: sempre anda)
     let researchPaid = this.isNpc(n.slot);
     if (this.isNpc(n.slot)) n.works.fundUsd = Math.min(n.works.capUsd, n.works.fundUsd + n.works.capUsd / DAYS_PER_YEAR);
-    else {
-      const gdpRef = this.mode === 'parity' ? COEF.parityGdpUsd : n.gdpUsd;
-      const day = treasuryDay(this.theater?.stats?.(n.slot)?.economy ?? null, {
-        transferUsd: n.works.capUsd / DAYS_PER_YEAR,
-        scale: gdpRef / COEF.parityGdpUsd,
-        productivity: clamp(n.infrastructureIndex * n.humanCapitalIndex - 1, -0.4, 0.6),
-        tradeGrowthPct: diplo.trade,
-        ...(n.works.tradePending ? { trade: n.works.tradePending } : {}),
-      });
-      n.works.tradePending = undefined;
-      const cur = n.research.current;
-      n.research.usdScale = gdpRef / COEF.parityGdpUsd;
-      if (cur) {
-        const cost = Math.round(techDailyUsd(cur) * n.research.usdScale);
-        if (n.works.fundUsd + day.net >= cost) {
-          day.expense.push({ key: 'research', label: `Pesquisa: ${TECHNOLOGIES[cur].label}`, usd: cost });
-          day.net -= cost;
-          n.research.invested[cur] = (n.research.invested[cur] ?? 0) + cost;
-          researchPaid = true;
-        }
-      }
-      n.research.stalled = !!cur && !researchPaid;
-      n.works.today = day;
-      n.works.fundUsd += day.net;
-    }
+    else this.treasuryStep(n, diplo, (paid) => (researchPaid = paid));
+    if (onMap) this.mapEconomy(n, diplo.sanctions);
 
     // --- opinião pública
     this.updateApproval(n);
@@ -916,10 +995,10 @@ export class NationalSimulation {
       }
     }
 
-    // --- pesquisa: com o dia pago pelo caixa, avança 1/prazo
+    // --- pesquisa: com o dia pago pelo caixa, avança 1/prazo (no mapa, no ritmo da área Pesquisa)
     const cur = n.research.current;
     if (cur && researchPaid) {
-      n.research.progress[cur] = Math.min(1, n.research.progress[cur] + 1 / techDays(cur));
+      n.research.progress[cur] = Math.min(1, n.research.progress[cur] + (onMap ? AREA_FX.research(this.areaLevel(n.slot, 'research')) : 1) / techDays(cur));
       if (n.research.progress[cur] >= 1 - 1e-9) {
         n.research.progress[cur] = 1;
         n.research.done.push(cur);
@@ -1014,7 +1093,8 @@ export class NationalSimulation {
           f.nextDay = day + FACTION.waitDays;
           continue;
         }
-        const options = FACTIONS[id].demands({ refDefensePct: n.referenceBudget.defensePct, naturalUnemploymentPct: n.naturalUnemploymentPct }).filter((d) => this.demandStatus(n, d, stats) !== 'met' && (stats || !needsTheater(d)));
+        // 16/11: exigências sobre o orçamento do país do mapa (Defesa em % de nível; ociosos em % dos cidadãos)
+        const options = FACTIONS[id].demands({ refDefensePct: 100, naturalUnemploymentPct: MAP_IDLE_REF_PCT }).filter((d) => this.demandStatus(n, d, stats) !== 'met' && (stats || !needsTheater(d)));
         if (options.length) {
           const demand = options[Math.floor(this.rng.next() * options.length)]!;
           f.demand = { demand, startDay: day, dueDay: day + FACTION.deadlineDays };
@@ -1049,7 +1129,7 @@ export class NationalSimulation {
       const from = powers[Math.floor(this.rng.next() * powers.length)]!.slot;
       const kinds: PowerRequest[] = [
         { kind: 'export_usd', usd: REQUEST.exportUsd, baseUsd: n.trade.exportsUsd },
-        { kind: 'defense', pct: Math.round((n.budget.defensePct + 0.5) * 10) / 10 },
+        { kind: 'defense', pct: Math.min(150, Math.round(((n.areas?.defense ?? 100) + 15) / 10) * 10) },
         { kind: 'research', baseDone: n.research.done.length },
         ...rivals.map((x): PowerRequest => ({ kind: 'no_war', target: x.slot })),
       ];
@@ -1073,10 +1153,12 @@ export class NationalSimulation {
         return stats && stats.workers >= d.count ? 'met' : 'open';
       case 'casualties_max':
         return casualties > d.count ? 'failed' : 'met';
-      case 'services':
-        return n.budget.educationPct + n.budget.healthPct + n.budget.socialPct >= n.base.servicesPct - 1e-9 ? 'met' : 'open';
+      case 'services': {
+        const a = n.areas ?? clampAreas(undefined);
+        return (a.education + a.health + a.social) / 3 >= 100 - 1e-9 ? 'met' : 'open';
+      }
       case 'defense':
-        return n.budget.defensePct >= d.pct - 1e-9 ? 'met' : 'open';
+        return (n.areas?.defense ?? 100) >= d.pct - 1e-9 ? 'met' : 'open';
       case 'unemployment':
         return n.unemploymentPct <= d.pct ? 'met' : 'open';
     }
@@ -1088,7 +1170,7 @@ export class NationalSimulation {
       case 'export_usd':
         return n.trade.exportsUsd - q.baseUsd >= q.usd ? 'met' : 'open';
       case 'defense':
-        return n.budget.defensePct >= q.pct - 1e-9 ? 'met' : 'open';
+        return (n.areas?.defense ?? 100) >= q.pct - 1e-9 ? 'met' : 'open';
       case 'research':
         return n.research.done.length > q.baseDone ? 'met' : 'open';
       case 'no_war':
@@ -1101,6 +1183,7 @@ export class NationalSimulation {
     const services = n.budget.educationPct + n.budget.healthPct + n.budget.socialPct;
     const casualties = sum(n.casualties30d.map((v) => ({ value: v })));
     const victories = sum(n.victories30d.map((v) => ({ value: v })));
+    if (!this.isNpc(n.slot)) return this.updateMapApproval(n, casualties, victories);
     const factors: Factor[] = [
       { key: 'inflation', label: 'Inflação', value: clamp(COEF.approvalInflation * (n.inflationPct - COEF.inflationAnchor), -25, 5) },
       { key: 'unemployment', label: 'Desemprego acima da taxa de referência', value: clamp(COEF.approvalUnemployment * (n.unemploymentPct - n.naturalUnemploymentPct), -20, 8) },
@@ -1134,18 +1217,159 @@ export class NationalSimulation {
     this.crossing(n, 'approval', prev, n.approval, [30]);
   }
 
+  /**
+   * Aprovação do país do mapa (16/11): sai do que acontece no cenário. Impostos dos lotes, Assistência, serviços
+   * cobrindo os bairros (pesam pelo nível da área), cidadãos ociosos, crescimento do PIB do cenário, contas sem pagar e
+   * cortes, guerra (baixas e vitórias), sanções, decretos e facções, estradas, energia, minas e o choque nuclear.
+   */
+  private updateMapApproval(n: NationState, casualties: number, victories: number): void {
+    const stats = this.theater?.stats?.(n.slot);
+    const tax = stats?.economy?.zoning?.tax;
+    const lv = (k: AreaKey) => this.areaLevel(n.slot, k);
+    const factors: Factor[] = [];
+    if (tax) factors.push({ key: 'tax', label: `Impostos dos lotes (média ${round1(averageTax(tax))}%)`, value: taxApproval(averageTax(tax)) });
+    factors.push({ key: 'social', label: `Assistência e administração (${Math.round(lv('social') * 100)}%)`, value: AREA_FX.socialApproval(lv('social')) });
+    const svc = stats?.services;
+    if (svc && svc.health + svc.education + svc.security > 0)
+      factors.push({ key: 'services_coverage', label: 'Hospitais, escolas e delegacias cobrindo os bairros', value: MAP_APPROVAL.servicePerArea * (svc.health * lv('health') + svc.education * lv('education') + svc.security * lv('security')) });
+    if (stats?.citizens && (stats.idle ?? 0) >= MAP_APPROVAL.idleMin) factors.push({ key: 'idle', label: 'Cidadãos sem trabalho', value: -Math.min(MAP_APPROVAL.idleMax, MAP_APPROVAL.idleWeight * ((stats.idle ?? 0) / stats.citizens)) });
+    if (Math.abs(n.realGrowthPct) >= 0.5) factors.push({ key: 'growth', label: 'Economia do cenário (PIB nos últimos 30 dias)', value: clamp(MAP_APPROVAL.growth * n.realGrowthPct, -6, 4) });
+    if ((n.works.shortUsd ?? 0) > 0) factors.push({ key: 'unpaid', label: 'Contas do dia sem pagar', value: -MAP_APPROVAL.unpaid });
+    else if (n.areasCut) factors.push({ key: 'cuts', label: 'Cortes no orçamento por falta de caixa', value: -MAP_APPROVAL.cuts });
+    factors.push(
+      { key: 'casualties', label: 'Baixas militares (30 dias)', value: clamp(COEF.approvalCasualties * casualties, -15, 0) },
+      { key: 'victories', label: 'Vitórias militares (30 dias)', value: clamp(COEF.approvalVictories * victories, 0, 8) },
+    );
+    const sanctions = DIPLO.sanctionsApproval * this.diplomacy.sanctionsAgainst(n.slot);
+    if (sanctions < -0.01) factors.push({ key: 'sanctions', label: 'Sanções internacionais contra o país', value: Math.max(-10, sanctions) });
+    const pol = policyEffects(n.policies);
+    if (Math.abs(pol.approval) >= 0.01) factors.push({ key: 'policy', label: 'Decretos e facções', value: pol.approval });
+    if (stats?.homes && stats.pavedHomes) factors.push({ key: 'paved', label: 'Bairros pavimentados', value: ROAD_APPROVAL.pavedMax * (stats.pavedHomes / stats.homes) });
+    if (stats?.homes && stats.litHomes !== undefined) {
+      const lit = stats.litHomes / stats.homes;
+      factors.push({ key: 'power', label: lit >= 0.999 ? 'Bairros com energia elétrica' : 'Bairros sem energia elétrica', value: POWER.approvalLit * lit - POWER.approvalDark * (1 - lit) });
+    }
+    if (stats?.leftoverMines) factors.push({ key: 'mines', label: 'Minas esquecidas no território', value: Math.max(-ROAD_APPROVAL.minesMax, -ROAD_APPROVAL.perMine * stats.leftoverMines) });
+    const shock = this.shockLevel();
+    if (shock > 0.01) factors.push({ key: 'nuclear', label: 'Medo e crise do lançamento nuclear', value: NUCLEAR_SHOCK.approval * shock });
+    const target = clamp(COEF.approvalBase + sum(factors), 0, 100);
+    const prev = n.approval;
+    n.approval += (target - n.approval) / COEF.approvalDays;
+    n.approvalFactors = factors.filter((f) => Math.abs(f.value) >= 0.005).map((f) => ({ ...f, value: round2(f.value) }));
+    this.crossing(n, 'approval', prev, n.approval, [30]);
+  }
+
+  /** Receita a mais dos Grandes Projetos (16/11: o antigo "+p.p. de crescimento") e do Centro Financeiro. */
+  private incomeMul(n: NationState): number {
+    const ps = n.projects ?? [];
+    return 1 + ps.reduce((a, t) => a + (BUILDINGS[t].project?.growth ?? 0) * PROJECT_FX.incomePerGrowth, 0) + (ps.includes('financial_center') ? PROJECT_FX.financialIncomeBonus : 0);
+  }
+
+  /**
+   * Caixa do dia da nação do mapa: receitas e despesas do cenário com as áreas do orçamento. Se o dia não fecha, as
+   * áreas são cortadas por igual (até 50%) e o aviso diz quais; o caixa nunca fica negativo (o que faltar fica sem
+   * pagar e pesa na aprovação).
+   */
+  private treasuryStep(n: NationState, diplo: { trade: number; sanctions: number }, setPaid: (paid: boolean) => void): void {
+    const inputs = this.theater?.stats?.(n.slot)?.economy ?? null;
+    const areas = (n.areas ??= clampAreas(undefined));
+    const ctx = {
+      scale: 1,
+      productivity: clamp(n.infrastructureIndex * n.humanCapitalIndex - 1, -0.4, 0.6),
+      tradeGrowthPct: diplo.trade,
+      // sanções sofridas: cada ponto de "crescimento" perdido tira 10% da receita (até 40%)
+      // decretos com inflação (economia de guerra): cada ponto tira 5% da receita
+      incomeMul: this.incomeMul(n) * (1 - Math.min(0.4, Math.max(0, -diplo.sanctions) * 0.1)) * (1 - 0.05 * Math.max(0, policyEffects(n.policies).inflation)),
+      ...(n.works.tradePending ? { trade: n.works.tradePending } : {}),
+      // missões diplomáticas ativas: custo por dia, no caixa (antes eram % de um PIB fictício)
+      extra: [{ key: 'missions', label: 'Missões diplomáticas', usd: Math.round((this.diplomacy.costPct(n.slot) / DIPLO.missionCostPct) * DIPLO.missionDayUsd) }],
+    };
+    n.works.tradePending = undefined;
+    const cur = n.research.current;
+    let eff: Areas = areas;
+    let day = treasuryDay(inputs, { ...ctx, areas: eff });
+    if (n.works.fundUsd + day.net < 0) {
+      for (let f = 0.9; f >= 0.3 - 1e-9; f -= 0.1) {
+        eff = Object.fromEntries(AREA_KEYS.map((k) => [k, Math.max(50, Math.min(areas[k], Math.round(areas[k] * f)))])) as Areas;
+        day = treasuryDay(inputs, { ...ctx, areas: eff });
+        if (n.works.fundUsd + day.net >= 0) break;
+      }
+    }
+    const cut = AREA_KEYS.filter((k) => eff[k] < areas[k]);
+    const wasCut = !!n.areasCut;
+    n.areasCut = cut.length ? (Object.fromEntries(cut.map((k) => [k, eff[k]])) as Partial<Areas>) : undefined;
+    if (n.areasCut && !wasCut)
+      this.events.push({ type: 'policy', day: this.day, slot: n.slot, text: `Caixa sem saldo para o dia: o orçamento cortou ${cut.map((k) => AREA_LABEL[k]).join(', ')} até fechar a conta`, tone: 'bad' });
+    n.research.usdScale = 1;
+    let paid = false;
+    if (cur) {
+      // a pesquisa custa por dia o preço da tecnologia × o nível da área Pesquisa (mais verba, mais rápida)
+      const cost = Math.round(techDailyUsd(cur) * level(eff, 'research'));
+      if (n.works.fundUsd + day.net >= cost) {
+        day.expense.push({ key: 'research', label: `Pesquisa: ${TECHNOLOGIES[cur].label} (${eff.research}%)`, usd: cost });
+        day.net -= cost;
+        n.research.invested[cur] = (n.research.invested[cur] ?? 0) + cost;
+        paid = true;
+      }
+    }
+    n.research.stalled = !!cur && !paid;
+    setPaid(paid);
+    n.works.today = day;
+    const after = n.works.fundUsd + day.net;
+    n.works.shortUsd = after < 0 ? Math.round(-after) : undefined;
+    n.works.fundUsd = Math.max(0, after);
+  }
+
+  /**
+   * PIB, crescimento, desemprego e contas do país do mapa (16/11): o PIB é o valor do que o cenário produz por dia
+   * (coletas, indústrias e a produção privada dos lotes) × 365; cresce porque a cidade cresce.
+   */
+  private mapEconomy(n: NationState, sanctions: number): void {
+    const t = n.works.today;
+    const stats = this.theater?.stats?.(n.slot);
+    const line = (k: string) => t?.income.find((l) => l.key === k)?.usd ?? 0;
+    const z = stats?.economy?.zoning;
+    const lots = z ? (['res', 'com', 'ind'] as const).reduce((a, k) => a + z.base[k] * TREASURY.lotTax[k] * MAP_GDP_LOT_OUTPUT, 0) * this.incomeMul(n) : 0;
+    const target = (line('production') + line('productivity') + lots) * DAYS_PER_YEAR;
+    if (!n.gdpSlowUsd || n.gdpUsd <= 0) {
+      n.gdpUsd = target;
+      n.gdpSlowUsd = target;
+    } else {
+      n.gdpUsd += (target - n.gdpUsd) * 0.2;
+      n.gdpSlowUsd += (n.gdpUsd - n.gdpSlowUsd) / HISTORY_EVERY_DAYS;
+    }
+    n.realGrowthPct = n.gdpSlowUsd > 0 ? clamp((n.gdpUsd / n.gdpSlowUsd - 1) * 100, -15, 15) : 0;
+    n.trendGrowthPct = 0;
+    n.growthFactors = [{ key: 'map', label: 'PIB do cenário vs. a média dos últimos 30 dias', value: round2(n.realGrowthPct) }];
+    if (sanctions < -0.01) n.growthFactors.push({ key: 'sanctions', label: `Sanções: receita ${Math.round(Math.min(0.4, -sanctions * 0.1) * 100)}% menor`, value: round2(sanctions) });
+    if (stats?.citizens) n.unemploymentPct = round2(((stats.idle ?? 0) / stats.citizens) * 100);
+    if (stats?.citizens !== undefined) n.population = stats.citizens + stats.military;
+    if (t) {
+      n.revenueUsd = t.income.reduce((a, l) => a + l.usd, 0) * DAYS_PER_YEAR;
+      n.spendingUsd = t.expense.reduce((a, l) => a + l.usd, 0) * DAYS_PER_YEAR;
+      n.deficitPctGdp = n.gdpUsd > 0 ? ((n.spendingUsd - n.revenueUsd) / n.gdpUsd) * 100 : 0;
+    }
+    if (this.day === 1 || n.history.length === 0) this.pushHistory(n);
+  }
+
   /** Recalcula fluxos anuais e a logística do teatro a partir do orçamento e do PIB atuais. */
   private recompute(n: NationState, _dt: number): void {
     const b = n.budget;
-    n.revenueUsd = (b.taxPct / 100) * n.gdpUsd;
-    n.spendingUsd = ((spendPct(b) + this.diplomacy.costPct(n.slot)) / 100) * n.gdpUsd;
-    n.deficitPctGdp = ((n.spendingUsd - n.revenueUsd) / n.gdpUsd) * 100;
+    const onMap = !this.isNpc(n.slot);
+    // no mapa, receita, despesa e saldo saem do caixa do dia (`mapEconomy`)
+    if (!onMap) {
+      n.revenueUsd = (b.taxPct / 100) * n.gdpUsd;
+      n.spendingUsd = ((spendPct(b) + this.diplomacy.costPct(n.slot)) / 100) * n.gdpUsd;
+      n.deficitPctGdp = ((n.spendingUsd - n.revenueUsd) / n.gdpUsd) * 100;
+    }
     const fx = combineEffects(n.research.done);
-    const gdpFor = (x: NationState) => (this.mode === 'parity' ? COEF.parityGdpUsd : x.gdpUsd);
+    const gdpFor = (_x: NationState) => COEF.parityGdpUsd;
     const defenseBn = ((b.defensePct / 100) * gdpFor(n)) / 1e9;
-    // teto anual da verba de obras: segue o orçamento de infraestrutura (e o PIB) atuais
-    n.dayUsd = Math.round(((BASE_INFRASTRUCTURE_PCT / 100) * gdpFor(n) * WORKS_SHARE_OF_INFRA) / DAYS_PER_YEAR);
-    n.works.capUsd = Math.round((b.infrastructurePct / 100) * gdpFor(n) * WORKS_SHARE_OF_INFRA * (n.projects?.includes('financial_center') ? PROJECT_FX.financialWorksMul : 1));
+    // base dos preços em US$ (estradas, pesquisas militares, eras, Grandes Projetos, taxas de obra) e dos gastos de
+    // governo medidos em dias (`CAIXA_DAYS`): fixa e igual para todos no mapa (16/11; antes seguia a verba de
+    // infraestrutura, e subir o orçamento encarecia tudo)
+    n.dayUsd = Math.round(PRICE_BASE_USD / DAYS_PER_YEAR);
+    n.works.capUsd = onMap ? PRICE_BASE_USD : Math.round((b.infrastructurePct / 100) * gdpFor(n) * WORKS_SHARE_OF_INFRA);
     if (this.isNpc(n.slot) && n.works.fundUsd > n.works.capUsd) n.works.fundUsd = n.works.capUsd;
     n.allianceAidPerSec = this.diplomacy.allianceAid(n.slot, gdpFor);
     n.theaterSupplyPerSec = theaterSupply(defenseBn) * fx.theaterSupplyMul + n.allianceAidPerSec;
@@ -1174,10 +1398,12 @@ export class NationalSimulation {
 
 // ------------------------------------------------------------ criação a partir dos dados de referência
 
-export function createNation(slot: Slot, countryId: string): NationState {
+export function createNation(slot: Slot, countryId: string, neutral = false): NationState {
   const ref = countryReference(countryId);
   const estimated: ReferenceKey[] = [];
   const pick = (key: ReferenceKey, fallback: number): number => {
+    // 16/11: nação do mapa começa com os valores neutros, iguais para todos
+    if (neutral) return key in NEUTRAL_NATION ? NEUTRAL_NATION[key as keyof typeof NEUTRAL_NATION] : fallback;
     const v = ref.values[key].value;
     if (v === null || !Number.isFinite(v)) {
       estimated.push(key);
@@ -1209,7 +1435,7 @@ export function createNation(slot: Slot, countryId: string): NationState {
   // (despesa − receita do governo central); sem dado de receita, presume-se déficit de 3%.
   let taxPct: number;
   let taxAdjustmentPct = 0;
-  if (estimated.includes('govRevenuePctGdp')) {
+  if (neutral || estimated.includes('govRevenuePctGdp')) {
     taxPct = modelSpend - FALLBACK_DEFICIT_PCT;
   } else {
     // saldo do governo geral (FMI) quando houver; senão despesa − receita
@@ -1254,6 +1480,7 @@ export function createNation(slot: Slot, countryId: string): NationState {
     trade: { exportsUsd: 0, importsUsd: 0, freightUsd: 0 },
     research: { current: null, progress, done: [], invested: Object.fromEntries(TECH_IDS.map((id) => [id, 0])) as Record<TechId, number>, idleUsd: 0, doneDay: {} },
     works: { fundUsd: 0, capUsd: 0, spentUsd: 0, ledger: [] },
+    ...(neutral ? { areas: clampAreas(undefined) } : {}),
     policies: createPolicies(),
     theaterSupplyPerSec: 0,
     allianceAidPerSec: 0,
@@ -1296,6 +1523,10 @@ function clamp(v: number, min: number, max: number): number {
 
 function sum(fs: { value: number }[]): number {
   return fs.reduce((s, f) => s + f.value, 0);
+}
+
+function round1(v: number): number {
+  return Math.round(v * 10) / 10;
 }
 
 function round2(v: number): number {
