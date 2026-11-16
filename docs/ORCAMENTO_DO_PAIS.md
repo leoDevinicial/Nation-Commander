@@ -84,3 +84,17 @@ versão anterior na mesma máquina:
   (o caixa inicial dura bem mais que a partida inteira nesse ritmo).
 
 Diagnóstico: `TREASURY_LOG=1 npx tsx scripts/sim-economia.ts 2 25` imprime o extrato das IAs a cada 2 min.
+
+## Acordos comerciais com os países de fora (16/11)
+
+Antes, todo país aceitava (limiar 5 contra +8 de "benefício mútuo" mais o tamanho do mercado) e a IA propunha a todos
+os conhecidos todo mês. Agora (`Diplomacy.evaluate`, `DIPLO.trade*`):
+
+- cada nação tem no máximo **4 acordos** ao mesmo tempo (`tradeMax`; a 5ª proposta é recusada com o motivo);
+- o benefício mútuo vale 4; quem avalia soma o mercado do proponente (12 × log10(1 + tamanho dele / o próprio)),
+  tira 3 por acordo que já tem e 10 se comercia com um inimigo do proponente. Na prática, México, Canadá ou África do
+  Sul aceitam um país do mapa logo de cara; EUA e China pedem relação antes (missão, ajuda ou o tempo);
+- a IA só propõe até o limite, aos países com melhor relação, e só a quem deve aceitar (sem fila de recusas).
+
+Testes: `shared/test/diplomacy.test.ts` ("potência pede relação antes..."), `server/room.test.ts` (diplomacia).
+

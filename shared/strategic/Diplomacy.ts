@@ -166,6 +166,14 @@ export const DIPLO = {
   /** Crescimento (p.p./ano) por acordo comercial, escalado pela razão de PIBs (limitada a 2). */
   tradeGrowth: 0.25,
   tradeGrowthCap: 1,
+  /**
+   * Acordos comerciais (16/11, "todo mundo aceita e a IA assina com todos"): cada nação tem no máximo este número de
+   * acordos ao mesmo tempo; quem avalia pesa os acordos que já tem e o comércio com os inimigos do proponente.
+   */
+  tradeMax: 4,
+  tradeMutual: 4,
+  tradeBusy: -3,
+  tradeEnemyPartner: -10,
   /** Perda de crescimento do alvo de sanções, escalada pelo PIB do sancionador. */
   sanctionsGrowth: 0.5,
   sanctionsCostGrowth: 0.05,
@@ -545,6 +553,16 @@ export class Diplomacy {
     return c;
   }
 
+  /** Proposta recusada há pouco (espera `rejectCooldownDays`). */
+  onCooldown(actor: NationId, partner: NationId, treaty: string, day: number): boolean {
+    return (this.cooldown.get(`${actor}>${partner}:${treaty}`) ?? -Infinity) > day;
+  }
+
+  /** Acordos comerciais vigentes de uma nação. */
+  tradeCount(id: NationId): number {
+    return this.treaties.filter((t) => t.type === 'trade' && (t.a === id || t.b === id)).length;
+  }
+
   /** Ajuda militar (suprimentos/s) enviada por aliados ao teatro do jogador. */
   allianceAid(id: NationId, gdpForTheater: (n: NationState) => number): number {
     let aid = 0;
@@ -571,8 +589,15 @@ export class Diplomacy {
     const reasons: Factor[] = [{ key: 'relation', label: 'Relação atual', value: round1(this.relation(proposer, receiver)) }];
     const threshold = THRESHOLDS[proposal];
     if (proposal === 'trade') {
-      reasons.push({ key: 'mutual', label: 'Benefício mútuo do comércio', value: 8 });
+      reasons.push({ key: 'mutual', label: 'Benefício mútuo do comércio', value: DIPLO.tradeMutual });
+      // mercado do proponente comparado ao próprio: país pequeno quer acordo com grande; potência quer relação antes
       reasons.push({ key: 'market', label: 'Tamanho do mercado do proponente', value: round1(12 * Math.log10(1 + diploSize(them) / diploSize(me))) });
+      const deals = this.tradeCount(receiver);
+      if (deals > 0) reasons.push({ key: 'busy', label: `Já tem ${deals} acordo(s) comercial(is)`, value: DIPLO.tradeBusy * deals });
+      const enemies = this.warPairs()
+        .filter(([x, y]) => x === proposer || y === proposer)
+        .map(([x, y]) => (x === proposer ? y : x));
+      if (enemies.some((e) => this.active('trade', receiver, e))) reasons.push({ key: 'enemy_partner', label: 'Comercia com o adversário do proponente', value: DIPLO.tradeEnemyPartner });
       if (this.active('sanctions', receiver, proposer, true)) reasons.push({ key: 'sanctions', label: 'Mantém sanções contra o proponente', value: -50 });
     } else if (proposal === 'alliance') {
       const enemies = this.warPairs()
@@ -628,6 +653,7 @@ export class Diplomacy {
         const ck = `${actor}>${other.slot}:${action.treaty}`;
         if ((this.cooldown.get(ck) ?? -Infinity) > day) return `Proposta recusada recentemente; aguarde até o dia ${this.cooldown.get(ck)}`;
         if (action.treaty !== 'trade' && action.treaty !== 'alliance') return 'Proposta inválida';
+        if (action.treaty === 'trade' && this.tradeCount(actor) >= DIPLO.tradeMax) return `Limite de ${DIPLO.tradeMax} acordos comerciais ao mesmo tempo: encerre um ou espere vencer`;
         const ev = this.evaluate(actor, other.slot, action.treaty);
         if (!ev.accept) {
           this.cooldown.set(ck, day + DIPLO.rejectCooldownDays);

@@ -8,6 +8,8 @@ export const CHANGELOG: { version: string; date: string; items: string[] }[] = [
       'Todos os países começam iguais: nada de vantagem pelo PIB ou pelo gasto militar reais. Fica o bônus único de cada país.',
       'O PIB e a aprovação vêm do que acontece no mapa; sem caixa, o orçamento corta as áreas em vez de ficar negativo.',
       'Menu inicial novo, com o globo em tela cheia, os modos em cartões e as novidades à vista.',
+      'Acordos comerciais no Globo de verdade: até 4 por país, as potências pedem relação antes e a IA não assina mais com todo mundo.',
+      'As novidades de cada versão aparecem uma vez ao entrar no jogo.',
       'Lobby redesenhado: tudo numa tela só, com o código da sala em destaque, quem já está pronto e abas no celular.',
       'O anfitrião escolhe a vitória: só por eliminação ou também por domínio territorial.',
       'Colônias: funde uma prefeitura em terra neutra levando uma tropa ou navio até lá (ilhas desabitadas do Arquipélago).',

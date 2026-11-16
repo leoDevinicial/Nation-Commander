@@ -5,7 +5,7 @@ import { researchBlocker, techKnowledge, TECH_IDS, type TechId } from './technol
 
 /** Conhecimento que a IA não gasta na pesquisa nacional (fica para as pesquisas militares do teatro). */
 const AI_KNOWLEDGE_RESERVE = 20;
-import type { DiplomaticAction } from './Diplomacy.ts';
+import { DIPLO, type DiplomaticAction } from './Diplomacy.ts';
 import type { DecreeId } from './policies.ts';
 import { INFRA_GATE_MIN } from '../sim/upgrades.ts';
 
@@ -168,9 +168,18 @@ export class NationalAI {
       out.push({ type: 'establish_contact', partner: n.slot });
     }
     const enemies = sim.nations.filter((x) => x.slot !== me && d.atWar(me, x.slot));
+    // comércio (16/11): só até o limite e só com quem deve aceitar (antes propunha a todos os conhecidos todo mês)
+    let deals = d.tradeCount(me);
+    const partners = [...known].sort((a, b) => d.relation(me, b.slot) - d.relation(me, a.slot) || a.slot - b.slot);
+    for (const npc of partners) {
+      if (deals >= DIPLO.tradeMax) break;
+      if (d.active('trade', me, npc.slot) || d.onCooldown(me, npc.slot, 'trade', sim.day)) continue;
+      if (!d.evaluate(me, npc.slot, 'trade').accept) continue;
+      out.push({ type: 'propose', treaty: 'trade', partner: npc.slot });
+      deals++;
+    }
     for (const [i, npc] of known.entries()) {
       if (i < 3 && !d.missions.has(`${me}>${npc.slot}`)) out.push({ type: 'set_mission', partner: npc.slot, active: true });
-      if (!d.active('trade', me, npc.slot)) out.push({ type: 'propose', treaty: 'trade', partner: npc.slot });
       const rel = d.relation(me, npc.slot);
       if (rel >= 55 && !d.active('alliance', me, npc.slot)) out.push({ type: 'propose', treaty: 'alliance', partner: npc.slot });
       if (rel >= 45) for (const e of enemies) if (d.knows(npc.slot, e.slot) && !d.active('sanctions', npc.slot, e.slot, true)) out.push({ type: 'request_sanctions', partner: npc.slot, target: e.slot });

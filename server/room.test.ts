@@ -284,11 +284,15 @@ describe('servidor de partidas', () => {
     // o adversário não revela o orçamento: só a própria nação vem completa
     expect(first.nations.map((n) => n.slot)).toEqual([0]);
     expect(parseClientMessage(JSON.stringify({ t: 'national', cmd: { type: 'diplomacy', action: { type: 'send_aid', partner: usa.id, pctGdp: 5 } } }))).toBeNull();
+    // 16/11: a potência recusa um acordo sem relação; o México (mercado menor) aceita
+    const mex = first.diplomacy.nations.find((n) => n.countryId === 'MEX')!;
     await send(a.conn, { t: 'national', cmd: { type: 'diplomacy', action: { type: 'propose', treaty: 'trade', partner: usa.id } } });
+    await send(a.conn, { t: 'national', cmd: { type: 'diplomacy', action: { type: 'propose', treaty: 'trade', partner: mex.id } } });
     for (let i = 0; i < 20; i++) room.advance();
     const msg = a.last('national')!;
-    expect(msg.diplomacy.treaties.some((t) => t.type === 'trade' && (t.a === usa.id || t.b === usa.id))).toBe(true);
-    expect(msg.diplomacy.relations.find((r) => (r.a === 0 && r.b === usa.id) || (r.b === 0 && r.a === usa.id))!.value).toBeGreaterThan(0);
+    expect(msg.diplomacy.treaties.some((t) => t.type === 'trade' && (t.a === usa.id || t.b === usa.id))).toBe(false);
+    expect(msg.diplomacy.treaties.some((t) => t.type === 'trade' && (t.a === mex.id || t.b === mex.id))).toBe(true);
+    expect(msg.diplomacy.relations.find((r) => (r.a === 0 && r.b === mex.id) || (r.b === 0 && r.a === mex.id))!.value).toBeGreaterThan(0);
     // sem declaração não há guerra; e os dois ainda não se encontraram no mapa (06/11), então nem há relação com o vizinho
     expect(msg.diplomacy.relations.find((r) => r.a === 0 && r.b === 1)).toBeUndefined();
     expect(msg.diplomacy.wars).toEqual([]);

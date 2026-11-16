@@ -16,6 +16,7 @@ import { prepareJoin, prepareNewRoom } from '../../net/regionFlow.ts';
 import { Frame } from '../components/Frame.tsx';
 import { NationBadge } from '../components/NationBadge.tsx';
 import { CHANGELOG } from '../changelog.ts';
+import { ChangelogPopup } from '../components/ChangelogPopup.tsx';
 import { autoFullscreen, FullscreenButton } from '../components/FullscreenButton.tsx';
 
 /**
@@ -61,6 +62,8 @@ export function MenuScreen() {
 
   return (
     <div className="menu relative z-10 h-full w-full overflow-y-auto">
+      {/* novidades: uma vez por jogador a cada versão (16/11) */}
+      <ChangelogPopup player={user ? (user.guest ? `guest:${user.name}` : user.id) : null} onOpenAll={() => setScreen('feedback')} />
       {/* o globo fica à direita (GlobeBackdrop "hero"); o degradê deixa o texto legível por cima */}
       <div
         aria-hidden

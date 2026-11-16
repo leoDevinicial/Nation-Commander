@@ -40,7 +40,7 @@ describe('diplomacia', () => {
 
   it('acordo comercial aceito melhora relação e crescimento; tem prazo e expira', () => {
     const { sim, npc } = setup();
-    const usa = npc('USA');
+    const usa = npc('MEX');
     const growth0 = sim.diplomacy.growthEffects(0).trade;
     expect(sim.diplomaticAction(0, { type: 'propose', treaty: 'trade', partner: usa.slot })).toBeNull();
     const ev = sim.drainEvents().find((e) => e.type === 'diplomacy');
@@ -53,6 +53,26 @@ describe('diplomacia', () => {
     run(sim, DIPLO.tradeDays);
     expect(sim.diplomacy.active('trade', 0, usa.slot)).toBeUndefined();
     expect(sim.drainEvents().some((e) => e.type === 'diplomacy' && e.event.type === 'treaty_ended' && e.event.reason === 'expired')).toBe(true);
+  });
+
+  it('acordos comerciais: potência pede relação antes, cada nação tem no máximo 4 e quem já tem muitos recusa', () => {
+    const { sim, npc } = setup();
+    // sem relação, os EUA (mercado muito maior) recusam e explicam
+    expect(sim.diplomaticAction(0, { type: 'propose', treaty: 'trade', partner: npc('USA').slot })).toBeNull();
+    const rej = sim.drainEvents().find((e) => e.type === 'diplomacy' && e.event.type === 'proposal_rejected');
+    expect(rej && rej.type === 'diplomacy' && rej.event.type === 'proposal_rejected' && rej.event.reasons.some((r) => r.key === 'market')).toBe(true);
+    // mercados menores aceitam, até o limite
+    for (const id of ['ZAF', 'EGY', 'SAU', 'TUR', 'KOR']) {
+      const c = npc(id);
+      meet(sim, 0, c.slot);
+      sim.diplomaticAction(0, { type: 'propose', treaty: 'trade', partner: c.slot });
+    }
+    expect(sim.diplomacy.tradeCount(0)).toBe(DIPLO.tradeMax);
+    meet(sim, 0, npc('PRK').slot);
+    expect(sim.diplomaticAction(0, { type: 'propose', treaty: 'trade', partner: npc('PRK').slot })).toMatch(/Limite/);
+    // um país que já tem acordos pesa isso na avaliação
+    const ev = sim.diplomacy.evaluate(1, npc('ZAF').slot, 'trade');
+    expect(ev.reasons.some((r) => r.key === 'busy')).toBe(true);
   });
 
   it('aliança exige relação alta e, recusada, informa os motivos e impõe espera', () => {
@@ -104,7 +124,7 @@ describe('diplomacia', () => {
 
   it('pedido de sanções depende da relação com quem pede e com o alvo; sanções reduzem o crescimento do alvo', () => {
     const { sim, npc } = setup('realistic');
-    const usa = npc('USA');
+    const usa = npc('MEX');
     // sem relação suficiente: recusa (e o pedido entra em espera de 60 dias)
     sim.diplomaticAction(0, { type: 'request_sanctions', partner: usa.slot, target: 1 });
     expect(sim.diplomacy.active('sanctions', usa.slot, 1, true)).toBeUndefined();

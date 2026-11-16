@@ -140,8 +140,10 @@ R/C/I e sete áreas de 50–150% com custo e efeito no teatro; PIB e aprovação
 países começam iguais e a "Escala real" saiu; o "repasse do orçamento" acabou (o caixa vive de produção e impostos,
 inclusive dos cidadãos). Regras e calibragem em `docs/ORCAMENTO_DO_PAIS.md`. Antes, no mesmo dia: menu inicial novo
 (`MenuScreen.tsx`, maquete em `docs/ui_maquete` 9–11), lobby redesenhado, vitória escolhida pelo anfitrião, colônias,
-silo e ogiva nuclear, faixas roláveis na barra de recursos. Ainda não aprovado: a correção dos acordos comerciais do
-Globo (todos aceitam; a IA assina com todo mundo), proposta na análise de 16/11.
+silo e ogiva nuclear, faixas roláveis na barra de recursos. Por último: acordos comerciais do Globo com limite de 4 e
+avaliação de verdade (fim do "todos aceitam"), e as novidades da versão em popup uma vez por jogador ao entrar
+(`src/ui/components/ChangelogPopup.tsx`, chave `nc.changelog.seen.v1` no aparelho; versão nova no `changelog.ts` =
+popup de novo para todos).
 
 **15/11 — banda e engasgo (pedido do usuário depois de uma partida de ~3 GB no Render):** snapshots delta, compressão
 garantida mesmo sem permessage-deflate (o servidor de produção não negociou a extensão num teste) e interpolação que

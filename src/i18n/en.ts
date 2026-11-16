@@ -3598,4 +3598,11 @@ export const EN: Dict = {
   "Todos os países começam iguais: nada de vantagem pelo PIB ou pelo gasto militar reais. Fica o bônus único de cada país.": "Every country starts equal: no advantage from real GDP or military spending. Each country keeps its unique bonus.",
   "O PIB e a aprovação vêm do que acontece no mapa; sem caixa, o orçamento corta as áreas em vez de ficar negativo.": "GDP and approval come from what happens on the map; without cash, the budget cuts areas instead of going negative.",
   "Menu inicial novo, com o globo em tela cheia, os modos em cartões e as novidades à vista.": "New main menu, with the full-screen globe, game modes as cards and the latest news in view.",
+  "Acordos comerciais no Globo de verdade: até 4 por país, as potências pedem relação antes e a IA não assina mais com todo mundo.": "Real trade deals on the Globe: up to 4 per country, major powers want good relations first and the AI no longer signs with everyone.",
+  "As novidades de cada versão aparecem uma vez ao entrar no jogo.": "Each version's news shows up once when you enter the game.",
+  "Limite de {0} acordos comerciais ao mesmo tempo: encerre um ou espere vencer": "Limit of {0} trade deals at a time: end one or wait for one to expire",
+  "Já tem {0} acordo(s) comercial(is)": "Already has {0} trade deal(s)",
+  "Comercia com o adversário do proponente": "Trades with the proposer's enemy",
+  "O que mudou na versão {0}": "What changed in version {0}",
+  "Ver tudo e dar opinião": "See everything and give feedback",
 };

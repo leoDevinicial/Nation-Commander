@@ -3341,4 +3341,11 @@ export const ES: Dict = {
   "Todos os países começam iguais: nada de vantagem pelo PIB ou pelo gasto militar reais. Fica o bônus único de cada país.": "Todos los países empiezan iguales: nada de ventaja por el PIB o el gasto militar reales. Queda el bono único de cada país.",
   "O PIB e a aprovação vêm do que acontece no mapa; sem caixa, o orçamento corta as áreas em vez de ficar negativo.": "El PIB y la aprobación vienen de lo que pasa en el mapa; sin caja, el presupuesto recorta las áreas en vez de quedar negativo.",
   "Menu inicial novo, com o globo em tela cheia, os modos em cartões e as novidades à vista.": "Menú inicial nuevo, con el globo a pantalla completa, los modos en tarjetas y las novedades a la vista.",
+  "Acordos comerciais no Globo de verdade: até 4 por país, as potências pedem relação antes e a IA não assina mais com todo mundo.": "Acuerdos comerciales de verdad en el Globo: hasta 4 por país, las potencias piden relación antes y la IA ya no firma con todos.",
+  "As novidades de cada versão aparecem uma vez ao entrar no jogo.": "Las novedades de cada versión aparecen una vez al entrar al juego.",
+  "Limite de {0} acordos comerciais ao mesmo tempo: encerre um ou espere vencer": "Límite de {0} acuerdos comerciales a la vez: termina uno o espera a que venza",
+  "Já tem {0} acordo(s) comercial(is)": "Ya tiene {0} acuerdo(s) comercial(es)",
+  "Comercia com o adversário do proponente": "Comercia con el adversario del proponente",
+  "O que mudou na versão {0}": "Qué cambió en la versión {0}",
+  "Ver tudo e dar opinião": "Ver todo y opinar",
 };
