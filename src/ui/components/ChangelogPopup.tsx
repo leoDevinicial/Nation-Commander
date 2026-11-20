@@ -20,32 +20,48 @@ function readSeen(): Record<string, string> | null {
   }
 }
 
-function markSeen(player: string): void {
+function markSeen(players: readonly string[]): void {
   try {
     const seen = readSeen() ?? {};
-    seen[player] = CHANGELOG[0]!.version;
+    for (const player of players) seen[player] = CHANGELOG[0]!.version;
     localStorage.setItem(KEY, JSON.stringify(seen));
   } catch {
     /* sem armazenamento: só não lembra */
   }
 }
 
+/**
+ * Chaves de um jogador no registro do que já viu: a da conta no aparelho (sem depender do servidor de jogo) e a antiga,
+ * o id público que chega do servidor (gravações até a 1.5.1). Conta como visto se qualquer uma já viu.
+ */
+export function playerKeys(account: { id: string } | null, guest: { name: string } | null, server: { id: string; guest: boolean; name: string } | null): string[] {
+  const keys: string[] = [];
+  if (account) keys.push(`acct:${account.id}`);
+  else if (guest) keys.push(`guest:${guest.name}`);
+  if (server) keys.push(server.guest ? `guest:${server.name}` : server.id);
+  return [...new Set(keys)];
+}
+
 /** Versões novas para este jogador (vazio: nada a mostrar). */
-export function unseenVersions(player: string, seen: Record<string, string> | null): typeof CHANGELOG {
-  if (!seen || !CHANGELOG.length) return [];
-  const last = seen[player];
-  if (last === CHANGELOG[0]!.version) return [];
-  const i = last ? CHANGELOG.findIndex((c) => c.version === last) : -1;
+export function unseenVersions(players: string | readonly string[], seen: Record<string, string> | null): typeof CHANGELOG {
+  const keys = typeof players === 'string' ? [players] : players;
+  if (!seen || !CHANGELOG.length || !keys.length) return [];
+  if (keys.some((k) => seen[k] === CHANGELOG[0]!.version)) return [];
+  // a versão mais recente que ele já viu, em qualquer uma das chaves (CHANGELOG vem da mais nova para a mais antiga)
+  const seenAt = keys.map((k) => CHANGELOG.findIndex((c) => c.version === seen[k])).filter((i) => i > 0);
+  const i = seenAt.length ? Math.min(...seenAt) : -1;
   // nunca viu (ou versão desconhecida): só a atual, para não despejar o histórico inteiro
   return i > 0 ? CHANGELOG.slice(0, Math.min(i, 3)) : CHANGELOG.slice(0, 1);
 }
 
-export function ChangelogPopup({ player, onOpenAll }: { player: string | null; onOpenAll: () => void }) {
-  // fechado nesta sessão: não volta nem se o armazenamento falhar
+export function ChangelogPopup({ players, onOpenAll }: { players: readonly string[]; onOpenAll: () => void }) {
+  // fechado nesta sessão: não volta nem se o armazenamento falhar (nem quando a chave do servidor chega depois)
   const [closed, setClosed] = useState<string | null>(null);
-  const versions = useMemo(() => (player && closed !== player ? unseenVersions(player, readSeen()) : []), [player, closed]);
+  const player = players[0] ?? null;
+  const keyList = players.join('|');
+  const versions = useMemo(() => (player && closed !== player ? unseenVersions(keyList.split('|'), readSeen()) : []), [player, keyList, closed]);
   const close = () => {
-    if (player) markSeen(player);
+    if (players.length) markSeen(players);
     setClosed(player);
   };
   useEffect(() => {
