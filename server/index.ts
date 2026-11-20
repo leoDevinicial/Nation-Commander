@@ -21,7 +21,7 @@ import { DbDetailsCache, DbStatsCache, PROVISIONAL_DETAILS_KEY_SHA256, PROVISION
 // partidas em andamento sobrevivem a reinícios: Supabase em produção, arquivos no desenvolvimento
 const sb = getSupabase();
 const store: MatchStore | null = sb ? new SupabaseMatchStore(sb) : config.matchStoreDir ? new FileMatchStore(config.matchStoreDir) : null;
-const rooms = new RoomManager({ reconnectGraceMs: config.reconnectGraceMs, record: recordMatch }, config.maxRooms, store);
+const rooms = new RoomManager({ reconnectGraceMs: config.reconnectGraceMs, reconnectGracePvpMs: config.reconnectGracePvpMs, record: recordMatch }, config.maxRooms, store);
 const deps: HandlerDeps = {
   rooms,
   allowGuests: config.allowGuests,
@@ -194,7 +194,10 @@ wss.on('connection', (ws, req) => {
     if (rtt !== null && conn.user) conn.send({ t: 'net', rtt: Math.round(rtt), region: region.label });
   });
   const heartbeat = setInterval(() => {
-    if (conn.rtt.missed >= 2) return ws.terminate();
+    if (conn.rtt.missed >= 2) {
+      conn.closeCause = 'ping sem resposta';
+      return ws.terminate();
+    }
     conn.rtt.sent(Date.now());
     ws.ping();
   }, 5_000);
@@ -222,7 +225,11 @@ wss.on('connection', (ws, req) => {
     handleMessage(conn, msg, deps).catch((err) => log.error('Erro ao processar mensagem', { err: String(err), t: msg.t }));
   });
 
-  ws.on('close', () => {
+  ws.on('close', (code, reason) => {
+    conn.closeCode = code;
+    // 1000/1001: o navegador fechou a página ou saiu dela; 1006: a conexão sumiu sem aviso (rede ou proxy)
+    conn.closeCause ??= code === 1001 || code === 1000 ? 'cliente saiu' : code === 1006 ? 'conexão perdida' : reason.toString() || null;
+    if (conn.user) log.info('Conexão encerrada', { code, cause: conn.closeCause, room: conn.roomCode, ageS: conn.ageSeconds(), rttMs: conn.rtt.median, missedPings: conn.rtt.missed });
     if (conn.rtt.count >= 3) regionTelemetry.record(conn.rtt.median!);
     networkGuard.disconnect(conn.ip);
     clearInterval(heartbeat);

@@ -14,6 +14,8 @@ export const config = {
   allowGuests: bool(process.env.ALLOW_GUESTS),
   /** Tempo para um jogador desconectado voltar antes de perder por abandono. */
   reconnectGraceMs: Number(process.env.RECONNECT_GRACE_MS ?? 60_000),
+  /** O mesmo prazo nas partidas com dois ou mais humanos (20/11: quedas em partidas longas entre amigos). */
+  reconnectGracePvpMs: Number(process.env.RECONNECT_GRACE_PVP_MS ?? 180_000),
   maxRooms: Number(process.env.MAX_ROOMS ?? 200),
   /** Intervalo de gravação das partidas em andamento (para retomar após reinício). */
   saveIntervalMs: Number(process.env.SAVE_INTERVAL_MS ?? 30_000),

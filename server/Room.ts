@@ -43,7 +43,7 @@ import { kacJournal, type KacEvent } from './kac/journal.ts';
 import { publicId } from './kac/identity.ts';
 import { BehaviorMonitor } from './kac/behavior.ts';
 import { buildIntegrity, type IntegrityCounters, type MatchIntegrity } from './kac/integrity.ts';
-import { PAUSE_POLICY } from './kac/policy.ts';
+import { DISCONNECT_POLICY, PAUSE_POLICY } from './kac/policy.ts';
 import { idCipher, newIdKey } from './kac/entityIds.ts';
 import type { MatchRecord } from './supabase.ts';
 import { KnpsRoomStats } from './knps/stats.ts';
@@ -91,8 +91,17 @@ interface RoomPlayer extends RoomPlayerInfo {
   disconnectedAt: number | null;
 }
 
+/** Quedas de um jogador numa partida (motivo: `Connection.closeCause` ou o código de fechamento). */
+interface DropStats {
+  count: number;
+  longestOfflineS: number;
+  causes: Record<string, number>;
+}
+
 export interface RoomDeps {
   reconnectGraceMs: number;
+  /** Prazo para voltar nas partidas com dois ou mais humanos (padrão: `reconnectGraceMs`). */
+  reconnectGracePvpMs?: number;
   record: (rec: MatchRecord) => Promise<boolean>;
   onEmpty: (room: Room) => void;
   /** Partida encerrada (o salvamento em andamento deixa de valer). */
@@ -168,6 +177,12 @@ export class Room {
   private graceUntil = 0;
   /** A pausa foi automática, pela queda da conexão (volta sozinha na reconexão). */
   private pausedForDisconnect = false;
+  /** Início da pausa automática por queda numa partida entre humanos (null: não há; a da retomada não expira). */
+  private disconnectPausedAt: number | null = null;
+  /** Pausas automáticas por queda já usadas por jogador (`DISCONNECT_POLICY.pausesPerPlayer`). */
+  private readonly disconnectPauses = new Map<Slot, number>();
+  /** Quedas de cada jogador na partida: vão para o log do servidor e para o histórico (`report.connection`). */
+  private readonly drops = new Map<Slot, DropStats>();
   /** KAC-02: pausas já usadas por jogador, quem pausou e quando (partidas entre humanos). */
   private readonly pausesUsed = new Map<Slot, number>();
   private pausedSlot: Slot | null = null;
@@ -774,6 +789,12 @@ export class Room {
       this.system(`Pausa encerrada automaticamente (máximo de ${PAUSE_POLICY.maxMs / 1000} s).`);
       this.broadcastSnapshot();
     }
+    if (this.paused && this.disconnectPausedAt !== null && now - this.disconnectPausedAt >= DISCONNECT_POLICY.pauseMs) {
+      this.endDisconnectPause();
+      this.system(`Pausa por queda encerrada (máximo de ${DISCONNECT_POLICY.pauseMs / 1000} s). A partida continua.`);
+      this.broadcastRoom();
+      this.broadcastSnapshot();
+    }
     if (this.status !== 'playing' || this.paused) return;
     this.accumulator += elapsed * this.speed;
     const tickMs = 1000 / TICK_RATE;
@@ -1170,6 +1191,7 @@ export class Room {
     this.paused = paused;
     this.pausedBy = paused ? p.name : null;
     this.pausedForDisconnect = false;
+    this.disconnectPausedAt = null;
     if (paused && this.competitive) {
       const left = PAUSE_POLICY.perPlayer - (this.pausesUsed.get(p.slot) ?? 0);
       this.system(`${p.name} pausou a partida (até ${PAUSE_POLICY.maxMs / 1000} s; restam ${left} ${left === 1 ? 'pausa' : 'pausas'}).`);
@@ -1206,6 +1228,9 @@ export class Room {
     }
     this.endReason = reason;
     const p = this.players.find((x) => x.slot === slot);
+    if (reason === 'disconnect') log.warn('Abandono por queda', { room: this.code, slot, tick: this.sim.tick, drops: this.drops.get(slot) ?? null });
+    // quem caiu não volta mais: a pausa automática por causa dele termina
+    if (this.disconnectPausedAt !== null) this.endDisconnectPause();
     this.system(reason === 'disconnect' ? `${p?.name} abandonou a partida.` : `${p?.name} se rendeu.`);
     this.sim.surrender(slot);
     this.events.push(...this.sim.drainEvents());
@@ -1228,7 +1253,9 @@ export class Room {
 
   onDisconnect(conn: Connection): void {
     const p = this.playerOf(conn);
-    if (!p) return;
+    // conexão antiga fechando depois que o jogador já voltou por outra (20/11): antes ela o marcava como caído, a
+    // partida parava de chegar na conexão nova e, passado o prazo, ele "abandonava" sem ter saído
+    if (!p || (p.conn !== null && p.conn !== conn)) return;
     if (this.status === 'lobby') {
       this.leave(conn);
       return;
@@ -1237,7 +1264,22 @@ export class Room {
     p.connected = false;
     p.disconnectedAt = this.now();
     if (this.status === 'playing') {
-      this.system(`${p.name} perdeu a conexão. Aguardando reconexão...`);
+      const drop = this.drops.get(p.slot) ?? { count: 0, longestOfflineS: 0, causes: {} };
+      const cause = conn.closeCause ?? `codigo ${conn.closeCode ?? '?'}`;
+      drop.count++;
+      drop.causes[cause] = (drop.causes[cause] ?? 0) + 1;
+      this.drops.set(p.slot, drop);
+      log.info('Jogador caiu', { room: this.code, slot: p.slot, tick: this.sim?.tick, cause, code: conn.closeCode, connectedS: conn.ageSeconds(), rttMs: conn.rtt.median, missedPings: conn.rtt.missed, drops: drop.count });
+      if (this.competitive && !this.paused && (this.disconnectPauses.get(p.slot) ?? 0) < DISCONNECT_POLICY.pausesPerPlayer) {
+        // entre humanos: pausa curta enquanto ele volta (com teto de vezes e de duração; os outros podem retomar antes)
+        this.disconnectPauses.set(p.slot, (this.disconnectPauses.get(p.slot) ?? 0) + 1);
+        this.paused = true;
+        this.pausedBy = p.name;
+        this.pausedForDisconnect = true;
+        this.disconnectPausedAt = this.now();
+        this.system(`${p.name} perdeu a conexão. Partida pausada por até ${DISCONNECT_POLICY.pauseMs / 1000} s, aguardando a reconexão.`);
+        this.broadcastSnapshot();
+      } else this.system(`${p.name} perdeu a conexão. Aguardando reconexão...`);
       if (this.mode !== 'pvp' && !this.paused) {
         this.paused = true;
         this.pausedBy = p.name;
@@ -1256,6 +1298,12 @@ export class Room {
     const p = this.players.find((x) => x.userId === conn.user!.id);
     if (!p) return false;
     if (p.conn && p.conn !== conn) p.conn.close(4001, 'Sessão aberta em outro lugar');
+    const offlineS = p.disconnectedAt !== null ? Math.round((this.now() - p.disconnectedAt) / 1000) : null;
+    const drop = this.drops.get(p.slot);
+    if (drop && offlineS !== null) {
+      drop.longestOfflineS = Math.max(drop.longestOfflineS, offlineS);
+      log.info('Jogador reconectou', { room: this.code, slot: p.slot, offlineS });
+    }
     p.conn = conn;
     p.connected = true;
     p.disconnectedAt = null;
@@ -1263,11 +1311,7 @@ export class Room {
     conn.send({ t: 'room', room: this.info() });
     if (this.status === 'playing' && this.sim) {
       // a pausa automática da queda termina quando todos os humanos estão de volta
-      if (this.pausedForDisconnect && this.players.every((x) => x.isAI || x.connected)) {
-        this.paused = false;
-        this.pausedBy = null;
-        this.pausedForDisconnect = false;
-      }
+      if (this.pausedForDisconnect && this.players.every((x) => x.isAI || x.connected)) this.endDisconnectPause();
       this.sendMatchStart(p);
       this.system(`${p.name} reconectou.`);
       this.broadcastRoom();
@@ -1291,13 +1335,27 @@ export class Room {
     if (this.status !== 'playing') return;
     const now = this.now();
     if (now < this.graceUntil) return;
+    const grace = this.competitive ? (this.deps.reconnectGracePvpMs ?? this.deps.reconnectGraceMs) : this.deps.reconnectGraceMs;
     for (const p of this.players) {
-      if (!p.isAI && !p.connected && p.disconnectedAt !== null && now - p.disconnectedAt > this.deps.reconnectGraceMs) {
+      if (!p.isAI && !p.connected && p.disconnectedAt !== null && now - p.disconnectedAt > grace) {
         p.disconnectedAt = null;
         this.forfeit(p.slot, 'disconnect');
         return;
       }
     }
+  }
+
+  /** Termina a pausa automática por queda (todos voltaram, o prazo dela venceu ou quem caiu abandonou). */
+  private endDisconnectPause(): void {
+    this.paused = false;
+    this.pausedBy = null;
+    this.pausedForDisconnect = false;
+    this.disconnectPausedAt = null;
+  }
+
+  /** Quedas por jogador para o histórico (só quem caiu; não vai para a tela dos jogadores). */
+  private connectionReport(): { slot: Slot; drops: number; longestOfflineS: number; causes: Record<string, number> }[] {
+    return [...this.drops].map(([slot, d]) => ({ slot, drops: d.count, longestOfflineS: d.longestOfflineS, causes: { ...d.causes } }));
   }
 
   // ------------------------------------------------------------ fim
@@ -1412,7 +1470,7 @@ export class Room {
             })),
             balance_mode: this.balanceMode,
             // KAC: integridade da partida vai junto no histórico (não vai para a tela dos jogadores)
-            report: { ...report, integrity: this.integrityReport(sim) },
+            report: { ...report, integrity: this.integrityReport(sim), connection: this.connectionReport() },
           }),
           RECORD_TIMEOUT_MS,
           false,

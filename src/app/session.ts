@@ -60,10 +60,24 @@ export function wireGameClient(): void {
   });
 }
 
+/**
+ * Token para o `hello`. `null` só quando não há sessão (convidado ou saiu da conta). Se a renovação do token falhar
+ * (rede voltando, aba que ficou em segundo plano mais de 1 h), lança: o GameClient tenta de novo em vez de mandar o
+ * `hello` sem token, que o servidor recusa com "auth" e tirava o jogador da conta no meio da partida (20/11).
+ */
 async function currentToken(): Promise<string | null> {
   if (!supabase) return null;
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? null;
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+  const session = data.session;
+  if (!session) return null;
+  // expirado ou a menos de 30 s de expirar: renova agora (o relógio da aba em segundo plano atrasa a renovação automática)
+  if (session.expires_at && session.expires_at * 1000 - Date.now() < 30_000) {
+    const refreshed = await supabase.auth.refreshSession();
+    if (refreshed.error || !refreshed.data.session) throw refreshed.error ?? new Error('Sessão não renovada');
+    return refreshed.data.session.access_token;
+  }
+  return session.access_token;
 }
 
 export async function loadProfile(userId: string): Promise<Profile | null> {

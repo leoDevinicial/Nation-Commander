@@ -9,11 +9,13 @@ import { guestIdentity, publicId } from './kac/identity.ts';
 import { kacJournal } from './kac/journal.ts';
 import { networkGuard, type NetworkGuard } from './kac/network.ts';
 import { CommunityChat } from './communityChat.ts';
+import { log } from './logger.ts';
 
 export interface HandlerDeps {
   rooms: RoomManager;
   allowGuests: boolean;
-  verify: (token: string) => Promise<{ id: string; name: string; subscriber?: boolean } | null>;
+  /** Valida o token: o usuário, `null` (token inválido ou expirado) ou `'retry'` (Supabase fora do ar por um instante). */
+  verify: (token: string) => Promise<{ id: string; name: string; subscriber?: boolean } | null | 'retry'>;
   /** Conexões ativas por usuário (uma por vez). */
   sessions: Map<string, Connection>;
   /** Grava um feedback (padrão: Supabase, ou só o log sem Supabase). */
@@ -65,6 +67,13 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
     if (msg.token) {
       conn.authenticating = true;
       const user = await deps.verify(msg.token).finally(() => (conn.authenticating = false));
+      if (user === 'retry') {
+        // falha passageira ao validar (20/11): antes virava "sessão inválida", o navegador saía da conta e o jogador
+        // perdia a vaga. 1013 ("tente mais tarde") faz o cliente reconectar sozinho.
+        log.warn('Validação de sessão indisponível; cliente vai tentar de novo');
+        conn.close(1013, 'auth unavailable');
+        return;
+      }
       if (!user) {
         conn.send({ t: 'error', code: 'auth', message: 'Sessão inválida ou expirada. Entre novamente.' });
         conn.close(4003, 'auth');

@@ -130,6 +130,9 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
 - Escala (`docs/ESCALA_DA_SIMULACAO.md`): busca de alvo e separação das unidades usam a grade espacial
   (`shared/sim/spatial.ts`) com resultado idêntico à busca completa; ao mexer em combate ou movimento, rodar
   `npx tsx scripts/sim-escala.ts hash` antes e depois (só muda se a regra mudou) e `bench` para o custo do tick.
+- Quedas e reconexão (`docs/QUEDAS_E_RECONEXAO.md`, 20/11): só a conexão atual do jogador conta como queda; entre
+  humanos a queda pausa (`DISCONNECT_POLICY`) e o prazo é `RECONNECT_GRACE_PVP_MS`; falha passageira do Supabase fecha
+  com 1013 (o cliente tenta de novo), nunca `auth`. Motivos das quedas em `matches.report.connection`.
 - Minas terrestres (`shared/sim/mines.ts`) não são entidades: o snapshot envia só as do dono e as já detectadas
   (`MineSystem.visibleTo`). O satélite do Programa Espacial revela o resto do mapa, mas nunca as minas.
 

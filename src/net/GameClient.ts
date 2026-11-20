@@ -262,7 +262,15 @@ export class GameClient {
       // sem a compressão do WebSocket (algum proxy no caminho tirou), pede ao servidor que comprima ele mesmo
       const inflate = !/permessage-deflate/.test(ws.extensions) && typeof DecompressionStream !== 'undefined';
       this.stats.compression = /permessage-deflate/.test(ws.extensions) ? 'transporte' : inflate ? 'servidor' : 'nenhuma';
-      const token = await this.creds!.getToken().catch(() => null);
+      let token: string | null;
+      try {
+        token = await this.creds!.getToken();
+      } catch {
+        // não deu para renovar o token agora (rede voltando): tenta de novo em vez de entrar sem ele (20/11)
+        if (this.ws === ws) this.dropDead();
+        return;
+      }
+      if (this.ws !== ws) return;
       this.send({ t: 'hello', protocol: PROTOCOL_VERSION, token, guestId: this.creds!.guestId, guestName: this.creds!.guestName, ...(inflate ? { inflate: true as const } : {}) });
     };
 

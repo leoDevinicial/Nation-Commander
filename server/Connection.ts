@@ -43,6 +43,12 @@ export class Connection {
    * comprimidas em binário (deflate-raw, nível 1, sem contexto: ~1/3 do tamanho dos snapshots delta).
    */
   appDeflate = false;
+  /** Quando a conexão abriu (ms), para o log de quedas. */
+  readonly openedAt = Date.now();
+  /** Por que a conexão caiu, quando o servidor sabe (ping sem resposta, fechamento pedido pelo servidor...). */
+  closeCause: string | null = null;
+  /** Código de fechamento do WebSocket (1006: caiu sem aviso; 1001: o navegador saiu da página). */
+  closeCode: number | null = null;
 
   constructor(readonly ws: WebSocket) {}
 
@@ -71,7 +77,13 @@ export class Connection {
     return this.limiter.take();
   }
 
+  /** Há quantos segundos a conexão está aberta. */
+  ageSeconds(): number {
+    return Math.round((Date.now() - this.openedAt) / 1000);
+  }
+
   close(code: number, reason: string): void {
+    this.closeCause ??= `servidor: ${reason}`;
     try {
       this.ws.close(code, reason);
     } catch {

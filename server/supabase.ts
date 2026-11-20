@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { BalanceMode, EndReason, FeedbackCategory, NationalSummary, RoomMode } from '../shared/protocol.ts';
 import type { PlayerStats } from '../shared/sim/types.ts';
 import type { MatchReport } from '../shared/sim/report.ts';
+import type { Slot } from '../shared/sim/types.ts';
 import { config } from './config.ts';
 import { log } from './logger.ts';
 import type { CommunityReport } from './communityChat.ts';
@@ -26,16 +27,29 @@ export interface VerifiedUser {
 }
 
 /** Valida o access token do Supabase Auth e carrega o username do perfil. */
-export async function verifyAccessToken(token: string): Promise<VerifiedUser | null> {
+export async function verifyAccessToken(token: string): Promise<VerifiedUser | null | 'retry'> {
   const sb = getSupabase();
   if (!sb) return null;
-  const { data, error } = await sb.auth.getUser(token);
-  if (error || !data.user) return null;
+  let res: Awaited<ReturnType<typeof sb.auth.getUser>>;
+  try {
+    res = await sb.auth.getUser(token);
+  } catch {
+    return 'retry';
+  }
+  const { data, error } = res;
+  // 4xx: token inválido ou expirado; sem status, 429 ou 5xx: o Supabase não respondeu direito (20/11)
+  if (error) return isTransientAuthError(error.status) ? 'retry' : null;
+  if (!data.user) return null;
   const { data: profile } = await sb.from('profiles').select('username, display_name').eq('id', data.user.id).maybeSingle();
   const name = (profile?.display_name as string | null) ?? (profile?.username as string | null) ?? 'Jogador';
   // assinatura em tabela própria (só o servidor lê); sem linha ou com erro, versão grátis
   const { data: sub } = await sb.from('subscriptions').select('active').eq('user_id', data.user.id).maybeSingle();
   return { id: data.user.id, name, subscriber: sub?.active === true };
+}
+
+/** Erro de validação que não diz nada sobre o token: rede, limite de requisições ou Supabase fora do ar. */
+export function isTransientAuthError(status: number | undefined): boolean {
+  return !status || status === 429 || status >= 500;
 }
 
 export interface FeedbackRecord {
@@ -114,7 +128,11 @@ export interface MatchRecord {
     national: NationalSummary | null;
   }[];
   /** Relatório pós-partida (amostras ao longo do tempo e medalhas), gravado em `matches.report`. */
-  report: MatchReport & { integrity?: MatchIntegrity };
+  report: MatchReport & {
+    integrity?: MatchIntegrity;
+    /** Quedas de conexão por jogador (20/11): quantas, a mais longa e o motivo de cada uma. */
+    connection?: { slot: Slot; drops: number; longestOfflineS: number; causes: Record<string, number> }[];
+  };
 }
 
 /** Grava a partida via RPC atômica. Retorna true se gravada. */

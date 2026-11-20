@@ -128,3 +128,51 @@ describe('GameClient: compressão pelo servidor e snapshots delta (15/11)', () =
     expect(seq[1]!.s!.units[0]!.x).toBe(2);
   });
 });
+
+describe('GameClient: token na reconexão (20/11)', () => {
+  beforeEach(() => {
+    FakeWs.all = [];
+    vi.stubGlobal('WebSocket', FakeWs);
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('pede o token de novo a cada conexão e, se a renovação falhar, tenta outra vez em vez de entrar sem token', async () => {
+    const tokens = ['t1', new Error('rede'), 't2'];
+    const c = new GameClient('ws://x');
+    c.connect({
+      getToken: async () => {
+        const t = tokens.shift()!;
+        if (t instanceof Error) throw t;
+        return t;
+      },
+    });
+    await FakeWs.all[0]!.accept();
+    expect(FakeWs.all[0]!.sent[0]).toMatchObject({ t: 'hello', token: 't1' });
+    // a conexão cai; na volta a renovação do token falha: nada de hello sem token
+    FakeWs.all[0]!.onclose?.({ code: 1006, reason: '' });
+    await vi.advanceTimersByTimeAsync(300);
+    FakeWs.all[1]!.readyState = 1;
+    await FakeWs.all[1]!.onopen?.();
+    expect(FakeWs.all[1]!.sent).toEqual([]);
+    expect(c.status).toBe('reconnecting');
+    // na tentativa seguinte o token renovado chega
+    await vi.advanceTimersByTimeAsync(1000);
+    await FakeWs.all[2]!.accept();
+    expect(FakeWs.all[2]!.sent[0]).toMatchObject({ t: 'hello', token: 't2' });
+    expect(c.status).toBe('connected');
+  });
+
+  it('servidor sem conseguir validar a sessão (1013) não é fatal: reconecta', async () => {
+    const c = new GameClient('ws://x');
+    c.connect({ getToken: async () => 'tok' });
+    await FakeWs.all[0]!.accept();
+    FakeWs.all[0]!.onclose?.({ code: 1013, reason: 'auth unavailable' });
+    expect(c.status).toBe('reconnecting');
+    await vi.advanceTimersByTimeAsync(300);
+    expect(FakeWs.all.length).toBe(2);
+  });
+});
