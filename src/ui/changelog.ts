@@ -1,6 +1,16 @@
 /** Novidades de cada versão, mostradas na área Comunidade e Feedback do menu (mais recente primeiro). */
 export const CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
+    version: '1.5.1',
+    date: '20/11/2026',
+    items: [
+      'Obrigado, Fireknight886, por avisar das quedas nas partidas longas com os amigos. Foi o seu relato que nos levou a estas correções.',
+      'Quedas de conexão corrigidas em parte: quem reconecta não é mais tirado da partida por engano, e uma falha passageira no login não desconecta mais ninguém da conta.',
+      'Entre jogadores, quando alguém cai, a partida pausa por até 90 s, e há 3 minutos para voltar antes de perder por abandono.',
+      'Partidas longas e cheias ainda podem cair. Em breve vamos migrar para servidores melhores.',
+    ],
+  },
+  {
     version: '1.5',
     date: '16/11/2026',
     items: [

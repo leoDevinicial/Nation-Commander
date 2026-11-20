@@ -2,6 +2,10 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → inglês (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const EN: Dict = {
+  "Obrigado, Fireknight886, por avisar das quedas nas partidas longas com os amigos. Foi o seu relato que nos levou a estas correções.": "Thank you, Fireknight886, for reporting the disconnects in long matches with your friends. Your report is what led us to these fixes.",
+  "Quedas de conexão corrigidas em parte: quem reconecta não é mais tirado da partida por engano, e uma falha passageira no login não desconecta mais ninguém da conta.": "Disconnects partly fixed: players who reconnect are no longer removed from the match by mistake, and a brief login hiccup no longer signs anyone out.",
+  "Entre jogadores, quando alguém cai, a partida pausa por até 90 s, e há 3 minutos para voltar antes de perder por abandono.": "In matches between players, when someone drops the match pauses for up to 90 s, and they have 3 minutes to come back before losing by abandonment.",
+  "Partidas longas e cheias ainda podem cair. Em breve vamos migrar para servidores melhores.": "Long, crowded matches can still drop. We'll be moving to better servers soon.",
   "Lobby redesenhado: tudo numa tela só, com o código da sala em destaque, quem já está pronto e abas no celular.": "Redesigned lobby: everything on one screen, with the room code up front, who is ready and tabs on phones.",
   "O anfitrião escolhe a vitória: só por eliminação ou também por domínio territorial.": "The host picks the victory rule: elimination only, or territorial control as well.",
   "Colônias: funde uma prefeitura em terra neutra levando uma tropa ou navio até lá (ilhas desabitadas do Arquipélago).": "Colonies: found a city hall on neutral land by bringing a troop or ship there (uninhabited islands of the Archipelago).",

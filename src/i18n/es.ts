@@ -2,6 +2,10 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → espanhol (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const ES: Dict = {
+  "Obrigado, Fireknight886, por avisar das quedas nas partidas longas com os amigos. Foi o seu relato que nos levou a estas correções.": "Gracias, Fireknight886, por avisarnos de las caídas en las partidas largas con tus amigos. Tu reporte es lo que nos llevó a estas correcciones.",
+  "Quedas de conexão corrigidas em parte: quem reconecta não é mais tirado da partida por engano, e uma falha passageira no login não desconecta mais ninguém da conta.": "Caídas de conexión corregidas en parte: quien se reconecta ya no sale de la partida por error, y una falla pasajera del inicio de sesión ya no cierra la sesión de nadie.",
+  "Entre jogadores, quando alguém cai, a partida pausa por até 90 s, e há 3 minutos para voltar antes de perder por abandono.": "Entre jugadores, cuando alguien se cae, la partida se pausa hasta 90 s, y hay 3 minutos para volver antes de perder por abandono.",
+  "Partidas longas e cheias ainda podem cair. Em breve vamos migrar para servidores melhores.": "Las partidas largas y llenas todavía pueden caerse. Pronto vamos a migrar a servidores mejores.",
   "Lobby redesenhado: tudo numa tela só, com o código da sala em destaque, quem já está pronto e abas no celular.": "Lobby rediseñado: todo en una sola pantalla, con el código de la sala destacado, quién está listo y pestañas en el móvil.",
   "O anfitrião escolhe a vitória: só por eliminação ou também por domínio territorial.": "El anfitrión elige la victoria: solo por eliminación o también por dominio territorial.",
   "Colônias: funde uma prefeitura em terra neutra levando uma tropa ou navio até lá (ilhas desabitadas do Arquipélago).": "Colonias: funda un ayuntamiento en tierra neutral llevando una tropa o barco hasta allí (islas deshabitadas del Archipiélago).",
