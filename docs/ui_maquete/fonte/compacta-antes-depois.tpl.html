@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>HUD compacta: antes e depois</title>
+<link rel="stylesheet" href="base-maquete.css">
+<style>
+  html, body { overflow: visible; height: auto; }
+  body { padding: 28px 32px 32px; background: #070a0f; }
+  body::before { display: none; }
+  h1 { font: 700 30px/1 var(--title); letter-spacing: .06em; text-transform: uppercase; margin: 6px 0 4px; }
+  p.sub { font: 500 15px var(--font); color: var(--ink-300); margin-bottom: 22px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 26px; }
+  figure { margin: 0; }
+  figure img { width: 100%; display: block; border: 1px solid var(--line-2); }
+  figcaption { display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px; font: 600 14px var(--font); color: var(--ink-200); }
+  figcaption b { font: 700 20px var(--mono); }
+  .bad { color: var(--bad); } .ok { color: var(--ok); }
+  .tag { font: 700 12px var(--title); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-400); margin-bottom: 6px; }
+</style></head>
+<body>
+<div class="kicker">Sala de Situação · proposta de 21/11</div>
+<h1>HUD compacta: antes e depois</h1>
+<p class="sub">Mesma partida e mesma câmera. A porcentagem é quanto da tela a interface cobre (medida em 1.500 pontos da tela).</p>
+<div class="tag">Computador · nada selecionado</div>
+<div class="row">
+  <figure><img src="compacta-antes-pc.jpg"><figcaption>Hoje<b class="bad">{{A_PC}}%</b></figcaption></figure>
+  <figure><img src="{{M}}/m-vazio-pc.png"><figcaption>Proposta<b class="ok">{{B_PC}}%</b></figcaption></figure>
+</div>
+<div class="tag">Celular · Centro de Comando selecionado</div>
+<div class="row">
+  <figure><img src="compacta-antes-predio-cel.jpg"><figcaption>Hoje<b class="bad">{{A_CEL}}%</b></figcaption></figure>
+  <figure><img src="{{M}}/m-predio-cel.png"><figcaption>Proposta<b class="ok">{{B_CEL}}%</b></figcaption></figure>
+</div>
+</body></html>

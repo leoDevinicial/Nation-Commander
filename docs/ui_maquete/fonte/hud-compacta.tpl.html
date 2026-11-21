@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>HUD compacta</title>
+<link rel="stylesheet" href="base-maquete.css">
+<style>
+  /* HUD compacta (21/11): mapa livre; minimapa à esquerda, roda de ferramentas à direita, cartão só com seleção */
+  body { background: #05070a; }
+  body::before { display: none; }
+  #bg { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .hud { position: fixed; z-index: 5; }
+  :root { --s: 1; --nation: #3b9be3; }
+  body.cel { --s: 0.62; }
+  .pad { --gap: calc(14px * var(--s)); }
+
+  /* barra de cima: só o essencial, encostada nos cantos */
+  .top-l { top: calc(12px * var(--s)); left: calc(12px * var(--s)); }
+  .top-r { top: calc(12px * var(--s)); right: calc(12px * var(--s)); display: flex; gap: calc(8px * var(--s)); }
+  .strip { display: flex; align-items: stretch; height: calc(42px * var(--s)); }
+  .strip .in { display: flex; align-items: center; }
+  .cell { display: flex; align-items: center; gap: calc(6px * var(--s)); padding: 0 calc(12px * var(--s)); height: 100%; border-right: 1px solid var(--line); font: 700 calc(16px * var(--s)) var(--mono); white-space: nowrap; }
+  .cell:last-child { border-right: 0; }
+  .cell svg.i { width: calc(17px * var(--s)); height: calc(17px * var(--s)); }
+  .cell small { font: 500 calc(11px * var(--s)) var(--mono); color: var(--bad); margin-left: 2px; }
+  .badge { display: flex; align-items: center; gap: calc(7px * var(--s)); padding: 0 calc(10px * var(--s)) 0 0; }
+  .badge b { display: grid; place-items: center; height: calc(26px * var(--s)); padding: 0 calc(8px * var(--s)); background: var(--nation); color: #fff; font: 700 calc(12px * var(--s)) var(--title); letter-spacing: .08em; border-radius: 2px; margin-left: calc(6px * var(--s)); }
+  .badge em { font: 700 calc(11px * var(--s)) var(--title); letter-spacing: .14em; color: var(--brass); font-style: normal; border: 1px solid rgba(226,181,77,.5); padding: 2px 5px; border-radius: 2px; }
+  .more { color: var(--ink-300); font: 600 calc(12px * var(--s)) var(--font); gap: 4px; }
+  .ib { display: grid; place-items: center; width: calc(42px * var(--s)); height: calc(42px * var(--s)); color: var(--ink-200); position: relative; }
+  .ib svg.i { width: calc(19px * var(--s)); height: calc(19px * var(--s)); }
+  .ib .dot { position: absolute; top: calc(8px * var(--s)); right: calc(8px * var(--s)); width: 7px; height: 7px; border-radius: 50%; background: var(--brass); box-shadow: 0 0 6px var(--brass); }
+  .clock { display: flex; align-items: center; gap: calc(8px * var(--s)); padding: 0 calc(10px * var(--s)); font: 700 calc(16px * var(--s)) var(--mono); }
+  .speed { font: 700 calc(12px * var(--s)) var(--mono); color: #17130a; background: linear-gradient(180deg, #f0c766, var(--brass)); padding: 3px 6px; border-radius: 2px; }
+
+  /* aviso passageiro (some sozinho em 5 s) */
+  .toast { top: calc(66px * var(--s)); left: calc(12px * var(--s)); display: flex; align-items: center; gap: 8px; padding: calc(7px * var(--s)) calc(12px * var(--s)); border-left: 3px solid var(--ok);
+    background: rgba(10,14,20,.78); font: 500 calc(13px * var(--s)) var(--font); color: var(--ink-200); }
+  .toast svg.i { color: var(--ok); width: calc(15px * var(--s)); height: calc(15px * var(--s)); }
+
+  /* minimapa: canto de baixo à esquerda */
+  .mini { left: calc(12px * var(--s)); bottom: calc(12px * var(--s)); width: calc(176px * var(--s)); height: calc(176px * var(--s)); }
+  .mini .in { overflow: hidden; background: rgba(8,11,16,.9); }
+  .mini .map { position: absolute; inset: 0; background: radial-gradient(circle at 32% 38%, rgba(70,120,70,.9) 0 18%, rgba(40,70,45,.6) 19% 24%, transparent 25%),
+    linear-gradient(rgba(200,212,226,.05) 1px, transparent 1px) 0 0/ 16px 16px, linear-gradient(90deg, rgba(200,212,226,.05) 1px, transparent 1px) 0 0/16px 16px; }
+  .mini .base { position: absolute; left: 29%; top: 35%; width: 8%; height: 8%; background: var(--nation); box-shadow: 0 0 8px var(--nation); }
+  .mini .cam { position: absolute; left: 14%; top: 22%; width: 38%; height: 30%; border: 1px solid rgba(255,255,255,.85); transform: skewX(-12deg); }
+  .mini .n { position: absolute; left: 8px; bottom: 6px; font: 600 10px var(--font); color: var(--ink-400); display: flex; gap: 3px; align-items: center; }
+
+  /* roda de ferramentas: um botão no canto de baixo à direita */
+  .wheel { right: calc(18px * var(--s)); bottom: calc(18px * var(--s)); width: calc(70px * var(--s)); height: calc(70px * var(--s)); }
+  .wheel .core { width: 100%; height: 100%; display: grid; place-items: center; color: #17130a; background: linear-gradient(180deg, #f0c766, var(--brass)); box-shadow: 0 0 22px var(--brass-glow);
+    clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%); }
+  .wheel .core svg.i { width: calc(30px * var(--s)); height: calc(30px * var(--s)); stroke-width: 2; }
+  .wheel .key { position: absolute; right: -2px; top: -16px; font: 600 10px var(--mono); color: var(--ink-400); }
+  .tool { position: absolute; width: calc(56px * var(--s)); height: calc(56px * var(--s)); display: none; }
+  .tool .t { width: 100%; height: 100%; display: grid; place-items: center; color: var(--brass); background: rgba(14,19,27,.94); border: 1px solid rgba(226,181,77,.55);
+    clip-path: polygon(28% 0, 72% 0, 100% 28%, 100% 72%, 72% 100%, 28% 100%, 0 72%, 0 28%); }
+  .tool .t svg.i { width: calc(24px * var(--s)); height: calc(24px * var(--s)); }
+  .tool span { position: absolute; font: 700 calc(13px * var(--s)) var(--title); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; color: var(--ink-100);
+    text-shadow: 0 1px 3px #000, 0 0 8px #000; }
+  .tool span.l { top: 50%; right: calc(100% + 8px); transform: translateY(-50%); }
+  .tool span.u { bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); }
+  .tool kbd { font: 600 10px var(--mono); color: var(--ink-400); margin-left: 6px; }
+  .s-roda .tool { display: block; }
+  .s-roda .wheel .core { background: rgba(14,19,27,.94); color: var(--brass); border: 1px solid var(--brass); }
+  .s-roda .scrim { position: fixed; inset: 0; z-index: 4; background: radial-gradient(circle at 100% 100%, rgba(0,0,0,.55), transparent 55%); }
+
+  /* cartão da seleção: só aparece com algo selecionado; a roda recolhe */
+  .card { left: calc(200px * var(--s)); bottom: calc(12px * var(--s)); width: calc(560px * var(--s)); display: none; }
+  .s-predio .card.predio, .s-tropas .card.tropas { display: block; }
+  .s-predio .wheel, .s-tropas .wheel { transform: scale(.72); transform-origin: 100% 100%; opacity: .75; }
+  .card .in { display: grid; grid-template-columns: calc(96px * var(--s)) 1fr; gap: calc(14px * var(--s)); padding: calc(14px * var(--s)) calc(16px * var(--s)) calc(12px * var(--s)); }
+  .thumb { width: calc(96px * var(--s)); height: calc(96px * var(--s)); border: 1px solid var(--line-2); background-size: 520%; background-repeat: no-repeat; position: relative; }
+  .card h3 { font: 700 calc(22px * var(--s))/1 var(--title); letter-spacing: .06em; text-transform: uppercase; display: flex; align-items: center; gap: 10px; }
+  .card h3 .lv { font: 700 calc(11px * var(--s)) var(--mono); color: var(--brass); letter-spacing: 0; }
+  .card .close { position: absolute; right: calc(10px * var(--s)); top: calc(10px * var(--s)); color: var(--ink-400); }
+  .card .close svg.i { width: calc(16px * var(--s)); height: calc(16px * var(--s)); }
+  .hp { display: flex; align-items: center; gap: 8px; margin-top: calc(8px * var(--s)); font: 600 calc(12px * var(--s)) var(--mono); color: var(--ink-300); }
+  .hp .bar { flex: 1; height: calc(8px * var(--s)); background: rgba(255,255,255,.08); }
+  .hp .bar i { display: block; height: 100%; background: linear-gradient(90deg, #4fb36c, var(--ok)); }
+  .line { margin-top: calc(7px * var(--s)); display: flex; align-items: center; gap: calc(12px * var(--s)); font: 500 calc(13px * var(--s)) var(--font); color: var(--ink-200); }
+  .line .net { font: 700 calc(13px * var(--s)) var(--mono); color: var(--ok); display: flex; align-items: center; gap: 4px; }
+  .line .net.neg { color: var(--bad); }
+  .line svg.i { width: calc(14px * var(--s)); height: calc(14px * var(--s)); }
+  .desc { margin-top: calc(5px * var(--s)); font: 400 calc(12.5px * var(--s))/1.35 var(--font); color: var(--ink-400); }
+  .acts { grid-column: 1 / -1; display: flex; gap: calc(6px * var(--s)); border-top: 1px solid var(--line); padding-top: calc(10px * var(--s)); }
+  .act { display: flex; align-items: center; gap: 6px; height: calc(36px * var(--s)); padding: 0 calc(12px * var(--s)); border: 1px solid var(--line); border-radius: 3px; font: 600 calc(13px * var(--s)) var(--font); color: var(--ink-200);
+    background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.01)); white-space: nowrap; }
+  .act svg.i { width: calc(16px * var(--s)); height: calc(16px * var(--s)); color: var(--brass); }
+  .act .cost { font: 600 calc(11px * var(--s)) var(--mono); color: #e2c48a; display: flex; align-items: center; gap: 2px; }
+  .act.main .cost { color: #3a2c08; }
+  .act.main .cost svg.i { color: #3a2c08; width: calc(13px * var(--s)); height: calc(13px * var(--s)); }
+  .act.main { color: #17130a; background: linear-gradient(180deg, #f0c766, var(--brass)); border-color: #f5d68a; }
+  .act.main svg.i { color: #17130a; }
+  .act kbd { font: 600 10px var(--mono); color: var(--ink-400); }
+  .act.main kbd { color: #5a4615; }
+  .chips { display: flex; gap: 6px; margin-top: calc(8px * var(--s)); flex-wrap: wrap; }
+  .chip2 { display: flex; align-items: center; gap: 5px; height: calc(26px * var(--s)); padding: 0 calc(8px * var(--s)); border: 1px solid var(--line-2); border-radius: 3px; font: 600 calc(12.5px * var(--s)) var(--font); color: var(--ink-200); }
+  .chip2 b { font: 700 calc(12px * var(--s)) var(--mono); color: var(--brass); }
+  .unitfig { display: grid; place-items: center; color: var(--nation); }
+  .unitfig svg.i { width: calc(44px * var(--s)); height: calc(44px * var(--s)); stroke-width: 1.4; }
+
+  /* celular deitado: menos itens, mesmo layout */
+  .cel .hide-cel { display: none !important; }
+  .cel .card { left: calc(126px * var(--s) / .62 * .62 + 4px); width: calc(600px * var(--s)); }
+  .cel .mini { width: 110px; height: 110px; }
+  .cel .card { left: 130px; }
+  .cel .acts .act span.lbl { display: none; }
+  /* alvos de toque no celular: no mínimo ~40 px, mesmo com o resto em escala menor */
+  .cel .act { height: 40px; min-width: 44px; justify-content: center; }
+  .cel .act svg.i { width: 18px; height: 18px; }
+  .cel .tool { width: 44px; height: 44px; }
+  .cel .tool .t svg.i { width: 20px; height: 20px; }
+  .cel .wheel { width: 54px; height: 54px; }
+  .cel .wheel .core svg.i { width: 24px; height: 24px; }
+  .cel .ib { width: 40px; height: 34px; }
+  .cel .ib .dot { top: 6px; right: 7px; }
+  .cel .strip { height: 34px; }
+  .cel .card .close { width: 28px; height: 28px; display: grid; place-items: center; right: 4px; top: 4px; }
+</style>
+</head>
+<body class="{{STATE}} {{DEVICE}}">
+<img id="bg" src="{{BG}}" alt="">
+<div class="scrim"></div>
+
+<div class="hud top-l frame"><span class="brk tr"></span><span class="brk bl"></span>
+  <div class="in strip">
+    <div class="cell badge"><b>BRA</b><em class="hide-cel">ERA I</em></div>
+    <div class="cell" style="color:#e2b54d">{{i:landmark}}$30 mi<small class="hide-cel">−9 mil/dia</small></div>
+    <div class="cell" style="color:#e2c48a">{{i:package}}<span style="color:var(--ink-100)">354</span></div>
+    <div class="cell" style="color:#d9b45a">{{i:wheat}}<span style="color:var(--ink-100)">78</span></div>
+    <div class="cell" style="color:#7fbf6a">{{i:tree-pine}}<span style="color:var(--ink-100)">150</span></div>
+    <div class="cell hide-cel" style="color:#a9b3bd">{{i:mountain}}<span style="color:var(--ink-100)">60</span></div>
+    <div class="cell hide-cel" style="color:#8f8cff">{{i:droplet}}<span style="color:var(--ink-100)">50</span></div>
+    <div class="cell more">{{i:chevron-down}}<span class="hide-cel">mais</span></div>
+  </div>
+</div>
+
+<div class="hud top-r">
+  <div class="frame"><span class="brk tr"></span><span class="brk bl"></span><div class="in strip"><div class="clock">0:46 {{i:pause}}<span class="speed">1×</span></div></div></div>
+  <div class="frame"><span class="brk tr"></span><span class="brk bl"></span><div class="in strip"><div class="ib">{{i:message-square}}<span class="dot"></span></div><div class="ib">{{i:menu}}</div></div></div>
+</div>
+
+<div class="hud toast" style="{{TOAST}}">{{i:circle-check}}Usina a Carvão concluída</div>
+
+<div class="hud mini frame"><span class="brk tr"></span><span class="brk bl"></span>
+  <div class="in"><div class="map"></div><div class="base"></div><div class="cam"></div><div class="n">{{i:compass}}N</div></div>
+</div>
+
+<div class="hud wheel">
+{{TOOLS}}
+  <div class="core">{{i:{{WHEELICON}}}}</div>
+</div>
+
+<div class="hud card predio frame"><span class="brk tr"></span><span class="brk bl"></span>
+  <div class="in">
+    <div class="thumb" style="background-image:url({{BG}}); background-position: 50.5% 52%"></div>
+    <div>
+      <span class="close">{{i:x}}</span>
+      <h3>Centro de Comando <span class="lv">NV 1/10</span></h3>
+      <div class="hp"><div class="bar"><i style="width:100%"></i></div>1500/1500</div>
+      <div class="line"><span class="net">{{i:package}}+1,5/s</span><span class="hide-cel">Fila 0/5</span><span>{{i:users}}20 moradores</span></div>
+      <div class="desc hide-cel">Sede do governo: forma cidadãos e projeta o território. Se cair, a nação perde.</div>
+    </div>
+    <div class="acts">
+      <div class="act main">{{i:users}}<span class="lbl">Cidadão</span><span class="cost">{{i:package}}50</span><kbd class="hide-cel">Z</kbd></div>
+      <div class="act">{{i:hammer}}<span class="lbl">Construir</span><kbd class="hide-cel">B</kbd></div>
+      <div class="act">{{i:chevrons-up}}<span class="lbl">Melhorar</span><kbd class="hide-cel">U</kbd></div>
+      <div class="act">{{i:flask-conical}}<span class="lbl">Nova era</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="hud card tropas frame"><span class="brk tr"></span><span class="brk bl"></span>
+  <div class="in">
+    <div class="thumb unitfig">{{i:shield}}</div>
+    <div>
+      <span class="close">{{i:x}}</span>
+      <h3>5 selecionados</h3>
+      <div class="chips"><span class="chip2">Infantaria <b>×3</b></span><span class="chip2">Engenheiro <b>×2</b></span><span class="chip2 hide-cel">Grupo <b>1</b></span></div>
+      <div class="hp"><div class="bar"><i style="width:86%"></i></div>86%</div>
+    </div>
+    <div class="acts">
+      <div class="act main">{{i:move}}<span class="lbl">Mover</span></div>
+      <div class="act">{{i:crosshair}}<span class="lbl">Atacar</span></div>
+      <div class="act">{{i:footprints}}<span class="lbl">Avançar atacando</span><kbd class="hide-cel">F</kbd></div>
+      <div class="act">{{i:octagon-x}}<span class="lbl">Parar</span><kbd class="hide-cel">X</kbd></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

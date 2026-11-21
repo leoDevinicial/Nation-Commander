@@ -125,3 +125,45 @@ Fontes: `fonte/menu.tpl.html` (base visual em `fonte/base-maquete.css`, a mesma 
 No jogo: o globo de fundo é o `GlobeBackdrop` "hero"; "Continuar partida" ficou de fora (o jogo ainda não guarda
 partida para retomar pelo menu). No celular em pé os atalhos descem para uma segunda linha inteira e o idioma mostra só
 a sigla; deitado (altura até 520 px) somem o texto de apoio, a descrição dos cartões e o subtítulo do perfil.
+
+## HUD compacta — proposta (21/11, ainda não está no jogo)
+
+Pedido do responsável depois de comentários no Reddit ("UI ocupando 50–60% da tela", "esconda o que não está
+selecionado", "nada de 'Toque: selecionar…' na tela; ensinar é papel do tutorial"). Ideia dele: minimapa no canto de
+baixo à esquerda, um botão no canto de baixo à direita que abre uma roda de ferramentas e, ao selecionar algo, a roda
+recolhe e aparece um cartão compacto. Segue a identidade aprovada em 05/11 (moldura, latão, cor da nação, fontes).
+
+- `12-compacta-computador-vazio.jpg` — nada selecionado: barra de cima com o essencial (nação e era, caixa, suprimentos,
+  comida, madeira, pedra, petróleo e "mais"), relógio e menus à direita, um aviso passageiro, minimapa e o botão da roda.
+- `13-compacta-computador-roda.jpg` — roda aberta: Construir (B), Pesquisa (R), Nação (G), Diplomacia e Comércio num
+  arco de 90°, com o atalho do teclado ao lado.
+- `14-compacta-computador-predio.jpg` — Centro de Comando selecionado: retrato, nome, nível, vida, produção, uma linha de
+  descrição e 4 ações (produzir Cidadão com o custo, Construir, Melhorar, Nova era); a roda recolhe.
+- `15-compacta-computador-tropas.jpg` — tropas selecionadas: tipos agrupados, vida média e ordens (Mover, Atacar,
+  Avançar atacando, Parar). Números ilustrativos.
+- `16`, `17`, `18-compacta-celular-*.jpg` — celular deitado (Pixel 7): menos recursos fixos, ações só com ícone e alvos
+  de toque de pelo menos ~40 px.
+- `19-compacta-antes-e-depois.jpg` — hoje × proposta, na mesma partida e câmera.
+
+Quanto da tela a interface cobre (1.500 pontos da tela; `elementFromPoint`, o que não cai no mapa):
+
+| Estado | Hoje | Proposta |
+|---|---|---|
+| Computador, nada selecionado | 31% | 5% |
+| Computador, roda aberta | — | 6% |
+| Computador, prédio ou tropas | 31% | 13% |
+| Celular, nada selecionado | 34% | 7% |
+| Celular, roda aberta | — | 10% |
+| Celular, prédio selecionado | 49% | 19% |
+
+Fontes: `fonte/hud-compacta.tpl.html` (estados `s-vazio`, `s-roda`, `s-predio`, `s-tropas`; aparelho `pc` ou `cel`) e
+`fonte/hud-compacta-build.cjs` (monta `compacta-*.html` com os ícones de `lucide-static`, instalado na raiz com
+`npm i --no-save lucide-static`); `node fonte/hud-compacta-shot.cjs <página> <saída.png> [pc|cel]` fotografa e mede.
+Os fundos (`compacta-cena-*.jpg`) e o "hoje" (`compacta-antes-*.jpg`) são capturas da partida real contra a IA, com a
+interface escondida no caso dos fundos. A comparação sai de `fonte/compacta-antes-depois.tpl.html` (trocar `{{M}}` pela
+pasta das fotos e `{{A_*}}`/`{{B_*}}` pelas porcentagens).
+
+Em aberto para a implementação: o que vai para o "mais" da barra (energia, população, conhecimento, carvão, ferro),
+onde ficam Exército e Chat (fora da roda: o chat é o ícone ao lado do menu), o cartão de quartel/fábrica com a fila de
+produção e as escolhas de construção (abrem do botão Construir do cartão), e a opção "Interface compacta" nas
+Configurações para comparar com a atual antes de trocar de vez.
