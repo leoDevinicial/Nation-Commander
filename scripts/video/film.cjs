@@ -15,13 +15,15 @@ const drawAt = (t) => !RANGES.length || RANGES.some(([a, b]) => t >= a - 0.75 &&
   const sc = await setupScene(p);
   const cdp = await p.context().newCDPSession(p);
   const { send, snap } = sc;
-  // tropas fora da câmera chegam ao cliente a cada poucos snapshots (envio por área, 21/11): espera todas antes das ordens
+  // sem GPU, o cliente desenha devagar e fica centenas de ticks atrás do servidor durante a montagem: espera ele
+  // alcançar (sem avançar a partida) antes de ler as tropas e dar as ordens
   const want = await (await fetch('http://localhost:8790/state')).json();
-  for (let i = 0; i < 40; i++) {
-    const n = (await snap()).units.length;
-    if (n >= Object.values(want.units ?? {}).reduce((a, b) => a + b, 0)) break;
-    await step(2);
-    await p.waitForTimeout(200);
+  const total = Object.values(want.units ?? {}).reduce((a, b) => a + b, 0);
+  for (let i = 0; i < 1200; i++) {
+    const s = await snap();
+    if (s.tick >= want.tick - 2 && s.units.length >= total) break;
+    if (i % 20 === 0) console.log('esperando o cliente', s.tick, '/', want.tick, s.units.length, '/', total);
+    await p.waitForTimeout(500);
   }
   const s0 = await snap();
   console.log('units', s0.units.filter((u) => u.owner === 0).length, 'vs', s0.units.filter((u) => u.owner === 1).length);
