@@ -34,6 +34,26 @@ export interface CommunityMessage {
 export type ReportReason = 'offense' | 'hate' | 'spam' | 'cheat' | 'other';
 export const REPORT_REASONS: readonly ReportReason[] = ['offense', 'hate', 'spam', 'cheat', 'other'];
 
+/**
+ * Diagnóstico do navegador (21/11): o que aconteceu com os gráficos ou a página de um jogador, para entender quedas
+ * que o servidor só vê como "conexão perdida". Nada de identidade além da conta (o servidor põe o id pela conexão).
+ */
+export const CLIENT_DIAG_KINDS = ['abrupt_end', 'context_lost', 'context_restored', 'context_failed', 'error', 'safe_mode'] as const;
+export type ClientDiagKind = (typeof CLIENT_DIAG_KINDS)[number];
+export interface ClientDevice {
+  /** Placa de vídeo informada pelo navegador (pode vir vazia). */
+  gpu?: string;
+  /** Memória do aparelho em GB (só alguns navegadores informam; arredondada). */
+  memoryGb?: number;
+  cores?: number;
+  /** Tela em pixels CSS e densidade. */
+  screen?: string;
+  touch?: boolean;
+  /** Qualidade gráfica em uso (preset). */
+  quality?: string;
+  userAgent?: string;
+}
+
 /** Tipo de feedback enviado na área Comunidade e Feedback do menu. */
 export type FeedbackCategory = 'bug' | 'suggestion' | 'balance' | 'praise' | 'other';
 export const FEEDBACK_CATEGORIES: readonly FeedbackCategory[] = ['bug', 'suggestion', 'balance', 'praise', 'other'];
@@ -97,6 +117,8 @@ export interface RoomPlayerInfo {
   team?: number | null;
   /** KNPS: ping de rede até o servidor (ms, medido pelo servidor, arredondado a 5 ms). Ausente para bots e antes da 1ª medida. */
   ping?: number;
+  /** Perdeu por abandono: ficou desconectado além do prazo (21/11; a tela de derrota diz o motivo). */
+  abandoned?: true;
 }
 
 export interface RoomInfo {
@@ -197,6 +219,7 @@ export type ClientMessage =
   | { t: 'community_report'; id: number; reason: ReportReason }
   | { t: 'community_mod'; action: 'delete' | 'mute'; id: number; minutes?: number }
   | { t: 'feedback'; category: FeedbackCategory; message: string; rating?: number }
+  | { t: 'client_diag'; kind: ClientDiagKind; detail?: string; device?: ClientDevice; inMatch?: boolean }
   | { t: 'join_room'; code: string; countryId: string }
   | { t: 'leave_room' }
   | { t: 'set_country'; countryId: string }

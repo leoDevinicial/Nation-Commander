@@ -2,6 +2,13 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → inglês (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const EN: Dict = {
+  "Os gráficos falharam neste aparelho: o jogo passou para o modo leve. Dá para voltar nas Configurações.": "Graphics failed on this device: the game switched to light mode. You can switch back in Settings.",
+  "Os gráficos pararam": "Graphics stopped",
+  "O navegador liberou a placa de vídeo e a imagem do mapa não voltou. O jogo passou para o modo leve. Recarregue para voltar à mesma partida.": "The browser released the graphics card and the map image did not come back. The game switched to light mode. Reload to return to the same match.",
+  "Recarregar no modo leve": "Reload in light mode",
+  "Modo leve ligado automaticamente porque os gráficos falharam neste aparelho.": "Light mode was turned on automatically because graphics failed on this device.",
+  "Voltar para {0}": "Switch back to {0}",
+  "Você ficou desconectado por mais tempo do que o prazo para voltar, e sua nação foi dada como abandonada. A partida continua entre as outras nações; o resultado final aparece quando ela terminar.": "You were disconnected for longer than the time allowed to return, and your nation was declared abandoned. The match goes on between the other nations; the final result appears when it ends.",
   "Obrigado, Fireknight886, por avisar das quedas nas partidas longas com os amigos. Foi o seu relato que nos levou a estas correções.": "Thank you, Fireknight886, for reporting the disconnects in long matches with your friends. Your report is what led us to these fixes.",
   "Quedas de conexão corrigidas em parte: quem reconecta não é mais tirado da partida por engano, e uma falha passageira no login não desconecta mais ninguém da conta.": "Disconnects partly fixed: players who reconnect are no longer removed from the match by mistake, and a brief login hiccup no longer signs anyone out.",
   "Entre jogadores, quando alguém cai, a partida pausa por até 90 s, e há 3 minutos para voltar antes de perder por abandono.": "In matches between players, when someone drops the match pauses for up to 90 s, and they have 3 minutes to come back before losing by abandonment.",

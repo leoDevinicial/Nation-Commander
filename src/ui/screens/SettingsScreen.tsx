@@ -7,6 +7,7 @@ import { useSettingsStore, type FpsTarget } from '../../state/useSettingsStore.t
 import { currentDeviceClass, CLASS_TARGET, DEVICE_CLASS_TEXT } from '../../game/perf/device.ts';
 import { lastMeasurement, localAdvisorStore, measurementText } from '../../game/perf/advisor.ts';
 import { Shell } from '../components/Shell.tsx';
+import { exitSafeMode, forgetSafeMode, safeModeInfo } from '../../lib/clientDiag.ts';
 import { AudioSettings } from '../components/AudioSettings.tsx';
 import { GRAPHICS_PRESETS, GRAPHICS_REVISION, HEAVY_PRESETS, PRESET_LABELS, PROFILES, currentDeviceHints, detectPreset, type GraphicsPreset } from '../../lib/graphics.ts';
 
@@ -39,9 +40,13 @@ export function SettingsForm({ inGame = false }: { inGame?: boolean }) {
   const [pending, setPending] = useState<GraphicsPreset | null>(null);
   const [deviceClass] = useState(currentDeviceClass);
   const warns = (q: GraphicsPreset) => HEAVY_PRESETS.includes(q) || (deviceClass === 'mobile' && q === 'ultra');
+  const [safe, setSafe] = useState(safeModeInfo);
   const choose = (q: GraphicsPreset) => {
     if (warns(q) && s.quality !== q) setPending(q);
     else s.update({ quality: q });
+    // escolher a qualidade à mão desliga o modo leve automático
+    forgetSafeMode();
+    setSafe(null);
   };
   return (
     <>
@@ -61,6 +66,21 @@ export function SettingsForm({ inGame = false }: { inGame?: boolean }) {
             ))}
           </div>
           <p className="mt-1.5 text-xs text-ink-400">{PRESET_DESC[s.quality]}</p>
+          {safe && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-[3px] border border-brass-400/50 bg-brass-400/10 px-2.5 py-2 text-xs text-ink-200">
+              <TriangleAlert size={14} className="shrink-0 text-brass-400" aria-hidden />
+              <span className="min-w-0 flex-1">Modo leve ligado automaticamente porque os gráficos falharam neste aparelho.</span>
+              <button
+                className="btn min-h-8 px-2 py-1 text-xs"
+                onClick={() => {
+                  exitSafeMode();
+                  setSafe(null);
+                }}
+              >
+                {`Voltar para ${PRESET_LABELS[safe.from]}`}
+              </button>
+            </div>
+          )}
           <p className="mt-1 text-[11px] text-ink-400">
             Sugerido para este aparelho: {PRESET_LABELS[detectPreset(currentDeviceHints())]}. Os presets mudam só o custo gráfico — nunca as regras ou os resultados da simulação.
           </p>

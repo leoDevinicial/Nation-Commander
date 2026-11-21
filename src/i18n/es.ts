@@ -2,6 +2,13 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → espanhol (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const ES: Dict = {
+  "Os gráficos falharam neste aparelho: o jogo passou para o modo leve. Dá para voltar nas Configurações.": "Los gráficos fallaron en este dispositivo: el juego pasó al modo ligero. Puedes volver en Configuración.",
+  "Os gráficos pararam": "Los gráficos se detuvieron",
+  "O navegador liberou a placa de vídeo e a imagem do mapa não voltou. O jogo passou para o modo leve. Recarregue para voltar à mesma partida.": "El navegador liberó la tarjeta gráfica y la imagen del mapa no volvió. El juego pasó al modo ligero. Recarga para volver a la misma partida.",
+  "Recarregar no modo leve": "Recargar en modo ligero",
+  "Modo leve ligado automaticamente porque os gráficos falharam neste aparelho.": "El modo ligero se activó automáticamente porque los gráficos fallaron en este dispositivo.",
+  "Voltar para {0}": "Volver a {0}",
+  "Você ficou desconectado por mais tempo do que o prazo para voltar, e sua nação foi dada como abandonada. A partida continua entre as outras nações; o resultado final aparece quando ela terminar.": "Estuviste desconectado más tiempo del plazo para volver, y tu nación fue declarada abandonada. La partida sigue entre las otras naciones; el resultado final aparece cuando termine.",
   "Obrigado, Fireknight886, por avisar das quedas nas partidas longas com os amigos. Foi o seu relato que nos levou a estas correções.": "Gracias, Fireknight886, por avisarnos de las caídas en las partidas largas con tus amigos. Tu reporte es lo que nos llevó a estas correcciones.",
   "Quedas de conexão corrigidas em parte: quem reconecta não é mais tirado da partida por engano, e uma falha passageira no login não desconecta mais ninguém da conta.": "Caídas de conexión corregidas en parte: quien se reconecta ya no sale de la partida por error, y una falla pasajera del inicio de sesión ya no cierra la sesión de nadie.",
   "Entre jogadores, quando alguém cai, a partida pausa por até 90 s, e há 3 minutos para voltar antes de perder por abandono.": "Entre jugadores, cuando alguien se cae, la partida se pausa hasta 90 s, y hay 3 minutos para volver antes de perder por abandono.",

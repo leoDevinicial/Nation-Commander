@@ -1228,7 +1228,12 @@ export class Room {
     }
     this.endReason = reason;
     const p = this.players.find((x) => x.slot === slot);
-    if (reason === 'disconnect') log.warn('Abandono por queda', { room: this.code, slot, tick: this.sim.tick, drops: this.drops.get(slot) ?? null });
+    if (reason === 'disconnect') {
+      log.warn('Abandono por queda', { room: this.code, slot, tick: this.sim.tick, drops: this.drops.get(slot) ?? null });
+      if (p) p.abandoned = true;
+      // a tela de derrota de quem volta diz o motivo
+      this.broadcastRoom();
+    }
     // quem caiu não volta mais: a pausa automática por causa dele termina
     if (this.disconnectPausedAt !== null) this.endDisconnectPause();
     this.system(reason === 'disconnect' ? `${p?.name} abandonou a partida.` : `${p?.name} se rendeu.`);
@@ -1641,6 +1646,7 @@ function publicPlayer(p: RoomPlayer): RoomPlayerInfo {
     connected: p.connected,
     ...(p.team ? { team: p.team } : {}),
     ...(ping !== null && ping !== undefined && !p.isAI ? { ping: Math.round(ping / 5) * 5 } : {}),
+    ...(p.abandoned ? { abandoned: true as const } : {}),
   };
 }
 

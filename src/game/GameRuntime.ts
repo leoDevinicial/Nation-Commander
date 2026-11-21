@@ -10,6 +10,7 @@ import type { BuildingSnapshot, Snapshot, UnitSnapshot } from '../../shared/sim/
 import type { Cell, MapData, SimEvent } from '../../shared/sim/types.ts';
 import type { GameClient } from '../net/GameClient.ts';
 import { useHudStore, type PointerMode } from '../state/useHudStore.ts';
+import { gfxEvents } from '../lib/clientDiag.ts';
 import { BuildingVisual, PlacementGhost } from './render/BuildingVisuals.ts';
 import { renderThumbnails } from './render/Thumbnails.ts';
 import { CameraController } from './render/CameraController.ts';
@@ -387,8 +388,12 @@ export class GameRuntime {
       this.kaics?.setCondition('contextLost', true);
       this.kgps?.event(performance.now(), 'ctx-lost', 'Contexto gráfico perdido (o navegador liberou a GPU): medições pausadas');
       useHudStore.getState().pushEvent({ tick: 0, text: 'Contexto gráfico perdido. Tentando restaurar…', tone: 'bad' });
+      // diagnóstico (21/11): avisa o servidor e, sem volta em alguns segundos, modo leve e convite para recarregar
+      gfxEvents.lost();
     });
+    gfxEvents.attach(this.renderer.getContext());
     this.renderer.domElement.addEventListener('webglcontextrestored', () => {
+      gfxEvents.restored();
       this.kaics?.setCondition('contextLost', false);
       this.shadowDirty = true;
       this.kgps?.event(performance.now(), 'ctx-restored', 'Contexto gráfico restaurado: medições recomeçando');

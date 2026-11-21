@@ -3,7 +3,7 @@ import { PROTOCOL_VERSION, GAME_VERSION } from '../shared/version.ts';
 import type { Connection } from './Connection.ts';
 import type { RoomManager } from './RoomManager.ts';
 import { sanitizeName } from './messages.ts';
-import { saveCommunityReport, saveFeedback, type FeedbackRecord } from './supabase.ts';
+import { saveClientDiag, saveCommunityReport, saveFeedback, type ClientDiagRecord, type FeedbackRecord } from './supabase.ts';
 import { config } from './config.ts';
 import { guestIdentity, publicId } from './kac/identity.ts';
 import { kacJournal } from './kac/journal.ts';
@@ -24,6 +24,8 @@ export interface HandlerDeps {
   network?: NetworkGuard;
   /** Chat da Comunidade do menu (um canal para todos). */
   community?: CommunityChat;
+  /** Grava um diagnóstico do navegador (padrão: Supabase, ou só o log sem Supabase). */
+  saveClientDiag?: (rec: ClientDiagRecord) => Promise<boolean>;
   /** Último feedback de cada usuário (ms): no máximo um a cada `FEEDBACK_COOLDOWN_MS`. */
   feedbackAt?: Map<string, number>;
 }
@@ -47,6 +49,8 @@ function impersonates(guestId: string, sessions: Map<string, Connection>): boole
 
 /** Intervalo mínimo entre dois feedbacks do mesmo jogador. */
 export const FEEDBACK_COOLDOWN_MS = 60_000;
+/** Diagnósticos do navegador aceitos por conexão (21/11). */
+export const CLIENT_DIAG_PER_CONNECTION = 20;
 
 /** Processa uma mensagem já validada de uma conexão. */
 export async function handleMessage(conn: Connection, msg: ClientMessage, deps: HandlerDeps): Promise<void> {
@@ -170,6 +174,25 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
         at.delete(conn.user.id);
         conn.send({ t: 'error', code: 'feedback', message: 'Não foi possível enviar agora. Tente de novo em instantes.' });
       }
+      return;
+    }
+    case 'client_diag': {
+      // um navegador com problema pode repetir o mesmo aviso: teto por conexão (o resto é descartado em silêncio)
+      if (++conn.diagCount > CLIENT_DIAG_PER_CONNECTION) return;
+      const guest = conn.user.id.startsWith('guest:');
+      const rec: ClientDiagRecord = {
+        user_id: guest ? null : conn.user.id,
+        guest,
+        display_name: conn.user.name,
+        room_code: conn.roomCode,
+        in_match: msg.inMatch === true,
+        kind: msg.kind,
+        detail: msg.detail ?? null,
+        device: msg.device ?? null,
+        game_version: GAME_VERSION,
+      };
+      log.info('Diagnóstico do navegador', { kind: rec.kind, room: rec.room_code, inMatch: rec.in_match, detail: rec.detail, gpu: rec.device?.gpu, memoryGb: rec.device?.memoryGb, quality: rec.device?.quality });
+      await (deps.saveClientDiag ?? saveClientDiag)(rec);
       return;
     }
     case 'community_join':

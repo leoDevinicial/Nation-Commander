@@ -132,7 +132,8 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
   `npx tsx scripts/sim-escala.ts hash` antes e depois (só muda se a regra mudou) e `bench` para o custo do tick.
 - Quedas e reconexão (`docs/QUEDAS_E_RECONEXAO.md`, 20/11): só a conexão atual do jogador conta como queda; entre
   humanos a queda pausa (`DISCONNECT_POLICY`) e o prazo é `RECONNECT_GRACE_PVP_MS`; falha passageira do Supabase fecha
-  com 1013 (o cliente tenta de novo), nunca `auth`. Motivos das quedas em `matches.report.connection`.
+  com 1013 (o cliente tenta de novo), nunca `auth`. Motivos das quedas em `matches.report.connection`. O navegador manda
+  `client_diag` (gráficos perdidos, página que morreu na partida, erros; tabela `client_diagnostics`) e liga o modo leve sozinho.
 - Minas terrestres (`shared/sim/mines.ts`) não são entidades: o snapshot envia só as do dono e as já detectadas
   (`MineSystem.visibleTo`). O satélite do Programa Espacial revela o resto do mapa, mas nunca as minas.
 

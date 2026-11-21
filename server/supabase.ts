@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { BalanceMode, EndReason, FeedbackCategory, NationalSummary, RoomMode } from '../shared/protocol.ts';
+import type { BalanceMode, ClientDevice, ClientDiagKind, EndReason, FeedbackCategory, NationalSummary, RoomMode } from '../shared/protocol.ts';
 import type { PlayerStats } from '../shared/sim/types.ts';
 import type { MatchReport } from '../shared/sim/report.ts';
 import type { Slot } from '../shared/sim/types.ts';
@@ -72,6 +72,30 @@ export async function saveFeedback(rec: FeedbackRecord): Promise<boolean> {
   const { error } = await sb.from('feedback').insert(rec);
   if (error) {
     log.error('Falha ao gravar feedback', { err: error.message });
+    return false;
+  }
+  return true;
+}
+
+export interface ClientDiagRecord {
+  user_id: string | null;
+  guest: boolean;
+  display_name: string;
+  room_code: string | null;
+  in_match: boolean;
+  kind: ClientDiagKind;
+  detail: string | null;
+  device: ClientDevice | null;
+  game_version: string;
+}
+
+/** Grava um diagnóstico do navegador (tabela `client_diagnostics`). Sem Supabase, fica só no log. */
+export async function saveClientDiag(rec: ClientDiagRecord): Promise<boolean> {
+  const sb = getSupabase();
+  if (!sb) return false;
+  const { error } = await sb.from('client_diagnostics').insert(rec);
+  if (error) {
+    log.warn('Falha ao gravar diagnóstico do navegador', { err: error.message });
     return false;
   }
   return true;

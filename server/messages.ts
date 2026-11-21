@@ -3,7 +3,7 @@ import { isDecreeId } from '../shared/strategic/policies.ts';
 import { isMapType } from '../shared/sim/matchMap.ts';
 import { isDifficulty } from '../shared/sim/difficulty.ts';
 import { isCountryId } from '../shared/data/countries.ts';
-import { MAX_COMMUNITY_LENGTH, REPORT_REASONS, type ReportReason, FEEDBACK_CATEGORIES, GAME_SPEEDS, MAX_CHAT_LENGTH, type ClientMessage, type FeedbackCategory, type GameSpeed } from '../shared/protocol.ts';
+import { CLIENT_DIAG_KINDS, type ClientDevice, type ClientDiagKind, MAX_COMMUNITY_LENGTH, REPORT_REASONS, type ReportReason, FEEDBACK_CATEGORIES, GAME_SPEEDS, MAX_CHAT_LENGTH, type ClientMessage, type FeedbackCategory, type GameSpeed } from '../shared/protocol.ts';
 import { parseCommand } from '../shared/sim/commands.ts';
 import { BUDGET_KEYS, type Budget } from '../shared/strategic/NationalSimulation.ts';
 import { AREA_KEYS, type Areas } from '../shared/strategic/areas.ts';
@@ -60,6 +60,12 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       if (message.length < 5) return null;
       const rating = typeof data.rating === 'number' && Number.isInteger(data.rating) && data.rating >= 1 && data.rating <= 5 ? data.rating : undefined;
       return { t: 'feedback', category: data.category as FeedbackCategory, message, ...(rating !== undefined ? { rating } : {}) };
+    }
+    case 'client_diag': {
+      if (!CLIENT_DIAG_KINDS.includes(data.kind as ClientDiagKind)) return null;
+      const detail = diagText(data.detail, 600);
+      const device = parseDevice(data.device);
+      return { t: 'client_diag', kind: data.kind as ClientDiagKind, ...(detail ? { detail } : {}), ...(device ? { device } : {}), ...(data.inMatch === true ? { inMatch: true } : {}) };
     }
     case 'join_room': {
       const code = typeof data.code === 'string' ? data.code.trim().toUpperCase() : '';
@@ -209,6 +215,39 @@ export function sanitizeRoomName(name: string): string {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 32);
+}
+
+/** Texto livre do diagnóstico: sem caracteres de controle e com teto de tamanho (vai para o log e o banco). */
+function diagText(v: unknown, max: number): string | undefined {
+  if (typeof v !== 'string') return undefined;
+  // eslint-disable-next-line no-control-regex -- remove caracteres de controle (mantém as quebras de linha)
+  const clean = v.replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, ' ').trim().slice(0, max);
+  return clean || undefined;
+}
+
+function diagNumber(v: unknown, max: number): number | undefined {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= max ? Math.round(v * 10) / 10 : undefined;
+}
+
+/** Aparelho do diagnóstico: só os campos conhecidos, cada um validado e curto. */
+function parseDevice(v: unknown): ClientDevice | undefined {
+  if (!v || typeof v !== 'object') return undefined;
+  const d = v as Record<string, unknown>;
+  const out: ClientDevice = {};
+  const gpu = diagText(d.gpu, 160);
+  if (gpu) out.gpu = gpu;
+  const memoryGb = diagNumber(d.memoryGb, 1024);
+  if (memoryGb !== undefined) out.memoryGb = memoryGb;
+  const cores = diagNumber(d.cores, 512);
+  if (cores !== undefined) out.cores = Math.round(cores);
+  const screen = diagText(d.screen, 40);
+  if (screen) out.screen = screen;
+  if (typeof d.touch === 'boolean') out.touch = d.touch;
+  const quality = diagText(d.quality, 20);
+  if (quality) out.quality = quality;
+  const userAgent = diagText(d.userAgent, 300);
+  if (userAgent) out.userAgent = userAgent;
+  return Object.keys(out).length ? out : undefined;
 }
 
 export function sanitizeName(name: string): string {

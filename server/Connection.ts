@@ -49,6 +49,8 @@ export class Connection {
   closeCause: string | null = null;
   /** Código de fechamento do WebSocket (1006: caiu sem aviso; 1001: o navegador saiu da página). */
   closeCode: number | null = null;
+  /** Diagnósticos do navegador recebidos nesta conexão (teto `CLIENT_DIAG_PER_CONNECTION`). */
+  diagCount = 0;
 
   constructor(readonly ws: WebSocket) {}
 

@@ -12,6 +12,8 @@ import { useHudStore } from '../../state/useHudStore.ts';
 export function DefeatedOverlay({ mySlot }: { mySlot: number }) {
   const defeated = useHudStore((s) => s.players.find((p) => p.slot === mySlot)?.defeated ?? false);
   const matchEnd = useAppStore((s) => s.matchEnd);
+  // perdeu por ficar fora além do prazo (21/11): antes a tela dizia que o Centro de Comando caiu
+  const abandoned = useAppStore((s) => s.room?.players.find((p) => p.slot === mySlot)?.abandoned === true);
   const [watching, setWatching] = useState(false);
   if (!defeated || matchEnd) return null;
   const leave = () => {
@@ -32,7 +34,9 @@ export function DefeatedOverlay({ mySlot }: { mySlot: number }) {
       <div className="panel w-full max-w-md p-6 text-center" role="dialog" aria-label="Nação derrotada">
         <div className="text-3xl font-black tracking-wide text-red-300">Derrota</div>
         <p className="mt-3 text-sm text-ink-200">
-          O Centro de Comando caiu e as forças restantes da sua nação se renderam. A partida continua entre as outras nações; o resultado final aparece quando ela terminar.
+          {abandoned
+            ? 'Você ficou desconectado por mais tempo do que o prazo para voltar, e sua nação foi dada como abandonada. A partida continua entre as outras nações; o resultado final aparece quando ela terminar.'
+            : 'O Centro de Comando caiu e as forças restantes da sua nação se renderam. A partida continua entre as outras nações; o resultado final aparece quando ela terminar.'}
         </p>
         <div className="mt-5 flex gap-2">
           <button className="btn btn-primary flex-1" onClick={leave}>

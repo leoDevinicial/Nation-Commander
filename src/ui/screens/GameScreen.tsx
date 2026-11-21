@@ -30,6 +30,7 @@ import { audio } from '../../game/audio/AudioService.ts';
 import { describeNationalEvent, makeNameOf } from '../../game/nationalText.ts';
 import { battleSnapshotBuffer, useOpsStore } from '../../state/useOpsStore.ts';
 import { OperationalMap } from '../geo/OperationalMap.tsx';
+import { setInMatch, useGfxHealth } from '../../lib/clientDiag.ts';
 import { BattleBar, BattleLoading, BattlePrompt, OperationChip, OutcomeDialog } from '../hud/BattleHud.tsx';
 
 export function GameScreen() {
@@ -244,6 +245,13 @@ export function GameScreen() {
     return () => window.removeEventListener('keydown', onEsc, true);
   }, [menuOpen]);
 
+  // diagnóstico (21/11): marca a partida aberta nesta página, para saber se ela morrer no meio
+  useEffect(() => {
+    setInMatch(true);
+    return () => setInMatch(false);
+  }, []);
+  const gfxFailed = useGfxHealth((s) => s.failed);
+
   if (!match) return null;
 
   return (
@@ -337,6 +345,21 @@ export function GameScreen() {
       )}
       {match && <DefeatedOverlay mySlot={match.yourSlot} />}
       {matchEnd && <ResultsOverlay />}
+      {gfxFailed && !matchEnd && (
+        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-ink-950/85 p-4">
+          <div className="panel w-full max-w-md p-6 text-center" role="alertdialog" aria-labelledby="gfx-failed-title">
+            <div id="gfx-failed-title" className="font-display text-xl font-bold tracking-wide text-ink-100 uppercase">
+              Os gráficos pararam
+            </div>
+            <p className="mt-3 text-sm text-ink-200">
+              O navegador liberou a placa de vídeo e a imagem do mapa não voltou. O jogo passou para o modo leve. Recarregue para voltar à mesma partida.
+            </p>
+            <button className="btn btn-primary mt-5 w-full" onClick={() => location.reload()} autoFocus>
+              Recarregar no modo leve
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

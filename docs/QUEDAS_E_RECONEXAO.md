@@ -32,3 +32,21 @@ deles à frente no placar. O KAC não registrou nada (quedas comuns não vão pa
   gravado no salvamento (uma partida retomada recomeça a contagem).
 
 Testes: `server/reconnect.test.ts` e `src/test/gameClient.test.ts` ("token na reconexão").
+
+## Diagnóstico do navegador e modo leve (21/11)
+Num relato de 20/11 (sala `WMKDK`), um jogador teve 8 quedas "conexão perdida" (código 1006) e a tela ficou branca com a
+interface viva; os outros três não caíram nenhuma vez. O servidor estava bem: era a página dele que morria. Agora:
+- **`client_diag`** (`src/lib/clientDiag.ts` → `server/messages.ts` → tabela `client_diagnostics`): o navegador avisa
+  `context_lost`, `context_restored`, `context_failed` (não voltou em 6 s), `abrupt_end` (a página anterior morreu no
+  meio de uma partida com a aba visível), `safe_mode` e os 5 primeiros erros da página, com placa de vídeo, memória,
+  núcleos, tela, toque, qualidade e navegador. O servidor valida cada campo, põe a conta pela conexão e aceita até 20
+  por conexão. Aparece no log ("Diagnóstico do navegador") e no banco.
+- **Modo leve automático**: depois de um `abrupt_end` ou `context_failed`, a qualidade vai para Mobile/Baixo sem sombras;
+  a anterior fica guardada e as Configurações mostram "Voltar para …". Escolher a qualidade à mão desliga o automático.
+- **Aviso na partida**: gráficos perdidos sem volta mostram "Os gráficos pararam" com "Recarregar no modo leve"; a
+  reconexão leva à mesma partida.
+- **Derrota por abandono**: `RoomPlayerInfo.abandoned`; a tela de derrota diz que o jogador ficou fora além do prazo
+  (antes dizia que o Centro de Comando caiu).
+
+Consulta útil: `select created_at, display_name, kind, detail, device->>'gpu', device->>'memoryGb', room_code from
+client_diagnostics order by created_at desc limit 50;`
