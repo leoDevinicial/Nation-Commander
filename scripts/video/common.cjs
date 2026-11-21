@@ -1,26 +1,36 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
+// versão mais nova das novidades: marcada como vista para o popup não cobrir o menu
+const LATEST = /version: '([^']+)'/.exec(fs.readFileSync(__dirname + '/../../src/ui/changelog.ts', 'utf8'))[1];
 async function openGame({ w = 1280, h = 720 } = {}) {
   const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] });
   const p = await b.newPage({ viewport: { width: w, height: h } });
   await p.addInitScript({ path: __dirname + '/fakeclock.js' });
-  await p.addInitScript((q) => {
+  await p.addInitScript(([q, v]) => {
     try {
       localStorage.setItem('nc.settings.v1', JSON.stringify({ quality: q, shadows: true, adaptiveQuality: false, fpsTarget: 'auto', panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false, autoFullscreen: false, lockLandscape: false, muted: false }));
     } catch {}
-  }, process.env.QUALITY || 'ultra');
+    // menu limpo: sem tutorial, manual, novidades nem convite do Discord por cima (menu de 16/11)
+    localStorage.setItem('nc.tutorial.v1', '"skipped"');
+    localStorage.setItem('nc.manual.v1', 'read');
+    localStorage.setItem('nc.lang.v1', JSON.stringify({ chosen: 'pt' }));
+    localStorage.setItem('nc.discord.seen.v1', '1');
+    localStorage.setItem('nc.changelog.seen.v1', JSON.stringify({ 'guest:Comandante': v }));
+  }, [process.env.QUALITY || 'ultra', LATEST]);
   p.on('pageerror', (e) => console.log('PAGEERR', e.message));
   await p.goto('http://localhost:5180/');
   await p.waitForTimeout(1500);
   await p.mouse.click(w / 2, h / 2);
   await p.waitForSelector('#guest', { timeout: 90000 });
   await p.fill('#guest', 'Comandante');
-  await p.getByRole('button', { name: /Jogar/ }).first().click();
+  await p.press('#guest', 'Enter');
   await p.waitForTimeout(2000);
   const skip = p.getByRole('button', { name: /Pular por agora/ });
   if (await skip.count()) { await skip.click(); await p.waitForTimeout(400); await p.getByRole('button', { name: /Pular mesmo assim/ }).click(); }
-  await p.getByText('Modo Sandbox').first().click();
-  await p.getByRole('button', { name: /Iniciar Operação/ }).click();
+  const entendi = p.getByRole('button', { name: /^Entendi$/ });
+  if (await entendi.count()) await entendi.first().click();
+  await p.getByText(/^(Modo )?Sandbox$/).first().click();
+  await p.getByRole('button', { name: /Iniciar opera/i }).click();
   await p.waitForFunction(() => window.__runtime && window.__runtime.snapshot, null, { timeout: 180000 });
   return { b, p };
 }
