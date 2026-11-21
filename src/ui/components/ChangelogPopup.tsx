@@ -54,7 +54,12 @@ export function unseenVersions(players: string | readonly string[], seen: Record
   return i > 0 ? CHANGELOG.slice(0, Math.min(i, 3)) : CHANGELOG.slice(0, 1);
 }
 
-export function ChangelogPopup({ players, onOpenAll }: { players: readonly string[]; onOpenAll: () => void }) {
+/** Há novidades a mostrar para este jogador agora? (o convite do Discord espera elas fecharem) */
+export function changelogPending(players: readonly string[]): boolean {
+  return unseenVersions(players, readSeen()).length > 0;
+}
+
+export function ChangelogPopup({ players, onOpenAll, onClosed }: { players: readonly string[]; onOpenAll: () => void; onClosed?: () => void }) {
   // fechado nesta sessão: não volta nem se o armazenamento falhar (nem quando a chave do servidor chega depois)
   const [closed, setClosed] = useState<string | null>(null);
   const player = players[0] ?? null;
@@ -63,6 +68,7 @@ export function ChangelogPopup({ players, onOpenAll }: { players: readonly strin
   const close = () => {
     if (players.length) markSeen(players);
     setClosed(player);
+    onClosed?.();
   };
   useEffect(() => {
     if (!versions.length) return;

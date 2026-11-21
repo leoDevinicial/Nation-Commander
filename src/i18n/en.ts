@@ -2,6 +2,11 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → inglês (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const EN: Dict = {
+  "Entre no nosso Discord": "Join our Discord",
+  "Ache parceiros e rivais para partidas, troque estratégias com outros comandantes, conte o que achou do jogo e acompanhe as novidades antes de todo mundo.": "Find partners and rivals for matches, swap strategies with other commanders, tell us what you think of the game and follow the news before everyone else.",
+  "O botão do Discord fica sempre no menu principal.": "The Discord button is always on the main menu.",
+  "Entrar no Discord": "Join the Discord",
+  "Entre no servidor do Nation Commander no Discord": "Join the Nation Commander server on Discord",
   "Baixar o Guia do Comandante completo (PDF)": "Download the full Commander's Guide (PDF)",
   "Guia em PDF": "PDF guide",
   "Mar, ar e estradas": "Sea, air and roads",

@@ -135,6 +135,9 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 
 ## 0.4 O que mudou desde 31/10 (mais recente primeiro; detalhes no `git log` e nas docs citadas)
 
+**21/11 — Discord:** botão do Discord no menu (`DISCORD_URL` em `src/ui/components/DiscordInvite.tsx`) e convite em
+popup uma vez por aparelho (`nc.discord.seen.v1`), sempre depois das novidades da versão. Também o botão Guia em PDF no menu.
+
 **21/11 — 1.5.3, HUD compacta e guia em 3 idiomas:** roda de ferramentas (`ToolWheel`, 6 itens com o Globo), painel de
 comando só com seleção; Guia do Comandante reescrito (23 capítulos: mar e ar, minas, rodovias, pactos, orçamento,
 reconexão) em pt/en/es (`docs/guia/README.md`), baixado pelo botão do Manual (`public/guia/`); manual de cartões com 9

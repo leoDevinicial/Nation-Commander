@@ -18,7 +18,8 @@ import { NationBadge } from '../components/NationBadge.tsx';
 import { CHANGELOG } from '../changelog.ts';
 import { guideUrl } from '../manual.ts';
 import { useLangStore } from '../../i18n/index.ts';
-import { ChangelogPopup, playerKeys } from '../components/ChangelogPopup.tsx';
+import { ChangelogPopup, changelogPending, playerKeys } from '../components/ChangelogPopup.tsx';
+import { DISCORD_URL, DiscordInvite, DiscordLogo } from '../components/DiscordInvite.tsx';
 import { autoFullscreen, FullscreenButton } from '../components/FullscreenButton.tsx';
 
 /**
@@ -40,6 +41,8 @@ export function MenuScreen() {
 
   // primeira visita (07/11): convite para o tutorial, até jogar ou dispensar
   const [invite, setInvite] = useState(() => !tutorialSeen());
+  const [changelogClosed, setChangelogClosed] = useState(false);
+  const keys = playerKeys(profile, guest, user);
   const create = async (mode: 'pvp' | 'vs_ai' | 'sandbox' | 'tutorial') => {
     autoFullscreen();
     // KNPS-08: a sala nasce na região de menor ping (com várias regiões configuradas)
@@ -66,7 +69,9 @@ export function MenuScreen() {
     <div className="menu relative z-10 h-full w-full overflow-y-auto">
       {/* novidades: uma vez por jogador a cada versão (16/11) */}
       {/* a chave vem do login no aparelho: aparece mesmo com o servidor de jogo fora do ar ou reiniciando (20/11) */}
-      <ChangelogPopup players={playerKeys(profile, guest, user)} onOpenAll={() => setScreen('feedback')} />
+      <ChangelogPopup players={keys} onOpenAll={() => setScreen('feedback')} onClosed={() => setChangelogClosed(true)} />
+      {/* convite para o Discord: uma vez no aparelho, depois das novidades (21/11) */}
+      <DiscordInvite ready={changelogClosed || !changelogPending(keys)} />
       {/* o globo fica à direita (GlobeBackdrop "hero"); o degradê deixa o texto legível por cima */}
       <div
         aria-hidden
@@ -97,6 +102,19 @@ export function MenuScreen() {
               title={online ? 'Converse com outros comandantes que gostam do jogo' : offlineHint}
               onClick={() => setScreen('community')}
             />
+            <a
+              className="flex h-8 items-center gap-1.5 rounded-[3px] px-2 text-[13px] sm:px-2.5 font-semibold text-[#8c96ff] hover:bg-[#5865f2]/15 hover:text-ink-100"
+              href={DISCORD_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Entre no servidor do Nation Commander no Discord"
+              aria-label="Discord"
+            >
+              <DiscordLogo size={15} />
+              <span className="max-xl:hidden" translate="no">
+                Discord
+              </span>
+            </a>
             <NavItem icon={Megaphone} label="Novidades" dot title="O que mudou no jogo e o espaço para mandar a sua opinião" onClick={() => setScreen('feedback')} />
             <NavItem icon={BookOpen} label="Manual" title="O básico do jogo em 8 cartões curtos" onClick={() => setScreen('manual')} />
             <GuideDownload />
@@ -275,7 +293,7 @@ function GuideDownload() {
       aria-label="Guia em PDF"
     >
       <FileDown size={15} aria-hidden />
-      <span className="max-xl:hidden">Guia em PDF</span>
+      <span className="max-2xl:hidden">Guia em PDF</span>
     </a>
   );
 }

@@ -2,6 +2,11 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → espanhol (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const ES: Dict = {
+  "Entre no nosso Discord": "Únete a nuestro Discord",
+  "Ache parceiros e rivais para partidas, troque estratégias com outros comandantes, conte o que achou do jogo e acompanhe as novidades antes de todo mundo.": "Encuentra compañeros y rivales para partidas, intercambia estrategias con otros comandantes, cuéntanos qué te parece el juego y sigue las novedades antes que nadie.",
+  "O botão do Discord fica sempre no menu principal.": "El botón de Discord está siempre en el menú principal.",
+  "Entrar no Discord": "Entrar al Discord",
+  "Entre no servidor do Nation Commander no Discord": "Únete al servidor de Nation Commander en Discord",
   "Baixar o Guia do Comandante completo (PDF)": "Descargar la Guía del Comandante completa (PDF)",
   "Guia em PDF": "Guía en PDF",
   "Mar, ar e estradas": "Mar, aire y carreteras",
