@@ -15,7 +15,16 @@ const drawAt = (t) => !RANGES.length || RANGES.some(([a, b]) => t >= a - 0.75 &&
   const sc = await setupScene(p);
   const cdp = await p.context().newCDPSession(p);
   const { send, snap } = sc;
+  // tropas fora da câmera chegam ao cliente a cada poucos snapshots (envio por área, 21/11): espera todas antes das ordens
+  const want = await (await fetch('http://localhost:8790/state')).json();
+  for (let i = 0; i < 40; i++) {
+    const n = (await snap()).units.length;
+    if (n >= Object.values(want.units ?? {}).reduce((a, b) => a + b, 0)) break;
+    await step(2);
+    await p.waitForTimeout(200);
+  }
   const s0 = await snap();
+  console.log('units', s0.units.filter((u) => u.owner === 0).length, 'vs', s0.units.filter((u) => u.owner === 1).length);
   const mine = s0.units.filter((u) => u.owner === 0);
   const groundIds = mine.filter((u) => !/artillery/.test(u.type)).map((u) => u.id);
   const artIds = mine.filter((u) => /artillery/.test(u.type)).map((u) => u.id);

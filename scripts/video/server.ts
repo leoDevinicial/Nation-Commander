@@ -58,7 +58,7 @@ const http = createServer((req, res) => {
     const r = all().at(-1)!;
     const sim = (r as unknown as { sim: any }).sim;
     res.writeHead(200, { 'access-control-allow-origin': '*' });
-    res.end(JSON.stringify({ tick: sim.tick, launches: sim.air.launches?.map((l: any) => ({ id: l.id, state: l.state })), missions: sim.air.missions?.map((m: any) => ({ id: m.id, state: m.state })), drones: sim.air.drones.drones.map((d: any) => ({ id: d.id, phase: d.phase, end: d.end, x: Math.round(d.pos.x), y: Math.round(d.pos.y), alt: Math.round(d.alt * 10) / 10, tx: Math.round(d.target.x), ty: Math.round(d.target.y) })), silos: sim.buildings.filter((b: any) => b.type === "missile_silo").map((b: any) => [b.id, JSON.stringify(sim.air.silos[b.id] ?? null)]) }));
+    res.end(JSON.stringify({ tick: sim.tick, units: sim.units.reduce((m: Record<number, number>, x: any) => ((m[x.owner] = (m[x.owner] ?? 0) + 1), m), {}), launches: sim.air.launches?.map((l: any) => ({ id: l.id, state: l.state })), missions: sim.air.missions?.map((m: any) => ({ id: m.id, state: m.state })), drones: sim.air.drones.drones.map((d: any) => ({ id: d.id, phase: d.phase, end: d.end, x: Math.round(d.pos.x), y: Math.round(d.pos.y), alt: Math.round(d.alt * 10) / 10, tx: Math.round(d.target.x), ty: Math.round(d.target.y) })), silos: sim.buildings.filter((b: any) => b.type === "missile_silo").map((b: any) => [b.id, JSON.stringify(sim.air.silos[b.id] ?? null)]) }));
     return;
   }
   res.writeHead(200, { 'access-control-allow-origin': '*' }).end('{"ok":true}');
