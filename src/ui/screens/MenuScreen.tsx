@@ -1,5 +1,5 @@
 import { LanguagePicker } from '../components/LanguagePicker.tsx';
-import { ArrowRight, BookOpen, Bot, Check, Flag, FlaskConical, Globe, GraduationCap, Info, LogOut, Megaphone, MessagesSquare, Play, Settings, Users, type LucideIcon } from 'lucide-react';
+import { ArrowRight, BookOpen, Bot, Check, FileDown, Flag, FlaskConical, Globe, GraduationCap, Info, LogOut, Megaphone, MessagesSquare, Play, Settings, Users, type LucideIcon } from 'lucide-react';
 import { markTutorial, tutorialSeen } from '../../state/useTutorialStore.ts';
 import { useState } from 'react';
 import { gameClient } from '../../net/client.ts';
@@ -16,6 +16,8 @@ import { prepareJoin, prepareNewRoom } from '../../net/regionFlow.ts';
 import { Frame } from '../components/Frame.tsx';
 import { NationBadge } from '../components/NationBadge.tsx';
 import { CHANGELOG } from '../changelog.ts';
+import { guideUrl } from '../manual.ts';
+import { useLangStore } from '../../i18n/index.ts';
 import { ChangelogPopup, playerKeys } from '../components/ChangelogPopup.tsx';
 import { autoFullscreen, FullscreenButton } from '../components/FullscreenButton.tsx';
 
@@ -97,6 +99,7 @@ export function MenuScreen() {
             />
             <NavItem icon={Megaphone} label="Novidades" dot title="O que mudou no jogo e o espaço para mandar a sua opinião" onClick={() => setScreen('feedback')} />
             <NavItem icon={BookOpen} label="Manual" title="O básico do jogo em 8 cartões curtos" onClick={() => setScreen('manual')} />
+            <GuideDownload />
             <NavItem icon={Settings} label="Configurações" onClick={() => setScreen('settings')} />
             <NavItem icon={Info} label="Créditos" onClick={() => setScreen('credits')} />
             <span className="px-1">
@@ -256,6 +259,24 @@ export function MenuScreen() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Baixa o Guia do Comandante (PDF) no idioma da tela. */
+function GuideDownload() {
+  const lang = useLangStore((s) => s.lang);
+  const url = guideUrl(lang);
+  return (
+    <a
+      className="flex h-8 items-center gap-1.5 rounded-[3px] px-2 text-[13px] sm:px-2.5 font-semibold text-ink-300 hover:bg-white/5 hover:text-ink-100"
+      href={url}
+      download={url.split('/').pop()}
+      title="Baixar o Guia do Comandante completo (PDF)"
+      aria-label="Guia em PDF"
+    >
+      <FileDown size={15} aria-hidden />
+      <span className="max-xl:hidden">Guia em PDF</span>
+    </a>
   );
 }
 

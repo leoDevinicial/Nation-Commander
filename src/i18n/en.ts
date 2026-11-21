@@ -2,6 +2,8 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → inglês (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const EN: Dict = {
+  "Baixar o Guia do Comandante completo (PDF)": "Download the full Commander's Guide (PDF)",
+  "Guia em PDF": "PDF guide",
   "Mar, ar e estradas": "Sea, air and roads",
   "Navios, aviões e estradas levam o exército longe.": "Ships, aircraft and roads take your army far.",
   "Embarque: selecione as tropas e clique com o botão direito no L402 ou na fragata. Com o navio selecionado, botão direito na terra desembarca.": "Boarding: select the troops and right-click the L402 or the frigate. With the ship selected, right-click on land to disembark.",

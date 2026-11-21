@@ -2,6 +2,8 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → espanhol (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const ES: Dict = {
+  "Baixar o Guia do Comandante completo (PDF)": "Descargar la Guía del Comandante completa (PDF)",
+  "Guia em PDF": "Guía en PDF",
   "Mar, ar e estradas": "Mar, aire y carreteras",
   "Navios, aviões e estradas levam o exército longe.": "Buques, aviones y carreteras llevan al ejército lejos.",
   "Embarque: selecione as tropas e clique com o botão direito no L402 ou na fragata. Com o navio selecionado, botão direito na terra desembarca.": "Embarque: selecciona las tropas y haz clic derecho sobre el L402 o la fragata. Con el buque seleccionado, clic derecho en tierra para desembarcar.",
