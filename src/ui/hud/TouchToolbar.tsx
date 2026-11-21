@@ -43,7 +43,8 @@ export function TouchToolbar({ runtime }: { runtime: GameRuntime }) {
   const busy = useHudStore((s) => s.selectedUnits.length > 0 || s.selectedBuilding !== null || s.inspected !== null || s.mode.kind !== 'normal');
   // escolha manual do jogador, válida só enquanto o painel continuar no mesmo estado (aberto/fechado)
   const [manual, setManual] = useState<{ busy: boolean; open: boolean } | null>(null);
-  const open = manual && manual.busy === busy ? manual.open : !busy;
+  // HUD compacta (21/11): começa recolhido (os gestos já fazem quase tudo); abre com um toque e fica até fechar
+  const open = manual && manual.busy === busy ? manual.open : false;
   const current = TOOLS.find((t) => t.tool === tool) ?? TOOLS[0]!;
 
   return (

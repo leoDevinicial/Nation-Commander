@@ -128,7 +128,6 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
   const resources = players.find((p) => p.slot === mySlot)?.resources ?? EMPTY;
   const touch = useHudStore((s) => s.touchUi);
   const thumbs = useHudStore((s) => s.thumbs);
-  const [help, setHelp] = useState(false);
   const [buildTab, setBuildTab] = useState<BuildTab>('production');
   const techs = effectiveTechs(useNationalStore((s) => s.nations.find((n) => n.slot === mySlot)?.research.done ?? EMPTY_TECHS));
   const myEra = effectiveEra(players.find((p) => p.slot === mySlot));
@@ -143,10 +142,14 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
   const command = building?.type === 'hq' || (building?.type === 'city_hall' && building.progress >= 1);
   const hqLevel = building?.type === 'hq' ? building.level : command ? runtime.upgradeWorld().hqLevel : 0;
 
+  // HUD compacta (21/11): sem seleção nem ação em andamento, o painel some e o mapa fica livre. Como usar fica no
+  // tutorial, não na tela ("Toque: selecionar…" saiu).
+  if (mode.kind === 'normal' && units.length === 0 && !building && !citizens && !inspected) return null;
+
   return (
     <Frame
       tour="command-panel"
-      className="pointer-events-auto min-w-0 flex-1 sm:h-[222px] [@media(max-height:520px)]:h-auto [@media(max-height:520px)]:max-h-[150px]"
+      className="pointer-events-auto min-w-0 flex-1 sm:h-[222px] lg:max-w-[980px] [@media(max-height:520px)]:h-auto [@media(max-height:520px)]:max-h-[150px]"
       innerClassName="flex min-w-0 flex-col gap-2 p-2 sm:flex-row sm:gap-3 sm:p-3 [@media(max-height:520px)]:flex-row [@media(max-height:520px)]:gap-2 [@media(max-height:520px)]:p-2"
       onPointerDown={(e) => e.stopPropagation()}
     >
@@ -239,32 +242,6 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
                 </div>
               )}
               <WarStatus owner={inspected.owner} mySlot={mySlot} />
-            </div>
-          )}
-          {mode.kind === 'normal' && units.length === 0 && !building && !citizens && !inspected && touch && (
-            <div className="text-xs leading-relaxed text-ink-400">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold text-ink-200">Nenhuma seleção</span>
-                <button className="btn min-h-7 px-2 py-0.5 text-[11px]" aria-expanded={help} onClick={() => setHelp(!help)}>
-                  {help ? 'Menos Ajuda' : 'Ajuda'}
-                </button>
-              </div>
-              {help ? (
-                <>
-                  Toque para selecionar · dois toques: todas do tipo · toque longo: mover/atacar · arraste: câmera · pinça: zoom · gire dois dedos: rotação. Ferramentas à direita: Ordem, Área (seleção
-                  por retângulo), Somar e QG. Toque no Centro de Comando ou numa Prefeitura para construir.
-                </>
-              ) : (
-                'Toque: selecionar · toque longo: ordem · arraste: câmera · pinça: zoom'
-              )}
-            </div>
-          )}
-          {mode.kind === 'normal' && units.length === 0 && !building && !citizens && !inspected && !touch && (
-            <div className="text-xs leading-relaxed text-ink-400">
-              <div className="mb-1 text-sm font-semibold text-ink-200">Nenhuma seleção</div>
-              Clique ou arraste para selecionar · Botão direito: mover/atacar · F: avançar atacando · X: parar · H: Centro de Comando · Ctrl+1–9: grupos · WASD/setas: câmera · Q/E: girar · Roda: zoom
-              · Espaço: pausa · G: painel nacional. Selecione o Centro de Comando ou uma Prefeitura para construir: fazendas no solo fértil, serrarias junto à floresta, pedreiras junto às rochas e poços sobre o
-              petróleo.
             </div>
           )}
         </div>

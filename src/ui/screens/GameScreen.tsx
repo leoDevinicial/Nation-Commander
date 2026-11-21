@@ -30,6 +30,7 @@ import { audio } from '../../game/audio/AudioService.ts';
 import { describeNationalEvent, makeNameOf } from '../../game/nationalText.ts';
 import { battleSnapshotBuffer, useOpsStore } from '../../state/useOpsStore.ts';
 import { OperationalMap } from '../geo/OperationalMap.tsx';
+import { ToolWheel } from '../hud/ToolWheel.tsx';
 import { setInMatch, useGfxHealth } from '../../lib/clientDiag.ts';
 import { BattleBar, BattleLoading, BattlePrompt, OperationChip, OutcomeDialog } from '../hud/BattleHud.tsx';
 
@@ -289,11 +290,14 @@ export function GameScreen() {
           <EventLog />
           <WorldAlerts />
           {!globeOpen && (
-            <div className="pointer-events-none absolute right-2 bottom-2 left-2 flex items-end gap-2 sm:right-3 sm:bottom-3 sm:left-3 sm:gap-3">
+            // HUD compacta (21/11): minimapa à esquerda, cartão da seleção ao lado (só com algo selecionado) e a roda de
+            // ferramentas no canto direito (a folga à direita é dela)
+            <div className="pointer-events-none absolute right-[4.5rem] bottom-2 left-2 flex items-end gap-2 sm:right-[5.5rem] sm:bottom-3 sm:left-3 sm:gap-3">
               <Minimap key={battleActive ? 'b' : 't'} runtime={active} />
               <CommandPanel runtime={active} />
             </div>
           )}
+          {!globeOpen && !nationalOpen && !battleActive && <ToolWheel runtime={runtime} />}
           {touchUi && !nationalOpen && !globeOpen && <TouchToolbar runtime={active} />}
           {!nationalOpen && !globeOpen && !battleActive && <RouteInspector />}
           {touchUi && !nationalOpen && !globeOpen && !menuOpen && <FullscreenPrompt />}
@@ -336,7 +340,6 @@ export function GameScreen() {
           {!chatOpen && !nationalOpen && !globeOpen && (
             <button className="btn absolute top-15 right-2 px-2 py-1 text-xs sm:top-14 sm:right-3" onClick={() => setChatOpen(true)} title="Chat (Enter)" aria-label="Chat">
               <MessageSquare size={15} aria-hidden />
-              <span className="hidden sm:inline">Chat</span>
             </button>
           )}
           {match.mode === 'tutorial' && !matchEnd && !battleActive && <TutorialOverlay runtime={runtime} />}

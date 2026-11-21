@@ -2,6 +2,11 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → espanhol (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const ES: Dict = {
+  "Ferramentas": "Herramientas",
+  "Fechar ferramentas": "Cerrar herramientas",
+  "Ferramentas: construir, pesquisa, nação, diplomacia e comércio": "Herramientas: construir, investigación, nación, diplomacia y comercio",
+  "Construir (B)": "Construir (B)",
+  "Nação (G)": "Nación (G)",
   "Obrigado, Fireknight886 e SeaMan, por contarem o que aconteceu nas partidas de vocês. Os relatos levaram a todas as correções desta versão.": "Gracias, Fireknight886 y SeaMan, por contarnos lo que pasó en sus partidas. Sus reportes llevaron a todas las correcciones de esta versión.",
   "Conexão bem mais leve: o jogo usa até 35% menos internet numa batalha grande, e até 70% menos quando a câmera está longe da luta.": "Conexión mucho más ligera: el juego usa hasta un 35% menos de datos en una batalla grande, y hasta un 70% menos cuando la cámara está lejos de la lucha.",
   "Ao cair e voltar, o jogo recebe só o que mudou enquanto você estava fora, sem baixar o mapa inteiro de novo.": "Si te desconectas y vuelves, el juego recibe solo lo que cambió mientras no estabas, sin descargar todo el mapa de nuevo.",

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Compass, Hammer } from 'lucide-react';
+import { Compass } from 'lucide-react';
 import { Frame } from '../components/Frame.tsx';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { factionColor } from '../../game/render/palette.ts';
@@ -111,17 +111,7 @@ export function Minimap({ runtime }: { runtime: GameRuntime }) {
 
   return (
     <Frame className="pointer-events-auto shrink-0 self-end" innerClassName="p-1 sm:p-1.5" onPointerDown={(e) => e.stopPropagation()}>
-      {/* Construir (03/11): abre o menu de construção de qualquer lugar, sem ir até o QG */}
-      <button
-        className="btn btn-primary mb-1 flex w-full items-center justify-center gap-1.5 px-1 py-1 text-xs"
-        onClick={() => runtime.openBuildMenu()}
-        data-tour="build-button"
-        title="Construir (B): abre o menu de construção do Centro de Comando sem mover a câmera"
-      >
-        <Hammer size={14} aria-hidden />
-        <span>Construir</span>
-        <span className="hidden rounded-[2px] border border-current px-1 font-mono text-[9px] leading-[1.4] opacity-70 sm:inline">B</span>
-      </button>
+      {/* o Construir saiu daqui para a roda de ferramentas (HUD compacta, 21/11; ToolWheel.tsx) */}
       <div className="relative border border-white/10">
       <canvas
         ref={canvasRef}

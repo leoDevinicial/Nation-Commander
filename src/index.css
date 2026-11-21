@@ -1117,3 +1117,29 @@ input[type="range"], input[type="checkbox"], input[type="radio"] { accent-color:
 @media (max-height: 520px) {
   .menu .menu-cta { min-height: 40px; padding: 0 16px; font-size: 14px; }
 }
+
+/* ---------- roda de ferramentas (HUD compacta, 21/11; ToolWheel.tsx) ---------- */
+.tool-wheel { transition: transform 0.18s ease, opacity 0.18s ease; transform-origin: 100% 100%; }
+.tool-wheel.is-tucked { transform: scale(0.72); opacity: 0.8; }
+.tool-wheel-core {
+  position: relative; z-index: 2; display: grid; place-items: center; width: 100%; height: 100%; color: #17130a;
+  background: linear-gradient(180deg, #f0c766, var(--color-brass-400)); box-shadow: 0 0 20px rgba(224, 180, 76, 0.35);
+  clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%);
+}
+.tool-wheel-core.is-open { color: var(--color-brass-400); background: rgba(13, 17, 22, 0.94); box-shadow: inset 0 0 0 1px var(--color-brass-400); }
+.tool-wheel-core:focus-visible, .tool-wheel-item:focus-visible { outline: 2px solid var(--color-brass-400); outline-offset: 3px; }
+.tool-wheel-scrim { position: fixed; inset: 0; z-index: 0; background: radial-gradient(circle at 100% 100%, rgba(0, 0, 0, 0.5), transparent 55%); }
+.tool-wheel-slot { position: absolute; z-index: 1; animation: tool-wheel-in 0.16s ease both; }
+.tool-wheel-item {
+  display: grid; place-items: center; width: 100%; height: 100%; color: var(--color-brass-400); background: rgba(13, 17, 22, 0.94);
+  border: 1px solid rgba(224, 180, 76, 0.55); clip-path: polygon(28% 0, 72% 0, 100% 28%, 100% 72%, 72% 100%, 28% 100%, 0 72%, 0 28%);
+}
+.tool-wheel-item:hover { color: #17130a; background: var(--color-brass-400); }
+.tool-wheel-label {
+  position: absolute; top: 50%; right: calc(100% + 8px); transform: translateY(-50%); pointer-events: none; white-space: nowrap; font-family: var(--font-display, 'Barlow Condensed'), sans-serif; font-weight: 700;
+  font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-ink-100); text-shadow: 0 1px 3px #000, 0 0 8px #000;
+}
+.tool-wheel-label.is-up { top: auto; right: 0; bottom: calc(100% + 6px); transform: none; }
+.tool-wheel-label kbd { margin-left: 6px; font: 600 10px var(--font-mono, monospace); color: var(--color-ink-400); }
+@keyframes tool-wheel-in { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tool-wheel-slot { animation: none; } .tool-wheel { transition: none; } }

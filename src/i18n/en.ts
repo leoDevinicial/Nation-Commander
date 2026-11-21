@@ -2,6 +2,11 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → inglês (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const EN: Dict = {
+  "Ferramentas": "Tools",
+  "Fechar ferramentas": "Close tools",
+  "Ferramentas: construir, pesquisa, nação, diplomacia e comércio": "Tools: build, research, nation, diplomacy and trade",
+  "Construir (B)": "Build (B)",
+  "Nação (G)": "Nation (G)",
   "Obrigado, Fireknight886 e SeaMan, por contarem o que aconteceu nas partidas de vocês. Os relatos levaram a todas as correções desta versão.": "Thank you, Fireknight886 and SeaMan, for telling us what happened in your matches. Your reports led to every fix in this version.",
   "Conexão bem mais leve: o jogo usa até 35% menos internet numa batalha grande, e até 70% menos quando a câmera está longe da luta.": "Much lighter connection: the game uses up to 35% less data in a big battle, and up to 70% less when the camera is away from the fight.",
   "Ao cair e voltar, o jogo recebe só o que mudou enquanto você estava fora, sem baixar o mapa inteiro de novo.": "If you drop and come back, the game receives only what changed while you were away, without downloading the whole map again.",

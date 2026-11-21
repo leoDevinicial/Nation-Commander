@@ -126,7 +126,7 @@ No jogo: o globo de fundo é o `GlobeBackdrop` "hero"; "Continuar partida" ficou
 partida para retomar pelo menu). No celular em pé os atalhos descem para uma segunda linha inteira e o idioma mostra só
 a sigla; deitado (altura até 520 px) somem o texto de apoio, a descrição dos cartões e o subtítulo do perfil.
 
-## HUD compacta — proposta (21/11, ainda não está no jogo)
+## HUD compacta — proposta (21/11) e implementação (21/11, padrão no jogo)
 
 Pedido do responsável depois de comentários no Reddit ("UI ocupando 50–60% da tela", "esconda o que não está
 selecionado", "nada de 'Toque: selecionar…' na tela; ensinar é papel do tutorial"). Ideia dele: minimapa no canto de
@@ -167,3 +167,12 @@ Em aberto para a implementação: o que vai para o "mais" da barra (energia, pop
 onde ficam Exército e Chat (fora da roda: o chat é o ícone ao lado do menu), o cartão de quartel/fábrica com a fila de
 produção e as escolhas de construção (abrem do botão Construir do cartão), e a opção "Interface compacta" nas
 Configurações para comparar com a atual antes de trocar de vez.
+
+**Implementado (21/11), como padrão:** `src/ui/hud/ToolWheel.tsx` (roda no canto de baixo à direita: Construir, Pesquisa,
+Nação, Diplomacia e Comércio num arco; recolhe com seleção; Esc ou toque fora fecha; `data-tour="build-button"` no botão
+principal e, aberta, no Construir), o painel de comando só aparece com seleção ou ação em andamento (o "Nenhuma
+seleção" com a lista de atalhos saiu) e tem largura máxima de 980 px, o Construir saiu do minimapa, os controles de
+toque começam recolhidos e o Chat virou só o ícone. Medido no jogo (mesma conta que a maquete): computador sem seleção
+**8%** (era 31%), com o Centro de Comando selecionado 23% (era 31%); celular sem seleção **13%** (era 34%), com seleção 44%
+(era 49%). Ainda não feito: barra de cima compacta (os recursos menos usados no "mais") e o cartão enxuto da maquete
+(hoje o cartão é o painel de comando completo, com as obras e a fila).
