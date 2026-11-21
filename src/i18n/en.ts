@@ -2,6 +2,11 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → inglês (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const EN: Dict = {
+  "Obrigado, Fireknight886 e SeaMan, por contarem o que aconteceu nas partidas de vocês. Os relatos levaram a todas as correções desta versão.": "Thank you, Fireknight886 and SeaMan, for telling us what happened in your matches. Your reports led to every fix in this version.",
+  "Conexão bem mais leve: o jogo usa até 35% menos internet numa batalha grande, e até 70% menos quando a câmera está longe da luta.": "Much lighter connection: the game uses up to 35% less data in a big battle, and up to 70% less when the camera is away from the fight.",
+  "Ao cair e voltar, o jogo recebe só o que mudou enquanto você estava fora, sem baixar o mapa inteiro de novo.": "If you drop and come back, the game receives only what changed while you were away, without downloading the whole map again.",
+  "Mais folga para celulares e computadores mais simples: as mensagens do servidor são lidas fora da parte que desenha o jogo.": "More headroom for phones and simpler computers: server messages are read outside the part that draws the game.",
+  "Se os gráficos falharem no seu aparelho, o jogo passa sozinho para o modo leve, avisa e deixa voltar nas Configurações. A tela de derrota agora diz quando foi por ficar tempo demais desconectado.": "If graphics fail on your device, the game switches to light mode on its own, lets you know and lets you switch back in Settings. The defeat screen now says when it was for staying disconnected too long.",
   "Os gráficos falharam neste aparelho: o jogo passou para o modo leve. Dá para voltar nas Configurações.": "Graphics failed on this device: the game switched to light mode. You can switch back in Settings.",
   "Os gráficos pararam": "Graphics stopped",
   "O navegador liberou a placa de vídeo e a imagem do mapa não voltou. O jogo passou para o modo leve. Recarregue para voltar à mesma partida.": "The browser released the graphics card and the map image did not come back. The game switched to light mode. Reload to return to the same match.",

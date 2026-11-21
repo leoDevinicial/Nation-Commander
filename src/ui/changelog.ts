@@ -1,6 +1,17 @@
 /** Novidades de cada versão, mostradas na área Comunidade e Feedback do menu (mais recente primeiro). */
 export const CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
+    version: '1.5.2',
+    date: '21/11/2026',
+    items: [
+      'Obrigado, Fireknight886 e SeaMan, por contarem o que aconteceu nas partidas de vocês. Os relatos levaram a todas as correções desta versão.',
+      'Conexão bem mais leve: o jogo usa até 35% menos internet numa batalha grande, e até 70% menos quando a câmera está longe da luta.',
+      'Ao cair e voltar, o jogo recebe só o que mudou enquanto você estava fora, sem baixar o mapa inteiro de novo.',
+      'Mais folga para celulares e computadores mais simples: as mensagens do servidor são lidas fora da parte que desenha o jogo.',
+      'Se os gráficos falharem no seu aparelho, o jogo passa sozinho para o modo leve, avisa e deixa voltar nas Configurações. A tela de derrota agora diz quando foi por ficar tempo demais desconectado.',
+    ],
+  },
+  {
     version: '1.5.1',
     date: '20/11/2026',
     items: [

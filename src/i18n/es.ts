@@ -2,6 +2,11 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → espanhol (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const ES: Dict = {
+  "Obrigado, Fireknight886 e SeaMan, por contarem o que aconteceu nas partidas de vocês. Os relatos levaram a todas as correções desta versão.": "Gracias, Fireknight886 y SeaMan, por contarnos lo que pasó en sus partidas. Sus reportes llevaron a todas las correcciones de esta versión.",
+  "Conexão bem mais leve: o jogo usa até 35% menos internet numa batalha grande, e até 70% menos quando a câmera está longe da luta.": "Conexión mucho más ligera: el juego usa hasta un 35% menos de datos en una batalla grande, y hasta un 70% menos cuando la cámara está lejos de la lucha.",
+  "Ao cair e voltar, o jogo recebe só o que mudou enquanto você estava fora, sem baixar o mapa inteiro de novo.": "Si te desconectas y vuelves, el juego recibe solo lo que cambió mientras no estabas, sin descargar todo el mapa de nuevo.",
+  "Mais folga para celulares e computadores mais simples: as mensagens do servidor são lidas fora da parte que desenha o jogo.": "Más margen para móviles y computadoras más sencillas: los mensajes del servidor se leen fuera de la parte que dibuja el juego.",
+  "Se os gráficos falharem no seu aparelho, o jogo passa sozinho para o modo leve, avisa e deixa voltar nas Configurações. A tela de derrota agora diz quando foi por ficar tempo demais desconectado.": "Si los gráficos fallan en tu dispositivo, el juego pasa solo al modo ligero, te avisa y deja volver en Configuración. La pantalla de derrota ahora dice cuando fue por estar desconectado demasiado tiempo.",
   "Os gráficos falharam neste aparelho: o jogo passou para o modo leve. Dá para voltar nas Configurações.": "Los gráficos fallaron en este dispositivo: el juego pasó al modo ligero. Puedes volver en Configuración.",
   "Os gráficos pararam": "Los gráficos se detuvieron",
   "O navegador liberou a placa de vídeo e a imagem do mapa não voltou. O jogo passou para o modo leve. Recarregue para voltar à mesma partida.": "El navegador liberó la tarjeta gráfica y la imagen del mapa no volvió. El juego pasó al modo ligero. Recarga para volver a la misma partida.",
