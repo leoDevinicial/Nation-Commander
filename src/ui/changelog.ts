@@ -1,6 +1,17 @@
 /** Novidades de cada versão, mostradas na área Comunidade e Feedback do menu (mais recente primeiro). */
 export const CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
+    version: '1.5.3',
+    date: '21/11/2026',
+    items: [
+      'Obrigado, CrowdGoesWildWoooo e a comunidade do r/strategygames, pelos comentários sobre a interface poluída. Esta versão nasceu deles.',
+      'Interface compacta: o mapa fica livre. Construir, Pesquisa, Nação, Diplomacia, Comércio e Globo estão na roda de ferramentas, no canto de baixo à direita (B abre o Construir).',
+      'O painel de comando só aparece quando há algo selecionado, e no celular os controles de toque começam recolhidos.',
+      'Guia do Comandante atualizado, agora em português, inglês e espanhol: embarque em navios, paraquedistas do C-5 Galaxy, minas, rodovias, pactos, orçamento novo e reconexão. Baixe em PDF pelo botão Manual do menu.',
+      'Manual de cartões revisto, com um cartão novo: mar, ar e estradas.',
+    ],
+  },
+  {
     version: '1.5.2',
     date: '21/11/2026',
     items: [

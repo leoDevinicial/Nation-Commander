@@ -135,6 +135,11 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 
 ## 0.4 O que mudou desde 31/10 (mais recente primeiro; detalhes no `git log` e nas docs citadas)
 
+**21/11 — 1.5.3, HUD compacta e guia em 3 idiomas:** roda de ferramentas (`ToolWheel`, 6 itens com o Globo), painel de
+comando só com seleção; Guia do Comandante reescrito (23 capítulos: mar e ar, minas, rodovias, pactos, orçamento,
+reconexão) em pt/en/es (`docs/guia/README.md`), baixado pelo botão do Manual (`public/guia/`); manual de cartões com 9
+cartões e ícones Lucide. Antes, no mesmo dia (1.5.2): formato binário, Web Worker, envio por câmera e retomada.
+
 **16/11 — orçamento do país do mapa e menu novo:** o painel de Orçamento passou a governar o país do cenário (impostos
 R/C/I e sete áreas de 50–150% com custo e efeito no teatro; PIB e aprovação do mapa; cortes sem caixa). Todos os
 países começam iguais e a "Escala real" saiu; o "repasse do orçamento" acabou (o caixa vive de produção e impostos,

@@ -96,7 +96,7 @@ export function MenuScreen() {
               onClick={() => setScreen('community')}
             />
             <NavItem icon={Megaphone} label="Novidades" dot title="O que mudou no jogo e o espaço para mandar a sua opinião" onClick={() => setScreen('feedback')} />
-            <NavItem icon={BookOpen} label="Manual" title="O básico do jogo em 7 cartões curtos" onClick={() => setScreen('manual')} />
+            <NavItem icon={BookOpen} label="Manual" title="O básico do jogo em 8 cartões curtos" onClick={() => setScreen('manual')} />
             <NavItem icon={Settings} label="Configurações" onClick={() => setScreen('settings')} />
             <NavItem icon={Info} label="Créditos" onClick={() => setScreen('credits')} />
             <span className="px-1">

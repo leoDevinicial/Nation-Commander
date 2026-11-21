@@ -1,7 +1,8 @@
-import { Lightbulb, Play, TriangleAlert } from 'lucide-react';
+import { FileDown, Lightbulb, Play, TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '../../state/useAppStore.ts';
-import { MANUAL, manualRead, markManualRead } from '../manual.ts';
+import { useLangStore } from '../../i18n/index.ts';
+import { MANUAL, guideUrl, manualRead, markManualRead } from '../manual.ts';
 import { Shell } from '../components/Shell.tsx';
 
 /**
@@ -16,6 +17,8 @@ export function ManualScreen() {
   const [i, setI] = useState(0);
   const last = MANUAL.length - 1;
   const card = MANUAL[i]!;
+  const Icon = card.icon;
+  const lang = useLangStore((s) => s.lang);
   const go = (n: number) => setI(Math.max(0, Math.min(last, n)));
   const finish = () => {
     markManualRead();
@@ -55,18 +58,24 @@ export function ManualScreen() {
       >
         <div className="manual-stagger flex items-center justify-between gap-3" style={{ animationDelay: '250ms' }}>
           <div className="font-display text-[11px] font-semibold tracking-[0.28em] text-brass-400 uppercase">Manual de campo</div>
-          {i < last && (
-            <button className="btn min-h-9 px-3 py-1 text-xs" onClick={skip}>
-              {alreadyRead ? 'Fechar' : 'Pular por agora'}
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            <a className="btn min-h-9 px-3 py-1 text-xs" href={guideUrl(lang)} target="_blank" rel="noopener">
+              <FileDown size={13} className="mr-1 inline-block align-[-2px]" aria-hidden />
+              Guia completo (PDF)
+            </a>
+            {i < last && (
+              <button className="btn min-h-9 px-3 py-1 text-xs" onClick={skip}>
+                {alreadyRead ? 'Fechar' : 'Pular por agora'}
+              </button>
+            )}
+          </div>
         </div>
         <p className="manual-stagger mt-1 text-xs text-ink-400" style={{ animationDelay: '330ms' }}>O essencial para jogar bem, em {MANUAL.length} cartões curtos (≈2 min).</p>
 
         <section key={i} className={`mt-4 min-h-[16rem] ${i === 0 ? 'manual-stagger' : 'manual-card'}`} style={i === 0 ? { animationDelay: '430ms' } : undefined} aria-live="polite" aria-labelledby="manual-title">
           <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-ink-600 bg-ink-850 text-2xl" aria-hidden>
-              {card.icon}
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-ink-600 bg-ink-850 text-brass-400" aria-hidden>
+              <Icon size={22} />
             </span>
             <div>
               <div className="text-[11px] text-ink-400">

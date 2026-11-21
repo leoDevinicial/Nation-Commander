@@ -46,5 +46,6 @@ A lista inclui palavras iguais nos três idiomas (Hospital, Argentina, nomes de 
 
 ## O que não mudou
 
-O manual em PDF (`docs/GUIA_DO_JOGADOR.pdf`) e a documentação seguem em português. Números usam vírgula decimal nos
-três idiomas.
+A documentação segue em português. Números usam vírgula decimal nos três idiomas na tela. O Guia do Comandante em PDF
+existe em português, inglês e espanhol desde 21/11/2026 (`docs/guia/README.md`; o PDF em inglês usa ponto decimal); o
+botão do Manual abre o do idioma da tela.
