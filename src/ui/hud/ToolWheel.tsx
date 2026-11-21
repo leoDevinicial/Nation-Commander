@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FlaskConical, Hammer, Handshake, Landmark, LayoutGrid, type LucideIcon, Ship, X } from 'lucide-react';
+import { FlaskConical, Globe, Hammer, Handshake, Landmark, LayoutGrid, type LucideIcon, Ship, X } from 'lucide-react';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
 import { useNationalStore } from '../../state/useNationalStore.ts';
@@ -7,8 +7,8 @@ import { useNationalStore } from '../../state/useNationalStore.ts';
 /**
  * Roda de ferramentas (HUD compacta, 21/11; maquete em `docs/ui_maquete`, imagens 12 a 19). Um botão no canto de
  * baixo à direita que abre, num arco, as ferramentas que antes ficavam espalhadas (Construir, Pesquisa, Nação,
- * Diplomacia e Comércio). Com algo selecionado, o cartão da seleção ocupa a parte de baixo e a roda recolhe (fica
- * menor e fechada). Os atalhos de teclado continuam (B constrói, G abre o painel nacional).
+ * Diplomacia, Comércio e Globo). Com algo selecionado, o cartão da seleção ocupa a parte de baixo e a roda recolhe (fica
+ * menor e fechada). Os atalhos de teclado continuam (B constrói, G abre o painel nacional, Tab o globo).
  */
 interface Tool {
   id: string;
@@ -25,6 +25,8 @@ const TOOLS: Tool[] = [
   { id: 'nation', label: 'Nação', icon: Landmark, key: 'G', run: () => useNationalStore.getState().openPanelAt('overview') },
   { id: 'diplomacy', label: 'Diplomacia', icon: Handshake, run: () => useNationalStore.getState().openPanelAt('diplomacy') },
   { id: 'trade', label: 'Comércio', icon: Ship, run: () => useNationalStore.getState().openPanelAt('trade') },
+  // 22/11: o globo também na roda (no celular ele ficava atrás do botão da barra de cima, a dois toques)
+  { id: 'globe', label: 'Globo', icon: Globe, key: 'Tab', run: () => useNationalStore.getState().openGlobe() },
 ];
 
 /** Posição de cada botão no arco de 90° (da esquerda para cima), a partir do centro do botão principal. */
@@ -53,7 +55,7 @@ export function ToolWheel({ runtime }: { runtime: GameRuntime }) {
   const core = touch ? 54 : 64;
   const btn = touch ? 44 : 52;
   // raio que separa os rótulos (os de cima não se cruzam) e ainda cabe na altura de um celular deitado
-  const radius = touch ? 160 : 184;
+  const radius = touch ? 174 : 204;
   const run = (t: Tool) => {
     setOpen(false);
     t.run(runtime);
@@ -89,7 +91,7 @@ export function ToolWheel({ runtime }: { runtime: GameRuntime }) {
         className={`tool-wheel-core ${open ? 'is-open' : ''}`}
         onClick={() => setOpen(!open)}
         aria-expanded={open}
-        aria-label={open ? 'Fechar ferramentas' : 'Ferramentas: construir, pesquisa, nação, diplomacia e comércio'}
+        aria-label={open ? 'Fechar ferramentas' : 'Ferramentas: construir, pesquisa, nação, diplomacia, comércio e globo'}
         title={open ? 'Fechar' : 'Ferramentas'}
         data-tour={open ? undefined : 'build-button'}
       >

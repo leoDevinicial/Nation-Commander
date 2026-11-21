@@ -4,7 +4,8 @@ import type { Dict } from './translate.ts';
 export const EN: Dict = {
   "Ferramentas": "Tools",
   "Fechar ferramentas": "Close tools",
-  "Ferramentas: construir, pesquisa, nação, diplomacia e comércio": "Tools: build, research, nation, diplomacy and trade",
+  "Ferramentas: construir, pesquisa, nação, diplomacia, comércio e globo": "Tools: build, research, nation, diplomacy, trade and globe",
+  "Globo (Tab)": "Globe (Tab)",
   "Construir (B)": "Build (B)",
   "Nação (G)": "Nation (G)",
   "Obrigado, Fireknight886 e SeaMan, por contarem o que aconteceu nas partidas de vocês. Os relatos levaram a todas as correções desta versão.": "Thank you, Fireknight886 and SeaMan, for telling us what happened in your matches. Your reports led to every fix in this version.",

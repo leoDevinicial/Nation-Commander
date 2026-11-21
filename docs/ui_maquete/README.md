@@ -169,7 +169,7 @@ produção e as escolhas de construção (abrem do botão Construir do cartão),
 Configurações para comparar com a atual antes de trocar de vez.
 
 **Implementado (21/11), como padrão:** `src/ui/hud/ToolWheel.tsx` (roda no canto de baixo à direita: Construir, Pesquisa,
-Nação, Diplomacia e Comércio num arco; recolhe com seleção; Esc ou toque fora fecha; `data-tour="build-button"` no botão
+Nação, Diplomacia, Comércio e Globo (Tab; 22/11, no celular ele ficava a dois toques) num arco; recolhe com seleção; Esc ou toque fora fecha; `data-tour="build-button"` no botão
 principal e, aberta, no Construir), o painel de comando só aparece com seleção ou ação em andamento (o "Nenhuma
 seleção" com a lista de atalhos saiu) e tem largura máxima de 980 px, o Construir saiu do minimapa, os controles de
 toque começam recolhidos e o Chat virou só o ícone. Medido no jogo (mesma conta que a maquete): computador sem seleção
