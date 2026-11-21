@@ -21,7 +21,8 @@ import { BUILDINGS, TICK_RATE, Terrain, UNITS, type BuildingType } from '../shar
 import { MAP_TYPE_INFO, MAP_TYPES, MAX_NATIONS_FREE, MAX_NATIONS_SUBSCRIBER, generateMatchMap, type MapType } from '../shared/sim/matchMap.ts';
 import { Simulation } from '../shared/sim/Simulation.ts';
 import { FogMemory, makeSnapshot, type Snapshot } from '../shared/sim/snapshot.ts';
-import { SnapshotDeltaEncoder } from '../shared/net/delta.ts';
+import { SnapshotDeltaEncoder, type DeferFn } from '../shared/net/delta.ts';
+import { encodeSnapshotFrame } from '../shared/net/wire.ts';
 import { REPORT_EVERY_TICKS, medalsFor, pushSample, reportSample, type MatchReport, type ReportSample } from '../shared/sim/report.ts';
 import { AI_THINK_TICKS, AI_HARASS_SECONDS, TacticalAI, type TacticalAISave } from '../shared/sim/TacticalAI.ts';
 import { DIFFICULTY, type Difficulty } from '../shared/sim/difficulty.ts';
@@ -51,6 +52,11 @@ import { TutorialDirector } from './tutorial/Director.ts';
 import type { TutorialFact } from '../shared/tutorial/script.ts';
 
 export const SNAPSHOT_EVERY = 2; // 10 snapshots/s
+type SnapshotMsg = Extract<ServerMessage, { t: 'snapshot' }>;
+/** Tropa fora da área da câmera: 1 atualização a cada tantos envios (21/11; com 10/s, 2,5 por segundo). */
+export const VIEW_DEFER_EVERY = 4;
+/** Folga em volta da área da câmera (células): quem entra na tela ao arrastar já chega em dia. */
+export const VIEW_MARGIN_CELLS = 8;
 const MAX_COMMANDS_PER_TICK = 20;
 /** Semente fixa do mapa do tutorial (Continental, 3 nações). */
 const TUTORIAL_SEED = 2026;
@@ -183,6 +189,8 @@ export class Room {
   private readonly disconnectPauses = new Map<Slot, number>();
   /** Quedas de cada jogador na partida: vão para o log do servidor e para o histórico (`report.connection`). */
   private readonly drops = new Map<Slot, DropStats>();
+  /** Rodízio do envio por área da câmera, por jogador (`viewDefer`). */
+  private readonly viewRound = new Map<Slot, number>();
   /** KAC-02: pausas já usadas por jogador, quem pausou e quando (partidas entre humanos). */
   private readonly pausesUsed = new Map<Slot, number>();
   private pausedSlot: Slot | null = null;
@@ -1321,8 +1329,15 @@ export class Room {
       this.system(`${p.name} reconectou.`);
       this.broadcastRoom();
       this.territorySent.delete(p.slot); // reconexão: reenvia as fronteiras
-      this.deltas.get(p.slot)?.reset(); // conexão nova: o primeiro snapshot vai completo
-      conn.sendRaw(this.snapshotJson([], p.slot));
+      // conexão nova: o primeiro snapshot vai completo, a não ser que o navegador ainda tenha um ponto de retomada desta
+      // partida que o servidor guarda (21/11): aí vai só a diferença a partir dele
+      const enc = this.deltas.get(p.slot);
+      const resume = conn.resume;
+      conn.resume = null;
+      const resumed = !!enc && !!resume && resume.key === String(this.seed) && enc.resumeFrom(resume.tick);
+      if (!resumed) enc?.reset();
+      if (resume) log.info('Retomada da conexão', { room: this.code, slot: p.slot, tick: resume.tick, resumed });
+      this.deliver(conn, this.snapshotMsg([], p.slot));
       if (this.national) conn.send(this.nationalMessage(p.slot, [], true));
       if (this.tutorial && p.slot === this.tutorial.human) this.tutorial.publish(true);
       // operação em combate: o cliente reabre a batalha local
@@ -1533,14 +1548,14 @@ export class Room {
   /**
    * Snapshot com névoa de guerra para um jogador. Ao fim da partida o mapa é revelado (sem filtro).
    */
-  private snapshotJson(events: SimEvent[], slot: Slot, send = true): string {
+  private snapshotMsg(events: SimEvent[], slot: Slot, send = true, regular = false): SnapshotMsg | null {
     const sim = this.sim!;
     let memory = this.fogMemory.get(slot);
     if (!memory) this.fogMemory.set(slot, (memory = new FogMemory()));
     // snapshot que não vai sair (jogador desconectado ou fila cheia): só atualiza a memória da névoa
     if (!send) {
       if (!sim.ended) makeSnapshot(sim, events, { slot, memory }, false);
-      return '';
+      return null;
     }
     const withTerritory = this.territorySent.get(slot) !== sim.territoryVersion;
     this.territorySent.set(slot, sim.territoryVersion);
@@ -1549,14 +1564,47 @@ export class Room {
     if (!enc) this.deltas.set(slot, (enc = new SnapshotDeltaEncoder()));
     // fim da partida: mapa revelado, vai completo; no resto, só a diferença sobre o último enviado
     if (sim.ended) enc.reset();
-    return JSON.stringify({
+    const defer = sim.ended ? undefined : this.viewDefer(slot, regular);
+    return {
       t: 'snapshot',
       // o cliente (GameClient) remonta o snapshot completo antes de entregar ao jogo
-      s: (sim.ended ? full : enc.encode(full)) as Snapshot,
+      s: (sim.ended ? full : enc.encode(full, defer)) as Snapshot,
       paused: this.paused,
       speed: this.speed,
       pausedBy: this.pausedBy,
-    } satisfies ServerMessage);
+    } satisfies ServerMessage;
+  }
+
+  /** Manda um snapshot: binário para quem pediu (`hello.bin`) quando compensa, texto no resto. Devolve os bytes. */
+  private deliver(conn: Connection, msg: SnapshotMsg | null): number {
+    if (!msg) return 0;
+    if (conn.binary) {
+      const frame = encodeSnapshotFrame(msg);
+      if (frame) return conn.sendBinary(frame);
+    }
+    const json = JSON.stringify(msg);
+    conn.sendRaw(json);
+    return json.length;
+  }
+
+  /**
+   * Envio por área da câmera (21/11): a tropa longe da área que o jogador está olhando (e que já estava longe no
+   * último envio) é atualizada 1 vez a cada `VIEW_DEFER_EVERY` envios, em rodízio pelo id para espalhar o trabalho.
+   * Só muda a frequência: o que entra no snapshot (névoa de guerra) continua decidido aqui, igual para todos.
+   */
+  private viewDefer(slot: Slot, regular: boolean): DeferFn | undefined {
+    const view = this.players.find((p) => p.slot === slot)?.conn?.view;
+    if (!view || !this.sim) return undefined;
+    let round = this.viewRound.get(slot) ?? 0;
+    if (regular) this.viewRound.set(slot, ++round);
+    const m = VIEW_MARGIN_CELLS * this.sim.map.cellSize;
+    const [x0, y0, x1, y1] = [view[0] - m, view[1] - m, view[2] + m, view[3] + m];
+    const inside = (r: Record<string, unknown>) => {
+      const x = r.x as number;
+      const y = r.y as number;
+      return x >= x0 && x <= x1 && y >= y0 && y <= y1;
+    };
+    return (u, prev) => !inside(u) && !inside(prev) && (((u.id as number) >>> 0) + round) % VIEW_DEFER_EVERY !== 0;
   }
 
   private broadcastSnapshot(): void {
@@ -1570,7 +1618,7 @@ export class Room {
       // KNPS-02: conexão com a fila de saída cheia: este snapshot não entra na fila (o próximo traz o estado inteiro);
       // os eventos dele ficam guardados para o próximo e o território é mandado de novo
       const congested = !!p.conn && !this.sim.ended && p.conn.congested();
-      const json = this.snapshotJson(mine, p.slot, !!p.conn && !congested);
+      const msg = this.snapshotMsg(mine, p.slot, !!p.conn && !congested, true);
       if (congested) {
         this.carryEvents.set(p.slot, mine.length > 4000 ? mine.slice(-4000) : mine);
         this.territorySent.delete(p.slot);
@@ -1578,8 +1626,7 @@ export class Room {
         continue;
       }
       this.carryEvents.delete(p.slot);
-      if (p.conn) this.knps.sent(json.length);
-      p.conn?.sendRaw(json);
+      if (p.conn) this.knps.sent(this.deliver(p.conn, msg));
     }
   }
 
@@ -1590,9 +1637,7 @@ export class Room {
   private sendQuickSnapshot(slot: Slot): void {
     const p = this.players.find((x) => x.slot === slot && !x.isAI);
     if (!p?.conn || !this.sim || p.conn.congested()) return;
-    const json = this.snapshotJson([], slot);
-    this.knps.sent(json.length, true);
-    p.conn.sendRaw(json);
+    this.knps.sent(this.deliver(p.conn, this.snapshotMsg([], slot)), true);
   }
 
   broadcast(msg: ServerMessage): void {

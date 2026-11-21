@@ -1598,6 +1598,7 @@ export class GameRuntime {
       if (this.intro.t >= 1) this.intro = null;
     }
     this.updateFollow(dt);
+    this.reportView(now);
     this.cameraCtl.tick(dt);
     this.cameraCtl.apply();
     if (this.opts.profile.cinematic) {
@@ -4403,6 +4404,41 @@ export class GameRuntime {
     const r = this.renderer.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
     return this.ndcToGround(ndc.x, ndc.y);
+  }
+
+  private viewSentAt = 0;
+  private viewSent: [number, number, number, number] | null | undefined = undefined;
+  private viewSentFullAt = 0;
+
+  /**
+   * Envio por área da câmera (21/11): conta ao servidor o retângulo do chão que aparece na tela, no máximo 4 vezes por
+   * segundo e só quando muda. Fora dele (com folga), as tropas são atualizadas com menos frequência. Com o horizonte à
+   * vista (câmera muito inclinada) manda null: tudo em dia. Só no teatro principal (a batalha local tem o próprio envio).
+   */
+  private reportView(now: number): void {
+    if (this.battleOp !== null || now - this.viewSentAt < 250) return;
+    this.viewSentAt = now;
+    const pts = [
+      [-1, -1],
+      [1, -1],
+      [1, 1],
+      [-1, 1],
+    ].map(([x, y]) => this.ndcToGround(x!, y!));
+    let rect: [number, number, number, number] | null = null;
+    if (pts.every((p) => p !== null)) {
+      const xs = pts.map((p) => p!.x);
+      const ys = pts.map((p) => p!.y);
+      rect = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)].map((v) => Math.round(v * 10) / 10) as [number, number, number, number];
+    }
+    const prev = this.viewSent;
+    const cs = this.map.cellSize;
+    const same = prev === rect || (prev && rect && prev.every((v, i) => Math.abs(v - rect![i]!) < cs * 0.5));
+    // repete a cada 5 s mesmo parada: uma conexão nova (reconexão) começa sem a área
+    if (same && now - this.viewSentFullAt < 5000) return;
+    if (this.client.send({ t: 'view', rect })) {
+      this.viewSent = rect;
+      this.viewSentFullAt = now;
+    }
   }
 
   private ndcToGround(x: number, y: number): THREE.Vector2 | null {

@@ -29,7 +29,29 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       const token = typeof data.token === 'string' && data.token.length < 4096 ? data.token : null;
       const guestId = typeof data.guestId === 'string' && GUEST_ID.test(data.guestId) ? data.guestId : undefined;
       const guestName = typeof data.guestName === 'string' ? sanitizeName(data.guestName) : undefined;
-      return { t: 'hello', protocol: data.protocol, token, guestId, guestName, ...(data.inflate === true ? { inflate: true as const } : {}) };
+      const r = data.resume as { tick?: unknown; key?: unknown } | undefined;
+      const resume =
+        r && typeof r === 'object' && Number.isInteger(r.tick) && (r.tick as number) >= 0 && typeof r.key === 'string' && r.key.length <= 40
+          ? { tick: r.tick as number, key: r.key }
+          : undefined;
+      return {
+        t: 'hello',
+        protocol: data.protocol,
+        token,
+        guestId,
+        guestName,
+        ...(data.inflate === true ? { inflate: true as const } : {}),
+        ...(data.bin === true ? { bin: true as const } : {}),
+        ...(resume ? { resume } : {}),
+      };
+    }
+    case 'view': {
+      if (data.rect === null) return { t: 'view', rect: null };
+      const r = data.rect;
+      if (!Array.isArray(r) || r.length !== 4 || !r.every((v) => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) < 1e5)) return null;
+      const [x0, y0, x1, y1] = r as number[];
+      if (x1! <= x0! || y1! <= y0!) return null;
+      return { t: 'view', rect: [x0!, y0!, x1!, y1!] };
     }
     case 'create_room':
       if ((data.mode !== 'pvp' && data.mode !== 'vs_ai' && data.mode !== 'sandbox' && data.mode !== 'tutorial') || !isCountryId(data.countryId)) return null;

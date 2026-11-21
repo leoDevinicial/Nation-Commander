@@ -73,7 +73,9 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
   código da sala. Nada do KNPS muda regra ou velocidade para um jogador. Medir com `npx tsx scripts/knps-baseline.ts`.
   Snapshots delta (`shared/net/delta.ts`, 15/11): o servidor manda só o que mudou e o `GameClient` remonta o snapshot
   inteiro (campo novo no snapshot: nada a fazer, a não ser que seja "só quando muda" como território, aí vai em
-  `TRANSIENT`); sem compressão no WebSocket, o servidor comprime (`inflate` no hello). Interpolação em
+  `TRANSIENT`); sem compressão no WebSocket, o servidor comprime (`inflate` no hello). 21/11 (`docs/knps/KNPS_BINARIO_CAMERA_RETOMADA.md`):
+  tropas em binário (`shared/net/wire.ts`, `hello.bin`), leitura num Web Worker, envio por área da câmera (`view`; só muda a
+  frequência, nunca a névoa) e reconexão com a diferença desde o último ponto de retomada (`hello.resume`). Interpolação em
   `src/game/net/interp.ts`. Banda de partida pesada: `npx tsx scripts/knps-banda.ts`; ver `docs/knps/KNPS_DELTA_E_FLUIDEZ.md`.
 - Construtores (`BUILDERS`, `docs/CONSTRUTORES.md`): toda obra usa até 4 cidadãos (25% da velocidade cada; sem nenhum,
   para). Testes de regra antigos rodam sem eles (`shared/test/setup.ts`), como a rede elétrica.

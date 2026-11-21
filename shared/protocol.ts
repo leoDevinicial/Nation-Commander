@@ -210,7 +210,20 @@ export type ClientMessage =
    * `inflate` (15/11): o navegador não negociou a compressão do WebSocket (proxy no caminho) e sabe descomprimir; o
    * servidor manda snapshots e relatórios grandes comprimidos por ele mesmo, em mensagem binária (deflate-raw).
    */
-  | { t: 'hello'; protocol: number; token: string | null; guestId?: string; guestName?: string; inflate?: true }
+  | {
+      t: 'hello';
+      protocol: number;
+      token: string | null;
+      guestId?: string;
+      guestName?: string;
+      inflate?: true;
+      /** O navegador lê snapshots no formato binário (`shared/net/wire.ts`, 21/11). */
+      bin?: true;
+      /** Reconexão: último ponto de retomada montado (`tick`) da partida `key` (seed); o servidor manda só a diferença. */
+      resume?: { tick: number; key: string };
+    }
+  /** Área da câmera em coordenadas do mundo [x0, y0, x1, y1] (null: tudo); só muda a frequência do envio (21/11). */
+  | { t: 'view'; rect: [number, number, number, number] | null }
   | { t: 'create_room'; mode: RoomMode; countryId: string; isPublic?: boolean }
   | { t: 'list_rooms' }
   | { t: 'community_join' }

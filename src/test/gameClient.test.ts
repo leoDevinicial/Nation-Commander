@@ -176,3 +176,73 @@ describe('GameClient: token na reconexão (20/11)', () => {
     expect(FakeWs.all.length).toBe(2);
   });
 });
+
+describe('GameClient: formato binário e retomada (21/11)', () => {
+  beforeEach(() => {
+    FakeWs.all = [];
+    vi.stubGlobal('WebSocket', FakeWs);
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('pede binário no hello, lê o quadro binário e, na volta, pede a diferença desde o ponto de retomada', async () => {
+    const { SnapshotDeltaEncoder } = await import('../../shared/net/delta.ts');
+    const { encodeSnapshotFrame } = await import('../../shared/net/wire.ts');
+    const c = new GameClient('ws://x');
+    c.resumeKey = () => '777';
+    const got: { t: string; s?: { tick: number; units: { id: number; x: number }[] } }[] = [];
+    c.on((m) => got.push(m as never));
+    c.connect({ getToken: async () => 'tok' });
+    const ws = FakeWs.all[0]!;
+    // compressão pelo WebSocket: o binário chega como está (sem a compressão pelo servidor)
+    (ws as unknown as { extensions: string }).extensions = 'permessage-deflate';
+    await ws.accept();
+    expect(ws.sent[0]).toMatchObject({ t: 'hello', bin: true });
+    expect(ws.sent[0]).not.toHaveProperty('resume');
+    const enc = new SnapshotDeltaEncoder();
+    const units = (tick: number) => Array.from({ length: 12 }, (_, i) => ({ id: i + 1, x: tick + i / 100, y: 1, facing: 0, hp: 10, type: 'tank' }));
+    const msg = (tick: number) => ({ t: 'snapshot', paused: false, speed: 1, pausedBy: null, s: enc.encode({ tick, units: units(tick), buildings: [], players: [], events: [], territoryVersion: 1 } as never) });
+    ws.recv(msg(20));
+    const frame = encodeSnapshotFrame(msg(22) as never)!;
+    expect(frame).not.toBeNull();
+    (ws.onmessage as unknown as (ev: { data: ArrayBuffer }) => void)({ data: frame.slice().buffer });
+    await vi.waitFor(() => expect(got.filter((m) => m.t === 'snapshot')).toHaveLength(2));
+    const last = got.filter((m) => m.t === 'snapshot').at(-1)!;
+    expect(last.s!.tick).toBe(22);
+    expect(last.s!.units[3]!.x).toBe(22.03);
+    // queda: na volta, o hello leva o último ponto de retomada (tick 20) e a partida dele
+    ws.onclose?.({ code: 1006, reason: '' });
+    await vi.advanceTimersByTimeAsync(300);
+    await FakeWs.all[1]!.accept();
+    expect(FakeWs.all[1]!.sent[0]).toMatchObject({ t: 'hello', bin: true, resume: { tick: 20, key: '777' } });
+  });
+
+  it('com a compressão pelo servidor, o quadro binário chega comprimido e é lido igual', async () => {
+    vi.useRealTimers();
+    const { SnapshotDeltaEncoder } = await import('../../shared/net/delta.ts');
+    const { encodeSnapshotFrame } = await import('../../shared/net/wire.ts');
+    const c = new GameClient('ws://x');
+    const got: { t: string; s?: { tick: number; units: { x: number }[] } }[] = [];
+    c.on((m) => got.push(m as never));
+    c.connect({ getToken: async () => 'tok' });
+    const ws = FakeWs.all[0]!;
+    await ws.accept();
+    expect(ws.sent[0]).toMatchObject({ t: 'hello', inflate: true, bin: true });
+    const enc = new SnapshotDeltaEncoder();
+    const units = (tick: number) => Array.from({ length: 10 }, (_, i) => ({ id: i + 1, x: tick + i, y: 2, type: 'tank' }));
+    const msg = (tick: number) => ({ t: 'snapshot', paused: false, speed: 1, pausedBy: null, s: enc.encode({ tick, units: units(tick), buildings: [], events: [], territoryVersion: 1 } as never) });
+    ws.recv(msg(1));
+    const frame = encodeSnapshotFrame(msg(2) as never)!;
+    const deflated = await new Response(new Blob([frame.slice()]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer();
+    (ws.onmessage as unknown as (ev: { data: ArrayBuffer }) => void)({ data: deflated });
+    ws.recv({ t: 'chat', from: 'a', text: 'depois' });
+    await vi.waitFor(() => expect(got.filter((m) => m.t !== 'welcome')).toHaveLength(3));
+    const seq = got.filter((m) => m.t !== 'welcome');
+    expect(seq.map((m) => m.t)).toEqual(['snapshot', 'snapshot', 'chat']);
+    expect(seq[1]!.s!.units[5]!.x).toBe(7);
+  });
+});
+

@@ -104,9 +104,13 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
     // KAC-05: o cliente conhece só o próprio id público (o mesmo que aparece para os outros na sala)
     conn.send({ t: 'welcome', user: { ...conn.user, id: publicId(conn.user.id) }, serverVersion: GAME_VERSION });
     // em memória ou, depois de um reinício do servidor, retomada do salvamento
+    conn.binary = msg.bin === true;
+    conn.resume = msg.resume ?? null;
     const room = await deps.rooms.findOrRestore(conn.user.id);
     if (room && conn.user && deps.sessions.get(conn.user.id) === conn) room.reattach(conn);
     else conn.send({ t: 'room', room: null });
+    // o ponto de retomada vale só para esta volta (depois o navegador já montou outros snapshots)
+    conn.resume = null;
     return;
   }
 
@@ -118,6 +122,10 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
   const room = conn.roomCode ? deps.rooms.get(conn.roomCode) : undefined;
 
   switch (msg.t) {
+    case 'view':
+      // só muda a frequência com que as tropas longe da câmera são atualizadas; nunca o que o jogador vê (KAC)
+      conn.view = msg.rect;
+      return;
     case 'create_room': {
       // KAC-03: teto de salas novas por IP (sem isso, um script esgotava as salas do servidor)
       if (!(deps.network ?? networkGuard).createRoom(conn.ip)) {

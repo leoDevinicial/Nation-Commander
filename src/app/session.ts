@@ -13,6 +13,11 @@ export function wireGameClient(): void {
     useAppStore.setState({ connStatus: status, connDetail: detail ?? null });
   });
 
+  // reconexão (21/11): o ponto de retomada só vale para a mesma partida (o seed dela)
+  gameClient.resumeKey = () => {
+    const m = useAppStore.getState().match;
+    return m ? String(m.seed) : null;
+  };
   gameClient.on((msg) => {
     const app = useAppStore.getState();
     applyOpsMessage(msg);

@@ -100,4 +100,60 @@ describe('Snapshots delta', () => {
     enc.reset();
     expect(isDelta(enc.encode(s(3)))).toBe(false);
   });
+
+  it('adiamento (câmera, 21/11): quem espera fica como o cliente já tinha; na vez dela chega tudo e o estado bate', () => {
+    const r = rng(7);
+    const enc = new SnapshotDeltaEncoder(1000);
+    const dec = new SnapshotDeltaDecoder();
+    let state = { units: [] as U[], buildings: [] as U[], extra: { players: [] } as Record<string, unknown> };
+    let deferred = 0;
+    for (let t = 1; t <= 400; t++) {
+      state = evolve(r, state, t);
+      const s = JSON.parse(JSON.stringify(snap(state, t, r))) as Snapshot;
+      // unidades de id par esperam, menos a cada 4 envios
+      const wire = JSON.parse(JSON.stringify(enc.encode(s, (u) => (u.id as number) % 2 === 0 && t % 4 !== 0))) as Snapshot;
+      deferred += enc.deferred;
+      const got = dec.apply(wire)!;
+      if (t % 4 === 0) expect(got).toEqual(s);
+      else {
+        // as que não esperam estão em dia; a lista tem as mesmas unidades, na mesma ordem
+        expect(got.units.map((u) => u.id)).toEqual(s.units.map((u) => u.id));
+        for (const u of s.units) if (u.id % 2 === 1) expect(got.units.find((g) => g.id === u.id)).toEqual(u);
+      }
+    }
+    expect(deferred).toBeGreaterThan(100);
+  });
+
+  it('reconexão (21/11): o cliente volta ao último ponto de retomada e recebe só a diferença a partir dele', () => {
+    const r = rng(11);
+    const enc = new SnapshotDeltaEncoder(1000);
+    const dec = new SnapshotDeltaDecoder();
+    let state = { units: [] as U[], buildings: [] as U[], extra: { players: [] } as Record<string, unknown> };
+    const step = (t: number) => {
+      state = evolve(r, state, t);
+      return JSON.parse(JSON.stringify(snap(state, t, r))) as Snapshot;
+    };
+    let t = 1;
+    for (; t <= 130; t++) dec.apply(JSON.parse(JSON.stringify(enc.encode(step(t)))));
+    // a conexão morre: o servidor segue mandando para o nada por um tempo
+    for (; t <= 175; t++) enc.encode(step(t));
+    const at = dec.rewind();
+    expect(at).toBe(120);
+    expect(enc.resumeFrom(at!)).toBe(true);
+    const s = step(t);
+    const wire = JSON.parse(JSON.stringify(enc.encode(s))) as Snapshot;
+    expect(isDelta(wire)).toBe(true);
+    expect(dec.apply(wire)).toEqual(s);
+    // e segue normal depois
+    for (t++; t <= 220; t++) {
+      const n = step(t);
+      expect(dec.apply(JSON.parse(JSON.stringify(enc.encode(n))))).toEqual(n);
+    }
+    // ponto que o servidor não guarda mais (ou servidor reiniciado): vai completo
+    const fresh = new SnapshotDeltaEncoder();
+    expect(fresh.resumeFrom(200)).toBe(false);
+    expect(isDelta(fresh.encode(step(t)))).toBe(false);
+    // cliente sem ponto de retomada
+    expect(new SnapshotDeltaDecoder().rewind()).toBeNull();
+  });
 });

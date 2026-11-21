@@ -228,7 +228,9 @@ wss.on('connection', (ws, req) => {
   ws.on('close', (code, reason) => {
     conn.closeCode = code;
     // 1000/1001: o navegador fechou a página ou saiu dela; 1006: a conexão sumiu sem aviso (rede ou proxy)
-    conn.closeCause ??= code === 1001 || code === 1000 ? 'cliente saiu' : code === 1006 ? 'conexão perdida' : reason.toString() || null;
+    // 1005: o navegador fechou sem código (o GameClient faz isso quando percebe a conexão morta e abre outra)
+    conn.closeCause ??=
+      code === 1001 || code === 1000 ? 'cliente saiu' : code === 1006 ? 'conexão perdida' : code === 1005 ? 'cliente refez a conexão' : reason.toString() || null;
     if (conn.user) log.info('Conexão encerrada', { code, cause: conn.closeCause, room: conn.roomCode, ageS: conn.ageSeconds(), rttMs: conn.rtt.median, missedPings: conn.rtt.missed });
     if (conn.rtt.count >= 3) regionTelemetry.record(conn.rtt.median!);
     networkGuard.disconnect(conn.ip);

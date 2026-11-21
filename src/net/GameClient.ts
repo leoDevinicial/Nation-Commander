@@ -1,6 +1,7 @@
 import type { ClientMessage, ServerMessage } from '../../shared/protocol.ts';
 import { PROTOCOL_VERSION } from '../../shared/version.ts';
 import { NetStats } from './netStats.ts';
+import { createWireDecoder, decodeData, type WireDecoder } from './wireDecode.ts';
 import { SnapshotDeltaDecoder, type SnapshotDelta } from '../../shared/net/delta.ts';
 import type { Snapshot } from '../../shared/sim/snapshot.ts';
 
@@ -43,9 +44,18 @@ const OPEN_TIMEOUT_MS = 9000;
 export class GameClient {
   private ws: WebSocket | null = null;
   private listeners = new Set<Listener>();
-  /** Mensagens binárias (comprimidas pelo servidor) descomprimem em fila, na ordem de chegada. */
+  /** Mensagens binárias (comprimidas ou em formato binário) são lidas em fila, na ordem de chegada. */
   private inbox: Promise<void> = Promise.resolve();
   private pendingBinary = 0;
+  /** Leitura das mensagens binárias: num Web Worker quando dá (21/11, `wireDecode.ts`). */
+  private readonly wire: WireDecoder = createWireDecoder();
+  /** Esta conexão pediu ao servidor que comprima (`inflate` no hello). */
+  private appInflate = false;
+  /**
+   * Partida a que pertence o último ponto de retomada (o seed). A sessão preenche; sem ela, a reconexão recebe o
+   * snapshot inteiro, como antes.
+   */
+  resumeKey: (() => string | null) | null = null;
   /** Snapshots delta (15/11): remonta o snapshot completo antes de entregar (`shared/net/delta.ts`). */
   private readonly delta = new SnapshotDeltaDecoder();
   private statusListeners = new Set<StatusListener>();
@@ -202,14 +212,13 @@ export class GameClient {
     return () => this.statusListeners.delete(fn);
   }
 
-  /** Uma mensagem do servidor, já em texto (`bytes`: tamanho que chegou pela rede, para o painel de conexão). */
-  private receive(ws: WebSocket, raw: string, bytes: number): void {
-    let msg: ServerMessage;
-    try {
-      msg = JSON.parse(raw) as ServerMessage;
-    } catch {
-      return;
-    }
+  /** Onde as mensagens binárias são lidas (painel de conexão). */
+  get decodeWhere(): 'worker' | 'página' {
+    return this.wire.where;
+  }
+
+  /** Uma mensagem do servidor, já lida (`bytes`: tamanho que chegou pela rede, para o painel de conexão). */
+  private receive(ws: WebSocket, msg: ServerMessage, bytes: number): void {
     if (this.ws !== ws) return;
     this.unanswered = 0;
     this.stats.message(bytes, msg.t === 'snapshot');
@@ -257,10 +266,14 @@ export class GameClient {
     }, OPEN_TIMEOUT_MS);
 
     ws.onopen = async () => {
-      // conexão nova: o servidor manda o primeiro snapshot completo
-      this.delta.reset();
+      // conexão nova: o servidor manda o snapshot completo, ou só a diferença desde o último ponto de retomada que
+      // temos desta partida (21/11)
+      const cpTick = this.delta.rewind();
+      const key = this.resumeKey?.() ?? null;
+      const resume = cpTick !== null && key ? { tick: cpTick, key } : undefined;
       // sem a compressão do WebSocket (algum proxy no caminho tirou), pede ao servidor que comprima ele mesmo
       const inflate = !/permessage-deflate/.test(ws.extensions) && typeof DecompressionStream !== 'undefined';
+      this.appInflate = inflate;
       this.stats.compression = /permessage-deflate/.test(ws.extensions) ? 'transporte' : inflate ? 'servidor' : 'nenhuma';
       let token: string | null;
       try {
@@ -271,24 +284,44 @@ export class GameClient {
         return;
       }
       if (this.ws !== ws) return;
-      this.send({ t: 'hello', protocol: PROTOCOL_VERSION, token, guestId: this.creds!.guestId, guestName: this.creds!.guestName, ...(inflate ? { inflate: true as const } : {}) });
+      this.send({
+        t: 'hello',
+        protocol: PROTOCOL_VERSION,
+        token,
+        guestId: this.creds!.guestId,
+        guestName: this.creds!.guestName,
+        ...(inflate ? { inflate: true as const } : {}),
+        bin: true,
+        ...(resume ? { resume } : {}),
+      });
     };
 
     ws.onmessage = (ev) => {
       const data = ev.data as string | ArrayBuffer;
       // texto sem binário na frente: na hora; binário (ou texto atrás de um binário): em fila, na ordem de chegada
       if (typeof data === 'string' && this.pendingBinary === 0) {
-        this.receive(ws, data, data.length);
+        let msg: ServerMessage;
+        try {
+          msg = JSON.parse(data) as ServerMessage;
+        } catch {
+          return;
+        }
+        this.receive(ws, msg, data.length);
         return;
       }
+      // a leitura do binário começa já (no worker) e a entrega segue a ordem de chegada
+      const bytes = typeof data === 'string' ? data.length : data.byteLength;
+      const read = typeof data === 'string' ? decodeData(data, false) : this.wire.decode(data, this.appInflate);
       if (typeof data !== 'string') this.pendingBinary++;
+      // o contador só cai depois da entrega: texto que chegar antes disso espera na fila, atrás do binário
+      const done = () => {
+        // conexão nova já zerou o contador: a mensagem antiga não mexe nele
+        if (typeof data !== 'string' && this.ws === ws) this.pendingBinary--;
+      };
       this.inbox = this.inbox
-        .then(async () => {
-          if (typeof data === 'string') return this.receive(ws, data, data.length);
-          const text = await inflateRaw(data).finally(() => this.pendingBinary--);
-          this.receive(ws, text, data.byteLength);
-        })
-        .catch(() => undefined);
+        .then(async () => this.receive(ws, await read, bytes))
+        .catch(() => undefined)
+        .finally(done);
     };
 
     ws.onclose = (ev) => {
@@ -357,10 +390,4 @@ export class GameClient {
     this.lastDetail = s === 'reconnecting' ? detail : undefined;
     for (const l of this.statusListeners) l(s, detail);
   }
-}
-
-/** Descomprime uma mensagem binária do servidor (deflate-raw, ver `Connection.sendRaw`). */
-async function inflateRaw(buf: ArrayBuffer): Promise<string> {
-  const stream = new Blob([buf]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
-  return new Response(stream).text();
 }

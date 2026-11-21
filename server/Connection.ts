@@ -49,6 +49,12 @@ export class Connection {
   closeCause: string | null = null;
   /** Código de fechamento do WebSocket (1006: caiu sem aviso; 1001: o navegador saiu da página). */
   closeCode: number | null = null;
+  /** O navegador lê o formato binário dos snapshots (`hello.bin`, 21/11). */
+  binary = false;
+  /** Área da câmera (mundo): unidades fora dela recebem atualização com menos frequência (21/11). Null: tudo. */
+  view: [number, number, number, number] | null = null;
+  /** Ponto de retomada que o navegador tem (do `hello`); usado uma vez, na volta para a partida. */
+  resume: { tick: number; key: string } | null = null;
   /** Diagnósticos do navegador recebidos nesta conexão (teto `CLIENT_DIAG_PER_CONNECTION`). */
   diagCount = 0;
 
@@ -62,6 +68,17 @@ export class Connection {
     if (this.ws.readyState !== this.ws.OPEN) return;
     if (this.appDeflate && json.length >= APP_DEFLATE_MIN) this.ws.send(deflateRawSync(json, { level: 1 }), { binary: true, compress: false });
     else this.ws.send(json);
+  }
+
+  /**
+   * Quadro binário de snapshot (`shared/net/wire.ts`). Com a compressão pelo servidor, todo binário vai comprimido (o
+   * navegador descomprime e vê a marca do formato). Devolve os bytes postos na fila.
+   */
+  sendBinary(frame: Uint8Array): number {
+    if (this.ws.readyState !== this.ws.OPEN) return 0;
+    const out = this.appDeflate ? deflateRawSync(frame, { level: 1 }) : frame;
+    this.ws.send(out, { binary: true, compress: !this.appDeflate });
+    return out.length;
   }
 
   /** Como esta conexão está comprimida: pelo transporte (permessage-deflate), pelo servidor ou nada. */
