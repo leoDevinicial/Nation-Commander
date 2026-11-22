@@ -63,6 +63,11 @@ A tela preta era o erro 185 do React (laço de atualização): seletores do zust
 cada leitura quando a partida ainda não estava carregada (TopBar, painel nacional, inspeção de rota). Viraram uma
 constante fixa, e `src/test/storeSelectors.test.ts` barra o padrão.
 
-Travamento: o servidor manteve 20 ticks/s; o painel de conexão mostrava a página demorando 0,6–1,5 s para ler as
-mensagens (placa de vídeo integrada, 1080p, partida longa). Ver o relatório de 22/11 na conversa; próximo passo sugerido:
-juntar snapshots quando a página fica para trás.
+Travamento ("o míssil parando e andando no ar"): no vídeo, o relógio da partida andou 4 s em 12 s reais. O servidor
+estava rodando a partida a 1/3 da velocidade (3,2 snapshots/s em vez de 10; o laço limita o atraso a 250 ms e a
+partida desacelera em vez de pular ticks; o `duration_seconds` do relatório conta ticks, por isso parecia normal).
+As mudanças de comunicação de 21/11 não pesam: numa partida com 505 tropas, 8,58 ms/tick antes e 8,95 ms/tick depois.
+É a CPU do servidor contratado em partida longa. No navegador, o relógio da interpolação (`src/game/net/interp.ts`)
+passou a usar o intervalo real médio de chegada: com o servidor lento, tropas, aviões e mísseis andam devagar mas
+sem parar (teste em `src/test/interp.test.ts`: 239 quadros parados antes, menos de 65 agora). A solução de fundo é um
+servidor com mais CPU (ou deixar o tick de fim de partida mais barato).

@@ -6,12 +6,12 @@ import { MAX_EXTRAPOLATION, SnapshotClock } from '../game/net/interp.ts';
  * com atraso irregular (até ±45 ms num intervalo de 100 ms). Desenhada a 60 quadros por segundo, conta quantos quadros
  * ela fica parada e o maior salto entre dois quadros, no método antigo e no novo.
  */
-function simulate(mode: 'antigo' | 'novo') {
+function simulate(mode: 'antigo' | 'novo', realGap = 100) {
   let seed = 7;
   const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32);
   const interval = 100;
   const arrivals: number[] = [];
-  for (let i = 1; i <= 120; i++) arrivals.push(i * interval + (rnd() - 0.5) * 90);
+  for (let i = 1; i <= 120; i++) arrivals.push(i * realGap + (rnd() - 0.5) * 90 * (realGap / interval));
   arrivals.sort((a, b) => a - b);
   const clock = new SnapshotClock();
   let prev = 0;
@@ -22,7 +22,7 @@ function simulate(mode: 'antigo' | 'novo') {
   let stalls = 0;
   let maxJump = 0;
   let backwards = 0;
-  for (let now = interval; now < 121 * interval; now += 1000 / 60) {
+  for (let now = realGap; now < 121 * realGap; now += 1000 / 60) {
     while (next < arrivals.length && arrivals[next]! <= now) {
       const pos = next + 1;
       if (mode === 'novo') {
@@ -38,7 +38,7 @@ function simulate(mode: 'antigo' | 'novo') {
     }
     const alpha = mode === 'novo' ? clock.alpha(now, false, 1) : Math.min(1, (now - at) / interval);
     const x = prev + (curr - prev) * alpha;
-    if (now > 5 * interval) {
+    if (now > 15 * realGap) {
       const step = x - last;
       if (Math.abs(step) < 1e-6) stalls++;
       if (step < -1e-6) backwards++;
@@ -67,5 +67,14 @@ describe('interpolação entre snapshots', () => {
     expect(c.alpha(1050, true, 1)).toBe(1);
     expect(c.alpha(5000, false, 1)).toBe(MAX_EXTRAPOLATION);
     expect(c.alpha(1000, false, 1)).toBe(0);
+  });
+
+  it('servidor sobrecarregado (partida a 1/3 da velocidade): a tropa anda devagar, mas sem parar (22/11)', () => {
+    // snapshots a cada 300 ms trazendo 100 ms de jogo
+    const slow = simulate('novo', 300);
+    const frames = (120 * 300) / (1000 / 60);
+    expect(slow.stalls).toBeLessThan(frames * 0.03);
+    expect(slow.backwards).toBe(0);
+    expect(slow.maxJump).toBeLessThan(0.15);
   });
 });

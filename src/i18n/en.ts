@@ -2,6 +2,8 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → inglês (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const EN: Dict = {
+  "Nas partidas longas o servidor atual chega ao limite e a partida fica mais lenta. É para isso que pedimos ajuda no Patreon: servidores melhores.": "In long matches the current server hits its limit and the match slows down. That's what we're asking for help with on Patreon: better servers.",
+  "Movimento contínuo quando o servidor fica sobrecarregado em partidas longas: tropas, veículos e mísseis não param e andam mais aos trancos no ar.": "Smooth movement when the server gets overloaded in long matches: troops, vehicles and missiles no longer stop and start in mid-air.",
   "Corrigida a queda que mandava para a tela de login no meio da partida: ao reconectar, o jogo às vezes tirava o jogador da conta. Agora ele volta direto para a partida.": "Fixed the drop that sent you to the login screen mid-match: when reconnecting, the game sometimes signed the player out. Now it goes straight back to the match.",
   "Corrigida a tela preta ao voltar para uma partida em andamento.": "Fixed the black screen when returning to a match in progress.",
   "Sumiu o aviso \"Mensagem inválida\" que aparecia ao recarregar a página durante a partida.": "The \"Invalid message\" notice that appeared when reloading the page during a match is gone.",

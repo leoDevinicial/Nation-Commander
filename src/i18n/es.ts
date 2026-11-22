@@ -2,6 +2,8 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → espanhol (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const ES: Dict = {
+  "Nas partidas longas o servidor atual chega ao limite e a partida fica mais lenta. É para isso que pedimos ajuda no Patreon: servidores melhores.": "En las partidas largas el servidor actual llega a su límite y la partida se vuelve más lenta. Para eso pedimos ayuda en Patreon: mejores servidores.",
+  "Movimento contínuo quando o servidor fica sobrecarregado em partidas longas: tropas, veículos e mísseis não param e andam mais aos trancos no ar.": "Movimiento continuo cuando el servidor se sobrecarga en partidas largas: tropas, vehículos y misiles ya no se detienen y avanzan a tirones en el aire.",
   "Corrigida a queda que mandava para a tela de login no meio da partida: ao reconectar, o jogo às vezes tirava o jogador da conta. Agora ele volta direto para a partida.": "Corregida la caída que mandaba a la pantalla de inicio de sesión en mitad de la partida: al reconectar, el juego a veces cerraba la sesión del jugador. Ahora vuelve directo a la partida.",
   "Corrigida a tela preta ao voltar para uma partida em andamento.": "Corregida la pantalla negra al volver a una partida en curso.",
   "Sumiu o aviso \"Mensagem inválida\" que aparecia ao recarregar a página durante a partida.": "Desapareció el aviso \"Mensaje inválido\" que aparecía al recargar la página durante la partida.",
