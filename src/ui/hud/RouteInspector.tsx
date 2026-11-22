@@ -6,6 +6,9 @@ import { useAppStore } from '../../state/useAppStore.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 
+/** Lista vazia fixa para seletores do estado: `?? []` cria uma lista nova a cada leitura e o zustand 5 entra em laço (erro 185 do React, tela preta ao voltar para a partida; 22/11). */
+const EMPTY: never[] = [];
+
 const STATE: Record<string, string> = {
   queued: 'Na fila do terminal',
   loading: 'Carregando no terminal',
@@ -23,8 +26,8 @@ export function RouteInspector() {
   const id = useHudStore((s) => s.inspectedShipment);
   const s = useHudStore((s) => (id !== null ? s.trade?.shipments.find((x) => x.id === id) : undefined));
   const contract = useHudStore((st) => (s ? st.trade?.contracts.find((c) => c.id === s.contractId) : undefined));
-  const players = useAppStore((st) => st.match?.players ?? []);
-  const npcs = useNationalStore((st) => st.diplomacy?.nations ?? []);
+  const players = useAppStore((st) => st.match?.players ?? EMPTY);
+  const npcs = useNationalStore((st) => st.diplomacy?.nations ?? EMPTY);
   if (id === null) return null;
   const name = (n: number) => n === WORLD ? 'Mercado mundial' : countryName(players.find((p) => p.slot === n)?.countryId ?? npcs.find((x) => x.id === n)?.countryId ?? '') || `#${n}`;
   const close = () => useHudStore.getState().set({ inspectedShipment: null });

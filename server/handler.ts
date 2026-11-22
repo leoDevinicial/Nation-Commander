@@ -115,7 +115,11 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
   }
 
   if (!conn.user) {
-    conn.send({ t: 'error', code: 'auth', message: 'Identifique-se primeiro.' });
+    // mensagem que chegou antes do hello terminar (o navegador manda a área da câmera assim que a conexão abre, e o
+    // hello com conta espera o Supabase): a área é ignorada; o resto recebe um aviso neutro. Nunca o código 'auth',
+    // que faz o navegador sair da conta: até a 1.5.3 isso tirava o jogador da conta a cada reconexão (22/11)
+    if (msg.t === 'view') return;
+    conn.send({ t: 'error', code: 'not_ready', message: 'Conectando ao servidor, tente de novo em instantes.' });
     return;
   }
 

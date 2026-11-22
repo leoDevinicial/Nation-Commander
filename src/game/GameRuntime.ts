@@ -4429,6 +4429,8 @@ export class GameRuntime {
       const xs = pts.map((p) => p!.x);
       const ys = pts.map((p) => p!.y);
       rect = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)].map((v) => Math.round(v * 10) / 10) as [number, number, number, number];
+      // câmera ainda montando (logo depois de recarregar): sem área, em vez de um retângulo vazio
+      if (rect[2] <= rect[0] || rect[3] <= rect[1]) rect = null;
     }
     const prev = this.viewSent;
     const cs = this.map.cellSize;

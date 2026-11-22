@@ -193,6 +193,8 @@ export class GameClient {
 
   send(msg: ClientMessage): boolean {
     if (this.ws?.readyState !== WebSocket.OPEN) return false;
+    // antes do welcome, só o hello: o resto chegava ao servidor antes da identificação (22/11)
+    if (msg.t !== 'hello' && this.status !== 'connected') return false;
     // conectado só no papel: o servidor parou de responder e a mensagem se perderia (render-se ficava em "Encerrando…")
     if (this.status === 'connected' && this.unanswered >= DEAD_AFTER_PINGS - 1) {
       this.dropDead();

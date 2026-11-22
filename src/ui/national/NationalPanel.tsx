@@ -21,6 +21,9 @@ import { PolicyTab } from './PolicyTab.tsx';
 import { makeNameOf } from '../../game/nationalText.ts';
 import type { DiplomaticAction } from '../../../shared/strategic/Diplomacy.ts';
 
+/** Lista vazia fixa para seletores do estado: `?? []` cria uma lista nova a cada leitura e o zustand 5 entra em laço (erro 185 do React, tela preta ao voltar para a partida; 22/11). */
+const EMPTY: never[] = [];
+
 const TABS = [
   { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
   { id: 'budget', label: 'Orçamento', icon: Wallet },
@@ -43,11 +46,11 @@ export function NationalPanel({ onClose }: { onClose: () => void }) {
   }, [tab]);
   const mySlot = useAppStore((s) => s.match?.yourSlot ?? 0);
   const nation = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot));
-  const history = useNationalStore((s) => s.history[mySlot] ?? []);
+  const history = useNationalStore((s) => s.history[mySlot] ?? EMPTY);
   const day = useNationalStore((s) => s.day);
   const date = useNationalStore((s) => s.date);
   const diplomacy = useNationalStore((s) => s.diplomacy);
-  const players = useAppStore((s) => s.match?.players ?? []);
+  const players = useAppStore((s) => s.match?.players ?? EMPTY);
 
   const applyAreas = (areas: Areas) => gameClient.send({ t: 'national', cmd: { type: 'set_areas', areas } });
   const selectResearch = (techId: TechId | null) => gameClient.send({ t: 'national', cmd: { type: 'set_research', techId } });

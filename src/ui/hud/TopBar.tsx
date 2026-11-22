@@ -22,6 +22,9 @@ import { PerfChip, PerfPopover } from './PerfPanel.tsx';
 import { NetChip, NetPopover } from './NetPanel.tsx';
 import { SandboxChip, SandboxPanel } from './SandboxPanel.tsx';
 
+/** Lista vazia fixa para seletores do estado: `?? []` cria uma lista nova a cada leitura e o zustand 5 entra em laço (erro 185 do React, tela preta ao voltar para a partida; 22/11). */
+const EMPTY: never[] = [];
+
 const NO_LOCKS: readonly string[] = [];
 
 export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRuntime; onMenu: () => void; canControlSpeed: boolean }) {
@@ -35,7 +38,7 @@ export function TopBar({ runtime, onMenu, canControlSpeed }: { runtime: GameRunt
   const sky = useHudStore((s) => s.sky);
   const showFps = useSettingsStore((s) => s.showFps);
   const closeUp = useHudStore((s) => s.closeUp);
-  const roster = useAppStore((s) => s.match?.players ?? []);
+  const roster = useAppStore((s) => s.match?.players ?? EMPTY);
   const sandbox = useAppStore((s) => s.match?.mode === 'sandbox');
   const difficulty = useAppStore((s) => s.match?.difficulty ?? 'normal');
   const prep = prepTicks(difficulty);

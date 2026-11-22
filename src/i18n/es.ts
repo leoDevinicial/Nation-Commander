@@ -2,6 +2,10 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → espanhol (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const ES: Dict = {
+  "Corrigida a queda que mandava para a tela de login no meio da partida: ao reconectar, o jogo às vezes tirava o jogador da conta. Agora ele volta direto para a partida.": "Corregida la caída que mandaba a la pantalla de inicio de sesión en mitad de la partida: al reconectar, el juego a veces cerraba la sesión del jugador. Ahora vuelve directo a la partida.",
+  "Corrigida a tela preta ao voltar para uma partida em andamento.": "Corregida la pantalla negra al volver a una partida en curso.",
+  "Sumiu o aviso \"Mensagem inválida\" que aparecia ao recarregar a página durante a partida.": "Desapareció el aviso \"Mensaje inválido\" que aparecía al recargar la página durante la partida.",
+  "Conectando ao servidor, tente de novo em instantes.": "Conectando al servidor, inténtalo de nuevo en un momento.",
   "Apoie o jogo": "Apoya el juego",
   "Ajude a gente a ter servidores melhores": "Ayúdanos a tener mejores servidores",
   "O Nations Commander é grátis e feito com a comunidade. Queremos contratar servidores mais fortes, com menos quedas e partidas mais lisas, e para isso contamos com você. Qualquer apoio já faz diferença!": "Nations Commander es gratis y se hace con la comunidad. Queremos contratar servidores más potentes, con menos caídas y partidas más fluidas, y para eso contamos contigo. ¡Cualquier apoyo ya marca la diferencia!",

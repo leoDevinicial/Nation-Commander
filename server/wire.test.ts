@@ -159,4 +159,27 @@ describe('comunicação com o servidor (21/11)', () => {
     await env.send(e.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ana', bin: true, resume: { tick: 40_000, key: seed } });
     expect(e.firstSnapshotDelta[0]).toBe(false);
   });
+
+  it('mensagem que chega antes do hello terminar nunca manda sair da conta (22/11)', async () => {
+    const env = setup();
+    // o hello com conta espera a verificação do token: a área da câmera chega no meio
+    let release!: () => void;
+    env.deps.verify = (t) => new Promise((r) => (release = () => r({ id: t, name: t })));
+    const a = client();
+    const hello = env.send(a.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ana', bin: true });
+    await env.send(a.conn, { t: 'view', rect: [0, 0, 10, 10] });
+    await env.send(a.conn, { t: 'list_rooms' });
+    release();
+    await hello;
+    const errors = a.sent.filter((m) => m.t === 'error') as { code: string }[];
+    expect(errors.map((e) => e.code)).not.toContain('auth');
+    expect(errors.map((e) => e.code)).toEqual(['not_ready']);
+    expect(a.sent.some((m) => m.t === 'welcome')).toBe(true);
+  });
+
+  it('retângulo vazio da câmera vale como "sem área", não como mensagem inválida (22/11)', () => {
+    expect(parseClientMessage(JSON.stringify({ t: 'view', rect: [0, 0, 0, 0] }))).toEqual({ t: 'view', rect: null });
+    expect(parseClientMessage(JSON.stringify({ t: 'view', rect: [5, 5, 1, 9] }))).toEqual({ t: 'view', rect: null });
+    expect(parseClientMessage(JSON.stringify({ t: 'view', rect: [0, 0, 'x', 1] }))).toBeNull();
+  });
 });

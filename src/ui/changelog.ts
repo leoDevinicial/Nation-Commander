@@ -1,6 +1,15 @@
 /** Novidades de cada versão, mostradas na área Comunidade e Feedback do menu (mais recente primeiro). */
 export const CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
+    version: '1.5.4',
+    date: '22/11/2026',
+    items: [
+      'Corrigida a queda que mandava para a tela de login no meio da partida: ao reconectar, o jogo às vezes tirava o jogador da conta. Agora ele volta direto para a partida.',
+      'Corrigida a tela preta ao voltar para uma partida em andamento.',
+      'Sumiu o aviso "Mensagem inválida" que aparecia ao recarregar a página durante a partida.',
+    ],
+  },
+  {
     version: '1.5.3',
     date: '21/11/2026',
     items: [

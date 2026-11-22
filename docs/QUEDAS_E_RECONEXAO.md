@@ -50,3 +50,19 @@ interface viva; os outros três não caíram nenhuma vez. O servidor estava bem:
 
 Consulta útil: `select created_at, display_name, kind, detail, device->>'gpu', device->>'memoryGb', room_code from
 client_diagnostics order by created_at desc limit 50;`
+
+## 22/11 — reconexão que tirava da conta e tela preta (1.5.4)
+
+Partida de 50 min contra a IA (sala GTTZ7, 8 quedas): ao reconectar, o navegador mandava a área da câmera (`view`,
+1.5.2) antes de o `hello` terminar; o servidor respondia `error` com código `auth` ("Identifique-se primeiro.") e o
+cliente, ao ver `auth`, saía da conta. Correções: o `GameClient.send` só manda o `hello` antes do `welcome`; o servidor
+ignora `view` antes da identificação e responde `not_ready` (nunca `auth`) ao resto; retângulo vazio de câmera vale
+como `null` (antes era "Mensagem inválida"). Testes em `server/wire.test.ts` e `src/test/gameClient.test.ts`.
+
+A tela preta era o erro 185 do React (laço de atualização): seletores do zustand 5 com `?? []` criavam uma lista nova a
+cada leitura quando a partida ainda não estava carregada (TopBar, painel nacional, inspeção de rota). Viraram uma
+constante fixa, e `src/test/storeSelectors.test.ts` barra o padrão.
+
+Travamento: o servidor manteve 20 ticks/s; o painel de conexão mostrava a página demorando 0,6–1,5 s para ler as
+mensagens (placa de vídeo integrada, 1080p, partida longa). Ver o relatório de 22/11 na conversa; próximo passo sugerido:
+juntar snapshots quando a página fica para trás.

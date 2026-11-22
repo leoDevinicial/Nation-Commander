@@ -2,6 +2,10 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → inglês (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const EN: Dict = {
+  "Corrigida a queda que mandava para a tela de login no meio da partida: ao reconectar, o jogo às vezes tirava o jogador da conta. Agora ele volta direto para a partida.": "Fixed the drop that sent you to the login screen mid-match: when reconnecting, the game sometimes signed the player out. Now it goes straight back to the match.",
+  "Corrigida a tela preta ao voltar para uma partida em andamento.": "Fixed the black screen when returning to a match in progress.",
+  "Sumiu o aviso \"Mensagem inválida\" que aparecia ao recarregar a página durante a partida.": "The \"Invalid message\" notice that appeared when reloading the page during a match is gone.",
+  "Conectando ao servidor, tente de novo em instantes.": "Connecting to the server, try again in a moment.",
   "Apoie o jogo": "Support the game",
   "Ajude a gente a ter servidores melhores": "Help us get better servers",
   "O Nations Commander é grátis e feito com a comunidade. Queremos contratar servidores mais fortes, com menos quedas e partidas mais lisas, e para isso contamos com você. Qualquer apoio já faz diferença!": "Nations Commander is free and built with the community. We want to get stronger servers, with fewer drops and smoother matches, and we're counting on you to make it happen. Every bit of support makes a difference!",

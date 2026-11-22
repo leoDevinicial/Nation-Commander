@@ -50,7 +50,8 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       const r = data.rect;
       if (!Array.isArray(r) || r.length !== 4 || !r.every((v) => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) < 1e5)) return null;
       const [x0, y0, x1, y1] = r as number[];
-      if (x1! <= x0! || y1! <= y0!) return null;
+      // retângulo vazio (câmera ainda montando, logo depois de recarregar): vale como "sem área", não como mensagem inválida
+      if (x1! <= x0! || y1! <= y0!) return { t: 'view', rect: null };
       return { t: 'view', rect: [x0!, y0!, x1!, y1!] };
     }
     case 'create_room':

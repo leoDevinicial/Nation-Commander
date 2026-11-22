@@ -61,6 +61,20 @@ describe('GameClient: reconexão', () => {
     expect(c.status).toBe('connected');
   });
 
+  it('na reconexão, nada além do hello sai antes do welcome (o servidor tirava da conta; 22/11)', async () => {
+    const c = await connect();
+    FakeWs.all[0]!.onclose?.({ code: 1006, reason: '' });
+    await vi.advanceTimersByTimeAsync(260);
+    const ws = FakeWs.all[1]!;
+    ws.readyState = 1;
+    await ws.onopen?.();
+    // a câmera manda a área a cada quadro: com a conexão aberta mas sem welcome, fica para depois
+    expect(c.send({ t: 'view', rect: [0, 0, 10, 10] })).toBe(false);
+    expect(ws.sent.map((m) => m.t)).toEqual(['hello']);
+    ws.recv({ t: 'welcome', user: { id: 'x', name: 'x', guest: true }, serverVersion: '1' });
+    expect(c.send({ t: 'view', rect: [0, 0, 10, 10] })).toBe(true);
+  });
+
   it('com o servidor respondendo, os pings não derrubam a conexão', async () => {
     const c = await connect();
     const ws = FakeWs.all[0]!;
