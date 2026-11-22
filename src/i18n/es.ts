@@ -2,6 +2,13 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → espanhol (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const ES: Dict = {
+  "A partida contra a IA agora roda no seu aparelho: sem lag, sem quedas e sem depender do servidor. Se a internet cair no meio, a partida continua.": "Las partidas contra la IA ahora se ejecutan en tu dispositivo: sin lag, sin caídas y sin depender del servidor. Si se cae internet a mitad de partida, la partida sigue.",
+  "Recarregou ou fechou o navegador? Ao abrir o jogo, a partida contra a IA volta de onde parou.": "¿Recargaste o cerraste el navegador? Al abrir el juego, la partida contra la IA vuelve donde se quedó.",
+  "O histórico e as medalhas do perfil continuam contando as partidas contra a IA.": "El historial y las medallas del perfil siguen contando las partidas contra la IA.",
+  "Se o aparelho esquentar em partidas longas, dá para voltar a jogar contra a IA no servidor em Configurações.": "Si el dispositivo se calienta en partidas largas, puedes volver a jugar contra la IA en el servidor en Ajustes.",
+  "Partida contra a IA no seu aparelho": "Partida contra la IA en tu dispositivo",
+  "A partida contra a IA roda no seu navegador: sem lag e sem quedas, mesmo sem internet depois de começar. Desligue se o aparelho esquentar ou ficar lento em partidas longas: aí ela roda no servidor.": "La partida contra la IA se ejecuta en tu navegador: sin lag y sin caídas, incluso sin internet después de empezar. Desactívalo si el dispositivo se calienta o se vuelve lento en partidas largas: entonces se ejecuta en el servidor.",
+  "Este modo roda no servidor.": "Este modo se ejecuta en el servidor.",
   "Mísseis e aviões agora seguem a trajetória calculada no seu navegador: voam lisos do lançamento ao alvo, sem parar e pular no ar, e o servidor só corrige quando algo muda no caminho.": "Los misiles y aviones ahora siguen una trayectoria calculada en tu navegador: vuelan suaves del lanzamiento al objetivo, sin detenerse y saltar en el aire, y el servidor solo corrige cuando algo cambia en el camino.",
   "Tropas e veículos andam sem trancos mesmo quando o servidor fica sobrecarregado em partidas longas.": "Las tropas y vehículos avanzan sin tirones incluso cuando el servidor se sobrecarga en partidas largas.",
   "Servidor até 28% mais rápido em batalhas com muitas tropas, com exatamente o mesmo resultado.": "Servidor hasta un 28% más rápido en batallas con muchas tropas, con exactamente el mismo resultado.",

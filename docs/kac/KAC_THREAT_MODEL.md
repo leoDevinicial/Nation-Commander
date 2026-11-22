@@ -23,6 +23,7 @@ Fora do escopo:
 | Pausa, velocidade, rendição | — | `Room`; KAC-02 para a pausa |
 | Chat da partida e chat da Comunidade | texto | limite de tamanho e ritmo, filtro, denúncia |
 | Feedback | texto, nota | limite de 1/min, validação |
+| `local_match` (22/11) | resultado de partida contra a IA que rodou no navegador | `server/local/localMatch.ts`: só `vs_ai`, só a conta da conexão, limites, 1 a cada 20 s; **não verificável**: gravado com `verdict = 'local'`, nunca deve valer em ranking ou recompensa entre jogadores (`docs/PARTIDA_LOCAL.md`) |
 | HTTP `/health` | — | público, só contagens agregadas |
 | HTTP `/kac` | `Authorization: Bearer` | painel de leitura da equipe; desligado sem `KAC_ADMIN_TOKEN`; tempo constante; IP barrado após 10 erros |
 

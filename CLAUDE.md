@@ -127,6 +127,10 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
   3–5 s no `AudioService`; a guerra fica acima da música (EQ por estado e ducking só em eventos grandes); tecla M silencia só a música.
 - Guia do Comandante (PDF, `docs/guia/README.md`): português, inglês e espanhol (`docs/GUIA_DO_JOGADOR*.pdf`, cópias em
   `public/guia/` baixadas pelo botão do Manual). Mecânica nova: atualizar `guia.html` e as partes `en/` e `es/` e regenerar os três.
+- Partida contra a IA no navegador (`server/local/`, `docs/PARTIDA_LOCAL.md`, 22/11): o mesmo código do servidor roda num
+  Web Worker (endereço `local:` no `GameClient`, `src/net/localMode.ts`); substitutos de `node:*` só no build do navegador
+  (`vite.config.ts`). Código novo no servidor que use módulo do Node fora de `node:crypto/zlib/fs/path` quebra o worker:
+  ver o build. Resultado vai ao remoto (`local_match`) com `verdict = 'local'` (não vale em ranking).
 - Apoio e comunidade (22/11): caixa do Patreon no menu (`SupportCard`, `PATREON_URL`), botão e convite do Discord
   (`DiscordInvite`, `DISCORD_URL`). Recompensas do Patreon nunca dão vantagem na partida.
 - Idiomas (`src/i18n/`, `docs/IDIOMAS.md`): o código segue em português; `en.ts`/`es.ts` traduzem o texto da tela

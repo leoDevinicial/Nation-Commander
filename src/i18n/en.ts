@@ -2,6 +2,13 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → inglês (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const EN: Dict = {
+  "A partida contra a IA agora roda no seu aparelho: sem lag, sem quedas e sem depender do servidor. Se a internet cair no meio, a partida continua.": "Matches against the AI now run on your device: no lag, no drops and no dependence on the server. If your internet goes down mid-match, the match keeps going.",
+  "Recarregou ou fechou o navegador? Ao abrir o jogo, a partida contra a IA volta de onde parou.": "Reloaded or closed the browser? When you open the game again, your match against the AI picks up where it left off.",
+  "O histórico e as medalhas do perfil continuam contando as partidas contra a IA.": "Your profile history and medals still count matches against the AI.",
+  "Se o aparelho esquentar em partidas longas, dá para voltar a jogar contra a IA no servidor em Configurações.": "If your device heats up in long matches, you can go back to playing against the AI on the server in Settings.",
+  "Partida contra a IA no seu aparelho": "Match against the AI on your device",
+  "A partida contra a IA roda no seu navegador: sem lag e sem quedas, mesmo sem internet depois de começar. Desligue se o aparelho esquentar ou ficar lento em partidas longas: aí ela roda no servidor.": "The match against the AI runs in your browser: no lag and no drops, even without internet after it starts. Turn it off if your device heats up or slows down in long matches: then it runs on the server.",
+  "Este modo roda no servidor.": "This mode runs on the server.",
   "Mísseis e aviões agora seguem a trajetória calculada no seu navegador: voam lisos do lançamento ao alvo, sem parar e pular no ar, e o servidor só corrige quando algo muda no caminho.": "Missiles and aircraft now follow a trajectory calculated in your browser: they fly smoothly from launch to target, without stopping and jumping in mid-air, and the server only corrects them when something changes on the way.",
   "Tropas e veículos andam sem trancos mesmo quando o servidor fica sobrecarregado em partidas longas.": "Troops and vehicles move without stuttering even when the server gets overloaded in long matches.",
   "Servidor até 28% mais rápido em batalhas com muitas tropas, com exatamente o mesmo resultado.": "Server up to 28% faster in battles with many troops, with exactly the same outcome.",

@@ -1,6 +1,16 @@
 /** Novidades de cada versão, mostradas na área Comunidade e Feedback do menu (mais recente primeiro). */
 export const CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
+    version: '1.6.0',
+    date: '22/11/2026',
+    items: [
+      'A partida contra a IA agora roda no seu aparelho: sem lag, sem quedas e sem depender do servidor. Se a internet cair no meio, a partida continua.',
+      'Recarregou ou fechou o navegador? Ao abrir o jogo, a partida contra a IA volta de onde parou.',
+      'O histórico e as medalhas do perfil continuam contando as partidas contra a IA.',
+      'Se o aparelho esquentar em partidas longas, dá para voltar a jogar contra a IA no servidor em Configurações.',
+    ],
+  },
+  {
     version: '1.5.5',
     date: '22/11/2026',
     items: [
