@@ -4409,18 +4409,27 @@ export class Simulation {
     const LIMIT = SPATIAL_PAD / 2 - 0.15;
     const drift = new Float64Array(n);
     const moved: number[] = [];
+    // raio e classe de cada unidade, lidos uma vez por tick (22/11: a tabela era consultada duas vezes em cada par, e
+    // num bloco denso a maioria dos pares só serve para descobrir que estão longe)
+    const rad = new Float64Array(n);
+    const nav = new Uint8Array(n);
+    for (let k = 0; k < n; k++) {
+      const spec = UNITS[units[k]!.type];
+      rad[k] = spec.radius;
+      nav[k] = spec.naval ? 1 : 0;
+    }
     const pair = (i: number, j: number) => {
+      // navio e tropa em terra não se empurram; navio com navio, só pela água (03/11)
+      if (nav[i] !== nav[j]) return;
       const a = units[i]!;
       const b = units[j]!;
-      // navio e tropa em terra não se empurram; navio com navio, só pela água (03/11)
-      const navalA = !!UNITS[a.type].naval;
-      if (navalA !== !!UNITS[b.type].naval) return;
-      this.grid.naval = navalA;
-      const minD = (UNITS[a.type].radius + UNITS[b.type].radius) * 0.9;
+      const minD = (rad[i]! + rad[j]!) * 0.9;
       const dx = b.pos.x - a.pos.x;
       const dy = b.pos.y - a.pos.y;
       const d2 = dx * dx + dy * dy;
       if (d2 >= minD * minD) return;
+      const navalA = nav[i] === 1;
+      this.grid.naval = navalA;
       const d = Math.sqrt(d2);
       // direção determinística quando as posições coincidem
       const nx = d > 1e-6 ? dx / d : Math.cos(a.id * 2.399);
@@ -4455,13 +4464,11 @@ export class Simulation {
     anchor();
     const near: number[] = [];
     const mark = new Int32Array(n).fill(-1);
-    for (let i = 0; i < n; i++) {
-      if (moved.length > 32) anchor();
-      // a própria unidade já foi longe: a linha dela compara com todas, como antes
-      if (drift[i]! > LIMIT) {
-        for (let j = i + 1; j < n; j++) pair(i, j);
-        continue;
-      }
+    // vizinhos de i depois de `from` (exclusive), em ordem crescente: os únicos que podem se tocar com a âncora atual
+    // carimbo por coleta (não por linha): uma linha pode coletar de novo depois de uma nova âncora
+    let stamp = 0;
+    const collect = (i: number, from: number) => {
+      const st = ++stamp;
       const p = units[i]!.pos;
       const naval = !!UNITS[units[i]!.type].naval;
       const grid = naval ? sea : land;
@@ -4469,29 +4476,37 @@ export class Simulation {
       const reach = (naval ? MAX_SEPARATION.naval : MAX_SEPARATION.land) + SPATIAL_PAD + drift[i]!;
       near.length = 0;
       grid.forEachIn(p.x - reach, p.y - reach, p.x + reach, p.y + reach, (j) => {
-        if (j > i && mark[j] !== i) {
-          mark[j] = i;
+        if (j > from && mark[j] !== st) {
+          mark[j] = st;
           near.push(j);
         }
       });
       for (const j of moved)
-        if (j > i && mark[j] !== i) {
-          mark[j] = i;
+        if (j > from && mark[j] !== st) {
+          mark[j] = st;
           near.push(j);
         }
       near.sort((u, v) => u - v);
+    };
+    for (let i = 0; i < n; i++) {
+      // 22/11: a própria unidade já foi longe (bloco denso de tropas): em vez de comparar a linha com todas as unidades
+      // do mapa (o que, com 500 tropas amontoadas, levava um terço do tick), refaz a âncora com as posições de agora e
+      // segue pela grade. É exato pelo mesmo motivo da grade: com drift zerado, quem fica fora da caixa não se toca.
+      if (moved.length > 32 || drift[i]! > LIMIT) anchor();
+      collect(i, i);
       let last = i;
-      let rest = false;
-      for (const j of near) {
+      for (let k = 0; k < near.length; k++) {
+        const j = near[k]!;
         if (drift[i]! > LIMIT) {
-          rest = true;
-          break;
+          // empurrada demais no meio da linha: nova âncora e o resto da linha de novo pela grade
+          anchor();
+          collect(i, last);
+          k = -1;
+          continue;
         }
         pair(i, j);
         last = j;
       }
-      // empurrada demais no meio da linha: termina a linha comparando com todas as seguintes
-      if (rest || drift[i]! > LIMIT) for (let j = last + 1; j < n; j++) pair(i, j);
     }
     this.grid.naval = false;
   }
