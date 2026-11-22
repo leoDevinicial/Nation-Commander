@@ -117,7 +117,7 @@ export function StatsPage() {
   const [details, setDetails] = useState<Details[]>([]);
 
   useEffect(() => {
-    document.title = 'Painel · Nation Commander';
+    document.title = 'Painel · Nations Commander';
     const meta = document.createElement('meta');
     meta.name = 'robots';
     meta.content = 'noindex, nofollow';

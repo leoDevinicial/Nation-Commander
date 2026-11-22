@@ -135,6 +135,10 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 
 ## 0.4 O que mudou desde 31/10 (mais recente primeiro; detalhes no `git log` e nas docs citadas)
 
+**22/11 — Nations Commander e Patreon:** o jogo passou a se chamar Nations Commander (`GAME_TITLE`, título da página,
+manifesto, menu, guias em PDF; o repositório e a URL da Vercel ficam com o nome antigo até o domínio novo). O menu ganhou
+a caixa "Apoie o jogo" sobre o globo (`src/ui/components/SupportCard.tsx`), com o botão para o Patreon.
+
 **21/11 — Discord:** botão do Discord no menu (`DISCORD_URL` em `src/ui/components/DiscordInvite.tsx`) e convite em
 popup uma vez por aparelho (`nc.discord.seen.v1`), sempre depois das novidades da versão. Também o botão Guia em PDF no menu.
 

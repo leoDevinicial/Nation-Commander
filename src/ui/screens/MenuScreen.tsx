@@ -20,6 +20,7 @@ import { guideUrl } from '../manual.ts';
 import { useLangStore } from '../../i18n/index.ts';
 import { ChangelogPopup, changelogPending, playerKeys } from '../components/ChangelogPopup.tsx';
 import { DISCORD_URL, DiscordInvite, DiscordLogo } from '../components/DiscordInvite.tsx';
+import { SupportCard } from '../components/SupportCard.tsx';
 import { autoFullscreen, FullscreenButton } from '../components/FullscreenButton.tsx';
 
 /**
@@ -91,7 +92,7 @@ export function MenuScreen() {
               <Globe size={16} />
             </span>
             <span className="font-display text-sm font-bold tracking-[0.22em] text-ink-200 uppercase max-sm:hidden" translate="no">
-              Nation Commander
+              Nations Commander
             </span>
           </div>
           <nav className="ml-auto flex flex-wrap items-center gap-0.5 max-sm:order-last max-sm:ml-0 max-sm:w-full max-sm:justify-between" aria-label="Atalhos do menu">
@@ -107,7 +108,7 @@ export function MenuScreen() {
               href={DISCORD_URL}
               target="_blank"
               rel="noopener noreferrer"
-              title="Entre no servidor do Nation Commander no Discord"
+              title="Entre no servidor do Nations Commander no Discord"
               aria-label="Discord"
             >
               <DiscordLogo size={15} />
@@ -151,8 +152,9 @@ export function MenuScreen() {
           </div>
         </header>
 
-        {/* herói */}
-        <section className="flex max-w-[640px] flex-1 flex-col justify-center py-2">
+        {/* herói, e à direita (sobre o globo) o convite para apoiar o jogo (22/11) */}
+        <div className="flex flex-1 flex-col gap-5 md:flex-row md:items-center md:justify-between md:gap-8">
+        <section className="flex max-w-[640px] flex-col justify-center py-2 md:flex-1">
           <div className="flex items-center gap-2.5 font-display text-[11px] font-semibold tracking-[0.3em] text-brass-400 uppercase sm:text-xs">
             <span className="h-0.5 w-7 bg-brass-400" aria-hidden />
             {GAME_TITLE}
@@ -200,6 +202,8 @@ export function MenuScreen() {
             <PresetAdvice />
           </div>
         </section>
+        <SupportCard />
+        </div>
 
         {/* modos e novidades */}
         <section className="grid gap-3 lg:grid-cols-[1fr_360px] lg:items-end">

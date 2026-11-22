@@ -368,7 +368,7 @@ function ReportBox({ perf }: { perf: PerfHud }) {
                 className="btn min-h-8 px-2"
                 onClick={() => {
                   // menu de compartilhar do aparelho (ex.: direto para o app de conversa)
-                  navigator.share({ title: 'Relatório de desempenho — Nation Commander', text }).catch(() => undefined);
+                  navigator.share({ title: 'Relatório de desempenho — Nations Commander', text }).catch(() => undefined);
                 }}
               >
                 Compartilhar

@@ -7,7 +7,7 @@ const FOOT = { pt: 'GUIA DO COMANDANTE', en: "COMMANDER'S GUIDE", es: 'GUÍA DEL
 (async () => {
   const b = await chromium.launch();
   const p = await b.newPage();
-  const foot = `<div style="width:100%;font-family:Inter,sans-serif;font-size:7.5pt;color:#8a93a3;padding:0 17mm;display:flex;justify-content:space-between"><span>${FOOT[lang]} · 3D Modern Geopolitical RTS</span><span><span class="pageNumber"></span></span></div>`;
+  const foot = `<div style="width:100%;font-family:Inter,sans-serif;font-size:7.5pt;color:#8a93a3;padding:0 17mm;display:flex;justify-content:space-between"><span>${FOOT[lang]} · Nations Commander</span><span><span class="pageNumber"></span></span></div>`;
   await p.goto('file://' + path.resolve(`cover${sfx}.html`), { waitUntil: 'networkidle' });
   await p.evaluate(() => document.fonts.ready);
   await p.pdf({ path: `out_cover${sfx}.pdf`, format: 'A4', printBackground: true, preferCSSPageSize: true });

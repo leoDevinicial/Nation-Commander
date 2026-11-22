@@ -60,7 +60,7 @@ export function FeedbackScreen() {
       <div className="grid gap-5 md:grid-cols-[1.25fr_1fr]">
         <section aria-label="Enviar feedback">
           <h2 className="label">Envie seu feedback</h2>
-          <p className="mb-3 text-sm text-ink-300">O Nation Commander é feito com a comunidade. Cada mensagem é lida pela equipe e ajuda a decidir o que vem na próxima versão.</p>
+          <p className="mb-3 text-sm text-ink-300">O Nations Commander é feito com a comunidade. Cada mensagem é lida pela equipe e ajuda a decidir o que vem na próxima versão.</p>
           {state === 'sent' ? (
             <div className="rounded border border-signal-green/50 bg-ink-850 p-4 text-sm" role="status">
               <div className="font-semibold text-signal-green">

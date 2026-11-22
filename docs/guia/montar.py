@@ -12,7 +12,7 @@ title = {'pt': 'Guia do Comandante', 'en': "Commander's Guide", 'es': 'Guía del
 w = PdfWriter()
 for f in (f'out_cover{sfx}.pdf', f'out_body{sfx}.pdf'):
     w.append(f)
-w.add_metadata({'/Title': title, '/Author': 'Nation Commander'})
+w.add_metadata({'/Title': title, '/Author': 'Nations Commander'})
 with open(out, 'wb') as fh:
     w.write(fh)
 print('ok:', out[3:])

@@ -1,6 +1,7 @@
 # Nation Commander — memória do projeto
 
-RTS geopolítico 3D no navegador (three.js + React/zustand no cliente, servidor Node com a simulação em `shared/`,
+**Nome do jogo: Nations Commander** (22/11; o repositório e o endereço `nationcommander.vercel.app` ainda dizem "Nation", o domínio
+futuro vai corrigir). RTS geopolítico 3D no navegador (three.js + React/zustand no cliente, servidor Node com a simulação em `shared/`,
 Supabase para contas e histórico). O jogo é todo em português.
 
 > **Começando numa conversa nova?** Leia primeiro [`docs/HANDOFF.md`](docs/HANDOFF.md): branch de trabalho, como rodar e
@@ -125,6 +126,8 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
   3–5 s no `AudioService`; a guerra fica acima da música (EQ por estado e ducking só em eventos grandes); tecla M silencia só a música.
 - Guia do Comandante (PDF, `docs/guia/README.md`): português, inglês e espanhol (`docs/GUIA_DO_JOGADOR*.pdf`, cópias em
   `public/guia/` baixadas pelo botão do Manual). Mecânica nova: atualizar `guia.html` e as partes `en/` e `es/` e regenerar os três.
+- Apoio e comunidade (22/11): caixa do Patreon no menu (`SupportCard`, `PATREON_URL`), botão e convite do Discord
+  (`DiscordInvite`, `DISCORD_URL`). Recompensas do Patreon nunca dão vantagem na partida.
 - Idiomas (`src/i18n/`, `docs/IDIOMAS.md`): o código segue em português; `en.ts`/`es.ts` traduzem o texto da tela
   (escolha no menu, ou região pelo IP via `api/geo.js` da Vercel). Texto novo na interface: acrescente a tradução nos dois
   dicionários; `npx tsx scripts/i18n-faltando.ts` lista o que falta. Chat e nomes de jogadores ficam com `translate="no"`.
