@@ -4,8 +4,10 @@ export const CHANGELOG: { version: string; date: string; items: string[] }[] = [
     version: '1.5.5',
     date: '22/11/2026',
     items: [
-      'Movimento contínuo quando o servidor fica sobrecarregado em partidas longas: tropas, veículos e mísseis não param e andam mais aos trancos no ar.',
-      'Nas partidas longas o servidor atual chega ao limite e a partida fica mais lenta. É para isso que pedimos ajuda no Patreon: servidores melhores.',
+      'Mísseis e aviões agora seguem a trajetória calculada no seu navegador: voam lisos do lançamento ao alvo, sem parar e pular no ar, e o servidor só corrige quando algo muda no caminho.',
+      'Tropas e veículos andam sem trancos mesmo quando o servidor fica sobrecarregado em partidas longas.',
+      'Servidor até 28% mais rápido em batalhas com muitas tropas, com exatamente o mesmo resultado.',
+      'Nas partidas longas o servidor atual ainda pode chegar ao limite e deixar a partida mais lenta. É para isso que pedimos ajuda no Patreon: servidores melhores.',
     ],
   },
   {

@@ -2,8 +2,10 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → inglês (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const EN: Dict = {
-  "Nas partidas longas o servidor atual chega ao limite e a partida fica mais lenta. É para isso que pedimos ajuda no Patreon: servidores melhores.": "In long matches the current server hits its limit and the match slows down. That's what we're asking for help with on Patreon: better servers.",
-  "Movimento contínuo quando o servidor fica sobrecarregado em partidas longas: tropas, veículos e mísseis não param e andam mais aos trancos no ar.": "Smooth movement when the server gets overloaded in long matches: troops, vehicles and missiles no longer stop and start in mid-air.",
+  "Mísseis e aviões agora seguem a trajetória calculada no seu navegador: voam lisos do lançamento ao alvo, sem parar e pular no ar, e o servidor só corrige quando algo muda no caminho.": "Missiles and aircraft now follow a trajectory calculated in your browser: they fly smoothly from launch to target, without stopping and jumping in mid-air, and the server only corrects them when something changes on the way.",
+  "Tropas e veículos andam sem trancos mesmo quando o servidor fica sobrecarregado em partidas longas.": "Troops and vehicles move without stuttering even when the server gets overloaded in long matches.",
+  "Servidor até 28% mais rápido em batalhas com muitas tropas, com exatamente o mesmo resultado.": "Server up to 28% faster in battles with many troops, with exactly the same outcome.",
+  "Nas partidas longas o servidor atual ainda pode chegar ao limite e deixar a partida mais lenta. É para isso que pedimos ajuda no Patreon: servidores melhores.": "In long matches the current server can still hit its limit and slow the match down. That's what we're asking for help with on Patreon: better servers.",
   "Corrigida a queda que mandava para a tela de login no meio da partida: ao reconectar, o jogo às vezes tirava o jogador da conta. Agora ele volta direto para a partida.": "Fixed the drop that sent you to the login screen mid-match: when reconnecting, the game sometimes signed the player out. Now it goes straight back to the match.",
   "Corrigida a tela preta ao voltar para uma partida em andamento.": "Fixed the black screen when returning to a match in progress.",
   "Sumiu o aviso \"Mensagem inválida\" que aparecia ao recarregar a página durante a partida.": "The \"Invalid message\" notice that appeared when reloading the page during a match is gone.",

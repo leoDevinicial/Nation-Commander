@@ -77,7 +77,8 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
   `TRANSIENT`); sem compressão no WebSocket, o servidor comprime (`inflate` no hello). 21/11 (`docs/knps/KNPS_BINARIO_CAMERA_RETOMADA.md`):
   tropas em binário (`shared/net/wire.ts`, `hello.bin`), leitura num Web Worker, envio por área da câmera (`view`; só muda a
   frequência, nunca a névoa) e reconexão com a diferença desde o último ponto de retomada (`hello.resume`). Interpolação em
-  `src/game/net/interp.ts`. Banda de partida pesada: `npx tsx scripts/knps-banda.ts`; ver `docs/knps/KNPS_DELTA_E_FLUIDEZ.md`.
+  `src/game/net/interp.ts` (no ritmo real de chegada); mísseis e aviões pela trajetória (`at/dur`, `vx/vy`) no relógio
+  estimado do servidor (22/11, `docs/knps/KNPS_TRAJETORIAS.md`). Banda de partida pesada: `npx tsx scripts/knps-banda.ts`; ver `docs/knps/KNPS_DELTA_E_FLUIDEZ.md`.
 - Construtores (`BUILDERS`, `docs/CONSTRUTORES.md`): toda obra usa até 4 cidadãos (25% da velocidade cada; sem nenhum,
   para). Testes de regra antigos rodam sem eles (`shared/test/setup.ts`), como a rede elétrica.
 - Caixa do país (`shared/strategic/treasury.ts`, `docs/CAIXA_DO_PAIS.md`): `works.fundUsd` recebe produção, impostos
