@@ -193,9 +193,10 @@ export interface AirView {
   /** Voos no mapa: os próprios e os inimigos visíveis. */
   /**
    * Voos em andamento. `gen`: modelo dos caças (1 = F-5EM, 2 = F-39 Gripen); `bx/by`: base de origem (nos voos alheios,
-   * só se estiver à vista); `tx/ty`: alvo (só nos voos próprios ou que atacam este jogador).
+   * só se estiver à vista); `tx/ty`: alvo (só nos voos próprios ou que atacam este jogador); `vx/vy` (22/11): velocidade
+   * do centro em unidades por segundo de jogo (0 no combate aéreo), para o navegador prever o voo entre os snapshots.
    */
-  flights: { id: number; owner: Slot; kind: MissionKind; state: MissionState; x: number; y: number; heading: number; count: number; gen: number; plane: AircraftType; engaged?: boolean; bx?: number; by?: number; tx?: number; ty?: number }[];
+  flights: { id: number; owner: Slot; kind: MissionKind; state: MissionState; x: number; y: number; heading: number; count: number; gen: number; plane: AircraftType; engaged?: boolean; bx?: number; by?: number; tx?: number; ty?: number; vx?: number; vy?: number }[];
   /**
    * Drones de ataque em voo: os próprios sempre, os inimigos só quando à vista. `alt`: altura; `climb`: subida (u/s);
    * `takeover`: segundos que restam para assumir o controle; `battery`: 0..1; `tx/ty`: o ponto escolhido (só os próprios).
@@ -207,7 +208,11 @@ export interface AirView {
   /** Baterias do Domo de Ferro do jogador: interceptadores prontos, recarga do próximo (0..1) e espera dos lançadores (s). */
   domes: { id: EntityId; ready: number; max: number; reload: number; cooldown: number }[];
   /** Lançamentos próprios, e os inimigos em voo que miram este jogador ou estão à vista. */
-  launches: { id: number; owner: Slot; siloId: EntityId; state: LaunchState; progress: number; x: number; y: number; fx: number; fy: number; tx: number; ty: number; targetOwner: Slot; gen: number; nuclear?: boolean; cruise?: true }[];
+  /**
+   * `at`/`dur` (22/11): tick em que a fase atual começou e quanto ela dura (ticks). O navegador calcula o progresso pelo
+   * relógio estimado do servidor, contínuo, em vez de seguir o `progress` arredondado de cada snapshot.
+   */
+  launches: { id: number; owner: Slot; siloId: EntityId; state: LaunchState; progress: number; x: number; y: number; fx: number; fy: number; tx: number; ty: number; targetOwner: Slot; gen: number; nuclear?: boolean; cruise?: true; at?: number; dur?: number }[];
   /** Áreas reveladas pelo reconhecimento próprio (névoa do cliente). */
   reveals: { x: number; y: number; r: number }[];
   /** Edifícios inimigos já descobertos (alvos válidos de ataque aéreo). */
@@ -297,6 +302,7 @@ export interface Viewer {
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
+const r3 = (n: number) => Math.round(n * 1000) / 1000;
 const roundStock = (s: Stockpile): Stockpile => Object.fromEntries(RESOURCE_TYPES.map((r) => [r, r2(s[r])])) as Stockpile;
 
 /** Alvo que pode ir no snapshot: o das próprias unidades sempre; o de unidades alheias só se estiver à vista. */
@@ -557,6 +563,9 @@ export function airView(sim: Simulation, slot: Slot): AirView {
     const p = air.missionPos(m);
     if (m.owner !== slot && !sim.isVisibleTo(slot, p)) continue;
     const dir = m.state === 'outbound' ? 1 : -1;
+    // velocidade do centro (missionPos anda em linha reta de from a target em legTicks, e volta no mesmo tempo)
+    const moving = !air.engaged(m.id) && (m.state === 'outbound' || m.state === 'returning');
+    const perSec = moving ? (TICK_RATE * dir) / Math.max(1, m.legTicks) : 0;
     flights.push({
       id: m.id,
       owner: m.owner,
@@ -572,6 +581,8 @@ export function airView(sim: Simulation, slot: Slot): AirView {
       // KAC-12: a base de um voo alheio só vai se o jogador a enxerga (senão o voo revelaria a base aérea na névoa)
       ...(m.owner === slot || sim.isVisibleTo(slot, m.from) ? { bx: r2(m.from.x), by: r2(m.from.y) } : {}),
       ...(m.owner === slot || (m.targetId !== null && sim.entities.get(m.targetId)?.owner === slot) ? { tx: r2(m.target.x), ty: r2(m.target.y) } : {}),
+      vx: r3((m.target.x - m.from.x) * perSec),
+      vy: r3((m.target.y - m.from.y) * perSec),
     });
   }
   const live = (st: LaunchState) => st === 'preparing' || st === 'armed' || st === 'launching' || st === 'flight';
@@ -603,6 +614,7 @@ export function airView(sim: Simulation, slot: Slot): AirView {
       gen: l.gen ?? 1,
       ...(l.nuclear ? { nuclear: true } : {}),
       ...(l.cruise ? { cruise: true as const } : {}),
+      ...(l.state === 'preparing' || l.state === 'launching' || l.state === 'flight' ? { at: sim.tick - (Math.max(1, total) - l.timer), dur: Math.max(1, total) } : {}),
     });
   }
   return {

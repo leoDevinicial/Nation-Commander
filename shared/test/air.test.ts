@@ -361,6 +361,22 @@ describe('Bombardeiro e combate aéreo', () => {
     expect(copy.serialize()).toBe(sim.serialize());
   });
 
+  it('o snapshot leva a velocidade do voo: o navegador prevê a posição seguinte; em combate, velocidade zero (22/11)', () => {
+    const { sim, a } = crossing();
+    run(sim, 1);
+    const f0 = airView(sim, 0).flights.find((x) => x.id === a.id)!;
+    expect(Math.hypot(f0.vx!, f0.vy!)).toBeGreaterThan(0);
+    const n = 7;
+    for (let i = 0; i < n; i++) sim.step();
+    const f1 = airView(sim, 0).flights.find((x) => x.id === a.id)!;
+    expect(Math.abs(f0.x + (f0.vx! * n) / TICK_RATE - f1.x)).toBeLessThan(0.03);
+    expect(Math.abs(f0.y + (f0.vy! * n) / TICK_RATE - f1.y)).toBeLessThan(0.03);
+    while (!sim.air.engaged(a.id) && sim.tick < 1e5) sim.step();
+    const fe = airView(sim, 0).flights.find((x) => x.id === a.id)!;
+    expect(fe.vx).toBe(0);
+    expect(fe.vy).toBe(0);
+  });
+
   it('a esquadrilha aparece no snapshot com o tipo de avião e o estado de combate', () => {
     const { sim, a } = crossing();
     while (!sim.air.engaged(a.id) && sim.tick < 1e5) sim.step();
@@ -431,6 +447,29 @@ describe('Fase 7 — mísseis', () => {
     expect(airView(sim, 0).launches.find((x) => x.id === l.id)?.state).toBe('impact');
     run(sim, 100);
     expect(airView(sim, 0).launches.some((x) => x.id === l.id)).toBe(false);
+  });
+
+  it('o snapshot leva início e duração de cada fase: o progresso calculado no navegador bate com o do servidor (22/11)', () => {
+    const { sim, silo: sl, enemyHq } = silo();
+    sim.air.silo(sl.id).missiles = 1;
+    const target = { x: enemyHq.pos.x, y: enemyHq.pos.y };
+    const tc = sim.grid.worldToCell(target);
+    (sim.explored[0] ??= new Uint8Array(sim.map.width * sim.map.height))[tc.cy * sim.map.width + tc.cx] = 1;
+    expect(sim.applyCommand(0, { type: 'missile_prepare', buildingId: sl.id, ...target })).toBeNull();
+    const l = sim.air.launches[0]!;
+    run(sim, MISSILE.prepareSeconds + 0.1);
+    expect(sim.applyCommand(0, { type: 'missile_authorize', launchId: l.id })).toBeNull();
+    run(sim, MISSILE.launchSeconds + 0.1);
+    expect(l.state).toBe('flight');
+    const v0 = airView(sim, 0).launches.find((x) => x.id === l.id)!;
+    expect(v0.dur).toBe(l.flightTicks);
+    for (let i = 0; i < 9; i++) sim.step();
+    const v1 = airView(sim, 0).launches.find((x) => x.id === l.id)!;
+    // o início da fase não muda entre snapshots, e (tick − início) / duração é o progresso exato (sem o arredondamento)
+    expect(v1.at).toBe(v0.at);
+    const exact = 1 - l.timer / l.flightTicks;
+    expect(Math.abs((sim.tick - v1.at!) / v1.dur! - exact)).toBeLessThan(1e-9);
+    expect(Math.abs(v1.progress - exact)).toBeLessThanOrEqual(0.005);
   });
 
   it('abortar devolve o míssil; a paz decretada depois de armar bloqueia a autorização', () => {

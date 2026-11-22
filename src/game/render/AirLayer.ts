@@ -275,6 +275,8 @@ interface TrackedFlight {
   nextFlare: number;
   /** Pouso: sentido da pista escolhido na aproximação (+1 para +x, −1 para −x; 0 = ainda não). */
   landDir: number;
+  /** Hora do servidor (s) do último snapshot deste voo: a previsão parte de `curr` nesse instante (22/11). */
+  snapT: number;
 }
 
 /**
@@ -644,7 +646,7 @@ export class AirLayer {
       let t = this.flights.get(f.id);
       const p = new THREE.Vector2(f.x, f.y);
       if (!t) {
-        t = { snap: f, planes: [], prev: p.clone(), curr: p.clone(), lastC: null, pos: p.clone(), heading: f.heading, turn: 0, speed: 0, alt: 0, t: 0, phase: (f.id * 2.399) % 6.283, bank: 0, takeoff: -1, flareArmed: false, nextFlare: 3, landDir: 0 };
+        t = { snap: f, planes: [], prev: p.clone(), curr: p.clone(), lastC: null, pos: p.clone(), heading: f.heading, turn: 0, speed: 0, alt: 0, t: 0, phase: (f.id * 2.399) % 6.283, bank: 0, takeoff: -1, flareArmed: false, nextFlare: 3, landDir: 0, snapT: this.droneClock.server };
         // decolando: a esquadrilha começa na cabeceira da pista e corre um avião de cada vez, se ainda estiver perto da
         // base na saída
         // (a base de um voo inimigo só vem quando o jogador a enxerga: sem ela, o voo já aparece no ar)
@@ -659,6 +661,7 @@ export class AirLayer {
       } else {
         t.prev.lerp(t.curr, a0);
         t.curr.copy(p);
+        t.snapT = this.droneClock.server;
       }
       // aeronave perdida no caminho (ou troca de modelo): a formação é refeita
       const want = Math.min(4, f.count);
@@ -887,11 +890,21 @@ export class AirLayer {
    * Um quadro da esquadrilha: perseguição do centro do servidor com curvas de raio limitado,
    * altitude (decolagem, cruzeiro, mergulho de ataque, pouso) e a coreografia dos alas.
    */
-  private frameSquadron(t: TrackedFlight, alpha: number, dt: number): void {
+  private frameSquadron(t: TrackedFlight, alpha: number, dt: number, T: number): void {
     const f = t.snap;
     t.t += dt;
-    let cx = t.prev.x + (t.curr.x - t.prev.x) * alpha;
-    let cy = t.prev.y + (t.curr.y - t.prev.y) * alpha;
+    let cx: number;
+    let cy: number;
+    if (f.vx !== undefined && f.vy !== undefined) {
+      // 22/11: o voo é uma reta conhecida; o centro segue a velocidade a partir do último snapshot, no relógio do
+      // servidor (até 1,5 s sem notícia). O snapshot seguinte corrige, e a perseguição dos aviões suaviza a correção.
+      const h = Math.max(0, Math.min(1.5, T - t.snapT));
+      cx = t.curr.x + f.vx * h;
+      cy = t.curr.y + f.vy * h;
+    } else {
+      cx = t.prev.x + (t.curr.x - t.prev.x) * alpha;
+      cy = t.prev.y + (t.curr.y - t.prev.y) * alpha;
+    }
     // velocidade do servidor, suavizada (some quando o jogo está pausado)
     if (t.lastC && dt > 0) t.speed += (Math.hypot(cx - t.lastC.x, cy - t.lastC.y) / dt - t.speed) * Math.min(1, dt * 3);
     t.lastC = (t.lastC ?? new THREE.Vector2()).set(cx, cy);
@@ -1203,13 +1216,16 @@ export class AirLayer {
     }
   }
 
-  frame(alpha: number, dt: number): void {
+  frame(alpha: number, dt: number, paused = false): void {
     this.time += dt;
     this.frameDrones(dt);
-    for (const t of this.flights.values()) this.frameSquadron(t, alpha, dt);
+    const T = this.advancePredictClock(paused);
+    for (const t of this.flights.values()) this.frameSquadron(t, alpha, dt, T);
     for (const m of this.missiles.values()) {
       const l = m.snap;
-      const k = Math.min(1, m.prev + (m.curr - m.prev) * alpha);
+      // 22/11: com o início e a duração da fase, o progresso sai do relógio estimado do servidor (contínuo); sem eles
+      // (servidor antigo), a interpolação do progress arredondado de cada snapshot
+      const k = l.at !== undefined && l.dur ? Math.max(0, Math.min(1, (T * TICK_RATE - l.at) / l.dur)) : Math.min(1, m.prev + (m.curr - m.prev) * alpha);
       if (l.state === 'preparing' || l.state === 'armed') this.frameStanding(m, l, l.state === 'armed' ? 1 : k, dt);
       else if (l.state === 'launching') this.frameLaunching(m, l, k, dt);
       else this.frameFlight(m, l, k, dt);
@@ -1630,6 +1646,24 @@ export class AirLayer {
     if (c.render < 0 || Math.abs(target - c.render) > 1) c.render = target;
     else c.render += real * c.rate + (target - c.render) * Math.min(1, real * 1.5);
     return c.render;
+  }
+
+  /** Relógio de previsão (22/11): a hora estimada do servidor agora, sem atraso, para mísseis e voos (trajetórias
+   * conhecidas). Anda no ritmo medido do servidor (mais devagar quando ele está sobrecarregado), é puxado para a última
+   * hora recebida sem saltos, nunca volta e para na pausa. */
+  private readonly predict = { render: -1, realAt: 0 };
+
+  private advancePredictClock(paused: boolean): number {
+    const c = this.droneClock;
+    const p = this.predict;
+    const now = performance.now() / 1000;
+    const real = p.realAt ? Math.min(0.5, now - p.realAt) : 0;
+    p.realAt = now;
+    if (paused) return p.render < 0 ? c.server : p.render;
+    const latest = c.server + Math.min(1.5, Math.max(0, now - c.arrival)) * c.rate;
+    if (p.render < 0 || Math.abs(latest - p.render) > 2) p.render = latest;
+    else p.render += Math.max(0, real * c.rate + (latest - p.render) * Math.min(1, real * 2));
+    return p.render;
   }
 
   /** Pose do drone na hora `T` do servidor: interpolada entre as posições recebidas (ou estendida um pouco além). */

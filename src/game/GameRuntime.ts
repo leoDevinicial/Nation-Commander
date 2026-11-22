@@ -1642,7 +1642,7 @@ export class GameRuntime {
       t.visual.update(dt, t.snap.progress, frac, (selected || frac < 0.999 || t.snap.progress < 1 || upgrading) && !this.cameraCtl.closeUp, this.camera, rally, selected && t.snap.owner === this.mySlot, upgrading, t.snap.status === undefined || t.snap.status === 'ok');
     }
     this.cargo.frame(alpha, dt);
-    this.airLayer.frame(alpha, dt);
+    this.airLayer.frame(alpha, dt, this.paused);
     this.frameFpv(dt);
     this.ambient.update(this.paused ? 0 : dt);
     this.traffic.update(this.paused ? 0 : dt);
