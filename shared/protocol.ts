@@ -257,7 +257,12 @@ export type ClientMessage =
   /** Tutorial: fato da tela do jogador ou pedido de pular (07/11). */
   | { t: 'tutorial'; fact?: TutorialFact; skip?: 'step' | 'chapter' }
   | { t: 'chat'; text: string }
-  | { t: 'ping'; n: number };
+  | { t: 'ping'; n: number }
+  /**
+   * Resultado de uma partida contra a IA que rodou no navegador (22/11, `server/local/`): o servidor confere a forma e
+   * grava no histórico como partida local (sem a garantia do anticheat; a partida contra a IA não é competitiva).
+   */
+  | { t: 'local_match'; id: string; rec: unknown };
 
 export type ServerMessage =
   | { t: 'welcome'; user: PublicUser; serverVersion: string }
@@ -267,6 +272,8 @@ export type ServerMessage =
   | { t: 'room'; room: RoomInfo | null }
   | { t: 'room_list'; rooms: PublicRoomSummary[] }
   | { t: 'feedback_ok' }
+  /** Resultado da partida local recebido (o navegador apaga a cópia guardada). */
+  | { t: 'local_match_ok'; id: string }
   | { t: 'community_history'; messages: CommunityMessage[]; online: number; you: string; moderator?: boolean }
   | { t: 'community_remove'; id: number }
   | { t: 'community_notice'; text: string }

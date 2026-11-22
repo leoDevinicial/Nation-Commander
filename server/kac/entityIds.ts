@@ -20,13 +20,23 @@ const ROUNDS = 4;
 
 /** Chave nova para uma sala (hex, 256 bits). Fica no salvamento da sala, nunca vai para o cliente. */
 export function newIdKey(): string {
-  return randomBytes(32).toString('hex');
+  return Array.from(randomBytes(32), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Hex → bytes, sem `Buffer` (22/11: o mesmo código roda no navegador, na partida contra a IA local). */
+function hexBytes(hex: string): Uint8Array {
+  const out = new Uint8Array(Math.floor(hex.length / 2));
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
 }
 
 export function idCipher(keyHex: string): IdCipher {
-  const key = Buffer.from(keyHex, 'hex');
-  if (key.length < 16) throw new Error('chave de ids curta demais');
-  const round = (space: IdSpace, r: number, half: number) => createHmac('sha256', key).update(`${space}:${r}:${half}`).digest().readUInt16BE(0) & MASK;
+  const key = hexBytes(keyHex);
+  if (key.length < 16 || key.some((b) => Number.isNaN(b))) throw new Error('chave de ids curta demais');
+  const round = (space: IdSpace, r: number, half: number) => {
+    const d = createHmac('sha256', key).update(`${space}:${r}:${half}`).digest();
+    return ((d[0]! << 8) | d[1]!) & MASK;
+  };
   return (space, counter) => {
     if (!Number.isInteger(counter) || counter < 0) throw new Error(`contador inválido: ${counter}`);
     if (counter >= DOMAIN) return counter + 1;

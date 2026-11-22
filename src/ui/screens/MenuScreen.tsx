@@ -13,6 +13,7 @@ import { GAME_TITLE } from '../../../shared/version.ts';
 import { ConnectionBadge } from '../components/ConnectionBadge.tsx';
 import { RegionPicker } from '../components/RegionPicker.tsx';
 import { prepareJoin, prepareNewRoom } from '../../net/regionFlow.ts';
+import { ensureRemote, goLocal, wantsLocal } from '../../net/localMode.ts';
 import { Frame } from '../components/Frame.tsx';
 import { NationBadge } from '../components/NationBadge.tsx';
 import { CHANGELOG } from '../changelog.ts';
@@ -46,6 +47,12 @@ export function MenuScreen() {
   const keys = playerKeys(profile, guest, user);
   const create = async (mode: 'pvp' | 'vs_ai' | 'sandbox' | 'tutorial') => {
     autoFullscreen();
+    // 22/11: contra a IA, a partida roda no próprio aparelho (servidor local num Web Worker); se não der, no remoto
+    if (mode === 'vs_ai' && wantsLocal() && (await goLocal())) {
+      gameClient.send({ t: 'create_room', mode, countryId: country });
+      return;
+    }
+    if (!(await ensureRemote())) return;
     // KNPS-08: a sala nasce na região de menor ping (com várias regiões configuradas)
     if (!(await prepareNewRoom())) return;
     gameClient.send({ t: 'create_room', mode, countryId: country });
@@ -54,6 +61,7 @@ export function MenuScreen() {
     const c = code.trim().toUpperCase();
     if (c.length !== 5) return;
     autoFullscreen();
+    if (!(await ensureRemote())) return;
     if (!(await prepareJoin(c))) return;
     gameClient.send({ t: 'join_room', code: c, countryId: country });
   };
@@ -171,7 +179,10 @@ export function MenuScreen() {
             <button className="btn btn-primary btn-hero menu-cta" disabled={!online} title={offlineHint} onClick={() => void create('vs_ai')}>
               <Play size={20} aria-hidden /> Jogar contra a IA
             </button>
-            <button className="btn btn-hero menu-cta" disabled={!online} title={offlineHint} onClick={() => setScreen('rooms')}>
+            <button className="btn btn-hero menu-cta" disabled={!online} title={offlineHint} onClick={() => {
+                void ensureRemote();
+                setScreen('rooms');
+              }}>
               <Users size={18} aria-hidden /> Multijogador
             </button>
           </div>
@@ -210,7 +221,10 @@ export function MenuScreen() {
           <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
             <ModeCard main icon={Bot} title="Contra a IA" text="Você contra governos da IA, do Fácil ao Brutal." disabled={!online} onClick={() => void create('vs_ai')} />
             <Frame className="min-w-0" innerClassName="flex h-full flex-col gap-1.5 p-3 sm:p-3.5">
-              <button className="flex flex-col items-start gap-1.5 text-left disabled:opacity-60" disabled={!online} title={offlineHint} onClick={() => setScreen('rooms')}>
+              <button className="flex flex-col items-start gap-1.5 text-left disabled:opacity-60" disabled={!online} title={offlineHint} onClick={() => {
+                void ensureRemote();
+                setScreen('rooms');
+              }}>
                 <ModeIcon icon={Globe} />
                 <span className="font-display text-base font-bold tracking-wider uppercase">Multijogador</span>
                 <span className="text-xs text-ink-400 [@media(max-height:520px)]:hidden">Salas públicas ou privadas, com amigos e bots.</span>

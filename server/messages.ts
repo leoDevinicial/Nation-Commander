@@ -194,6 +194,9 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     }
     case 'ping':
       return typeof data.n === 'number' ? { t: 'ping', n: data.n } : null;
+    case 'local_match':
+      // a forma do resultado é conferida no handler (`server/local/localMatch.ts`)
+      return typeof data.id === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(data.id) && typeof data.rec === 'object' && data.rec !== null ? { t: 'local_match', id: data.id, rec: data.rec } : null;
     default:
       return null;
   }

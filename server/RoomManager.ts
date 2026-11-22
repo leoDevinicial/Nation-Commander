@@ -4,7 +4,7 @@ import { GAME_VERSION } from '../shared/version.ts';
 import type { Connection } from './Connection.ts';
 import { log } from './logger.ts';
 import { decodeSave, encodeSave, MAX_SAVE_AGE_MS, type MatchStore } from './matchStore.ts';
-import { Room, type RoomDeps } from './Room.ts';
+import { Room, type RoomDeps, type RoomSave } from './Room.ts';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sem caracteres ambíguos
 /** Ticks simulados numa cópia antes de aceitar um salvamento (um salvamento quebrado não entra). */
@@ -30,6 +30,8 @@ export class RoomManager {
     deps: Omit<RoomDeps, 'onEmpty' | 'onEnded'>,
     private readonly maxRooms: number,
     private readonly store: MatchStore | null = null,
+    /** Formato do salvamento: gzip + base64 no servidor; JSON puro na partida local do navegador (22/11). */
+    private readonly codec: { encode: (save: RoomSave) => string; decode: (blob: string) => RoomSave } = { encode: encodeSave, decode: decodeSave },
   ) {
     this.roomDeps = {
       ...deps,
@@ -105,7 +107,7 @@ export class RoomManager {
       return undefined;
     }
     try {
-      const save = decodeSave(stored.blob);
+      const save = this.codec.decode(stored.blob);
       if (save.gameVersion !== GAME_VERSION) log.warn('Retomando partida de outra versão do jogo', { room: save.code, saved: save.gameVersion, now: GAME_VERSION });
       // ensaio numa cópia: se o salvamento não roda nesta versão, é descartado sem afetar ninguém
       const probe = Room.restore(save, { ...this.roomDeps, autoLoop: false, record: async () => false, onEnded: () => {}, onEmpty: () => {} });
@@ -133,7 +135,7 @@ export class RoomManager {
       try {
         const save = room.toSave();
         if (!save) continue;
-        await this.store.save(room.code, room.userIds(), encodeSave(save));
+        await this.store.save(room.code, room.userIds(), this.codec.encode(save));
         this.savedTick.set(room.code, room.tick);
         n++;
       } catch (err) {

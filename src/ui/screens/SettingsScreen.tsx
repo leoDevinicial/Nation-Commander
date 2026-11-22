@@ -107,6 +107,12 @@ export function SettingsForm({ inGame = false }: { inGame?: boolean }) {
             )}
           </fieldset>
         )}
+        <div>
+          <Toggle label="Partida contra a IA no seu aparelho" checked={s.localAi} onChange={(v) => s.update({ localAi: v })} />
+          <p className="text-[11px] text-ink-400">
+            A partida contra a IA roda no seu navegador: sem lag e sem quedas, mesmo sem internet depois de começar. Desligue se o aparelho esquentar ou ficar lento em partidas longas: aí ela roda no servidor.
+          </p>
+        </div>
         <Toggle label="Reduzir animações (globo do menu e transições)" checked={s.reducedMotion} onChange={(v) => s.update({ reducedMotion: v })} />
         <Toggle label="Mover câmera pelas bordas da tela" checked={s.edgeScroll} onChange={(v) => s.update({ edgeScroll: v })} />
         <div>

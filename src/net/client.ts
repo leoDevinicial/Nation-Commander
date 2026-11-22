@@ -2,10 +2,12 @@ import type { MatchStartInfo, ServerMessage } from '../../shared/protocol.ts';
 import { useAppStore } from '../state/useAppStore.ts';
 import { env } from '../lib/env.ts';
 import { GameClient } from './GameClient.ts';
+import { LOCAL_URL, localActive, localSupported } from './localSocket.ts';
 import { REGIONS, probeRegions, rememberServer, rememberedServer } from './regionState.ts';
 
 // KNPS-08: volta direto ao servidor da última sala (partida em andamento é retomada); senão, o primeiro da lista
-export const gameClient = new GameClient(rememberedServer() ?? REGIONS[0]?.url ?? env.gameServerUrl);
+// partida contra a IA no aparelho em andamento (22/11): abre direto no servidor local, que a retoma do salvamento
+export const gameClient = new GameClient(localActive() && localSupported() ? LOCAL_URL : (rememberedServer() ?? REGIONS[0]?.url ?? env.gameServerUrl));
 // mede as regiões em segundo plano para a hora de criar uma sala
 void probeRegions();
 

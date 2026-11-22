@@ -1,5 +1,6 @@
 import { DEFAULT_COUNTRY } from '../../shared/data/countries.ts';
 import { currentMatch, gameClient, isSameMatch } from '../net/client.ts';
+import '../net/localMode.ts'; // partida contra a IA no aparelho: ouvintes prontos antes da primeira mensagem (22/11)
 import { supabase, type Profile } from '../lib/supabase.ts';
 import { useAppStore } from '../state/useAppStore.ts';
 import { screenAfterLogin } from '../ui/manual.ts';

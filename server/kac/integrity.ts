@@ -17,7 +17,8 @@ export interface MatchIntegrity {
   players: { slot: number; commandsAccepted: number; commandsRejected: number; pausesUsed: number; automationAlerts: number }[];
   /** Eventos de segurança de gravidade média ou maior desta sala durante a partida. */
   securityEvents: number;
-  verdict: 'clean' | 'review';
+  /** 'local': partida contra a IA que rodou no navegador (22/11), sem conferência do servidor. */
+  verdict: 'clean' | 'review' | 'local';
 }
 
 export interface IntegrityCounters {

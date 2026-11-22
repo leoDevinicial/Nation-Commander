@@ -3,7 +3,8 @@ import { PROTOCOL_VERSION, GAME_VERSION } from '../shared/version.ts';
 import type { Connection } from './Connection.ts';
 import type { RoomManager } from './RoomManager.ts';
 import { sanitizeName } from './messages.ts';
-import { saveClientDiag, saveCommunityReport, saveFeedback, type ClientDiagRecord, type FeedbackRecord } from './supabase.ts';
+import { recordMatch, saveClientDiag, saveCommunityReport, saveFeedback, type ClientDiagRecord, type FeedbackRecord, type MatchRecord } from './supabase.ts';
+import { validateLocalMatch } from './local/localMatch.ts';
 import { config } from './config.ts';
 import { guestIdentity, publicId } from './kac/identity.ts';
 import { kacJournal } from './kac/journal.ts';
@@ -28,7 +29,14 @@ export interface HandlerDeps {
   saveClientDiag?: (rec: ClientDiagRecord) => Promise<boolean>;
   /** Último feedback de cada usuário (ms): no máximo um a cada `FEEDBACK_COOLDOWN_MS`. */
   feedbackAt?: Map<string, number>;
+  /** Grava o resultado de uma partida contra a IA que rodou no navegador (padrão: Supabase). */
+  recordLocalMatch?: (rec: MatchRecord) => Promise<boolean>;
+  /** Partidas locais já recebidas (id → quando): o navegador repete até receber a confirmação. */
+  localMatches?: Map<string, number>;
 }
+
+/** Resultados de partidas locais aceitos por usuário: no máximo um a cada tanto (ms). */
+export const LOCAL_MATCH_COOLDOWN_MS = 20_000;
 
 /** Chat da Comunidade (criado na primeira vez, com os moderadores e a gravação de denúncias do servidor). */
 function community(deps: HandlerDeps): CommunityChat {
@@ -205,6 +213,31 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
       };
       log.info('Diagnóstico do navegador', { kind: rec.kind, room: rec.room_code, inMatch: rec.in_match, detail: rec.detail, gpu: rec.device?.gpu, memoryGb: rec.device?.memoryGb, quality: rec.device?.quality });
       await (deps.saveClientDiag ?? saveClientDiag)(rec);
+      return;
+    }
+    case 'local_match': {
+      const seen = (deps.localMatches ??= new Map());
+      // repetição do mesmo resultado (a confirmação se perdeu): só confirma de novo
+      if (seen.has(msg.id)) {
+        conn.send({ t: 'local_match_ok', id: msg.id });
+        return;
+      }
+      const lastOfUser = seen.get(`user:${conn.user.id}`) ?? -Infinity;
+      if (Date.now() - lastOfUser < LOCAL_MATCH_COOLDOWN_MS) return;
+      const rec = validateLocalMatch(msg.rec, conn.user);
+      if (typeof rec === 'string') {
+        // recusado de vez: confirma para o navegador não insistir, e fica no log
+        log.warn('Resultado de partida local recusado', { reason: rec });
+        conn.send({ t: 'local_match_ok', id: msg.id });
+        return;
+      }
+      seen.set(`user:${conn.user.id}`, Date.now());
+      const ok = await (deps.recordLocalMatch ?? recordMatch)(rec);
+      if (ok) {
+        seen.set(msg.id, Date.now());
+        if (seen.size > 5000) for (const k of [...seen.keys()].slice(0, 1000)) seen.delete(k);
+        conn.send({ t: 'local_match_ok', id: msg.id });
+      }
       return;
     }
     case 'community_join':

@@ -4,6 +4,7 @@ import { NetStats } from './netStats.ts';
 import { createWireDecoder, decodeData, type WireDecoder } from './wireDecode.ts';
 import { SnapshotDeltaDecoder, type SnapshotDelta } from '../../shared/net/delta.ts';
 import type { Snapshot } from '../../shared/sim/snapshot.ts';
+import { LOCAL_URL, LocalSocket } from './localSocket.ts';
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed';
 
@@ -34,6 +35,8 @@ const PING_MS = 2500;
  * proxy cortou). Conta pings, e não tempo, porque o navegador atrasa os relógios da aba em segundo plano.
  */
 const DEAD_AFTER_PINGS = 3;
+/** Mensagens que só o servidor remoto atende (o servidor local da partida contra a IA não tem rede nem banco). */
+const REMOTE_ONLY = new Set<ClientMessage['t']>(['feedback', 'client_diag', 'community_join', 'community_leave', 'community_say', 'community_report', 'community_mod', 'list_rooms', 'join_room', 'local_match']);
 /** Abrir a conexão e receber o `welcome` não pode passar disso (ms). */
 const OPEN_TIMEOUT_MS = 9000;
 
@@ -195,6 +198,8 @@ export class GameClient {
     if (this.ws?.readyState !== WebSocket.OPEN) return false;
     // antes do welcome, só o hello: o resto chegava ao servidor antes da identificação (22/11)
     if (msg.t !== 'hello' && this.status !== 'connected') return false;
+    // na partida local, o que só o servidor remoto atende fica para quando ele voltar (quem chamou guarda e tenta depois)
+    if (this.url === LOCAL_URL && REMOTE_ONLY.has(msg.t)) return false;
     // conectado só no papel: o servidor parou de responder e a mensagem se perderia (render-se ficava em "Encerrando…")
     if (this.status === 'connected' && this.unanswered >= DEAD_AFTER_PINGS - 1) {
       this.dropDead();
@@ -249,7 +254,8 @@ export class GameClient {
     this.setStatus(this.attempts === 0 ? 'connecting' : 'reconnecting', this.lastDetail);
     let ws: WebSocket;
     try {
-      ws = new WebSocket(this.url);
+      // partida contra a IA no navegador (22/11): o "servidor" é um Web Worker, com a mesma interface
+      ws = this.url === LOCAL_URL ? (new LocalSocket() as unknown as WebSocket) : new WebSocket(this.url);
     } catch (err) {
       this.setStatus('failed', `Endereço do servidor inválido: ${String(err)}`);
       return;
@@ -274,7 +280,8 @@ export class GameClient {
       const key = this.resumeKey?.() ?? null;
       const resume = cpTick !== null && key ? { tick: cpTick, key } : undefined;
       // sem a compressão do WebSocket (algum proxy no caminho tirou), pede ao servidor que comprima ele mesmo
-      const inflate = !/permessage-deflate/.test(ws.extensions) && typeof DecompressionStream !== 'undefined';
+      // (na partida local não há rede: nada a comprimir)
+      const inflate = this.url !== LOCAL_URL && !/permessage-deflate/.test(ws.extensions) && typeof DecompressionStream !== 'undefined';
       this.appInflate = inflate;
       this.stats.compression = /permessage-deflate/.test(ws.extensions) ? 'transporte' : inflate ? 'servidor' : 'nenhuma';
       let token: string | null;

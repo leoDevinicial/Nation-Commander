@@ -29,6 +29,11 @@ export interface Settings {
   muted: boolean;
   /** Silencia só a trilha sonora (efeitos, alertas e combate seguem tocando). */
   musicMuted: boolean;
+  /**
+   * Partida contra a IA no próprio aparelho (22/11, `server/local/`): sem lag nem quedas. Desligada, ela roda no
+   * servidor, como antes.
+   */
+  localAi: boolean;
 }
 
 export type FpsTarget = 'auto' | 30 | 60;
@@ -44,7 +49,7 @@ function defaults(): Settings {
   } catch {
     // ambiente sem navigator/screen (testes): mantém equilibrado
   }
-  return { quality, shadows: true, adaptiveQuality: true, fpsTarget: 'auto', panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false, autoFullscreen: touch, lockLandscape: false, volumes: { ...DEFAULT_VOLUMES }, muted: false, musicMuted: false };
+  return { quality, shadows: true, adaptiveQuality: true, fpsTarget: 'auto', panSpeed: 1, edgeScroll: false, showFps: false, reducedMotion: false, autoFullscreen: touch, lockLandscape: false, volumes: { ...DEFAULT_VOLUMES }, muted: false, musicMuted: false, localAi: true };
 }
 
 /** Lê configurações salvas; aceita o formato antigo ('low' | 'high'). */
@@ -66,6 +71,7 @@ export function parseSettings(raw: string | null, base: Settings): Settings {
       volumes: parseVolumes(p.volumes, base.volumes),
       muted: Boolean(p.muted),
       musicMuted: Boolean(p.musicMuted),
+      localAi: typeof p.localAi === 'boolean' ? p.localAi : base.localAi,
     };
   } catch {
     return base;
