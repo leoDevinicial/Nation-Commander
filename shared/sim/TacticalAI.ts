@@ -534,7 +534,10 @@ export class TacticalAI {
     const coalOut = sim.power && res.coal < 40;
     const installed = mine.reduce(
       (a, b) =>
-        a + (b.progress >= 1 && b.hp > 0 && !(coalOut && POWER_GEN[b.type]?.source === 'coal') ? (POWER_GEN[b.type]?.gen ?? 0) * (POWER_GEN[b.type]?.source === 'solar' || POWER_GEN[b.type]?.source === 'wind' ? 0.6 : 1) : 0),
+        a +
+        (b.progress >= 1 && b.hp > 0 && !(coalOut && POWER_GEN[b.type]?.source === 'coal')
+          ? (POWER_GEN[b.type]?.gen ?? 0) * (POWER_GEN[b.type]?.source === 'solar' || POWER_GEN[b.type]?.source === 'wind' ? 0.6 * sim.fx(b).rateMul : 1)
+          : 0),
       0,
     );
     const powerShort = !!power && !plantInProgress && installed < power.demand + pendingUse + 4;

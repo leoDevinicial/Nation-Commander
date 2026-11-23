@@ -76,6 +76,9 @@ export const PACT_LABEL = { alliance: 'aliança', nonaggression: 'pacto de não 
 /** Aliança de time: pela marca, ou (salvamentos antigos) pela duração da partida inteira sem ser pacto. */
 export const isTeamTreaty = (t: Treaty): boolean => t.team === true || (!t.pact && t.type === 'alliance' && t.endDay - t.startDay >= 1_000_000);
 
+/** Dinheiro a aliados (23/11): valor mínimo por envio. */
+export const MONEY_GIFT = { minUsd: 1_000_000 };
+
 export type DiplomaticAction =
   | { type: 'establish_contact'; partner: NationId }
   | { type: 'declare_war'; target: NationId }
@@ -86,6 +89,8 @@ export type DiplomaticAction =
   | { type: 'impose_sanctions'; target: NationId }
   | { type: 'lift_sanctions'; target: NationId }
   | { type: 'send_aid'; partner: NationId; pctGdp: number }
+  /** Dinheiro do caixa a um aliado do mapa (23/11): sai de um caixa e entra no outro na hora. */
+  | { type: 'send_money'; partner: NationId; usd: number }
   | { type: 'set_mission'; partner: NationId; active: boolean }
   | { type: 'cancel_treaty'; treatyId: number };
 
@@ -107,6 +112,7 @@ export type DiplomaticEvent = { id: number; causes?: number[] } & (
   | { type: 'proposal_rejected'; day: number; from: NationId; to: NationId; proposal: string; reasons: Factor[] }
   | { type: 'treaty_ended'; day: number; treaty: Treaty; reason: 'expired' | 'cancelled' | 'war' }
   | { type: 'aid_sent'; day: number; from: NationId; to: NationId; amountUsd: number }
+  | { type: 'money_sent'; day: number; from: NationId; to: NationId; amountUsd: number }
   | { type: 'contact_started'; day: number; from: NationId; to: NationId; dueDay: number; costUsd: number }
   | { type: 'discovered'; day: number; by: NationId; target: NationId; via: DiscoveryMethod }
   | { type: 'war_declared'; day: number; by: NationId; target: NationId; costs: WarCosts; brokenTreaties: Treaty[]; respondingAllies: NationId[] }
@@ -711,6 +717,18 @@ export class Diplomacy {
         const p = this.pair(actor, other.slot);
         p.aid = Math.min(DIPLO.aidCap, p.aid + DIPLO.aidRelationPer01Pct * (pct / 0.1));
         this.emit({ type: 'aid_sent', day, from: actor, to: other.slot, amountUsd: Math.round(amount) });
+        return null;
+      }
+      case 'send_money': {
+        const other = target(action.partner);
+        if (!other) return 'País inválido';
+        if (!this.inTheater(actor, other.slot) || !this.active('alliance', actor, other.slot)) return 'Só é possível enviar dinheiro a um aliado da partida';
+        const usd = Math.floor(action.usd);
+        if (!(usd >= MONEY_GIFT.minUsd)) return `Envio mínimo: US$ ${MONEY_GIFT.minUsd / 1e6} mi`;
+        if (me.works.fundUsd < usd) return 'Caixa insuficiente para esse valor';
+        me.works.fundUsd -= usd;
+        other.works.fundUsd += usd;
+        this.emit({ type: 'money_sent', day, from: actor, to: other.slot, amountUsd: usd });
         return null;
       }
       case 'set_mission': {

@@ -225,6 +225,10 @@ export function parseDiplomaticAction(raw: unknown): DiplomaticAction | null {
       return isNationId(raw.partner) && typeof raw.pctGdp === 'number' && Number.isFinite(raw.pctGdp) && raw.pctGdp > 0 && raw.pctGdp <= 0.5
         ? { type: 'send_aid', partner: raw.partner, pctGdp: raw.pctGdp }
         : null;
+    case 'send_money':
+      return isNationId(raw.partner) && typeof raw.usd === 'number' && Number.isFinite(raw.usd) && raw.usd > 0 && raw.usd <= 1e12
+        ? { type: 'send_money', partner: raw.partner, usd: raw.usd }
+        : null;
     case 'set_mission':
       return isNationId(raw.partner) && typeof raw.active === 'boolean' ? { type: 'set_mission', partner: raw.partner, active: raw.active } : null;
     case 'cancel_treaty':

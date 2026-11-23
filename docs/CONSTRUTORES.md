@@ -28,6 +28,9 @@ Onde está:
 - **Snapshot:** `builders` (cidadãos na obra, visíveis no canteiro para quem enxerga a obra) e `builderTarget` (só
   para o dono).
 - **Melhorias de nível** (obras de melhoria) seguem sem construtores por enquanto.
+- **Outra ilha (23/11):** no desenho (`CitizenLayer`), cidadão não atravessa o mar a pé. Cada célula tem o seu pedaço
+  de terra (`landComponents`); o construtor vem de uma casa da mesma ilha e, sem nenhuma, aparece já na obra (como se
+  tivesse chegado de barco). A simulação não muda: os construtores continuam sendo uma contagem.
 
 ## Partida
 

@@ -75,6 +75,8 @@ export interface Drone {
   /** Manche já suavizado (o que está valendo neste passo); vai de 0 até `input` aos poucos. */
   turnNow?: number;
   climbNow?: number;
+  /** Ticks no mergulho final do piloto automático (passou do limite sem acertar: desce reto, não fica rodando). */
+  diveTicks?: number;
   lastInputTick: number;
   phase: DronePhase;
   end?: DroneEnd;
@@ -149,6 +151,10 @@ export class DroneSystem {
     } else {
       d.controlled = false;
       d.input = { turn: 0, climb: 0, throttle: 0 };
+      // devolvido ao piloto automático: mergulha logo à frente, no rumo em que está (antes voltava ao ponto do
+      // lançamento e, perto dele, ficava rodando em círculo até a bateria acabar)
+      d.target = this.sim.clampToMap({ x: d.pos.x + Math.cos(d.heading) * 10, y: d.pos.y + Math.sin(d.heading) * 10 });
+      d.diveTicks = 0;
     }
     return null;
   }
@@ -192,6 +198,12 @@ export class DroneSystem {
         const wantAlt = flat < 9 ? flat * 0.45 : Math.max(DRONE.cruiseAlt, this.obstacleAhead(d) + 1.2);
         climb = clamp((wantAlt - d.alt) * 0.8, -1, 1);
         throttle = flat < 9 ? 0.3 : 0;
+        // o alvo ficou dentro do raio de curva: em vez de circular em volta dele, desce reto onde está
+        d.diveTicks = flat < 9 ? (d.diveTicks ?? 0) + 1 : 0;
+        if (d.diveTicks > 4 * TICK_RATE) {
+          turn = 0;
+          climb = -1;
+        }
       }
       // o manche chega aos poucos: curva e subida sem trancos (no piloto automático também)
       const k = Math.min(1, dt * DRONE.stickResponse);

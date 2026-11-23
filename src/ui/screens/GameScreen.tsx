@@ -335,6 +335,10 @@ export function GameScreen() {
                 runtime.send({ type: 'trade_gift', to: giftTarget, items, mode });
                 useNationalStore.getState().setGiftTarget(null);
               }}
+              onSendMoney={(usd) => {
+                gameClient.send({ t: 'national', cmd: { type: 'diplomacy', action: { type: 'send_money', partner: giftTarget, usd } } });
+                useNationalStore.getState().setGiftTarget(null);
+              }}
             />
           )}
           {!chatOpen && !nationalOpen && !globeOpen && (

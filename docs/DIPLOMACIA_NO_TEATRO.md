@@ -62,6 +62,9 @@ quando só sobram aliados.
 | Avião | 20% | aeroporto dos dois lados (Base Aérea ou QG nível 4) e um avião cargueiro pronto (Transporte ou C-5 Galaxy) |
 
   Indisponível, o transporte mostra o motivo (`giftModeBlocker`, também no snapshot do dono em `allyLinks`).
+- **Dinheiro** (23/11, ação diplomática `send_money`, no alto da mesma janela, agora "Enviar ajuda"): sai do caixa de
+  quem envia e entra no do aliado na hora, sem frete. Só entre aliados da partida (`inTheater` + aliança), mínimo
+  US$ 1 mi (`MONEY_GIFT`), nunca acima do caixa. Evento `money_sent`, visto só pelas duas partes.
 
 ## Última aliança
 

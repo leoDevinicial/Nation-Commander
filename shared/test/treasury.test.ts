@@ -87,3 +87,19 @@ describe('caixa do país', () => {
     expect(nat.chargeWorks(0, 1, 'teste')).toBe(false);
   });
 });
+
+describe('produção suavizada no caixa (23/11)', () => {
+  it('a coleta que liga e desliga não faz o saldo do dia pular; a média acompanha a produção real', async () => {
+    const { smoothProduction } = await import('../strategic/NationalSimulation.ts');
+    const works = { fundUsd: 0, capUsd: 0, spentUsd: 0, ledger: [] };
+    const base = { infantry: 0, vehicles: 0, aircraft: 0, energy: 0, buildingCells: 0, roads: 0, services: 0 };
+    smoothProduction(works, { ...base, production: { stone: 10 } });
+    // a pedreira pausa (armazém cheio) por um dia: antes, a receita da pedra ia a zero na hora
+    const paused = smoothProduction(works, { ...base, production: {} })!;
+    expect(paused.production.stone).toBeGreaterThan(8);
+    // estável: a média chega ao valor real
+    let last = paused;
+    for (let i = 0; i < 60; i++) last = smoothProduction(works, { ...base, production: { stone: 4 } })!;
+    expect(last.production.stone).toBeCloseTo(4, 1);
+  });
+});

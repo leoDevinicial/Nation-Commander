@@ -30,6 +30,10 @@ Onde está:
 | Hidrelétrica (Grande Projeto) | Futuro Próximo | 90 | nenhum |
 | Usina Nuclear (Grande Projeto) | Futuro Próximo | 150 | nenhum |
 
+**Níveis (23/11):** Parque Eólico e Usina Solar sobem até o nível 5 (`UPGRADES` em `shared/sim/upgrades.ts`), +40%
+de geração por nível (`fx.rateMul` no `powerGen`; nível 5 = 2,6× a base), para não ser preciso encher o mapa de
+parques. A IA conta o nível na capacidade instalada.
+
 A solar usa o mesmo ciclo de dia e noite do céu (`dayLight` em `shared/sim/climate.ts`). Na simulação, isso é regra:
 a usina solar não gera à noite.
 

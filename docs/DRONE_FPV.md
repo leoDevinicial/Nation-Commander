@@ -64,6 +64,14 @@ ataque.
 - Visão de 11 em volta do drone para o dono; o inimigo só vê o drone quando ele está à vista.
 - KAC: `drone_steer` fica fora do monitor de automação (o ritmo fixo é esperado); o resto continua medido.
 
+## Correções de 23/11
+
+- **Névoa no FPV:** o cliente não contava os drones ao desenhar a névoa (`updateFog`); o servidor já revelava. Agora
+  o drone próprio, com ou sem piloto, abre a visão de 11 em volta da posição desenhada.
+- **Girando para sempre:** devolvido ao piloto automático depois de pilotado, o drone voltava ao ponto do lançamento e,
+  com ele dentro do raio de curva, rodava em volta até a bateria acabar. Agora o alvo passa a ser 10 à frente, no rumo
+  em que está; e, se o mergulho final passar de 4 s sem acertar, desce reto (`diveTicks`).
+
 ## Testes
 
 `shared/test/drones.test.ts` (piloto automático, controle, janela, queda por comando, detonação, antiaérea, névoa,

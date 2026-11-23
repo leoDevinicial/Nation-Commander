@@ -89,6 +89,23 @@ describe('drone de ataque', () => {
     expect(d.heading - h1).toBeCloseTo(DRONE.turnRate, 1);
   });
 
+  it('devolvido ao piloto automático depois de pilotar, mergulha à frente e não fica rodando em círculo', () => {
+    const { sim, base } = setup();
+    // lançado contra um ponto perto da base: pilotado em curva por uns segundos, volta ao piloto automático com o
+    // ponto de lançamento dentro do raio de curva (antes, rodava em volta dele até a bateria acabar)
+    sim.applyCommand(0, { type: 'launch_drone', buildingId: base.id, x: base.pos.x + 12, y: base.pos.y });
+    const d = sim.air.drones.drones[0]!;
+    expect(sim.applyCommand(0, { type: 'drone_control', droneId: d.id, take: true })).toBeNull();
+    for (let i = 0; i < 3 * TICK_RATE; i++) {
+      sim.air.drones.steer(0, d.id, 1, 0.3, 0);
+      sim.step();
+    }
+    expect(sim.applyCommand(0, { type: 'drone_control', droneId: d.id, take: false })).toBeNull();
+    run(sim, 12);
+    expect(d.phase).toBe('done');
+    expect(d.end).not.toBe('battery');
+  });
+
   it('a janela para assumir fecha; sem comando por 2 s (conexão caiu) o drone segue reto e nivelado', () => {
     const { sim, base } = setup();
     sim.applyCommand(0, { type: 'launch_drone', buildingId: base.id, x: base.pos.x + 60, y: base.pos.y + 60 });

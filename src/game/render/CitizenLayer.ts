@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BUILDINGS, type BuildingType, type ResourceType, type Terrain } from '../../../shared/sim/config.ts';
+import { BUILDINGS, TERRAIN, type BuildingType, type ResourceType, type Terrain } from '../../../shared/sim/config.ts';
 import { findPath } from '../../../shared/sim/pathfinding/AStar.ts';
 import { Grid } from '../../../shared/sim/pathfinding/Grid.ts';
 import type { BuildingSnapshot } from '../../../shared/sim/snapshot.ts';
@@ -114,6 +114,8 @@ export class CitizenLayer {
   private handoffs = new Map<number, { buildingId: number; until: number }>();
   private sites = new Map<number, Site>();
   private grid: Grid;
+  /** Pedaço de terra de cada célula (23/11): cidadão não atravessa o mar a pé. */
+  private readonly land: Int32Array;
   private gridKey = '';
   private readonly m = new THREE.Matrix4();
   private readonly q = new THREE.Quaternion();
@@ -138,6 +140,22 @@ export class CitizenLayer {
       this.group.add(im);
     }
     this.grid = new Grid(map.width, map.height, map.cellSize, map.terrain);
+    this.land = landComponents(map.width, map.height, map.terrain);
+  }
+
+  /** Pedaço de terra (ilha ou continente) da posição; -1 na água. */
+  private landAt(x: number, y: number): number {
+    const cs = this.map.cellSize;
+    const cx = Math.min(this.map.width - 1, Math.max(0, Math.floor(x / cs)));
+    const cy = Math.min(this.map.height - 1, Math.max(0, Math.floor(y / cs)));
+    return this.land[cy * this.map.width + cx] ?? -1;
+  }
+
+  /** Mesma ilha (ou algum dos dois na água/borda, onde não dá para saber). */
+  private sameLand(a: { x: number; y: number }, b: { x: number; y: number }): boolean {
+    const la = this.landAt(a.x, a.y);
+    const lb = this.landAt(b.x, b.y);
+    return la < 0 || lb < 0 || la === lb;
   }
 
   /** Todos os civis (sem os recrutas). */
@@ -225,7 +243,7 @@ export class CitizenLayer {
     let best = list[0]!;
     let bd = Infinity;
     for (const a of list) {
-      const d = (a.pos.x - site.x) ** 2 + (a.pos.y - site.y) ** 2 + (a.inside ? 1e6 : 0);
+      const d = (a.pos.x - site.x) ** 2 + (a.pos.y - site.y) ** 2 + (a.inside ? 1e6 : 0) + (this.sameLand(a.pos, site) ? 0 : 1e9);
       if (d < bd) {
         bd = d;
         best = a;
@@ -248,7 +266,8 @@ export class CitizenLayer {
     // novos cidadãos saem de casa (QG ou moradia mais próxima do posto) e caminham até ele
     const target = job.buildingId !== null ? this.sites.get(job.buildingId) : undefined;
     // recrutas saem do próprio quartel, onde foram alistados
-    const home = job.kind === 'recruit' && target ? target : this.nearestHome(target ?? null);
+    // em outra ilha (prefeitura nova do outro lado do mar): sem casa na mesma terra, aparece já na obra (chegou de barco)
+    const home = job.kind === 'recruit' && target ? target : (this.nearestHome(target ?? null) ?? target ?? null);
     const start = home ? this.doorPoint(home, target ?? home) : new THREE.Vector2(this.map.width, this.map.height);
     const id = this.nextId++;
     return {
@@ -268,7 +287,7 @@ export class CitizenLayer {
     let best: Site | null = null;
     let bd = Infinity;
     for (const s of this.sites.values()) {
-      if (!s.done || !HOMES.has(s.type)) continue;
+      if (!s.done || !HOMES.has(s.type) || (near && !this.sameLand(s, near))) continue;
       const d = near ? (s.x - near.x) ** 2 + (s.y - near.y) ** 2 : s.type === 'hq' ? 0 : 1;
       if (d < bd) {
         bd = d;
@@ -303,6 +322,12 @@ export class CitizenLayer {
     const cs = this.map.cellSize;
     const start = { cx: Math.floor(a.pos.x / cs), cy: Math.floor(a.pos.y / cs) };
     const goal = { cx: Math.floor(to.x / cs), cy: Math.floor(to.y / cs) };
+    // outra ilha: a pé não chega; aparece do outro lado (como se tivesse ido de barco), em vez de nadar
+    if (!this.sameLand(a.pos, to)) {
+      a.pos.copy(to);
+      a.path = [];
+      return;
+    }
     const cells = findPath(this.grid, start, goal, { maxExpanded: 1500 });
     a.path = cells ? cells.slice(1, -1).map((c) => new THREE.Vector2((c.cx + 0.5) * cs, (c.cy + 0.5) * cs)) : [];
     a.path.push(to);
@@ -477,4 +502,28 @@ export class CitizenLayer {
     this.ringGeo.dispose();
     this.ringMat.dispose();
   }
+}
+
+/** Rotula os pedaços de terra transitável ligados entre si (vizinhança de 4; pontes contam como terra). */
+export function landComponents(width: number, height: number, terrain: readonly Terrain[]): Int32Array {
+  const out = new Int32Array(width * height).fill(-1);
+  const stack: number[] = [];
+  let label = 0;
+  for (let i = 0; i < width * height; i++) {
+    if (out[i] !== -1 || !TERRAIN[terrain[i]!].passable) continue;
+    out[i] = label;
+    stack.push(i);
+    while (stack.length) {
+      const c = stack.pop()!;
+      const x = c % width;
+      const y = (c - x) / width;
+      for (const n of [x > 0 ? c - 1 : -1, x < width - 1 ? c + 1 : -1, y > 0 ? c - width : -1, y < height - 1 ? c + width : -1])
+        if (n >= 0 && out[n] === -1 && TERRAIN[terrain[n]!].passable) {
+          out[n] = label;
+          stack.push(n);
+        }
+    }
+    label++;
+  }
+  return out;
 }

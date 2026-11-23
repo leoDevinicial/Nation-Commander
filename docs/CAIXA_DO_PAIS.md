@@ -32,6 +32,11 @@ Onde está:
 | Acordos comerciais | 25% do repasse por p.p. de crescimento vindo de acordos comerciais |
 | Vendas no comércio (02/11) | o valor inteiro de cada carga entregue no dia (`docs/COMERCIO.md`); compras e fretes viram despesa |
 
+**Produção suavizada (23/11):** a linha "Produção" usa a média móvel da coleta por segundo (`WorksFund.prodAvg`,
+`smoothProduction`, peso 0,15 por dia, ~7 dias para assentar). A coleta liga e desliga a toda hora (armazém cheio,
+falta de luz ou de trabalhador) e o saldo do dia pulava de +US$ 170 mil para −US$ 60 mil de um segundo para o outro.
+No total, a média paga o mesmo.
+
 ## Despesas (por dia)
 
 | Linha | Cálculo |

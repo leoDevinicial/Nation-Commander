@@ -601,6 +601,29 @@ export const UPGRADES: Partial<Record<BuildingType, UpgradeTrack>> = {
     timeGrowth: 1.15,
     perLevel: { hpMul: 0.12, sightAdd: 1, upkeepSupplies: 0.03 },
   },
+  wind_farm: {
+    // 23/11 (pedido de jogador: "não precisar ficar spammando parque eólico"): turbinas maiores e mais altas a cada
+    // nível, +40% de geração por nível (nível 5 = 2,6× a base)
+    maxLevel: 5,
+    cost: { iron: 60, stone: 20, supplies: 40 },
+    costGrowth: 1.3,
+    usdM: 4,
+    usdGrowth: 1.3,
+    seconds: 16,
+    timeGrowth: 1.12,
+    perLevel: { rateMul: 0.4, hpMul: 0.06 },
+  },
+  solar_farm: {
+    // 23/11: mais painéis e rastreadores do sol a cada nível, +40% de geração por nível (nível 5 = 2,6× a base)
+    maxLevel: 5,
+    cost: { iron: 80, stone: 25, supplies: 80 },
+    costGrowth: 1.3,
+    usdM: 4,
+    usdGrowth: 1.3,
+    seconds: 16,
+    timeGrowth: 1.12,
+    perLevel: { rateMul: 0.4, hpMul: 0.06 },
+  },
   missile_silo: {
     // nível 2: lançador eretor e míssil pesado de nova geração (abastece mais rápido, voa mais
     // rápido, dano e raio maiores, mais difícil de interceptar)
@@ -946,6 +969,7 @@ export function compareEffects(type: BuildingType, a: BuildingEffects, b: Buildi
     if (Math.abs(after - before) > 1e-9) out.push({ key, label, before, after, unit, higherIsBetter });
   };
   if (def.gather) add('rate', 'Produção (em relação à base)', Math.round(a.rateMul * 100), Math.round(b.rateMul * 100), '%');
+  if (type === 'wind_farm' || type === 'solar_farm') add('gen', 'Geração de energia (em relação à base)', Math.round(a.rateMul * 100), Math.round(b.rateMul * 100), '%');
   if (def.gather) add('depletion', 'Consumo do depósito por unidade', Math.round(a.depletionMul * 100), Math.round(b.depletionMul * 100), '%', false);
   add('workers', 'Postos de trabalho', a.workers, b.workers, '', false);
   for (const r of RESOURCE_TYPES) add(`storage:${r}`, `Capacidade de ${RES_NAMES[r]}`, a.storage[r] ?? 0, b.storage[r] ?? 0, '');

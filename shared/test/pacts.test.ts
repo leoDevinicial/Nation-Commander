@@ -228,3 +228,22 @@ describe('Teatro: times, visão compartilhada e última aliança', () => {
     expect(sim.players[1]!.resources.wood).toBeGreaterThanOrEqual(wood1 + 50);
   });
 });
+
+describe('dinheiro a aliados (23/11)', () => {
+  it('sai do caixa de quem envia e entra no do aliado; só aliado, com saldo e acima do mínimo', () => {
+    const { nat } = national();
+    // sem aliança: recusado
+    expect(nat.diplomaticAction(0, { type: 'send_money', partner: 1, usd: 5e6 })).toMatch(/aliado/);
+    nat.diplomaticAction(0, { type: 'propose', treaty: 'alliance', partner: 1 });
+    nat.diplomaticAction(1, { type: 'answer_offer', offerId: nat.diplomacy.offers[0]!.id, accept: true });
+    const a0 = fund(nat, 0);
+    const a1 = fund(nat, 1);
+    expect(nat.diplomaticAction(0, { type: 'send_money', partner: 1, usd: 5e6 })).toBeNull();
+    expect(a0 - fund(nat, 0)).toBe(5e6);
+    expect(fund(nat, 1) - a1).toBe(5e6);
+    expect(nat.diplomaticAction(0, { type: 'send_money', partner: 1, usd: 1000 })).toMatch(/mínimo/);
+    expect(nat.diplomaticAction(0, { type: 'send_money', partner: 1, usd: fund(nat, 0) + 1e6 })).toMatch(/insuficiente/);
+    // a outro país sem aliança, não
+    expect(nat.diplomaticAction(0, { type: 'send_money', partner: 2, usd: 5e6 })).toMatch(/aliado/);
+  });
+});

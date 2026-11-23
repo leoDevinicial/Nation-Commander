@@ -151,3 +151,22 @@ describe('rede elétrica', () => {
     expect(s.buildingRate(farm)).toBeCloseTo(dark / POWER_DARK_RATE);
   });
 });
+
+describe('eólica e solar com níveis (23/11)', () => {
+  it('cada nível soma 40% à geração, até o nível 5', async () => {
+    const { maxLevelOf } = await import('../sim/upgrades.ts');
+    const s = sim();
+    for (const type of ['wind_farm', 'solar_farm'] as const) {
+      expect(maxLevelOf(type)).toBe(5);
+      const b = force(s, 0, type, type === 'wind_farm' ? { cx: 30, cy: 30 } : { cx: 34, cy: 30 });
+      const at = (level: number) => {
+        b.level = level;
+        return s.powerGen(b);
+      };
+      const base = at(1);
+      if (base === 0) continue; // solar de noite: sem sol, nada a comparar
+      expect(at(3) / base).toBeCloseTo(1.8, 5);
+      expect(at(5) / base).toBeCloseTo(2.6, 5);
+    }
+  });
+});

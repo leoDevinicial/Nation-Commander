@@ -421,6 +421,15 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
   };
   const clearUnder = (rects: readonly DecorRect[]): boolean => {
     lastRects = rects;
+    // jazidas de petróleo com algo por cima: a poça some (o centro da jazida dentro de um retângulo)
+    const cs = map.cellSize;
+    const covered = new Set<number>();
+    map.resourceNodes.forEach((n, i) => {
+      const x = (n.cx + 1) * cs;
+      const z = (n.cy + 1) * cs;
+      if (rects.some((r) => x + cs * 0.75 > r.x0 && x - cs * 0.75 < r.x1 && z + cs * 0.75 > r.z0 && z - cs * 0.75 < r.z1)) covered.add(i);
+    });
+    buildOil(covered);
     return refresh();
   };
   const setDecorDensity = (d: number): boolean => {
@@ -478,64 +487,83 @@ export function buildTerrain(map: MapData, quality: 'low' | 'high', reflection: 
 
   // jazidas de petróleo: solo encharcado em volta, poça de óleo cru (espessa e espelhada, com o
   // brilho furta-cor do óleo), respingos, bolhas e as estacas de prospecção
-  const oil = new PartBuilder();
-  const slick = new PartBuilder();
-  for (const n of map.resourceNodes) {
-    const x = (n.cx + 1) * map.cellSize;
-    const z = (n.cy + 1) * map.cellSize;
-    const seed = hash2(x, z) * 100;
-    // mancha de solo encharcado (mais larga e irregular que a poça)
-    oil.add(blobGeometry(1.55, 0.22, seed + 7), '#3a3328', { pos: [x, 0.032, z] });
-    oil.add(blobGeometry(1.25, 0.18, seed + 3), '#2a241c', { pos: [x, 0.036, z] });
-    // poça principal: contorno orgânico, borda abaulada (o óleo grosso não espalha fino)
-    slick.add(blobGeometry(0.95, 0.16, seed, 0.035), '#ffffff', { pos: [x, 0.038, z] });
-    // respingos e pocinhas satélites
-    for (let k = 0; k < 4; k++) {
-      const a = seed * 1.7 + k * 1.9;
-      const d = 1.05 + 0.25 * Math.sin(seed + k * 3.1);
-      slick.add(blobGeometry(0.12 + 0.07 * Math.abs(Math.sin(a * 2.3)), 0.2, seed + k * 11, 0.022, 20), '#ffffff', { pos: [x + Math.cos(a) * d, 0.038, z + Math.sin(a) * d] });
+  // 23/11: a poça some quando uma estrada, um lote ou uma construção passa por cima (antes o óleo aparecia sobre o
+  // asfalto); as malhas são refeitas só quando o conjunto de jazidas cobertas muda
+  const oilMat = withFog(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 }));
+  // óleo cru: quase preto, liso como espelho (reflete o céu), com verniz e iridescência de
+  // película fina — as manchas de arco-íris aparecem com o ângulo da câmera
+  const slickMat = withFog(
+    new THREE.MeshPhysicalMaterial({
+      color: '#060504',
+      roughness: 0.06,
+      metalness: 0.1,
+      clearcoat: 1,
+      clearcoatRoughness: 0.02,
+      iridescence: 0.75,
+      iridescenceIOR: 1.47,
+      iridescenceThicknessRange: [220, 620],
+      envMapIntensity: 0.9,
+      specularIntensity: 1,
+    }),
+  );
+  disposables.push(oilMat, slickMat);
+  const oilMeshes: THREE.Mesh[] = [];
+  let oilKey: string | null = null;
+  const buildOil = (covered: ReadonlySet<number>): void => {
+    const key = [...covered].sort((a, b) => a - b).join(',');
+    if (key === oilKey) return;
+    oilKey = key;
+    for (const m of oilMeshes) {
+      m.removeFromParent();
+      m.geometry.dispose();
     }
-    // bolhas de gás subindo pelo óleo (calotas brilhantes)
-    for (let k = 0; k < 3; k++) {
-      const a = seed * 0.9 + k * 2.3;
-      const d = 0.15 + 0.35 * Math.abs(Math.sin(seed * 1.3 + k));
-      slick.sphere(0.022 + 0.018 * Math.abs(Math.sin(a)), '#ffffff', [x + Math.cos(a) * d, 0.074, z + Math.sin(a) * d], [1, 0.55, 1], 10);
+    oilMeshes.length = 0;
+    const oil = new PartBuilder();
+    const slick = new PartBuilder();
+    map.resourceNodes.forEach((n, ni) => {
+      if (covered.has(ni)) return;
+      const x = (n.cx + 1) * map.cellSize;
+      const z = (n.cy + 1) * map.cellSize;
+      const seed = hash2(x, z) * 100;
+      // mancha de solo encharcado (mais larga e irregular que a poça)
+      oil.add(blobGeometry(1.55, 0.22, seed + 7), '#3a3328', { pos: [x, 0.032, z] });
+      oil.add(blobGeometry(1.25, 0.18, seed + 3), '#2a241c', { pos: [x, 0.036, z] });
+      // poça principal: contorno orgânico, borda abaulada (o óleo grosso não espalha fino)
+      slick.add(blobGeometry(0.95, 0.16, seed, 0.035), '#ffffff', { pos: [x, 0.038, z] });
+      // respingos e pocinhas satélites
+      for (let k = 0; k < 4; k++) {
+        const a = seed * 1.7 + k * 1.9;
+        const d = 1.05 + 0.25 * Math.sin(seed + k * 3.1);
+        slick.add(blobGeometry(0.12 + 0.07 * Math.abs(Math.sin(a * 2.3)), 0.2, seed + k * 11, 0.022, 20), '#ffffff', { pos: [x + Math.cos(a) * d, 0.038, z + Math.sin(a) * d] });
+      }
+      // bolhas de gás subindo pelo óleo (calotas brilhantes)
+      for (let k = 0; k < 3; k++) {
+        const a = seed * 0.9 + k * 2.3;
+        const d = 0.15 + 0.35 * Math.abs(Math.sin(seed * 1.3 + k));
+        slick.sphere(0.022 + 0.018 * Math.abs(Math.sin(a)), '#ffffff', [x + Math.cos(a) * d, 0.074, z + Math.sin(a) * d], [1, 0.55, 1], 10);
+      }
+      for (let k = 0; k < 4; k++) {
+        const px = x + Math.cos(k * 1.57 + 0.4) * 1.45;
+        const pz = z + Math.sin(k * 1.57 + 0.4) * 1.45;
+        oil.cyl(0.03, 0.03, 0.5, C.wood, [px, 0.25, pz], undefined, 5);
+        oil.box(0.12, 0.06, 0.02, C.yellow, [px, 0.47, pz]);
+      }
+    });
+    if (!oil.isEmpty) {
+      const m = new THREE.Mesh(oil.build(), oilMat);
+      m.receiveShadow = true;
+      group.add(m);
+      oilMeshes.push(m);
     }
-    for (let k = 0; k < 4; k++) {
-      const px = x + Math.cos(k * 1.57 + 0.4) * 1.45;
-      const pz = z + Math.sin(k * 1.57 + 0.4) * 1.45;
-      oil.cyl(0.03, 0.03, 0.5, C.wood, [px, 0.25, pz], undefined, 5);
-      oil.box(0.12, 0.06, 0.02, C.yellow, [px, 0.47, pz]);
+    if (!slick.isEmpty) {
+      const m = new THREE.Mesh(slick.build(), slickMat);
+      m.receiveShadow = true;
+      group.add(m);
+      oilMeshes.push(m);
     }
-  }
-  if (!oil.isEmpty) {
-    const m = new THREE.Mesh(oil.build(), withFog(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 })));
-    m.receiveShadow = true;
-    group.add(m);
-    disposables.push(m.geometry, m.material as THREE.Material);
-  }
-  if (!slick.isEmpty) {
-    // óleo cru: quase preto, liso como espelho (reflete o céu), com verniz e iridescência de
-    // película fina — as manchas de arco-íris aparecem com o ângulo da câmera
-    const mat = withFog(
-      new THREE.MeshPhysicalMaterial({
-        color: '#060504',
-        roughness: 0.06,
-        metalness: 0.1,
-        clearcoat: 1,
-        clearcoatRoughness: 0.02,
-        iridescence: 0.75,
-        iridescenceIOR: 1.47,
-        iridescenceThicknessRange: [220, 620],
-        envMapIntensity: 0.9,
-        specularIntensity: 1,
-      }),
-    );
-    const m = new THREE.Mesh(slick.build(), mat);
-    m.receiveShadow = true;
-    group.add(m);
-    disposables.push(m.geometry, mat);
-  }
+  };
+  buildOil(new Set());
+  disposables.push({ dispose: () => oilMeshes.forEach((m) => m.geometry.dispose()) });
 
   const upgrade = async (): Promise<void> => {
     const loader = new GLTFLoader();

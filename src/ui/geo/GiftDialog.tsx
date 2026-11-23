@@ -1,9 +1,11 @@
-import { Plane, Send, Ship, Truck, X } from 'lucide-react';
+import { Banknote, Plane, Send, Ship, Truck, X } from 'lucide-react';
 import { useState } from 'react';
 import { TRADE_RESOURCES, TRANSPORT, giftFreightUsd, type TradeResource, type TransportMode } from '../../../shared/sim/trade.ts';
 import { RESOURCE_LABELS } from '../../../shared/sim/config.ts';
 import { formatUsd } from '../../lib/format.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
+import { useNationalStore } from '../../state/useNationalStore.ts';
+import { MONEY_GIFT } from '../../../shared/strategic/Diplomacy.ts';
 import { ResourceIcon } from '../components/Resources.tsx';
 
 const MODES: { mode: TransportMode; icon: typeof Truck; label: string; note: string }[] = [
@@ -15,9 +17,28 @@ const MODES: { mode: TransportMode; icon: typeof Truck; label: string; note: str
 /**
  * Envio de recursos a um aliado (06/11): o jogador escolhe os recursos, vê o frete de cada transporte e escolhe como a
  * carga vai. Um transporte indisponível mostra o motivo (o servidor confere tudo de novo ao enviar).
+ * Dinheiro (23/11): sai do caixa do país e entra no do aliado na hora, sem frete.
  */
-export function GiftDialog({ ally, mySlot, nameOf, onSend, onClose }: { ally: number; mySlot: number; nameOf: (id: number) => string; onSend: (items: { resource: TradeResource; quantity: number }[], mode: TransportMode) => void; onClose: () => void }) {
+export function GiftDialog({
+  ally,
+  mySlot,
+  nameOf,
+  onSend,
+  onSendMoney,
+  onClose,
+}: {
+  ally: number;
+  mySlot: number;
+  nameOf: (id: number) => string;
+  onSend: (items: { resource: TradeResource; quantity: number }[], mode: TransportMode) => void;
+  onSendMoney: (usd: number) => void;
+  onClose: () => void;
+}) {
   const me = useHudStore((s) => s.players.find((p) => p.slot === mySlot));
+  const fund = useNationalStore((s) => s.nations.find((n) => n.slot === mySlot)?.works.fundUsd ?? 0);
+  const [moneyMi, setMoneyMi] = useState(0);
+  const moneyUsd = Math.floor(moneyMi * 1e6);
+  const moneyOk = moneyUsd >= MONEY_GIFT.minUsd && moneyUsd <= fund;
   const [qty, setQty] = useState<Partial<Record<TradeResource, number>>>({});
   const [mode, setMode] = useState<TransportMode | null>(null);
   const link = me?.allyLinks?.find((l) => l.ally === ally);
@@ -35,13 +56,41 @@ export function GiftDialog({ ally, mySlot, nameOf, onSend, onClose }: { ally: nu
           <div>
             <div className="nc-kicker">Aliança</div>
             <h2 id="gift-title" className="nc-title text-lg">
-              Enviar recursos a {nameOf(ally)}
+              Enviar ajuda a {nameOf(ally)}
             </h2>
           </div>
           <button className="nc-icon-btn" onClick={onClose} aria-label="Fechar">
             <X size={16} aria-hidden />
           </button>
         </div>
+        <div className="nc-kicker mb-1.5">Dinheiro</div>
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[3px] border border-ink-700 bg-ink-950/50 px-2 py-1.5 text-xs">
+          <Banknote size={16} className="text-brass-400" aria-hidden />
+          <span className="min-w-0 flex-1">
+            <span className="block text-ink-200">Do caixa do país, chega na hora</span>
+            <span className="nc-num text-[10px] text-ink-400">caixa {formatUsd(fund)}</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="text-ink-400">US$</span>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              className="field w-20 px-1 py-0.5 text-right text-xs"
+              value={moneyMi || ''}
+              placeholder="0"
+              onChange={(e) => setMoneyMi(Math.max(0, Number(e.target.value) || 0))}
+              aria-label="Valor em milhões de dólares"
+            />
+            <span className="text-ink-400">mi</span>
+          </span>
+          <button className="btn btn-primary px-2 py-1 text-xs" disabled={!moneyOk} onClick={() => onSendMoney(moneyUsd)}>
+            <Send size={14} aria-hidden /> Enviar dinheiro
+          </button>
+          {moneyUsd > fund && <span className="w-full text-red-300">O caixa tem só {formatUsd(fund)}.</span>}
+          {moneyUsd > 0 && moneyUsd < MONEY_GIFT.minUsd && <span className="w-full text-red-300">Envio mínimo: US$ 1 mi.</span>}
+        </div>
+        <div className="nc-kicker mb-1.5">Recursos</div>
         <p className="mb-2 text-xs text-ink-400">A carga sai do seu estoque agora e chega pelo transporte escolhido. Em guerra com alguém, ela pode ser atacada no caminho por quem está em guerra com vocês.</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {TRADE_RESOURCES.map((r) => (

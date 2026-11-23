@@ -1,4 +1,4 @@
-import { TREASURY, treasuryDay, type TreasuryDay } from './treasury.ts';
+import { TREASURY, treasuryDay, type TreasuryDay, type TreasuryInputs } from './treasury.ts';
 import { AREA_FX, AREA_KEYS, AREA_LABEL, averageTax, clampAreas, level, taxApproval, type AreaKey, type Areas } from './areas.ts';
 import { Random } from '../sim/Random.ts';
 import { POWER } from '../sim/power.ts';
@@ -33,7 +33,7 @@ import { countryReference, type ReferenceKey } from './reference.ts';
 import { TECHNOLOGIES, techKnowledge, techDailyUsd, techDays, combineEffects, researchBlocker, TECH_IDS, type TechEffects, type TechId } from './technologies.ts';
 import { COUNTRIES } from '../data/countries.ts';
 import { DIPLO, Diplomacy, warPreview, type DiplomacySave, type DiplomaticAction, type DiplomaticEvent, type NationId, type PactOffer, type RelationView, type Treaty, type WarPreview } from './Diplomacy.ts';
-import { BUILDINGS, PROJECT_FX, SERVICES, type BuildingType, type Cost, type Stockpile } from '../sim/config.ts';
+import { BUILDINGS, PROJECT_FX, SERVICES, type BuildingType, type Cost, type ResourceType, type Stockpile } from '../sim/config.ts';
 import {
   DECREE_MIN_DAYS,
   DECREES,
@@ -170,6 +170,12 @@ export interface WorksFund {
   today?: TreasuryDay;
   /** Comércio do dia ainda não fechado no extrato (02/11: tudo pelo caixa, sem dívida). */
   tradePending?: { inUsd: number; outUsd: number; freightUsd: number };
+  /**
+   * Produção por segundo suavizada (23/11, média móvel de ~7 dias): a coleta liga e desliga a toda hora (armazém
+   * cheio, falta de luz, de trabalhador), e o saldo do dia pulava de +US$ 170 mil para −US$ 60 mil de um segundo
+   * para o outro. O caixa recebe a média, que no total dá o mesmo.
+   */
+  prodAvg?: Partial<Record<ResourceType, number>>;
 }
 
 /**
@@ -596,6 +602,8 @@ export class NationalSimulation {
           return knows(ev.treaty.a) && knows(ev.treaty.b);
         case 'aid_sent':
           return knows(ev.from) && knows(ev.to);
+        case 'money_sent':
+          return ev.from === viewer || ev.to === viewer;
         case 'war_declared':
           return knows(ev.by) && knows(ev.target);
         case 'pact_offered':
@@ -1273,7 +1281,7 @@ export class NationalSimulation {
    * pagar e pesa na aprovação).
    */
   private treasuryStep(n: NationState, diplo: { trade: number; sanctions: number }, setPaid: (paid: boolean) => void): void {
-    const inputs = this.theater?.stats?.(n.slot)?.economy ?? null;
+    const inputs = smoothProduction(n.works, this.theater?.stats?.(n.slot)?.economy ?? null);
     const areas = (n.areas ??= clampAreas(undefined));
     const ctx = {
       scale: 1,
@@ -1551,4 +1559,20 @@ function needsTheater(d: Demand): boolean {
 function countryOf(sim: NationalSimulation, id: number): string {
   const c = sim.nation(id)?.countryId ?? '';
   return COUNTRIES.find((x) => x.id === c)?.name ?? c;
+}
+
+/** Peso do dia novo na média da produção (`WorksFund.prodAvg`): ~7 dias para assentar. */
+export const PROD_SMOOTH = 0.15;
+
+/** Troca a produção do instante pela média móvel guardada na nação (e atualiza a média). */
+export function smoothProduction(works: WorksFund, inputs: TreasuryInputs | null): TreasuryInputs | null {
+  if (!inputs) return null;
+  const avg = (works.prodAvg ??= { ...inputs.production });
+  const out: Partial<Record<ResourceType, number>> = {};
+  for (const r of new Set([...Object.keys(avg), ...Object.keys(inputs.production)]) as Set<ResourceType>) {
+    const v = (avg[r] ?? 0) + ((inputs.production[r] ?? 0) - (avg[r] ?? 0)) * PROD_SMOOTH;
+    if (v > 1e-4) out[r] = Math.round(v * 1e4) / 1e4;
+  }
+  works.prodAvg = out;
+  return { ...inputs, production: { ...out } };
 }

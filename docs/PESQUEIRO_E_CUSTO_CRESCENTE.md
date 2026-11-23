@@ -41,6 +41,12 @@ pesqueiros.
 - Cartão de construção: mostra `+US$` da taxa (vermelho sem caixa, "sem caixa" no lugar do motivo) e a dica traz o
   custo do próximo em recursos e US$; o painel de posicionamento mostra a taxa e o próximo.
 
+## Painel (23/11)
+
+Sem arma, o pesqueiro não mostra "Avançar atacando", "Atacar estrada", patente nem os números de disparo; barco civil
+(`crew: 0`) também não entra nos pacotes de modernização. O cargueiro e o transporte (sem arma) perdem os dois
+cartões de ataque.
+
 ## Testes
 
 `shared/test/fishing.test.ts`: ciclo completo com comida entregue, limite de 3 por porto e custo crescente do barco,

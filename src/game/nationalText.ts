@@ -114,6 +114,9 @@ function describeDiplomatic(
       const how = e.reason === 'expired' ? 'expirou' : e.reason === 'war' ? 'foi rompido pela guerra' : 'foi encerrado';
       return { text: `${TREATY_LABEL[t.type]} com ${nameOf(other)} ${how}`, tone: e.reason === 'war' ? 'bad' : 'info' };
     }
+    case 'money_sent':
+      if (e.from === mySlot) return { text: `${formatUsd(e.amountUsd)} enviados do caixa a ${nameOf(e.to)}`, tone: 'info' };
+      return e.to === mySlot ? { text: `${nameOf(e.from)} enviou ${formatUsd(e.amountUsd)} ao nosso caixa`, tone: 'good' } : null;
     case 'aid_sent':
       return e.from === mySlot ? { text: `Ajuda de ${formatUsd(e.amountUsd)} enviada a ${nameOf(e.to)}`, tone: 'info' } : null;
     case 'contact_started':

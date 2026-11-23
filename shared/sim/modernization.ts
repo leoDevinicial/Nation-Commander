@@ -43,7 +43,8 @@ export interface ModDef {
   description: string;
 }
 
-const ALL = Object.keys(UNITS) as UnitType[];
+// barco civil (pesqueiro, sem tripulação militar): não recebe pacote militar (23/11)
+const ALL = (Object.keys(UNITS) as UnitType[]).filter((u) => UNITS[u].crew !== 0);
 const VEHICLES: UnitType[] = ALL.filter((u) => UNITS[u].armor === 'vehicle');
 const FOOT: UnitType[] = ALL.filter((u) => UNITS[u].armor === 'infantry');
 

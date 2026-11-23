@@ -65,6 +65,24 @@ describe('Estradas do jogador', () => {
   });
 
 
+  it('estrada sobre lavoura: a fazenda larga a célula (nada de plantação por cima do asfalto) e repõe com outra', () => {
+    const map = flatMap(40);
+    for (let y = 4; y <= 16; y++) for (let x = 4; x <= 16; x++) map.terrain[y * 40 + x] = Terrain.Fertile;
+    const sim = new Simulation({ map, playerCount: 2, startingUnits: [] });
+    for (let cy = 0; cy < 40; cy++) for (let cx = 0; cx < 40; cx++) sim.territory[cy * 40 + cx] = cx < 18 ? 0 : 1;
+    const farm = sim.addBuilding('farm', 0, { cx: 9, cy: 9 }, 1);
+    expect(farm.claims.length).toBeGreaterThan(0);
+    const size = farm.claims.length;
+    const victim = farm.claims[0]!;
+    const vx = victim % 40;
+    const vy = (victim - vx) / 40;
+    sim.players[0]!.resources.stone = 500;
+    expect(sim.applyCommand(0, { type: 'build_road', cells: [{ cx: vx, cy: vy }] })).toBeNull();
+    expect(farm.claims).not.toContain(victim);
+    expect(farm.claims.length).toBe(size);
+    expect(farm.claims.every((i) => sim.map.terrain[i] === Terrain.Fertile)).toBe(true);
+  });
+
   it('pavimenta no próprio território com pedra e verba de obras; recusa terreno ruim', () => {
     const { sim, st } = setup();
     sim.map.terrain[10 * 40 + 9] = Terrain.Rock;

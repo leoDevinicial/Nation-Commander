@@ -1417,7 +1417,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     income: {},
     sight: 6,
     buildable: true,
-    description: 'Três turbinas: até 12 de energia, sem combustível, variando com o vento (de 35% a 130%).',
+    description: 'Três turbinas: até 12 de energia, sem combustível, variando com o vento (de 35% a 130%). Sobe até o nível 5 (+40% de geração por nível).',
   },
   solar_farm: {
     ...NONE,
@@ -1430,7 +1430,7 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     income: {},
     sight: 5,
     buildable: true,
-    description: 'Painéis solares: até 18 de energia de dia (40% a mais a partir da Era Digital), nada à noite. Sem combustível.',
+    description: 'Painéis solares: até 18 de energia de dia (40% a mais a partir da Era Digital), nada à noite. Sem combustível. Sobe até o nível 5 (+40% de geração por nível).',
   },
   oil_tank: {
     ...NONE,

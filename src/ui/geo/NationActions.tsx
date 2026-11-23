@@ -259,13 +259,13 @@ function TheaterPacts({ f, mine, view, atWar, nameOf, onAction, onDeclareWar }: 
           <div className="nc-kicker mb-1">{team ? 'Aliado de time' : pact.type === 'alliance' ? 'Aliança' : 'Pacto de não agressão'}</div>
           <p className="mb-1.5 text-ink-200">
             {pact.type === 'alliance'
-              ? 'Vocês veem o que o outro vê, podem enviar recursos e mandar tropas em auxílio. Nenhum dos dois pode atacar o outro.'
+              ? 'Vocês veem o que o outro vê, podem enviar dinheiro, recursos e tropas em auxílio. Nenhum dos dois pode atacar o outro.'
               : 'Nenhum dos dois pode atacar o outro enquanto o pacto valer. Sem outros efeitos.'}
           </p>
           <div className="flex flex-wrap gap-1.5">
             {pact.type === 'alliance' && (
               <button className="btn btn-primary px-2 py-1 text-xs" onClick={() => useNationalStore.getState().setGiftTarget(f.id)}>
-                <Package size={14} aria-hidden /> Enviar recursos
+                <Package size={14} aria-hidden /> Enviar dinheiro ou recursos
               </button>
             )}
             {pact.type === 'nonaggression' && !outgoing && p && !p.teamMode && (

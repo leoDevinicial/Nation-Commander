@@ -136,3 +136,12 @@ remove. Os engenheiros também acompanham as ondas e detectam as minas pelo cami
 | IA | `TacticalAI.planEngineers`, `DIFFICULTY[*].engineers/mines` |
 | Cliente | `MineLayer`, `RoadPreview`, modos `lay_mine` e `road` no `GameRuntime`, `EngineerButtons` no painel |
 | Testes | `shared/test/engineering.test.ts` |
+
+## Correções de 23/11
+
+- **Diagonal:** arrastar na diagonal (as duas distâncias ≥ 2, proporção até 2,5) traça uma escada de células sempre
+  ligadas pelo lado (`roadStairs`), em vez do L. Reto ou quase reto, segue em L.
+- **Lavoura sobre o asfalto:** a célula pavimentada sai da lista da fazenda (`releaseRoadClaim`), que repõe com outra
+  célula fértil ao alcance; salvamentos antigos são limpos ao carregar.
+- **Poça de petróleo sobre a estrada:** a decoração da jazida (`TerrainFactory`, `buildOil`) some quando uma estrada,
+  lote ou construção passa por cima do centro dela.

@@ -1544,6 +1544,12 @@ export class GameRuntime {
       const p = this.airLayer.flightPosition(f.id) ?? { x: f.x, y: f.y };
       mark(p.x, p.y, FLIGHT_SIGHT[f.plane]);
     }
+    // drones próprios (com ou sem piloto) revelam a área embaixo, como no servidor (`DRONE.sight`)
+    for (const d of this.snapshot?.air?.drones ?? []) {
+      if (d.owner !== this.mySlot) continue;
+      const v = this.airLayer.droneView(d.id);
+      mark(v ? v.pos.x : d.x, v ? v.pos.z : d.y, FLIGHT_SIGHT.drone);
+    }
     for (const t of this.buildings.values()) {
       if (t.snap.owner !== this.mySlot) continue;
       const size = BUILDINGS[t.snap.type].size;
@@ -2869,8 +2875,14 @@ export class GameRuntime {
     if (m.cells !== ok.length || m.bad !== bad || m.reason !== reason || m.marked !== marked) this.setMode({ kind: 'road', cells: ok.length, bad, marked, reason, ...(this.roadHighway ? { highway: true } : {}) });
   }
 
-  /** Caminho em L de `a` até `b`: primeiro ao longo do eixo mais longo, depois do outro. */
+  /**
+   * Caminho de `a` até `b`. Reto ou quase reto: em L (primeiro o eixo mais longo). Na diagonal (23/11): uma escada de
+   * células sempre ligadas pelo lado, para a estrada não virar pedaços soltos que só se tocam pela quina.
+   */
   private roadPath(a: { cx: number; cy: number }, b: { cx: number; cy: number }): { cx: number; cy: number }[] {
+    const dx = Math.abs(b.cx - a.cx);
+    const dy = Math.abs(b.cy - a.cy);
+    if (dx >= 2 && dy >= 2 && dx <= dy * 2.5 && dy <= dx * 2.5) return roadStairs(a, b, ROAD.maxCells * 2);
     const out: { cx: number; cy: number }[] = [];
     let x = a.cx;
     let y = a.cy;
@@ -4798,4 +4810,29 @@ export class GameRuntime {
 
 function touchPoint(e: PointerEvent): TouchPoint {
   return { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp, primary: e.isPrimary };
+}
+
+/** Escada de células de `a` até `b` ligadas pelo lado (Bresenham que nunca anda nas duas direções no mesmo passo). */
+export function roadStairs(a: { cx: number; cy: number }, b: { cx: number; cy: number }, max: number): { cx: number; cy: number }[] {
+  const out = [{ cx: a.cx, cy: a.cy }];
+  const dx = Math.abs(b.cx - a.cx);
+  const dy = Math.abs(b.cy - a.cy);
+  const sx = Math.sign(b.cx - a.cx);
+  const sy = Math.sign(b.cy - a.cy);
+  let x = a.cx;
+  let y = a.cy;
+  let ix = 0;
+  let iy = 0;
+  while ((ix < dx || iy < dy) && out.length < max) {
+    // anda no eixo que está mais atrasado em relação à reta
+    if ((0.5 + ix) / dx < (0.5 + iy) / dy) {
+      x += sx;
+      ix++;
+    } else {
+      y += sy;
+      iy++;
+    }
+    out.push({ cx: x, cy: y });
+  }
+  return out;
 }

@@ -249,14 +249,19 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
       <div className="scroll-thin flex shrink-0 gap-1.5 overflow-x-auto pt-1 sm:grid sm:grid-cols-4 sm:content-start sm:overflow-x-visible sm:overflow-y-auto xl:grid-cols-6 [@media(max-height:520px)]:grid [@media(max-height:520px)]:grid-cols-4 [@media(max-height:520px)]:content-start [@media(max-height:520px)]:overflow-y-auto">
         {units.length > 0 && mode.kind === 'normal' && (
           <>
-            <CardButton icon={<Swords size={20} />} hotkey="F" label="Avançar atacando" onClick={() => runtime.startAttackMove()} title="Avançar atacando (F)" />
+            {/* sem arma (pesqueiro, cargueiro, transporte): só parar; atacar não faz sentido (23/11) */}
+            {units.some((u) => UNITS[u.type].weapon.damage > 0) && (
+              <CardButton icon={<Swords size={20} />} hotkey="F" label="Avançar atacando" onClick={() => runtime.startAttackMove()} title="Avançar atacando (F)" />
+            )}
             <CardButton icon={<Square size={20} />} hotkey="X" label="Parar" onClick={() => runtime.stopSelected()} title="Parar (X)" />
-            <CardButton
-              icon={<RouteOff size={20} />}
-              label="Atacar estrada"
-              onClick={() => runtime.startAttackRoad()}
-              title="Atacar uma célula de estrada ou rodovia de quem está em guerra com você. As tropas nunca fazem isso sozinhas. Destruída, a célula some: corta a energia que passava por ela, as caravanas e a rota dos caminhões de carga."
-            />
+            {units.some((u) => UNITS[u.type].weapon.damage > 0) && (
+              <CardButton
+                icon={<RouteOff size={20} />}
+                label="Atacar estrada"
+                onClick={() => runtime.startAttackRoad()}
+                title="Atacar uma célula de estrada ou rodovia de quem está em guerra com você. As tropas nunca fazem isso sozinhas. Destruída, a célula some: corta a energia que passava por ela, as caravanas e a rota dos caminhões de carga."
+              />
+            )}
             <ModernizeButtons runtime={runtime} />
             <AidAllyButtons runtime={runtime} />
             {units.some((u) => u.type === 'engineer') && <EngineerButtons runtime={runtime} />}
@@ -1168,7 +1173,7 @@ function UnitsInfo({ units }: { units: ReturnType<typeof useHudStore.getState>['
       <div>
         <div className="flex flex-wrap items-baseline gap-x-2 text-sm font-semibold">
           {def.label}
-          <span className="text-[10px] font-normal text-ink-400">{equipmentTag(u.type, u.mods)}</span>
+          {def.crew !== 0 && <span className="text-[10px] font-normal text-ink-400">{equipmentTag(u.type, u.mods)}</span>}
         </div>
         <HpLine hp={u.hp} max={u.maxHp} />
         {u.refit && (
@@ -1182,18 +1187,22 @@ function UnitsInfo({ units }: { units: ReturnType<typeof useHudStore.getState>['
         <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs text-ink-400">
           <dt>Estado</dt>
           <dd className="text-ink-200">{u.refit ? 'Em modernização' : (ACTIVITY[u.activity] ?? u.activity)}</dd>
-          <dt>Patente</dt>
-          <dd className="text-ink-200" title="Veterania: cada patente dá +10% de dano e +8% de vida máxima">
-            {u.rank > 0 && <span className="text-brass-400">{'︽'.repeat(u.rank)} </span>}
-            {RANKS[u.rank]?.label ?? 'Recruta'}
-            {u.rank > 0 && <span className="text-ink-400"> (+{Math.round(RANK_DAMAGE * u.rank * 100)}% dano, +{Math.round(RANK_HP * u.rank * 100)}% vida)</span>}
-            <span className="text-ink-400">
-              {' '}
-              · {u.kills} {u.kills === 1 ? 'abate' : 'abates'}
-              {RANKS[u.rank + 1] ? `, próxima em ${RANKS[u.rank + 1]!.kills}` : ''}
-            </span>
-          </dd>
-          {lines.map((l) => (
+          {def.weapon.damage > 0 && (
+            <>
+              <dt>Patente</dt>
+              <dd className="text-ink-200" title="Veterania: cada patente dá +10% de dano e +8% de vida máxima">
+                {u.rank > 0 && <span className="text-brass-400">{'︽'.repeat(u.rank)} </span>}
+                {RANKS[u.rank]?.label ?? 'Recruta'}
+                {u.rank > 0 && <span className="text-ink-400"> (+{Math.round(RANK_DAMAGE * u.rank * 100)}% dano, +{Math.round(RANK_HP * u.rank * 100)}% vida)</span>}
+                <span className="text-ink-400">
+                  {' '}
+                  · {u.kills} {u.kills === 1 ? 'abate' : 'abates'}
+                  {RANKS[u.rank + 1] ? `, próxima em ${RANKS[u.rank + 1]!.kills}` : ''}
+                </span>
+              </dd>
+            </>
+          )}
+          {lines.filter((l) => def.weapon.damage > 0 || !['damage', 'cooldown', 'range'].includes(l.key)).map((l) => (
             <FragmentStat key={l.key} label={l.label} base={l.base} value={l.value} unit={l.unit} sources={l.sources} />
           ))}
         </dl>

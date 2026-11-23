@@ -737,9 +737,11 @@ export class Simulation {
     // salvamentos antigos: lavouras que ficaram embaixo de edifícios construídos depois
     for (const b of sim.buildings) {
       if (!b.claims.length || BUILDINGS[b.type].gather?.terrain === null) continue;
+      // e (23/11) as que viraram estrada: a lavoura continuava desenhada por cima do asfalto
+      const want = BUILDINGS[b.type].gather?.terrain;
       b.claims = b.claims.filter((i) => {
         const x = i % sim.map.width;
-        return sim.grid.occupant(x, (i - x) / sim.map.width) === 0;
+        return sim.grid.occupant(x, (i - x) / sim.map.width) === 0 && (want === undefined || sim.map.terrain[i] === want);
       });
     }
     sim.winner = data.winner;
@@ -1646,6 +1648,7 @@ export class Simulation {
           const prev = this.map.terrain[i]!;
           this.map.terrain[i] = Terrain.Road;
           this.grid.terrain[i] = Terrain.Road;
+          this.releaseRoadClaim(i);
           this.roads.push({ i, owner: slot, ...(prev === Terrain.Fertile ? { prev } : {}) });
         }
         // as estradas vão junto com as fronteiras no próximo snapshot
@@ -2138,6 +2141,7 @@ export class Simulation {
       const prev = this.map.terrain[i]!;
       this.map.terrain[i] = Terrain.Road;
       this.grid.terrain[i] = Terrain.Road;
+      this.releaseRoadClaim(i);
       const own = this.roads.find((r) => r.i === i);
       if (own) own.hw = true;
       else this.roads.push({ i, owner: slot, hw: true, ...(prev === Terrain.Fertile ? { prev } : {}) });
@@ -2488,11 +2492,12 @@ export class Simulation {
     switch (g.source) {
       case 'coal':
         return (this.players[b.owner]?.resources.coal ?? 0) >= 0.5 ? g.gen : 0;
+      // eólica e solar sobem de nível (23/11): +40% de geração por nível (`fx.rateMul`)
       case 'wind':
-        return g.gen * windFactor(seconds, b.id);
+        return g.gen * this.fx(b).rateMul * windFactor(seconds, b.id);
       case 'solar': {
         const era = this.players[b.owner]?.era ?? 1;
-        return g.gen * dayLight(seconds).day * (era >= 3 ? POWER.solarEraMul : 1);
+        return g.gen * this.fx(b).rateMul * dayLight(seconds).day * (era >= 3 ? POWER.solarEraMul : 1);
       }
       default:
         return g.gen;
@@ -4620,6 +4625,15 @@ export class Simulation {
     this.clearedForest.push(i);
     this.map.terrain[i] = Terrain.Plains;
     this.grid.terrain[i] = Terrain.Plains;
+    const x = i % this.map.width;
+    this.releaseClaimsUnder({ cx: x, cy: (i - x) / this.map.width }, 1);
+  }
+
+  /**
+   * Estrada sobre lavoura (23/11): a célula sai da lista da fazenda (antes a plantação continuava desenhada e colhida
+   * por cima do asfalto); a fazenda repõe com outra célula fértil livre ao alcance.
+   */
+  releaseRoadClaim(i: number): void {
     const x = i % this.map.width;
     this.releaseClaimsUnder({ cx: x, cy: (i - x) / this.map.width }, 1);
   }
