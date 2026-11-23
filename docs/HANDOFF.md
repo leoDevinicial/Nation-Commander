@@ -43,6 +43,9 @@ git push origin <branch-de-trabalho>:claude/serene-bell-7cjnhp
 ```
 
 Se o `merge-base` falhar (alguém publicou algo que não está na sua branch), **pare e avise o usuário**; não force.
+**Antes de publicar novidade para o jogador:** subir `GAME_VERSION` (`shared/version.ts`) e pôr a entrada no topo de
+`src/ui/changelog.ts` (com en/es). É a versão nova no changelog que dispara o popup de novidades; o lote de 23/11 saiu
+sem isso e o jogo seguiu dizendo 1.6.3 até a 1.6.4.
 Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, sem pedido; publicar, não.
 
 ## 0.1 Contas e branches (histórico)

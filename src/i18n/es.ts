@@ -3511,4 +3511,13 @@ export const ES: Dict = {
   "General da Temporada": "General de la Temporada",
   "Coronel da Temporada": "Coronel de la Temporada",
   "Energia gerada": "Energía generada",
+  // novidades 1.6.4 (23/11)
+  "Espião (quartel, era 3): o inimigo só o vê bem de perto. Parado perto das construções dele, mostra o que está sendo produzido; em guerra, sabota uma usina por um minuto.": "Espía (cuartel, era 3): el enemigo solo lo ve de cerca. Parado cerca de sus construcciones, muestra lo que está produciendo; en guerra, sabotea una central por un minuto.",
+  "Veja a sua rede elétrica (tecla E ou na roda de ferramentas): estradas que levam energia, prédios com e sem luz e quanto cada rede gera e consome.": "Mira tu red eléctrica (tecla E o en la rueda de herramientas): carreteras que llevan energía, edificios con y sin luz y cuánto genera y consume cada red.",
+  "Alerta de apagão: diz quanto falta de energia, onde, e oferece construir a usina certa ou subir o nível da eólica e da solar.": "Alerta de apagón: dice cuánta energía falta y dónde, y ofrece construir la central adecuada o subir el nivel de la eólica y la solar.",
+  "Eventos globais: crise do petróleo, inverno rigoroso e alta das commodities mudam a economia de todos no meio da partida (o anfitrião pode desligar na sala).": "Eventos globales: crisis del petróleo, invierno riguroso y alza de las materias primas cambian la economía de todos en medio de la partida (el anfitrión puede apagarlos en la sala).",
+  "Ranking da temporada: todo mês, quem tem conta disputa o topo; os três primeiros do mês passado ganham título de Marechal, General e Coronel.": "Ranking de la temporada: cada mes, quien tiene cuenta compite por la cima; los tres primeros del mes pasado reciben el título de Mariscal, General y Coronel.",
+  "Convide amigos por link: no lobby, \"Copiar convite\" gera um endereço que leva direto para a sala.": "Invita a tus amigos con un enlace: en el lobby, \"Copiar invitación\" genera una dirección que lleva directo a la sala.",
+  "IA mais esperta: usa drones de ataque, faz estradas na diagonal e em túnel e manda dinheiro a aliados em guerra.": "IA más lista: usa drones de ataque, hace carreteras en diagonal y en túnel y envía dinero a aliados en guerra.",
+  "Relatório de fim de partida com caixa, energia gerada e abates nos gráficos.": "Informe de fin de partida con caja, energía generada y bajas en los gráficos.",
 };

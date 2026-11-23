@@ -3768,4 +3768,13 @@ export const EN: Dict = {
   "General da Temporada": "Season General",
   "Coronel da Temporada": "Season Colonel",
   "Energia gerada": "Power generated",
+  // novidades 1.6.4 (23/11)
+  "Espião (quartel, era 3): o inimigo só o vê bem de perto. Parado perto das construções dele, mostra o que está sendo produzido; em guerra, sabota uma usina por um minuto.": "Spy (barracks, era 3): the enemy only sees it up close. Standing near their buildings, it shows what they are producing; at war, it sabotages a power plant for a minute.",
+  "Veja a sua rede elétrica (tecla E ou na roda de ferramentas): estradas que levam energia, prédios com e sem luz e quanto cada rede gera e consome.": "See your power grid (E key or the tool wheel): roads carrying power, buildings with and without electricity, and how much each grid generates and consumes.",
+  "Alerta de apagão: diz quanto falta de energia, onde, e oferece construir a usina certa ou subir o nível da eólica e da solar.": "Blackout alert: shows how much power is missing and where, and offers to build the right plant or upgrade wind and solar.",
+  "Eventos globais: crise do petróleo, inverno rigoroso e alta das commodities mudam a economia de todos no meio da partida (o anfitrião pode desligar na sala).": "Global events: oil crisis, harsh winter and commodity boom shift everyone's economy mid-match (the host can turn them off in the room).",
+  "Ranking da temporada: todo mês, quem tem conta disputa o topo; os três primeiros do mês passado ganham título de Marechal, General e Coronel.": "Season ranking: every month, players with an account compete for the top; last month's top three earn the titles Marshal, General and Colonel.",
+  "Convide amigos por link: no lobby, \"Copiar convite\" gera um endereço que leva direto para a sala.": "Invite friends by link: in the lobby, \"Copy invite\" makes a link that takes them straight to the room.",
+  "IA mais esperta: usa drones de ataque, faz estradas na diagonal e em túnel e manda dinheiro a aliados em guerra.": "Smarter AI: it uses attack drones, builds diagonal roads and tunnels, and sends money to allies at war.",
+  "Relatório de fim de partida com caixa, energia gerada e abates nos gráficos.": "End-of-match report now charts treasury, power generated and kills.",
 };
