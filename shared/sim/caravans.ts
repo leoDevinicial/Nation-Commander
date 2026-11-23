@@ -1,4 +1,4 @@
-import { BUILDINGS, CARAVAN, HIGHWAY, ROAD, TICK_RATE, Terrain } from './config.ts';
+import { BUILDINGS, CARAVAN, HIGHWAY, ROAD, ROAD_STEPS, TICK_RATE, Terrain } from './config.ts';
 import type { Simulation } from './Simulation.ts';
 import { TRADE } from './trade.ts';
 import type { Building, Cell, EntityId, Slot, Vec2 } from './types.ts';
@@ -256,12 +256,7 @@ export function roadLink(sim: Simulation, owner: Slot, from: Building, to: Build
     }
     const cx = i % W;
     const cy = Math.floor(i / W);
-    for (const [dx, dy] of [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ] as const) {
+    for (const [dx, dy] of ROAD_STEPS) {
       const nx = cx + dx;
       const ny = cy + dy;
       if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
@@ -300,12 +295,7 @@ export function roadNetwork(sim: Simulation, owner: Slot): Set<number> {
     const i = queue[q]!;
     const cx = i % W;
     const cy = Math.floor(i / W);
-    for (const [dx, dy] of [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ] as const) {
+    for (const [dx, dy] of ROAD_STEPS) {
       const nx = cx + dx;
       const ny = cy + dy;
       if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;

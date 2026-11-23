@@ -6,7 +6,7 @@ import type { IdCipher, IdSpace } from './ids.ts';
 import { RANKS, rankDamageMul, rankFor, rankHpMul } from './veterancy.ts';
 import { countryBonus, type CountryBonus } from './countryBonus.ts';
 import { ERA_CANCEL_REFUND, ERAS, buildingEra, eraPhrase, type Era } from './eras.ts';
-import { ZoneSystem, type ZoneSave, type ZoningHost } from './zoning.ts';
+import { ZONING, ZoneSystem, type ZoneSave, type ZoningHost } from './zoning.ts';
 import { MineSystem, type MineSave } from './mines.ts';
 import { POWER, POWER_DARK_RATE, POWER_GEN, POWER_USE, powerUse, solvePower, windFactor, type PowerNode } from './power.ts';
 import { dayLight } from './climate.ts';
@@ -24,6 +24,7 @@ import {
   Terrain,
   PROJECT_FX,
   ROAD,
+  TUNNEL_TERRAIN,
   HIGHWAY,
   NAVAL,
   SPACE,
@@ -406,6 +407,8 @@ export class Simulation {
   /** Estradas construídas pelos jogadores (célula e dono, para a manutenção). */
   /** Estradas dos jogadores. `prev`: o terreno embaixo (solo fértil volta a ser fértil se a estrada sair; 03/11). */
   roads: { i: number; owner: Slot; hw?: true; prev?: Terrain }[] = [];
+  /** Indústrias privadas com luz por jogador (recontadas a cada segundo; suprimentos do zoneamento). */
+  private indCount: number[] = [];
   /** Células de mata derrubadas por estradas (mantém a ordem dos depósitos ao carregar um salvamento). */
   clearedForest: number[] = [];
   /** Células de rodovia (02/11): mais rápidas, sem energia, podem sair do território. A grade usa o mesmo conjunto. */
@@ -1646,10 +1649,11 @@ export class Simulation {
           this.zones.clearCell(i);
           this.clearForestCell(i);
           const prev = this.map.terrain[i]!;
+          if (prev === Terrain.Ore) this.digOreCell(i);
           this.map.terrain[i] = Terrain.Road;
           this.grid.terrain[i] = Terrain.Road;
           this.releaseRoadClaim(i);
-          this.roads.push({ i, owner: slot, ...(prev === Terrain.Fertile ? { prev } : {}) });
+          this.roads.push({ i, owner: slot, ...(prev === Terrain.Fertile || TUNNEL_TERRAIN.has(prev) ? { prev } : {}) });
         }
         // as estradas vão junto com as fronteiras no próximo snapshot
         this.territoryVersion++;
@@ -2096,6 +2100,7 @@ export class Simulation {
    */
   roadPlan(slot: Slot, cells: readonly Cell[]): { cells: number[]; stone: number; usd: number; error: string | null } {
     const out: number[] = [];
+    let tunnels = 0;
     const fail = (error: string) => ({ cells: [], stone: 0, usd: 0, error });
     if (cells.length > ROAD.maxCells) return fail(`Traçado longo demais: até ${ROAD.maxCells} células por vez`);
     const engineers = this.units.filter((u) => u.owner === slot && u.type === 'engineer' && u.hp > 0);
@@ -2107,7 +2112,9 @@ export class Simulation {
       const i = c.cy * this.map.width + c.cx;
       const t = this.map.terrain[i]!;
       if (t === Terrain.Road || out.includes(i)) continue;
-      if (t !== Terrain.Plains && t !== Terrain.Fertile && t !== Terrain.Forest) return fail('Estradas só em planície, solo fértil ou mata (a mata é derrubada)');
+      // rocha e minério (23/11): a estrada passa em túnel por baixo da montanha
+      if (t !== Terrain.Plains && t !== Terrain.Fertile && t !== Terrain.Forest && !TUNNEL_TERRAIN.has(t)) return fail('Estradas só em planície, solo fértil, mata (a mata é derrubada) ou em túnel pela rocha');
+      if (TUNNEL_TERRAIN.has(t)) tunnels++;
       if (this.grid.occupant(c.cx, c.cy) !== 0) return fail('Há uma construção no traçado');
       const owner = this.territory[i] ?? NO_OWNER;
       if (owner !== slot) {
@@ -2118,8 +2125,10 @@ export class Simulation {
       out.push(i);
     }
     if (!out.length) return fail('O traçado já é estrada');
-    const stone = out.length * ROAD.stonePerCell;
-    const usd = Math.round((this.national?.worksCapUsd?.(slot) ?? 0) * ROAD.usdSharePerCell * out.length);
+    // célula de túnel vale `tunnelMul` células comuns
+    const units = out.length + tunnels * (ROAD.tunnelMul - 1);
+    const stone = units * ROAD.stonePerCell;
+    const usd = Math.round((this.national?.worksCapUsd?.(slot) ?? 0) * ROAD.usdSharePerCell * units);
     if (!this.isSandbox(slot)) {
       if ((this.players[slot]?.resources.stone ?? 0) < stone) return { cells: out, stone, usd, error: `Pedra insuficiente: a estrada custa ${stone}` };
       if (this.national && this.national.worksFundUsd(slot) + 1e-6 < usd) return { cells: out, stone, usd, error: 'Caixa do país sem saldo para a estrada' };
@@ -2835,6 +2844,9 @@ export class Simulation {
       // renda fixa (QG) e logística nacional: suprimentos, limitados pela capacidade
       let fixed = p.modifiers.externalIncome;
       for (const b of this.buildings) if (b.owner === p.slot && b.progress >= 1 && !b.unpaid) fixed += this.fx(b).income.supplies ?? 0;
+      // indústrias privadas do zoneamento (23/11): cada uma ativa e com luz rende suprimentos (contadas a cada segundo)
+      if (this.tick % TICK_RATE === 0 || this.indCount[p.slot] === undefined) this.indCount[p.slot] = this.zones.litIndustries(p.slot);
+      fixed += (this.indCount[p.slot] ?? 0) * ZONING.indSupplies;
       p.incomeRemainder.supplies += fixed * TICK_SECONDS;
       const whole = Math.floor(p.incomeRemainder.supplies + 1e-9);
       if (whole > 0) {
@@ -3030,6 +3042,8 @@ export class Simulation {
         this.setStatus(b, 'no_power');
         continue;
       }
+      // subproduto (23/11): a usina trabalhando rende suprimentos, mesmo com o estoque do bem cheio
+      if (proc.supplies && p.resources[proc.from] >= 1) p.incomeRemainder.supplies += proc.supplies * (need > 0 ? b.workers / need : 1) * TICK_SECONDS;
       const goods = (p.goods ??= emptyGoods());
       const cap = this.goodsCap(b.owner);
       if (goods[proc.to] >= cap) {
@@ -4627,6 +4641,13 @@ export class Simulation {
     this.grid.terrain[i] = Terrain.Plains;
     const x = i % this.map.width;
     this.releaseClaimsUnder({ cx: x, cy: (i - x) / this.map.width }, 1);
+  }
+
+  /** Túnel pelo minério (23/11): a célula sai do veio (o depósito perde a parte dela, como a mata derrubada). */
+  private digOreCell(i: number): void {
+    const d = this.deposits.deposits[this.deposits.cellDeposit[i] ?? -1];
+    if (d && d.cells.length) d.remaining = Math.max(0, d.remaining - d.initial / d.cells.length);
+    this.deposits.cellDeposit[i] = -1;
   }
 
   /**

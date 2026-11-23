@@ -128,7 +128,7 @@ export interface PowerResult {
 
 /**
  * Resolve a rede de um jogador: malha = células de estrada + área das usinas e do Centro de Comando; cada pedaço
- * conexo (4 vizinhos) é uma rede. Construções a até `reach` células de uma rede entram nela; uma construção que alcança
+ * conexo (8 vizinhos, 23/11: a estrada na diagonal liga pela quina) é uma rede. Construções a até `reach` células de uma rede entram nela; uma construção que alcança
  * duas redes as une (a fiação dela passa por dentro). Em cada rede, a geração atende as consumidoras na ordem em que
  * chegam em `nodes`, que é a de construção (as mais antigas primeiro; os ids não têm ordem, ver `ids.ts`).
  */
@@ -155,11 +155,16 @@ export function solvePower(width: number, height: number, roadCells: Iterable<nu
       const i = stack.pop()!;
       const x = i % width;
       const y = (i - x) / width;
+      // pela quina também (23/11): a estrada na diagonal leva energia
       for (const [nx, ny] of [
         [x + 1, y],
         [x - 1, y],
         [x, y + 1],
         [x, y - 1],
+        [x + 1, y + 1],
+        [x + 1, y - 1],
+        [x - 1, y + 1],
+        [x - 1, y - 1],
       ] as const) {
         if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
         const j = ny * width + nx;

@@ -72,7 +72,9 @@ escuro, sem imposto e sem gastar luz, até o jogador **demolir**; aí a zona vol
   falta geração).
 - **Serviços públicos** ficaram mais caros: US$ 30 mil por dia cada hospital, escola, universidade, delegacia e
   prefeitura (eram 20 mil).
-- Lotes privados não produzem nem gastam recursos do mapa.
+- Lotes privados não gastam recursos do mapa. **Suprimentos (23/11):** cada indústria ativa e com luz rende
+  `ZONING.indSupplies` (0,05/s) para a nação (`litIndustries`, recontadas a cada segundo).
+- **Túnel:** a estrada em túnel não conta como rua do zoneamento (o lote ficaria dentro da pedra).
 
 ## Modelos (`src/game/render/models/zoneLots.ts`, ~700 a ~1.600 triângulos; prédio lâmina ~3.000)
 Redesenho de 02/11 inspirado no que os kits low poly de cidade fazem para ler bem de cima: telhado com beiral,

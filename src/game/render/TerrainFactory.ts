@@ -49,12 +49,12 @@ function groundMaterial(
   quality: 'low' | 'high',
   disposables: { dispose: () => void }[],
   tint: [number, number, number] = [1, 1, 1],
-): { mat: THREE.MeshStandardMaterial; repaint: (cells: readonly number[]) => void } {
+): { mat: THREE.MeshStandardMaterial; repaint: (cells: readonly number[], look?: (i: number) => Terrain | undefined) => void } {
   const data = new Uint8Array(map.width * map.height * 4);
   // biomas secos trocam parte da grama por solo exposto (o tom vem de `tint`)
   const dry = Math.max(0, Math.min(0.8, (tint[0] - tint[2]) * 0.9));
-  const paint = (i: number) => {
-    const w = SPLAT[map.terrain[i] ?? Terrain.Plains];
+  const paint = (i: number, t?: Terrain) => {
+    const w = SPLAT[t ?? map.terrain[i] ?? Terrain.Plains];
     const moved = Math.round(w[0] * dry);
     data.set([w[0] - moved, Math.min(255, w[1] + moved), w[2], w[3]], i * 4);
   };
@@ -105,8 +105,8 @@ function groundMaterial(
   };
   mat.customProgramCacheKey = () => 'nc-ground-v3';
   // células que mudaram de terreno durante a partida (estradas construídas pelos jogadores)
-  const repaint = (cells: readonly number[]) => {
-    for (const i of cells) paint(i);
+  const repaint = (cells: readonly number[], look?: (i: number) => Terrain | undefined) => {
+    for (const i of cells) paint(i, look?.(i));
     if (cells.length) splat.needsUpdate = true;
   };
   return { mat, repaint };
@@ -198,7 +198,8 @@ export interface TerrainHandle {
    */
   clearUnder: (rects: readonly DecorRect[]) => boolean;
   /** Repinta o solo das células cujo terreno mudou em `map.terrain` (estradas novas). */
-  repaint: (cells: readonly number[]) => void;
+  /** Repinta o solo das células; `look` troca o terreno usado na pintura (túnel com a rocha, diagonal com terra). */
+  repaint: (cells: readonly number[], look?: (i: number) => Terrain | undefined) => void;
   /**
    * Densidade da decoração (árvores, arbustos, pedras) para o KGPS: 1 = toda; abaixo disso, um
    * subconjunto fixo por posição (ver `decorKept`). As instâncias visíveis são compactadas no

@@ -17,12 +17,28 @@ describe('pedaços de terra dos cidadãos', () => {
 });
 
 describe('estrada na diagonal', async () => {
-  const { roadStairs } = await import('../game/GameRuntime.ts');
-  it('vira uma escada de células sempre ligadas pelo lado, do começo ao fim', () => {
-    const cells = roadStairs({ cx: 2, cy: 3 }, { cx: 8, cy: 9 }, 100);
-    expect(cells[0]).toEqual({ cx: 2, cy: 3 });
+  const { roadLine } = await import('../game/GameRuntime.ts');
+  it('a 45° vira uma linha de células ligadas pela quina, do começo ao fim', () => {
+    const cells = roadLine({ cx: 2, cy: 3 }, { cx: 8, cy: 9 }, 100);
+    expect(cells).toHaveLength(7);
     expect(cells.at(-1)).toEqual({ cx: 8, cy: 9 });
-    expect(cells.length).toBe(6 + 6 + 1);
-    for (let i = 1; i < cells.length; i++) expect(Math.abs(cells[i]!.cx - cells[i - 1]!.cx) + Math.abs(cells[i]!.cy - cells[i - 1]!.cy)).toBe(1);
+    for (let i = 1; i < cells.length; i++) expect([Math.abs(cells[i]!.cx - cells[i - 1]!.cx), Math.abs(cells[i]!.cy - cells[i - 1]!.cy)]).toEqual([1, 1]);
+  });
+  it('fora de 45°, mistura passos retos e diagonais sem pular célula', () => {
+    const cells = roadLine({ cx: 0, cy: 0 }, { cx: 10, cy: 4 }, 100);
+    expect(cells.at(-1)).toEqual({ cx: 10, cy: 4 });
+    for (let i = 1; i < cells.length; i++) expect(Math.max(Math.abs(cells[i]!.cx - cells[i - 1]!.cx), Math.abs(cells[i]!.cy - cells[i - 1]!.cy))).toBe(1);
+  });
+});
+
+describe('peças da estrada diagonal', async () => {
+  const { diagonalExits } = await import('../game/render/RoadLayer.ts');
+  const none = { n: false, s: false, w: false, e: false };
+  it('vizinha pela quina vira saída diagonal; ligada também pelos lados, não', () => {
+    expect(diagonalExits(none, { nw: false, ne: true, sw: true, se: false })).toEqual([
+      [1, -1],
+      [-1, 1],
+    ]);
+    expect(diagonalExits({ ...none, n: true }, { nw: false, ne: true, sw: false, se: false })).toEqual([]);
   });
 });

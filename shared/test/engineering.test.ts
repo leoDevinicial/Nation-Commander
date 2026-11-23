@@ -83,9 +83,42 @@ describe('Estradas do jogador', () => {
     expect(farm.claims.every((i) => sim.map.terrain[i] === Terrain.Fertile)).toBe(true);
   });
 
+  it('túnel: a estrada atravessa a rocha (custa o triplo), ninguém constrói em cima e a demolição devolve a rocha', () => {
+    const { sim, st } = setup();
+    for (let x = 6; x <= 12; x++) {
+      sim.map.terrain[12 * 40 + x] = Terrain.Rock;
+      sim.grid.terrain[12 * 40 + x] = Terrain.Rock;
+    }
+    const stone = sim.players[0]!.resources.stone;
+    expect(sim.applyCommand(0, { type: 'build_road', cells: line(12, 4, 14) })).toBeNull();
+    // 4 células comuns + 7 de túnel × 3
+    expect(stone - sim.players[0]!.resources.stone).toBe((4 + 7 * ROAD.tunnelMul) * ROAD.stonePerCell);
+    expect(st.charged).toBe(Math.round(100_000_000 * ROAD.usdSharePerCell * (4 + 7 * ROAD.tunnelMul)));
+    // passa por baixo: as tropas atravessam, o terreno guardado é a rocha
+    expect(sim.grid.isPassable(9, 12)).toBe(true);
+    expect(sim.roads.find((r) => r.i === 12 * 40 + 9)?.prev).toBe(Terrain.Rock);
+    expect(sim.placementError(0, 'house', { cx: 9, cy: 12 })).toMatch(/Estrada no caminho/);
+    // zoneamento: nada ao lado do túnel (está dentro da pedra); ao lado da estrada comum, pode
+    expect(sim.zones.cellProblem(0, 13 * 40 + 9)).toMatch(/estrada/);
+    expect(sim.zones.cellProblem(0, 13 * 40 + 4)).toBeNull();
+    expect(sim.demolishRoads(0, [12 * 40 + 9])).toBeNull();
+    expect(sim.map.terrain[12 * 40 + 9]).toBe(Terrain.Rock);
+  });
+
+  it('estrada na diagonal (ligada pela quina) leva energia e une a rede', async () => {
+    const { solvePower } = await import('../sim/power.ts');
+    // usina num canto, consumidora longe; a estrada liga as duas só pela quina
+    const road = [0, 1, 2, 3, 4, 5, 6, 7, 8].map((k) => (2 + k) * 20 + (2 + k));
+    const plant = { id: 1, type: 'coal_plant' as const, cx: 0, cy: 0, size: 2, gen: 10, use: 0 };
+    const house = { id: 2, type: 'house' as const, cx: 13, cy: 13, size: 1, gen: 0, use: 1 };
+    const res = solvePower(20, 20, road, [plant], [house]);
+    expect(res.isolated.has(2)).toBe(false);
+    expect(res.served).toBeGreaterThan(0);
+  });
+
   it('pavimenta no próprio território com pedra e verba de obras; recusa terreno ruim', () => {
     const { sim, st } = setup();
-    sim.map.terrain[10 * 40 + 9] = Terrain.Rock;
+    sim.map.terrain[10 * 40 + 9] = Terrain.Water;
     expect(sim.applyCommand(0, { type: 'build_road', cells: line(10, 6, 9) })).toMatch(/planície/);
     const stone = sim.players[0]!.resources.stone;
     expect(sim.applyCommand(0, { type: 'build_road', cells: line(12, 4, 8) })).toBeNull();

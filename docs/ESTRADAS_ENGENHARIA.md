@@ -139,8 +139,27 @@ remove. Os engenheiros também acompanham as ondas e detectam as minas pelo cami
 
 ## Correções de 23/11
 
-- **Diagonal:** arrastar na diagonal (as duas distâncias ≥ 2, proporção até 2,5) traça uma escada de células sempre
-  ligadas pelo lado (`roadStairs`), em vez do L. Reto ou quase reto, segue em L.
+- **Diagonal (pedido do usuário: "conectada pela quina, vire uma estrada bonitinha na diagonal"):** arrastar na
+  diagonal (as duas distâncias ≥ 2, proporção até 2,5) traça uma linha de células que se tocam pela quina (`roadLine`,
+  Bresenham). Reto ou quase reto, segue em L.
+  - **Regra:** estrada liga pela quina (`ROAD_STEPS`, 8 vizinhas): rede elétrica (`solvePower`), caminhões do comércio
+    e caravanas (`roadNetwork`) passam pela diagonal.
+  - **Desenho** (`RoadLayer`): célula ligada só pela quina vira pista inclinada (`diagonalTile`): um braço do centro até
+    cada quina com saída (`diagonalExits`: a vizinha da quina que não se liga por nenhum dos dois lados), calçada e
+    meio-fio dos dois lados e a faixa tracejada; o braço da vizinha começa na mesma quina, e a pista segue contínua.
+    Célula reta com uma saída na diagonal ganha só o braço. O solo dessas células fica de terra (sem o quadrado de
+    asfalto), e elas não têm poste.
+- **Túnel:** a estrada atravessa rocha e minério (`TUNNEL_TERRAIN`), de uma ponta a outra.
+  - **Custo:** cada célula vale `ROAD.tunnelMul` (3) células comuns, em pedra e verba; no minério, a célula sai do veio
+    (`digOreCell`).
+  - **Registro:** a estrada guarda a rocha em `prev` (`isTunnel`); demolida ou destruída, a rocha volta.
+  - **Restrições:** nada se constrói em cima (como em toda estrada construída), e o túnel não conta para o zoneamento
+    (o lote ficaria dentro da pedra).
+  - **Cliente:** o servidor manda o túnel sempre com a rocha no terreno do `match_start` (`terrainFor`). O cliente guarda
+    o terreno do começo (`baseTerrain`) e trata estrada sobre rocha como túnel: a montanha e as pedras ficam por
+    cima, sem asfalto, e nas bocas fica um portal de concreto (`RoadLayer.portal`). A altura usa o terreno de agora,
+    e as tropas dentro do túnel ficam no nível da estrada, por baixo da montanha (somem de vista). O tráfego da
+    cidade não entra.
 - **Lavoura sobre o asfalto:** a célula pavimentada sai da lista da fazenda (`releaseRoadClaim`), que repõe com outra
   célula fértil ao alcance; salvamentos antigos são limpos ao carregar.
 - **Poça de petróleo sobre a estrada:** a decoração da jazida (`TerrainFactory`, `buildOil`) some quando uma estrada,

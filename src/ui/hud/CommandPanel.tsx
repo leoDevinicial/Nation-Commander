@@ -333,7 +333,7 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             icon={<Route size={20} />}
             label="Estrada"
             onClick={() => runtime.startRoad()}
-            title={`Estrada: arraste na grade para pavimentar até ${ROAD.maxCells} células por vez, dentro do território (fora dele, só com um Engenheiro de Combate por perto).\nCusto: ${ROAD.stonePerCell} de pedra por célula e verba de obras; manutenção pequena em suprimentos.\nTropas e comboios andam ${Math.round((ROAD.convoyMul - 1) * 100)}% mais rápido; moradias ligadas à estrada dão aprovação (bairro pavimentado).`}
+            title={`Estrada: arraste na grade para pavimentar até ${ROAD.maxCells} células por vez, dentro do território (fora dele, só com um Engenheiro de Combate por perto). Arrastando na diagonal, a pista sai inclinada; pela rocha, vira túnel (${ROAD.tunnelMul}× o custo, nada se constrói nem se zoneia em cima).\nCusto: ${ROAD.stonePerCell} de pedra por célula e verba de obras; manutenção pequena em suprimentos.\nTropas e comboios andam ${Math.round((ROAD.convoyMul - 1) * 100)}% mais rápido; moradias ligadas à estrada dão aprovação (bairro pavimentado).`}
           />
         )}
         {command && mode.kind === 'normal' && runtime.battleOp === null && buildTab === 'civic' && (
@@ -461,7 +461,7 @@ function AidAllyButtons({ runtime }: { runtime: GameRuntime }) {
 const ZONE_BRUSHES: { id: ZoneBrush; icon: LucideIcon; label: string; title: string }[] = [
   { id: 'res', icon: House, label: 'Residencial', title: 'Casas (+1 cidadão cada) e, raramente, prédios (+5). Crescem com a cidade desenvolvida, emprego por perto, serviços, luz e imposto baixo.' },
   { id: 'com', icon: Store, label: 'Comercial', title: 'Lojas, postos e escritórios. Crescem com moradores, indústrias e imposto baixo.' },
-  { id: 'ind', icon: Factory, label: 'Industrial', title: 'Indústrias privadas. Vêm com economia boa, aprovação alta e imposto industrial baixo.' },
+  { id: 'ind', icon: Factory, label: 'Industrial', title: 'Indústrias privadas. Vêm com economia boa, aprovação alta e imposto industrial baixo. Cada uma ativa e com luz rende 0,05 suprimento/s.' },
   { id: 'erase', icon: Eraser, label: 'Apagar', title: 'Tira a zona das células sem lote.' },
   { id: 'demolish', icon: Pickaxe, label: 'Demolir', title: 'Demole lotes seus (os abandonados precisam ser demolidos para a zona voltar a crescer).' },
 ];
@@ -532,8 +532,10 @@ function ZoneInfo({ mode, touch, runtime }: { mode: Extract<ReturnType<typeof us
 /** Dica e custo do traçado de estrada em andamento. */
 function RoadHint({ mode, touch, worksCap, stone }: { mode: Extract<ReturnType<typeof useHudStore.getState>['mode'], { kind: 'road' }>; touch: boolean; worksCap: number; stone: number }) {
   const def = mode.highway ? HIGHWAY : ROAD;
-  const cost = mode.cells * def.stonePerCell;
-  const usd = Math.round(worksCap * def.usdSharePerCell * mode.cells);
+  // túnel (23/11): cada célula de rocha vale `ROAD.tunnelMul` células
+  const units = mode.cells + (mode.tunnels ?? 0) * (ROAD.tunnelMul - 1);
+  const cost = units * def.stonePerCell;
+  const usd = Math.round(worksCap * def.usdSharePerCell * units);
   const what = mode.highway ? 'a rodovia' : 'a estrada';
   const how = touch
     ? `Toque nas células para marcar ou desmarcar ${what}; depois toque em Construir.`
@@ -543,7 +545,8 @@ function RoadHint({ mode, touch, worksCap, stone }: { mode: Extract<ReturnType<t
       <ModeHint title={mode.highway ? 'Construir rodovia' : 'Construir estrada'} text={mode.highway ? `${how} A rodovia pode sair da fronteira (nunca em país em guerra com você) e não leva energia.` : how} bad={false} />
       {mode.marked > 0 && (
         <div className="mt-1.5 text-xs text-ink-400">
-          {mode.cells} célula(s) a pavimentar · <span className={stone < cost ? 'text-signal-red' : 'text-ink-200'}>{cost} de pedra</span>
+          {mode.cells} célula(s) a pavimentar
+          {mode.tunnels ? ` (${mode.tunnels} em túnel, ${ROAD.tunnelMul}× o custo)` : ''} · <span className={stone < cost ? 'text-signal-red' : 'text-ink-200'}>{cost} de pedra</span>
           {usd > 0 && <span className="text-signal-green"> · {usdShort(usd)} do caixa do país</span>}
           {mode.bad > 0 && mode.reason && (
             <div className="text-signal-red">

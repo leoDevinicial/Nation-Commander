@@ -301,7 +301,7 @@
   <p class="lead">Seven resources drive your base. Each comes from a different place on the map.</p>
   <table>
     <tr><th style="width:17%">Resource</th><th style="width:33%">Where it comes from</th><th style="width:21%">Stored in</th><th>What it's for</th></tr>
-    <tr><td><b>📦 Supplies</b></td><td>Fixed income from the Command Center and city halls, plus the logistics paid by the Defense budget</td><td>Command Center</td><td>Vehicles, recruits, many buildings</td></tr>
+    <tr><td><b>📦 Supplies</b></td><td>Fixed income from the Command Center and city halls, the logistics paid by the Defense budget, a working <b>Refinery</b> and <b>Steel Mill</b> (0.35/s each) and every active, powered <b>zoning industry</b> (0.05/s)</td><td>Command Center</td><td>Vehicles, recruits, many buildings</td></tr>
     <tr><td><b>🌾 Food</b></td><td><b>Farm</b> on fertile soil (the brown ground). Never runs out.</td><td>Silo</td><td>Citizens, infantry and feeding the population</td></tr>
     <tr><td><b>🪵 Wood</b></td><td><b>Sawmill</b> next to the forest</td><td>Warehouse</td><td>Almost every building</td></tr>
     <tr><td><b>🪨 Stone</b></td><td><b>Quarry</b> next to rocks</td><td>Warehouse</td><td>Buildings, towers, artillery</td></tr>
@@ -319,7 +319,7 @@
   </ul>
   <div class="box warn"><span class="t">⚠ Each identical building costs more</span>Every new building of the same type costs <b>18% more</b> than the previous one. The 5th farm costs almost twice the 1st. So think before you build.</div>
   <h2>Industrial goods</h2>
-  <p>In era 2 you can build the <b>Refinery</b> (oil → ⛽ fuel) and the <b>Steel Mill</b> (iron → 🔩 steel). These goods replace part of the cost of vehicles and aircraft: <b>1 steel is worth 2 iron</b>, and <b>1 fuel is worth 2 oil</b>. In other words, the chain doubles the value of your iron and oil. <b>⛽ Vehicles and ships burn fuel as they move</b> (tanks more than light armor; ships even more): the Refinery's fuel goes first, then oil. With neither, they move at <b>half speed</b> and oil turns red on the bar.</p>
+  <p>In era 2 you can build the <b>Refinery</b> (oil → ⛽ fuel) and the <b>Steel Mill</b> (iron → 🔩 steel). While working, each one also yields <b>0.35 supplies per second</b>. These goods replace part of the cost of vehicles and aircraft: <b>1 steel is worth 2 iron</b>, and <b>1 fuel is worth 2 oil</b>. In other words, the chain doubles the value of your iron and oil. <b>⛽ Vehicles and ships burn fuel as they move</b> (tanks more than light armor; ships even more): the Refinery's fuel goes first, then oil. With neither, they move at <b>half speed</b> and oil turns red on the bar.</p>
   <figure><img src="img/base.jpg" style="height:62mm"><figcaption>A base growing in the Cold War: the Command Center (Brasília) in the middle, farms, an oil well with its tank, houses, residential buildings, barracks, factory, silos, warehouse and the first troops.</figcaption></figure>
 </section>
 
@@ -678,7 +678,7 @@
   <p>Without teams, the nations in the match (humans and bots) can sign pacts after meeting, through the country's card on the Globe:</p>
   <table>
     <tr><th style="width:22%"></th><th>Non-aggression</th><th>Alliance</th></tr>
-    <tr><td><b>Effect</b></td><td>Neither can attack the other.</td><td>The same, plus <b>shared vision</b>, sending resources and troops in support.</td></tr>
+    <tr><td><b>Effect</b></td><td>Neither can attack the other.</td><td>The same, plus <b>shared vision</b>, sending money, resources and troops in support.</td></tr>
     <tr><td><b>Signing</b></td><td>The one who proposes pays 20 days of their own treasury income.</td><td>30 days.</td></tr>
     <tr><td><b>Breaking</b></td><td>The one who breaks it pays 90 days of income to the other side (without money, you can't break it).</td><td>120 days.</td></tr>
   </table>
@@ -692,7 +692,8 @@
   <ul>
     <li><b>Shared vision:</b> you see what your ally's troops and buildings see.</li>
     <li><b>Troops in support:</b> with troops selected, the <b>Support</b> button (with the country's name) sends them to attack-move to the ally's Command Center.</li>
-    <li><b>Send resources</b> (country card): choose up to 6 resources and the transport. The cargo leaves your stock at once and travels like trade cargo (it can be attacked by anyone at war with either of you). Freight: <b>truck 4%</b> (Trade Terminals linked by road or highway), <b>ship 8%</b> (a Port on both sides and a free Cargo Ship) or <b>air 20%</b> (Air Base or HQ level 4 on both sides and a cargo aircraft ready).</li>
+    <li><b>Send money</b> (country card → <b>Send money or resources</b>): type the amount in US$ millions (minimum 1). It leaves your treasury and reaches your ally's at once, with no freight.</li>
+    <li><b>Send resources</b> (same window): choose up to 6 resources and the transport. The cargo leaves your stock at once and travels like trade cargo (it can be attacked by anyone at war with either of you). Freight: <b>truck 4%</b> (Trade Terminals linked by road or highway), <b>ship 8%</b> (a Port on both sides and a free Cargo Ship) or <b>air 20%</b> (Air Base or HQ level 4 on both sides and a cargo aircraft ready).</li>
   </ul>
   <h3>Team mode</h3>
   <p>Set in the room before starting. Nations on the same team are allies from the first to the last day: you can't break the alliance or declare war on a teammate, and no other pact is signed. The match ends when only one team is left, and the whole team wins.</p>
@@ -738,12 +739,13 @@
   <div class="box tip"><span class="t">💡 Colonies</span>A city hall can also be built on <b>neutral land</b> (never on another nation's), as long as a <b>troop or ship of yours</b> is within 8 cells of the site. Once finished, the new city's border forms around it. That's how you take an uninhabited island on the Archipelago map.</div>
   <div class="box warn"><span class="t">⚠ Cities can be captured</span>If the enemy destroys one of your city halls, it <b>passes to them</b>, along with your buildings within 8 cells. You can take it back the same way. The Command Center is never captured: only destroyed.</div>
   <h2>Roads</h2>
-  <p>Click <b>Road</b> (the HQ's Civic tab, or on the Engineer). Then <b>mark</b> the cells: a click marks or unmarks a cell, and click-and-drag marks an L-shaped path. On phones, each tap marks a cell. The preview shows in green where you can pave and in red where you can't. To finish, tap <b>Build</b> (or Enter): up to 40 cells per job, paying stone and a little money per cell. Each cell becomes a stretch of asphalt with a lane line, sidewalk and curb, and intersections get crosswalks.</p>
+  <p>Click <b>Road</b> (the HQ's Civic tab, or on the Engineer). Then <b>mark</b> the cells: a click marks or unmarks a cell, and click-and-drag marks a path: straight, L-shaped or <b>diagonal</b> (the lane runs slanted, corner to corner). On phones, each tap marks a cell. The preview shows in green where you can pave and in red where you can't. To finish, tap <b>Build</b> (or Enter): up to 40 cells per job, paying stone and a little money per cell. Each cell becomes a stretch of asphalt with a lane line, sidewalk and curb, and intersections get crosswalks.</p>
   <ul>
     <li>All units move faster on roads, and trade convoys too.</li>
     <li>Houses and residential buildings linked to a road give up to +4 approval ("paved neighborhood").</li>
     <li><b>+15% production:</b> farms, sawmills, quarries, mines, wells, refinery and steel mill linked by road to the Command Center or a city hall produce 15% more.</li>
     <li>Outside your territory, only with an Engineer nearby.</li>
+    <li><b>Tunnel:</b> the road goes under rock and mountains, from one side to the other. Each tunnel cell costs <b>3 times</b> the stone and money of a normal cell. The mountain stays on top: nothing can be built on a tunnel or zoned beside it, and troops inside disappear from view. It carries power, trucks and caravans like any road.</li>
     <li>Careful: an enemy at war uses your roads too.</li>
   </ul>
   <h2>Highways</h2>
@@ -785,7 +787,7 @@
     <li><b>Nothing appears at once.</b> Private houses, buildings, shops and industries show up little by little, according to <b>each city's attractiveness</b> (R, C and I bars on the panel). At first, a city with no attractions doesn't grow: build government houses and buildings, services and jobs; as the country grows, zones fill faster and faster. Usually the first lots appear between 8 and 12 minutes, the city blooms around 17 to 23 minutes and, late in the match, a well-developed nation (police, school, hospital, jobs, advanced era) fills its zones quickly.</li>
     <li><b>Every building faces the street.</b> With two rows painted, the back one becomes the back of the same lot: the house, shop or industry gets longer.</li>
     <li>A <b>private house</b> brings 1 citizen (and 1 slot); a <b>private building</b>, rarer, brings 5. The nation's cap is 500 inhabitants. Government houses and buildings only open slots: citizens come from the Command Center.</li>
-    <li><b>Industries</b> come with a good economy, high approval and low industrial tax. <b>Houses</b> come when there are jobs nearby, services (police, school, hospital), power and low tax. <b>Shops</b> come with residents and industries in the city.</li>
+    <li><b>Industries</b> come with a good economy, high approval and low industrial tax; each active, powered one yields <b>0.05 supplies per second</b>. <b>Houses</b> come when there are jobs nearby, services (police, school, hospital), power and low tax. <b>Shops</b> come with residents and industries in the city.</li>
     <li>Each sector has its own <b>tax</b> (0 to 30%): more tax, more money in the treasury, but less demand.</li>
     <li>Lots pay tax and only use power (0.5 each). With high tax, martial law, repeated attacks, lack of power or jobs, they can be <b>abandoned</b>: they stay dark until you use the <b>Demolish</b> brush.</li>
   </ul>
@@ -799,8 +801,8 @@
   <table>
     <tr><th style="width:26%">Plant</th><th style="width:9%">Era</th><th style="width:14%">Power</th><th>How it works</th></tr>
     <tr><td><b>Coal Power Plant</b></td><td>1</td><td>24</td><td>Burns coal according to use (up to 0.6 per second). Cheap and strong, but without coal it goes dark.</td></tr>
-    <tr><td><b>Wind Farm</b></td><td>2</td><td>up to 12</td><td>No fuel; yields 35% to 130% depending on the wind, which changes slowly.</td></tr>
-    <tr><td><b>Solar Plant</b></td><td>3</td><td>up to 25</td><td>No fuel; daytime only (nothing at night).</td></tr>
+    <tr><td><b>Wind Farm</b></td><td>2</td><td>up to 12</td><td>No fuel; yields 35% to 130% depending on the wind, which changes slowly. Upgradable to <b>level 5</b>: +40% power per level.</td></tr>
+    <tr><td><b>Solar Plant</b></td><td>3</td><td>up to 25</td><td>No fuel; daytime only (nothing at night). Upgradable to <b>level 5</b>: +40% power per level.</td></tr>
     <tr><td><b>Hydroelectric Dam</b> (Great Project)</td><td>4</td><td>90</td><td>A big, clean late-game source.</td></tr>
     <tr><td><b>Nuclear Plant</b> (Great Project)</td><td>4</td><td>150</td><td>The biggest source in the game.</td></tr>
   </table>

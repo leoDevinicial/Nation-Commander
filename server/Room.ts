@@ -17,7 +17,7 @@ import type {
 } from '../shared/protocol.ts';
 import { GAME_VERSION } from '../shared/version.ts';
 import type { Command } from '../shared/sim/commands.ts';
-import { BUILDINGS, TICK_RATE, Terrain, UNITS, type BuildingType } from '../shared/sim/config.ts';
+import { BUILDINGS, TICK_RATE, Terrain, UNITS, isTunnel, type BuildingType } from '../shared/sim/config.ts';
 import { MAP_TYPE_INFO, MAP_TYPES, MAX_NATIONS_FREE, MAX_NATIONS_SUBSCRIBER, generateMatchMap, type MapType } from '../shared/sim/matchMap.ts';
 import { Simulation } from '../shared/sim/Simulation.ts';
 import { FogMemory, makeSnapshot, type Snapshot } from '../shared/sim/snapshot.ts';
@@ -750,10 +750,11 @@ export class Room {
    */
   private terrainFor(slot: Slot): string {
     const sim = this.sim!;
-    if (sim.ended || !sim.roads.length) return sim.map.terrain.join('');
+    if (!sim.roads.length) return sim.map.terrain.join('');
     const known = this.fogMemory.get(slot)?.roads;
     const t = [...sim.map.terrain];
-    for (const r of sim.roads) if (r.owner !== slot && !known?.has(r.i)) t[r.i] = r.prev ?? Terrain.Plains;
+    // túnel (23/11): vai sempre com a rocha de antes (o cliente desenha a montanha por cima e as bocas do túnel)
+    for (const r of sim.roads) if (isTunnel(r) || (!sim.ended && r.owner !== slot && !known?.has(r.i))) t[r.i] = r.prev ?? Terrain.Plains;
     return t.join('');
   }
 

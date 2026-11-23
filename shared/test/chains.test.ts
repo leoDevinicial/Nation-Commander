@@ -137,3 +137,39 @@ describe('Serviços com raio de cobertura', () => {
     expect(nat.nation(0)!.approvalFactors.find((f) => f.key === 'services_coverage')?.value).toBeCloseTo(MAP_APPROVAL.servicePerArea * 1.5, 1);
   });
 });
+
+describe('suprimentos da indústria (23/11)', () => {
+  it('refinaria e siderúrgica trabalhando rendem suprimentos além do bem', () => {
+    const gain = (withPlants: boolean) => {
+      const { sim, p, run } = setup();
+      if (withPlants) {
+        sim.addBuilding('refinery', 0, { cx: 8, cy: 8 }, 1);
+        sim.addBuilding('steel_mill', 0, { cx: 12, cy: 8 }, 1);
+      }
+      sim.staff(0);
+      p.resources.supplies = 0;
+      run(20);
+      return p.resources.supplies;
+    };
+    const extra = gain(true) - gain(false);
+    const want = 20 * (BUILDINGS.refinery.process!.supplies! + BUILDINGS.steel_mill.process!.supplies!);
+    expect(extra).toBeGreaterThan(want * 0.8);
+    expect(extra).toBeLessThan(want * 1.2);
+  });
+
+  it('cada indústria privada ativa e com luz rende suprimentos', async () => {
+    const { ZONING } = await import('../sim/zoning.ts');
+    const { sim, p, run } = setup();
+    sim.zones.litIndustries = () => 10;
+    p.resources.supplies = 0;
+    const base = (() => {
+      const { sim: s2, p: p2, run: r2 } = setup();
+      s2.zones.litIndustries = () => 0;
+      p2.resources.supplies = 0;
+      r2(20);
+      return p2.resources.supplies;
+    })();
+    run(20);
+    expect(p.resources.supplies - base).toBeCloseTo(20 * 10 * ZONING.indSupplies, 0);
+  });
+});

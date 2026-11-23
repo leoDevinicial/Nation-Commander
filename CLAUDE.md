@@ -94,7 +94,8 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
   rota por rodovia/estrada, porto ou aeroporto, cargas atacáveis por quem está em guerra com uma das partes e pagamento
   só na chegada; mercado mundial de reserva. Rodovia (`HIGHWAY`): sai da fronteira sem engenheiro, só pela terra
   neutra (nunca no território de outra nação), não leva energia e acelera cargas, caravanas e tropas. Estradas e
-  rodovias inimigas são alvo militar só por ordem do jogador (`attack_road`).
+  rodovias inimigas são alvo militar só por ordem do jogador (`attack_road`). Estrada liga pela quina (`ROAD_STEPS`; pista diagonal no
+  `RoadLayer`) e atravessa rocha em túnel (`isTunnel`, 3× o custo, sem zoneamento; 23/11, `docs/ESTRADAS_ENGENHARIA.md`).
 - Cidades e conhecimento (`shared/sim/cities.ts`, `KNOWLEDGE`, `docs/CONHECIMENTO_E_CIDADES.md`): cada construção pertence
   ao QG ou prefeitura mais próxima; `perCity` limita escola, universidade e as produções da era 3. Pesquisas custam
   US$ + conhecimento.

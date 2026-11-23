@@ -893,7 +893,8 @@ export interface BuildingDef {
   /** Pode ser erguido fora do território, perto de um Engenheiro de Combate (obstáculos). */
   engineerOutside?: boolean;
   /** Cadeia produtiva: com trabalhadores, transforma um recurso bruto num bem (por segundo). */
-  process?: { from: ResourceType; to: GoodsType; rate: number };
+  /** `supplies` (23/11): suprimentos por segundo que a usina também rende enquanto trabalha (proporcional aos postos). */
+  process?: { from: ResourceType; to: GoodsType; rate: number; supplies?: number };
   /** Serviço com raio de cobertura (`SERVICES.radius` células). */
   service?: ServiceKind;
   /** Produção própria por segundo com todos os trabalhadores, sem depósito (Mina Subterrânea). */
@@ -965,7 +966,30 @@ export const ROAD = {
   productionMul: 1.15,
   /** Vida de cada célula de estrada como alvo militar (02/11; a rodovia tem `HIGHWAY.hp`). */
   hp: 80,
+  /** Túnel (23/11): célula de estrada que atravessa rocha ou minério custa tanto a mais (pedra e verba). */
+  tunnelMul: 3,
 };
+
+/**
+ * Passos de uma célula de estrada para a vizinha (23/11): pelos lados e pela quina. Estrada na diagonal (células que
+ * só se tocam pela quina) é ligada como as outras: leva energia, caminhões e caravanas.
+ */
+export const ROAD_STEPS: readonly (readonly [number, number])[] = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+  [1, 1],
+  [1, -1],
+  [-1, 1],
+  [-1, -1],
+];
+
+/** Terrenos que a estrada atravessa em túnel (a montanha fica por cima). */
+export const TUNNEL_TERRAIN: ReadonlySet<Terrain> = new Set([Terrain.Rock, Terrain.Ore]);
+
+/** A célula de estrada é túnel? (o terreno de antes era rocha ou minério) */
+export const isTunnel = (r: { prev?: Terrain }): boolean => r.prev !== undefined && TUNNEL_TERRAIN.has(r.prev);
 
 /**
  * Rodovia (02/11): estrada larga de pista dupla. Pode sair do território (terra neutra ou de nação que não esteja em
@@ -1197,8 +1221,8 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     workers: 3,
     upkeep: { supplies: 0.05 },
     buildable: true,
-    process: { from: 'oil', to: 'fuel', rate: 0.6 },
-    description: 'Cadeia produtiva: com trabalhadores, transforma petróleo em combustível (0,6/s). O combustível substitui o petróleo na produção de veículos e aeronaves (cada unidade poupa 2 de petróleo). Alvo estratégico.',
+    process: { from: 'oil', to: 'fuel', rate: 0.6, supplies: 0.35 },
+    description: 'Cadeia produtiva: com trabalhadores, transforma petróleo em combustível (0,6/s) e ainda rende 0,35 suprimento/s. O combustível substitui o petróleo na produção de veículos e aeronaves (cada unidade poupa 2 de petróleo). Alvo estratégico.',
   },
   steel_mill: {
     ...NONE,
@@ -1213,8 +1237,8 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     workers: 3,
     upkeep: { supplies: 0.05 },
     buildable: true,
-    process: { from: 'iron', to: 'steel', rate: 0.5 },
-    description: 'Cadeia produtiva: com trabalhadores, transforma ferro em aço (0,5/s). O aço substitui o ferro na produção dos blindados (cada unidade poupa 2 de ferro). Alvo estratégico.',
+    process: { from: 'iron', to: 'steel', rate: 0.5, supplies: 0.35 },
+    description: 'Cadeia produtiva: com trabalhadores, transforma ferro em aço (0,5/s) e ainda rende 0,35 suprimento/s. O aço substitui o ferro na produção dos blindados (cada unidade poupa 2 de ferro). Alvo estratégico.',
   },
   hospital: {
     ...NONE,

@@ -1,4 +1,4 @@
-import { BUILDINGS, HIGHWAY, ROAD, TICK_RATE, Terrain, UNITS, type BuildingType } from './config.ts';
+import { BUILDINGS, HIGHWAY, ROAD, ROAD_STEPS, TICK_RATE, Terrain, UNITS, type BuildingType } from './config.ts';
 import { TICKS_PER_DAY } from '../strategic/params.ts';
 import { findPath } from './pathfinding/AStar.ts';
 import type { Simulation } from './Simulation.ts';
@@ -999,7 +999,7 @@ export class TradeSystem {
       }
       const x = i % W;
       const y = Math.floor(i / W);
-      for (const [dx, dy] of NEIGHBORS) {
+      for (const [dx, dy] of ROAD_STEPS) {
         const nx = x + dx;
         const ny = y + dy;
         if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;

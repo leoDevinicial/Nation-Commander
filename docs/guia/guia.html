@@ -306,7 +306,7 @@
   <p class="lead">Sete recursos movem a sua base. Cada um vem de um lugar diferente do mapa.</p>
   <table>
     <tr><th style="width:17%">Recurso</th><th style="width:33%">De onde vem</th><th style="width:21%">Onde guarda</th><th>Para que serve</th></tr>
-    <tr><td><b>📦 Suprimentos</b></td><td>Renda fixa do Centro de Comando e das prefeituras, mais a logística do orçamento de defesa</td><td>Centro de Comando</td><td>Veículos, recrutas, várias construções</td></tr>
+    <tr><td><b>📦 Suprimentos</b></td><td>Renda fixa do Centro de Comando e das prefeituras, a logística do orçamento de defesa, a <b>Refinaria</b> e a <b>Siderúrgica</b> trabalhando (0,35/s cada) e cada <b>indústria do zoneamento</b> ativa e com luz (0,05/s)</td><td>Centro de Comando</td><td>Veículos, recrutas, várias construções</td></tr>
     <tr><td><b>🌾 Comida</b></td><td><b>Fazenda</b> no solo fértil (o chão marrom). Nunca acaba.</td><td>Silo</td><td>Cidadãos, infantaria e alimentar a população</td></tr>
     <tr><td><b>🪵 Madeira</b></td><td><b>Serraria</b> perto da floresta</td><td>Armazém</td><td>Quase todas as construções</td></tr>
     <tr><td><b>🪨 Pedra</b></td><td><b>Pedreira</b> perto das rochas</td><td>Armazém</td><td>Construções, torres, artilharia</td></tr>
@@ -324,7 +324,7 @@
   </ul>
   <div class="box warn"><span class="t">⚠ Cada prédio igual fica mais caro</span>Cada construção nova do mesmo tipo custa <b>18% a mais</b> que a anterior. A 5ª fazenda custa quase o dobro da 1ª. Por isso, pense antes de construir.</div>
   <h2>Os bens industriais</h2>
-  <p>Na era 2 você pode construir a <b>Refinaria</b> (petróleo → ⛽ combustível) e a <b>Siderúrgica</b> (ferro → 🔩 aço). Esses bens substituem parte do custo dos veículos e aviões: <b>1 de aço vale 2 de ferro</b>, e <b>1 de combustível vale 2 de petróleo</b>. Ou seja, a cadeia dobra o rendimento do seu ferro e do seu petróleo. <b>⛽ Veículos e navios gastam combustível ao andar</b> (tanques mais que blindados leves; navios mais ainda): sai primeiro o combustível da Refinaria, depois o petróleo. Sem nenhum dos dois, eles andam a <b>meia velocidade</b> e o petróleo fica vermelho na barra.</p>
+  <p>Na era 2 você pode construir a <b>Refinaria</b> (petróleo → ⛽ combustível) e a <b>Siderúrgica</b> (ferro → 🔩 aço). Trabalhando, cada uma ainda rende <b>0,35 suprimento por segundo</b>. Esses bens substituem parte do custo dos veículos e aviões: <b>1 de aço vale 2 de ferro</b>, e <b>1 de combustível vale 2 de petróleo</b>. Ou seja, a cadeia dobra o rendimento do seu ferro e do seu petróleo. <b>⛽ Veículos e navios gastam combustível ao andar</b> (tanques mais que blindados leves; navios mais ainda): sai primeiro o combustível da Refinaria, depois o petróleo. Sem nenhum dos dois, eles andam a <b>meia velocidade</b> e o petróleo fica vermelho na barra.</p>
   <figure><img src="img/base.jpg" style="height:62mm"><figcaption>Uma base em desenvolvimento na Guerra Fria: Centro de Comando (Brasília) no meio, fazendas, poço de petróleo com tanque, casas, prédios residenciais, quartel, fábrica, silos, armazém e as primeiras tropas.</figcaption></figure>
 </section>
 
@@ -684,7 +684,7 @@
   <p>Sem times, as nações da partida (humanos e bots) podem firmar pactos depois do encontro, pela ficha do país no Globo:</p>
   <table>
     <tr><th style="width:22%"></th><th>Não agressão</th><th>Aliança</th></tr>
-    <tr><td><b>Efeito</b></td><td>Nenhum dos dois pode atacar o outro.</td><td>O mesmo, mais <b>visão compartilhada</b>, envio de recursos e tropas em auxílio.</td></tr>
+    <tr><td><b>Efeito</b></td><td>Nenhum dos dois pode atacar o outro.</td><td>O mesmo, mais <b>visão compartilhada</b>, envio de dinheiro, de recursos e de tropas em auxílio.</td></tr>
     <tr><td><b>Firmar</b></td><td>Quem propõe paga 20 dias de receita do próprio caixa.</td><td>30 dias.</td></tr>
     <tr><td><b>Romper</b></td><td>Quem rompe paga 90 dias de receita à outra parte (sem caixa, não rompe).</td><td>120 dias.</td></tr>
   </table>
@@ -698,7 +698,8 @@
   <ul>
     <li><b>Visão compartilhada:</b> você vê o que as tropas e construções do aliado veem.</li>
     <li><b>Tropas em auxílio:</b> com tropas selecionadas, o botão <b>Auxiliar</b> (nome do país) manda-as avançar atacando até o Centro de Comando do aliado.</li>
-    <li><b>Enviar recursos</b> (ficha do país): escolha até 6 recursos e o transporte. A carga sai do estoque na hora e viaja como as do comércio (pode ser atacada por quem está em guerra com um dos dois). Frete: <b>caminhão 4%</b> (Terminais Comerciais ligados por estrada ou rodovia), <b>navio 8%</b> (Porto dos dois lados e um Cargueiro livre) ou <b>avião 20%</b> (Base Aérea ou QG nível 4 dos dois lados e um avião de carga pronto).</li>
+    <li><b>Enviar dinheiro</b> (ficha do país → <b>Enviar dinheiro ou recursos</b>): digite o valor em US$ mi (mínimo 1). Sai do seu caixa e entra no do aliado na hora, sem frete.</li>
+    <li><b>Enviar recursos</b> (mesma janela): escolha até 6 recursos e o transporte. A carga sai do estoque na hora e viaja como as do comércio (pode ser atacada por quem está em guerra com um dos dois). Frete: <b>caminhão 4%</b> (Terminais Comerciais ligados por estrada ou rodovia), <b>navio 8%</b> (Porto dos dois lados e um Cargueiro livre) ou <b>avião 20%</b> (Base Aérea ou QG nível 4 dos dois lados e um avião de carga pronto).</li>
   </ul>
   <h3>Modo time</h3>
   <p>Definido na sala antes de começar. Quem está no mesmo time é aliado do primeiro ao último dia: não dá para romper nem declarar guerra ao parceiro, e nenhum outro pacto é firmado. A partida acaba quando só sobra um time, e o time inteiro vence.</p>
@@ -744,12 +745,13 @@
   <div class="box tip"><span class="t">💡 Colônias</span>A prefeitura também pode ser erguida em <b>terra neutra</b> (nunca na de outra nação), desde que uma <b>tropa ou navio seu</b> esteja a até 8 células da obra. Pronta, a fronteira da nova cidade se forma em volta. É assim que se ocupa uma ilha desabitada no mapa Arquipélago.</div>
   <div class="box warn"><span class="t">⚠ Cidades podem ser tomadas</span>Se o inimigo destruir uma prefeitura sua, ela <b>passa para ele</b>, junto com os seus prédios num raio de 8 células. Você pode retomá-la do mesmo jeito. O Centro de Comando nunca é tomado: só destruído.</div>
   <h2>Estradas</h2>
-  <p>Clique em <b>Estrada</b> (aba Cívicas do QG, ou no Engenheiro). Depois <b>marque</b> as células: um clique marca ou desmarca uma célula, e clicar e arrastar marca um caminho em L. No celular, cada toque marca uma célula. A prévia mostra em verde onde dá para pavimentar e em vermelho onde não dá. Para terminar, toque em <b>Construir</b> (ou Enter): até 40 células por obra, pagando pedra e um pouco de verba por célula. Cada célula vira um trecho de asfalto com faixa, calçada e meio-fio, e os cruzamentos ganham faixa de pedestres.</p>
+  <p>Clique em <b>Estrada</b> (aba Cívicas do QG, ou no Engenheiro). Depois <b>marque</b> as células: um clique marca ou desmarca uma célula, e clicar e arrastar marca um caminho: reto, em L ou <b>na diagonal</b> (a pista sai inclinada, de quina a quina). No celular, cada toque marca uma célula. A prévia mostra em verde onde dá para pavimentar e em vermelho onde não dá. Para terminar, toque em <b>Construir</b> (ou Enter): até 40 células por obra, pagando pedra e um pouco de verba por célula. Cada célula vira um trecho de asfalto com faixa, calçada e meio-fio, e os cruzamentos ganham faixa de pedestres.</p>
   <ul>
     <li>Todas as unidades andam mais rápido na estrada, e os comboios do comércio também.</li>
     <li>Casas e prédios residenciais ligados a uma estrada dão até +4 de aprovação ("bairro pavimentado").</li>
     <li><b>+15% de produção:</b> fazendas, serrarias, pedreiras, minas, poços, refinaria e siderúrgica ligados por estrada ao Centro de Comando ou a uma prefeitura produzem 15% a mais.</li>
     <li>Fora do território, só com um Engenheiro por perto.</li>
+    <li><b>Túnel:</b> a estrada atravessa rocha e montanha por baixo, de uma ponta a outra. Cada célula de túnel custa <b>3 vezes</b> a pedra e a verba de uma célula comum. A montanha fica por cima: nada se constrói em cima do túnel nem se zoneia ao lado dele, e as tropas lá dentro somem de vista. Ele leva energia, caminhões e caravanas como qualquer estrada.</li>
     <li>Cuidado: o inimigo em guerra também usa as suas estradas.</li>
   </ul>
   <h2>Rodovias</h2>
@@ -791,7 +793,7 @@
     <li><b>Nada aparece na hora.</b> Casas, prédios, lojas e indústrias particulares vão surgindo aos poucos, conforme a <b>atratividade de cada cidade</b> (barras R, C e I no painel). No começo, uma cidade sem atrativos não cresce: construa casas e prédios do governo, serviços e empregos; conforme o país cresce, as zonas povoam cada vez mais rápido. Em geral os primeiros lotes surgem entre 8 e 12 minutos, a cidade floresce lá pelos 17 a 23 minutos e, no fim da partida, uma nação bem desenvolvida (delegacia, escola, hospital, empregos, era avançada) enche as zonas depressa.</li>
     <li><b>Toda construção encosta na rua.</b> Com duas fileiras pintadas, a de trás vira o fundo do mesmo lote: a casa, a loja ou a indústria fica mais comprida.</li>
     <li><b>Casa particular</b> traz 1 cidadão (e 1 vaga); <b>prédio particular</b>, mais raro, traz 5. O teto da nação é 500 habitantes. Casa e prédio do governo só abrem vagas: os cidadãos vêm do Centro de Comando.</li>
-    <li><b>Indústrias</b> vêm com economia boa, aprovação alta e imposto industrial baixo. <b>Casas</b> vêm quando há emprego por perto, serviços (delegacia, escola, hospital), luz e imposto baixo. <b>Lojas</b> vêm com moradores e indústrias na cidade.</li>
+    <li><b>Indústrias</b> vêm com economia boa, aprovação alta e imposto industrial baixo; cada uma ativa e com luz rende <b>0,05 suprimento por segundo</b>. <b>Casas</b> vêm quando há emprego por perto, serviços (delegacia, escola, hospital), luz e imposto baixo. <b>Lojas</b> vêm com moradores e indústrias na cidade.</li>
     <li>Cada setor tem o seu <b>imposto</b> (0 a 30%): mais imposto, mais dinheiro no caixa, mas menos procura.</li>
     <li>Os lotes pagam imposto e gastam só energia (0,5 cada). Com imposto alto, lei marcial, ataques seguidos, falta de luz ou de emprego, eles podem ser <b>abandonados</b>: ficam escuros até você usar o pincel <b>Demolir</b>.</li>
   </ul>
@@ -805,8 +807,8 @@
   <table>
     <tr><th style="width:26%">Usina</th><th style="width:9%">Era</th><th style="width:14%">Energia</th><th>Como funciona</th></tr>
     <tr><td><b>Termelétrica a Carvão</b></td><td>1</td><td>24</td><td>Queima carvão conforme o uso (até 0,6 por segundo). Barata e forte, mas sem carvão ela apaga.</td></tr>
-    <tr><td><b>Parque Eólico</b></td><td>2</td><td>até 12</td><td>Sem combustível; rende de 35% a 130% conforme o vento, que muda devagar.</td></tr>
-    <tr><td><b>Usina Solar</b></td><td>3</td><td>até 25</td><td>Sem combustível; só de dia (nada à noite).</td></tr>
+    <tr><td><b>Parque Eólico</b></td><td>2</td><td>até 12</td><td>Sem combustível; rende de 35% a 130% conforme o vento, que muda devagar. Sobe até o <b>nível 5</b>: +40% de energia por nível.</td></tr>
+    <tr><td><b>Usina Solar</b></td><td>3</td><td>até 25</td><td>Sem combustível; só de dia (nada à noite). Sobe até o <b>nível 5</b>: +40% de energia por nível.</td></tr>
     <tr><td><b>Hidrelétrica</b> (Grande Projeto)</td><td>4</td><td>90</td><td>Fonte grande e limpa de fim de partida.</td></tr>
     <tr><td><b>Usina Nuclear</b> (Grande Projeto)</td><td>4</td><td>150</td><td>A maior fonte do jogo.</td></tr>
   </table>

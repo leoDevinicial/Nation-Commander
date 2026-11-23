@@ -37,6 +37,23 @@ const PLATE_SEG = 4;
  * contínua, sem placas flutuando nem enterradas. O asfalto é uma placa subdividida para acompanhar a curva dentro
  * da célula.
  */
+/** Largura da pista diagonal (fração da célula) e altura da placa (um pouco acima da calçada das peças retas). */
+const DIAG_WIDTH = 0.62;
+const DIAG_Y = 0.064;
+
+/**
+ * Saídas na diagonal (23/11): vizinha pela quina que não está ligada por nenhum dos dois lados (senão a ligação já
+ * passa pelos lados, como num quarteirão de 2×2).
+ */
+export function diagonalExits(c: { n: boolean; s: boolean; w: boolean; e: boolean }, d: { nw: boolean; ne: boolean; sw: boolean; se: boolean }): [number, number][] {
+  const out: [number, number][] = [];
+  if (d.ne && !c.n && !c.e) out.push([1, -1]);
+  if (d.nw && !c.n && !c.w) out.push([-1, -1]);
+  if (d.se && !c.s && !c.e) out.push([1, 1]);
+  if (d.sw && !c.s && !c.w) out.push([-1, 1]);
+  return out;
+}
+
 /** Até quantas luminárias acendem à noite (instâncias). */
 const MAX_LAMPS = 600;
 
@@ -110,28 +127,43 @@ export class RoadLayer {
    * Refaz as peças. `paved` são as células com asfalto do jogador; `isRoad` diz se uma célula é
    * estrada de qualquer tipo (inclusive a de terra do mapa), para o encaixe.
    */
-  set(paved: ReadonlySet<number>, isRoad: (i: number) => boolean, highways: ReadonlySet<number> = new Set()): void {
+  set(paved: ReadonlySet<number>, isRoad: (i: number) => boolean, highways: ReadonlySet<number> = new Set(), tunnels: ReadonlySet<number> = new Set()): void {
     const l = layers();
     const b = l.body;
     const W = this.width;
     const road = (cx: number, cy: number) => cx >= 0 && cy >= 0 && cx < W && cy < this.height && isRoad(cy * W + cx);
+    // células só na diagonal (sem vizinha pelo lado): sem poste (cairia na pista)
+    const diagonalOnly = new Set<number>();
     for (const i of paved) {
       const cx = i % W;
       const cy = Math.floor(i / W);
+      // túnel (23/11): por dentro da montanha não se desenha nada; a boca fica na vizinha de fora
+      if (tunnels.has(i)) continue;
+      const c = { n: road(cx, cy - 1), s: road(cx, cy + 1), w: road(cx - 1, cy), e: road(cx + 1, cy) };
+      for (const [dx, dy, side] of [
+        [0, -1, 'n'],
+        [0, 1, 's'],
+        [-1, 0, 'w'],
+        [1, 0, 'e'],
+      ] as const)
+        if (c[side] && tunnels.has((cy + dy) * W + cx + dx)) this.portal(b, cx, cy, dx, dy);
       if (highways.has(i)) {
-        this.highwayTile(b, cx, cy, { n: road(cx, cy - 1), s: road(cx, cy + 1), w: road(cx - 1, cy), e: road(cx + 1, cy) });
+        this.highwayTile(b, cx, cy, c);
         continue;
       }
-      this.tile(b, cx, cy, { n: road(cx, cy - 1), s: road(cx, cy + 1), w: road(cx - 1, cy), e: road(cx + 1, cy) }, {
-        nw: road(cx - 1, cy - 1),
-        ne: road(cx + 1, cy - 1),
-        sw: road(cx - 1, cy + 1),
-        se: road(cx + 1, cy + 1),
-      });
+      const d = { nw: road(cx - 1, cy - 1), ne: road(cx + 1, cy - 1), sw: road(cx - 1, cy + 1), se: road(cx + 1, cy + 1) };
+      const diag = diagonalExits(c, d);
+      if (diag.length && !c.n && !c.s && !c.w && !c.e) {
+        diagonalOnly.add(i);
+        this.diagonalTile(b, cx, cy, diag);
+        continue;
+      }
+      this.tile(b, cx, cy, c, d);
+      for (const [dx, dy] of diag) this.diagonalArm(b, cx, cy, dx, dy);
     }
     // a rodovia não leva energia: sem postes nas células dela
     this.lampAt = [];
-    this.poles(b, highways.size ? new Set([...paved].filter((i) => !highways.has(i))) : paved, road);
+    this.poles(b, new Set([...paved].filter((i) => !highways.has(i) && !tunnels.has(i) && !diagonalOnly.has(i))), road);
     const geo = l.build().body;
     this.drape(geo);
     this.mesh.geometry.dispose();
@@ -230,6 +262,81 @@ export class RoadLayer {
           strut(b, [a.x, a.y, a.z], [c.x, c.y, c.z], 0.015, '#1d1f22');
         }
       }
+    }
+  }
+
+  /**
+   * Estrada na diagonal (23/11): células que só se tocam pela quina viram uma pista inclinada, de quina a quina, com
+   * calçada dos dois lados e a faixa tracejada no meio. Cada saída diagonal é um braço do centro até a quina; o braço
+   * da vizinha começa na mesma quina, então a pista segue reta e contínua de uma célula para a outra.
+   */
+  private diagonalTile(b: PartBuilder, cx: number, cy: number, exits: readonly (readonly [number, number])[]): void {
+    const cs = this.cellSize;
+    const x = (cx + 0.5) * cs;
+    const z = (cy + 0.5) * cs;
+    const w = cs * DIAG_WIDTH;
+    // miolo: um losango de pista no centro, para as junções em V ficarem fechadas
+    b.add(new THREE.PlaneGeometry(w, w, 2, 2).rotateX(-Math.PI / 2).rotateY(Math.PI / 4), ASPHALT, { pos: [x, DIAG_Y, z] });
+    for (const [dx, dy] of exits) this.diagonalArm(b, cx, cy, dx, dy, true);
+  }
+
+  /** Braço de pista diagonal do centro da célula até a quina (dx, dy); `walks` põe a calçada dos lados. */
+  private diagonalArm(b: PartBuilder, cx: number, cy: number, dx: number, dy: number, walks = false): void {
+    const cs = this.cellSize;
+    const x = (cx + 0.5) * cs;
+    const z = (cy + 0.5) * cs;
+    const len = (cs * Math.SQRT2) / 2;
+    const w = cs * DIAG_WIDTH;
+    const ang = -Math.atan2(dy, dx);
+    const mx = x + (dx * cs) / 4;
+    const mz = z + (dy * cs) / 4;
+    // a placa sai um pouco além da quina: as duas metades se sobrepõem e não fica fresta
+    b.add(new THREE.PlaneGeometry(len + 0.04, w, PLATE_SEG, 2).rotateX(-Math.PI / 2), ASPHALT, { pos: [mx, DIAG_Y, mz], rot: [0, ang, 0] });
+    // faixa central tracejada (dois traços por braço)
+    for (const t of [0.3, 0.75]) b.box(cs * 0.2, 0.01, 0.07, PAINT, [x + dx * (cs / 2) * t, DIAG_Y + 0.012, z + dy * (cs / 2) * t], [0, ang, 0]);
+    if (!walks) return;
+    // calçada com meio-fio dos dois lados da pista
+    const px = -dy / Math.SQRT2;
+    const pz = dx / Math.SQRT2;
+    const sw = cs * SIDEWALK_FRAC;
+    for (const side of [-1, 1]) {
+      const off = w / 2 + sw / 2;
+      b.box(len, 0.06, sw, SIDEWALK, [mx + px * off * side, 0.03, mz + pz * off * side], [0, ang, 0]);
+      b.box(len, 0.07, 0.05, CURB, [mx + px * (w / 2) * side, 0.035, mz + pz * (w / 2) * side], [0, ang, 0]);
+    }
+  }
+
+  /**
+   * Boca de túnel (23/11) na borda da célula (cx, cy) voltada para (dx, dy), onde a estrada entra na montanha: portal
+   * de concreto com o vão escuro e uma testeira que some dentro da rocha.
+   */
+  private portal(b: PartBuilder, cx: number, cy: number, dx: number, dy: number): void {
+    const cs = this.cellSize;
+    const ex = (cx + 0.5 + dx * 0.5) * cs;
+    const ez = (cy + 0.5 + dy * 0.5) * cs;
+    const along = dx !== 0; // a estrada corre em x: o portal fica no plano yz
+    const span = cs * 0.86;
+    const H = 1.15;
+    const t = 0.18;
+    const sz = (a: number, c: number): [number, number, number] => (along ? [c, H, a] : [a, H, c]);
+    // vão escuro (a entrada) e o teto do túnel recuado
+    const [vx, , vz] = sz(span - 0.3, 0.04);
+    b.box(vx, H - 0.15, vz, '#0b0c0e', [ex + dx * 0.05, (H - 0.15) / 2, ez + dy * 0.05]);
+    // pilares, viga e testeira de concreto
+    for (const side of [-1, 1]) {
+      const o = (span / 2 - 0.08) * side;
+      const [px, , pz] = sz(0.16, t + 0.06);
+      b.box(px, H, pz, '#a7a39a', [ex + (along ? 0 : o), H / 2, ez + (along ? o : 0)]);
+    }
+    const [lx, , lz] = sz(span + 0.1, t + 0.1);
+    b.box(lx, 0.22, lz, '#b9b5ab', [ex, H + 0.05, ez]);
+    const [hx, , hz] = sz(span + 0.5, 0.5);
+    b.box(hx, 0.9, hz, '#8e8a80', [ex + dx * 0.3, H + 0.55, ez + dy * 0.3]);
+    // faixas amarelas e pretas na viga (aviso de altura)
+    for (let k = -2; k <= 2; k++) {
+      const o = k * (span / 6);
+      const [sx, , szz] = sz(span / 12, t + 0.12);
+      b.box(sx, 0.2, szz, k % 2 === 0 ? '#e0b43c' : '#1d1f22', [ex - dx * 0.02 + (along ? 0 : o), H + 0.05, ez - dy * 0.02 + (along ? o : 0)]);
     }
   }
 

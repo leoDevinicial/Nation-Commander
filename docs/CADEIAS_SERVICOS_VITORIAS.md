@@ -15,6 +15,8 @@ estoque à parte, `PlayerState.goods`, mostrado na barra superior (⛽ combustí
 
 - O estoque de cada bem vai até 40, mais 150 por usina pronta.
 - Sem matéria-prima, a usina fica parada com o estado "sem matéria-prima".
+- **Suprimentos (23/11):** trabalhando (com matéria-prima, luz e trabalhadores), cada usina rende também 0,35
+  suprimento/s (`process.supplies`, proporcional aos postos), mesmo com o estoque do bem cheio.
 
 **Uso:** os bens substituem parte do custo, na proporção de 1 unidade de bem para 2 do recurso bruto (`GOODS.saves`).
 Por isso a cadeia dobra o rendimento do ferro e do petróleo usados nos blindados. Sem estoque suficiente, a produção

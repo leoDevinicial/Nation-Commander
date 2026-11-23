@@ -1,4 +1,4 @@
-import { TICK_RATE, Terrain, type BuildingType } from './config.ts';
+import { TICK_RATE, Terrain, isTunnel, type BuildingType } from './config.ts';
 import { citySeat } from './cities.ts';
 import type { PowerNode } from './power.ts';
 import type { Building, Slot } from './types.ts';
@@ -45,6 +45,11 @@ export const ZONING = {
   lotPower: 0.5,
   /** Moradores (para a demanda da cidade) de uma casa e de um prédio privados: os cidadãos que eles trazem. */
   residents: [1, 5] as const,
+  /**
+   * Suprimentos por segundo de cada indústria privada ativa e com luz (23/11, pedido do usuário: "cada indústria que se
+   * instala traz suprimento").
+   */
+  indSupplies: 0.05,
   /** Empregos de uma loja e de uma indústria privadas (para a demanda residencial). */
   jobs: { com: 3, ind: 6 },
   /** Imposto por setor (%): padrão e teto. */
@@ -113,7 +118,7 @@ export interface ZoningHost {
   readonly territory: ArrayLike<number>;
   readonly buildings: readonly Building[];
   /** `hw`: rodovia (02/11) — as margens dela não podem ser zoneadas. */
-  readonly roads: readonly { i: number; owner: Slot; hw?: true }[];
+  readonly roads: readonly { i: number; owner: Slot; hw?: true; prev?: Terrain }[];
   readonly grid: { occupant(cx: number, cy: number): number; setOccupied(cell: { cx: number; cy: number }, size: number, id: number): void };
   readonly playerCount: number;
   /** Economia do país (aprovação 0..100 e crescimento real em % ao ano) e quão autoritário está o governo (0..1). */
@@ -186,7 +191,7 @@ export class ZoneSystem {
     const t = h.map.terrain[i];
     if (t !== Terrain.Plains && t !== Terrain.Fertile) return 'Zonas só em planície ou solo fértil';
     if (h.grid.occupant(cx, cy) !== 0) return 'Há uma construção no lugar';
-    const roads = ownRoads ?? new Set(h.roads.filter((r) => r.owner === slot && !r.hw).map((r) => r.i));
+    const roads = ownRoads ?? new Set(h.roads.filter((r) => r.owner === slot && !r.hw && !isTunnel(r)).map((r) => r.i));
     if (!this.nearRoad(cx, cy, roads)) return `Zonas ficam a até ${ZONING.reach} células de uma estrada comum sua (rodovia não serve)`;
     return null;
   }
@@ -207,7 +212,7 @@ export class ZoneSystem {
   paint(slot: Slot, cells: readonly number[], kind: ZoneKind | null): string | null {
     if (!cells.length) return 'Nenhuma célula';
     if (cells.length > ZONING.maxCellsPerCommand) return `Até ${ZONING.maxCellsPerCommand} células por vez`;
-    const roads = new Set(this.host.roads.filter((r) => r.owner === slot && !r.hw).map((r) => r.i));
+    const roads = new Set(this.host.roads.filter((r) => r.owner === slot && !r.hw && !isTunnel(r)).map((r) => r.i));
     let changed = 0;
     let first: string | null = null;
     for (const i of new Set(cells)) {
@@ -366,6 +371,13 @@ export class ZoneSystem {
   }
 
   /** Imposto pagos por dia (para o caixa): unidades ativas por setor (prédio conta como 3 casas). */
+  /** Indústrias privadas do jogador ativas e com luz (as que rendem suprimentos). */
+  litIndustries(slot: Slot): number {
+    let n = 0;
+    for (const [i, l] of this.lots) if (l.owner === slot && l.kind === 'ind' && !l.abandoned && this.isLit(i)) n++;
+    return n;
+  }
+
   taxBase(slot: Slot): Record<ZoneKind, number> {
     const out = { res: 0, com: 0, ind: 0 };
     for (const l of this.lots.values()) if (l.owner === slot && !l.abandoned) out[l.kind] += l.kind === 'res' && l.level === 2 ? 3 : 1;
@@ -447,7 +459,7 @@ export class ZoneSystem {
       } else if (h.grid.occupant(i % W, Math.floor(i / W)) === 0) c.free[z.kind].push(i);
     }
     let popRoom = h.popRoom(slot);
-    const ownRoads = new Set(h.roads.filter((r) => r.owner === slot && !r.hw).map((r) => r.i));
+    const ownRoads = new Set(h.roads.filter((r) => r.owner === slot && !r.hw && !isTunnel(r)).map((r) => r.i));
     const stats: CityZoneStats[] = [];
     const acc = (this.growth[slot] ??= {});
     for (const c of by.values()) {

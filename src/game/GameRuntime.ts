@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { GameSpeed, MatchStartInfo, ServerMessage } from '../../shared/protocol.ts';
 import type { Command, SandboxToggle } from '../../shared/sim/commands.ts';
-import { BUILDINGS, CITIZEN, CITY, MILITARY_RESEARCH, MILITARY_RESEARCH_IDS, RECRUIT, RESOURCE_TYPES, ROAD, HIGHWAY, SERVICES, TICK_RATE, UNITS, emptyStockpile, type BuildingType, type MilitaryResearchId, type Terrain, type UnitType } from '../../shared/sim/config.ts';
+import { BUILDINGS, CITIZEN, CITY, MILITARY_RESEARCH, MILITARY_RESEARCH_IDS, RECRUIT, RESOURCE_TYPES, ROAD, HIGHWAY, TUNNEL_TERRAIN, SERVICES, TICK_RATE, UNITS, emptyStockpile, type BuildingType, type MilitaryResearchId, type Terrain, type UnitType } from '../../shared/sim/config.ts';
 import { WAKE_SHIPS, type WakeShip } from './render/Water.ts';
 import { THREAT, ThreatTracker } from './audio/threat.ts';
 import { MOD_IDS, MODS, checkModernize, pickRefitFacility, type FacilityInfo, type ModId, type ModernizeCheck } from '../../shared/sim/modernization.ts';
@@ -269,6 +269,10 @@ export class GameRuntime {
   private readonly lotCells = new Set<number>();
   /** Mata derrubada por estrada (05/11): as árvores não voltam se a estrada cair. */
   private readonly clearedCells = new Set<number>();
+  /** Terreno do começo da partida (o servidor manda o túnel com a rocha de antes): estrada sobre rocha é túnel. */
+  private readonly baseTerrain: Terrain[];
+  /** Estradas que passam em túnel por baixo da montanha (23/11). */
+  private readonly tunnelCells = new Set<number>();
   private readonly myLotCells = new Set<number>();
   private readonly myZones = new Map<number, number>();
   private readonly rocketLayer: RocketLayer;
@@ -358,6 +362,7 @@ export class GameRuntime {
       spawns: match.spawns,
       ...(match.mapKind ? { kind: match.mapKind } : {}),
     };
+    this.baseTerrain = [...this.map.terrain];
     this.mySlot = match.yourSlot;
     this.climate = matchClimate(
       match.players.map((p) => p.countryId),
@@ -635,7 +640,9 @@ export class GameRuntime {
   /** Altura aproximada do terreno (mesma regra do TerrainFactory, sem o ruído). */
   private groundHeight(x: number, z: number): number {
     // a mesma conta da malha do terreno, com as montanhas (relief.ts)
-    this.relief ??= mountainDepth(this.map);
+    // profundidade da montanha pelo terreno do começo; a altura usa o de agora: no túnel (estrada sobre rocha) fica no
+    // nível da estrada, por baixo da malha da montanha, e as tropas lá dentro somem de vista (23/11)
+    this.relief ??= mountainDepth({ ...this.map, terrain: this.baseTerrain });
     return reliefHeight(this.map, this.relief, x, z);
   }
   /** Profundidade das montanhas (calculada uma vez: rocha e minério não mudam na partida). */
@@ -1049,20 +1056,38 @@ export class GameRuntime {
     if (!fresh.length && !freshHw.length && !gone.length && !hwGone.length) return;
     for (const i of fresh) {
       if (this.map.terrain[i] === T.Forest) this.clearedCells.add(i);
+      const base = this.baseTerrain[i];
+      if (base === T.Rock || base === T.Ore) this.tunnelCells.add(i);
       this.roadCells.add(i);
       this.map.terrain[i] = T.Road;
     }
     for (const i of gone) {
       this.roadCells.delete(i);
-      this.map.terrain[i] = T.Plains;
+      this.tunnelCells.delete(i);
+      // volta ao terreno de antes (rocha do túnel, solo fértil); a mata derrubada vira planície
+      const base = this.baseTerrain[i] ?? T.Plains;
+      this.map.terrain[i] = base === T.Forest || base === T.Road ? T.Plains : base;
     }
     for (const i of freshHw) this.highwayCells.add(i);
     for (const i of hwGone) this.highwayCells.delete(i);
-    if (fresh.length || gone.length) this.terrain.repaint([...fresh, ...gone]);
+    // solo: o túnel fica com a rocha por cima; a célula só na diagonal fica com o chão de terra (a pista inclinada
+    // cobre o meio, e o asfalto do solo apareceria como um quadrado nos cantos)
+    if (fresh.length || gone.length) this.terrain.repaint([...this.roadCells, ...gone], (i) => (this.tunnelCells.has(i) ? this.baseTerrain[i] : this.diagonalOnly(i) ? T.Plains : undefined));
     // peças de asfalto por cima, encaixadas pelas vizinhas
-    this.roadLayer.set(this.roadCells, (i) => this.map.terrain[i] === T.Road, this.highwayCells);
-    this.traffic.setRoads(this.roadCells, this.highwayCells);
+    this.roadLayer.set(this.roadCells, (i) => this.map.terrain[i] === T.Road, this.highwayCells, this.tunnelCells);
+    const open = this.tunnelCells.size ? new Set([...this.roadCells].filter((i) => !this.tunnelCells.has(i))) : this.roadCells;
+    this.traffic.setRoads(open, this.highwayCells);
     this.decorKey = '';
+  }
+
+  /** Estrada que só se liga pela quina (nenhuma vizinha de estrada pelos lados, alguma pela diagonal). */
+  private diagonalOnly(i: number): boolean {
+    const W = this.map.width;
+    const x = i % W;
+    const y = (i - x) / W;
+    const road = (cx: number, cy: number) => cx >= 0 && cy >= 0 && cx < W && cy < this.map.height && this.map.terrain[cy * W + cx] === T.Road;
+    if (road(x - 1, y) || road(x + 1, y) || road(x, y - 1) || road(x, y + 1)) return false;
+    return road(x - 1, y - 1) || road(x + 1, y - 1) || road(x - 1, y + 1) || road(x + 1, y + 1);
   }
 
   /** Árvores, arbustos e pedras decorativos somem sob as construções (e voltam quando elas caem). */
@@ -1076,6 +1101,7 @@ export class GameRuntime {
       return { x0: b.cx * cs, z0: b.cy * cs, x1: (b.cx + size) * cs, z1: (b.cy + size) * cs };
     });
     for (const i of [...this.roadCells, ...this.lotCells, ...this.clearedCells]) {
+      if (this.tunnelCells.has(i)) continue; // as pedras da montanha ficam por cima do túnel
       const cx = i % this.map.width;
       const cy = Math.floor(i / this.map.width);
       rects.push({ x0: cx * cs, z0: cy * cs, x1: (cx + 1) * cs, z1: (cy + 1) * cs });
@@ -2813,7 +2839,7 @@ export class GameRuntime {
       if (owner !== undefined && owner >= 0 && owner !== this.mySlot) return 'Território de outra nação: a rodovia vai só até a terra neutra';
       return null;
     }
-    if (t !== T.Plains && t !== T.Fertile && t !== T.Forest) return 'Estradas só em planície, solo fértil ou mata (a mata é derrubada)';
+    if (t !== T.Plains && t !== T.Fertile && t !== T.Forest && !TUNNEL_TERRAIN.has(t!)) return 'Estradas só em planície, solo fértil, mata (a mata é derrubada) ou em túnel pela rocha';
     if (occupied.has(i)) return 'Há uma construção no lugar';
     if (this.territory[i] !== this.mySlot) {
       const x = (c.cx + 0.5) * this.map.cellSize;
@@ -2872,17 +2898,20 @@ export class GameRuntime {
     const { ok, bad, reason } = this.evaluateRoad();
     const marked = this.roadPending.size + (this.roadStroke?.cells.length ?? 0);
     const m = this.mode;
-    if (m.cells !== ok.length || m.bad !== bad || m.reason !== reason || m.marked !== marked) this.setMode({ kind: 'road', cells: ok.length, bad, marked, reason, ...(this.roadHighway ? { highway: true } : {}) });
+    // túnel (23/11): células de rocha ou minério no traçado (custam `ROAD.tunnelMul` células)
+    const tunnels = this.roadHighway ? 0 : ok.filter((c) => TUNNEL_TERRAIN.has(this.map.terrain[c.cy * this.map.width + c.cx]!)).length;
+    if (m.cells !== ok.length || m.bad !== bad || m.reason !== reason || m.marked !== marked || (m.tunnels ?? 0) !== tunnels)
+      this.setMode({ kind: 'road', cells: ok.length, bad, marked, reason, ...(this.roadHighway ? { highway: true } : {}), ...(tunnels ? { tunnels } : {}) });
   }
 
   /**
-   * Caminho de `a` até `b`. Reto ou quase reto: em L (primeiro o eixo mais longo). Na diagonal (23/11): uma escada de
-   * células sempre ligadas pelo lado, para a estrada não virar pedaços soltos que só se tocam pela quina.
+   * Caminho de `a` até `b`. Reto ou quase reto: em L (primeiro o eixo mais longo). Na diagonal (23/11): uma linha de
+   * células que se tocam pela quina, desenhada como pista inclinada (`RoadLayer.diagonalTile`).
    */
   private roadPath(a: { cx: number; cy: number }, b: { cx: number; cy: number }): { cx: number; cy: number }[] {
     const dx = Math.abs(b.cx - a.cx);
     const dy = Math.abs(b.cy - a.cy);
-    if (dx >= 2 && dy >= 2 && dx <= dy * 2.5 && dy <= dx * 2.5) return roadStairs(a, b, ROAD.maxCells * 2);
+    if (dx >= 2 && dy >= 2 && dx <= dy * 2.5 && dy <= dx * 2.5) return roadLine(a, b, ROAD.maxCells * 2);
     const out: { cx: number; cy: number }[] = [];
     let x = a.cx;
     let y = a.cy;
@@ -4812,25 +4841,25 @@ function touchPoint(e: PointerEvent): TouchPoint {
   return { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp, primary: e.isPrimary };
 }
 
-/** Escada de células de `a` até `b` ligadas pelo lado (Bresenham que nunca anda nas duas direções no mesmo passo). */
-export function roadStairs(a: { cx: number; cy: number }, b: { cx: number; cy: number }, max: number): { cx: number; cy: number }[] {
+/** Linha de células de `a` até `b` (Bresenham): passos retos e na diagonal, pela quina. */
+export function roadLine(a: { cx: number; cy: number }, b: { cx: number; cy: number }, max: number): { cx: number; cy: number }[] {
   const out = [{ cx: a.cx, cy: a.cy }];
   const dx = Math.abs(b.cx - a.cx);
-  const dy = Math.abs(b.cy - a.cy);
+  const dy = -Math.abs(b.cy - a.cy);
   const sx = Math.sign(b.cx - a.cx);
   const sy = Math.sign(b.cy - a.cy);
   let x = a.cx;
   let y = a.cy;
-  let ix = 0;
-  let iy = 0;
-  while ((ix < dx || iy < dy) && out.length < max) {
-    // anda no eixo que está mais atrasado em relação à reta
-    if ((0.5 + ix) / dx < (0.5 + iy) / dy) {
+  let err = dx + dy;
+  while ((x !== b.cx || y !== b.cy) && out.length < max) {
+    const e2 = 2 * err;
+    if (e2 >= dy) {
+      err += dy;
       x += sx;
-      ix++;
-    } else {
+    }
+    if (e2 <= dx) {
+      err += dx;
       y += sy;
-      iy++;
     }
     out.push({ cx: x, cy: y });
   }
