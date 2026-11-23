@@ -1,6 +1,8 @@
 import { Activity, Bot, Clock, Gamepad2, MessageSquare, RefreshCw, Star, Swords, Trophy, Users, UserRound, type LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { REGIONS } from '../../net/regionState.ts';
+import { SERVER_CANDIDATES } from '../../net/servers.ts';
+import { serverTag } from '../components/ConnectionBadge.tsx';
 import { httpBase } from '../../net/regions.ts';
 import { Frame } from '../components/Frame.tsx';
 
@@ -23,6 +25,19 @@ interface RegionStats {
   };
   server: { since: string; today: { matches: number; avgSeconds: number | null; guestOnly: number } };
 }
+
+/**
+ * Servidores consultados (23/11): as regiões e também o principal e a reserva da alternância (Railway e Render), cada
+ * um com a etiqueta do indicador de conexão. Os números de partidas e jogadores somam; os do banco vêm de um só.
+ */
+export function panelServers(regions: readonly { label: string; url: string }[], candidates: readonly string[]): { label: string; url: string }[] {
+  const out = regions.map((r) => ({ label: r.label, url: r.url }));
+  for (const url of candidates) if (!out.some((r) => r.url === url)) out.push({ label: serverTag(url) ?? 'Servidor', url });
+  // com uma região só (o padrão), a etiqueta genérica vira a do servidor
+  return out.map((r) => (r.label === 'Servidor' ? { ...r, label: serverTag(r.url) ?? r.label } : r));
+}
+
+const SERVERS = panelServers(REGIONS, SERVER_CANDIDATES);
 
 type Result = { label: string; ok: true; data: RegionStats } | { label: string; ok: false; status: number | null };
 
@@ -129,7 +144,7 @@ export function StatsPage() {
     if (!token) return;
     setLoading(true);
     const out = await Promise.all(
-      REGIONS.map(async (r): Promise<Result> => {
+      SERVERS.map(async (r): Promise<Result> => {
         try {
           const res = await fetch(`${httpBase(r.url)}/stats`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
           if (!res.ok) return { label: r.label, ok: false, status: res.status };
@@ -140,7 +155,7 @@ export function StatsPage() {
       }),
     );
     const det = await Promise.all(
-      REGIONS.map(async (r): Promise<Details | null> => {
+      SERVERS.map(async (r): Promise<Details | null> => {
         try {
           const res = await fetch(`${httpBase(r.url)}/stats/details`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
           return res.ok ? { label: r.label, data: (await res.json()) as RegionDetails } : null;

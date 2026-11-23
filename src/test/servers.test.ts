@@ -26,3 +26,15 @@ describe('etiqueta do servidor no indicador de conexão', async () => {
     expect(serverTag('ws://localhost:8787/ws')).toBeNull();
   });
 });
+
+describe('painel de números (23/11)', async () => {
+  const { panelServers } = await import('../ui/screens/StatsPage.tsx');
+  it('consulta o Railway e o Render, sem repetir o servidor que já é região', () => {
+    const rl = 'wss://nation-commander-server-production.up.railway.app/ws';
+    const rn = 'wss://nation-commander-server.onrender.com/ws';
+    expect(panelServers([{ label: 'Servidor', url: rn }], [rl, rn])).toEqual([
+      { label: 'RN', url: rn },
+      { label: 'RL', url: rl },
+    ]);
+  });
+});
