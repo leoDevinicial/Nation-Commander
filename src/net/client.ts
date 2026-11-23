@@ -3,11 +3,13 @@ import { useAppStore } from '../state/useAppStore.ts';
 import { env } from '../lib/env.ts';
 import { GameClient } from './GameClient.ts';
 import { LOCAL_URL, localActive, localSupported } from './localSocket.ts';
-import { REGIONS, probeRegions, rememberServer, rememberedServer } from './regionState.ts';
+import { REGIONS, multiRegion, probeRegions, rememberServer, rememberedServer } from './regionState.ts';
+import { SERVER_CANDIDATES } from './servers.ts';
 
 // KNPS-08: volta direto ao servidor da última sala (partida em andamento é retomada); senão, o primeiro da lista
 // partida contra a IA no aparelho em andamento (22/11): abre direto no servidor local, que a retoma do salvamento
-export const gameClient = new GameClient(localActive() && localSupported() ? LOCAL_URL : (rememberedServer() ?? REGIONS[0]?.url ?? env.gameServerUrl));
+// 22/11: com um servidor só (sem regiões), o principal da lista (Railway) e o da Vercel de reserva (`servers.ts`)
+export const gameClient = new GameClient(localActive() && localSupported() ? LOCAL_URL : (rememberedServer() ?? (multiRegion ? REGIONS[0]?.url : SERVER_CANDIDATES[0]) ?? env.gameServerUrl));
 // mede as regiões em segundo plano para a hora de criar uma sala
 void probeRegions();
 

@@ -131,6 +131,8 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
   Web Worker (endereço `local:` no `GameClient`, `src/net/localMode.ts`); substitutos de `node:*` só no build do navegador
   (`vite.config.ts`). Código novo no servidor que use módulo do Node fora de `node:crypto/zlib/fs/path` quebra o worker:
   ver o build. Resultado vai ao remoto (`local_match`) com `verdict = 'local'` (não vale em ranking).
+- Servidor de jogo (22/11, `docs/DEPLOY_RAILWAY.md`): principal no Railway (endereço em `src/net/servers.ts`), Render free de
+  reserva (`VITE_GAME_SERVER_URL` da Vercel), alternância automática em `src/net/failover.ts`.
 - Apoio e comunidade (22/11): caixa do Patreon no menu (`SupportCard`, `PATREON_URL`), botão e convite do Discord
   (`DiscordInvite`, `DISCORD_URL`). Recompensas do Patreon nunca dão vantagem na partida.
 - Idiomas (`src/i18n/`, `docs/IDIOMAS.md`): o código segue em português; `en.ts`/`es.ts` traduzem o texto da tela

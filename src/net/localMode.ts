@@ -3,7 +3,8 @@ import { useAppStore } from '../state/useAppStore.ts';
 import { useSettingsStore } from '../state/useSettingsStore.ts';
 import { gameClient } from './client.ts';
 import { LOCAL_URL, localSupported, markLocalActive, onLocalRecord } from './localSocket.ts';
-import { REGIONS } from './regionState.ts';
+import { REGIONS, multiRegion } from './regionState.ts';
+import { SERVER_CANDIDATES } from './servers.ts';
 import { env } from '../lib/env.ts';
 
 /**
@@ -18,7 +19,7 @@ const QUEUE_KEY = 'nc.localmatches.v1';
 /** O servidor remoto recusa mensagens acima de 16 KB: o resultado vai com as amostras enxugadas até caber. */
 const MAX_MSG = 14_000;
 
-let lastRemote = gameClient.serverUrl !== LOCAL_URL ? gameClient.serverUrl : (REGIONS[0]?.url ?? env.gameServerUrl);
+let lastRemote = gameClient.serverUrl !== LOCAL_URL ? gameClient.serverUrl : (multiRegion ? REGIONS[0]?.url : SERVER_CANDIDATES[0]) ?? env.gameServerUrl;
 
 export const isLocal = (): boolean => gameClient.serverUrl === LOCAL_URL;
 

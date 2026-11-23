@@ -26,6 +26,17 @@ muda código do servidor (`server/`, `shared/`, dependências): mudança só no 
 6. **Site (Vercel):** `VITE_GAME_SERVER_URL=wss://<domínio>/ws` e um novo deploy.
 7. **Supabase:** *Authentication → URL Configuration*: acrescentar o domínio novo do site (confirmação de cadastro).
 
+## Estado em 22/11
+
+- Projeto `grateful-balance`, serviço `nation-commander-server`, região `iad` (US East), lendo
+  `leodevinicial/Nation-Commander` na branch de publicação. Endereço: `wss://nation-commander-server-production.up.railway.app/ws`.
+- A variável da Vercel não pôde ser trocada (verificação em duas etapas da conta). Por isso o endereço do Railway está no
+  código (`src/net/servers.ts`) como **principal**, e o `VITE_GAME_SERVER_URL` da Vercel (o Render) virou a **reserva**.
+- Alternância (`src/net/failover.ts`): 20 s sem conexão → o próximo da lista; na reserva, a cada minuto e fora de sala,
+  sonda o principal (`/knps/ping`) e volta para ele. Os dois gravam as partidas no mesmo Supabase (a partida retoma no
+  outro). `VITE_PRIMARY_SERVER_URL` troca o principal; `=off` desliga. Com várias regiões (`VITE_GAME_SERVERS`), não age.
+- O Render (plano free) segue ligado como reserva: dorme sem uso e leva ~30–60 s para acordar numa troca.
+
 ## Depois
 
 - Logs e uso: painel do serviço (*Deployments*, *Metrics*). O `/health` mostra salas e partidas.
