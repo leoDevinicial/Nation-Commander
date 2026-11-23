@@ -1,6 +1,19 @@
 /** Novidades de cada versão, mostradas na área Comunidade e Feedback do menu (mais recente primeiro). */
 export const CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
+    version: '1.6.3',
+    date: '23/11/2026',
+    items: [
+      'Estradas na diagonal: arraste na diagonal e a pista sai inclinada e contínua, levando energia, caminhões e caravanas.',
+      'Túneis: a estrada atravessa montanhas e rochas por baixo, de uma ponta a outra (custa 3 vezes mais).',
+      'Mais suprimentos: Refinaria e Siderúrgica rendem suprimentos enquanto trabalham, e cada indústria do zoneamento também.',
+      'Envie dinheiro do caixa para um aliado, na mesma janela de enviar recursos.',
+      'Parque Eólico e Usina Solar sobem até o nível 5: +40% de energia por nível.',
+      'Correções: drone em FPV revela a área e não fica girando ao sair; o saldo do caixa não pula mais; construtores não nadam até ilhas; pesqueiro sem botões de ataque; plantação e poça de petróleo não aparecem mais sobre a estrada.',
+      'O Guia do Comandante foi atualizado com tudo isso.',
+    ],
+  },
+  {
     version: '1.6.2',
     date: '23/11/2026',
     items: [

@@ -3708,4 +3708,11 @@ export const EN: Dict = {
   "Estradas só em planície, solo fértil, mata (a mata é derrubada) ou em túnel pela rocha": "Roads only on plains, fertile soil, woodland (trees are cleared) or as a tunnel through rock",
   "célula(s) a pavimentar": "cell(s) to pave",
   "({0} em túnel, {1}× o custo)": "({0} in tunnel, {1}× the cost)",
+  "Estradas na diagonal: arraste na diagonal e a pista sai inclinada e contínua, levando energia, caminhões e caravanas.": "Diagonal roads: drag diagonally and the lane comes out slanted and continuous, carrying power, trucks and caravans.",
+  "Túneis: a estrada atravessa montanhas e rochas por baixo, de uma ponta a outra (custa 3 vezes mais).": "Tunnels: roads go under mountains and rock from one side to the other (3 times the cost).",
+  "Mais suprimentos: Refinaria e Siderúrgica rendem suprimentos enquanto trabalham, e cada indústria do zoneamento também.": "More supplies: the Refinery and Steel Mill yield supplies while working, and so does every zoning industry.",
+  "Envie dinheiro do caixa para um aliado, na mesma janela de enviar recursos.": "Send money from your treasury to an ally, in the same window as sending resources.",
+  "Parque Eólico e Usina Solar sobem até o nível 5: +40% de energia por nível.": "Wind Farm and Solar Plant upgrade to level 5: +40% power per level.",
+  "Correções: drone em FPV revela a área e não fica girando ao sair; o saldo do caixa não pula mais; construtores não nadam até ilhas; pesqueiro sem botões de ataque; plantação e poça de petróleo não aparecem mais sobre a estrada.": "Fixes: the FPV drone reveals the area and no longer circles forever after you let go; the treasury balance no longer jumps; builders no longer swim to islands; fishing boats have no attack buttons; crops and oil puddles no longer show on top of roads.",
+  "O Guia do Comandante foi atualizado com tudo isso.": "The Commander's Guide was updated with all of this.",
 };

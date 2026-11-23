@@ -3451,4 +3451,11 @@ export const ES: Dict = {
   "Estradas só em planície, solo fértil, mata (a mata é derrubada) ou em túnel pela rocha": "Carreteras solo en llanura, suelo fértil, bosque (se tala) o en túnel por la roca",
   "célula(s) a pavimentar": "celda(s) a pavimentar",
   "({0} em túnel, {1}× o custo)": "({0} en túnel, {1}× el coste)",
+  "Estradas na diagonal: arraste na diagonal e a pista sai inclinada e contínua, levando energia, caminhões e caravanas.": "Carreteras en diagonal: arrastra en diagonal y la pista sale inclinada y continua, llevando energía, camiones y caravanas.",
+  "Túneis: a estrada atravessa montanhas e rochas por baixo, de uma ponta a outra (custa 3 vezes mais).": "Túneles: la carretera atraviesa montañas y rocas por debajo, de un lado al otro (cuesta 3 veces más).",
+  "Mais suprimentos: Refinaria e Siderúrgica rendem suprimentos enquanto trabalham, e cada indústria do zoneamento também.": "Más suministros: la Refinería y la Siderúrgica rinden suministros mientras trabajan, y también cada industria de la zonificación.",
+  "Envie dinheiro do caixa para um aliado, na mesma janela de enviar recursos.": "Envía dinero de tu caja a un aliado, en la misma ventana de enviar recursos.",
+  "Parque Eólico e Usina Solar sobem até o nível 5: +40% de energia por nível.": "El Parque Eólico y la Planta Solar suben hasta el nivel 5: +40% de energía por nivel.",
+  "Correções: drone em FPV revela a área e não fica girando ao sair; o saldo do caixa não pula mais; construtores não nadam até ilhas; pesqueiro sem botões de ataque; plantação e poça de petróleo não aparecem mais sobre a estrada.": "Correcciones: el dron en FPV revela el área y ya no queda girando al soltarlo; el saldo de la caja ya no salta; los constructores no nadan hasta las islas; el pesquero sin botones de ataque; cultivos y charcos de petróleo ya no aparecen sobre la carretera.",
+  "O Guia do Comandante foi atualizado com tudo isso.": "La Guía del Comandante se actualizó con todo esto.",
 };
