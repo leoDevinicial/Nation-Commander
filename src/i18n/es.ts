@@ -2,6 +2,9 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → espanhol (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const ES: Dict = {
+  "Servidor novo e bem mais forte: o multijogador e as partidas longas não ficam mais lentas por falta de máquina.": "Servidor nuevo y mucho más potente: el multijugador y las partidas largas ya no se vuelven lentos por falta de máquina.",
+  "Se o servidor principal sair do ar, o jogo passa sozinho para um servidor reserva e volta quando ele voltar. A partida em andamento continua do último salvamento.": "Si el servidor principal se cae, el juego pasa solo a un servidor de reserva y vuelve cuando regresa. La partida en curso continúa desde el último guardado.",
+  "Obrigado a quem apoia o projeto: é assim que o jogo ganha servidores melhores.": "Gracias a quienes apoyan el proyecto: así es como el juego consigue mejores servidores.",
   "A partida contra a IA agora roda no seu aparelho: sem lag, sem quedas e sem depender do servidor. Se a internet cair no meio, a partida continua.": "Las partidas contra la IA ahora se ejecutan en tu dispositivo: sin lag, sin caídas y sin depender del servidor. Si se cae internet a mitad de partida, la partida sigue.",
   "Recarregou ou fechou o navegador? Ao abrir o jogo, a partida contra a IA volta de onde parou.": "¿Recargaste o cerraste el navegador? Al abrir el juego, la partida contra la IA vuelve donde se quedó.",
   "O histórico e as medalhas do perfil continuam contando as partidas contra a IA.": "El historial y las medallas del perfil siguen contando las partidas contra la IA.",

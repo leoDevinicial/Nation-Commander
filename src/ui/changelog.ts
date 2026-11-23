@@ -1,6 +1,15 @@
 /** Novidades de cada versão, mostradas na área Comunidade e Feedback do menu (mais recente primeiro). */
 export const CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
+    version: '1.6.2',
+    date: '23/11/2026',
+    items: [
+      'Servidor novo e bem mais forte: o multijogador e as partidas longas não ficam mais lentas por falta de máquina.',
+      'Se o servidor principal sair do ar, o jogo passa sozinho para um servidor reserva e volta quando ele voltar. A partida em andamento continua do último salvamento.',
+      'Obrigado a quem apoia o projeto: é assim que o jogo ganha servidores melhores.',
+    ],
+  },
+  {
     version: '1.6.0',
     date: '22/11/2026',
     items: [

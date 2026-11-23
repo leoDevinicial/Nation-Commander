@@ -16,3 +16,13 @@ describe('lista de servidores', () => {
     expect(nextServer(l, 'outro')).toBe('a');
   });
 });
+
+describe('etiqueta do servidor no indicador de conexão', async () => {
+  const { serverTag } = await import('../ui/components/ConnectionBadge.tsx');
+  it('RL no Railway, RN no Render, LC no aparelho', () => {
+    expect(serverTag('wss://nation-commander-server-production.up.railway.app/ws')).toBe('RL');
+    expect(serverTag('wss://nation-commander-server.onrender.com/ws')).toBe('RN');
+    expect(serverTag('local:')).toBe('LC');
+    expect(serverTag('ws://localhost:8787/ws')).toBeNull();
+  });
+});

@@ -2,6 +2,9 @@ import type { Dict } from './translate.ts';
 
 /** Dicionário português → inglês (04/11). Chave = texto original em português; {0}, {1}… são lacunas. */
 export const EN: Dict = {
+  "Servidor novo e bem mais forte: o multijogador e as partidas longas não ficam mais lentas por falta de máquina.": "New, much stronger server: multiplayer and long matches no longer slow down for lack of computing power.",
+  "Se o servidor principal sair do ar, o jogo passa sozinho para um servidor reserva e volta quando ele voltar. A partida em andamento continua do último salvamento.": "If the main server goes down, the game switches to a backup server on its own and comes back when it returns. A match in progress continues from the last save.",
+  "Obrigado a quem apoia o projeto: é assim que o jogo ganha servidores melhores.": "Thank you to everyone supporting the project: that's how the game gets better servers.",
   "A partida contra a IA agora roda no seu aparelho: sem lag, sem quedas e sem depender do servidor. Se a internet cair no meio, a partida continua.": "Matches against the AI now run on your device: no lag, no drops and no dependence on the server. If your internet goes down mid-match, the match keeps going.",
   "Recarregou ou fechou o navegador? Ao abrir o jogo, a partida contra a IA volta de onde parou.": "Reloaded or closed the browser? When you open the game again, your match against the AI picks up where it left off.",
   "O histórico e as medalhas do perfil continuam contando as partidas contra a IA.": "Your profile history and medals still count matches against the AI.",
