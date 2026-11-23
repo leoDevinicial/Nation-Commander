@@ -31,12 +31,13 @@ import { setModelDetail } from './render/models/kit.ts';
 import { chooseClaims, claimableCells, claimedBy, gatherRate, sitesByDeposit } from '../../shared/sim/gathering.ts';
 import { findDeposits, type DepositIndex } from '../../shared/sim/deposits.ts';
 import { decodeTerritory } from '../../shared/sim/territory.ts';
-import { buildingEffects, planUpgrade, type SpecId, type UpgradePlan, type UpgradeWorld } from '../../shared/sim/upgrades.ts';
+import { buildingEffects, maxLevelOf, planUpgrade, type SpecId, type UpgradePlan, type UpgradeWorld } from '../../shared/sim/upgrades.ts';
 import { combineEffects } from '../../shared/strategic/technologies.ts';
 import { useNationalStore } from '../state/useNationalStore.ts';
 import { Terrain as T } from '../../shared/sim/config.ts';
 import { MineLayer } from './render/MineLayer.ts';
 import { RoadPreview } from './render/RoadPreview.ts';
+import { PowerGridLayer } from './render/PowerGridLayer.ts';
 import { RoadLayer } from './render/RoadLayer.ts';
 import { LotLayer, ZoneOverlay } from './render/ZoneLayers.ts';
 import { ZONING, type ZoneKind } from '../../shared/sim/zoning.ts';
@@ -59,7 +60,7 @@ import { AirLayer, disposeAirModels, missilePoint } from './render/AirLayer.ts';
 import { SnapshotClock, lerpAngle } from './net/interp.ts';
 import { DomeLayer } from './render/DomeLayer.ts';
 import { AIRCRAFT, AIRLIFT, CRUISE, FLIGHT_SIGHT, NUCLEAR, launcherRange, missileSpec } from '../../shared/sim/air.ts';
-import { ERAS, type Era } from '../../shared/sim/eras.ts';
+import { ERAS, buildingEra, type Era } from '../../shared/sim/eras.ts';
 import { SPACE_PAD } from './render/models/projects.ts';
 import { PRODUCTION_SOUND, audio, spatialMix, type EngineClass } from './audio/AudioService.ts';
 import { useSettingsStore } from '../state/useSettingsStore.ts';
@@ -257,6 +258,8 @@ export class GameRuntime {
   private readonly buildProgress = new Map<number, { p: number; until: number }>();
   private mineLayer!: MineLayer;
   private roadPreview!: RoadPreview;
+  /** Visão da rede elétrica (23/11): liga e desliga pela roda de ferramentas ou pelo alerta de apagão. */
+  private powerGrid!: PowerGridLayer;
   /** Células que a coleta vai explorar, mostradas no chão durante o posicionamento (05/11: a fazenda parecia solta dos campos). */
   private claimPreview!: RoadPreview;
   private claimKey = '';
@@ -447,6 +450,8 @@ export class GameRuntime {
     this.scene.add(this.mineLayer.group);
     this.roadPreview = new RoadPreview(this.map.cellSize, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.roadPreview.mesh);
+    this.powerGrid = new PowerGridLayer(this.map.cellSize, (x, z) => this.groundHeight(x, z));
+    this.scene.add(this.powerGrid.group);
     this.claimPreview = new RoadPreview(this.map.cellSize, (x, z) => this.groundHeight(x, z));
     this.scene.add(this.claimPreview.mesh);
     // a estrada deita sobre a mesma malha do chão (subdivisões por célula da qualidade do terreno, ver buildTerrain)
@@ -878,6 +883,7 @@ export class GameRuntime {
     this.updateSiloHatches(s);
 
     this.updateFog();
+    if (this.powerGrid.visible) this.refreshPowerGrid();
     for (const e of s.events) this.handleEvent(e);
     if (this.mode.kind === 'place') this.updateGhost();
   }
@@ -1078,6 +1084,72 @@ export class GameRuntime {
     const open = this.tunnelCells.size ? new Set([...this.roadCells].filter((i) => !this.tunnelCells.has(i))) : this.roadCells;
     this.traffic.setRoads(open, this.highwayCells);
     this.decorKey = '';
+  }
+
+  /** Liga ou desliga a visão da rede elétrica; devolve se ficou ligada. */
+  togglePowerView(on = !this.powerGrid.visible): boolean {
+    this.powerGrid.setVisible(on);
+    if (on) this.refreshPowerGrid();
+    if (this.hudActive) useHudStore.getState().set({ powerView: on });
+    return on;
+  }
+
+  /** Redes do próprio país (do último snapshot), para o alerta de apagão. */
+  powerNets(): NonNullable<NonNullable<Snapshot['players'][number]['power']>['nets']> {
+    return this.snapshot?.players.find((p) => p.slot === this.mySlot)?.power?.nets ?? [];
+  }
+
+  /**
+   * Alerta de apagão (23/11): o que fazer na rede com falta. A usina mais forte que o país já pode erguer (solar, eólica
+   * ou térmica) e o parque eólico ou a usina solar dessa rede que ainda sobe de nível, se houver.
+   */
+  powerFix(net: { cx: number; cy: number }): { build: BuildingType | null; upgrade: number | null; city: string | null } {
+    const techs = this.myTechs();
+    const me = this.snapshot?.players.find((p) => p.slot === this.mySlot);
+    const era = effectiveEra(me);
+    const can = (t: BuildingType) => buildingEra(t) <= era && (!BUILDINGS[t].requiresTech || techs === null || techs.includes(BUILDINGS[t].requiresTech as string));
+    const build = (['solar_farm', 'wind_farm', 'coal_plant'] as BuildingType[]).find(can) ?? null;
+    let upgrade: number | null = null;
+    let city: string | null = null;
+    let best = Infinity;
+    let bestCity = Infinity;
+    for (const { snap: b } of this.buildings.values()) {
+      if (b.owner !== this.mySlot || b.progress < 1 || b.hp <= 0) continue;
+      const d = Math.hypot(b.cx - net.cx, b.cy - net.cy);
+      if ((b.type === 'wind_farm' || b.type === 'solar_farm') && b.level < maxLevelOf(b.type) && d < best && d < 30) {
+        best = d;
+        upgrade = b.id;
+      }
+      if ((b.type === 'hq' || b.type === 'city_hall') && b.city && d < bestCity) {
+        bestCity = d;
+        city = b.city;
+      }
+    }
+    return { build, upgrade, city };
+  }
+
+  /** Leva a câmera até o centro de uma rede (célula) e liga a visão da rede. */
+  focusPowerNet(cx: number, cy: number): void {
+    this.lookAt((cx + 0.5) * this.map.cellSize, (cy + 0.5) * this.map.cellSize);
+    this.togglePowerView(true);
+  }
+
+  private refreshPowerGrid(): void {
+    const W = this.map.width;
+    const mesh: number[] = [];
+    const plants: { cx: number; cy: number; size: number }[] = [];
+    const consumers: { cx: number; cy: number; size: number; lit: boolean }[] = [];
+    // malha como na simulação: estradas no território (sem rodovia) e a área das usinas e do Centro de Comando
+    for (let i = 0; i < this.map.terrain.length; i++) if (this.map.terrain[i] === T.Road && this.territory[i] === this.mySlot && !this.highwayCells.has(i)) mesh.push(i);
+    for (const { snap: b } of this.buildings.values()) {
+      if (b.owner !== this.mySlot || b.progress < 1 || b.hp <= 0) continue;
+      const size = BUILDINGS[b.type].size;
+      if (b.type === 'hq' || POWER_GEN[b.type]) {
+        plants.push({ cx: b.cx, cy: b.cy, size });
+        for (let y = b.cy; y < b.cy + size; y++) for (let x = b.cx; x < b.cx + size; x++) mesh.push(y * W + x);
+      } else if (POWER_USE[b.type]?.stops || POWER_USE[b.type]?.slows) consumers.push({ cx: b.cx, cy: b.cy, size, lit: b.unpowered !== true });
+    }
+    this.powerGrid.set({ width: W, height: this.map.height, mesh, nets: this.powerNets(), consumers, plants });
   }
 
   /** Estrada que só se liga pela quina (nenhuma vizinha de estrada pelos lados, alguma pela diagonal). */
@@ -2514,7 +2586,7 @@ export class GameRuntime {
             deposit: b.snap.deposit ?? null,
             research: b.snap.research ?? null,
           };
-        else inspected = { kind: 'building' as const, type: b.snap.type, owner: b.snap.owner, hp: b.snap.hp, maxHp: b.snap.maxHp, level: b.snap.level, spec: b.snap.spec };
+        else inspected = { kind: 'building' as const, type: b.snap.type, owner: b.snap.owner, hp: b.snap.hp, maxHp: b.snap.maxHp, level: b.snap.level, spec: b.snap.spec, ...(b.snap.queue.length ? { queue: b.snap.queue } : {}) };
       }
     }
     // tropa nova na seleção (não quando uma morre e sai dela): resposta pelo rádio
@@ -3273,6 +3345,30 @@ export class GameRuntime {
     if (this.myUnitIds().length > 0) this.setMode({ kind: 'attack_road' });
   }
 
+  /** Espião (23/11): mira numa usina inimiga para sabotar. */
+  startSabotage(): void {
+    if (this.mySpyIds().length > 0) this.setMode({ kind: 'sabotage' });
+  }
+
+  private mySpyIds(): number[] {
+    return this.myUnitIds().filter((id) => UNITS[this.units.get(id)!.snap.type].stealth);
+  }
+
+  /** Manda o espião selecionado (o primeiro) sabotar a usina sob o ponteiro (o servidor confere guerra e alvo). */
+  private sabotageAt(clientX: number, clientY: number): void {
+    const p = this.groundAt(clientX, clientY);
+    const spy = this.mySpyIds()[0];
+    if (!p || spy === undefined) return;
+    const hit = this.pickEntity(p);
+    const b = hit !== null ? this.buildings.get(hit) : undefined;
+    if (!b || b.snap.owner === this.mySlot || !POWER_GEN[b.snap.type]) {
+      useHudStore.getState().pushEvent({ tick: this.snapshot?.tick ?? 0, text: 'Escolha uma usina inimiga (termelétrica, eólica, solar, hidrelétrica ou nuclear)', tone: 'warn' });
+      return;
+    }
+    this.send({ type: 'spy_sabotage', unitId: spy, targetId: b.snap.id });
+    this.flashTarget(b.snap.id);
+  }
+
   /** Ordena o ataque à célula de estrada sob o ponteiro (o servidor confere guerra, visão e dono). */
   private attackRoadAt(clientX: number, clientY: number): void {
     const c = this.cellAtScreen(clientX, clientY);
@@ -3974,6 +4070,11 @@ export class GameRuntime {
           this.toggleCloseUp();
           break;
         }
+        // E: visão da rede elétrica (23/11), quando nenhuma construção própria está selecionada (aí E é atalho dela)
+        if (key === 'E' && !b) {
+          this.togglePowerView();
+          break;
+        }
         if (!b || b.snap.progress < 1) break;
         // a Prefeitura pronta tem os mesmos atalhos do QG (cidadão e construções)
         if (b.snap.type === 'hq' || b.snap.type === 'city_hall') {
@@ -4050,6 +4151,11 @@ export class GameRuntime {
     if (this.mode.kind === 'attack_road') {
       this.attackRoadAt(e.clientX, e.clientY);
       if (!e.shiftKey) this.cancelMode();
+      return;
+    }
+    if (this.mode.kind === 'sabotage') {
+      this.sabotageAt(e.clientX, e.clientY);
+      this.cancelMode();
       return;
     }
     if (this.mode.kind === 'demolish') {
@@ -4180,6 +4286,11 @@ export class GameRuntime {
     }
     if (this.mode.kind === 'attack_road') {
       this.attackRoadAt(x, y);
+      this.cancelMode();
+      return;
+    }
+    if (this.mode.kind === 'sabotage') {
+      this.sabotageAt(x, y);
       this.cancelMode();
       return;
     }
@@ -4776,6 +4887,7 @@ export class GameRuntime {
       this.mineLayer.dispose();
       this.roadPreview.dispose();
       this.claimPreview.dispose();
+      this.powerGrid.dispose();
       this.roadLayer.dispose();
       this.traffic.dispose();
       this.zoneOverlay.dispose();
@@ -4821,6 +4933,7 @@ export class GameRuntime {
     this.mineLayer.dispose();
     this.roadPreview.dispose();
     this.claimPreview.dispose();
+    this.powerGrid.dispose();
     this.roadLayer.dispose();
     this.zoneOverlay.dispose();
     this.lotLayer.dispose();

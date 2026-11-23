@@ -21,6 +21,10 @@ export interface ReportSample {
     gathered: number;
     /** PIB do país (US$), quando há camada nacional. */
     gdpUsd?: number;
+    /** 23/11: caixa do país (US$), energia gerada agora e abates acumulados. */
+    fundUsd?: number;
+    power?: number;
+    kills?: number;
   }[];
 }
 
@@ -48,7 +52,7 @@ export interface MatchReport {
 export const REPORT_EVERY_TICKS = 30 * TICK_RATE;
 export const REPORT_MAX_SAMPLES = 160;
 
-export function reportSample(sim: Simulation, gdp?: (slot: Slot) => number | null): ReportSample {
+export function reportSample(sim: Simulation, gdp?: (slot: Slot) => number | null, fund?: (slot: Slot) => number | null): ReportSample {
   const counts = sim.players.map(() => 0);
   let total = 0;
   for (const o of sim.territory)
@@ -60,6 +64,8 @@ export function reportSample(sim: Simulation, gdp?: (slot: Slot) => number | nul
     t: Math.round(sim.tick / TICK_RATE),
     players: sim.players.map((p) => {
       const g = gdp?.(p.slot) ?? null;
+      const f = fund?.(p.slot) ?? null;
+      const pw = sim.power ? sim.powerInfo[p.slot] : undefined;
       return {
         slot: p.slot,
         army: sim.units.filter((u) => u.owner === p.slot).length,
@@ -67,6 +73,9 @@ export function reportSample(sim: Simulation, gdp?: (slot: Slot) => number | nul
         territory: total ? Math.round((counts[p.slot]! / total) * 1000) / 1000 : 0,
         gathered: Math.round(p.stats.resourcesGathered),
         ...(g !== null ? { gdpUsd: Math.round(g) } : {}),
+        ...(f !== null ? { fundUsd: Math.round(f) } : {}),
+        ...(pw ? { power: Math.round(pw.supply * 10) / 10 } : {}),
+        kills: p.stats.unitsKilled,
       };
     }),
   };

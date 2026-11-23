@@ -3,7 +3,7 @@ import type { MatchReport, ReportSample } from '../../../shared/sim/report.ts';
 import { factionColor } from '../../game/factions.ts';
 import { formatDuration, formatUsd } from '../../lib/format.ts';
 
-type Metric = 'army' | 'buildings' | 'territory' | 'gathered' | 'gdpUsd';
+type Metric = 'army' | 'buildings' | 'territory' | 'gathered' | 'gdpUsd' | 'fundUsd' | 'power' | 'kills';
 
 const METRICS: { id: Metric; label: string; format: (v: number) => string }[] = [
   { id: 'army', label: 'Tropas', format: (v) => String(Math.round(v)) },
@@ -11,6 +11,9 @@ const METRICS: { id: Metric; label: string; format: (v: number) => string }[] = 
   { id: 'territory', label: 'Território', format: (v) => `${Math.round(v * 100)}%` },
   { id: 'gathered', label: 'Recursos coletados', format: (v) => (v >= 1000 ? `${(v / 1000).toFixed(1)} mil` : String(Math.round(v))) },
   { id: 'gdpUsd', label: 'PIB', format: (v) => formatUsd(v) },
+  { id: 'fundUsd', label: 'Caixa', format: (v) => formatUsd(v) },
+  { id: 'power', label: 'Energia gerada', format: (v) => String(Math.round(v)) },
+  { id: 'kills', label: 'Abates', format: (v) => String(Math.round(v)) },
 ];
 
 const W = 560;

@@ -69,6 +69,8 @@ export type Command =
   | { type: 'trade_gift'; to: number; items: { resource: TradeResource; quantity: number }[]; mode: TransportMode }
   /** Aliança (06/11): tropas selecionadas vão defender o aliado (avançam atacando até o Centro de Comando dele). */
   | { type: 'aid_ally'; unitIds: EntityId[]; ally: number }
+  /** Espião (23/11): sabotar uma usina inimiga. */
+  | { type: 'spy_sabotage'; unitId: EntityId; targetId: EntityId }
   | { type: 'trade_withdraw'; listingId: number }
   | { type: 'trade_cancel'; contractId: number }
   | { type: 'trade_world'; side: 'buy' | 'sell'; resource: TradeResource; quantity: number; mode: TransportMode }
@@ -233,6 +235,8 @@ export function parseCommand(raw: unknown): Command | null {
       }
       return { type: 'trade_gift', to: raw.to as number, items, mode: raw.mode as TransportMode };
     }
+    case 'spy_sabotage':
+      return isId(raw.unitId) && isId(raw.targetId) ? { type: 'spy_sabotage', unitId: raw.unitId as EntityId, targetId: raw.targetId as EntityId } : null;
     case 'aid_ally':
       if (!isIdList(raw.unitIds) || !Number.isInteger(raw.ally) || (raw.ally as number) < 0 || (raw.ally as number) > 15) return null;
       return { type: 'aid_ally', unitIds: [...new Set(raw.unitIds)], ally: raw.ally as number };

@@ -16,6 +16,7 @@ import { RoomManager } from './RoomManager.ts';
 import { KNPS_DEFLATE } from './knps/transport.ts';
 import { RegionTelemetry, regionFromEnv } from './knps/region.ts';
 import { getSupabase, kacSupabaseBackend, recordMatch, verifyAccessToken } from './supabase.ts';
+import { LeaderboardCache } from './leaderboard.ts';
 import { DbDetailsCache, DbStatsCache, PROVISIONAL_DETAILS_KEY_SHA256, PROVISIONAL_STATS_TOKEN, StatsGate, matchTally, recentMatches } from './stats.ts';
 
 // partidas em andamento sobrevivem a reinícios: Supabase em produção, arquivos no desenvolvimento
@@ -56,6 +57,7 @@ const statsGate = new StatsGate(config.statsToken || PROVISIONAL_STATS_TOKEN, Da
 const detailsGate = config.statsToken ? new StatsGate(config.statsToken) : new StatsGate(undefined, Date.now, [detailsHash]);
 const dbStats = new DbStatsCache(getSupabase);
 const dbDetails = new DbDetailsCache(getSupabase);
+const leaderboard = new LeaderboardCache(getSupabase);
 if (config.statsToken && !statsGate.enabled) log.warn('STATS_TOKEN curto demais (mínimo 24 caracteres): painel /stats desligado');
 
 // KNPS-08: região deste servidor (letra no início dos códigos de sala) e o agregado do ping de rede dos jogadores
@@ -83,6 +85,21 @@ const http = createServer((req, res) => {
       ...(allowed && origin ? { 'access-control-allow-origin': origin, vary: 'Origin' } : {}),
     });
     res.end(allowed ? JSON.stringify({ region: region.id, rooms: rooms.listPublic() }) : '{}');
+    return;
+  }
+  // ranking da temporada (23/11): público, só para as origens do jogo, com cache de 5 min
+  if (path === '/leaderboard' && req.method === 'GET') {
+    const origin = req.headers.origin;
+    const allowed = isOriginAllowed(origin, config.allowedOrigins);
+    const cors = allowed && origin ? { 'access-control-allow-origin': origin, vary: 'Origin' } : {};
+    if (!allowed) {
+      res.writeHead(403, { 'cache-control': 'no-store' }).end('{}');
+      return;
+    }
+    void leaderboard.get(Date.now()).then((board) => {
+      res.writeHead(board ? 200 : 503, { ...cors, 'content-type': 'application/json', 'cache-control': 'public, max-age=60' });
+      res.end(JSON.stringify(board ?? { error: 'unavailable' }));
+    });
     return;
   }
   if (path === '/stats' || path === '/stats/details') {

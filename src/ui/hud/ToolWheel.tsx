@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FlaskConical, Globe, Hammer, Handshake, Landmark, LayoutGrid, type LucideIcon, Ship, X } from 'lucide-react';
+import { FlaskConical, Globe, Hammer, Handshake, Landmark, LayoutGrid, type LucideIcon, Ship, X, Zap } from 'lucide-react';
 import type { GameRuntime } from '../../game/GameRuntime.ts';
 import { useHudStore } from '../../state/useHudStore.ts';
 import { useNationalStore } from '../../state/useNationalStore.ts';
@@ -21,6 +21,8 @@ interface Tool {
 
 const TOOLS: Tool[] = [
   { id: 'build', label: 'Construir', icon: Hammer, key: 'B', tour: 'build-button', run: (rt) => rt.openBuildMenu() },
+  // 23/11: visão da rede elétrica (tecla E): estradas e construções com e sem luz, e o saldo de cada rede
+  { id: 'power', label: 'Rede elétrica', icon: Zap, key: 'E', run: (rt) => void rt.togglePowerView() },
   { id: 'research', label: 'Pesquisa', icon: FlaskConical, run: () => useNationalStore.getState().openPanelAt('research') },
   { id: 'nation', label: 'Nação', icon: Landmark, key: 'G', run: () => useNationalStore.getState().openPanelAt('overview') },
   { id: 'diplomacy', label: 'Diplomacia', icon: Handshake, run: () => useNationalStore.getState().openPanelAt('diplomacy') },

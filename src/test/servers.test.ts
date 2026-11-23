@@ -38,3 +38,14 @@ describe('painel de números (23/11)', async () => {
     ]);
   });
 });
+
+describe('link de convite (23/11)', async () => {
+  const { inviteCodeFromPath, inviteUrl } = await import('../lib/invite.ts');
+  it('lê o código de /sala/abcde (também /room) e monta o link', () => {
+    expect(inviteCodeFromPath('/sala/ab12c')).toBe('AB12C');
+    expect(inviteCodeFromPath('/room/XYZ99/')).toBe('XYZ99');
+    expect(inviteCodeFromPath('/sala/abc')).toBeNull();
+    expect(inviteCodeFromPath('/painel')).toBeNull();
+    expect(inviteUrl('AB12C', 'https://nationcommander.vercel.app')).toBe('https://nationcommander.vercel.app/sala/AB12C');
+  });
+});

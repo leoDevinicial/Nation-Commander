@@ -15,6 +15,7 @@ export class RoadPreview {
   constructor(
     private readonly cellSize: number,
     private readonly heightAt: (x: number, z: number) => number,
+    private readonly max = MAX,
   ) {
     const geo = new THREE.PlaneGeometry(cellSize * 0.92, cellSize * 0.92).rotateX(-Math.PI / 2);
     const mat = new THREE.MeshBasicMaterial({
@@ -23,7 +24,7 @@ export class RoadPreview {
       opacity: 0.5,
       depthWrite: false,
     });
-    this.mesh = new THREE.InstancedMesh(geo, mat, MAX);
+    this.mesh = new THREE.InstancedMesh(geo, mat, max);
     this.mesh.count = 0;
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 3;
@@ -31,7 +32,7 @@ export class RoadPreview {
   }
 
   set(cells: readonly { cx: number; cy: number; state: 'ok' | 'road' | 'bad' | 'hover' }[]): void {
-    const n = Math.min(MAX, cells.length);
+    const n = Math.min(this.max, cells.length);
     for (let i = 0; i < n; i++) {
       const c = cells[i]!;
       const x = (c.cx + 0.5) * this.cellSize;

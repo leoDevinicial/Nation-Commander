@@ -172,8 +172,11 @@
     <tr><td><b>Teams</b></td><td>Each nation can join a team (1 to 3). Nations on the same team start as allies, already in contact, and win together. Without teams it's everyone against everyone (pacts can still be made during the match).</td></tr>
     <tr><td><b>Map type</b></td><td><b>Continental</b> (the default), <b>Rivers and Bridges</b> (narrow crossings), <b>Mountainous</b> (lots of iron, strong defense), <b>Desert</b> (little food, lots of oil), <b>Central Ocean</b> (a sea in the middle, nations on the land around it), <b>Archipelago</b> (each nation on its own island, no bridges: contact is by transport ship and aircraft) or <b>Random</b>.</td></tr>
     <tr><td><b>Victory</b></td><td><b>Elimination or territory</b> (whoever destroys every HQ or controls 70% of the map for 4 minutes wins) or <b>Elimination only</b>.</td></tr>
+    <tr><td><b>Global events</b></td><td>When on, every now and then the world changes for everyone for a few minutes: <b>oil crisis</b> (oil worth double, vehicles burn 50% more fuel), <b>harsh winter</b> (farms harvest 30% less, power costs 50% more) or <b>commodity boom</b> (iron, stone and coal worth 50% more). The host chooses.</td></tr>
+    <tr><td><b>Invite</b></td><td><b>Copy invite</b> copies a link (<code>/sala/CODE</code>): whoever opens it goes straight into the room.</td></tr>
     <tr><td><b>Difficulty</b></td><td>See the table on the next page.</td></tr>
   </table>
+  <p class="small">🏆 <b>Ranking</b> (menu): every month is a season. Wins by players with an account count, in multiplayer and against the AI on the server; the top three of the month get the season title (Marshal, General and Colonel).</p>
 </section>
 
 <section class="cont">
@@ -481,6 +484,8 @@
   <p>Big events are shown to <b>every player</b> in a banner at the top, with a bugle call: a declaration of war, a new era, nuclear weapons research (start and end) and a Great Project (start and end). When your forces are attacked, a <b>siren</b> sounds and the spot <b>pulses red on the minimap</b>: click it to go to the attack.</p>
   <h2>Fog of war</h2>
   <p>You only see what your troops and buildings see. Never-explored areas are dark; explored areas out of sight are dimmed, and enemy buildings there look as they did the last time you saw them.</p>
+  <h3>Spy</h3>
+  <p>Trained at the Barracks (era 3, Special Operations research). The enemy <b>only sees it up close</b>: 2 cells from one of their troops or buildings, or 8 from a tower or police station. It can enter any country. Standing near enemy buildings, it shows their <b>production queue</b> (select the building). At war, the <b>Sabotage plant</b> button sends it to an enemy power plant: 6 seconds next to it and the plant <b>stops for 1 minute</b>; the spy is used up. Time it with your attack: the enemy factory and barracks stop without power.</p>
   <h2>Attrition: fighting far from home wears you down</h2>
   <p>Troops in enemy territory <b>slowly lose health</b>. To avoid it, keep an <b>Armored Vehicle</b> nearby: it carries supplies and protects the group from attrition.</p>
   <h2>Mines and obstacles</h2>
@@ -816,6 +821,8 @@
     <li>A building up to <b>4 cells</b> from the grid gets power. When placing, that area shows yellow on the ground.</li>
     <li>Separate road pieces are separate grids: a plant only powers what is connected to it.</li>
     <li>If generation falls short, the <b>newest buildings go dark first</b>; the oldest keep the power.</li>
+    <li><b>Grid view</b> (<span class="kbd">E</span> key or <b>Power grid</b> on the tool wheel): roads that carry power turn green (the grid copes) or red (short), buildings with and without power show on the ground and each grid shows a tag with served / demand · supply.</li>
+    <li><b>Blackout alert:</b> when a grid runs short, a card tells you how much is missing and in which city, with shortcuts to show the grid, build the strongest plant you have unlocked or upgrade the wind farm or solar plant.</li>
   </ul>
   <h2>Who uses power</h2>
   <table>

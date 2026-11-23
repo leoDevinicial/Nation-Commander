@@ -31,6 +31,14 @@
     {
       "source": "/painel",
       "destination": "/index.html"
+    },
+    {
+      "source": "/sala/:code",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/room/:code",
+      "destination": "/index.html"
     }
   ]
 }

@@ -4,6 +4,7 @@ import { App } from './app/App.tsx';
 import { StatsPage } from './ui/screens/StatsPage.tsx';
 import { initAuth, wireGameClient } from './app/session.ts';
 import { installClientDiag } from './lib/clientDiag.ts';
+import { captureInvite } from './lib/invite.ts';
 // identidade "Sala de Situação" (05/11): fontes livres (OFL) embutidas, sem depender das do sistema
 import '@fontsource/barlow-semi-condensed/latin-400.css';
 import '@fontsource/barlow-semi-condensed/latin-500.css';
@@ -19,6 +20,8 @@ import { initI18n } from './i18n/index.ts';
 // painel de números (06/11): só por link direto (/painel#token); não conecta ao jogo nem faz login
 const statsPage = location.pathname.replace(/\/+$/, '') === '/painel';
 if (!statsPage) {
+  // convite direto para a sala (23/11): /sala/ABCDE
+  captureInvite();
   wireGameClient();
   initAuth();
   installClientDiag();

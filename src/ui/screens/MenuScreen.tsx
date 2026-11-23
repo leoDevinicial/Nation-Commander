@@ -1,7 +1,8 @@
+import { takeInvite } from '../../lib/invite.ts';
 import { LanguagePicker } from '../components/LanguagePicker.tsx';
-import { ArrowRight, BookOpen, Bot, Check, FileDown, Flag, FlaskConical, Globe, GraduationCap, Info, LogOut, Megaphone, MessagesSquare, Play, Settings, Users, type LucideIcon } from 'lucide-react';
+import { ArrowRight, BookOpen, Bot, Check, FileDown, Flag, FlaskConical, Globe, GraduationCap, Info, LogOut, Megaphone, MessagesSquare, Play, Settings, Trophy, Users, type LucideIcon } from 'lucide-react';
 import { markTutorial, tutorialSeen } from '../../state/useTutorialStore.ts';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { gameClient } from '../../net/client.ts';
 import { localAdvisorStore, type Advice } from '../../game/perf/advisor.ts';
 import { PRESET_LABELS } from '../../lib/graphics.ts';
@@ -65,6 +66,17 @@ export function MenuScreen() {
     if (!(await prepareJoin(c))) return;
     gameClient.send({ t: 'join_room', code: c, countryId: country });
   };
+  // convite direto (23/11): chegou por /sala/ABCDE e já está no menu com conexão: entra na sala
+  useEffect(() => {
+    if (!online) return;
+    const c = takeInvite();
+    if (!c) return;
+    void (async () => {
+      if (!(await ensureRemote())) return;
+      if (!(await prepareJoin(c))) return;
+      gameClient.send({ t: 'join_room', code: c, countryId: country });
+    })();
+  }, [online, country]);
   const latest = CHANGELOG[0];
   const sinceLast = CHANGELOG.slice(
     0,
@@ -124,6 +136,7 @@ export function MenuScreen() {
                 Discord
               </span>
             </a>
+            <NavItem icon={Trophy} label="Ranking" disabled={!online} title={online ? 'Temporada do mês: quem mais venceu' : offlineHint} onClick={() => setScreen('ranking')} />
             <NavItem icon={Megaphone} label="Novidades" dot title="O que mudou no jogo e o espaço para mandar a sua opinião" onClick={() => setScreen('feedback')} />
             <NavItem icon={BookOpen} label="Manual" title="O básico do jogo em 8 cartões curtos" onClick={() => setScreen('manual')} />
             <GuideDownload />

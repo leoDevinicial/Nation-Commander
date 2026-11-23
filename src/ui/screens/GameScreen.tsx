@@ -9,6 +9,7 @@ import { CommandPanel } from '../hud/CommandPanel.tsx';
 import { EventLog } from '../hud/EventLog.tsx';
 import { Minimap } from '../hud/Minimap.tsx';
 import { WorldAlerts } from '../hud/WorldAlerts.tsx';
+import { GLOBAL_EVENTS } from '../../../shared/strategic/globalEvents.ts';
 import { PauseMenu } from '../hud/PauseMenu.tsx';
 import { ResultsOverlay } from '../hud/ResultsOverlay.tsx';
 import { DefeatedOverlay } from '../hud/DefeatedOverlay.tsx';
@@ -31,6 +32,7 @@ import { describeNationalEvent, makeNameOf } from '../../game/nationalText.ts';
 import { battleSnapshotBuffer, useOpsStore } from '../../state/useOpsStore.ts';
 import { OperationalMap } from '../geo/OperationalMap.tsx';
 import { ToolWheel } from '../hud/ToolWheel.tsx';
+import { PowerAlert } from '../hud/PowerAlert.tsx';
 import { setInMatch, useGfxHealth } from '../../lib/clientDiag.ts';
 import { BattleBar, BattleLoading, BattlePrompt, OperationChip, OutcomeDialog } from '../hud/BattleHud.tsx';
 
@@ -129,6 +131,12 @@ export function GameScreen() {
           useHudStore.getState().pushWorldAlert({ icon: 'research', title: 'Pesquisa concluída', text: tech.unlocks[0] ? `${tech.label} · ${tech.unlocks[0]}` : tech.label, tone: 'good' });
           audio.ui('success');
           audio.announce('research');
+        }
+        // evento global (23/11): faixa no topo para todos
+        if (l.event.type === 'global_event' && l.event.phase === 'start') {
+          const g = GLOBAL_EVENTS[l.event.id];
+          useHudStore.getState().pushWorldAlert({ icon: 'global', title: g.label, text: g.description, tone: 'warn' });
+          audio.ui('alert');
         }
         // encontro no mapa (06/11): primeira vez que vemos essa nação — a diplomacia com ela fica liberada
         if (l.event.type === 'diplomacy' && l.event.event.type === 'discovered' && l.event.event.via === 'teatro' && l.event.event.by === match.yourSlot) {
@@ -298,6 +306,7 @@ export function GameScreen() {
             </div>
           )}
           {!globeOpen && !nationalOpen && !battleActive && <ToolWheel runtime={runtime} />}
+          {!globeOpen && !nationalOpen && !battleActive && !fpv && <PowerAlert runtime={runtime} />}
           {touchUi && !nationalOpen && !globeOpen && <TouchToolbar runtime={active} />}
           {!nationalOpen && !globeOpen && !battleActive && <RouteInspector />}
           {touchUi && !nationalOpen && !globeOpen && !menuOpen && <FullscreenPrompt />}

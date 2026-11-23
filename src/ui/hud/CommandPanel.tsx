@@ -19,6 +19,7 @@ import {
   SPACE,
   MINE,
   ROAD,
+  SPY,
   HIGHWAY,
   BUILDERS,
   MILITARY_RESEARCH_USD_SHARE,
@@ -49,7 +50,7 @@ import { ZONING, type ZoneKind } from '../../../shared/sim/zoning.ts';
 import { CardButton, usdDay } from './CardButton.tsx';
 import { Frame } from '../components/Frame.tsx';
 import { buildingDayUsd } from '../../../shared/strategic/treasury.ts';
-import { ArrowBigUp, Brain, Check, CircleDot, Cog, Construction, Crosshair, Eraser, Factory, Fuel, Globe, GraduationCap, Grid3x3, HardHat, Hospital, Hourglass, House, Landmark, type LucideIcon, Milestone, Pickaxe, RadioTower, Rocket, Route, RouteOff, Satellite, Shield, ShieldPlus, Siren, Square, Star, Store, Swords, Target, Telescope, TriangleAlert, Truck, Undo2, X, Zap } from 'lucide-react';
+import { ArrowBigUp, Brain, Check, CircleDot, Cog, Construction, Crosshair, Eraser, Factory, Fuel, Globe, GraduationCap, Grid3x3, HardHat, Hospital, Hourglass, House, Landmark, type LucideIcon, Milestone, Pickaxe, RadioTower, Rocket, Route, RouteOff, Satellite, Shield, ShieldPlus, Siren, Square, Star, Store, Swords, Target, Telescope, TriangleAlert, Truck, Undo2, X, Zap, ZapOff } from 'lucide-react';
 import { AirbaseButtons, AirbaseInfo, CarrierButtons, DomeInfo, HoldToConfirm, SiloButtons, SiloInfo, SubMissileButtons, airTargetText } from './AirPanels.tsx';
 import { useNationalStore } from '../../state/useNationalStore.ts';
 import { countryName } from '../../../shared/data/countries.ts';
@@ -222,6 +223,9 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
           {mode.kind === 'demolish' && (
             <ModeHint title="Demolir" text={`${touch ? 'Toque' : 'Clique'} numa construção ou estrada sua para derrubar na hora (sem devolver o custo). O QG fica. ${touch ? 'Cancelar' : 'Botão direito ou Esc'} sai do modo.`} />
           )}
+          {mode.kind === 'sabotage' && (
+            <ModeHint title="Sabotar usina" text={`${touch ? 'Toque' : 'Clique'} numa usina de quem está em guerra com você. O espião vai até ela, fica ${SPY.sabotageSeconds} s ao lado e a desliga por ${SPY.outageSeconds} s (ele é consumido).`} />
+          )}
           {mode.kind === 'attack_road' && <ModeHint title="Atacar estrada" text={`${touch ? 'Toque' : 'Clique'} numa célula de estrada ou rodovia inimiga à vista. As tropas vão até lá e destroem o asfalto (estrada: ${ROAD.hp} de vida; rodovia: ${HIGHWAY.hp}).`} />}
           {mode.kind === 'attack_move' && <ModeHint title="Avançar atacando" text={`${touch ? 'Toque' : 'Clique'} no destino. As unidades atacam o que encontrarem pelo caminho.`} />}
           {mode.kind === 'normal' && units.length > 0 && <UnitsInfo units={units} />}
@@ -239,6 +243,12 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
                 <div className="mt-1 text-xs text-ink-400">
                   Nível {inspected.level}
                   {inspected.spec ? ` · ${specDef(inspected.type as BuildingType, inspected.spec)?.label ?? ''}` : ''}
+                </div>
+              )}
+              {inspected.queue && inspected.queue.length > 0 && (
+                <div className="mt-1 text-xs text-ink-300">
+                  <span className="text-brass-400">Espião:</span> produzindo{' '}
+                  {inspected.queue.map((q, i) => `${producibleLabel(q.unitType as ProducibleType)}${i === 0 ? ` (${Math.round(q.progress * 100)}%)` : ''}`).join(', ')}
                 </div>
               )}
               <WarStatus owner={inspected.owner} mySlot={mySlot} />
@@ -265,6 +275,14 @@ export function CommandPanel({ runtime }: { runtime: GameRuntime }) {
             <ModernizeButtons runtime={runtime} />
             <AidAllyButtons runtime={runtime} />
             {units.some((u) => u.type === 'engineer') && <EngineerButtons runtime={runtime} />}
+            {units.some((u) => UNITS[u.type].stealth) && (
+              <CardButton
+                icon={<ZapOff size={20} />}
+                label="Sabotar usina"
+                onClick={() => runtime.startSabotage()}
+                title={`Espião: escolha uma usina de quem está em guerra com você. Ele vai até lá, fica ${SPY.sabotageSeconds} s ao lado e a desliga por ${SPY.outageSeconds} s; depois disso é consumido. Parado perto de construções inimigas, mostra a fila de produção delas.`}
+              />
+            )}
             {units.length === 1 && units[0]!.type === 'aircraft_carrier' && <CarrierButtons unitId={units[0]!.id} runtime={runtime} />}
             {units.length === 1 && units[0]!.type === 'missile_submarine' && <SubMissileButtons unitId={units[0]!.id} missiles={units[0]!.missiles ?? 0} runtime={runtime} />}
           </>
@@ -955,6 +973,7 @@ export function producibleIcon(t: ProducibleType): string {
     ciws: '⊛',
     at_infantry: '➹',
     special_forces: '✦',
+    spy: '◐',
   };
   return icons[t] ?? '●';
 }

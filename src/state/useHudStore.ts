@@ -77,6 +77,8 @@ export type PointerMode =
   | { kind: 'attack_move' }
   /** Mira numa célula de estrada ou rodovia inimiga (02/11). */
   | { kind: 'attack_road' }
+  /** Espião escolhendo a usina inimiga para sabotar (23/11). */
+  | { kind: 'sabotage' }
   | { kind: 'demolish' }
   /**
    * Escolha de alvo da força aérea (Fase 7): ponto do reconhecimento, edifício inimigo descoberto
@@ -174,7 +176,8 @@ export interface HudState {
   /** Lançamento do Programa Espacial em andamento. */
   spaceLaunch: { id: number; phase: 'countdown' | 'ascent'; progress: number } | null;
   /** Seleção de entidade inimiga (só leitura). */
-  inspected: { kind: 'unit' | 'building'; type: string; owner: number; hp: number; maxHp: number; level: number; spec: SpecId | null } | null;
+  /** `queue`: fila de produção de construção alheia vigiada por um espião (23/11). */
+  inspected: { kind: 'unit' | 'building'; type: string; owner: number; hp: number; maxHp: number; level: number; spec: SpecId | null; queue?: { unitType: string; progress: number }[] } | null;
   /** Cidadãos selecionados no mapa: ociosos e a caminho de um posto. */
   selectedCitizens: { idle: number; going: number } | null;
   /** Painel de melhoria aberto para este edifício. */
@@ -192,6 +195,8 @@ export interface HudState {
   touchUi: boolean;
   /** Pilotando um drone em primeira pessoa: a interface do mapa some e fica só o OSD do drone. */
   fpv: boolean;
+  /** Visão da rede elétrica ligada (23/11). */
+  powerView: boolean;
   /** Drone próprio no ar que ainda dá para assumir (segundos que restam). */
   droneTakeover: { id: number; left: number } | null;
   touchTool: TouchTool;
@@ -206,7 +211,7 @@ export interface HudState {
 }
 
 /** Alerta mundial na faixa do topo (guerra, era, nuclear, Grande Projeto). */
-export type WorldAlertIcon = 'war' | 'era' | 'nuclear' | 'project' | 'satellite' | 'contact' | 'research';
+export type WorldAlertIcon = 'war' | 'era' | 'nuclear' | 'project' | 'satellite' | 'contact' | 'research' | 'global';
 export interface WorldAlert {
   id: number;
   at: number;
@@ -257,6 +262,7 @@ export const useHudStore = create<HudState>((set) => ({
   closeUp: false,
   touchUi: false,
   fpv: false,
+  powerView: false,
   droneTakeover: null,
   touchTool: 'select',
   touchAdditive: false,

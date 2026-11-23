@@ -1,4 +1,4 @@
-import { BUILDINGS, buildingCost, emptyStockpile, Terrain, ROAD, HIGHWAY, CITIZEN, GOODS_TYPES, MINE, OIL_TANK_RANGE, emptyGoods, RECRUIT, type ResourceType, POP_ABSOLUTE_CAP, RESOURCE_TYPES, TICK_RATE, UNITS, NAVAL, MILITARY_RESEARCH, militaryResearchBlocker, militaryResearchKnowledge, canAfford, type MilitaryResearchId, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
+import { BUILDINGS, buildingCost, emptyStockpile, Terrain, ROAD, ROAD_STEPS, TUNNEL_TERRAIN, HIGHWAY, CITIZEN, GOODS_TYPES, MINE, OIL_TANK_RANGE, emptyGoods, RECRUIT, type ResourceType, POP_ABSOLUTE_CAP, RESOURCE_TYPES, TICK_RATE, UNITS, NAVAL, MILITARY_RESEARCH, militaryResearchBlocker, militaryResearchKnowledge, canAfford, type MilitaryResearchId, type BuildingType, type Cost, type Stockpile, type UnitType } from './config.ts';
 import { claimableCells, claimedBy } from './gathering.ts';
 import { reachable } from './MapGen.ts';
 import { checkProduce } from './production.ts';
@@ -172,6 +172,7 @@ export interface TacticalAISave {
   lastHarassTick?: number | null;
   lastReconTick?: number | null;
   lastStrikeTick?: number | null;
+  lastDroneTick?: number | null;
   lastRoadTick?: number | null;
   lastMarketTick?: number | null;
   scoutLeg?: number;
@@ -212,6 +213,7 @@ export class TacticalAI {
   /** Últimas missões aéreas (reconhecimento e ataque). */
   private lastReconTick = -Infinity;
   private lastStrikeTick = -Infinity;
+  private lastDroneTick = -Infinity;
   /** Última obra de estrada (para espaçar as obras). */
   private lastRoadTick = -Infinity;
   /** Última venda no mercado interno. */
@@ -247,6 +249,7 @@ export class TacticalAI {
       lastHarassTick: Number.isFinite(this.lastHarassTick) ? this.lastHarassTick : null,
       lastReconTick: Number.isFinite(this.lastReconTick) ? this.lastReconTick : null,
       lastStrikeTick: Number.isFinite(this.lastStrikeTick) ? this.lastStrikeTick : null,
+      lastDroneTick: Number.isFinite(this.lastDroneTick) ? this.lastDroneTick : null,
       lastRoadTick: Number.isFinite(this.lastRoadTick) ? this.lastRoadTick : null,
       lastMarketTick: Number.isFinite(this.lastMarketTick) ? this.lastMarketTick : null,
       scoutLeg: this.scoutLeg,
@@ -267,6 +270,7 @@ export class TacticalAI {
     this.lastHarassTick = s.lastHarassTick ?? -Infinity;
     this.lastReconTick = s.lastReconTick ?? -Infinity;
     this.lastStrikeTick = s.lastStrikeTick ?? -Infinity;
+    this.lastDroneTick = s.lastDroneTick ?? -Infinity;
     this.lastRoadTick = s.lastRoadTick ?? -Infinity;
     this.lastMarketTick = s.lastMarketTick ?? -Infinity;
     this.scoutLeg = s.scoutLeg ?? 0;
@@ -875,7 +879,17 @@ export class TacticalAI {
       if (base.type !== 'airbase' || base.progress < 1 || base.hp <= 0) continue;
       const planes = air.aircraftAt(base.id);
       const has = (t: AircraftType) => planes.filter((a) => a.type === t).length;
-      const want: AircraftType | null = has('recon') === 0 ? 'recon' : has('fighter') < 2 ? 'fighter' : base.level >= 2 && has('bomber') < 1 ? 'bomber' : null;
+      // drone de ataque (23/11): da Era Digital em diante, até 2 na base (o servidor diz se pode)
+      const want: AircraftType | null =
+        has('recon') === 0
+          ? 'recon'
+          : has('fighter') < 2
+            ? 'fighter'
+            : base.level >= 2 && has('bomber') < 1
+              ? 'bomber'
+              : has('drone') < 2 && air.buildBlocker(this.slot, base.id, 'drone') === null
+                ? 'drone'
+                : null;
       if (want && !planes.some((a) => a.state === 'building') && air.buildBlocker(this.slot, base.id, want) === null && take(AIRCRAFT[want].cost)) {
         cmds.push({ type: 'build_aircraft', buildingId: base.id, aircraftType: want });
       }
@@ -889,6 +903,15 @@ export class TacticalAI {
         if (air.missionBlocker(this.slot, base.id, recon, 'recon', { x: at.x, y: at.y }) === null) {
           cmds.push({ type: 'air_mission', buildingId: base.id, aircraftIds: recon, mission: 'recon', x: at.x, y: at.y });
           this.lastReconTick = sim.tick;
+        }
+      }
+      // drone (23/11): um por vez contra o alvo conhecido mais valioso, a cada janela de ataque
+      const drone = ready(['drone'])[0];
+      if (drone !== undefined && sim.tick - this.lastDroneTick >= AI_STRIKE_EVERY_TICKS) {
+        const target = this.airTarget(known);
+        if (target && air.droneBlocker(this.slot, base.id, target.pos.x, target.pos.y) === null) {
+          cmds.push({ type: 'launch_drone', buildingId: base.id, x: target.pos.x, y: target.pos.y });
+          this.lastDroneTick = sim.tick;
         }
       }
       // ataque: caças e bombardeiros prontos contra o alvo conhecido mais valioso
@@ -1256,9 +1279,10 @@ export class TacticalAI {
         if (!route) continue;
         const fresh = route.filter((c) => sim.map.terrain[c.cy * W2 + c.cx] !== Terrain.Road).slice(0, ROAD.maxCells);
         if (!fresh.length) continue;
-        const stone = fresh.length * ROAD.stonePerCell;
+        const plan = sim.roadPlan(this.slot, fresh);
+        if (plan.error) continue;
+        const stone = plan.stone;
         if (budget.stone - stone < 10) return;
-        if (sim.roadPlan(this.slot, fresh).error) continue;
         if (!take({ stone })) return;
         cmds.push({ type: 'build_road', cells: fresh });
         this.lastRoadTick = sim.tick;
@@ -1274,9 +1298,10 @@ export class TacticalAI {
       const W = sim.map.width;
       const fresh = route.filter((c) => sim.map.terrain[c.cy * W + c.cx] !== Terrain.Road).slice(0, ROAD.maxCells);
       if (!fresh.length) continue;
-      const stone = fresh.length * ROAD.stonePerCell;
+      const plan = sim.roadPlan(this.slot, fresh);
+      if (plan.error) continue;
+      const stone = plan.stone;
       if (budget.stone - stone < AI_ROAD_STONE_RESERVE) return;
-      if (sim.roadPlan(this.slot, fresh).error) continue;
       if (!take({ stone })) return;
       cmds.push({ type: 'build_road', cells: fresh });
       this.lastRoadTick = sim.tick;
@@ -1292,9 +1317,10 @@ export class TacticalAI {
       if (!route) continue;
       const fresh = route.filter((c) => sim.map.terrain[c.cy * W + c.cx] !== Terrain.Road);
       if (!fresh.length || fresh.length > AI_ROAD_PRODUCTION_MAX_CELLS) continue;
-      const stone = fresh.length * ROAD.stonePerCell;
+      const plan = sim.roadPlan(this.slot, fresh);
+      if (plan.error) continue;
+      const stone = plan.stone;
       if (budget.stone - stone < AI_ROAD_PRODUCTION_RESERVE) return;
-      if (sim.roadPlan(this.slot, fresh).error) continue;
       if (!take({ stone })) return;
       cmds.push({ type: 'build_road', cells: fresh });
       this.lastRoadTick = sim.tick;
@@ -1352,6 +1378,8 @@ export class TacticalAI {
     const stepCost = (i: number): number => {
       const t = T[i];
       if (t === Terrain.Road) return 0.2;
+      // túnel (23/11): pela rocha, no próprio território, custando o que a obra custa a mais
+      if (!highway && t !== undefined && TUNNEL_TERRAIN.has(t)) return sim.territory[i] === this.slot ? ROAD.tunnelMul : Infinity;
       if (t !== Terrain.Plains && t !== Terrain.Fertile) return Infinity;
       if (claimed.has(i)) return Infinity;
       if (sim.territory[i] !== this.slot) {
@@ -1437,17 +1465,13 @@ export class TacticalAI {
       }
       const cx = i % W;
       const cy = Math.floor(i / W);
-      for (const [dx, dy] of [
-        [1, 0],
-        [-1, 0],
-        [0, 1],
-        [0, -1],
-      ] as const) {
+      // estrada comum também anda pela quina (23/11: a diagonal liga energia e cargas); a rodovia só pelos lados
+      for (const [dx, dy] of highway ? ROAD_STEPS.slice(0, 4) : ROAD_STEPS) {
         const nx = cx + dx;
         const ny = cy + dy;
         if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
         const n = ny * W + nx;
-        const nc = c + stepCost(n);
+        const nc = c + stepCost(n) * (dx && dy ? Math.SQRT2 : 1);
         if (nc < best[n]!) {
           best[n] = nc;
           prev[n] = i;

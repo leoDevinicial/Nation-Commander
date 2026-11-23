@@ -1,3 +1,4 @@
+import { GLOBAL_EVENTS } from '../../shared/strategic/globalEvents.ts';
 import { countryName } from '../../shared/data/countries.ts';
 import type { TreatyType } from '../../shared/strategic/Diplomacy.ts';
 import type { NationalEvent } from '../../shared/strategic/NationalSimulation.ts';
@@ -22,6 +23,10 @@ const PROPOSAL_LABEL: Record<string, string> = { trade: 'acordo comercial', alli
  */
 export function describeNationalEvent(e: NationalEvent, mySlot: number, nameOf: (id: number) => string): { text: string; tone: 'info' | 'good' | 'warn' | 'bad' } | null {
   if (e.type === 'diplomacy') return describeDiplomatic(e.event, mySlot, nameOf);
+  if (e.type === 'global_event') {
+    const g = GLOBAL_EVENTS[e.id];
+    return e.phase === 'start' ? { text: `Evento global: ${g.label}. ${g.description}`, tone: 'warn' } : { text: `Fim do evento global: ${g.label}`, tone: 'info' };
+  }
   const mine = e.slot === mySlot;
   const who = mine ? 'Nosso país' : nameOf(e.slot);
   switch (e.type) {

@@ -1,3 +1,4 @@
+import { inviteUrl } from '../../lib/invite.ts';
 import {
   Anchor,
   Bot,
@@ -12,6 +13,8 @@ import {
   Feather,
   Hourglass,
   Info,
+  CloudLightning,
+  CircleOff,
   LogOut,
   Map as MapIcon,
   MessageSquare,
@@ -149,6 +152,7 @@ export function LobbyScreen() {
   const canTeam = (p: Player) => (p.isAI ? isHost : p.userId === me.id);
   const mapType = room.mapType ?? 'continental';
   const victoryMode = room.victoryMode ?? 'territory';
+  const globalEvents = room.globalEvents ?? true;
   const size = mapSizeFor(room.maxPlayers, sizeType(room.mapType));
   const showDifficulty = room.mode !== 'pvp' || room.players.some((p) => p.isAI);
   const ready = (p: Player) => !!p.ready || !!p.isAI || p.userId === room.hostUserId;
@@ -161,7 +165,8 @@ export function LobbyScreen() {
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(room.code);
+      // 23/11: o link de convite já entra direto na sala (o código continua no link)
+      await navigator.clipboard.writeText(inviteUrl(room.code));
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -216,7 +221,7 @@ export function LobbyScreen() {
               </span>
               <button className="btn" onClick={() => void copy()}>
                 {copied ? <Check size={15} aria-hidden /> : <Copy size={15} aria-hidden />}
-                <span className="lb-copytext max-sm:hidden">{copied ? 'Copiado!' : 'Copiar'}</span>
+                <span className="lb-copytext max-sm:hidden">{copied ? 'Link copiado!' : 'Copiar convite'}</span>
               </button>
             </div>
           )}
@@ -334,6 +339,20 @@ export function LobbyScreen() {
                   ))}
                 </div>
                 <p className="text-xs text-ink-400">{VICTORY_MODE[victoryMode].text}</p>
+              </div>
+            )}
+            {!sandbox && (
+              <div className="flex flex-col gap-1.5 border-t border-ink-700 pt-3">
+                <Kicker>Eventos globais</Kicker>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <Pick name="globalEvents" on={globalEvents} disabled={!isHost} icon={CloudLightning} label="Ligados" onPick={() => gameClient.send({ t: 'set_room', globalEvents: true })} />
+                  <Pick name="globalEvents" on={!globalEvents} disabled={!isHost} icon={CircleOff} label="Desligados" onPick={() => gameClient.send({ t: 'set_room', globalEvents: false })} />
+                </div>
+                <p className="text-xs text-ink-400">
+                  {globalEvents
+                    ? 'De tempos em tempos o mundo muda para todos: crise do petróleo, inverno rigoroso ou alta das commodities, por alguns minutos.'
+                    : 'Sem crises nem mudanças no mundo: a economia segue estável a partida toda.'}
+                </p>
               </div>
             )}
             {showDifficulty && (

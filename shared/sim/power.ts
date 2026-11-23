@@ -124,6 +124,21 @@ export interface PowerResult {
   supply: number;
   demand: number;
   served: number;
+  /**
+   * Cada rede separada (23/11, visão da rede e alerta de apagão): geração, consumo pedido e atendido, consumidoras sem
+   * luz, uma célula dela (`at`, para o cliente achar o pedaço) e o centro aproximado (células).
+   */
+  nets: PowerNet[];
+}
+
+export interface PowerNet {
+  supply: number;
+  demand: number;
+  served: number;
+  dark: number;
+  at: number;
+  cx: number;
+  cy: number;
 }
 
 /**
@@ -240,5 +255,26 @@ export function solvePower(width: number, height: number, roadCells: Iterable<nu
     const frac = total > 0 ? Math.min(1, (usedBy.get(c) ?? 0) / total) : 0;
     for (const p of plants) load.set(p.id, frac);
   }
-  return { powered, isolated, load, supply, demand, served };
+  // resumo de cada rede: o consumo pedido e as sem luz, pela rede que cada consumidora toca
+  const byNet = new Map<number, PowerNet & { n: number; sx: number; sy: number }>();
+  for (const i of mesh) {
+    const c = find(grid[i]!);
+    let r = byNet.get(c);
+    if (!r) byNet.set(c, (r = { supply: supplyBy.get(c) ?? 0, demand: 0, served: usedBy.get(c) ?? 0, dark: 0, at: i, cx: 0, cy: 0, n: 0, sx: 0, sy: 0 }));
+    r.n++;
+    r.sx += i % width;
+    r.sy += (i - (i % width)) / width;
+  }
+  for (const n of nodes) {
+    if (n.use <= 0) continue;
+    const t = touches.get(n.id);
+    const r = t === undefined ? undefined : byNet.get(find(t));
+    if (!r) continue;
+    r.demand += n.use;
+    if (!powered.has(n.id)) r.dark++;
+  }
+  const nets = [...byNet.values()]
+    .filter((r) => r.demand > 0 || r.supply > 0)
+    .map((r) => ({ supply: Math.round(r.supply), demand: Math.round(r.demand * 10) / 10, served: Math.round(r.served * 10) / 10, dark: r.dark, at: r.at, cx: Math.round(r.sx / r.n), cy: Math.round(r.sy / r.n) }));
+  return { powered, isolated, load, supply, demand, served, nets };
 }

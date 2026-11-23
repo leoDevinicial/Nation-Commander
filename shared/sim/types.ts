@@ -49,6 +49,8 @@ export interface Unit {
   mods: ModId[];
   /** Modernização em andamento numa instalação: a unidade fica parada e não dispara. */
   refit: Refit | null;
+  /** Espião (23/11): sabotagem em andamento (usina-alvo e ticks já passados ao lado dela). */
+  sabotage?: { targetId: EntityId; ticks: number };
   order: UnitOrder;
   /** Alvo adquirido automaticamente (ordem idle/attackMove). */
   engageId: EntityId | null;
@@ -164,6 +166,8 @@ export interface Building {
   status: BuildingStatus;
   /** Manutenção não paga: o edifício não fornece seus benefícios. */
   unpaid: boolean;
+  /** Usina sabotada por um espião até este tick (23/11): não gera. */
+  sabotagedUntil?: number;
   /** Nível de melhoria (1 = como construído) e especialização (Fase 4). */
   level: number;
   spec: SpecId | null;
@@ -222,6 +226,9 @@ export interface TacticalModifiers {
   /** Orçamento do país (16/11): Educação → conhecimento das escolas; Saúde → tempo de formar cidadãos (padrão 1). */
   knowledgeMul?: number;
   citizenTimeMul?: number;
+  /** Evento global (23/11): colheita das fazendas e combustível gasto por veículos e navios (padrão 1). */
+  foodGatherMul?: number;
+  fuelMul?: number;
 }
 
 export interface PlayerState {
@@ -343,6 +350,7 @@ export type SimEvent =
    * Drone de ataque: lançado, ou o fim do voo (impacto no alvo ou no chão, derrubado pela antiaérea, bateria acabou,
    * detonado pelo piloto). `damage`/`kills`: o efeito da ogiva; `controlled`: estava sob controle do jogador.
    */
+  | { type: 'sabotage'; tick: number; owner: Slot; victim: Slot; buildingType: BuildingType; pos: Vec2 }
   | { type: 'drone'; tick: number; owner: Slot; droneId: number; phase: 'launched' | 'impact' | 'shot_down' | 'battery' | 'detonated'; pos: Vec2; alt?: number; damage?: number; kills?: number; controlled?: boolean }
   /** Um disparo num combate aéreo entre esquadrilhas (`kill`: derrubou uma aeronave). */
   | { type: 'dogfight'; tick: number; owner: Slot; victim: Slot; missionId: number; targetMissionId: number; from: Vec2; to: Vec2; kill: boolean }

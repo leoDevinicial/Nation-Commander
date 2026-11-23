@@ -228,7 +228,7 @@ export const OIL_DEPOSIT_AMOUNT = 15000;
 
 // ------------------------------------------------------------------ unidades
 
-export type UnitType = 'infantry' | 'apc' | 'tank' | 'artillery' | 'at_infantry' | 'special_forces' | 'mbt' | 'rocket_artillery' | 'mobile_aa' | 'ciws' | 'engineer' | 'scout' | 'transport_ship' | 'frigate' | 'submarine' | 'missile_submarine' | 'aircraft_carrier' | 'cargo_ship' | 'fishing_boat';
+export type UnitType = 'infantry' | 'apc' | 'tank' | 'artillery' | 'at_infantry' | 'special_forces' | 'mbt' | 'rocket_artillery' | 'mobile_aa' | 'ciws' | 'engineer' | 'scout' | 'transport_ship' | 'frigate' | 'submarine' | 'missile_submarine' | 'aircraft_carrier' | 'cargo_ship' | 'fishing_boat' | 'spy';
 
 /** Classe de blindagem do alvo: define os bônus das armas (antitanque contra veículos, etc.). */
 export type ArmorClass = 'infantry' | 'vehicle';
@@ -333,6 +333,8 @@ export interface UnitDef {
   requiresTech?: string;
   /** Submarino: só é atacado por outro submarino e só ataca navios. */
   submarine?: boolean;
+  /** Espião (23/11): o inimigo só vê de perto (`SPY`). */
+  stealth?: boolean;
   /** Navio de guerra: só atira em navios (de superfície) e construções, nunca em tropas em terra. */
   shipsAndCoast?: boolean;
   /** Mísseis de cruzeiro que leva (submarino lançador); recarrega junto a um Porto próprio. */
@@ -704,6 +706,37 @@ export const UNITS: Record<UnitType, UnitDef> = {
     requires: 'point_defense',
     airDefense: true,
   },
+  spy: {
+    label: 'Espião',
+    cost: { food: 40, supplies: 70 },
+    buildSeconds: 16,
+    maxHp: 60,
+    speed: 4.4,
+    radius: 0.4,
+    sight: 11,
+    weapon: { damage: 0, range: 0, cooldown: 99 },
+    producedBy: 'barracks',
+    description:
+      'Agente infiltrado (23/11): o inimigo só o vê bem de perto (a 2 células de uma tropa ou construção dele, ou a 8 de uma torre ou delegacia). Parado perto de construções inimigas, mostra a fila de produção delas. Em guerra, sabota uma usina inimiga: depois de alguns segundos ao lado dela, a usina para por um minuto e o espião é consumido. Sem arma.',
+    hotkey: 'Y',
+    armor: 'infantry',
+    requires: 'special_operations',
+    stealth: true,
+  },
+};
+
+/**
+ * Espião (23/11): alcance de detecção pelo inimigo (células), alcance de informação e de sabotagem (células), tempo
+ * ao lado da usina para sabotar e quanto tempo ela fica parada.
+ */
+export const SPY = {
+  detectCells: 2,
+  /** Torre e delegacia enxergam espiões mais longe. */
+  detectCellsWatch: 8,
+  intelCells: 4,
+  sabotageCells: 2.5,
+  sabotageSeconds: 6,
+  outageSeconds: 60,
 };
 
 // ------------------------------------------------------------------ pesquisa militar

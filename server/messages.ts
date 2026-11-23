@@ -109,7 +109,8 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       const isPublic = typeof data.isPublic === 'boolean' ? data.isPublic : undefined;
       const name = typeof data.name === 'string' ? sanitizeRoomName(data.name) : undefined;
       const victoryMode = data.victoryMode === 'territory' || data.victoryMode === 'elimination' ? data.victoryMode : undefined;
-      if (maxPlayers === undefined && mapType === undefined && isPublic === undefined && name === undefined && victoryMode === undefined) return null;
+      const globalEvents = typeof data.globalEvents === 'boolean' ? data.globalEvents : undefined;
+      if (maxPlayers === undefined && mapType === undefined && isPublic === undefined && name === undefined && victoryMode === undefined && globalEvents === undefined) return null;
       return {
         t: 'set_room',
         ...(maxPlayers !== undefined ? { maxPlayers } : {}),
@@ -117,6 +118,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
         ...(isPublic !== undefined ? { isPublic } : {}),
         ...(name !== undefined ? { name } : {}),
         ...(victoryMode !== undefined ? { victoryMode } : {}),
+        ...(globalEvents !== undefined ? { globalEvents } : {}),
       };
     }
     case 'add_bot':

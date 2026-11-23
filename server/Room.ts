@@ -31,6 +31,7 @@ import { SERVICE_BUILDINGS, type TreasuryInputs } from '../shared/strategic/trea
 import type { BuildingSnapshot } from '../shared/sim/snapshot.ts';
 import type { EntityId, SimEvent, Slot } from '../shared/sim/types.ts';
 import { NationalAI } from '../shared/strategic/NationalAI.ts';
+import { globalFx } from '../shared/strategic/globalEvents.ts';
 import { matchTally, recentMatches } from './stats.ts';
 import type { DiplomaticAction } from '../shared/strategic/Diplomacy.ts';
 import { NationalSimulation, type NationalEvent, type NationalSave } from '../shared/strategic/NationalSimulation.ts';
@@ -140,6 +141,8 @@ export class Room {
   mapType: MapType | 'random' = 'continental';
   /** Como se vence (16/11): também por território (padrão) ou só por eliminação. */
   victoryMode: VictoryMode = 'territory';
+  /** Eventos globais (23/11): o anfitrião liga ou desliga na sala. */
+  globalEvents = true;
   balanceMode: BalanceMode = 'parity';
   difficulty: Difficulty = 'normal';
   national: NationalSimulation | null = null;
@@ -261,6 +264,7 @@ export class Room {
       balanceMode: this.balanceMode,
       mapType: this.mapType,
       victoryMode: this.victoryMode,
+      globalEvents: this.globalEvents,
       nationLimit: this.nationLimit,
       ...(this.isPublic ? { isPublic: true } : {}),
       name: this.displayName(),
@@ -381,7 +385,7 @@ export class Room {
   }
 
   /** Anfitrião: número de nações e tipo de mapa. */
-  setRoom(conn: Connection, opts: { maxPlayers?: number; mapType?: MapType | 'random'; isPublic?: boolean; name?: string; victoryMode?: VictoryMode }): void {
+  setRoom(conn: Connection, opts: { maxPlayers?: number; mapType?: MapType | 'random'; isPublic?: boolean; name?: string; victoryMode?: VictoryMode; globalEvents?: boolean }): void {
     if (this.status !== 'lobby' || conn.user?.id !== this.hostUserId) return;
     // Sandbox (03/11): só o tipo de mapa muda (um inimigo fixo, sala privada)
     if (this.mode === 'sandbox') opts = opts.mapType !== undefined ? { mapType: opts.mapType } : {};
@@ -397,6 +401,10 @@ export class Room {
     if (opts.victoryMode !== undefined && opts.victoryMode !== this.victoryMode) {
       this.victoryMode = opts.victoryMode;
       this.system(opts.victoryMode === 'elimination' ? 'Vitória só por eliminação.' : 'Vitória por eliminação ou por domínio territorial.');
+    }
+    if (opts.globalEvents !== undefined && opts.globalEvents !== this.globalEvents) {
+      this.globalEvents = opts.globalEvents;
+      this.system(opts.globalEvents ? 'Eventos globais ligados: crises e mudanças no mundo durante a partida.' : 'Eventos globais desligados.');
     }
     if (opts.mapType !== undefined) {
       this.mapType = opts.mapType;
@@ -539,6 +547,8 @@ export class Room {
       this.tutorial = new TutorialDirector(sim, national, 0, 1, 2, (view) => this.playerBySlot(0)?.conn?.send({ t: 'tutorial', view }));
       this.tutorial.setup();
     }
+    // eventos globais (23/11): só nas partidas normais, se o anfitrião deixou ligados
+    national.globalEvents.on = this.globalEvents && (this.mode === 'pvp' || this.mode === 'vs_ai');
     // operações expedicionárias contra governos fora do teatro (Fase 8)
     this.ops = new OperationsSystem(sim, national, this.seed);
     for (const n of this.national.nations) this.gdpStart.set(n.slot, n.gdpUsd);
@@ -704,6 +714,7 @@ export class Room {
     }
     room.difficulty = room.sim.difficulty;
     room.victoryMode = room.sim.territoryVictory ? 'territory' : 'elimination';
+    room.globalEvents = room.national?.globalEvents.on ?? room.globalEvents;
     room.national = new NationalSimulation(
       room.players.map((p) => ({ slot: p.slot, countryId: p.countryId })),
       save.seed,
@@ -1085,6 +1096,9 @@ export class Room {
         territoryMul: fx.territoryMul,
         // bônus declarado de coleta da IA (só no Brutal)
         gatherMul: (this.players.find((p) => p.slot === n.slot)?.isAI ? 1 + DIFFICULTY[this.difficulty].gatherBonus : 1) * pol.gatherMul * shock,
+        // evento global (23/11): inverno rigoroso nas fazendas, crise do petróleo no combustível
+        foodGatherMul: globalFx(this.national.globalEvents).foodGatherMul,
+        fuelMul: globalFx(this.national.globalEvents).fuelMul,
       });
     }
   }
@@ -1520,7 +1534,11 @@ export class Room {
   }
 
   private sampleReport(): ReportSample {
-    return reportSample(this.sim!, (slot) => this.national?.nation(slot)?.gdpUsd ?? null);
+    return reportSample(
+      this.sim!,
+      (slot) => this.national?.nation(slot)?.gdpUsd ?? null,
+      (slot) => this.national?.nation(slot)?.works.fundUsd ?? null,
+    );
   }
 
   private nationalSummary(slot: Slot): NationalSummary | null {

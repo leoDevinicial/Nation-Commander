@@ -247,3 +247,22 @@ describe('dinheiro a aliados (23/11)', () => {
     expect(nat.diplomaticAction(0, { type: 'send_money', partner: 2, usd: 5e6 })).toMatch(/aliado/);
   });
 });
+
+describe('IA ajuda aliado com dinheiro (23/11)', () => {
+  it('aliado do mapa em guerra e com pouco caixa recebe parte do caixa da IA', async () => {
+    const { NationalAI, AI_ALLY_AID } = await import('../strategic/NationalAI.ts');
+    const { nat } = national();
+    nat.diplomaticAction(0, { type: 'propose', treaty: 'alliance', partner: 1 });
+    nat.diplomaticAction(1, { type: 'answer_offer', offerId: nat.diplomacy.offers[0]!.id, accept: true });
+    const ai = new NationalAI(0, false, 1, false);
+    // sem guerra: nada
+    nat.nation(1)!.works.fundUsd = 1e6;
+    expect(ai.think(nat).diplomacy.some((a) => a.type === 'send_money')).toBe(false);
+    // aliado em guerra e pobre: manda 15% do caixa
+    nat.nation(1)!.works.fundUsd = 1e9;
+    expect(nat.diplomaticAction(1, { type: 'declare_war', target: 2 })).toBeNull();
+    nat.nation(1)!.works.fundUsd = 1e6;
+    const send = ai.think(nat).diplomacy.find((a) => a.type === 'send_money');
+    expect(send).toEqual({ type: 'send_money', partner: 1, usd: Math.floor(fund(nat, 0) * AI_ALLY_AID.giveShare) });
+  });
+});

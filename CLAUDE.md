@@ -150,6 +150,10 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
   humanos a queda pausa (`DISCONNECT_POLICY`) e o prazo é `RECONNECT_GRACE_PVP_MS`; falha passageira do Supabase fecha
   com 1013 (o cliente tenta de novo), nunca `auth`. Motivos das quedas em `matches.report.connection`. O navegador manda
   `client_diag` (gráficos perdidos, página que morreu na partida, erros; tabela `client_diagnostics`) e liga o modo leve sozinho.
+- Lote de 23/11 (`docs/LOTE_23_11_ESPIAO_EVENTOS_RANKING.md`): espião (`UNITS.spy`, furtivo em `canSee`, sabotagem
+  `spy_sabotage`, fila do inimigo por `spyIntel`), visão da rede elétrica (`PowerGridLayer`, `PlayerPower.nets`) e
+  alerta de apagão (`PowerAlert`), eventos globais (`shared/strategic/globalEvents.ts`, opção da sala `globalEvents`),
+  ranking mensal (`GET /leaderboard`, `RankingScreen`) e convite `/sala/CÓDIGO` (`lib/invite.ts`).
 - Minas terrestres (`shared/sim/mines.ts`) não são entidades: o snapshot envia só as do dono e as já detectadas
   (`MineSystem.visibleTo`). O satélite do Programa Espacial revela o resto do mapa, mas nunca as minas.
 

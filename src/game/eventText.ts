@@ -1,7 +1,7 @@
 import type { WorldAlert } from '../state/useHudStore.ts';
 import { MODS } from '../../shared/sim/modernization.ts';
 import { AIRCRAFT, type AircraftType } from '../../shared/sim/air.ts';
-import { BUILDINGS, CARAVAN, MILITARY_RESEARCH, RESOURCE_LABELS, TICK_RATE, UNITS, VICTORY, type BuildingType, type UnitType } from '../../shared/sim/config.ts';
+import { BUILDINGS, CARAVAN, MILITARY_RESEARCH, RESOURCE_LABELS, SPY, TICK_RATE, UNITS, VICTORY, type BuildingType, type UnitType } from '../../shared/sim/config.ts';
 import type { BuildingStatus } from '../../shared/sim/types.ts';
 
 const HALT_TEXT: Partial<Record<BuildingStatus, string>> = {
@@ -159,6 +159,12 @@ export function describeEvent(e: SimEvent, mySlot: number): { text: string; tone
         : null;
     case 'air_mission':
       return e.owner === mySlot ? { text: e.phase === 'launched' ? e.text : `Missão aérea: ${e.text}`, tone: e.phase === 'launched' ? 'info' : 'good' } : null;
+    case 'sabotage':
+      return e.owner === mySlot
+        ? { text: `Sabotagem concluída: ${BUILDINGS[e.buildingType].label} inimiga parada por ${SPY.outageSeconds} s`, tone: 'good' }
+        : e.victim === mySlot
+          ? { text: `Sabotagem! Nossa ${BUILDINGS[e.buildingType].label} parou por ${SPY.outageSeconds} s`, tone: 'bad' }
+          : null;
     case 'drone': {
       if (e.owner !== mySlot) return e.phase === 'impact' || e.phase === 'detonated' ? { text: 'Drone inimigo explodiu perto das nossas posições', tone: 'warn' } : null;
       if (e.phase === 'launched') return { text: 'Drone lançado: clique nele ou aperte T nos próximos segundos para pilotar em primeira pessoa', tone: 'info' };

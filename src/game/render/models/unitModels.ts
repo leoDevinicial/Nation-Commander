@@ -261,6 +261,7 @@ const BUILDERS: Record<UnitType, () => BuiltUnit> = {
   aircraft_carrier: buildCarrier,
   cargo_ship: buildCargoShip,
   fishing_boat: buildFishingBoat,
+  spy: buildSpy,
 };
 
 // ------------------------------------------------------------------ infantaria
@@ -380,6 +381,34 @@ function buildEngineer(): BuiltUnit {
   soldier(l.body, l.accent, -0.24, -0.36, 0);
   l.accent.cyl(0.06, 0.06, 0.05, '#ffffff', [-0.1, 0.62, -0.36], [Math.PI / 2, 0, 0], 8);
   return { hull: l.build(), turret: null, turretPivot: [0, 0, 0], muzzle: [0.5, 0.65, 0] };
+}
+
+/**
+ * Espião (23/11): um agente só, de sobretudo comprido e chapéu de aba, com a maleta na mão. A gravata e a faixa do
+ * chapéu levam a cor da nação (só o dono e quem o descobre veem o espião).
+ */
+function buildSpy(): BuiltUnit {
+  const l = layers();
+  const coat = '#3b3d40';
+  // pernas e sapatos
+  for (const z of [-0.07, 0.07]) {
+    l.body.cyl(0.045, 0.05, 0.42, '#24262a', [0, 0.21, z], undefined, 6);
+    l.body.box(0.14, 0.05, 0.08, '#141518', [0.03, 0.025, z]);
+  }
+  // sobretudo (tronco afunilado até os joelhos) e gola
+  l.body.cyl(0.15, 0.2, 0.62, coat, [0, 0.66, 0], undefined, 8);
+  l.body.cyl(0.12, 0.15, 0.08, coat, [0, 1.0, 0], undefined, 8);
+  l.accent.box(0.02, 0.18, 0.04, '#ffffff', [0.15, 0.88, 0]);
+  // braços, uma mão com a maleta
+  l.body.cyl(0.04, 0.045, 0.42, coat, [0, 0.76, -0.19], [0.12, 0, 0], 6);
+  l.body.cyl(0.04, 0.045, 0.42, coat, [0.02, 0.76, 0.19], [-0.1, 0, 0], 6);
+  l.body.box(0.22, 0.16, 0.06, '#4a3523', [0.04, 0.45, 0.24]);
+  // cabeça e chapéu de aba com faixa
+  l.body.sphere(0.09, '#c9a083', [0, 1.13, 0], [1, 1.1, 1], 8);
+  l.body.cyl(0.17, 0.17, 0.02, '#1e1f22', [0, 1.22, 0], undefined, 12);
+  l.body.cyl(0.09, 0.1, 0.11, '#1e1f22', [0, 1.28, 0], undefined, 10);
+  l.accent.cyl(0.101, 0.101, 0.03, '#ffffff', [0, 1.245, 0], undefined, 10);
+  return { hull: l.build(), turret: null, turretPivot: [0, 0, 0], muzzle: [0.2, 0.8, 0] };
 }
 
 /** Explorador: um batedor só, com binóculo, rádio de antena alta e mochila leve. */

@@ -323,6 +323,7 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
   const seenBuildings = new Set<EntityId>();
   const visible = viewer ? sim.visibilityOf(viewer.slot) : null;
   const w = sim.map.width;
+  const intel = viewer ? sim.spyIntel(viewer.slot) : new Set<number>();
 
   for (const e of sim.entities.values()) {
     if (viewer && !sim.canSee(viewer.slot, e)) continue;
@@ -372,7 +373,8 @@ export function makeSnapshot(sim: Simulation, events: SimEvent[], viewer?: Viewe
         ...(own && e.research ? { research: { id: e.research.id, progress: r2(1 - e.research.remaining / e.research.total) } } : {}),
         ...(e.upgrade ? { upgrade: own ? { toLevel: e.upgrade.toLevel, progress: r2(e.upgrade.builtTicks / e.upgrade.totalTicks), spec: e.upgrade.spec } : { visible: true as const } } : {}),
         // fila e ponto de reunião de edifícios inimigos não são observáveis
-        queue: own ? e.queue.map((q) => ({ unitType: q.unitType, progress: r2(1 - q.remainingTicks / q.totalTicks) })) : [],
+        // espião (23/11): a fila das construções alheias que ele vigia vai para o dono do espião
+        queue: own || intel.has(e.id) ? e.queue.map((q) => ({ unitType: q.unitType, progress: r2(1 - q.remainingTicks / q.totalTicks) })) : [],
         rally: own && e.rally ? { x: r2(e.rally.x), y: r2(e.rally.y) } : null,
         ...(own && e.claims.length ? { claims: e.claims } : {}),
         ...(own ? ownBuildingDetail(sim, e) : {}),
@@ -777,6 +779,8 @@ function eventVisible(sim: Simulation, e: SimEvent, slot: Slot): boolean {
       return e.owner === slot || e.by === slot || sim.isVisibleTo(slot, e.pos);
     case 'dogfight':
       return e.owner === slot || e.victim === slot || sim.isVisibleTo(slot, e.from) || sim.isVisibleTo(slot, e.to);
+    case 'sabotage':
+      return e.owner === slot || e.victim === slot;
     case 'drone':
       // o lançamento só o dono vê; a explosão, quem estiver vendo o ponto
       return e.owner === slot || (e.phase !== 'launched' && sim.isVisibleTo(slot, e.pos));

@@ -8,7 +8,7 @@ import { countryBonus, type CountryBonus } from './countryBonus.ts';
 import { ERA_CANCEL_REFUND, ERAS, buildingEra, eraPhrase, type Era } from './eras.ts';
 import { ZONING, ZoneSystem, type ZoneSave, type ZoningHost } from './zoning.ts';
 import { MineSystem, type MineSave } from './mines.ts';
-import { POWER, POWER_DARK_RATE, POWER_GEN, POWER_USE, powerUse, solvePower, windFactor, type PowerNode } from './power.ts';
+import { POWER, POWER_DARK_RATE, POWER_GEN, POWER_USE, powerUse, solvePower, windFactor, type PowerNet, type PowerNode } from './power.ts';
 import { dayLight } from './climate.ts';
 import { CaravanSystem, roadNetwork, roadRing, type CaravanSave } from './caravans.ts';
 import { marketBuyQuote, marketQuote, marketRecover } from './market.ts';
@@ -25,6 +25,7 @@ import {
   PROJECT_FX,
   ROAD,
   TUNNEL_TERRAIN,
+  SPY,
   HIGHWAY,
   NAVAL,
   SPACE,
@@ -131,6 +132,8 @@ export interface PlayerPower {
   isolated: number;
   /** Carvão queimado por minuto no ritmo atual. */
   coalPerMin: number;
+  /** Cada rede separada (23/11): visão da rede e alerta de apagão no cliente (só o dono recebe). */
+  nets?: PowerNet[];
 }
 
 export const NEUTRAL_MODIFIERS: TacticalModifiers = {
@@ -1167,7 +1170,7 @@ export class Simulation {
     const hydro = this.hasProject(b.owner, 'hydro_dam') ? PROJECT_FX.hydroGatherMul : 1;
     const school = this.serviceCovers(b.owner, 'education', b.pos) ? SERVICES.educationGatherMul : 1;
     const road = this.roadLinked(b) ? ROAD.productionMul : 1;
-    return gatherRate(b.type, cells) * this.fx(b).rateMul * eff * (p.modifiers.gatherMul ?? 1) * (this.bonusOf(b.owner).gatherMul?.[def.gather.resource] ?? 1) * hydro * school * road * this.powerRate(b);
+    return gatherRate(b.type, cells) * this.fx(b).rateMul * eff * (p.modifiers.gatherMul ?? 1) * (def.gather.resource === 'food' ? (p.modifiers.foodGatherMul ?? 1) : 1) * (this.bonusOf(b.owner).gatherMul?.[def.gather.resource] ?? 1) * hydro * school * road * this.powerRate(b);
   }
 
   /**
@@ -1378,11 +1381,52 @@ export class Simulation {
   /** Entidade visível para o jogador: suas próprias, ou de outros em células visíveis (edifícios: qualquer célula). */
   canSee(slot: Slot, e: Entity): boolean {
     if (e.owner === slot) return true;
-    if (e.kind === 'unit') return this.isVisibleTo(slot, e.pos);
+    if (e.kind === 'unit') {
+      // espião (23/11): fora dos aliados, só quem está bem perto o vê (nem o satélite)
+      if (UNITS[e.type].stealth && !this.allied(slot, e.owner) && !this.spyDetected(slot, e)) return false;
+      return this.isVisibleTo(slot, e.pos);
+    }
     const vis = this.visibilityOf(slot);
     const size = BUILDINGS[e.type].size;
     for (let y = e.cell.cy; y < e.cell.cy + size; y++) for (let x = e.cell.cx; x < e.cell.cx + size; x++) if (vis[y * this.map.width + x] === 1) return true;
     return false;
+  }
+
+  private spySeen = new Map<string, boolean>();
+  private spySeenTick = -1;
+
+  /** O jogador `slot` tem tropa ou construção perto o bastante do espião para vê-lo (`SPY`; guardado por tick). */
+  spyDetected(slot: Slot, spy: Unit): boolean {
+    if (this.spySeenTick !== this.tick) {
+      this.spySeen.clear();
+      this.spySeenTick = this.tick;
+    }
+    const key = `${slot}:${spy.id}`;
+    const got = this.spySeen.get(key);
+    if (got !== undefined) return got;
+    const cs = this.map.cellSize;
+    let seen = false;
+    for (const e of this.entities.values()) {
+      if (e.owner !== slot || e.hp <= 0) continue;
+      const watch = e.kind === 'building' && (e.type === 'tower' || e.type === 'police_station') && e.progress >= 1;
+      const reach = (watch ? SPY.detectCellsWatch : SPY.detectCells) * cs + (e.kind === 'building' ? (BUILDINGS[e.type].size * cs) / 2 : 0);
+      if (dist(e.pos, spy.pos) <= reach) {
+        seen = true;
+        break;
+      }
+    }
+    this.spySeen.set(key, seen);
+    return seen;
+  }
+
+  /** Construções alheias com espião do jogador por perto (`SPY.intelCells`): a fila de produção delas vai no snapshot. */
+  spyIntel(slot: Slot): Set<number> {
+    const out = new Set<number>();
+    const spies = this.units.filter((u) => u.owner === slot && u.hp > 0 && UNITS[u.type].stealth);
+    if (!spies.length) return out;
+    const reach = SPY.intelCells * this.map.cellSize;
+    for (const b of this.buildings) if (b.owner !== slot && b.hp > 0 && spies.some((u) => this.distanceToEdge(u.pos, b) <= reach)) out.add(b.id);
+    return out;
   }
 
   entityRadius(e: Entity): number {
@@ -1421,15 +1465,17 @@ export class Simulation {
         const units = this.ownUnits(slot, cmd.unitIds, true);
         if (units.length === 0) return 'Nenhuma unidade válida';
         const tc = this.grid.worldToCell(this.clampToMap({ x: cmd.x, y: cmd.y }));
-        if (!this.canEnter(slot, tc.cx, tc.cy)) return 'Território de outra nação: sem guerra ou aliança não é possível entrar';
+        const spies = units.every((u) => UNITS[u.type].stealth);
+        if (!spies && !this.canEnter(slot, tc.cx, tc.cy)) return 'Território de outra nação: sem guerra ou aliança não é possível entrar';
         const forms = this.formationTargets(units, { x: cmd.x, y: cmd.y });
         units.forEach((u, i) => {
           // navio (03/11): destino na água mais perto; nunca "avança atacando" (não tem arma)
           const naval = !!UNITS[u.type].naval;
           this.grid.naval = naval;
           try {
-            const target = this.nearestEnterable(slot, forms[i]!) ?? forms[i]!;
+            const target = UNITS[u.type].stealth ? forms[i]! : (this.nearestEnterable(slot, forms[i]!) ?? forms[i]!);
             u.order = cmd.type === 'move' || naval ? { kind: 'move', target } : { kind: 'attackMove', target };
+            u.sabotage = undefined;
             u.engageId = null;
             u.replans = 0;
             if (!this.planPath(u, target)) u.order = { kind: 'idle' };
@@ -1852,6 +1898,20 @@ export class Simulation {
         return this.trade.buy(slot, cmd.listingId, cmd.mode);
       case 'trade_gift':
         return this.trade.gift(slot, cmd.to, cmd.items, cmd.mode);
+      case 'spy_sabotage': {
+        const u = this.entities.get(cmd.unitId);
+        if (!u || u.kind !== 'unit' || u.owner !== slot || u.hp <= 0 || !UNITS[u.type].stealth) return 'Espião inválido';
+        const t = this.entities.get(cmd.targetId);
+        if (!t || t.kind !== 'building' || t.hp <= 0 || !POWER_GEN[t.type]) return 'Escolha uma usina inimiga';
+        if (!this.hostile(slot, t.owner)) return 'Sabotagem só contra quem está em guerra com você';
+        if (!this.canSee(slot, t) && !this.isExplored(slot, t.cell.cx, t.cell.cy)) return 'Usina em área nunca explorada';
+        u.sabotage = { targetId: t.id, ticks: 0 };
+        u.engageId = null;
+        u.replans = 0;
+        u.order = { kind: 'move', target: { ...t.pos } };
+        if (!this.planPath(u, t.pos, t)) u.order = { kind: 'idle' };
+        return null;
+      }
       case 'aid_ally': {
         // KAC: o aliado é conferido aqui (a aliança vem da diplomacia, não do pedido)
         if (!this.allied(slot, cmd.ally) || this.players[cmd.ally]?.defeated) return 'Só dá para enviar tropas em auxílio a um aliado';
@@ -1964,6 +2024,34 @@ export class Simulation {
   }
 
   /** Avança as modernizações; a unidade fica parada até terminar. Instalação perdida cancela a obra. */
+  /**
+   * Sabotagem (23/11): o espião ao lado da usina inimiga (`SPY.sabotageCells`) por `sabotageSeconds` a desliga por
+   * `outageSeconds` e é consumido. Longe dela, o espião segue a ordem de ir até lá; usina caída ou paz, cancela.
+   */
+  private updateSpies(): void {
+    const cs = this.map.cellSize;
+    for (const u of this.units) {
+      const s = u.sabotage;
+      if (!s || u.hp <= 0) continue;
+      const t = this.entities.get(s.targetId);
+      if (!t || t.kind !== 'building' || t.hp <= 0 || !this.hostile(u.owner, t.owner)) {
+        u.sabotage = undefined;
+        continue;
+      }
+      if (this.distanceToEdge(u.pos, t) > SPY.sabotageCells * cs) {
+        s.ticks = 0;
+        continue;
+      }
+      if (u.order.kind !== 'idle') u.order = { kind: 'idle' };
+      s.ticks++;
+      if (s.ticks < SPY.sabotageSeconds * TICK_RATE) continue;
+      t.sabotagedUntil = this.tick + SPY.outageSeconds * TICK_RATE;
+      this.emit({ type: 'sabotage', tick: this.tick, owner: u.owner, victim: t.owner, buildingType: t.type, pos: { ...t.pos } });
+      u.hp = 0;
+      this.removeEntity(u);
+    }
+  }
+
   private updateRefits(): void {
     for (const u of this.units) {
       const r = u.refit;
@@ -2437,6 +2525,7 @@ export class Simulation {
     this.updateEras();
     this.updateSpace();
     this.updateRefits();
+    this.updateSpies();
     for (const p of this.players) {
       if (p.marketPressure) marketRecover(p.marketPressure);
       if (p.marketDemand) marketRecover(p.marketDemand);
@@ -2497,6 +2586,7 @@ export class Simulation {
   powerGen(b: Building): number {
     const g = POWER_GEN[b.type];
     if (!g || b.progress < 1 || b.hp <= 0 || b.unpaid) return 0;
+    if ((b.sabotagedUntil ?? 0) > this.tick) return 0; // sabotada por um espião (23/11)
     const seconds = this.tick / TICK_RATE;
     switch (g.source) {
       case 'coal':
@@ -2555,7 +2645,7 @@ export class Simulation {
         for (const h of hubs) coalPerSec += (POWER_GEN[h.type]?.coal ?? 0) * (h.gen > 0 ? (res.load.get(h.id) ?? 0) : 0);
         const prev = this.powerInfo[slot];
         const isolated = nodes.filter((n) => n.id >= 0 && (POWER_USE[n.type]?.stops || POWER_USE[n.type]?.slows) && res.isolated.has(n.id)).length;
-        this.powerInfo[slot] = { supply: Math.round(res.supply), demand: res.demand, served: res.served, dark, isolated, coalPerMin: Math.round(coalPerSec * 60 * 10) / 10 };
+        this.powerInfo[slot] = { supply: Math.round(res.supply), demand: res.demand, served: res.served, dark, isolated, coalPerMin: Math.round(coalPerSec * 60 * 10) / 10, nets: res.nets };
         this.litHomes[slot] = { homes, lit };
         // aviso de apagão: quando construções começam a parar por falta de luz
         if (dark > 0 && (prev?.dark ?? 0) === 0 && this.tick > TICK_RATE * 5)
@@ -4264,7 +4354,8 @@ export class Simulation {
   planPath(u: Unit, target: Vec2, building?: Building): boolean {
     const g = this.grid;
     const here = g.worldToCell(u.pos);
-    if (this.canEnter(u.owner, here.cx, here.cy)) g.blocker = (cx, cy) => !this.canEnter(u.owner, cx, cy);
+    // espião (23/11) entra em qualquer território: é a função dele
+    if (!UNITS[u.type].stealth && this.canEnter(u.owner, here.cx, here.cy)) g.blocker = (cx, cy) => !this.canEnter(u.owner, cx, cy);
     try {
       return this.planPathInner(u, target, building);
     } finally {
@@ -4352,7 +4443,7 @@ export class Simulation {
     if (burn > 0) {
       const p = this.players[u.owner]!;
       if (p.noFuel) speed *= FUEL.emptySpeedMul;
-      p.fuelAcc = (p.fuelAcc ?? 0) + Math.min(speed, d) * burn;
+      p.fuelAcc = (p.fuelAcc ?? 0) + Math.min(speed, d) * burn * (p.modifiers.fuelMul ?? 1);
     }
     if (d <= speed) {
       if (this.grid.isWorldPassable(wp)) u.pos = { x: wp.x, y: wp.y };

@@ -76,10 +76,21 @@ export interface TreasuryDay {
 
 export function treasuryDay(
   inputs: TreasuryInputs | null,
-  ctx: { scale: number; productivity: number; tradeGrowthPct: number; trade?: { inUsd: number; outUsd: number; freightUsd: number }; areas?: Areas; incomeMul?: number; extra?: TreasuryLine[] },
+  ctx: {
+    scale: number;
+    productivity: number;
+    tradeGrowthPct: number;
+    trade?: { inUsd: number; outUsd: number; freightUsd: number };
+    areas?: Areas;
+    incomeMul?: number;
+    extra?: TreasuryLine[];
+    /** Evento global (23/11): preço de cada recurso e custo da energia. */
+    priceMul?: Partial<Record<ResourceType, number>>;
+    energyMul?: number;
+  },
 ): TreasuryDay {
   const k = ctx.scale;
-  const sumProd = inputs ? Object.entries(inputs.production).reduce((a, [r, v]) => a + (v ?? 0) * TREASURY.price[r as ResourceType], 0) : 0;
+  const sumProd = inputs ? Object.entries(inputs.production).reduce((a, [r, v]) => a + (v ?? 0) * TREASURY.price[r as ResourceType] * (ctx.priceMul?.[r as ResourceType] ?? 1), 0) : 0;
   const production = sumProd * k * (ctx.incomeMul ?? 1);
   const income: TreasuryLine[] = [
     { key: 'production', label: 'Produção (fazendas, coletas e indústrias)', usd: production },
@@ -104,7 +115,7 @@ export function treasuryDay(
   const expense: TreasuryLine[] = inputs
     ? [
         { key: 'army', label: 'Manutenção do exército', usd: (inputs.infantry * TREASURY.infantry + inputs.vehicles * TREASURY.vehicle + inputs.aircraft * TREASURY.aircraft) * k },
-        { key: 'energy', label: 'Energia consumida', usd: inputs.energy * TREASURY.energy * k },
+        { key: 'energy', label: 'Energia consumida', usd: inputs.energy * TREASURY.energy * k * (ctx.energyMul ?? 1) },
         { key: 'buildings', label: a ? `Manutenção das construções (infraestrutura ${a.infrastructure}%)` : 'Manutenção das construções', usd: inputs.buildingCells * TREASURY.buildingPerCell * k * infra },
         { key: 'roads', label: a ? `Manutenção das estradas (infraestrutura ${a.infrastructure}%)` : 'Manutenção das estradas', usd: inputs.roads * TREASURY.road * k * infra },
       ]

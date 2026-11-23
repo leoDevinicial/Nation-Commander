@@ -141,6 +141,8 @@ export interface RoomInfo {
   name?: string;
   /** Como se vence (16/11): por eliminação ou também por domínio territorial (padrão). */
   victoryMode?: VictoryMode;
+  /** Eventos globais ligados (23/11). */
+  globalEvents?: boolean;
 }
 
 /** `territory`: vence quem eliminar os outros ou dominar o território; `elimination`: só eliminando. */
@@ -244,7 +246,7 @@ export type ClientMessage =
   | { t: 'set_balance'; mode: BalanceMode }
   | { t: 'set_difficulty'; difficulty: Difficulty }
   /** Anfitrião: número de nações da sala e tipo de mapa. */
-  | { t: 'set_room'; maxPlayers?: number; mapType?: MapType | 'random'; isPublic?: boolean; name?: string; victoryMode?: VictoryMode }
+  | { t: 'set_room'; maxPlayers?: number; mapType?: MapType | 'random'; isPublic?: boolean; name?: string; victoryMode?: VictoryMode; globalEvents?: boolean }
   | { t: 'add_bot' }
   | { t: 'remove_bot'; slot: Slot }
   /** Anfitrião: país de um bot (ou sorteado entre os livres). */

@@ -5,7 +5,10 @@ import { researchBlocker, techKnowledge, TECH_IDS, type TechId } from './technol
 
 /** Conhecimento que a IA não gasta na pesquisa nacional (fica para as pesquisas militares do teatro). */
 const AI_KNOWLEDGE_RESERVE = 20;
-import { DIPLO, type DiplomaticAction } from './Diplomacy.ts';
+import { DIPLO, MONEY_GIFT, type DiplomaticAction } from './Diplomacy.ts';
+
+/** Ajuda da IA a aliados (23/11): socorre quem tem menos de 40% do caixa dela, com 15% do caixa por revisão. */
+export const AI_ALLY_AID = { poorShare: 0.4, giveShare: 0.15 };
 import type { DecreeId } from './policies.ts';
 import { INFRA_GATE_MIN } from '../sim/upgrades.ts';
 
@@ -183,6 +186,17 @@ export class NationalAI {
       const rel = d.relation(me, npc.slot);
       if (rel >= 55 && !d.active('alliance', me, npc.slot)) out.push({ type: 'propose', treaty: 'alliance', partner: npc.slot });
       if (rel >= 45) for (const e of enemies) if (d.knows(npc.slot, e.slot) && !d.active('sanctions', npc.slot, e.slot, true)) out.push({ type: 'request_sanctions', partner: npc.slot, target: e.slot });
+    }
+    // aliado do mapa em guerra e com o caixa bem menor que o nosso (23/11): manda dinheiro (até 15% do caixa por mês)
+    const mine = sim.nation(me);
+    if (mine) {
+      for (const ally of sim.nations) {
+        if (ally.slot === me || !d.inTheater(me, ally.slot) || !d.active('alliance', me, ally.slot)) continue;
+        const allyAtWar = sim.nations.some((x) => x.slot !== ally.slot && d.atWar(ally.slot, x.slot));
+        if (!allyAtWar || ally.works.fundUsd >= mine.works.fundUsd * AI_ALLY_AID.poorShare) continue;
+        const usd = Math.floor(mine.works.fundUsd * AI_ALLY_AID.giveShare);
+        if (usd >= MONEY_GIFT.minUsd) out.push({ type: 'send_money', partner: ally.slot, usd });
+      }
     }
     return out;
   }

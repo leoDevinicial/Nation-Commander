@@ -625,6 +625,25 @@ describe('salas públicas', () => {
     expect(rooms.get(code)!.sim!.territoryVictory).toBe(false);
   });
 
+  it('eventos globais (23/11): ligados por padrão; só o anfitrião desliga e a partida começa sem eles', async () => {
+    const { send, rooms } = setup();
+    const host = fakeConn();
+    const guest = fakeConn();
+    await send(host.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-ana' });
+    await send(guest.conn, { t: 'hello', protocol: PROTOCOL_VERSION, token: 'ok-beto' });
+    await send(host.conn, { t: 'create_room', mode: 'pvp', countryId: COUNTRIES[0]!.id });
+    const code = host.last('room')!.room!.code;
+    expect(host.last('room')!.room!.globalEvents).toBe(true);
+    await send(guest.conn, { t: 'join_room', code, countryId: COUNTRIES[1]!.id });
+    await send(guest.conn, { t: 'set_room', globalEvents: false });
+    expect(guest.last('room')!.room!.globalEvents).toBe(true);
+    await send(host.conn, { t: 'set_room', globalEvents: false });
+    expect(guest.last('room')!.room!.globalEvents).toBe(false);
+    await send(guest.conn, { t: 'set_ready', ready: true });
+    await send(host.conn, { t: 'start' });
+    expect(rooms.get(code)!.national!.globalEvents.on).toBe(false);
+  });
+
   it('só salas multijogador podem ser públicas', async () => {
     const { send } = setup();
     const a = fakeConn();

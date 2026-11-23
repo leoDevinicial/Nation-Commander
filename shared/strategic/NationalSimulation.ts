@@ -1,3 +1,4 @@
+import { globalFx, newGlobalEvents, stepGlobalEvents, type GlobalEventId, type GlobalEventState } from './globalEvents.ts';
 import { TREASURY, treasuryDay, type TreasuryDay, type TreasuryInputs } from './treasury.ts';
 import { AREA_FX, AREA_KEYS, AREA_LABEL, averageTax, clampAreas, level, taxApproval, type AreaKey, type Areas } from './areas.ts';
 import { Random } from '../sim/Random.ts';
@@ -263,6 +264,8 @@ export interface NationState {
 
 export type NationalEvent =
   | { type: 'research_completed'; day: number; slot: Slot; techId: TechId }
+  /** Evento global (23/11): começou ou acabou, para todas as nações. */
+  | { type: 'global_event'; day: number; id: GlobalEventId; phase: 'start' | 'end'; endDay: number }
   | { type: 'protest'; day: number; slot: Slot; approval: number; causes: Factor[] }
   | { type: 'threshold'; day: number; slot: Slot; indicator: 'inflation' | 'approval' | 'growth'; value: number; threshold: number; direction: 'up' | 'down' }
   | { type: 'budget_changed'; day: number; slot: Slot; deficitPctGdp: number }
@@ -296,6 +299,9 @@ export interface NationalSave {
   /** Lançamentos nucleares (choque econômico global). */
   shocks?: { day: number; by: number }[];
   satellites?: number[];
+  /** Eventos globais (23/11) e o sorteio deles. */
+  globalEvents?: GlobalEventState;
+  globalRng?: number;
   nations: NationState[];
   npcs: NationState[];
   events: NationalEvent[];
@@ -313,6 +319,9 @@ export class NationalSimulation {
   readonly npcs: NationState[];
   readonly diplomacy: Diplomacy;
   private readonly rng: Random;
+  /** Eventos globais (23/11): o anfitrião liga na sala; sorteio próprio, para não mexer no resto da partida. */
+  globalEvents: GlobalEventState = newGlobalEvents(false);
+  private globalRng: Random;
   private events: NationalEvent[] = [];
   private theater: TheaterLink | null = null;
   /** Lançamentos nucleares da partida (dia e autor). */
@@ -330,6 +339,7 @@ export class NationalSimulation {
     // 16/11: "Escala real" saiu do jogo; salvamentos antigos com ela voltam em paridade
     void mode;
     this.rng = new Random(seed ^ 0x5bd1e995);
+    this.globalRng = new Random(seed ^ 0x2c1b3c6d);
     // 16/11: as nações do mapa começam iguais (sem PIB, impostos ou gastos reais); os países de fora seguem com os
     // dados reais só para o tamanho relativo na diplomacia
     this.nations = players.map((p) => createNation(p.slot, p.countryId, true));
@@ -462,6 +472,8 @@ export class NationalSimulation {
           diplomacy: this.diplomacy.toSave(),
           ...(this.shocks.length ? { shocks: this.shocks } : {}),
           ...(this.satellites.length ? { satellites: this.satellites } : {}),
+          globalEvents: this.globalEvents,
+          globalRng: this.globalRng.seedState,
         },
         encodeNonFinite,
       ),
@@ -480,6 +492,8 @@ export class NationalSimulation {
     this.events = c.events;
     this.shocks = c.shocks ?? [];
     this.satellites = c.satellites ?? [];
+    if (c.globalEvents) this.globalEvents = c.globalEvents;
+    if (c.globalRng !== undefined) this.globalRng = new Random(c.globalRng);
     this.diplomacy.load(c.diplomacy);
   }
 
@@ -587,7 +601,7 @@ export class NationalSimulation {
       if (e.type === 'protest') return knows(e.slot);
       if (e.type === 'operation') return e.slot === viewer || e.target === viewer || (knows(e.slot) && knows(e.target));
       if (e.type === 'military_strike') return e.slot === viewer || e.victim === viewer || (knows(e.slot) && knows(e.victim));
-      if (e.type === 'nuclear_shock' || e.type === 'satellite') return true;
+      if (e.type === 'nuclear_shock' || e.type === 'satellite' || e.type === 'global_event') return true;
       if (e.type !== 'diplomacy') return e.slot === viewer;
       const ev = e.event;
       switch (ev.type) {
@@ -911,6 +925,9 @@ export class NationalSimulation {
 
   stepDay(): void {
     this.day++;
+    const ge = stepGlobalEvents(this.globalEvents, this.day, () => this.globalRng.next());
+    if (ge.started) this.events.push({ type: 'global_event', day: this.day, id: ge.started, phase: 'start', endDay: this.globalEvents.active?.endDay ?? this.day });
+    if (ge.ended) this.events.push({ type: 'global_event', day: this.day, id: ge.ended, phase: 'end', endDay: this.day });
     this.diplomacy.stepDay(this.day);
     for (const n of this.nations) this.stepNation(n);
     for (const n of this.npcs) this.stepNation(n);
@@ -1287,6 +1304,9 @@ export class NationalSimulation {
       scale: 1,
       productivity: clamp(n.infrastructureIndex * n.humanCapitalIndex - 1, -0.4, 0.6),
       tradeGrowthPct: diplo.trade,
+      // evento global (23/11): preços no caixa e custo da energia
+      priceMul: globalFx(this.globalEvents).priceMul,
+      energyMul: globalFx(this.globalEvents).energyCostMul,
       // sanções sofridas: cada ponto de "crescimento" perdido tira 10% da receita (até 40%)
       // decretos com inflação (economia de guerra): cada ponto tira 5% da receita
       incomeMul: this.incomeMul(n) * (1 - Math.min(0.4, Math.max(0, -diplo.sanctions) * 0.1)) * (1 - 0.05 * Math.max(0, policyEffects(n.policies).inflation)),

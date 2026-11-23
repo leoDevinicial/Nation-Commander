@@ -170,3 +170,19 @@ describe('eólica e solar com níveis (23/11)', () => {
     }
   });
 });
+
+describe('redes separadas (23/11)', () => {
+  it('cada pedaço de estrada é uma rede com a sua geração, consumo e quem ficou sem luz', () => {
+    const plant = { id: 1, type: 'coal_plant' as const, cx: 0, cy: 0, size: 2, gen: 5, use: 0 };
+    const a = { id: 2, type: 'barracks' as const, cx: 3, cy: 0, size: 2, gen: 0, use: 3 };
+    const b = { id: 3, type: 'factory' as const, cx: 5, cy: 0, size: 2, gen: 0, use: 6 };
+    // rede 1: estrada perto da usina; rede 2: estrada solta longe, com uma consumidora e sem usina
+    const far = { id: 4, type: 'barracks' as const, cx: 30, cy: 30, size: 2, gen: 0, use: 3 };
+    const res = solvePower(40, 40, [2 * 40 + 2, 2 * 40 + 3, 30 * 40 + 28], [plant], [a, b, far]);
+    expect(res.nets).toHaveLength(2);
+    const main = res.nets.find((n) => n.supply > 0)!;
+    expect(main).toMatchObject({ supply: 5, demand: 9, served: 3, dark: 1 });
+    const lonely = res.nets.find((n) => n.supply === 0)!;
+    expect(lonely).toMatchObject({ demand: 3, served: 0, dark: 1 });
+  });
+});

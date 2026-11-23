@@ -611,7 +611,7 @@ export class BuildingVisual {
  * Placa de nome (sprite com textura de texto): faixa escura translúcida com o nome em branco e um
  * filete na cor da nação; a capital ganha uma estrela. Tamanho fixo no mundo (some ao longe).
  */
-function nameTag(text: string, color: THREE.ColorRepresentation, capital: boolean): THREE.Sprite {
+export function nameTag(text: string, color: THREE.ColorRepresentation, capital: boolean): THREE.Sprite {
   const label = capital ? `★ ${text}` : text;
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');

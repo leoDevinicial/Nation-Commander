@@ -9,6 +9,7 @@ import { MenuScreen } from '../ui/screens/MenuScreen.tsx';
 import { RoomsScreen } from '../ui/screens/RoomsScreen.tsx';
 import { FeedbackScreen } from '../ui/screens/FeedbackScreen.tsx';
 import { CommunityScreen } from '../ui/screens/CommunityScreen.tsx';
+import { RankingScreen } from '../ui/screens/RankingScreen.tsx';
 import { ProfileScreen } from '../ui/screens/ProfileScreen.tsx';
 import { SettingsScreen } from '../ui/screens/SettingsScreen.tsx';
 import { Toasts } from '../ui/components/Toasts.tsx';
@@ -41,6 +42,7 @@ export function App() {
       {screen === 'rooms' && show && <RoomsScreen />}
       {screen === 'feedback' && show && <FeedbackScreen />}
       {screen === 'community' && show && <CommunityScreen />}
+      {screen === 'ranking' && show && <RankingScreen />}
       {intro !== 'off' && <IntroOverlay />}
       <Toasts />
     </>
