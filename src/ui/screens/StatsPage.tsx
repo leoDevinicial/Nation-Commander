@@ -50,6 +50,8 @@ interface MatchPlayer {
   result: string;
   /** E-mail da conta (11/11; só jogadores com conta). */
   email?: string;
+  /** Números gravados no fim da partida (24/11; só nas partidas do banco). */
+  stats?: { gathered: number; spent: number; built: number; structuresLost: number; destroyed: number; produced: number; unitsLost: number; kills: number; damage: number };
 }
 interface AccountRow {
   email: string | null;
@@ -86,7 +88,7 @@ interface RegionDetails {
   recent: RecentMatch[];
   db: {
     feedback: FeedbackRow[] | null;
-    matches: { ended_at: string; duration_seconds: number; mode: string; end_reason: string; players: MatchPlayer[] }[] | null;
+    matches: { ended_at: string; duration_seconds: number; mode: string; end_reason: string; room?: string; players: MatchPlayer[] }[] | null;
     accounts?: AccountRow[] | null;
     error?: string;
   };
@@ -284,6 +286,8 @@ export function StatsPage() {
   );
 }
 
+const n = (v: number) => Math.round(v).toLocaleString('pt-BR');
+
 function Players({ players }: { players: MatchPlayer[] }) {
   return (
     <span className="flex flex-wrap gap-x-3 gap-y-0.5">
@@ -297,6 +301,11 @@ function Players({ players }: { players: MatchPlayer[] }) {
             {p.guest ? ' · convidado' : ''}
           </span>
           {p.email && <span className="ml-1 text-[10px] text-sky-300">{p.email}</span>}
+          {p.stats && (
+            <span className="block text-[10px] text-ink-400 nc-num">
+              {`coletou ${n(p.stats.gathered)} · gastou ${n(p.stats.spent)} · construiu ${n(p.stats.built)} (perdeu ${n(p.stats.structuresLost)}, destruiu ${n(p.stats.destroyed)}) · tropas ${n(p.stats.produced)} (perdeu ${n(p.stats.unitsLost)}, abateu ${n(p.stats.kills)}) · dano ${n(p.stats.damage)}`}
+            </span>
+          )}
         </span>
       ))}
     </span>
@@ -399,6 +408,7 @@ function DetailsPanels({ details }: { details: Details[] }) {
                       </td>
                       <td className="py-1.5 text-ink-400">
                         {MODE[m.mode] ?? m.mode} · {REASON[m.end_reason] ?? m.end_reason}
+                        {m.room ? ` · sala ${m.room}` : ''}
                       </td>
                     </tr>
                   ))}

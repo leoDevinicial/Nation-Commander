@@ -149,7 +149,21 @@ export interface DbMatchRow {
   duration_seconds: number;
   mode: string;
   end_reason: string;
-  players: { name: string; ai: boolean; country: string; result: string; email?: string }[];
+  room?: string;
+  players: { name: string; ai: boolean; country: string; result: string; email?: string; stats?: MatchPlayerStats }[];
+}
+
+/** Números de cada jogador gravados no fim da partida (24/11, pedido do responsável: "recursos coletados, construções feitas"). */
+export interface MatchPlayerStats {
+  gathered: number;
+  spent: number;
+  built: number;
+  structuresLost: number;
+  destroyed: number;
+  produced: number;
+  unitsLost: number;
+  kills: number;
+  damage: number;
 }
 
 /** Conta registrada (11/11, só na chave de detalhes): para o responsável ver se é jogador de verdade ou cadastro falso. */
@@ -192,7 +206,9 @@ export class DbDetailsCache {
         sb.from('feedback').select('id, created_at, user_id, display_name, guest, category, rating, message, game_version').order('created_at', { ascending: false }).limit(this.limits.feedback),
         sb
           .from('matches')
-          .select('ended_at, duration_seconds, mode, end_reason, match_players(player_id, display_name, is_ai, country_id, result, slot)')
+          .select(
+            'ended_at, duration_seconds, mode, end_reason, room_code, match_players(player_id, display_name, is_ai, country_id, result, slot, resources_gathered, resources_spent, structures_built, structures_lost, structures_destroyed, units_produced, units_lost, units_killed, damage_dealt)',
+          )
           .order('ended_at', { ascending: false })
           .limit(this.limits.matches),
         listAllUsers(sb),
@@ -223,16 +239,50 @@ export class DbDetailsCache {
             .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
             .slice(0, this.limits.accounts)
         : null;
-      type Mp = { player_id: string | null; display_name: string; is_ai: boolean; country_id: string; result: string; slot: number };
+      type Mp = {
+        player_id: string | null;
+        display_name: string;
+        is_ai: boolean;
+        country_id: string;
+        result: string;
+        slot: number;
+        resources_gathered: number;
+        resources_spent: number;
+        structures_built: number;
+        structures_lost: number;
+        structures_destroyed: number;
+        units_produced: number;
+        units_lost: number;
+        units_killed: number;
+        damage_dealt: number;
+      };
       const matches = mt.data
-        ? (mt.data as unknown as (Omit<DbMatchRow, 'players'> & { match_players: Mp[] | null })[]).map((m) => ({
+        ? (mt.data as unknown as (Omit<DbMatchRow, 'players' | 'room'> & { room_code: string; match_players: Mp[] | null })[]).map((m) => ({
             ended_at: m.ended_at,
+            room: m.room_code,
             duration_seconds: m.duration_seconds,
             mode: m.mode,
             end_reason: m.end_reason,
             players: [...(m.match_players ?? [])]
               .sort((a, b) => a.slot - b.slot)
-              .map((p) => ({ name: p.display_name, ai: p.is_ai, country: p.country_id, result: p.result, ...(p.player_id && emails.has(p.player_id) ? { email: emails.get(p.player_id)! } : {}) })),
+              .map((p) => ({
+                name: p.display_name,
+                ai: p.is_ai,
+                country: p.country_id,
+                result: p.result,
+                ...(p.player_id && emails.has(p.player_id) ? { email: emails.get(p.player_id)! } : {}),
+                stats: {
+                  gathered: p.resources_gathered,
+                  spent: p.resources_spent,
+                  built: p.structures_built,
+                  structuresLost: p.structures_lost,
+                  destroyed: p.structures_destroyed,
+                  produced: p.units_produced,
+                  unitsLost: p.units_lost,
+                  kills: p.units_killed,
+                  damage: p.damage_dealt,
+                },
+              })),
           }))
         : null;
       const value: DbDetails = {

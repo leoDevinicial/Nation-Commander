@@ -66,7 +66,7 @@ describe('Painel /stats', () => {
   it('detalhes (11/11): contas com e-mail, partidas e feedbacks contados; e-mail nos jogadores e nos feedbacks', async () => {
     const rows: Record<string, unknown[]> = {
       feedback: [{ id: 1, created_at: '2026-11-10T10:00:00Z', user_id: 'u1', display_name: 'Ana', guest: false, category: 'bug', rating: 5, message: 'oi', game_version: '1' }],
-      matches: [{ ended_at: '2026-11-10T11:00:00Z', duration_seconds: 600, mode: 'vs_ai', end_reason: 'hq_destroyed', match_players: [{ player_id: 'u1', display_name: 'Ana', is_ai: false, country_id: 'BRA', result: 'win', slot: 0 }] }],
+      matches: [{ ended_at: '2026-11-10T11:00:00Z', duration_seconds: 600, mode: 'vs_ai', end_reason: 'hq_destroyed', room_code: 'TG7WU', match_players: [{ player_id: 'u1', display_name: 'Ana', is_ai: false, country_id: 'BRA', result: 'win', slot: 0, resources_gathered: 5200, resources_spent: 4800, structures_built: 31, structures_lost: 2, structures_destroyed: 5, units_produced: 40, units_lost: 12, units_killed: 18, damage_dealt: 9000 }] }],
       profiles: [
         { id: 'u1', username: 'ana', display_name: 'Ana' },
         { id: 'u2', username: 'bot123', display_name: null },
@@ -91,6 +91,9 @@ describe('Painel /stats', () => {
     expect(db.feedback![0]).toMatchObject({ email: 'ana@exemplo.com' });
     expect(db.feedback![0]).not.toHaveProperty('user_id');
     expect(db.matches![0]!.players[0]).toMatchObject({ name: 'Ana', email: 'ana@exemplo.com' });
+    // 24/11: números de cada jogador e a sala, para o painel
+    expect(db.matches![0]!.room).toBe('TG7WU');
+    expect(db.matches![0]!.players[0]!.stats).toMatchObject({ gathered: 5200, built: 31, kills: 18 });
     expect(db.emails?.get('u1')).toBe('ana@exemplo.com');
   });
 
