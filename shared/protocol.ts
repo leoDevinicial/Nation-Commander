@@ -264,7 +264,39 @@ export type ClientMessage =
    * Resultado de uma partida contra a IA que rodou no navegador (22/11, `server/local/`): o servidor confere a forma e
    * grava no histórico como partida local (sem a garantia do anticheat; a partida contra a IA não é competitiva).
    */
-  | { t: 'local_match'; id: string; rec: unknown };
+  | { t: 'local_match'; id: string; rec: unknown }
+  /**
+   * Partidas salvas (24/11, `docs/PARTIDAS_SALVAS.md`): salvar e sair (contra a IA na hora; entre humanos, todos
+   * aceitam), listar, retomar e apagar.
+   */
+  | { t: 'suspend'; action: 'request' | 'accept' | 'decline' }
+  | { t: 'saved_list' }
+  | { t: 'saved_resume'; code: string }
+  | { t: 'saved_delete'; code: string };
+
+/** Partida salva para continuar depois (lista do menu). */
+export interface SavedMatchInfo {
+  code: string;
+  mode: RoomMode;
+  savedAt: number;
+  /** Dia do cenário quando foi salva. */
+  day: number;
+  players: { name: string; countryId: string; isAI: boolean; me?: boolean }[];
+  /** Já reaberta por outro comandante e esperando os demais. */
+  waiting?: boolean;
+}
+
+/** Regras das partidas salvas. */
+export const SAVED_MATCHES = {
+  /** Uma partida salva vale por 30 dias. */
+  maxAgeMs: 30 * 24 * 60 * 60_000,
+  /** Partidas salvas por jogador. */
+  maxPerUser: 5,
+  /** Prazo para os outros comandantes aceitarem salvar. */
+  voteMs: 30_000,
+  /** Reaberta: prazo para todos os comandantes voltarem antes de ela ser salva de novo. */
+  waitMs: 10 * 60_000,
+} as const;
 
 export type ServerMessage =
   | { t: 'welcome'; user: PublicUser; serverVersion: string }
@@ -273,6 +305,16 @@ export type ServerMessage =
   | { t: 'error'; code: string; message: string }
   | { t: 'room'; room: RoomInfo | null }
   | { t: 'room_list'; rooms: PublicRoomSummary[] }
+  /** Partidas salvas (24/11). */
+  | { t: 'saved_list'; items: SavedMatchInfo[] }
+  /** Um comandante pediu para salvar e sair: faltam os nomes em `waiting` aceitarem. */
+  | { t: 'suspend_vote'; by: string; waiting: string[]; secondsLeft: number }
+  /** Votação encerrada sem salvar (recusa ou prazo). */
+  | { t: 'suspend_vote_end'; reason: string }
+  /** A partida foi salva e a sala fechada: volta ao menu. */
+  | { t: 'suspended'; code: string }
+  /** Outro comandante reabriu uma partida salva de que você participa. */
+  | { t: 'saved_invite'; code: string; by: string }
   | { t: 'feedback_ok' }
   /** Resultado da partida local recebido (o navegador apaga a cópia guardada). */
   | { t: 'local_match_ok'; id: string }

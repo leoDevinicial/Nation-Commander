@@ -126,4 +126,37 @@ describe('servidor local (partida contra a IA no navegador)', () => {
     expect(e.records[0]!.mode).toBe('vs_ai');
     expect(e.records[0]!.players.find((p) => !p.is_ai)?.player_id).toBe('uuid-da-conta');
   });
+
+  it('salvar e sair (24/11): a partida contra a IA vai para o aparelho e reabre depois, num servidor local novo', async () => {
+    const store = new MemoryMatchStore();
+    const e = setup({ store });
+    e.server.open(1);
+    e.send(1, hello());
+    await e.flush();
+    e.send(1, { t: 'create_room', mode: 'vs_ai', countryId: 'BRA' });
+    await e.flush();
+    e.send(1, { t: 'start' });
+    await e.flush();
+    const r = e.room();
+    for (let i = 0; i < 40; i++) r.advance();
+    const code = r.code;
+    const tick = r.tick;
+    e.send(1, { t: 'suspend', action: 'request' });
+    await e.flush();
+    await e.flush();
+    expect(e.last(1, 'suspended')?.code).toBe(code);
+    expect([...store.rows.keys()]).toEqual([`~${code}`]);
+
+    // outro dia: página nova, servidor local novo, mesma loja
+    const f = setup({ store });
+    f.server.open(1);
+    f.send(1, hello());
+    await f.flush();
+    expect(f.last(1, 'room')?.room).toBeNull();
+    f.send(1, { t: 'saved_resume', code });
+    await f.flush();
+    await f.flush();
+    expect(f.last(1, 'room')?.room?.status).toBe('playing');
+    expect(f.room().tick).toBe(tick);
+  });
 });

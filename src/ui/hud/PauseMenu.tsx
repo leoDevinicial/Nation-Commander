@@ -5,7 +5,7 @@ import { useAppStore } from '../../state/useAppStore.ts';
 import { AudioSettings } from '../components/AudioSettings.tsx';
 import { SettingsForm } from '../screens/SettingsScreen.tsx';
 import { Frame } from '../components/Frame.tsx';
-import { ArrowLeft, Flag, Pause, Play, Settings, Volume2 } from 'lucide-react';
+import { ArrowLeft, Flag, Pause, Play, Save, Settings, Volume2 } from 'lucide-react';
 
 export function PauseMenu({ runtime, onClose }: { runtime: GameRuntime; onClose: () => void }) {
   const [confirm, setConfirm] = useState(false);
@@ -67,6 +67,22 @@ export function PauseMenu({ runtime, onClose }: { runtime: GameRuntime; onClose:
             <Settings size={16} aria-hidden /> Opções
           </button>
           {mode === 'pvp' && <p className="text-xs text-ink-400">Em partidas multijogador, qualquer jogador pode pausar ou retomar.</p>}
+          {mode && mode !== 'tutorial' && (
+            <>
+              <button
+                className="btn w-full"
+                onClick={() => {
+                  gameClient.send({ t: 'suspend', action: 'request' });
+                  if (mode === 'pvp') onClose();
+                }}
+              >
+                <Save size={16} aria-hidden /> {mode === 'pvp' ? 'Propor salvar e sair' : 'Salvar e sair'}
+              </button>
+              <p className="text-xs text-ink-400">
+                {mode === 'pvp' ? 'Todos os comandantes precisam aceitar. Depois, continuem pelo menu em "Partidas salvas".' : 'Continue depois pelo menu, em "Partidas salvas" (vale por 30 dias).'}
+              </p>
+            </>
+          )}
           {!confirm ? (
             <button className="btn btn-danger w-full" onClick={() => setConfirm(true)}>
               <Flag size={16} aria-hidden /> Render-se

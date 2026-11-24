@@ -138,6 +138,11 @@ Commits e push na branch de trabalho podem (e devem) acontecer a cada entrega, s
 
 ## 0.4 O que mudou desde 31/10 (mais recente primeiro; detalhes no `git log` e nas docs citadas)
 
+**24/11 — 1.7.0, "Salvar e sair":** pedido dos jogadores no feedback. Menu de pausa → salvar (contra a IA na hora;
+entre humanos, votação com todos), lista "Partidas salvas" no menu, reaberta pausada até todos voltarem. Chave
+`~CÓDIGO` na mesma loja das partidas em andamento (sem migração no Supabase). Detalhes em `docs/PARTIDAS_SALVAS.md`.
+Também: painel de números com coleta, construções e tropas de cada jogador nas partidas do banco.
+
 **22/11 — 1.5.4 a 1.6.0:** reconexão que tirava da conta (o `view` antes do `hello`), tela preta (seletores do zustand com
 `?? []`), trajetórias de mísseis e aviões no navegador (`docs/knps/KNPS_TRAJETORIAS.md`), separação das unidades 28% mais
 barata (hash igual) e a **partida contra a IA no navegador** (`docs/PARTIDA_LOCAL.md`).

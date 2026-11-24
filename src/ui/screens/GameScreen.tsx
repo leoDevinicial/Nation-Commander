@@ -33,6 +33,7 @@ import { battleSnapshotBuffer, useOpsStore } from '../../state/useOpsStore.ts';
 import { OperationalMap } from '../geo/OperationalMap.tsx';
 import { ToolWheel } from '../hud/ToolWheel.tsx';
 import { PowerAlert } from '../hud/PowerAlert.tsx';
+import { SuspendVote } from '../hud/SuspendVote.tsx';
 import { setInMatch, useGfxHealth } from '../../lib/clientDiag.ts';
 import { BattleBar, BattleLoading, BattlePrompt, OperationChip, OutcomeDialog } from '../hud/BattleHud.tsx';
 
@@ -297,6 +298,7 @@ export function GameScreen() {
           {globeMounted && <GlobePanel visible={globeOpen} onClose={() => useNationalStore.getState().closeGlobe()} />}
           <EventLog />
           <WorldAlerts />
+          <SuspendVote />
           {!globeOpen && (
             // HUD compacta (21/11): minimapa à esquerda, cartão da seleção ao lado (só com algo selecionado) e a roda de
             // ferramentas no canto direito (a folga à direita é dela)

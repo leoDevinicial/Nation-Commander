@@ -1,4 +1,5 @@
 import type { MatchStore, StoredMatch } from '../matchStore.ts';
+import { isSuspendedKey } from '../savedKeys.ts';
 
 /**
  * Salvamento da partida local no IndexedDB do aparelho (22/11): recarregar a página ou fechar e abrir o navegador
@@ -67,8 +68,22 @@ export class IdbMatchStore implements MatchStore {
   async findByUser(userId: string): Promise<StoredMatch | null> {
     const rows = await this.run('readonly', (s) => s.getAll()).catch(() => [] as Row[]);
     let best: StoredMatch | null = null;
-    for (const r of rows) if (r.userIds.includes(userId) && (!best || r.updatedAt > best.updatedAt)) best = { code: r.code, blob: r.blob, updatedAt: r.updatedAt };
+    for (const r of rows) if (!isSuspendedKey(r.code) && r.userIds.includes(userId) && (!best || r.updatedAt > best.updatedAt)) best = { code: r.code, blob: r.blob, updatedAt: r.updatedAt };
     return best;
+  }
+
+  async listSuspended(userId: string): Promise<StoredMatch[]> {
+    const rows = await this.run('readonly', (s) => s.getAll()).catch(() => [] as Row[]);
+    return rows
+      .filter((r) => isSuspendedKey(r.code) && r.userIds.includes(userId))
+      .map((r) => ({ code: r.code, blob: r.blob, updatedAt: r.updatedAt }))
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  async get(key: string): Promise<(StoredMatch & { userIds: string[] }) | null> {
+    const rows = await this.run('readonly', (s) => s.getAll()).catch(() => [] as Row[]);
+    const r = rows.find((x) => x.code === key);
+    return r ? { code: key, blob: r.blob, updatedAt: r.updatedAt, userIds: [...r.userIds] } : null;
   }
 
   async remove(code: string): Promise<void> {

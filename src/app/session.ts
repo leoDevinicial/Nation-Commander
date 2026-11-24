@@ -8,6 +8,8 @@ import { screenAfterLogin } from '../ui/manual.ts';
 import { applyNationalMessage, useNationalStore } from '../state/useNationalStore.ts';
 import { applyOpsMessage, useOpsStore } from '../state/useOpsStore.ts';
 import { useTutorialStore } from '../state/useTutorialStore.ts';
+import { useSavedStore } from '../state/useSavedStore.ts';
+import { refreshLocalSaved } from '../net/savedLocal.ts';
 
 /** Liga mensagens do servidor de jogo ao estado da aplicação. Chamar uma vez. */
 export function wireGameClient(): void {
@@ -27,8 +29,29 @@ export function wireGameClient(): void {
       case 'welcome':
         useAppStore.setState({ serverUser: msg.user });
         break;
+      // partidas salvas (24/11)
+      case 'saved_list':
+        useSavedStore.getState().set({ remote: msg.items });
+        break;
+      case 'suspend_vote':
+        useSavedStore.getState().set({ vote: { by: msg.by, waiting: msg.waiting, until: Date.now() + msg.secondsLeft * 1000 } });
+        break;
+      case 'suspend_vote_end':
+        useSavedStore.getState().set({ vote: null });
+        app.pushToast('info', msg.reason);
+        break;
+      case 'suspended':
+        useSavedStore.getState().set({ vote: null });
+        app.pushToast('info', 'Partida salva. Para continuar, abra "Partidas salvas" no menu.');
+        void refreshLocalSaved();
+        break;
+      case 'saved_invite':
+        useSavedStore.getState().set({ invite: { code: msg.code, by: msg.by } });
+        break;
       case 'room': {
         useAppStore.setState({ room: msg.room });
+        if (msg.room) useSavedStore.getState().set({ invite: null });
+        else useSavedStore.getState().set({ vote: null });
         if (!msg.room) {
           if (app.screen === 'lobby' || (app.screen === 'game' && !app.matchEnd)) useAppStore.setState({ screen: 'menu', match: null });
         } else if (msg.room.status === 'lobby' && app.screen !== 'lobby') {

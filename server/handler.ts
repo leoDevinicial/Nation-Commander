@@ -1,4 +1,4 @@
-import type { ClientMessage } from '../shared/protocol.ts';
+import { SAVED_MATCHES, type ClientMessage } from '../shared/protocol.ts';
 import { PROTOCOL_VERSION, GAME_VERSION } from '../shared/version.ts';
 import type { Connection } from './Connection.ts';
 import type { RoomManager } from './RoomManager.ts';
@@ -313,6 +313,41 @@ export async function handleMessage(conn: Connection, msg: ClientMessage, deps: 
       return;
     case 'surrender':
       room?.surrender(conn);
+      return;
+    case 'suspend':
+      // partidas salvas (24/11): limite por jogador conferido antes de pedir
+      if (msg.action === 'request' && room && (await deps.rooms.savedCount(conn.user.id)) >= SAVED_MATCHES.maxPerUser) {
+        conn.send({ t: 'cmd_rejected', reason: `Você já tem ${SAVED_MATCHES.maxPerUser} partidas salvas: apague uma no menu para salvar esta.` });
+        return;
+      }
+      room?.suspendAction(conn, msg.action);
+      return;
+    case 'saved_list':
+      conn.send({ t: 'saved_list', items: await deps.rooms.listSaved(conn.user.id) });
+      return;
+    case 'saved_resume': {
+      if (room && room.status !== 'ended') {
+        conn.send({ t: 'cmd_rejected', reason: 'Saia da sala atual antes de continuar uma partida salva.' });
+        return;
+      }
+      const r = await deps.rooms.resumeSaved(conn.user.id, msg.code);
+      if (typeof r === 'string') {
+        conn.send({ t: 'error', code: 'saved', message: r });
+        conn.send({ t: 'saved_list', items: await deps.rooms.listSaved(conn.user.id) });
+        return;
+      }
+      r.reattach(conn);
+      // avisa os outros comandantes que estão no menu agora
+      for (const uid of r.userIds()) {
+        if (uid === conn.user.id) continue;
+        const s = deps.sessions.get(uid);
+        if (s && !s.roomCode) s.send({ t: 'saved_invite', code: r.code, by: conn.user.name });
+      }
+      return;
+    }
+    case 'saved_delete':
+      await deps.rooms.deleteSaved(conn.user.id, msg.code);
+      conn.send({ t: 'saved_list', items: await deps.rooms.listSaved(conn.user.id) });
       return;
     case 'tutorial':
       room?.tutorialInput(conn, msg);

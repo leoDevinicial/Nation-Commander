@@ -185,6 +185,13 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return GAME_SPEEDS.includes(data.speed as GameSpeed) ? { t: 'speed', speed: data.speed as GameSpeed } : null;
     case 'surrender':
       return { t: 'surrender' };
+    case 'suspend':
+      return data.action === 'request' || data.action === 'accept' || data.action === 'decline' ? { t: 'suspend', action: data.action } : null;
+    case 'saved_list':
+      return { t: 'saved_list' };
+    case 'saved_resume':
+    case 'saved_delete':
+      return typeof data.code === 'string' && /^[A-Z0-9]{5}$/.test(data.code) ? { t: data.t, code: data.code } : null;
     case 'tutorial':
       if (data.skip === 'step' || data.skip === 'chapter') return { t: 'tutorial', skip: data.skip };
       return TUTORIAL_FACTS.includes(data.fact as TutorialFact) ? { t: 'tutorial', fact: data.fact as TutorialFact } : null;

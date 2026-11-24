@@ -154,6 +154,9 @@ para comando, cor da nação como faixa, fontes Barlow Condensed / Barlow Semi C
   `spy_sabotage`, fila do inimigo por `spyIntel`), visão da rede elétrica (`PowerGridLayer`, `PlayerPower.nets`) e
   alerta de apagão (`PowerAlert`), eventos globais (`shared/strategic/globalEvents.ts`, opção da sala `globalEvents`),
   ranking mensal (`GET /leaderboard`, `RankingScreen`) e convite `/sala/CÓDIGO` (`lib/invite.ts`).
+- Partidas salvas pelo jogador (24/11, `docs/PARTIDAS_SALVAS.md`, seção "Salvar e sair"): "Salvar e sair" no menu de
+  pausa (entre humanos, todos aceitam), chave `~CÓDIGO` na mesma loja das partidas em andamento (sem migração), lista
+  "Partidas salvas" no menu, reaberta pausada até todos voltarem (`Room.awaitingAll`), 30 dias e 5 por jogador.
 - Minas terrestres (`shared/sim/mines.ts`) não são entidades: o snapshot envia só as do dono e as já detectadas
   (`MineSystem.visibleTo`). O satélite do Programa Espacial revela o resto do mapa, mas nunca as minas.
 

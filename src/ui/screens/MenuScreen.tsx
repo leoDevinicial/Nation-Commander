@@ -23,6 +23,7 @@ import { useLangStore } from '../../i18n/index.ts';
 import { ChangelogPopup, changelogPending, playerKeys } from '../components/ChangelogPopup.tsx';
 import { DISCORD_URL, DiscordInvite, DiscordLogo } from '../components/DiscordInvite.tsx';
 import { SupportCard } from '../components/SupportCard.tsx';
+import { SavedMatches } from '../components/SavedMatches.tsx';
 import { autoFullscreen, FullscreenButton } from '../components/FullscreenButton.tsx';
 
 /**
@@ -224,6 +225,9 @@ export function MenuScreen() {
           )}
           <div className="mt-3 max-w-[560px]">
             <PresetAdvice />
+          </div>
+          <div className="mt-3 max-w-[560px]">
+            <SavedMatches />
           </div>
         </section>
         <SupportCard />

@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto';
-import type { PublicRoomSummary, RoomMode } from '../shared/protocol.ts';
+import { SAVED_MATCHES, type PublicRoomSummary, type RoomMode, type SavedMatchInfo } from '../shared/protocol.ts';
+import { isSuspendedKey, suspendedKey } from './savedKeys.ts';
 import { GAME_VERSION } from '../shared/version.ts';
 import type { Connection } from './Connection.ts';
 import { log } from './logger.ts';
@@ -37,6 +38,7 @@ export class RoomManager {
       ...deps,
       onEmpty: (r) => this.rooms.delete(r.code),
       onEnded: (r) => this.forget(r.code),
+      ...(store ? { onSuspend: (r: Room) => this.suspend(r) } : {}),
     };
   }
 
@@ -125,6 +127,109 @@ export class RoomManager {
     }
   }
 
+  // ------------------------------------------------------------ partidas salvas pelo jogador (24/11)
+
+  /**
+   * "Salvar e sair": grava a partida com a chave `~CÓDIGO` (não volta sozinha num reinício), apaga o salvamento de
+   * partida em andamento, solta os jogadores (voltam ao menu) e tira a sala da memória.
+   */
+  async suspend(room: Room): Promise<boolean> {
+    if (!this.store) return false;
+    const save = room.toSave();
+    if (!save) return false;
+    delete save.suspendWait;
+    await this.store.save(suspendedKey(room.code), room.userIds(), this.codec.encode(save));
+    await this.store.remove(room.code).catch(() => undefined);
+    log.info('Partida salva pelos jogadores', { room: room.code, tick: room.tick });
+    room.notifySuspended();
+    this.savedTick.delete(room.code);
+    this.remove(room);
+    return true;
+  }
+
+  /** Partidas salvas do usuário (as vencidas são apagadas aqui) e as reabertas esperando por ele. */
+  async listSaved(userId: string): Promise<SavedMatchInfo[]> {
+    const out: SavedMatchInfo[] = [];
+    for (const r of this.rooms.values()) {
+      if (!r.awaitingAll || r.status !== 'playing' || !r.hasUser(userId)) continue;
+      const save = r.toSave();
+      if (save) out.push({ ...savedInfo(save, userId), waiting: true });
+    }
+    if (!this.store) return out;
+    const now = (this.roomDeps.now ?? Date.now)();
+    for (const row of await this.store.listSuspended(userId)) {
+      if (now - row.updatedAt > SAVED_MATCHES.maxAgeMs) {
+        await this.store.remove(row.code).catch(() => undefined);
+        continue;
+      }
+      try {
+        out.push(savedInfo(this.codec.decode(row.blob), userId, row.updatedAt));
+      } catch {
+        await this.store.remove(row.code).catch(() => undefined);
+      }
+    }
+    return out.sort((a, b) => b.savedAt - a.savedAt);
+  }
+
+  /** Quantas partidas salvas o usuário tem (limite `SAVED_MATCHES.maxPerUser`). */
+  async savedCount(userId: string): Promise<number> {
+    return this.store ? (await this.store.listSuspended(userId)).length : 0;
+  }
+
+  /**
+   * Reabre uma partida salva. Se outro comandante já a reabriu, devolve a sala em memória. A partida volta pausada,
+   * esperando todos os comandantes na disputa; ninguém perde por ausência.
+   */
+  async resumeSaved(userId: string, code: string): Promise<Room | string> {
+    const live = this.rooms.get(code);
+    if (live && live.status === 'playing' && live.hasUser(userId)) return live;
+    if (!this.store) return 'Este servidor não guarda partidas.';
+    if (this.findByUser(userId)) return 'Saia da partida atual antes de continuar outra.';
+    const row = await this.store.get(suspendedKey(code));
+    if (!row || !row.userIds.includes(userId)) return 'Partida salva não encontrada.';
+    const now = (this.roomDeps.now ?? Date.now)();
+    if (now - row.updatedAt > SAVED_MATCHES.maxAgeMs) {
+      await this.store.remove(row.code);
+      return 'Esta partida salva venceu (mais de 30 dias).';
+    }
+    let save: RoomSave;
+    try {
+      save = this.codec.decode(row.blob);
+      const probe = Room.restore(save, { ...this.roomDeps, autoLoop: false, record: async () => false, onEnded: () => {}, onEmpty: () => {} });
+      for (let i = 0; i < RESTORE_CHECK_TICKS; i++) probe.advance();
+      probe.dispose();
+    } catch (err) {
+      log.error('Partida salva não roda nesta versão', { room: code, err: String(err) });
+      return 'Esta partida salva é de uma versão antiga do jogo e não pode mais ser retomada.';
+    }
+    // o código antigo pode estar em uso por outra sala agora
+    if (this.rooms.has(save.code)) {
+      let fresh: string;
+      do fresh = this.codePrefix + Array.from({ length: 5 - this.codePrefix.length }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
+      while (this.rooms.has(fresh));
+      save = { ...save, code: fresh };
+    }
+    const room = Room.restore(save, this.roomDeps, { fromSaved: true });
+    this.rooms.set(room.code, room);
+    this.savedTick.delete(room.code);
+    await this.store.remove(row.code);
+    // grava já como partida em andamento: um reinício agora não a perde
+    const now2 = room.toSave();
+    if (now2) await this.store.save(room.code, room.userIds(), this.codec.encode(now2)).catch(() => undefined);
+    log.info('Partida salva reaberta', { room: room.code, from: code, tick: room.tick });
+    return room;
+  }
+
+  /** Apaga a partida salva (para todos os comandantes dela: sem um deles, ela não reabre mais). */
+  async deleteSaved(userId: string, code: string): Promise<boolean> {
+    if (!this.store) return false;
+    const row = await this.store.get(suspendedKey(code));
+    if (!row || !row.userIds.includes(userId) || !isSuspendedKey(row.code)) return false;
+    await this.store.remove(row.code);
+    log.info('Partida salva apagada', { room: code });
+    return true;
+  }
+
   /** Grava as partidas em andamento que avançaram desde a última gravação. */
   async persistAll(force = false): Promise<number> {
     if (!this.store) return 0;
@@ -192,4 +297,15 @@ export class RoomManager {
     for (const r of this.rooms.values()) if (r.status === 'playing') n += r.players.filter((p) => !p.isAI && p.connected).length;
     return n;
   }
+}
+
+/** Resumo de uma partida salva para a lista do menu (`me`: o país de quem pediu). */
+function savedInfo(save: RoomSave, userId: string, savedAt = save.savedAt): SavedMatchInfo {
+  return {
+    code: save.code,
+    mode: save.mode,
+    savedAt,
+    day: save.national?.day ?? 0,
+    players: save.players.map((p) => ({ name: p.name, countryId: p.countryId, isAI: p.isAI, ...(p.userId === userId ? { me: true } : {}) })),
+  };
 }

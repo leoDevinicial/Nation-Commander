@@ -15,6 +15,7 @@ import type {
   ServerMessage,
   VictoryMode,
 } from '../shared/protocol.ts';
+import { SAVED_MATCHES } from '../shared/protocol.ts';
 import { GAME_VERSION } from '../shared/version.ts';
 import type { Command } from '../shared/sim/commands.ts';
 import { BUILDINGS, TICK_RATE, Terrain, UNITS, isTunnel, type BuildingType } from '../shared/sim/config.ts';
@@ -91,6 +92,8 @@ export interface RoomSave {
   report?: { samples: ReportSample[]; bestRank: [Slot, number][] };
   /** KAC-06: chave da permutação dos ids (só no servidor). Salvamentos antigos não têm: ids seguem sequenciais. */
   idKey?: string;
+  /** Partida salva reaberta, ainda esperando todos os comandantes (24/11). */
+  suspendWait?: true;
 }
 
 interface RoomPlayer extends RoomPlayerInfo {
@@ -120,6 +123,11 @@ export interface RoomDeps {
   random?: () => number;
   /** Controla o laço (testes chamam `advance` manualmente). */
   autoLoop?: boolean;
+  /**
+   * Partidas salvas (24/11): guarda a partida para continuar depois e fecha a sala (`RoomManager.suspend`). Sem ele
+   * (testes, partida sem armazenamento), "salvar e sair" é recusado.
+   */
+  onSuspend?: (room: Room) => Promise<boolean>;
 }
 
 /**
@@ -687,6 +695,7 @@ export class Room {
       fog: [...this.fogMemory].map(([slot, m]) => [slot, [...m.known]]),
       report: { samples: this.reportSamples, bestRank: [...this.bestRank] },
       ...(this.idKey ? { idKey: this.idKey } : {}),
+      ...(this.awaitingAll ? { suspendWait: true as const } : {}),
     };
   }
 
@@ -695,7 +704,7 @@ export class Room {
    * voltar (contra a IA a partida fica pausada até lá). Continuar daqui é idêntico a continuar da
    * partida original.
    */
-  static restore(save: RoomSave, deps: RoomDeps): Room {
+  static restore(save: RoomSave, deps: RoomDeps, opts: { fromSaved?: boolean } = {}): Room {
     if (save.format !== 1) throw new Error(`Formato de salvamento não suportado: ${String(save.format)}`);
     const room = new Room(save.code, save.mode, null, deps);
     const now = room.now();
@@ -746,7 +755,13 @@ export class Room {
     room.applyNationalModifiers();
     room.status = 'playing';
     room.graceUntil = now + RESTORE_GRACE_MS;
-    if (save.mode !== 'pvp') {
+    if (opts.fromSaved || save.suspendWait) {
+      // partida salva reaberta: ninguém perde por ausência; fica pausada até todos os comandantes voltarem
+      room.awaitingAll = true;
+      room.awaitingSince = now;
+      room.paused = true;
+      room.pausedBy = 'Aguardando os comandantes';
+    } else if (save.mode !== 'pvp') {
       room.paused = true;
       room.pausedBy = room.players.find((p) => !p.isAI)?.name ?? null;
       room.pausedForDisconnect = true;
@@ -801,6 +816,7 @@ export class Room {
     const elapsed = Math.min(now - this.lastLoopTime, 250); // limita saltos após travamentos
     this.lastLoopTime = now;
     this.checkDisconnects();
+    this.checkSuspendTimers();
     // KAC-02: pausa de jogador nas partidas entre humanos volta sozinha depois do limite
     if (this.paused && this.pausedSlot !== null && now - this.pausedAt >= PAUSE_POLICY.maxMs) {
       this.paused = false;
@@ -1190,9 +1206,148 @@ export class Room {
     return this.players.filter((x) => !x.isAI).length >= 2;
   }
 
+  // ------------------------------------------------------------ salvar e sair (24/11)
+
+  /** Votação para salvar e sair: quem pediu, quem ainda falta aceitar e o prazo. */
+  private suspendVote: { by: Slot; waiting: Set<Slot>; until: number; heldPause: boolean } | null = null;
+  /** Recusa recente: novo pedido só depois disso. */
+  private suspendCooldownUntil = 0;
+  private suspending = false;
+  /** Partida salva reaberta: pausada até todos os comandantes voltarem (ou salva de novo depois de `waitMs`). */
+  awaitingAll = false;
+  private awaitingSince = 0;
+
+  /** Humanos que ainda estão na disputa (não derrotados), menos `except`. */
+  private activeHumans(except?: Slot): RoomPlayer[] {
+    return this.players.filter((p) => !p.isAI && p.slot !== except && !this.sim?.players[p.slot]?.defeated && !p.abandoned);
+  }
+
+  /** Pedir, aceitar ou recusar salvar a partida para continuar depois. */
+  suspendAction(conn: Connection, action: 'request' | 'accept' | 'decline'): void {
+    const p = this.playerOf(conn);
+    if (!p || this.status !== 'playing' || !this.sim || this.suspending) return;
+    const reject = (reason: string) => conn.send({ t: 'cmd_rejected', reason });
+    if (action === 'request') {
+      if (this.mode === 'tutorial') return reject('O tutorial não pode ser salvo.');
+      if (!this.deps.onSuspend) return reject('Este servidor não guarda partidas.');
+      if (this.suspendVote) return reject('Já há um pedido para salvar em votação.');
+      if (this.awaitingAll) return reject('Aguardando os comandantes voltarem.');
+      const now = this.now();
+      if (now < this.suspendCooldownUntil) return reject(`Pedido recusado há pouco; tente de novo em ${Math.ceil((this.suspendCooldownUntil - now) / 1000)} s.`);
+      const others = this.activeHumans(p.slot);
+      if (!others.length) return void this.doSuspend();
+      const away = others.filter((o) => !o.connected);
+      if (away.length) return reject(`Para salvar, todos precisam estar conectados (falta: ${away.map((o) => o.name).join(', ')}).`);
+      const heldPause = !this.paused;
+      this.paused = true;
+      this.pausedBy = p.name;
+      this.suspendVote = { by: p.slot, waiting: new Set(others.map((o) => o.slot)), until: now + SAVED_MATCHES.voteMs, heldPause };
+      this.system(`${p.name} quer salvar a partida para continuar outro dia. Todos precisam aceitar.`);
+      this.broadcastSuspendVote();
+      this.broadcastSnapshot();
+      return;
+    }
+    const v = this.suspendVote;
+    if (!v || !v.waiting.has(p.slot)) return;
+    if (action === 'decline') return this.endSuspendVote(`${p.name} recusou salvar a partida. Ela continua.`);
+    v.waiting.delete(p.slot);
+    if (v.waiting.size) return this.broadcastSuspendVote();
+    this.suspendVote = null;
+    void this.doSuspend();
+  }
+
+  private broadcastSuspendVote(): void {
+    const v = this.suspendVote;
+    if (!v) return;
+    const by = this.players.find((x) => x.slot === v.by)?.name ?? '';
+    const waiting = this.players.filter((x) => v.waiting.has(x.slot)).map((x) => x.name);
+    const secondsLeft = Math.max(0, Math.ceil((v.until - this.now()) / 1000));
+    for (const x of this.players) x.conn?.send({ t: 'suspend_vote', by, waiting, secondsLeft });
+  }
+
+  private endSuspendVote(reason: string): void {
+    const v = this.suspendVote;
+    if (!v) return;
+    this.suspendVote = null;
+    this.suspendCooldownUntil = this.now() + 60_000;
+    if (v.heldPause) {
+      this.paused = false;
+      this.pausedBy = null;
+    }
+    for (const x of this.players) x.conn?.send({ t: 'suspend_vote_end', reason });
+    this.system(reason);
+    this.broadcastSnapshot();
+  }
+
+  /** Grava a partida como salva pelo jogador e fecha a sala (o `RoomManager` faz a gravação e tira a sala da memória). */
+  private async doSuspend(): Promise<void> {
+    if (this.suspending || !this.deps.onSuspend) return;
+    this.suspending = true;
+    let ok = false;
+    try {
+      ok = await this.deps.onSuspend(this);
+    } catch (err) {
+      log.error('Falha ao salvar a partida', { room: this.code, err: String(err) });
+    }
+    this.suspending = false;
+    if (!ok) {
+      for (const x of this.players) x.conn?.send({ t: 'cmd_rejected', reason: 'Não foi possível salvar a partida agora. Tente de novo em instantes.' });
+      if (this.paused && !this.pausedForDisconnect && this.pausedSlot === null && !this.awaitingAll) {
+        this.paused = false;
+        this.pausedBy = null;
+        this.broadcastSnapshot();
+      }
+    }
+  }
+
+  /** Avisa os humanos conectados de que a partida foi salva e solta as conexões (a sala sai da memória em seguida). */
+  notifySuspended(): void {
+    for (const x of this.players) {
+      const c = x.conn;
+      if (!c) continue;
+      c.send({ t: 'suspended', code: this.code });
+      c.roomCode = null;
+      c.send({ t: 'room', room: null });
+      x.conn = null;
+      x.connected = false;
+    }
+  }
+
+  /** Prazos da votação e da espera pelos comandantes (no laço da sala). */
+  private checkSuspendTimers(): void {
+    const now = this.now();
+    if (this.suspendVote && now >= this.suspendVote.until) this.endSuspendVote('Nem todos aceitaram salvar a tempo. A partida continua.');
+    if (this.awaitingAll && !this.suspending && now - this.awaitingSince >= SAVED_MATCHES.waitMs) {
+      this.system(`Nem todos os comandantes voltaram em ${SAVED_MATCHES.waitMs / 60_000} minutos: a partida foi salva de novo.`);
+      void this.doSuspend();
+    }
+  }
+
+  /** Reaberta: todos os comandantes na disputa voltaram? Então a partida continua. */
+  private checkAllBack(): void {
+    if (!this.awaitingAll) return;
+    if (this.activeHumans().some((p) => !p.connected)) {
+      const away = this.activeHumans().filter((p) => !p.connected).map((p) => p.name);
+      this.system(`Partida salva reaberta. Aguardando: ${away.join(', ')}.`);
+      return;
+    }
+    this.awaitingAll = false;
+    this.paused = false;
+    this.pausedBy = null;
+    this.pausedForDisconnect = false;
+    this.disconnectPausedAt = null;
+    this.system('Todos os comandantes voltaram. A partida continua!');
+    this.broadcastRoom();
+    this.broadcastSnapshot();
+  }
+
   setPaused(conn: Connection, paused: boolean): void {
     const p = this.playerOf(conn);
     if (!p || this.status !== 'playing') return;
+    if (this.awaitingAll || this.suspendVote) {
+      conn.send({ t: 'cmd_rejected', reason: this.awaitingAll ? 'Aguardando todos os comandantes voltarem.' : 'Votação para salvar a partida em andamento.' });
+      return;
+    }
     if (this.competitive && paused !== this.paused) {
       const now = this.now();
       if (paused) {
@@ -1339,9 +1494,11 @@ export class Room {
     conn.send({ t: 'room', room: this.info() });
     if (this.status === 'playing' && this.sim) {
       // a pausa automática da queda termina quando todos os humanos estão de volta
-      if (this.pausedForDisconnect && this.players.every((x) => x.isAI || x.connected)) this.endDisconnectPause();
+      if (!this.awaitingAll && this.pausedForDisconnect && this.players.every((x) => x.isAI || x.connected)) this.endDisconnectPause();
       this.sendMatchStart(p);
       this.system(`${p.name} reconectou.`);
+      this.checkAllBack();
+      if (this.suspendVote) this.broadcastSuspendVote();
       this.broadcastRoom();
       this.territorySent.delete(p.slot); // reconexão: reenvia as fronteiras
       // conexão nova: o primeiro snapshot vai completo, a não ser que o navegador ainda tenha um ponto de retomada desta
@@ -1367,7 +1524,7 @@ export class Room {
   }
 
   private checkDisconnects(): void {
-    if (this.status !== 'playing') return;
+    if (this.status !== 'playing' || this.awaitingAll) return;
     const now = this.now();
     if (now < this.graceUntil) return;
     const grace = this.competitive ? (this.deps.reconnectGracePvpMs ?? this.deps.reconnectGraceMs) : this.deps.reconnectGraceMs;

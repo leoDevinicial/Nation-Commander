@@ -1,5 +1,8 @@
 # Partidas salvas no servidor
 
+> **24/11 — "Salvar e sair" (pedido dos jogadores):** além da gravação automática descrita abaixo (que só serve para
+> reinícios e quedas), o jogador pode guardar a partida e continuar outro dia. Ver a seção "Salvar e sair" no fim.
+
 As partidas vivem na memória do servidor de jogo. Sem gravação, qualquer reinício as perderia:
 - uma publicação nova (cada envio ao repositório publica o servidor);
 - uma queda;
@@ -77,3 +80,30 @@ Salvamentos com mais de 12 horas são descartados.
 
 Um teste ponta a ponta no navegador (servidor real, SIGTERM, servidor novo) confirmou a retomada
 com o aviso na tela.
+
+## Salvar e sair (24/11)
+
+Pedido dos jogadores no feedback ("save and load", "não ter que se render toda vez que preciso sair").
+
+- **Onde:** menu de pausa → "Salvar e sair" (contra a IA) ou "Propor salvar e sair" (entre humanos). No menu inicial,
+  o quadro **Partidas salvas** lista as partidas, com Continuar e Apagar.
+- **Contra a IA:** salva na hora. Com a partida rodando no aparelho (`server/local/`), vai para o IndexedDB; no
+  servidor, para o Supabase.
+- **Entre humanos:** quem pede pausa a partida e abre uma votação de 30 s (`SAVED_MATCHES.voteMs`); todos os humanos
+  ainda na disputa precisam aceitar e estar conectados. Recusa ou prazo: a partida continua e o pedido espera 60 s.
+- **Gravação:** a mesma loja das partidas em andamento, com a chave `~CÓDIGO` (`server/savedKeys.ts`). Sem migração no
+  banco; a retomada automática (`findByUser`) nunca pega uma delas. A linha de partida em andamento é apagada.
+- **Reabrir:** `saved_resume` ensaia 40 ticks numa cópia (salvamento de versão antiga que não roda é recusado com
+  aviso), restaura com `fromSaved` e a sala fica **pausada esperando todos os comandantes** (`Room.awaitingAll`):
+  ninguém perde por ausência. Quem está no menu recebe `saved_invite` ("Fulano reabriu… Entrar"). Se nem todos voltam
+  em 10 min (`SAVED_MATCHES.waitMs`), a partida é salva de novo. O código antigo em uso vira um código novo.
+- **Limites:** 30 dias (`maxAgeMs`; vencidas somem da lista), 5 por jogador (`maxPerUser`), só quem jogou vê, reabre
+  ou apaga (`userIds` da linha). Apagar apaga para todos os comandantes (sem um deles, ela não reabre).
+- **Convidados:** valem pelo id de convidado do navegador (o mesmo aparelho).
+- **Código:** `Room.suspendAction`/`doSuspend`/`checkAllBack`, `RoomManager.suspend`/`listSaved`/`resumeSaved`/
+  `deleteSaved`, mensagens em `shared/protocol.ts` (`suspend`, `saved_*`, `suspend_vote*`, `suspended`), cliente em
+  `src/ui/components/SavedMatches.tsx`, `src/ui/hud/SuspendVote.tsx`, `src/net/savedLocal.ts` (lista do aparelho) e
+  `src/state/useSavedStore.ts`.
+- **Testes:** `server/savedMatches.test.ts` (contra a IA, votação, reabrir esperando todos, nova gravação depois de
+  10 min, limites) e `server/local/LocalServer.test.ts` (servidor local novo reabrindo do aparelho).
+

@@ -1,6 +1,15 @@
 /** Novidades de cada versão, mostradas na área Comunidade e Feedback do menu (mais recente primeiro). */
 export const CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
+    version: '1.7.0',
+    date: '24/11/2026',
+    items: [
+      'Salvar e sair: no menu de pausa, guarde a partida e continue outro dia pelo menu, em "Partidas salvas". Vale por 30 dias, até 5 partidas por jogador.',
+      'Contra a IA, salva na hora. No multijogador, todos os comandantes aceitam; ao reabrir, a partida espera todo mundo entrar e ninguém perde por ausência.',
+      'Quem reabre uma partida salva avisa os outros comandantes que estão no menu.',
+    ],
+  },
+  {
     version: '1.6.4',
     date: '23/11/2026',
     items: [
